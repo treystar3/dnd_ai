@@ -530,6 +530,8 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             vitals = [(p, round(pools.current(c, p)), pools.maximum(c, p)) for p in pools.POOLS]
             console.show_player_block(c, self.place.name,
                                       clock.header(self.minutes, self.place.name).rsplit(" · ", 1)[0], vitals)
+        elif name in ("exits", "where", "map"):
+            self.show_exits(asked=True)
         elif name == "party":
             self.party_status("", "", [])
         elif name in ("journal", "j"):
@@ -639,11 +641,11 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
 
     exits_due = False
 
-    def show_exits(self, force: bool = False) -> None:
-        if self.buffering and not force:
-            self.exits_due = True
-            return
+    def show_exits(self, force: bool = False, asked: bool = False) -> None:
+        """The list of places reachable from here, shown only when the player asks for it (#exits)."""
         self.exits_due = False
+        if not asked:
+            return
         names = [self.world.places[p].name for p in self.world.neighbors(self.player.location)]
         console.note(f"From here: {', '.join(names)}")
 

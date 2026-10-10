@@ -45,3 +45,34 @@ def scrub_speech(speech: str, text: str) -> str:
     for act in actions_in(text):
         speech = speech.replace(f"*{act}*", "").replace(act, "")
     return re.sub(r"\s{2,}", " ", speech).strip(" .,;") or ""
+
+
+_NAME_SKIP = {"the", "of", "von", "van", "de", "del", "la", "le", "and"}
+
+
+def hide_names(text: str, npcs) -> str:
+    """Swap the real name of anyone the player has not been told for how the player knows them, so narration never gives it away."""
+    if not text:
+        return text
+    for n in npcs:
+        if getattr(n, "name_known_to_player", True) or not n.name:
+            continue
+        label = n.label()
+        parts = [p for p in re.split(r"\s+", n.name.strip()) if len(p) >= 3 and p.lower() not in _NAME_SKIP]
+        for token in sorted({n.name.strip(), *parts}, key=len, reverse=True):
+            pattern = r"(?<![\w'])" + re.escape(token) + r"(?![\w])"
+
+            def swap(m, label=label):
+                start = m.start()
+                lead = text_before(m.string, start)
+                return label[:1].upper() + label[1:] if lead in ("", ".", "!", "?", '"', "\n") else label
+            text = re.sub(pattern, swap, text)
+    return text
+
+
+def text_before(s: str, i: int) -> str:
+    """The last non-space character before position i ('' at the start)."""
+    j = i - 1
+    while j >= 0 and s[j] in " \t":
+        j -= 1
+    return s[j] if j >= 0 else ""

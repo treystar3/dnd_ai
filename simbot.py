@@ -189,6 +189,7 @@ class Bot:
         self.party_tally = collections.Counter()
         self.wealth_buys = []
         self.dungeon_log = []
+        self.tours = {}
         self.visited = collections.OrderedDict()
         self.last_day = -1
         self.last_guild_day = -99
@@ -697,9 +698,14 @@ class Bot:
 
     def _town_services(self):
         here = self.world.places.get(self.loc)
+        top = here
+        while top and top.parent and top.parent in self.world.places:
+            top = self.world.places[top.parent]
         spots = [self.loc]
-        if here and not here.parent:
-            spots += [k for k, q in self.world.places.items() if q.parent == here.id and q.type in ("square", "workshop")]
+        if top and self.loc != HALL and self.tours.get(top.id) != self.day:
+            self.tours[top.id] = self.day                   # one round of the shops a day is plenty
+            spots += [k for k, q in self.world.places.items()
+                      if q.parent == top.id and k != self.loc and q.type in ("square", "shop", "smithy", "workshop", "yard")]
         origin = self.loc
         for spot in spots:
             if spot != self.loc and not self.goto(spot):

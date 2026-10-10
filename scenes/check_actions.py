@@ -113,17 +113,21 @@ class CheckActions:
                                               npc_name=npc.name, how=check, degree=degree))
         return f"[THE GAME HAS DECIDED: they are trying to {what}. {effect} Act on this.]"
 
+    SCALE_TELLS = (" Match the tells to how serious the worry really is: an everyday worry (weather, prices, a bad crop, a sore back, "
+                   "a slow week) shows as a passing frown, a sigh or a distracted glance; only grave trouble (danger, guilt, grief, fear for "
+                   "someone's life) shows as real distress. Never exaggerate, and never turn a small worry into a dramatic scene.")
+
     def insight(self, npc, degree: str) -> str:
         who = npc.label()
         if degree == "strong success":
             return (f"The player reads {who} clearly. What weighs on them: {npc.concern} Their nature: "
-                    f"{npc.personality} Show how the player picks this up from small tells, then state it plainly.")
+                    f"{npc.personality} Show how the player picks this up from small tells, then state it plainly." + self.SCALE_TELLS)
         if degree == "success":
             return (f"The player reads {who} well enough: something is weighing on them - {npc.concern} "
-                    "Show the tells that give it away, and let the player understand it.")
+                    "Show the tells that give it away, and let the player understand it." + self.SCALE_TELLS)
         if degree == "partial":
             return (f"The player senses {who} is worried about something, but can't tell what. Hint at the general "
-                    "shape of it without naming it.")
+                    "shape of it without naming it." + self.SCALE_TELLS)
         return f"The player watches {who} closely but can't read them at all. Nothing gives them away."
 
     def stealth(self, npc, degree: str) -> str:
