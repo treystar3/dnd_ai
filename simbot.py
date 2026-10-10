@@ -686,6 +686,29 @@ class Bot:
                 self.spend["enchant"] += before - c.coins
 
     def town_services(self):
+        """Run every service pass where the shops are: at the settlement itself, then in its market and workshop."""
+        if getattr(self, "_servicing", False):
+            return
+        self._servicing = True
+        try:
+            self._town_services()
+        finally:
+            self._servicing = False
+
+    def _town_services(self):
+        here = self.world.places.get(self.loc)
+        spots = [self.loc]
+        if here and not here.parent:
+            spots += [k for k, q in self.world.places.items() if q.parent == here.id and q.type in ("square", "workshop")]
+        origin = self.loc
+        for spot in spots:
+            if spot != self.loc and not self.goto(spot):
+                continue
+            self.town_pass()
+        if self.loc != origin:
+            self.goto(origin)
+
+    def town_pass(self):
         try:
             self.sell_pass()
             self.buy_pass()

@@ -203,6 +203,10 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
     def refresh_present(self) -> None:
         self.present = [n for n in self.residents
                         if clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes]
+        if getattr(self, "partner", None):          # residents are reloaded from disk each turn: keep pointing at the same person's fresh copy
+            fresh_copy = next((n for n in self.present if n.id == self.partner.id), None)
+            if fresh_copy:
+                self.partner = fresh_copy
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here."""
@@ -629,8 +633,9 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                                  rule["length"]),
             Narration, self.recent_narration, max_tokens=rule["tokens"],
         )
-        console.narrate(result.text)
-        self.remember_narration(result.text)
+        shown = self.unnamed(result.text)
+        console.narrate(shown)
+        self.remember_narration(shown)
 
     exits_due = False
 
@@ -822,7 +827,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if config.NARRATED_DIALOGUE:
             self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time)
         else:
-            console.npc_says(speaker, reply.speech, reply.gesture)
+            console.npc_says(speaker, reply.speech, self.unnamed(reply.gesture, npc))
 
         if reply.intent == "lie" and self.has("lie_sense") is not None:
             gift = next((i for i in self.player.character.equipment.values() if "lie_sense" in (i.trait or {}).get("world", {})), None)
@@ -841,23 +846,29 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             self.end_conversation()
             self.refresh_present()
 
+    def unnamed(self, text: str, *extra) -> str:
+        """The text with the real name of anyone the player has not been told hidden behind how the player knows them."""
+        people = list(self.present) + ([self.partner] if getattr(self, "partner", None) else []) + [x for x in extra if x]
+        return markup.hide_names(text, people)
+
     def narrate_dialogue(self, npc, known_as: str, speaker: str, player_did: str, reply, first: bool) -> None:
-        others = [f"{n.label()}: {n.activity}" for n in self.present if n.id != npc.id][:5]
-        manner = f"{npc.personality} {npc.voice}".strip() or "unknown yet"
+        others = [self.unnamed(f"{n.label()}: {n.activity}", npc) for n in self.present if n.id != npc.id][:5]
+        manner = self.unnamed(f"{npc.personality} {npc.voice}".strip(), npc) or "unknown yet"
         try:
             frame = fresh(
                 "dialogue_frame", wp.DIALOGUE_SYSTEM,
-                wp.dialogue_request(self.time_label(), self.place, others, known_as, npc.description, npc.activity,
-                                    manner, first, player_did, reply.speech, reply.gesture,
+                wp.dialogue_request(self.time_label(), self.place, others, known_as, self.unnamed(npc.description, npc), self.unnamed(npc.activity, npc),
+                                    manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
                                     reply.intent == "leave", self.recent_narration,
                                     voice_rules.npc(getattr(self, "npc_level", "short"))["frame"]),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
             )
         except LLMError:
-            console.npc_says(speaker, reply.speech, reply.gesture)
+            console.npc_says(speaker, reply.speech, self.unnamed(reply.gesture, npc))
             return
-        console.dialogue(frame.before, speaker, reply.speech, frame.after)
-        self.remember_narration(" ".join(t for t in (frame.before, frame.after) if t.strip()))
+        before, after = self.unnamed(frame.before, npc), self.unnamed(frame.after, npc)
+        console.dialogue(before, speaker, reply.speech, after)
+        self.remember_narration(" ".join(t for t in (before, after) if t.strip()))
 
     def on_leave_conversation(self, intent: ActionIntent, text: str) -> None:
         if self.partner and intent.speech.strip():

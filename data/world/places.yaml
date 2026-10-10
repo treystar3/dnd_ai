@@ -158,14 +158,14 @@
     - A rough, busy mining and lumber town where the farmland gives way to hills and rocky foothills.
     - Spoil heaps, timber yards and the ring of picks; humans, dwarves and halflings work side by side.
     - The Old Quarry Road runs south to Parth; Blackpine Road climbs northwest toward Eldervale.
+    - Within the Greyhollow streets you can find the Pickaxe and Pint and the Greyhollow smithy.
   peoples: {human: 50, dwarf: 30, halfling: 20}
   biome: urban
   locals_group: greyhollow_locals
   connects: {eldervale: 900, greyhollow_foothills: 40, hollow_barrows: 110}
-  residents: {miner: 3, lumberjack: 2, stonemason: 1, smith: 1, innkeeper: 1, guard: 1}
+  residents: {guard: 1, lumberjack: 2, miner: 3, stonemason: 1}
   storage: true
   trade_level: [4, 14]
-  stations: {forge: {owner: smith, fee: 50}}
 
 - id: greyhollow_foothills
   name: the Greyhollow foothills
@@ -195,11 +195,12 @@
     - An ancient elven city woven into the Blackpine - homes, halls and walkways grown into the living forest.
     - Lights that are plainly magic hang among the branches, and no one remarks on them.
     - Blackpine Road leads southeast to Greyhollow; the Old Forest Trail leads north toward Frostholm.
+    - Within the Eldervale streets you can find the Silverleaf Rest, the Eldervale market arbor and the Moonthread workshop.
   peoples: {elf: 70, half_elf: 25, human: 5}
   biome: urban
   locals_group: eldervale_locals
   connects: {frostholm: 2880, elderwild: 130}
-  residents: {elven_warden: 2, loremaster: 1, herbalist: 1, enchanter: 1, innkeeper: 1, relic_dealer: 1, land_agent: 1}
+  residents: {elven_warden: 2, land_agent: 1, loremaster: 1}
   storage: true
   trade_level: [15, 40]
 
@@ -211,14 +212,14 @@
     - A great dwarven city carved into the Grey Mountains and the deep places beneath them.
     - Vast halls, forge-light, lifts and machinery; magic worked into stone and steel like any other craft.
     - The King's Pass descends southwest to Parth; the Frostpass climbs north toward Frostholm.
+    - Within the Ironvein streets you can find the Cinder Mug, the Ironvein market hall and the Ironvein forgehall.
   peoples: {dwarf: 75, gnome: 15, human: 10}
   biome: urban
   locals_group: ironvein_locals
   connects: {frostholm: 2400, grey_mountains: 60, ironcrown_peaks: 150}
-  residents: {miner: 2, smith: 1, engineer: 1, enchanter: 1, merchant: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  residents: {guard: 2, land_agent: 1, miner: 2}
   storage: true
   trade_level: [15, 45]
-  stations: {forge: {owner: smith, fee: 80}, workbench: {owner: engineer, fee: 40}}
 
 - id: grey_mountains
   name: the Grey Mountains
@@ -237,14 +238,14 @@
     - A hard northern city in a valley of snow and ice, built for endurance against the cold.
     - Goliaths, humans, orcs and dwarves share long halls and fires; the community is everything here.
     - The Frostpass leads south to Ironvein; the Old Forest Trail leads southwest toward Eldervale.
+    - Within the Frostholm streets you can find the Frozen Flagon, the Frostholm trading post and the Frostholm forge.
   peoples: {goliath: 30, human: 30, orc: 25, dwarf: 15}
   biome: urban
   locals_group: frostholm_locals
   connects: {northern_tundra: 60, rimewind_barrens: 140}
-  residents: {trapper: 2, hunter: 1, smith: 1, elder: 1, innkeeper: 1, guard: 1, relic_dealer: 1, land_agent: 1}
+  residents: {elder: 1, guard: 1, hunter: 1, land_agent: 1, trapper: 2}
   storage: true
   trade_level: [20, 45]
-  stations: {forge: {owner: smith, fee: 70}}
 
 - id: northern_tundra
   name: the northern tundra
@@ -263,11 +264,12 @@
     - A great trading city on the Great River - wharves, warehouses, barges and a crowd from everywhere.
     - Fine houses on the rise above the docks, where the wealthy keep magic close; the docks below rarely see it.
     - The River Road runs north to Willowmead; the southern trade routes run on toward the Sunscar.
+    - Within the Riverhaven streets you can find the Drowned Lantern, the riverside market, the tide-glass workshop and the river temple.
   peoples: {human: 55, halfling: 15, half_elf: 10, dwarf: 8, elf: 5, dragonborn: 4, gnome: 3}
   biome: urban
   locals_group: riverhaven_locals
   connects: {sunspire: 4320, great_river_reaches: 45, mirewater_fens: 100}
-  residents: {merchant: 2, dockhand: 2, bargeman: 1, priest: 1, enchanter: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  residents: {bargeman: 1, dockhand: 2, guard: 2, land_agent: 1}
   storage: true
   trade_level: [10, 35]
 
@@ -288,14 +290,14 @@
     - A frontier town of red stone and dust where the grassland runs out into scrub and red hills.
     - Caravans resting and refitting; humans, orcs and dragonborn trading in the same yards.
     - The Red Road runs west to Parth; the Sun Road runs east into the Sunscar.
+    - Within the Redstone streets you can find the Red Mile Inn, the caravan yard and the Redstone smithy.
   peoples: {human: 50, orc: 25, dragonborn: 25}
   biome: urban
   locals_group: redstone_locals
   connects: {sunspire: 3600, red_badlands: 45}
-  residents: {caravan_master: 1, scout: 1, smith: 1, merchant: 1, innkeeper: 1, guard: 1}
+  residents: {guard: 1, scout: 1}
   storage: true
   trade_level: [8, 22]
-  stations: {forge: {owner: smith, fee: 50}}
 
 - id: red_badlands
   name: the red badlands
@@ -314,11 +316,12 @@
     - A vast desert city raised around one of the Sunscar's great waters, its towers bright in the sun.
     - Magic is everywhere here, part of worship and daily life alike, and no one hides it.
     - The Sun Road leads west to Redstone; the southern trade routes lead northwest toward Riverhaven.
+    - Within the Sunspire streets you can find the Shaded Oasis, the Sunspire bazaar, the sun-glass workshop and the water temple.
   peoples: {dragonborn: 40, human: 30, genasi: 30}
   biome: urban
   locals_group: sunspire_locals
   connects: {sunscar_desert: 90, sunken_vaults: 120}
-  residents: {water_priest: 2, merchant: 2, caravan_master: 1, enchanter: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  residents: {guard: 2, land_agent: 1}
   storage: true
   trade_level: [20, 50]
 
@@ -340,11 +343,12 @@
     - Everything is grander, cleaner and better kept than in the countryside; the gap is plain to see.
     - Magic is everywhere in the great houses and nearly nowhere in the streets below them.
     - The Royal Road runs east to Parth.
+    - Within the Valecourt streets you can find the Gilded Stag, the Valecourt Arcade, the court atelier and the royal chapel.
   peoples: {human: 85, half_elf: 8, elf: 4, dwarf: 3}
   biome: urban
   connects: {howling_downs: 130}
   locals_group: valecourt_locals
-  residents: {noble: 2, courtier: 1, royal_guard: 2, enchanter: 1, merchant: 1, priest: 1, innkeeper: 1, relic_dealer: 1, land_agent: 1}
+  residents: {courtier: 1, land_agent: 1, noble: 2, royal_guard: 2}
   storage: true
   trade_level: [20, 60]
 
@@ -423,14 +427,14 @@
     - Dragonborn and genasi smiths, flamekeepers and caravan masters; everyone here works a fire, and nobody wastes it.
     - Ash falls like snow. Shutters, awnings and cloaks are all the same grey.
     - The Ember Road runs northwest across the desert to Sunspire; the ash plains lie to the east.
+    - Within the Cinderhold streets you can find the Ember Hearth, the Cinderhold market, the Cinderhold forgeworks and the shrine of the ash.
   peoples: {dragonborn: 40, genasi: 35, human: 15, dwarf: 10}
   biome: urban
   locals_group: cinderhold_locals
   connects: {sunspire: 2900, ash_wastes: 90, smoulder_fields: 120}
-  residents: {smith: 2, merchant: 2, enchanter: 1, priest: 1, innkeeper: 1, guard: 2, caravan_master: 1, relic_dealer: 1, land_agent: 1}
+  residents: {caravan_master: 1, guard: 2, land_agent: 1}
   storage: true
   trade_level: [95, 150]
-  stations: {forge: {owner: smith, fee: 150}}
 
 - id: ash_wastes
   name: the ash wastes
@@ -474,14 +478,14 @@
     - Goliaths, orcs and mountain humans in long halls with enormous doors, so the biggest guests can come in.
     - Lightning walks the peaks at night. The city keeps iron rods on every roof and sings to the storm.
     - The Cloud Stair leads south through the snow to Frostholm; the high peaks begin at the gates.
+    - Within the Hrimgard streets you can find the Rimed Tankard, the Hrimgard market and the Hrimgard forge.
   peoples: {goliath: 45, orc: 25, human: 15, dwarf: 15}
   biome: urban
   locals_group: hrimgard_locals
   connects: {frostholm: 3300, stormcrown_heights: 100, windbreak_ridge: 150}
-  residents: {trapper: 1, hunter: 1, smith: 2, elder: 1, merchant: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  residents: {elder: 1, guard: 2, hunter: 1, land_agent: 1, trapper: 1}
   storage: true
   trade_level: [105, 165]
-  stations: {forge: {owner: smith, fee: 160}}
 
 - id: stormcrown_heights
   name: the Stormcrown Heights
@@ -525,14 +529,14 @@
     - The gates open on the Deep Stair; below is the old road, and below that, the dark.
     - Rune-masters, miners and tunnel-wardens, all of whom are armed and none of whom tell you what they have seen.
     - A great bell tolls the watch. When it tolls twice in a row, the gates close.
+    - Within the Dunmarrow streets you can find the Deepdelve Rest, the Dunmarrow market and the Dunmarrow forgeworks.
   peoples: {dwarf: 80, gnome: 10, human: 5, orc: 5}
   biome: urban
   locals_group: dunmarrow_locals
   connects: {ironvein: 1900, deep_roads_tunnels: 80, delvers_deep: 130}
-  residents: {miner: 2, smith: 2, engineer: 1, stonemason: 1, elder: 1, merchant: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  residents: {elder: 1, guard: 2, land_agent: 1, miner: 2, stonemason: 1}
   storage: true
   trade_level: [115, 175]
-  stations: {forge: {owner: smith, fee: 180}}
 
 - id: deep_roads_tunnels
   name: the Deep Roads
@@ -575,11 +579,12 @@
     - A free port stacked up a sea-cliff above a bay of broken masts, run by captains and wreck-brokers.
     - Salvage is the city's only trade. Whatever the tide uncovers is auctioned by dawn.
     - Lanterns burn on every quay all night, to keep the drowned from walking up the stairs.
+    - Within the Brinewatch streets you can find the Salt Gull, the Brinewatch fish market, the tidewright's workshop and the sea-shrine.
   peoples: {human: 45, half_elf: 15, dragonborn: 10, halfling: 10, orc: 10, gnome: 10}
   biome: urban
   locals_group: brinewatch_locals
   connects: {valecourt: 3300, drowned_shore: 80, sepulchre_fields: 1700, wreck_coast: 110}
-  residents: {dockhand: 2, fisher: 2, merchant: 2, innkeeper: 1, guard: 2, priest: 1, enchanter: 1, relic_dealer: 1, land_agent: 1}
+  residents: {dockhand: 2, fisher: 2, guard: 2, land_agent: 1}
   storage: true
   trade_level: [85, 140]
 
@@ -603,11 +608,12 @@
     - A city of green stone and living trellis, raised on the broken terraces of a jungle empire.
     - Herbalists, guides, relic-brokers and the people who go out into the Maw and sometimes come back.
     - "Everything here is damp and growing: moss on the walls, vines on the market stalls, flowers in the guards' helms."
+    - Within the Amaranth streets you can find the Evergreen Rest, the Amaranth market and the grove shrine.
   peoples: {human: 40, halfling: 20, genasi: 15, dragonborn: 15, half_elf: 10}
   biome: urban
   locals_group: amaranth_locals
   connects: {riverhaven: 3400, jade_maw_jungle: 80, emerald_mire: 120}
-  residents: {herbalist: 1, hunter: 1, scout: 1, merchant: 2, priest: 1, innkeeper: 1, guard: 2, caravan_master: 1, relic_dealer: 1, land_agent: 1}
+  residents: {guard: 2, hunter: 1, land_agent: 1, scout: 1}
   storage: true
   trade_level: [90, 145]
 
@@ -878,3 +884,479 @@
   visible:
     - A ring of sea-cliffs around a drowned capital, its towers still lit by wrecker's fires nobody lit.
     - The tide goes out further here each year, and the things that follow it in are growing bolder.
+
+# ---- Inns, markets, workshops and temples inside the larger settlements ----
+
+- id: eldervale_inn
+  name: the Silverleaf Rest
+  type: inn
+  region: blackpine
+  parent: eldervale
+  visible:
+    - A tall guesthouse grown into the boughs, its rooms hung with lamps of pale glass.
+    - Quiet talk, honeyed tea and the scent of cut cedar.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: eldervale_market
+  name: the Eldervale market arbor
+  type: square
+  region: blackpine
+  parent: eldervale
+  visible:
+    - Stalls set under a canopy of woven branches, trading in herbs, charms and old keepsakes.
+    - Prices are murmured, never called.
+  residents: {herbalist: 1, relic_dealer: 1}
+  trade_level: [15, 40]
+
+- id: eldervale_workshop
+  name: the Moonthread workshop
+  type: workshop
+  region: blackpine
+  parent: eldervale
+  visible:
+    - A workshop of pale wood where threads of light are worked into gear.
+    - The air hums faintly.
+  residents: {enchanter: 1}
+  trade_level: [15, 40]
+
+- id: ironvein_inn
+  name: the Cinder Mug
+  type: inn
+  region: grey_mountains
+  parent: ironvein
+  visible:
+    - A low, smoky taproom for miners coming off shift.
+    - Benches scarred by a hundred years of dropped tools.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: ironvein_market
+  name: the Ironvein market hall
+  type: square
+  region: grey_mountains
+  parent: ironvein
+  visible:
+    - A long hall of stalls selling ore, tools and salvage hauled up from the deeps.
+    - Everything is weighed twice.
+  residents: {merchant: 1, relic_dealer: 1}
+  trade_level: [15, 45]
+
+- id: ironvein_workshop
+  name: the Ironvein forgehall
+  type: workshop
+  region: grey_mountains
+  parent: ironvein
+  visible:
+    - Rows of forges and benches under a roof black with soot.
+    - Hammers never fully stop.
+  residents: {enchanter: 1, engineer: 1, smith: 1}
+  trade_level: [15, 45]
+  stations: {forge: {fee: 80, owner: smith}, workbench: {fee: 40, owner: engineer}}
+
+- id: frostholm_inn
+  name: the Frozen Flagon
+  type: inn
+  region: far_north
+  parent: frostholm
+  visible:
+    - A heavy longhouse with a fire that is never allowed to go out.
+    - Furs hang drying from every beam.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: frostholm_market
+  name: the Frostholm trading post
+  type: square
+  region: far_north
+  parent: frostholm
+  visible:
+    - A cluster of fur-draped stalls beside the gate, with a dealer in old things.
+    - Everything is wrapped against the cold.
+  residents: {relic_dealer: 1}
+  trade_level: [20, 45]
+
+- id: frostholm_workshop
+  name: the Frostholm forge
+  type: workshop
+  region: far_north
+  parent: frostholm
+  visible:
+    - A squat stone forge that keeps its door open to the snow, for the heat.
+    - Pelts and iron hang from the same hooks.
+  residents: {smith: 1}
+  trade_level: [20, 45]
+  stations: {forge: {fee: 70, owner: smith}}
+
+- id: riverhaven_inn
+  name: the Drowned Lantern
+  type: inn
+  region: great_river
+  parent: riverhaven
+  visible:
+    - An inn on stilts over the water, lamps swinging from the eaves.
+    - The floor sways a little with the current.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: riverhaven_market
+  name: the riverside market
+  type: square
+  region: great_river
+  parent: riverhaven
+  visible:
+    - Barge-side stalls stacked with crates and bundles from upriver and down.
+    - Haggling carries across the water.
+  residents: {merchant: 2, relic_dealer: 1}
+  trade_level: [10, 35]
+
+- id: riverhaven_workshop
+  name: the tide-glass workshop
+  type: workshop
+  region: great_river
+  parent: riverhaven
+  visible:
+    - A boathouse turned workshop, shelves of bottled river light.
+    - Everything smells of wet rope and ozone.
+  residents: {enchanter: 1}
+  trade_level: [10, 35]
+
+- id: riverhaven_temple
+  name: the river temple
+  type: temple
+  region: great_river
+  parent: riverhaven
+  visible:
+    - A small temple built on a pier, its steps wet with spray.
+    - Offerings float away on the current.
+  residents: {priest: 1}
+
+- id: redstone_inn
+  name: the Red Mile Inn
+  type: inn
+  region: eastern_frontier
+  parent: redstone
+  visible:
+    - A sprawling roadhouse at the edge of town, stables and bunkhouse in one.
+    - Caravan drivers sleep in shifts.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: redstone_market
+  name: the caravan yard
+  type: square
+  region: eastern_frontier
+  parent: redstone
+  visible:
+    - A dusty yard of wagons and tethered pack animals where goods change hands.
+    - The caravan master's tent sits at the far end.
+  residents: {caravan_master: 1, merchant: 1}
+  trade_level: [8, 22]
+
+- id: redstone_workshop
+  name: the Redstone smithy
+  type: workshop
+  region: eastern_frontier
+  parent: redstone
+  visible:
+    - An open-air smithy red with the local dust.
+    - Wagon tires and horseshoes are stacked by the door.
+  residents: {smith: 1}
+  trade_level: [8, 22]
+  stations: {forge: {fee: 50, owner: smith}}
+
+- id: sunspire_inn
+  name: the Shaded Oasis
+  type: inn
+  region: sunscar
+  parent: sunspire
+  visible:
+    - A courtyard inn built around a pool, shaded by tall awnings.
+    - The coolest place in the city by day.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: sunspire_market
+  name: the Sunspire bazaar
+  type: square
+  region: sunscar
+  parent: sunspire
+  visible:
+    - A maze of awnings, spice and silk, and the loud calls of sellers.
+    - Camel trains unload at the east end.
+  residents: {caravan_master: 1, merchant: 2, relic_dealer: 1}
+  trade_level: [20, 50]
+
+- id: sunspire_workshop
+  name: the sun-glass workshop
+  type: workshop
+  region: sunscar
+  parent: sunspire
+  visible:
+    - A roofless workshop where glass is melted and bound under the open sun.
+    - Light bends strangely here.
+  residents: {enchanter: 1}
+  trade_level: [20, 50]
+
+- id: sunspire_temple
+  name: the water temple
+  type: temple
+  region: sunscar
+  parent: sunspire
+  visible:
+    - A cool, tiled temple around a still pool that is never allowed to empty.
+    - Every visitor leaves a cup of water at the door.
+  residents: {water_priest: 2}
+
+- id: valecourt_inn
+  name: the Gilded Stag
+  type: inn
+  region: royal_vales
+  parent: valecourt
+  visible:
+    - A fine inn for travelling nobles, with liveried servers and quiet rooms.
+    - The prices are on the board, and no one haggles.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: valecourt_market
+  name: the Valecourt Arcade
+  type: square
+  region: royal_vales
+  parent: valecourt
+  visible:
+    - A covered arcade of fine shops under painted glass.
+    - The royal seal hangs over every door.
+  residents: {merchant: 1, relic_dealer: 1}
+  trade_level: [20, 60]
+
+- id: valecourt_workshop
+  name: the court atelier
+  type: workshop
+  region: royal_vales
+  parent: valecourt
+  visible:
+    - A bright atelier where the court's enchanter takes private commissions.
+    - Silks and silver wire cover every bench.
+  residents: {enchanter: 1}
+  trade_level: [20, 60]
+
+- id: valecourt_temple
+  name: the royal chapel
+  type: temple
+  region: royal_vales
+  parent: valecourt
+  visible:
+    - A white-stone chapel beside the palace gardens, carved with the royal line.
+    - Bells mark every hour.
+  residents: {priest: 1}
+
+- id: cinderhold_inn
+  name: the Ember Hearth
+  type: inn
+  region: ashen_reach
+  parent: cinderhold
+  visible:
+    - A broad hall warmed by glowing vents in the stone floor.
+    - Travellers sleep on warm slabs.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: cinderhold_market
+  name: the Cinderhold market
+  type: square
+  region: ashen_reach
+  parent: cinderhold
+  visible:
+    - Stalls on a terrace of black stone, selling slag-glass, ore and charms.
+    - Heat shimmers over every table.
+  residents: {merchant: 2, relic_dealer: 1}
+  trade_level: [95, 150]
+
+- id: cinderhold_workshop
+  name: the Cinderhold forgeworks
+  type: workshop
+  region: ashen_reach
+  parent: cinderhold
+  visible:
+    - Great forges fed by vents of living flame.
+    - Gear is quenched in the black river.
+  residents: {enchanter: 1, smith: 2}
+  trade_level: [95, 150]
+  stations: {forge: {fee: 150, owner: smith}}
+
+- id: cinderhold_temple
+  name: the shrine of the ash
+  type: temple
+  region: ashen_reach
+  parent: cinderhold
+  visible:
+    - A shrine of heaped ash and blackened stone to the fire that built the city.
+    - Pilgrims leave burnt offerings.
+  residents: {priest: 1}
+
+- id: hrimgard_inn
+  name: the Rimed Tankard
+  type: inn
+  region: stormcrown
+  parent: hrimgard
+  visible:
+    - A giant-sized taproom with benches that fit three men each.
+    - Frost lines the windows even indoors.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: hrimgard_market
+  name: the Hrimgard market
+  type: square
+  region: stormcrown
+  parent: hrimgard
+  visible:
+    - A rime-covered square of stalls trading in furs, bone and trophies.
+    - Prices are agreed by handshake.
+  residents: {merchant: 1, relic_dealer: 1}
+  trade_level: [105, 165]
+
+- id: hrimgard_workshop
+  name: the Hrimgard forge
+  type: workshop
+  region: stormcrown
+  parent: hrimgard
+  visible:
+    - A forge cut into the glacier wall, glowing blue and orange.
+    - Ice drips from the roof into the quench.
+  residents: {smith: 2}
+  trade_level: [105, 165]
+  stations: {forge: {fee: 160, owner: smith}}
+
+- id: dunmarrow_inn
+  name: the Deepdelve Rest
+  type: inn
+  region: deep_roads
+  parent: dunmarrow
+  visible:
+    - A cellar inn carved into the rock, warm and close.
+    - Lanterns hang from iron hooks.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: dunmarrow_market
+  name: the Dunmarrow market
+  type: square
+  region: deep_roads
+  parent: dunmarrow
+  visible:
+    - A cavern market of lamp-lit stalls under a vaulted ceiling.
+    - Every price is chalked on slate.
+  residents: {merchant: 1, relic_dealer: 1}
+  trade_level: [115, 175]
+
+- id: dunmarrow_workshop
+  name: the Dunmarrow forgeworks
+  type: workshop
+  region: deep_roads
+  parent: dunmarrow
+  visible:
+    - A cavernous forge with its own underground river for the quench.
+    - Mine carts rattle in and out.
+  residents: {engineer: 1, smith: 2}
+  trade_level: [115, 175]
+  stations: {forge: {fee: 180, owner: smith}}
+
+- id: brinewatch_inn
+  name: the Salt Gull
+  type: inn
+  region: drowned_coast
+  parent: brinewatch
+  visible:
+    - A crooked harbor inn that smells of tar and fish stew.
+    - Sailors sleep in the loft above the taproom.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: brinewatch_market
+  name: the Brinewatch fish market
+  type: square
+  region: drowned_coast
+  parent: brinewatch
+  visible:
+    - A noisy harbor market of nets, barrels and shouting sellers.
+    - Salvage from the wrecks is sold at the back.
+  residents: {merchant: 2, relic_dealer: 1}
+  trade_level: [85, 140]
+
+- id: brinewatch_workshop
+  name: the tidewright's workshop
+  type: workshop
+  region: drowned_coast
+  parent: brinewatch
+  visible:
+    - A workshop on the quay, hung with shells and strange nets.
+    - The sea rattles the shutters.
+  residents: {enchanter: 1}
+  trade_level: [85, 140]
+
+- id: brinewatch_temple
+  name: the sea-shrine
+  type: temple
+  region: drowned_coast
+  parent: brinewatch
+  visible:
+    - A weathered shrine on the seawall, rung by the tide.
+    - Sailors leave coins for the drowned.
+  residents: {priest: 1}
+
+- id: amaranth_inn
+  name: the Evergreen Rest
+  type: inn
+  region: jade_maw
+  parent: amaranth
+  visible:
+    - A guesthouse woven into the living trees, with moss-soft beds.
+    - Everything smells of resin.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: amaranth_market
+  name: the Amaranth market
+  type: square
+  region: jade_maw
+  parent: amaranth
+  visible:
+    - Stalls of herbs, roots and charms hung from the branches.
+    - Trade is slow, and honest.
+  residents: {caravan_master: 1, herbalist: 1, merchant: 2, relic_dealer: 1}
+  trade_level: [90, 145]
+
+- id: amaranth_temple
+  name: the grove shrine
+  type: temple
+  region: jade_maw
+  parent: amaranth
+  visible:
+    - A quiet shrine among ancient trees, ringed with votive ribbons.
+    - The air is still, even in wind.
+  residents: {priest: 1}
+
+- id: greyhollow_inn
+  name: the Pickaxe and Pint
+  type: inn
+  region: northern_hills
+  parent: greyhollow
+  visible:
+    - A dim, noisy tavern full of miners and lumberjacks.
+    - The bar is a single slab of dark oak.
+  residents: {innkeeper: 1}
+  storage: true
+
+- id: greyhollow_workshop
+  name: the Greyhollow smithy
+  type: workshop
+  region: northern_hills
+  parent: greyhollow
+  visible:
+    - A busy smithy at the foot of the hill, mending tools for the mine.
+    - Sparks fly out into the street.
+  residents: {smith: 1}
+  trade_level: [4, 14]
+  stations: {forge: {fee: 50, owner: smith}}
