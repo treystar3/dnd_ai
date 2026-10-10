@@ -41,7 +41,7 @@ BEAT = {"intro": "BOSS ENTRANCE", "bloodied": "BOSS TURNING POINT - it is badly 
 def _say(combat, f, key: str) -> None:
     """Tell a beat of the fight, and what the boss says in it. The narrator is told which beats are set-pieces (see combat_prompts)."""
     line = f.boss["lines"].get(key)
-    C.tell(combat, f"{BEAT[key]}: {C.who(f)}" + (f" - says: {line}" if line else ""))
+    C.tell(combat, f"{BEAT[key]}: {C.who(f)}" + (f' says aloud: "{line}"' if line else ""))
     if line:
         combat.log.append(line)
 

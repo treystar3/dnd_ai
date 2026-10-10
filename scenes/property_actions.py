@@ -34,7 +34,7 @@ class PropertyActions:
                              + (f" - upgrades: {', '.join(h['upgrades'])}." if h["upgrades"] else "."))
         else:
             console.note("You own no property yet.")
-        if town in P["homes"] and town not in self.player.homes:
+        if prop.for_sale(town) and town not in self.player.homes:
             console.note(f"For sale here: {P['homes'][town]['name']} - {money.fmt(P['homes'][town]['price'])}. "
                          f"A land agent handles it; say 'buy a house'.")
         if self.place.type == "home":
@@ -98,8 +98,9 @@ class PropertyActions:
         if not BUY_WORDS.search(words):
             return False
         town = prop.town_of(self.world, self.player.location)
-        if town not in P["homes"]:
-            console.note("No houses are for sale here.")
+        if not prop.for_sale(town):
+            console.note("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
+                         if town in P["homes"] else "No houses are for sale here.")
             self.halted = True
             return True
         agent = next((n for n in self.present if n.role == P["agent_role"]), None)

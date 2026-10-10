@@ -24,7 +24,7 @@
 - {id: echoing,       kind: combat, values: [8, 15],  text: "{value}% chance an ability doesn't go on cooldown.", suits: {archetypes: [mage], themes: [echo, arcane, rhythm, song, resonance]}}
 - {id: unburdened,    kind: combat, values: [8, 15],  text: "Abilities cost {value}% less.", suits: {archetypes: [mage, support], themes: [efficient, discipline, monk, focus, meditation]}}
 - {id: cleave,        kind: combat, values: [20, 35], text: "Your hits also strike a second nearby enemy for {value}% damage.", suits: {archetypes: [warrior], themes: [cleave, sweep, whirlwind, axe, berserker]}}
-- {id: spellblade,    kind: combat, values: [8, 15],  text: "Every hit also deals magical damage equal to {value}% of the blow.", suits: {archetypes: [mage, warrior], themes: [arcane, spellblade, runic, enchanted, battlemage]}}
+- {id: spellblade,    kind: combat, values: [8, 15],  text: "Every hit also deals spell damage equal to {value}% of the blow.", suits: {archetypes: [mage, warrior], themes: [arcane, spellblade, runic, enchanted, battlemage]}}
 - {id: frostbite,     kind: combat, values: [8, 15],  text: "{value}% chance on hit to slow the target.", suits: {archetypes: [], themes: [frost, ice, cold, crippling, hamstring]}}
 - {id: rending,       kind: combat, values: [10, 20], text: "{value}% chance on hit to make the target bleed.", suits: {archetypes: [rogue, warrior], themes: [blade, claw, rend, savage, beast]}}
 - {id: thunderous,    kind: combat, values: [4, 8],   text: "{value}% chance on hit to stun the target.", suits: {archetypes: [warrior], themes: [thunder, hammer, crushing, impact, plunge]}}
@@ -45,9 +45,9 @@
 - {id: guardian,      kind: combat, values: [10, 20], companion_only: true, text: "Your companions take {value}% less damage.", suits: {archetypes: [], themes: [summoner, beast, tamer, bond, pack]}}
 - {id: bulwark,       kind: combat, values: [0, 0],   companion_only: true, text: "Enemies come for you instead of your companions.", suits: {archetypes: [warrior], themes: [protector, shepherd, guardian, bond]}}
 
-- {id: spellmirror,   kind: combat, values: [8, 15],  text: "Returns {value}% of magical damage you take to the caster.", suits: {archetypes: [mage], themes: [mirror, ward, arcane]}}
-- {id: stormcaller,   kind: combat, values: [8, 15],  text: "{value}% chance on hit to call down lightning for extra magical damage.", suits: {archetypes: [mage], themes: [storm, thunder, lightning]}}
-- {id: wardbreaker,   kind: combat, values: [15, 30], text: "Your attacks ignore {value}% of magical wards.", suits: {archetypes: [mage], themes: [arcane, nullify, breaker]}}
+- {id: spellmirror,   kind: combat, values: [8, 15],  text: "Returns {value}% of spell damage you take to the caster.", suits: {archetypes: [mage], themes: [mirror, ward, arcane]}}
+- {id: stormcaller,   kind: combat, values: [8, 15],  text: "{value}% chance on hit to call down lightning for extra spell damage.", suits: {archetypes: [mage], themes: [storm, thunder, lightning]}}
+- {id: wardbreaker,   kind: combat, values: [15, 30], text: "Your attacks ignore {value}% of spell wards.", suits: {archetypes: [mage], themes: [arcane, nullify, breaker]}}
 - {id: hellward,      kind: combat, values: [10, 20], text: "You take {value}% less damage from fiends.", suits: {archetypes: [], themes: [holy, demon, exorcist]}}
 - {id: giantward,     kind: combat, values: [10, 20], text: "You take {value}% less damage from giants.", suits: {archetypes: [], themes: [giant, mountain]}}
 - {id: killer_instinct, kind: combat, values: [3, 6], text: "+{value}% chance to land a critical hit.", suits: {archetypes: [rogue], themes: [assassin, precision, predator]}}

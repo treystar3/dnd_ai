@@ -41,7 +41,7 @@ res = [combat.add_status(cmb, e, "stunned", 2) for _ in range(5)]
 check("legendary resistance blocks 3 stuns then fails", res == [False, False, False, True, True], str(res))
 cmb, rng = fight("knight", "campaign", 2)
 e = cmb.enemies()[0]
-check("campaign boss resists once", [combat.add_status(cmb, e, "frightened", 2) for _ in range(2)] == [False, True])
+check("campaign boss resists twice", [combat.add_status(cmb, e, "frightened", 2) for _ in range(3)] == [False, False, True])
 cmb, rng = fight("knight", "captain", 2)
 e = cmb.enemies()[0]
 check("captain resists once", [combat.add_status(cmb, e, "stunned", 2) for _ in range(2)] == [False, True])

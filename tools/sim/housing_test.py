@@ -9,5 +9,8 @@ for uid in ("reliquary", "banquet_hall"):
     if t != far or not t <= set(P["homes"]): bad.append(uid)
 for uid in ("strongroom", "workshop", "garden", "hearth", "fortify"):
     if P["upgrades"][uid].get("towns"): bad.append(uid + " restricted")
+from engine import property as prop
+if [t for t in P["homes"] if prop.for_sale(t)] != [t for t in P["homes"] if t in far] or prop.for_sale("parth"):
+    bad.append("sale towns")
 print("FAILED" if bad else "ALL PASS", bad)
 sys.exit(1 if bad else 0)

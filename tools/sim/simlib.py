@@ -141,14 +141,44 @@ class Stub:
                          add=r.choice(traits), remove=r.choice(traits), role="x")
                 if kind == "move": e["place"] = r.choice(places)
             return e
-        stages = [{"description": f"stage {i + 1} of {place} event {NAME_COUNTER[0]}", "effects": [effect() for _ in range(r.randint(0, 2))]}
+        pname = re.search(r"PLACE: \S+ - (.*?) \(", u).group(1)
+        pres = re.search(r"PRESSURES HERE: (.*)", u).group(1)
+        seeds = [d for d in pres.split("; ") if d and d != "none in particular"]
+        part = ""
+        if seeds:
+            d = r.choice(seeds).rstrip(".")
+            rest = d.split(" - ", 1)[1] if " - " in d else d
+            bits = [b.strip() for b in re.split(r", (?:or |and )?| or ", rest) if len(b.strip()) > 8]
+            part = r.choice(bits) if bits else d
+        part = (part[0].upper() + part[1:]) if part else f"A quiet trouble in {pname}"
+        steps = ["word spreads through {p}", "it worsens and {p} takes sides", "it comes to a head in {p}"]
+        stages = [{"description": f"{part}: " + steps[min(i, 2)].format(p=pname), "effects": [effect() for _ in range(r.randint(0, 2))]}
                   for i in range(n)]
-        out = {"title": f"Event {NAME_COUNTER[0]} at {place}", "place": place, "news": f"News of event {NAME_COUNTER[0]}.",
+        out = {"title": f"{pname}: {part}"[:90], "place": place, "news": f"They are talking in {pname}: {part.lower()}.",
                "groups": r.sample(groups, 2), "stages": stages,
-               "fallout": {"description": "it passed", "effects": [effect()]}, "resolution": "deal with it"}
-        if r.random() < 0.3:
+               "fallout": {"description": f"it passes, leaving {pname} changed", "effects": [effect()]}, "resolution": "deal with it"}
+        cm = re.search(r"CREATURES \(id: name, levels\): (.*)", u)
+        if cm and n >= 3:
+            cid = cm.group(1).split(":")[0].strip()
+            out["stages"][1]["effects"].append({"kind": "spawn", "place": place, "creature": cid, "boss": True, "days": 30})
+            out["stages"][2]["effects"].append({"kind": "spawn", "place": place, "creature": cid, "boss": False, "days": 30})
+            out["paths"] = [{"name": "Slay it", "how": "kill it", "kind": "kill", "target": cid}, {"name": "Take the job", "how": "do the job", "kind": "contract"}]
+            out["triumph"] = {"description": "peace returns", "effects": []}
+            out["contract"] = {"kind": "hunt", "what": "wolves", "count": 3}
+        elif r.random() < 0.3:
             out["contract"] = {"kind": "hunt", "what": r.choice(["wolves", "boars", "goblins", "giant spiders", "bandits"]), "count": 3}
         return out
+
+    def a_CataclysmProposal(self, u, k):
+        n = int(re.search(r"STAGES: (\d+)", u).group(1))
+        ids = re.search(r"PATHS \(write one for each id\): (.*)", u).group(1).split(", ")
+        return {"title": "The Great Trouble", "news": "Dark rumours reach the towns.", "antagonist": "Vorthax the Old",
+                "stages": [{"name": f"Stage {i + 1}", "description": f"The trouble worsens, step {i + 1}.", "signs": "People whisper."} for i in range(n)],
+                "paths": [{"id": i, "name": f"Path {i}", "how": "Do the deed."} for i in ids],
+                "triumph": "The land breathes again.", "ignored": "The land is scarred.", "keepsake": "the Ember Crown"}
+
+    def a_JudgeVerdict(self, u, k):
+        return {"verdict": getattr(self, "verdict", "no"), "reason": "the ledger shows it", "ending": "victory"}
 
     def a_MotiveStep(self, u, k):
         pid = re.search(r"PERSON: (\S+) -", u).group(1)
@@ -190,12 +220,27 @@ class Stub:
                            "npc_looks": "" if kd == "site" else "A watchful figure.",
                            "npc_manner": "" if kd == "site" else "Guarded."} for i, kd in steps]}
 
+    def a_LegendaryName(self, u, k):
+        taken = u.split("TAKEN NAMES:")[-1]
+        for _ in range(500):
+            name = self.rng.choice(["Vael", "Mor", "Thar", "Isil", "Dren", "Kor", "Syl", "Bran"]) + self.rng.choice(["ith", "oth", "wyn", "gar", "iel", "mund", "dra"])
+            if name.lower() not in taken.lower():
+                break
+        return {"name": name, "title": "the Test of Ages", "lore": "Forged in a story the stand-in model made up."}
+
     def a_CampIntent(self, u, k):
         import re as _re
         from scenes.camp_actions import keyword_intent, keyword_methods
         say = _re.search(r"THE PLAYER SAYS: (.*)", u, _re.S)
         text = say.group(1) if say else ""
         return {"kind": keyword_intent(text) or "none", "target": "", "method": keyword_methods(text), "summary": ""}
+
+    def a_PartyIntent(self, u, k):
+        import re as _re
+        from scenes.party_actions import keyword_party
+        say = _re.search(r"THE PLAYER SAYS: (.*)", u, _re.S)
+        text = say.group(1) if say else ""
+        return {"kind": keyword_party(text) or "none", "target": text, "summary": ""}
 
     def a_RoadEvent(self, u, k):
         hostile = "MUST BE: an ambush" in u
@@ -297,8 +342,8 @@ CLASSES = {
         name="Beastcaller", archetype="support", families=["summoner", "ranger"], primary=["charisma", "wisdom"], casting="wisdom",
         points={"charisma": 14, "wisdom": 14, "constitution": 12}, per_level={"charisma": 2, "wisdom": 2, "constitution": 1},
         weapon="spear", armor=("leather", "body"), uses_magic=True,
-        actives=[("Call the Pack", "summon", "moderate", "self", "mana"), ("Hunt Together", "command", "light", "ranged", "mana"),
-                 ("Spirit Dart", "damage", "light", "ranged", "mana")],
+        actives=[("Call the Pack", "summon", "moderate", "self", "mana"), ("Call the Warden", "summon", "moderate", "self", "mana"),
+                 ("Hunt Together", "command", "light", "ranged", "mana"), ("Spirit Dart", "damage", "light", "ranged", "mana")],
         stats=[("companion_damage", "always"), ("companion_durability", "always"), ("max_health", "always"), ("perception", "in_wilderness"),
                ("damage", "with_companion_present"), ("persuasion", "in_conversation"), ("recovery", "out_of_combat")]),
     "priest": dict(
@@ -382,7 +427,8 @@ def make_character(cls_key: str, rng: random.Random):
     for nm, effect, tier, reach, res in spec["actives"]:
         d = dict(name=nm, description="d", effect=effect, tier=tier, reach=reach, resource=res, context="combat")
         if effect == "summon":
-            d["summons"] = CompanionProposal(name="Wolf", description="a grey wolf", kind="beast", role="striker")
+            d["summons"] = (CompanionProposal(name="Stone Warden", description="a guardian of living stone", kind="spirit", role="guardian")
+                            if "Warden" in nm else CompanionProposal(name="Wolf", description="a grey wolf", kind="beast", role="striker"))
         actives.append(abilities.materialize_active(ActiveProposal(**d)))
     for a in actives:
         if a.resource.value == "mana" and not a.attribute:
@@ -397,5 +443,7 @@ def make_character(cls_key: str, rng: random.Random):
     c.equipment = {"main_hand": items.make(spec["weapon"], "common", 1)}
     if cls_key == "summoner":
         c.companions = [Companion(id="wolf", name="Grey Wolf", creature="wolf", kind="beast", role="striker", level=1,
-                                  description="a grey wolf")]
+                                  description="a grey wolf"),
+                        Companion(id="stone_warden", name="Stone Warden", kind="spirit", role="guardian", level=1, tier="moderate",
+                                  description="a guardian of living stone", source="Call the Warden")]
     return c, spec

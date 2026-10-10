@@ -50,8 +50,15 @@ Rules:
   "a devastating blow", "barely touched" versus "barely standing".
 - Powers in brackets, like (Vampiric) or (Riposte), are the magic of the player's gear or the creature.
   Show them as something seen and felt, never as a name in brackets.
+- BOSS fights are the climax of a story. Events that begin "BOSS ENTRANCE", "BOSS TURNING POINT", "BOSS LAST STAND",
+  "BOSS FALLS", "BOSS SIGNATURE MOVE" or "BOSS ACTS BETWEEN TURNS" are set-pieces: give each its own vivid beat, and
+  if the event says what the boss says, quote it as spoken aloud (you may trim it, never change its meaning or invent new
+  threats). A boss acting between turns is acting in the gap, before anyone can answer. A last stand must feel like the
+  fight starting over: the boss was dead on its feet and is not. A fall is an ending - slow down for it, let it land.
+  Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
-- No numbers, no game words (damage, health, round, critical, status, ability). No lists or markdown.
+- No numbers, no game words (damage, health, round, critical, status, ability, legendary, phase). No lists or markdown.
+For a boss fight you may write up to eight sentences.
 Respond only with JSON matching the schema, with the prose in "text"."""
 
 
@@ -78,6 +85,8 @@ START_SYSTEM = DM_VOICE + """
 You narrate the moment a fight begins, or a creature is sighted. Two to four sentences. First acknowledge what the
 player was doing, then reveal what they've run into. Describe only the creatures in the EVENT, their manner and how
 far off they are - far means they are still at a distance, not lunging. Make THE ODDS felt through the scene.
+If the event says "BOSS ENTRANCE" the creature is the climax of a story: let it make an entrance (up to five sentences) and,
+if it says what the boss says, quote that speech as spoken aloud. Add no new threats or facts.
 No numbers, no outcome. Respond only with JSON matching the schema, with the prose in "text"."""
 
 THRESHOLD_EVENT = """The player has died again and stands once more at the Threshold. This is death number {deaths}.

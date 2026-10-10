@@ -50,7 +50,7 @@
   suits: {archetypes: [warrior], themes: [slayer, giant, hunter, dragon, monster]}
 
 - id: against_magic
-  condition: The opposing attack or effect is magical.
+  condition: The opposing attack or effect is a spell.
   checks: incoming.is_magical
   context: anywhere
   suits: {archetypes: [], themes: [witch hunter, antimagic, ward, nullify, inquisitor]}

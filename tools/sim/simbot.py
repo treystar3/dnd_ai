@@ -14,18 +14,24 @@ import sys
 import time
 import traceback
 from pathlib import Path
+import os
 
 CLS = sys.argv[1]
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 MAX_DAYS = int(sys.argv[3]) if len(sys.argv) > 3 else 1500
 MAX_STEPS = int(sys.argv[4]) if len(sys.argv) > 4 else 60000
 WALL = float(sys.argv[5]) if len(sys.argv) > 5 else 3300.0
-TARGET = 75
+TARGET = int(os.environ.get("SIM_TARGET", 75)) if "os" in globals() else 75
+HALL = os.environ.get("SIM_HALL", "guild_house")
 OUT = Path("sim_out"); OUT.mkdir(exist_ok=True)
 
 import simlib
 STUB = simlib.Stub(CLS, SEED)
 simlib.install(STUB)
+if os.environ.get('SIM_KIND'):
+    from engine import events as _ev
+    for _k in _ev.C['kinds']:
+        _ev.C['kinds'][_k]['weight'] = 1000 if _k == os.environ['SIM_KIND'] else 0
 
 import ui.console as uc
 NOTES = collections.deque(maxlen=80)
@@ -61,7 +67,7 @@ uc.ask = lambda *a, **k: "y"
 sys.stdout = io.StringIO()   # the game prints a lot; the bot reads state, not the screen
 
 from core.models import Character
-from engine import (arcs, checks, clock, combat, crafting, dungeons, encounters, equipment, inventory as inv, items, leveling,
+from engine import (events as bigev, deeds as deedlog, arcs, checks, clock, combat, crafting, dungeons, encounters, equipment, inventory as inv, items, leveling,
                     money, pools, pulse, quests)
 from llm.gateway import LLMError
 from npc.life import populate_place
@@ -111,11 +117,43 @@ class Bot:
         start = self.world.start_location
         self.store.save_player(PlayerState(character=char, location=start))
         self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
+        _orig_after = self.ws.party_after_fight
+        def _count_fallen(fallen, _o=_orig_after, _bot=self):
+            _bot.party_tally["fell"] += sum(1 for m in _bot.ws.player.party if f"ally_{m['id']}" in {a.id for a in fallen})
+            _o(fallen)
+        self.ws.party_after_fight = _count_fallen
+        self.rarity_tally = collections.Counter()
+        self.mana_stats = []
+        self.legendaries = []
+        _orig_pack = self.ws.to_pack
+        def _tracked_pack(item, why="", _o=_orig_pack, _bot=self):
+            if not item.good and items.base_of(item).slot != "none":
+                _bot.rarity_tally[item.rarity] += 1
+                if item.rarity == "legendary":
+                    _bot.legendaries.append({"day": _bot.day, "lv": _bot.c.level, "name": item.name, "base": item.base,
+                                             "effect": item.legendary_effect, "where": _bot.ws.player.location,
+                                             "delve": bool(_bot.ws.player.delve), "titled": bool(getattr(item, "title", ""))})
+            _o(item, why)
+        self.ws.to_pack = _tracked_pack
+        if os.environ.get("SIM_PHOENIX"):
+            robe = items.make("robe", "legendary", 10, rng=random.Random(5)); robe.legendary_effect = "phoenix"; robe.name = "Test Shroud"
+            self.ws.player.character.equipment["body"] = robe
+        if os.environ.get("SIM_START_LEVEL"):           # jump ahead: a character who is already deep into the game
+            target = int(os.environ["SIM_START_LEVEL"])
+            while self.ws.player.character.level < target:
+                leveling.gain_xp(self.ws.player.character, leveling.xp_to_next(self.ws.player.character.level))
+            if os.environ.get("SIM_COINS"):
+                self.ws.player.character.coins = int(os.environ["SIM_COINS"])
+            if os.environ.get("SIM_RANK"):
+                self.ws.player.guild_rank = os.environ["SIM_RANK"]
+            if os.environ.get("SIM_START_AT"):
+                start = os.environ["SIM_START_AT"]
         STUB.bot = self
         self.log_f = open(OUT / f"{CLS}.jsonl", "w")
         self.steps = 0
         self.fights = []
         self.deaths = []
+        self.tame_tries = 0
         self.zone_ban = {}
         self.cat_minutes = collections.Counter()
         self.income = collections.Counter()
@@ -132,12 +170,17 @@ class Bot:
         self.arc_log = []
         self.prisoner_seen = self.prisoner_spared = self.prisoner_killed = 0
         self.camp_tally = collections.Counter()
+        self.party_tally = collections.Counter()
         self.wealth_buys = []
         self.dungeon_log = []
         self.visited = collections.OrderedDict()
         self.last_day = -1
         self.last_guild_day = -99
         self.last_talk_day = -99
+        self.big_log = []
+        self.big_cool = {}
+        self.npc_stats = collections.Counter()
+        self.befriended = {}
         self.fight_coins = 0
         self.fight_xp = 0
         self.last_rate = 0.5
@@ -173,6 +216,47 @@ class Bot:
         rec = {"k": kind, "d": self.day, "lv": self.c.level, "loc": self.loc}
         rec.update(kw)
         self.log_f.write(json.dumps(rec, default=str) + "\n")
+
+    def pulse_watch(self):
+        """Record what the world's pulse does and what the character is in the middle of: threads starting, moving and ending,
+        and, on reaching a town, what is going on there."""
+        ws = self.ws
+        st = self.store.load_world_state() or {}
+        seen = self.__dict__.setdefault("pulse_seen", {})
+        now = ws.minutes
+
+        def eff(e):
+            return {k: e[k] for k in ("kind", "place", "value", "days", "text", "npc", "role") if e.get(k)}
+
+        for th in st.get("threads", []):
+            key = th["id"]
+            prev = seen.get(key)
+            if prev is None:
+                self.log("pulse", ev="start", tier=th["tier"], title=th["title"], at=th["place"], pressure=th.get("pressure"),
+                         stages=len(th["stages"]), span_days=round((th["times"][-1] - th["times"][0]) / 1440, 1),
+                         news=[n["text"] for n in st.get("news", [])[-1:]], first=th["stages"][0]["description"],
+                         effects=[eff(e) for e in th["stages"][0]["effects"]], groups=th["groups"], pday=clock.day(th["made"]))
+            elif th["stage"] != prev[0] and th["stage"] > 0:
+                stg = th["stages"][th["stage"]]
+                self.log("pulse", ev="stage", tier=th["tier"], title=th["title"], at=th["place"], stage=th["stage"] + 1,
+                         text=stg["description"], effects=[eff(e) for e in stg["effects"]])
+            if prev is not None and th["status"] != prev[1]:
+                end = next((h["text"] for h in reversed(st.get("history", [])) if h["text"].startswith(th["title"])), "")
+                self.log("pulse", ev="end", tier=th["tier"], title=th["title"], at=th["place"], status=th["status"], result=th.get("result"), fallen=th.get("fallen"), text=end,
+                         fallout=[eff(e) for e in th["fallout"]["effects"]] if th["status"] == "ended" else [])
+            seen[key] = (th["stage"], th["status"])
+        town = pulse.town_of(self.world, self.loc)
+        if self.world.places[town].type not in ("village", "town", "city"):
+            self.pulse_town = None
+        elif self.__dict__.get("pulse_town") != town:
+            self.pulse_town = town
+            here = [x["title"] for x in st.get("threads", []) if x["status"] == "active" and pulse.town_of(self.world, x["place"]) == town]
+            fx = [{"kind": e["kind"], "value": e.get("value"), "days_left": round((e["until"] - now) / 1440, 1)}
+                  for e in st.get("effects", []) if e["until"] > now and e.get("place") == town and e["kind"] in ("prices", "danger", "closed")]
+            news = [n["text"] for n in st.get("news", []) if now - n["minute"] < 14 * 1440 and "everyone" in n["groups"]
+                    and n["minute"] + pulse.travel_delay(self.world, n["origin"], self.loc) <= now][-3:]
+            self.log("pulse", ev="arrive", town=town, situations=here, effects=fx, news=news,
+                     contracts=len([q for q in ws.player.quests if q.get("thread")]))
 
     def count_good(self, gid: str) -> int:
         return inv.count_of(self.pack, gid)
@@ -213,7 +297,7 @@ class Bot:
             c = self.c
             self.log("tick", xp=total_xp(c), coins=c.coins, rank=self.ws.player.guild_rank, deaths=c.deaths,
                      hp=round(self.frac("health"), 2), q=len(self.ws.player.quests))
-        for lv in range(10, 80, 5):
+        for lv in range(10, 170, 5):
             if self.c.level >= lv and lv not in self.milestones:
                 self.milestones[lv] = {"day": self.day, "steps": self.steps, "deaths": self.c.deaths,
                                        "secs": round(time.time() - self.t0)}
@@ -253,6 +337,13 @@ class Bot:
         if not f.player_acted and f.round == 1 and self.last_rate < self.flee_below:
             self.fled_open = True
             return dict(base, kind="flee")
+        if c.uses_companions:
+            from engine import taming
+            weak = [e for e in enemies if e.hp <= e.max_hp * taming.T["max_health_share"]
+                    and not taming.check(c, e, self.world.bestiary.get(e.creature))]
+            if weak and hpf > 0.3 and self.tame_tries < 4:
+                self.tame_tries += 1
+                return dict(base, kind="tame", target=weak[0].id)
         pots = [i for i in c.inventory if i.good == "healing_draught"]
         if hpf < 0.4 and pots:
             return dict(base, kind="item", item="healing draught")
@@ -277,12 +368,15 @@ class Bot:
         return dict(base, kind="attack", move="closer")
 
     def fight_out(self):
+        self.tame_tries = 0
         ws = self.ws
         f = ws.combat.fight
         c = self.c
         coins0, xp0, deaths0, hp0 = c.coins, total_xp(c), c.deaths, p_hp(f)
         before = {i.uid for i in c.inventory}
         foes = [(e.creature, e.level, e.rank) for e in f.enemies()]
+        allies0 = [m['name'] for m in ws.player.party if m.get('npc')]
+        spawn0 = [getattr(e, 'spawn', '') for e in f.enemies() if getattr(e, 'spawn', '')]
         label, rate = LAST_DANGER[0]
         self.last_rate = rate
         place = self.loc
@@ -290,8 +384,16 @@ class Bot:
         self.fled_open = False
         rounds = 0
         in_dungeon = bool(ws.player.delve)
+        mana0 = f.player.mana / max(1, f.player.max_mana) if f.player.max_mana else None
+        mana_min, dry = mana0, 0
         while ws.combat and rounds < 250:
             rounds += 1
+            if mana0 is not None:
+                pl = f.player
+                mana_min = min(mana_min, pl.mana / max(1, pl.max_mana))
+                spells = [m for m in pl.moves if m.resource == "mana"]
+                if spells and all((combat.can_use(pl, m, f) or "").startswith("Not enough") for m in spells):
+                    dry += 1
             try:
                 ws.handle("fight")
             except LLMError as e:
@@ -312,9 +414,11 @@ class Bot:
         self.income["fights"] += gained_coin
         self.xp_src["fights"] += gained_xp
         self.cat_minutes["fighting"] += max(0, ws.minutes - m0)
+        if mana0 is not None:
+            self.mana_stats.append((round(mana0, 2), round(mana_min, 2), dry, rounds))
         rec = dict(place=place, foes=foes, rating=round(rate, 2), label=label, outcome=outcome, rounds=rounds,
                    xp=gained_xp, coins=gained_coin, items=found, goods=goods, hp_lost=round(max(0, hp0 - p_hp(f)), 2),
-                   lv=c.level, dungeon=in_dungeon, fled_open=self.fled_open)
+                   lv=c.level, dungeon=in_dungeon, fled_open=self.fled_open, realm_allies=allies0, event_spawn=bool(spawn0))
         self.fights.append(rec)
         self.log("fight", **{k: v for k, v in rec.items() if k != "lv"})
         if outcome == "victory":
@@ -364,7 +468,22 @@ class Bot:
 
     # ------------------------------------------------------------ town: gear, selling, potions, training
     def score(self, it) -> float:
-        return float(items.price(it)) if it else 0.0
+        """How good a piece of gear is: its damage or protection, lifted by its properties and legendary effect. (It used to be
+        its price, which let a level-14 legendary outrank a level-130 weapon.)"""
+        if not it:
+            return 0.0
+        if os.environ.get("SIM_PRICE_SCORE"):
+            return float(items.price(it))
+        try:
+            v = items.value(it) or 5 * items.scale(it)
+            b = items.base_of(it)
+            if getattr(b, "attributes", None) and getattr(b, "reach", None):
+                ch = self.ws.player.character
+                v += max(getattr(ch.attributes, a, 10) for a in b.attributes) * combat.RULES["damage"]["attribute_bonus"]
+            mags = sum(abs(e.magnitude) for e in items.effects(it)) + sum(abs(p.magnitude) for p in getattr(it, "properties", []) if hasattr(p, "magnitude") and False)
+            return float(v) * (1 + mags / 150) * (1.15 if it.legendary_effect else 1.0)
+        except Exception:
+            return float(items.price(it))
 
     def gear_pass(self) -> int:
         c = self.c
@@ -399,7 +518,7 @@ class Bot:
         ws = self.ws
         if not any(self.world.roles[n.role].buys for n in ws.present):
             return
-        if len(self.pack) < 6 and self.loc != "guild_house":
+        if len(self.pack) < 6 and self.loc != HALL:
             return
         self.gear_pass()
         sold = 0
@@ -462,7 +581,7 @@ class Bot:
                          "buy potion", "potions")
 
     def train_pass(self):
-        if self.loc != "guild_house" or not self.ws.player.guild_rank or not self.ws.instructor_here():
+        if self.loc != HALL or not self.ws.player.guild_rank or not self.ws.instructor_here():
             return
         c = self.c
         from scenes.training_actions import T
@@ -529,7 +648,7 @@ class Bot:
                 self.wealth_buys.append(("house", town, self.day))
         dealer = next((n for n in ws.present if self.world.roles[n.role].relics), None)
         if dealer:
-            for item, price in prop.relics_in(town, ws.player.relics_bought):
+            for item, price in prop.relics_in(ws.world, ws.store.meta.seed, town, ws.player.relics_bought):
                 if c.coins >= price + reserve:
                     self.act({"kind": "buy", "ware": item.name, "target": dealer.id}, "buy a relic", "wealth")
                     if item.uid.replace("relic_", "") in ws.player.relics_bought:
@@ -572,6 +691,16 @@ class Bot:
                 return
             self.gear_pass()
 
+    def mana_summary(self):
+        m = self.mana_stats
+        if not m:
+            return {}
+        n = len(m)
+        rounds = sum(x[3] for x in m)
+        return {"fights": n, "avg_start": round(sum(x[0] for x in m) / n, 2), "avg_low_point": round(sum(x[1] for x in m) / n, 2),
+                "fights_hit_empty": sum(1 for x in m if x[1] < 0.1), "fights_with_dry_rounds": sum(1 for x in m if x[2]),
+                "dry_round_share": round(sum(x[2] for x in m) / max(1, rounds), 3)}
+
     # ------------------------------------------------------------ resting
     def need_rest(self) -> bool:
         res = "mana" if self.spec["uses_magic"] else "stamina"
@@ -597,7 +726,7 @@ class Bot:
         for _ in range(8):
             if not self.need_rest() and self.frac("health") > 0.8:
                 return
-            if self.count_good("healing_draught") >= 2 and self.frac("health") < 0.4 and self.loc != "guild_house":
+            if self.count_good("healing_draught") >= 2 and self.frac("health") < 0.4 and self.loc != HALL:
                 self.act({"kind": "use", "item": "healing draught"}, "drink", "rest")
                 continue
             inn = None if local else self.nearest(self.has_inn)
@@ -634,7 +763,7 @@ class Bot:
             else:
                 self.act({"kind": "wait", "wait_minutes": 60}, "wait", "work")
         STUB.ask_help = False
-        for place in ("guild_house", "parth"):
+        for place in (HALL, "parth"):
             if self.unarmed() and self.goto(place):
                 self.buy_for_weapon()
 
@@ -680,7 +809,7 @@ class Bot:
     # ------------------------------------------------------------ the guild
     def guild_visit(self):
         ws = self.ws
-        if not self.goto("guild_house", "travel"):
+        if not self.goto(HALL, "travel"):
             return
         for _ in range(3):
             if ws.clerk_here():
@@ -690,6 +819,7 @@ class Bot:
         if not ws.player.guild_rank and c.coins >= quests.G["joining_fee"] + 60 and ws.clerk_here():
             self.act({"kind": "join_guild"}, "join the guild", "guild")
             self.log("joined", coins=c.coins)
+        self.people_pass()
         self.act({"kind": "board"}, "check the board", "guild")      # any action also turns in finished contracts
         self.last_guild_day = self.day
         self.town_services()
@@ -709,7 +839,7 @@ class Bot:
             d = next((x for x in self.store.load_dungeons() if x["id"] == q["dungeon"]), None)
             if not d:
                 return False
-            if k == "delve" and d["floors"][q["floor"]]["level"] > lv + 3:
+            if k == "delve" and (q["floor"] >= len(d["floors"]) or d["floors"][q["floor"]]["level"] > lv + 3):
                 return False
             if k == "dungeon_boss" and d["floors"][-1]["level"] + 2 > lv + 2:
                 return False
@@ -729,7 +859,7 @@ class Bot:
             if not place:
                 return False
         if place and q["guild"]:
-            m = self.path_minutes("guild_house", place)
+            m = self.path_minutes(HALL, place)
             if m is None or (q.get("deadline") is not None and m * 2 > (q["deadline"] - q["posted"]) * 0.8):
                 return False
         return True
@@ -882,8 +1012,26 @@ class Bot:
             if not arc or arcs.node(arc, n["id"])["status"] == "done":
                 return
 
+    def bot_recruit(self, n):
+        """Characters who cannot sneak hire a party at the guild before going after a camp."""
+        ws = self.ws
+        if n["kind"] not in ("lair", "boss") or len(ws.player.party) >= 3 or self.c.coins < 8000:
+            return
+        sneak = checks.chance(self.c, "stealth", {"always", "out_of_combat"}, None, ws.check_bonuses("stealth", None, False, ""))[0]
+        if sneak >= 40 and self.c.level >= 6:
+            return
+        hall = ws.guild_place_id()
+        if not hall or not self.goto(hall, "arc"):
+            return
+        before = len(ws.player.party)
+        self.act({"kind": "look"}, "recruit help from the guild, hire them all", "arc")
+        self.party_tally["hired"] += len(ws.player.party) - before
+        if ws.player.party:
+            self.party_tally["runs"] += 1
+
     def arc_place(self, arc, n):
         ws = self.ws
+        self.bot_recruit(n)
         if self.loc == n["place"]:
             near = next((p for p in self.world.neighbors(n["place"]) if p in self.world.places), None)
             if near and self.goto(near, "arc"):
@@ -923,6 +1071,8 @@ class Bot:
             else:
                 text = "charge in"
             n0 = len(ws.camp_events or [])
+            if ws.player.party and ws.player.party_mode == "with" and text != "charge in":
+                ws.party_turn("have the party hold back and wait outside")
             self.act({"kind": "look"}, text, "arc")
             for ev in (ws.camp_events or [])[n0:]:
                 self.camp_tally[f"{ev[0]}:{ev[1]}"] += 1
@@ -1095,13 +1245,15 @@ class Bot:
     def pick_zone(self):
         lv = self.c.level
         cands = []
+        recent = sum(1 for d in self.deaths if self.day - d["d"] <= 15)
+        reach = lv * 0.55 if recent >= 3 else lv + 2          # after a run of deaths a sensible player drops back to easier ground to recover and farm
         for pid, p in self.world.places.items():
             if not p.danger or p.type == "dungeon" or pid == "cracked_plains":
                 continue
             lo, hi = p.danger
             if self.zone_ban.get(pid, 0) > lv:
                 continue
-            if lo <= lv + 2 and hi >= lv * 0.7:
+            if lo <= reach and hi >= lv * (0.3 if recent >= 3 else 0.7):
                 m = self.path_minutes(self.loc, pid) if pid != self.loc else 0
                 if m is not None:
                     cands.append((m, pid))
@@ -1130,6 +1282,8 @@ class Bot:
             self.act({"kind": "search"}, "look around", "hunting")
             if self.c.deaths > deaths0 or self.loc != zone:
                 return
+            if CLS in ("artisan", "smith") and self.store.load_place(self.loc).carcasses:
+                self.act({"kind": "harvest"}, "skin", "harvest")
             if sum(1 for f in self.fights if f["outcome"] == "victory") - won0 >= kills or len(self.pack) >= 18:
                 return
 
@@ -1147,11 +1301,18 @@ class Bot:
         return mine < limit and self.day - self.last_guild_day >= 2
 
     def cycle(self):
+        global HALL
         ws = self.ws
+        if HALL == "guild_house" and self.c.level >= int(os.environ.get("SIM_FAR_LEVEL", 10 ** 6)):
+            HALL = ("dunmarrow_guild", "cinderhold_guild", "hrimgard_guild")[SEED % 3]      # the character moves to a great hall
+            self.log("moved_hall", hall=HALL, lv=self.c.level, day=self.day)
         s0, m0 = self.steps, ws.minutes
+        self.pulse_watch()
         self.maintenance()
         if self.need_guild():
             self.guild_visit()
+        if self.big_pass():
+            return
         pending = sorted((q for q in ws.player.quests if not quests.done(q, self.pack)), key=lambda q: q["deadline"] or 10 ** 12)
         ran = False
         for q in pending:
@@ -1167,6 +1328,7 @@ class Bot:
         if not ran:
             if self.day - self.last_talk_day >= 4 and self.rng.random() < 0.3:
                 self.social_stop()
+            self.people_pass()
             self.grind()
         if self.steps == s0 and ws.minutes == m0:
             self.act({"kind": "wait", "wait_minutes": 60}, "idle", "other")
@@ -1187,6 +1349,171 @@ class Bot:
             elif who.quest_offer:
                 self.act({"kind": "accept_quest", "target": who.id}, "accept", "social")
         STUB.ask_help = False
+
+
+    # ------------------------------------------------------------ people and the big events
+    def people_pass(self, limit=3):
+        """Where the character stands, in a settlement: talk to people (and sometimes press them), now and then give a gift. This is
+        what builds the trust that later brings allies to a fight."""
+        ws = self.ws
+        town = pulse.town_of(self.world, self.loc)
+        if self.world.places[town].type not in ("village", "town", "city") or self.day == self.__dict__.get("people_day"):
+            return
+        self.people_day = self.day
+        for n in [x for x in ws.present if x.role not in ("guild_clerk",)][:limit]:
+            checks_ = [self.best_social()] if self.rng.random() < 0.5 else []
+            self.act({"kind": "talk", "target": n.id, "speech": "How are things here? Anything I should know about?", "checks": checks_},
+                     "talk", "social")
+            self.npc_stats["talks"] += 1
+            if checks_:
+                self.npc_stats["checks"] += 1
+            if self.c.coins > 5000 and self.rng.random() < 0.5:
+                self.act({"kind": "give", "target": n.id, "item": "2 silver"}, "give 2 silver", "social")
+                self.npc_stats["gifts"] += 1
+
+    def befriend_master(self, th):
+        """Win the trust of the guild master (and a few others) in the event's path, so they will stand with the character."""
+        ws = self.ws
+        cfg = bigev.E["allies"]
+        towns = {pulse.town_of(self.world, th["place"]), *th.get("hit_towns", [])}
+        halls = [p for p in self.world.places.values() if p.id in self.world.places and (p.residents or {}).get("guild_master")
+                 and pulse.town_of(self.world, p.id) in towns]
+        for hall in halls[:2]:
+            if self.befriended.get(hall.id, -99) > self.day - 20:
+                continue
+            m = self.path_minutes(self.loc, hall.id)
+            if m is None or m > 3 * 1440 or not self.goto(hall.id):
+                continue
+            self.befriended[hall.id] = self.day
+            for n in [x for x in ws.present if x.role in cfg["roles"]][:2]:
+                for _ in range(40):
+                    n = self.store.load_npc(n.id)
+                    if n.trust >= cfg["min_trust"] + 5 or self.c.coins < 600:
+                        break
+                    self.act({"kind": "give", "target": n.id, "item": "5 silver"}, "give 5 silver", "social")
+                    self.npc_stats["gifts"] += 1
+                    if self.rng.random() < 0.25:
+                        self.act({"kind": "talk", "target": n.id, "speech": "I mean to face the trouble that threatens us all."}, "talk", "social")
+                        self.npc_stats["talks"] += 1
+                n = self.store.load_npc(n.id)
+                self.npc_stats["trusted"] += n.trust >= cfg["min_trust"]
+                self.log("befriend", npc=n.name, role=n.role, trust=n.trust, hall=hall.id)
+
+    def big_pass(self) -> bool:
+        """If a campaign or cataclysm has a boss out in the wild that the character can face, go and end it."""
+        st = self.store.load_world_state() or {}
+        now = self.ws.minutes
+        for th in st.get("threads", []):
+            if th["tier"] not in ("campaign", "cataclysm") or th["status"] != "active":
+                continue
+            if self.big_cool.get(th["id"], -1) > self.day:
+                continue
+            live = bigev.live_spawns(st, now, th["id"])
+            boss = next((x for x in live if x["boss"]), None)
+            treaty = next((p for p in th.get("paths", []) if p["kind"] == "treaty" and not p["done"]), None)
+            war_peace = th.get("kind") == "war" and sum(map(ord, th["id"])) % 2 == 0     # half the bots' wars are talked through, half fought
+            if th.get("kind") == "war" and not war_peace:
+                treaty = None
+            elif treaty and war_peace:
+                boss = None
+            if treaty and not boss and th["stage"] >= 1:
+                self.log("big_start", tier=th["tier"], title=th["title"], boss=None, treaty=[l["name"] for l in th["leaders"]], stage=th["stage"] + 1,
+                         hit=th.get("hit_towns"), fallen=th.get("fallen"))
+                self.big_log.append({"d": self.day, "lv": self.c.level, "tier": th["tier"], "title": th["title"], "boss": None, "stage": th["stage"] + 1,
+                                     "treaty": True})
+                return self.make_peace(th["id"])
+            if not boss or (boss.get("level") or 0) > self.c.level + 6 or (boss.get("level") or 0) < self.c.level - 40:
+                continue
+            if self.path_minutes(self.loc, boss["place"]) is None:
+                continue
+            self.log("big_start", tier=th["tier"], title=th["title"], boss=boss["name"], boss_lv=boss.get("level"), at=boss["place"],
+                     stage=th["stage"] + 1, hit=th.get("hit_towns"), fallen=th.get("fallen"))
+            self.big_log.append({"d": self.day, "lv": self.c.level, "tier": th["tier"], "title": th["title"], "boss": boss["name"],
+                                 "boss_lv": boss.get("level"), "stage": th["stage"] + 1})
+            if th["tier"] == "cataclysm":
+                self.befriend_master(th)
+                self.persuade_for(th)
+            return self.hunt_boss(th["id"], boss["place"], boss["id"])
+        return False
+
+    def make_peace(self, tid) -> bool:
+        """A war with no monster: go to each leader and press the case until they are won over."""
+        d0, died0 = self.day, self.c.deaths
+        for rounds in range(60):
+            st = self.store.load_world_state() or {}
+            th = next((x for x in st.get("threads", []) if x["id"] == tid), None)
+            if not th or th["status"] != "active":
+                break
+            todo = [l for l in th["leaders"] if not bigev._won_over(st, th["made"], l["id"])]
+            if not todo or self.day - d0 > 40:
+                break
+            n = self.store.load_npc(todo[0]["id"])
+            ok_ = (not n.gone) and self.goto(n.location)
+            here = next((x for x in self.ws.present if x.id == n.id), None)
+            if rounds < 4 or rounds % 20 == 0:
+                self.log("peace_step", n=rounds, npc=n.name, at=n.location, gone=n.gone, went=ok_, here=bool(here), loc_now=self.loc,
+                         present=[x.role for x in self.ws.present][:6])
+            if n.gone or not ok_:
+                self.big_cool[tid] = self.day + 5
+                break
+            if not here:
+                self.act({"kind": "wait", "wait_minutes": 120}, "wait", "social")
+                continue
+            self.act({"kind": "talk", "target": n.id, "speech": "Lay down your arms. Too many will die if this goes on.",
+                      "checks": [self.best_social() if self.best_social() != "deception" else "persuasion"]}, "persuade", "social")
+            self.npc_stats["treaty_tries"] += 1
+        st = self.store.load_world_state() or {}
+        th = next((x for x in st.get("threads", []) if x["id"] == tid), None)
+        out = {"d": self.day, "lv": self.c.level, "title": th["title"] if th else "?", "status": th["status"] if th else "gone",
+               "result": (th or {}).get("result"), "treaty_tries": rounds + 1}
+        self.log("big_end", **out)
+        self.big_log.append(out)
+        if th and th["status"] == "active":
+            self.big_cool.setdefault(tid, self.day + 4)
+        return True
+
+    def persuade_for(self, th):
+        """Work the event from the people side: press someone in the first hit town (a persuade deed the judge can read)."""
+        ws = self.ws
+        for tid in th.get("hit_towns", [])[:1]:
+            if self.path_minutes(self.loc, tid) is None or not self.goto(tid):
+                continue
+            for n in [x for x in ws.present if x.role != "guild_clerk"][:2]:
+                self.act({"kind": "talk", "target": n.id, "speech": "Help us stand against the danger.", "checks": ["persuasion"]},
+                         "persuade", "social")
+                self.npc_stats["persuade_tries"] += 1
+
+    def hunt_boss(self, tid, place, sid=None) -> bool:
+        ws = self.ws
+        deaths0, d0 = self.c.deaths, self.day
+        if not self.goto(place):
+            return True
+        for i in range(120):
+            if self.need_rest():
+                self.recover()
+                if self.loc != place and not self.goto(place):
+                    break
+            st = self.store.load_world_state() or {}
+            th = next((x for x in st.get("threads", []) if x["id"] == tid), None)
+            if not th or th["status"] != "active":
+                break
+            self.act({"kind": "search"}, "look around", "hunting")
+            if sid and next((x for x in (self.store.load_world_state() or {}).get("spawns", []) if x["id"] == sid), {"defeated": True})["defeated"]:
+                break
+            if self.c.deaths > deaths0:
+                self.big_cool[tid] = self.day + 6
+                break
+            if self.day - d0 > 40:
+                break
+        st = self.store.load_world_state() or {}
+        th = next((x for x in st.get("threads", []) if x["id"] == tid), None)
+        out = {"d": self.day, "lv": self.c.level, "title": th["title"] if th else "?", "status": th["status"] if th else "gone",
+               "result": (th or {}).get("result"), "died": self.c.deaths - deaths0, "searches": i + 1}
+        self.log("big_end", **out)
+        self.big_log.append(out)
+        if th and th["status"] == "active":
+            self.big_cool.setdefault(tid, self.day + 3)
+        return True
 
     # ------------------------------------------------------------ errors, invariants
     def note_exc(self, name, msg, tb):
@@ -1226,7 +1553,7 @@ class Bot:
 
     # ------------------------------------------------------------ the run
     def done(self) -> str:
-        if self.c.level >= TARGET: return "reached level 75"
+        if self.c.level >= TARGET: return f"reached level {TARGET}"
         if self.day >= MAX_DAYS: return f"time limit ({MAX_DAYS} days)"
         if self.steps >= MAX_STEPS: return f"step limit ({MAX_STEPS})"
         if len(self.deaths) >= 80: return "too many deaths (80)"
@@ -1318,6 +1645,13 @@ class Bot:
                                                     | {"nodes": [(n["kind"], n["status"], n["partial"], n["attempts"]) for n in a["nodes"]]}
                                                     for a in self.store.load_arcs()["arcs"]],
             "camp": dict(self.camp_tally),
+            "big": self.big_log, "npc_stats": dict(self.npc_stats),
+            "titles": ws.player.titles, "mounts": [m["name"] for m in ws.player.mounts],
+            "cataclysms": st.get("cataclysms"),
+            "rarity_found": dict(self.rarity_tally),
+            "mana": self.mana_summary(),
+            "legendaries": self.legendaries,
+            "party": dict(self.party_tally),
             "prisoners": {"seen": self.prisoner_seen, "spared": self.prisoner_spared, "killed": self.prisoner_killed,
                           "outlaw_rep": ws.player.outlaw_rep},
             "wealth_buys": self.wealth_buys, "homes": list(ws.player.homes), "relics": list(ws.player.relics_bought),

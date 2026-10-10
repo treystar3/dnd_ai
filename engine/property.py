@@ -45,6 +45,11 @@ def register(world, player) -> None:
             storage=True, biome=t.biome, trade_level=t.trade_level, stations=stations, locals_group=t.locals_group)
 
 
+def for_sale(town: str) -> bool:
+    """Whether a land agent in this town sells a deed today."""
+    return town in P["homes"] and town in P.get("sale_towns", P["homes"])
+
+
 def stash_bonus(player) -> int:
     ups = {u for h in player.homes.values() for u in h["upgrades"]}
     return sum(P["upgrades"][u].get("stash_bonus", 0) for u in ups)

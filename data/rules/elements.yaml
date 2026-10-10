@@ -2,6 +2,7 @@
 # An attack's element is read from words: a creature's name, id and attack names, or an ability's name and description.
 # keywords match the START of a word (so "frost" catches "frostbite" but "light" never catches "lightning").
 # creature_hints: a creature id/name containing the text counts as that element even if its attacks don't say it (dragons by colour).
+native_resist: 50       # a creature made of an element resists it by this much (a fire elemental barely feels fire)
 resist_cap: 75          # total resistance to one thing never exceeds this percent
 elements:
   fire:      [fire, flame, flaming, burn, scorch, ember, cinder, inferno, magma, lava, pyre, blaze, smolder, smoulder, salamander, hellfire, immol]

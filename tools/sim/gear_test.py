@@ -38,7 +38,7 @@ check("an old-lands merchant does not", not any(items.CATALOG[i["base"]].min_lev
 # every new weapon and armor effect can roll somewhere, and category effects reach the fighter
 ids = [e for e in items.LEGENDARY.values() if e.enabled]
 for e in ids:
-    pool = {"weapon": ["longsword", "falchion", "scepter"], "armor": ["plate", "archmage_raiment"], "jewelry": ["amulet", "torc"]}.get(e.applies, [])
+    pool = {"weapon": ["longsword", "falchion", "scepter", "hand_wraps"], "armor": ["plate", "archmage_raiment"], "jewelry": ["amulet", "torc"]}.get(e.applies, [])
     ok = any(e.id in {o.id for o in items.legendary_options(items.CATALOG[b], True)} for b in pool)
     if not ok: check(f"{e.id} can roll", False)
 from core.models import Character

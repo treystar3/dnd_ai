@@ -14,11 +14,11 @@ homes:
   riverhaven: {name: "a quayside house",                price: 2000000}
   sunspire:   {name: "a terraced villa",                price: 2500000}
   valecourt:  {name: "a townhouse near the court",      price: 4000000}
-  cinderhold: {name: "a basalt house above the forges", price: 5500000}
-  hrimgard:   {name: "a timbered hall on the ridge",     price: 5000000}
-  dunmarrow:  {name: "a terrace house on the Deep Stair", price: 6000000}
-  brinewatch: {name: "a salvage-broker's quay house",   price: 4500000}
-  amaranth:   {name: "a terraced house under the vines", price: 5000000}
+  cinderhold: {name: "a basalt house above the forges", price: 22000000}
+  hrimgard:   {name: "a timbered hall on the ridge",     price: 20000000}
+  dunmarrow:  {name: "a terrace house on the Deep Stair", price: 24000000}
+  brinewatch: {name: "a salvage-broker's quay house",   price: 18000000}
+  amaranth:   {name: "a terraced house under the vines", price: 20000000}
 
 # How many relics a relic dealer keeps (default 1). The far-lands dealers keep more, and sell relics of their own region.
 relic_shelves: {cinderhold: 2, hrimgard: 2, dunmarrow: 2, brinewatch: 3, amaranth: 2}

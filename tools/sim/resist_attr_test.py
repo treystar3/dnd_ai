@@ -107,5 +107,15 @@ sword.properties = [ItemProperty(modifies="crit_damage", trigger="always", magni
 ch.equipment = {"main_hand": sword}
 fa = combat.fighter_from_character(ch)
 check("crit damage adds flat points to the multiplier", abs(combat.crit_multiplier(fa) - 1.8) < 1e-9 and combat.crit_multiplier(fb) == 1.5, f"{combat.crit_multiplier(fa)}")
+
+# resolve on gear makes control effects land less often
+def resisted(extra):
+    a = combat.Fighter(id="a", name="a", side="enemy", level=10, attrs={x: 10 for x in combat.ATTRIBUTES}, hp=10, max_hp=10)
+    d = combat.Fighter(id="d", name="d", side="player", level=10, attrs={x: 10 for x in combat.ATTRIBUTES}, hp=10, max_hp=10)
+    if extra: d.bonuses.append(combat.Bonus(modifies="resolve", trigger="always", magnitude=extra))
+    r = random.Random(3)
+    return sum(combat.resist(a, d, ["wisdom"], r) for _ in range(4000)) / 4000
+check("resolve on gear raises the chance to resist", resisted(20) > resisted(0) + 0.15, f"{resisted(0):.2f} -> {resisted(20):.2f}")
+check("a velvet robe still has some ward", items.value(items.make("robe", "uncommon", 40, material="courtiers_velvet")) > 0)
 print("FAILED" if bad else "ALL PASS", bad)
 sys.exit(1 if bad else 0)

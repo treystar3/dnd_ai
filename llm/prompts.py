@@ -53,7 +53,7 @@ effect:
     about making things, and then include 2 or 3.
 tier: light, moderate, or heavy. Most should be light or moderate; at most 3 heavy.
 reach: self, melee, extended, ranged, or area.
-resource: stamina for physical techniques, mana for magical ones.
+resource: stamina for physical techniques, mana for spell ones.
 context: combat, out_of_combat, or both.
   The request states how many abilities must be usable outside combat (out_of_combat or both): social, stealth, exploration, knowledge, performance or survival uses that fit the class.
   If the class focus is social, most of its abilities should be about people, performance, knowledge or intrigue, not fighting.
