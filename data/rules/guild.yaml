@@ -1,0 +1,69 @@
+# THE ADVENTURERS' GUILD - ranks, contracts, rewards and perks.
+
+joining_fee: 300            # copper (3 silver)
+board_size: 4               # contracts posted at a time (perks can add more)
+board_refresh_days: 1       # the board gets a pass this often: some postings stay, some go, new ones come
+board_keep: 0.5             # chance each posting survives one pass (after several missed days it compounds, up to 3)
+# true: a hunt or bounty is posted at the level of the place it sends you to (the hall's own wilds, or an expedition to a far one), so better
+# work means travelling to better country. false: it is raised to the member's rank wherever it is, and an outgrown zone stays worth farming.
+place_levels: true
+scaled: {above: 0.15, below: 0.2, level_span: [0.15, 0.6], top_span: 30}   # hunts and bounties are posted at the member's rank: shares one letter above / below, where in the letter's level range they fall
+rank_focus: {below: 2, keep: 0.1}   # postings more than this many letters under your rank are thinned out
+far_lands: [ashen_reach, stormcrown, deep_roads, drowned_coast, jade_maw, sepulchre]   # halls elsewhere reach these only by expedition
+hall_reach_minutes: 1440    # a hall's board posts work for wild places and dungeons within this walk (24 h)
+base_active: 2              # contracts a member can hold at once (perks can add more)
+personal_share: 0.5         # personal requests from NPCs pay this share of the guild rate (and don't count for rank)
+
+# Ranks, lowest first. levels: the creature levels contracts of this letter involve.
+# reward: (raised 2.5x so contracts rival selling loot) coin (copper) and XP for one contract. deadline_days: time to finish one.
+# requires: what it takes to be promoted INTO this rank - a character level, and contracts completed at the
+#           rank below or higher.
+# perks: what this rank adds (they stack with everything below it):
+#   board: more postings | active: more contracts at once | room_discount / shop_discount / reward_bonus: percent
+#   storage: your item box is reachable at guild houses
+ranks:
+  F: {levels: [1, 10],    reward: {coins: 750,   xp: 310},   deadline_days: 3,  requires: null,
+      perks: {}}
+  E: {levels: [10, 25],   reward: {coins: 2200,  xp: 1600},  deadline_days: 4,  requires: {level: 10, completed: 4},
+      perks: {active: 1, room_discount: 10}}
+  D: {levels: [25, 45],   reward: {coins: 6000,  xp: 4250},  deadline_days: 5,  requires: {level: 25, completed: 5},
+      perks: {storage: true, board: 1}}
+  C: {levels: [45, 70],   reward: {coins: 15000, xp: 8200},  deadline_days: 6,  requires: {level: 45, completed: 6},
+      perks: {reward_bonus: 10, shop_discount: 10}}
+  B: {levels: [70, 100],  reward: {coins: 37000, xp: 14100}, deadline_days: 7,  requires: {level: 70, completed: 7},
+      perks: {active: 1, room_discount: 15}}
+  A: {levels: [100, 150], reward: {coins: 85000, xp: 23700}, deadline_days: 8,  requires: {level: 100, completed: 8},
+      perks: {reward_bonus: 10, shop_discount: 10}}
+  S: {levels: [150, 999], reward: {coins: 200000, xp: 44700}, deadline_days: 10, requires: {level: 150, completed: 10},
+      perks: {room_discount: 75, reward_bonus: 10}}
+
+# Contract kinds and how often each is posted.
+kinds: {hunt: 4, bounty: 1, gather: 2, materials: 2, deliver: 1, delve: 2, dungeon_boss: 1, missing: 1}
+hunt_count: {F: [2, 4], E: [3, 5], D: [3, 6], C: [4, 6], B: [4, 7], A: [3, 5], S: [2, 3]}
+gather_count: [4, 8]
+materials_count: [2, 4]
+bounty_draw_chance: 0.5     # while searching where a bounty's target lives, chance it finds you
+
+# Deliveries: who the guild sends letters to (role, place) and what they carry.
+deliveries:
+  - {to_role: watch_captain, place: watch_tower, item: "sealed guild dispatch", description: "A letter under the guild's wax seal, addressed to the captain of the watch."}
+  - {to_role: priest, place: parth_temple, item: "guild tithe receipt", description: "The guild's accounts of its yearly gift to the temple, for the priest's signature."}
+  - {to_role: innkeeper, place: tilted_plough, item: "notice of the guild's rates", description: "A board notice of the guild's prices for lodging its members."}
+
+# Great halls. A hall's tier comes from the most dangerous land near it, or its town's trade level, whichever is higher.
+# size: extra postings. reward_mult: pay and XP. kinds: replaces the posting mix. far_wilds: also posts expeditions
+# to the dangerous land this many walking minutes away (more time to finish: the walk, in days, is added to the deadline).
+# Deep wilds that do not raise the hall's own tier: they sit a day from a town, but the town is still a place for ordinary work,
+# and its pay should not jump because something lethal lives in the next valley.
+tier_ignore: [hollow_barrows, mirewater_fens, ironcrown_peaks, sunken_vaults, howling_downs, rimewind_barrens, elderwild,
+              smoulder_fields, windbreak_ridge, emerald_mire, wreck_coast, delvers_deep,
+              worldfrost_expanse, glass_sea, blackwater_deeps, shattered_downs, sunken_crown]
+hall_tiers:
+  - {min_danger: 41, size: 1, reward_mult: 1.25, far_reach_minutes: 3000, far_min_danger: 30,
+     kinds: {hunt: 3, bounty: 3, gather: 1, materials: 2, deliver: 0, delve: 3, dungeon_boss: 2, missing: 2}}
+  - {min_danger: 70, size: 2, reward_mult: 1.5,  far_reach_minutes: 4000, far_min_danger: 45,
+     kinds: {hunt: 3, bounty: 4, gather: 0, materials: 2, deliver: 0, delve: 3, dungeon_boss: 3, missing: 2}}
+  - {min_danger: 100, size: 3, reward_mult: 1.75, far_reach_minutes: 4000, far_min_danger: 75,
+     kinds: {hunt: 3, bounty: 4, gather: 0, materials: 1, deliver: 0, delve: 3, dungeon_boss: 4, missing: 2}}
+  - {min_danger: 140, size: 3, reward_mult: 1.9,  far_reach_minutes: 4000, far_min_danger: 100,
+     kinds: {hunt: 3, bounty: 4, gather: 0, materials: 1, deliver: 0, delve: 3, dungeon_boss: 4, missing: 2}}

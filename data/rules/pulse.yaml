@@ -1,0 +1,64 @@
+# THE PULSE - how the world moves on its own, away from the player.
+# The player never sees the pulse directly; they find its results in the world: people, places, the board.
+
+interval_hours: 8               # the world pulses this often
+eventful_chance: 0.35           # chance a pulse does anything at all (the rest are quiet)
+max_new_events_per_action: 2    # model calls the pulse may make while the player does one thing
+                                # (long stretches of time are compressed: timers still run, fewer new events)
+
+# What an eventful pulse does, by weight.
+kinds: {motive: 4, thread: 4}
+
+# Tiers of new situations (threads). Odds are for an eventful pulse that starts a thread.
+tiers:
+  normal:   {weight: 80, stages: 1, days: [1, 2],  resolved_by_others: 0.5}
+  uncommon: {weight: 15, stages: 2, days: [3, 6],  resolved_by_others: 0.35}
+  rare:     {weight: 5,  stages: 3, days: [7, 14], resolved_by_others: 0.2}
+  campaign: {stages: 4, days: [30, 90], resolved_by_others: 0.05}
+  cataclysm: {stages: 6, days: [84, 144], resolved_by_others: 0.0}   # built by engine/events.py; nobody else ends one
+
+# How often a campaign (or, at high level, a cataclysm) starts: see data/rules/events.yaml (campaign.every_days, cataclysm).
+pressure_cooldown_days: 4       # a pressure can't start a new situation again this soon
+
+# Which tiers may take a person the player has met out of the story (gone, taken, killed) or change their
+# personality. Lower tiers can't. Roles listed under protected_roles are never removed.
+may_remove_met: [rare, campaign, cataclysm]
+may_change_traits: [uncommon, rare, campaign, cataclysm]
+protected_roles: [guild_clerk, guild_master]
+
+# Motives: some people the player has met have an active goal that moves forward off-screen. Most are content.
+motives:
+  base_chance: 0.25             # share of people with a motive when first met
+  step_days: 3                  # a person's motive moves at most this often
+  trait_shift: {ambitious: 0.25, greedy: 0.2, vengeful: 0.3, anxious: 0.15, competitive: 0.15, obsessive: 0.25,
+                bitter: 0.15, envious: 0.15, rebellious: 0.15, manipulative: 0.2,
+                content: -0.2, easygoing: -0.15, cheerful: -0.1, calm: -0.1, humble: -0.1, patient: -0.05}
+
+# Effects the world can have, and their limits.
+effects:
+  prices: {min: -30, max: 60}         # percent change to prices in a town
+  danger: {min: -50, max: 100}        # percent change to encounter odds in a place
+  relation: {min: -25, max: 25}       # change in how one person feels about another
+  max_days: 60                        # longest any temporary effect lasts (campaign events can renew them)
+
+# News travels along roads. It reaches a place this many hours after it happened, per hour of walking between.
+news:
+  hours_per_walking_hour: 1.5
+  keep_days: 45                       # how long news stays "news" before it's just history
+
+# Seasons. The campaign starts on the first day of the first season.
+seasons:
+  days_each: 30
+  order: [spring, summer, autumn, winter]
+
+# How the player's deeds change a town's opinion of them (-100 to 100).
+reputation:
+  contract_done: 4
+  request_done: 3
+  work_done: 2
+  gift: 1
+  lie_caught: -4
+  threat: -2
+  caught_spying: -2
+  performed: 2
+  trust_per_point: 0.25               # people meeting the player for the first time start this much warmer per point

@@ -1,0 +1,6 @@
+# TRAVEL RULES
+
+bad_weather_slow: 25     # percent slower on foot in rain or storm
+arctic_slow: 25          # percent slower crossing arctic country
+fatigue_per_hour: 4      # percent of stamina a journey costs per hour on the road
+fatigue_max: 50          # the most a single journey can cost

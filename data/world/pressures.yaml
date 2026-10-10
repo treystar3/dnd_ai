@@ -1,0 +1,570 @@
+# What CAN happen here - not what is happening. Nothing is in motion when the player wakes.
+# The pulse system rolls against these over time; whatever comes up becomes a thread.
+#
+# weight:   relative chance of being chosen when a pulse lands on this place.
+# severity: range of severities (0 invisible .. 5 catastrophic) it can produce.
+# scope:    widest scope it normally reaches.
+
+- id: greywood_predators
+  place: greywood
+  kind: threat
+  description: Predators from the Greywood go after livestock or travelers. Usually wolves; occasionally something worse.
+  weight: 3
+  severity: [1, 4]
+  scope: local
+
+- id: seeker_arrives
+  place: parth
+  kind: social
+  description: A Seeker arrives to test the village's children for the gift.
+  weight: 1
+  severity: [2, 4]
+  scope: local
+
+- id: gift_shows
+  place: parth
+  kind: social
+  description: A child in or near Parth shows signs of magic. The family must decide whether to report it.
+  weight: 2
+  severity: [1, 3]
+  scope: individual
+
+- id: road_brings_strangers
+  place: parth
+  kind: economic
+  description: Travelers, merchants or strangers arrive on the trade road, bringing goods, news or trouble.
+  weight: 4
+  severity: [0, 3]
+  scope: local
+
+- id: caravan_trouble
+  place: wend_vale
+  kind: economic
+  description: A caravan on the trade road is delayed, robbed or lost, and someone in Parth feels it.
+  weight: 2
+  severity: [1, 3]
+  scope: regional
+  campaign: true
+  reward: [mount, deed]
+
+- id: harvest_and_weather
+  place: wend_vale
+  kind: natural
+  description: Weather turns for or against the crops and flocks.
+  weight: 2
+  severity: [0, 4]
+  scope: regional
+
+- id: watch_guild_tension
+  place: parth
+  kind: social
+  description: The old friction between the watch and the guild flares over who handles a problem.
+  weight: 1
+  severity: [1, 2]
+  scope: local
+
+- id: inn_trouble
+  place: tilted_plough
+  kind: social
+  description: A quarrel, a debt, a cheat at dice, or a stranger who draws attention at the inn.
+  weight: 3
+  severity: [0, 2]
+  scope: individual
+
+# --- the wider world (directions for the pulse, not scripts) ---
+
+- id: willowmead_floods
+  place: willowmead
+  kind: nature
+  description: The Great River's waters rise into the fields and orchards - or a good season brings a fine harvest and a market fair.
+  weight: 2
+  severity: [1, 4]
+  scope: local
+
+- id: greyhollow_mines
+  place: greyhollow
+  kind: work
+  description: Something in the mines - a collapse, a rich new seam, a tunnel that breaks into something old, a dispute over pay.
+  weight: 3
+  severity: [1, 4]
+  scope: local
+  campaign: true
+  reward: [deed, item]
+
+- id: blackpine_border
+  place: eldervale
+  kind: social
+  description: Unease where human loggers and the elves of the Blackpine meet - trespass, a misunderstanding, a gift, a treaty.
+  weight: 2
+  severity: [1, 4]
+  scope: regional
+  campaign: true
+  reward: [deed, title]
+
+- id: ironvein_deeps
+  place: ironvein
+  kind: threat
+  description: Things stir in the deeps beneath Ironvein - or the engineers finish a great work the whole city celebrates.
+  weight: 2
+  severity: [1, 5]
+  scope: regional
+  campaign: true
+  reward: [item, title]
+
+- id: frostholm_winter
+  place: frostholm
+  kind: nature
+  description: The northern winter - the Frostpass closing, stores running low, a hard hunt, a long-awaited thaw.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: riverhaven_trade
+  place: riverhaven
+  kind: trade
+  description: River trade - rival merchant houses, a barge lost, a smuggling ring, prices swinging, a foreign ship arriving.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: redstone_frontier
+  place: redstone
+  kind: threat
+  description: The frontier - caravans late or raided, strangers from the desert, frontier justice, a scout who doesn't come back.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+  campaign: true
+  reward: [deed, mount]
+
+- id: sunspire_waters
+  place: sunspire
+  kind: social
+  description: Sunspire's waters and the faith around them - a rite, a drought, a dispute among the water priests, a wondrous sign.
+  weight: 2
+  severity: [1, 5]
+  scope: regional
+
+- id: valecourt_court
+  place: valecourt
+  kind: politics
+  description: The court - noble houses rising and falling, a marriage, a scandal, a new decree that reaches the countryside.
+  weight: 3
+  severity: [1, 5]
+  scope: kingdom
+  campaign: true
+  reward: [deed, title]
+
+- id: the_hollow_stirs
+  place: parth
+  kind: mystery
+  description: Something connected to the stories of the Hollow - a stranger, an object, a dream shared by many, a sign in the sky.
+  weight: 1
+  severity: [2, 5]
+  scope: kingdom
+  campaign: true
+  reward: [item]
+
+# --- the far lands ---
+
+- id: cinderhold_forges
+  place: cinderhold
+  kind: work
+  description: The forges of Cinderhold - a furnace master's rivalry, a vein of cindersteel struck, a foundry fire, an order too large for the guilds to fill.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: cinderhold_ash_fall
+  place: cinderhold
+  kind: nature
+  description: The ash wastes breathe out - a choking ashfall closes the roads, a caldera tremor rattles the foundry district, or a quiet season lets the city breathe.
+  weight: 2
+  severity: [1, 5]
+  scope: regional
+
+- id: ashen_cult_stirs
+  place: ash_wastes
+  kind: threat
+  description: Ash cults gather in the wastes - a procession of the burning faithful, a raid on a salvage convoy, a pilgrim who walks out of the fire unharmed.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, title]
+
+- id: caldera_wakes
+  place: cinder_caldera
+  kind: nature
+  description: The Cinder Caldera shifts - a new vent opens, a colossus walks down from the rim, or the lava ebbs and exposes an old ruin.
+  weight: 1
+  severity: [3, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: hrimgard_hall_feud
+  place: hrimgard
+  kind: politics
+  description: The thanes of Hrimgard - a feud over hall-right, a challenge duel at the high table, a moot called against the guild's tithe.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: stormcrown_tempest
+  place: stormcrown_heights
+  kind: nature
+  description: The Stormcrown storms - lightning splits a watchtower, a sky titan is sighted, a pass is buried in snow, or the thunderbirds nest low and the herders prosper.
+  weight: 3
+  severity: [1, 5]
+  scope: regional
+  campaign: true
+  reward: [mount, item]
+
+- id: roc_season
+  place: thunder_spires
+  kind: threat
+  description: Something nests in the Thunder Spires - rocs raid the high pastures, a storm giant demands tribute, or a climbing party does not come down.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [mount]
+
+- id: dunmarrow_stair
+  place: dunmarrow
+  kind: trade
+  description: Dunmarrow's trade on the Deep Stair - a duergar caravan overdue, a deepsilver shipment held up at the toll, a guild house outbid, a smuggled map changing hands.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: deep_roads_collapse
+  place: deep_roads_tunnels
+  kind: threat
+  description: The Deep Roads turn on their keepers - a tunnel collapse, a crawler brood loose in the markets, a lightless horror seen at the edge of a lantern.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [deed, title]
+
+- id: lightless_whispers
+  place: lightless_deep
+  kind: mystery
+  description: Whispers rise from the Lightless Deep - a sleeper stirs, miners return speaking in unison, or a dead city's lamps are lit again.
+  weight: 1
+  severity: [3, 5]
+  scope: kingdom
+  campaign: true
+  reward: [item]
+
+- id: brinewatch_tides
+  place: brinewatch
+  kind: trade
+  description: Brinewatch's salvage trade - a wreck surfaces at low tide, a broker's claim is jumped, a pirate captain is hanged or ransomed, a storm drives in a hundred hulls.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: drowned_coast_rising
+  place: drowned_shore
+  kind: nature
+  description: The drowned shore moves - a spring tide floods the lower quays, a sunken tower breaks the surface, a tidal leviathan is spotted off the point.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, title]
+
+- id: sea_hag_bargain
+  place: brinewatch
+  kind: mystery
+  description: A sea hag's bargain - a fisher's drowned son returns, a coven's price is paid in whispers, a salvage crew sails out and a different crew sails back.
+  weight: 1
+  severity: [2, 4]
+  scope: local
+
+- id: amaranth_vines
+  place: amaranth
+  kind: nature
+  description: The vines of Amaranth - a bloom that heals or maddens, a canopy road overgrown overnight, a great harvest festival, a green sickness in the lower terraces.
+  weight: 3
+  severity: [1, 4]
+  scope: regional
+
+- id: jade_maw_temple
+  place: jade_maw_jungle
+  kind: mystery
+  description: The temples of the Jade Maw wake - a serpent priest speaks, a jade warrior walks out of the vines, a lost expedition returns with a map nobody drew.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: amaranth_court
+  place: amaranth
+  kind: politics
+  description: The vine-courts of Amaranth - a house of herbalists and a house of hunters quarrel over the trade, a marriage seals a pact, a poisoning is hushed up.
+  weight: 2
+  severity: [1, 4]
+  scope: local
+
+- id: sepulchre_unquiet
+  place: sepulchre_fields
+  kind: mystery
+  description: The dead empire is restless - a barrow king's legion marches by moonlight, tomb robbers strike a rich mausoleum, a revenant marshal offers terms.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, title]
+
+- id: great_halls_rivalry
+  place: cinderhold
+  kind: politics
+  description: The great guild halls compete - a contract war over a dragon's hoard, a defector between halls, a Rank S hunter's challenge, a ruling from the guild moot.
+  weight: 2
+  severity: [1, 5]
+  scope: kingdom
+
+- id: far_lands_war
+  place: hrimgard
+  kind: threat
+  description: War brews along the far borders - a giant host gathers, a deep-road kingdom closes its gates, refugees from the ash arrive in Valecourt's markets.
+  weight: 1
+  severity: [3, 5]
+  scope: kingdom
+  campaign: true
+  reward: [title, deed]
+
+- id: far_wonder
+  place: amaranth
+  kind: fortune
+  description: A wonder of the far lands - a legendary relic surfaces in a dealer's window, a hero's tomb is opened, a rare beast is brought in alive.
+  weight: 1
+  severity: [1, 4]
+  scope: regional
+
+- id: barrow_kings_rise
+  place: hollow_barrows
+  kind: mystery
+  description: Something under the Hollow Barrows is waking the dead - a barrow lord's host climbs out of the mounds, grave-robbers vanish, and the villages nearby bar their doors.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, title]
+
+- id: fens_will_o_wisps
+  place: mirewater_fens
+  kind: threat
+  description: The Mirewater Fens are spreading - a hag-queen lures travellers into the mire, flooded roads cut off farms, and the river traders lose barges to things beneath the water.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: ironcrown_giants
+  place: ironcrown_peaks
+  kind: threat
+  description: Giants come down from the Ironcrown Peaks in numbers - a clan chief demands tribute, mine-roads are blocked by rockfalls, and Ironvein's hall asks for champions.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [deed, title]
+
+- id: sunken_vault_opens
+  place: sunken_vaults
+  kind: mystery
+  description: A sealed vault under the Sunscar breaks open - ancient constructs march, relic dealers pay fortunes, and Sunspire's priests disagree whether to wall it shut.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: howling_downs_beast
+  place: howling_downs
+  kind: threat
+  description: A huge beast stalks the Howling Downs - flocks and shepherds vanish, nobles arrange hunts, and the royal roads grow nervous.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [mount, deed]
+
+- id: rimewind_march
+  place: rimewind_barrens
+  kind: threat
+  description: Something walks out of the Rimewind Barrens - frost-giants, a winter hag or a frozen host - and Frostholm braces for a long, hard winter.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [title, item]
+
+- id: elderwild_stirs
+  place: elderwild
+  kind: nature
+  description: The Elderwild spreads and the old trees move - the elven wardens ask for help, the road is swallowed, and an ancient guardian is wronged.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [mount, item]
+
+- id: smoulder_fields_vents
+  place: smoulder_fields
+  kind: nature
+  description: New vents break open across the Smoulder Fields - fire elementals and magma beasts pour out, and Cinderhold's forges are threatened.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, deed]
+
+- id: windbreak_storm_lord
+  place: windbreak_ridge
+  kind: threat
+  description: A storm lord claims Windbreak Ridge - lightning falls on Hrimgard's walls, and the old thunder-giants answer its call.
+  weight: 1
+  severity: [3, 5]
+  scope: regional
+  campaign: true
+  reward: [mount, title]
+
+- id: emerald_mire_court
+  place: emerald_mire
+  kind: mystery
+  description: A hidden court rises in the Emerald Mire - Amaranth's herbalists, cultists and trappers each blame the others, while the jungle creeps toward the city.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: wreck_coast_armada
+  place: wreck_coast
+  kind: threat
+  description: A ghost armada returns to the Wreck Coast - drowned crews walk the harbour, tides run wrong, and Brinewatch's captains refuse to sail.
+  weight: 1
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [title, item]
+
+- id: delvers_deep_awakens
+  place: delvers_deep
+  kind: threat
+  description: Dunmarrow's abandoned mines breathe again - something older than the dwarves climbs the galleries, and every lamp in the Deep Roads gutters.
+  weight: 1
+  severity: [3, 5]
+  scope: regional
+  campaign: true
+  reward: [deed, item]
+
+# --- the uttermost reaches ---
+
+- id: tempest_throne_answer
+  place: tempest_throne
+  kind: mystery
+  description: The storm above the Throne answers someone - a climber who returns changed, a skald who will not speak, a thunderclap with words in it, or a giant who comes down to ask a price.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: furnace_slag_march
+  place: furnace_of_ages
+  kind: threat
+  description: The Furnace stirs - slag titans walk to the shore, a flamekeeper's apprentice is sent in and does not return, or a bridge of fused bone gives way.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item]
+
+- id: abyssal_gallery_listening
+  place: abyssal_gallery
+  kind: mystery
+  description: Something in the dark of the gallery listens - a rune-master copies the wrong wall, a lamp-party counts more than it sent, or the old machines wake.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item]
+
+- id: leviathan_trench_ebb
+  place: leviathan_trench
+  kind: nature
+  description: The trench opens at the ebb - a leviathan surfaces to feed, a salvage crew goes in after bones as long as ships, or the tide fails to turn.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: heartroot_awakens
+  place: heartroot_sanctum
+  kind: nature
+  description: The Heartroot stirs - roots move toward the city, a vine-priest walks out of the jungle with an offer, or the green light in the temple turns the wrong colour.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item]
+
+- id: throne_of_ashes_gates
+  place: throne_of_ashes
+  kind: threat
+  description: The dead at the gates of the last palace stir - a rank marches out on an old order, a guild veteran is recognised by name, or the sky over the palace goes dark.
+  weight: 2
+  severity: [2, 5]
+  scope: regional
+  campaign: true
+  reward: [item, mount]
+
+- id: worldfrost_thaw
+  place: worldfrost_expanse
+  kind: nature
+  description: The ice shifts - a crevasse opens on a sleeping wyrm, a trapper's party goes missing in the blue, or the aurora comes down to the ground.
+  weight: 2
+  severity: [1, 5]
+  scope: regional
+
+- id: glass_sea_song
+  place: glass_sea
+  kind: mystery
+  description: The Glass Sea sings - a caravan walks off toward the sound, a mirage stays after dawn, or a shattered tower is found standing where there was only sand.
+  weight: 2
+  severity: [1, 5]
+  scope: regional
+
+- id: blackwater_lights
+  place: blackwater_deeps
+  kind: mystery
+  description: Lights move under the black water - a bargeman follows them, a causeway appears where there was none, or something old speaks from the mist.
+  weight: 2
+  severity: [1, 4]
+  scope: regional
+
+- id: shattered_downs_giant_dead
+  place: shattered_downs
+  kind: threat
+  description: The giants' dead on the Downs are not at rest - a standing stone moves, a titan walks the field at dusk, or a herald's party is found among the weapons.
+  weight: 2
+  severity: [1, 5]
+  scope: regional
+
+- id: sunken_crown_tide
+  place: sunken_crown
+  kind: nature
+  description: The tide pulls back from the drowned capital - towers show their lamps, a wrecker's crew goes out and comes back wrong, or a dragon rises to the new ground.
+  weight: 2
+  severity: [1, 5]
+  scope: regional

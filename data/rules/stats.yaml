@@ -1,0 +1,223 @@
+# STATS - what passives (and later gear, injuries, blessings) can modify.
+#
+# The engine owns what these mean. The narrator only describes results.
+#
+# category:    combat | pool | restoration | exploration | social | knowledge | companion
+#              pool = size of health/stamina/mana (always-on, at most one per passive list)
+# effect:      chance - a +10% bonus adds 10 points to the chance of a check succeeding
+#              scale  - a +10% bonus multiplies a value by 1.10 (damage, pool size, recovery rate)
+# attribute:   which attribute drives it. A list means "whichever is higher".
+#              "weapon" means the equipped weapon's attribute. null means none.
+# opposed_by:  the stat the other side uses to resist, if any.
+# noncombat:   true if it mainly matters outside fights (used for creation balance rules).
+# covers:      plain description of when it applies. Shown to the skill generator.
+# suits:       fit tags for character creation. archetypes and theme keywords that make this
+#              stat a natural choice. Theme keywords are matched against the class's name,
+#              themes, identity and summary.
+
+# --- combat ---
+- id: accuracy
+  category: combat
+  effect: chance
+  attribute: weapon
+  opposed_by: evasion
+  covers: Landing attacks with weapons, spells and thrown objects.
+  suits:
+    archetypes: [warrior, rogue, mage]
+    themes: [precision, marksman, archer, sniper, duelist, spear, blade, lancer, eye]
+
+- id: evasion
+  category: combat
+  effect: chance
+  attribute: dexterity
+  covers: Avoiding attacks by dodging, ducking or slipping aside. Lowers enemies' chance to hit.
+  suits:
+    archetypes: [rogue]
+    themes: [agile, agility, acrobat, aerial, dancer, swift, nimble, wind, shadow]
+
+- id: defense
+  category: combat
+  effect: scale
+  attribute: constitution
+  covers: Absorbing blows. Reduces damage taken after armor.
+  suits:
+    archetypes: [warrior]
+    themes: [knight, guardian, armor, shield, protector, heavy, iron, bulwark, sentinel]
+
+- id: damage
+  category: combat
+  effect: scale
+  attribute: weapon
+  covers: How hard attacks and offensive spells hit.
+  suits:
+    archetypes: [warrior, mage]
+    themes: [berserker, brute, power, strike, slayer, destruction, fire, fury, plunge]
+
+- id: movement
+  category: combat
+  effect: chance
+  attribute: dexterity
+  covers: Closing or opening distance, chasing, fleeing, climbing, jumping and crossing hard ground.
+  suits:
+    archetypes: [rogue]
+    themes: [aerial, acrobat, leap, swift, wind, mobility, scout, runner, skirmish, sky]
+
+- id: resolve
+  category: combat
+  effect: chance
+  attribute: wisdom
+  covers: Resisting fear, intimidation, persuasion, charm, pain and mind-affecting magic.
+  suits:
+    archetypes: [warrior, support]
+    themes: [paladin, knight, faith, will, martyr, discipline, monk, stoic, oath, grave]
+
+# --- pools ---
+- id: max_health
+  category: pool
+  effect: scale
+  attribute: constitution
+  covers: How much harm the character can take before falling.
+  suits:
+    archetypes: [warrior]
+    themes: [tough, giant, endurance, iron, unbreakable]
+
+- id: max_stamina
+  category: pool
+  effect: scale
+  attribute: constitution
+  covers: How much physical effort the character can spend before tiring.
+  suits:
+    archetypes: [warrior, rogue]
+    themes: [endurance, tireless, runner, martial]
+
+- id: max_mana
+  category: pool
+  effect: scale
+  attribute: intelligence
+  covers: How much magical energy the character can hold.
+  suits:
+    archetypes: [mage, support]
+    themes: [arcane, magic, spirit, mana, essence, mystic]
+
+- id: recovery
+  category: restoration
+  effect: scale
+  attribute: constitution
+  covers: How quickly health, stamina and mana return during rest and after fights.
+  suits:
+    archetypes: [support]
+    themes: [healer, regeneration, vitality, life, breath, meditation]
+
+# --- exploration ---
+- id: perception
+  category: exploration
+  effect: chance
+  attribute: wisdom
+  covers: Noticing hidden things, spotting ambushes, tracking, hearing what others miss.
+  suits:
+    archetypes: [rogue]
+    themes: [hunter, ranger, scout, tracker, watcher, sentinel, senses, eye, beast]
+
+- id: stealth
+  category: exploration
+  effect: chance
+  attribute: dexterity
+  opposed_by: perception
+  noncombat: true
+  covers: Sneaking, hiding, moving unseen, picking pockets, slipping away unnoticed.
+  suits:
+    archetypes: [rogue]
+    themes: [shadow, thief, assassin, stealth, infiltration, silent, spy, night]
+
+# --- social ---
+- id: insight
+  category: social
+  effect: chance
+  attribute: wisdom
+  noncombat: true
+  covers: Reading people, spotting lies, sensing intentions and moods.
+  suits:
+    archetypes: [support, rogue]
+    themes: [empathy, priest, detective, investigator, oracle, spirit, healer]
+
+- id: persuasion
+  category: social
+  effect: chance
+  attribute: charisma
+  opposed_by: resolve
+  noncombat: true
+  covers: Convincing, negotiating, haggling, calming and winning people over.
+  suits:
+    archetypes: [support]
+    themes: [diplomat, noble, merchant, bard, charm, leader, courtly, harmony, soothe]
+
+- id: intimidation
+  category: social
+  effect: chance
+  attribute: [strength, charisma]
+  opposed_by: resolve
+  noncombat: true
+  covers: Threatening, coercing and frightening people into backing down or complying.
+  suits:
+    archetypes: [warrior]
+    themes: [dread, menace, warlord, brute, necromancy, death, fear, grave, discord]
+
+- id: deception
+  category: social
+  effect: chance
+  attribute: charisma
+  opposed_by: insight
+  noncombat: true
+  covers: Lying, bluffing, disguise and misdirection.
+  suits:
+    archetypes: [rogue]
+    themes: [trickster, spy, swindler, illusion, thief, mimic, mask, intrigue]
+
+- id: performance
+  category: social
+  effect: chance
+  attribute: charisma
+  noncombat: true
+  covers: Music, oratory, storytelling and displays of skill for an audience.
+  suits:
+    archetypes: [support]
+    themes: [bard, music, song, dancer, performer, entertainer, sonic, melody]
+
+# --- knowledge ---
+- id: lore
+  category: knowledge
+  effect: chance
+  attribute: intelligence
+  noncombat: true
+  covers: Recalling history, legends, creatures, magic, religion and places.
+  suits:
+    archetypes: [mage, support]
+    themes: [scholar, sage, arcane, priest, history, ancient, wizard, sacred, ritual]
+- id: crafting
+  category: knowledge
+  effect: chance
+  attribute: null
+  noncombat: true
+  covers: Making things - forging, leatherwork, sewing, woodwork, brewing and cooking. Adds to crafting skill.
+  suits:
+    archetypes: [support]
+    themes: [smith, artisan, craft, forge, tinker, alchemist, maker, engineer, brewer, leatherworker]
+
+# --- companions ---
+- id: companion_damage
+  category: companion
+  effect: scale
+  attribute: null
+  covers: How hard the character's companions hit.
+  suits:
+    archetypes: []
+    themes: [summoner, beast, tamer, necromancer, commander, pack, binder, master]
+
+- id: companion_durability
+  category: companion
+  effect: scale
+  attribute: null
+  covers: How much harm the character's companions can take.
+  suits:
+    archetypes: []
+    themes: [summoner, beast, tamer, necromancer, guardian, pack, binder, bond]

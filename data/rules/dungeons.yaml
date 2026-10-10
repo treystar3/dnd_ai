@@ -1,0 +1,29 @@
+# DUNGEONS - generated beneath the world's wild places, listed by the guild, restocked every few weeks.
+
+respawn_days: 21              # a dungeon is remade from scratch this often; progress inside is lost
+min_zone_level: 8             # only wild places whose danger reaches this level get a dungeon
+floors: [3, 6]
+chambers_per_floor: [3, 5]
+depth: {extra_levels: 9, growth: 1.0}   # the bottom reaches base level + max(extra_levels, base x growth)
+chambers: {fight: 5, trap: 2, cache: 2, rest: 1}   # what a chamber holds (the last of each floor is always a fight)
+trap: {damage_failure: 15, damage_partial: 7}       # percent of health, if the trap isn't spotted
+cache: {coins_per_level: [5, 15], item_chance: 0.6}
+boss_bonus: 1.5               # boss contracts pay this much more, and count double toward guild rank
+rest_in_chamber_only: true    # inside, you can only rest in a quiet chamber (or back at the entrance)
+
+# Themes: which creature categories live there, which kinds of land they appear under, and words for names.
+themes:
+  barrow:  {categories: [undead], biomes: [forest, farmland, hills, grassland, swamp, freshwater, ruins, drowned], nouns: [Barrow, Crypt, Ossuary, Tomb],
+            adjectives: [Sunken, Hollow, Weeping, Forgotten, Silent, Ashen]}
+  den:     {categories: [beast, monstrosity], biomes: [forest, hills, mountains, arctic, swamp, freshwater, jungle, highpeaks, drowned, deep_underground], nouns: [Den, Lair, Caves, Hollow],
+            adjectives: [Gnawed, Black, Deep, Howling, Bone-strewn]}
+  warren:  {categories: [monstrous race, hostile people], biomes: [forest, hills, mountains, grassland, jungle, deep_underground, highpeaks], nouns: [Warren, Hideout, Burrows, Stronghold],
+            adjectives: [Rat-King's, Broken, Smoking, Crooked, Red]}
+  mine:    {categories: [construct, elemental, aberration], biomes: [mountains, hills, desert, volcanic, deep_underground, highpeaks], nouns: [Mine, Delve, Deeps, Workings],
+            adjectives: [Abandoned, Collapsed, Glittering, Drowned, Old]}
+  rift:    {categories: [fiend, elemental], biomes: [cracked_plains, volcanic], nouns: [Rift, Breach, Scar, Wound],
+            adjectives: [Burning, Screaming, Black, Bleeding, Shattered]}
+  vault:   {categories: [construct, aberration, ooze], biomes: [deep_underground, ruins, highpeaks], nouns: [Vault, Sanctum, Undercroft, Reliquary],
+            adjectives: [Sealed, Lightless, Forgotten, Warded, Deepest]}
+  aerie:   {categories: [giant, dragon, elemental], biomes: [highpeaks, volcanic, drowned], nouns: [Aerie, Citadel, Halls, Throne],
+            adjectives: [Storm-wracked, Cloud-high, Molten, Thunderous, Drowned]}

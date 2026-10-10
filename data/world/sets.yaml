@@ -1,0 +1,91 @@
+# ARMOR SETS - wearing several pieces of the same material gives a bonus.
+#
+# Only armor counts: head, body, hands, feet and a shield. Weapons, rings and amulets never do, so a ring never has to
+# be passed over for the sake of a set. Two matching pieces give the `two` bonus, four give `four` (and keep `two`).
+#
+# A set is a reward for finishing an outfit, never a reason to keep a worse one: every bonus is small beside what a newer or
+# rarer piece gives by itself, and the numbers climb with the material's era (see `caps`; engine tests enforce them).
+# No set depends on what you are fighting.
+#
+# effects:  [stat, trigger, magnitude]   a stat bonus, like any property
+# fight:    {mechanic: value}            combat mechanics (the same ones legendary armor uses)
+# world:    {mechanic: value}            things the world answers to, away from combat
+# Descriptions are written from these by the engine.
+
+thresholds: [2, 4]
+
+# Strength ceilings by the material's first level: a stat bonus may not exceed `stat`; a mechanic may not exceed this share of
+# the value the same mechanic has on a legendary item.  (Flags with no value - sanctified, unyielding - need `flags: true`.)
+caps:
+  - {from: 1,   stat: 5,  share: 0.30, flags: false}
+  - {from: 40,  stat: 8,  share: 0.45, flags: sanctified}
+  - {from: 120, stat: 11, share: 0.65, flags: sanctified}
+  - {from: 300, stat: 15, share: 0.90, flags: true}
+
+sets:
+  # ---- metal
+  bronze:        {two: {effects: [[defense, while_defending, 4]]}, four: {fight: {plating: 6}}}
+  bog_iron:      {two: {effects: [[max_health, always, 4]]},       four: {fight: {aegis: 8}}}
+  iron:          {two: {effects: [[defense, always, 3]]},          four: {fight: {plating: 7}}}
+  cold_iron:     {two: {effects: [[resolve, always, 4]]},          four: {fight: {spellward: 7}}}
+  silver:        {two: {effects: [[recovery, always, 5]]},         four: {world: {field_medic: 15}}}
+  steel:         {two: {effects: [[defense, always, 5]]},          four: {fight: {aegis: 13}}}
+  gravesteel:    {two: {effects: [[damage, after_defeating_foe, 5]]}, four: {fight: {triumph: 4}}}
+  quicksilver:   {two: {effects: [[evasion, always, 5], [movement, always, 6]]}, four: {fight: {windwalker: 13}}}
+  sunsteel:      {two: {effects: [[defense, in_daylight, 8]]},     four: {fight: {regeneration: 1.2}}}
+  moonsilver:    {two: {effects: [[stealth, at_night, 8]]},        four: {fight: {phantom: 6}}}
+  cindersteel:   {two: {effects: [[recovery, always, 6]]},         four: {fight: {retribution: 9}}}
+  mithril:       {two: {effects: [[defense, always, 6]]},          four: {fight: {deflect: 9}}}
+  stormiron:     {two: {effects: [[accuracy, always, 6]]},         four: {fight: {windwalker: 12}}}
+  brinesteel:    {two: {effects: [[max_health, always, 6]]},       four: {fight: {regeneration: 1.2}}}
+  jadesteel:     {two: {effects: [[evasion, always, 6]]},          four: {fight: {riposte: 10}}}
+  deepsilver:    {two: {effects: [[resolve, always, 6]]},          four: {fight: {spellward: 11}}}
+  obsidian_steel: {two: {effects: [[defense, always, 5]]},         four: {fight: {retribution: 9}}}
+  barrowgold:    {two: {effects: [[resolve, always, 6]]},          four: {fight: {second_wind: 18}}}
+  stormbrass:    {two: {effects: [[defense, in_bad_weather, 9]]},  four: {world: {weather_wise: 0}}}
+  glassteel:     {two: {effects: [[accuracy, always, 8]]},         four: {fight: {windwalker: 19}}}
+  wyrmgold:      {two: {effects: [[persuasion, in_settlements, 8]]}, four: {world: {haggler: 13}}}
+  adamantine:    {two: {effects: [[defense, always, 8]]},          four: {fight: {hardening: 3, plating: 16}}}
+  infernal_iron: {two: {effects: [[max_health, always, 10]]},      four: {fight: {last_stand: 27}}}
+  starmetal:     {two: {effects: [[max_health, always, 12]]},      four: {fight: {unyielding: 0, aegis: 27}}}
+  # ---- hide
+  rawhide:       {two: {effects: [[max_stamina, always, 4]]},      four: {world: {forager: 25}}}
+  wolf_hide:     {two: {effects: [[stealth, in_wilderness, 5]]},   four: {world: {tracker: 0}}}
+  boar_hide:     {two: {effects: [[defense, while_defending, 5]]}, four: {fight: {riposte: 7}}}
+  bear_hide:     {two: {effects: [[max_health, always, 4]]},       four: {fight: {guardian: 9}}}
+  dire_wolf_pelt: {two: {effects: [[stealth, in_wilderness, 5]]},  four: {world: {danger_sense: 0}}}
+  ankheg_chitin: {two: {effects: [[defense, always, 4]]},          four: {fight: {plating: 7}}}
+  owlbear_hide:  {two: {effects: [[max_health, always, 5]]},       four: {fight: {second_wind: 12}}}
+  crocodile_hide: {two: {effects: [[stealth, in_swamp, 7]]},       four: {fight: {plating: 11}}}
+  winter_wolf_pelt: {two: {effects: [[stealth, in_arctic, 7]]},    four: {world: {weather_wise: 0}}}
+  basilisk_hide: {two: {effects: [[resolve, always, 6]]},          four: {fight: {sanctified: 0}}}
+  griffon_down:  {two: {effects: [[evasion, while_elevated, 8]]},  four: {world: {wayfinder: 0}}}
+  manticore_hide: {two: {effects: [[damage, when_attacked, 6]]},   four: {fight: {riposte: 11}}}
+  drake_scale:   {two: {effects: [[max_health, always, 6]]},       four: {fight: {spellward: 11}}}
+  scorchhide:    {two: {effects: [[max_health, always, 6]]},       four: {fight: {last_stand: 12}}}
+  umberhide:     {two: {effects: [[stealth, always, 6]]},          four: {world: {trap_sense: 0}}}
+  jadescale:     {two: {effects: [[stealth, always, 6]]},          four: {world: {tracker: 0}}}
+  thunderhide:   {two: {effects: [[evasion, always, 6]]},          four: {world: {trailblazer: 9}}}
+  krakenhide:    {two: {effects: [[max_stamina, always, 8]]},      four: {fight: {regeneration: 1.3}}}
+  troll_hide:    {two: {effects: [[recovery, always, 10]]},        four: {fight: {regeneration: 1.9}}}
+  wyvern_leather: {two: {effects: [[evasion, always, 8]]},         four: {fight: {phantom: 9}}}
+  remorhaz_plate: {two: {effects: [[defense, always, 8]]},         four: {fight: {plating: 16}}}
+  hydra_scale:   {two: {effects: [[max_health, always, 8]]},       four: {fight: {regeneration: 1.9}}}
+  dragon_scale:  {two: {effects: [[max_health, always, 12]]},      four: {fight: {spellward: 22, plating: 22}}}
+  # ---- cloth
+  wool_linen:    {two: {effects: [[recovery, always, 4]]},         four: {world: {campaigner: 0}}}
+  courtiers_velvet: {two: {effects: [[persuasion, in_conversation, 5]]}, four: {world: {dark_charisma: 0}}}
+  spider_silk:   {two: {effects: [[evasion, always, 4]]},          four: {fight: {windwalker: 9}}}
+  ettercap_silk: {two: {effects: [[stealth, in_wilderness, 5]]},   four: {world: {trap_sense: 0}}}
+  leafweave:     {two: {effects: [[recovery, in_wilderness, 7]]},  four: {world: {forager: 45}}}
+  phase_silk:    {two: {effects: [[evasion, always, 6]]},          four: {fight: {phantom: 6}}}
+  cloudspun:     {two: {effects: [[evasion, always, 6]]},          four: {fight: {windwalker: 13}}}
+  deepweb:       {two: {effects: [[stealth, always, 8]]},          four: {world: {danger_sense: 0}}}
+  tidesilk:      {two: {effects: [[max_mana, always, 8]]},         four: {world: {mana_well: 22}}}
+  sunpetal:      {two: {effects: [[recovery, always, 8]]},         four: {world: {field_medic: 27}}}
+  gravelace:     {two: {effects: [[resolve, always, 6]]},          four: {fight: {ward_conversion: 18}}}
+  wraithcloth:   {two: {effects: [[stealth, at_night, 8]]},        four: {fight: {phantom: 9}}}
+  shadowweave:   {two: {effects: [[stealth, always, 10]]},         four: {fight: {deflect: 13}}}
+  stormweave:    {two: {effects: [[evasion, always, 10], [movement, always, 8]]}, four: {fight: {windwalker: 27}}}
+  ember_silk:    {two: {effects: [[max_mana, always, 12]]},        four: {fight: {spellmirror: 27}}}
+  seraph_silk:   {two: {effects: [[resolve, always, 12]]},         four: {fight: {sanctified: 0, spellward: 22}}}

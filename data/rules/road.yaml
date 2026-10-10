@@ -1,0 +1,45 @@
+# ROAD EVENTS - what happens to a traveler between places. The model invents the happening;
+# the engine decides whether one occurs, how big it is, what it can change, and does the arithmetic.
+
+min_trip_hours: 3          # shorter journeys have no road events
+min_edge_minutes: 120      # only stretches this long between two places count as "road" (not steps within a town)
+leg_hours: 6               # the road is walked in legs this long; each leg may bring an event
+chance_per_leg: 0.5        # chance a leg brings something
+max_per_trip: 4            # the most events one journey can hold
+
+# Share of events that are hostile (a fight). Multiplied by the road's danger: pulse effects on the road,
+# on the places at each end, and the player's passives. A road the world has made dangerous is hostile more often.
+hostile: 0.4
+hostile_max: 0.9
+
+# How big an event is. Only the tiers listed under interrupt stop the journey and leave the player on the road.
+tiers:
+  normal:   {weight: 70}
+  uncommon: {weight: 24}
+  rare:     {weight: 6}
+interrupt: [rare]
+
+# Bandits. Roads draw them more than the wilds do, a world event about bandits makes them the ambushers, and a rare
+# ambush may be a camp. Outlaws avoid anyone who far outlevels the road: they judge the odds, and let you pass.
+bandits:
+  base: 0.12               # chance an ambush on any road with wild land beside it is bandits
+  themed: 0.75             # ... when a world event about outlaws is acting on the road
+  words: [bandit, outlaw, brigand, highway, raider, cutthroat, thief, thieves, robber, marauder, smuggl]
+  camp_chance: 0.3         # of rare bandit ambushes: it is a camp, with a captain and a hoard
+  camp_coins_per_level: [60, 160]
+  camp_rarity_rolls: 3
+  deterrence: {ratio: 1.5, margin: 15}   # they leave you alone at level >= road top x ratio, and at least margin above it
+
+# What a happening can do, scaled by tier.
+find:
+  rarity_rolls: {normal: 1, uncommon: 2, rare: 3}      # best of this many drops
+  rare_min: uncommon                                    # a rare find is never plain
+hazard:
+  delay_minutes: {normal: [30, 90], uncommon: [60, 180], rare: [120, 300]}
+  health_loss_pct: {normal: 5, uncommon: 10, rare: 18} # of max health, on a failed check, never lethal
+aid:
+  coins: {normal: [20, 60], uncommon: [60, 180], rare: [200, 500]}   # copper x the road's level
+  reputation: {normal: 1, uncommon: 2, rare: 3}
+danger_effect:                  # what an event may leave on the road itself (percent, days)
+  max_value: {normal: 25, uncommon: 40, rare: 60}
+  max_days: {normal: 3, uncommon: 7, rare: 14}

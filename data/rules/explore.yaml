@@ -1,0 +1,27 @@
+# EXPLORING - finding places and ways that aren't on the map yet.
+# The player can go looking ("I follow the stream", "I look for a shorter way to Riverhaven"), and the world can
+# point at them (a rumor from the pulse or a road event). Either way the model invents what is found; the engine
+# decides whether anything is there and keeps it small, believable and in the right country.
+
+hours: [2, 4]              # time an attempt takes
+base_chance: 0.12          # before skill; a searching traveler usually finds nothing
+check_weight: 0.40         # + this x (perception or lore check odds / 100)
+passives: {tracker: 0.10, wayfinder: 0.10, trailblazer: 0.05}
+min_chance: 0.05
+max_chance: 0.60
+lead_chance: 1.0           # at the place a rumor points to, asking after it always finds it
+lead_days: 60              # a rumor goes stale after this long
+lead_words_min: 4          # words shorter than this don't count when matching what the player seeks to a rumor
+
+caps: {total: 40, per_place: 3, leads: 12, leads_per_place: 2}
+
+# What can be found. Safe types hold no creatures; wild types only appear off a wild place and share its dangers.
+safe_types: [hut, camp, spring, shrine, ford, cabin, grove]
+wild_types: [cave, ruin, hollow, overlook]
+place_minutes: [20, 150]   # walking time from the place it lies off
+place_residents_max: 2
+
+# A track is a shorter way between two places that were already connected the long way round.
+track_ratio: [0.45, 0.70]  # its walking time as a share of the old route
+track_must_save: 0.85      # it must be at least this much shorter than the old route
+track_min_minutes: 45

@@ -1,0 +1,47 @@
+# PROPERTY - buy a house in a city, then spend gold making it a basecamp.
+# A home is a place of its own: a free bed (full rest), an item box, and whatever upgrades you add.
+# Prices are in copper (10,000 = 1 gold). The land agent in each town sells the deed; upgrades are bought at the house.
+
+agent_role: land_agent
+# Houses are a late-game pursuit: a land agent sells a deed only in these towns, the far lands. The older towns below keep their
+# entries so a house bought before this rule (or a ruin of one) still stands, but nobody will sell you a new one there.
+sale_towns: [cinderhold, hrimgard, dunmarrow, brinewatch, amaranth]
+homes:
+  parth:      {name: "a cottage on Mill Lane",          price: 300000}
+  eldervale:  {name: "a house in the Blackpine canopy", price: 1500000}
+  ironvein:   {name: "a hall cut in the lower stone",   price: 1800000}
+  frostholm:  {name: "a longhouse by the east gate",    price: 1200000}
+  riverhaven: {name: "a quayside house",                price: 2000000}
+  sunspire:   {name: "a terraced villa",                price: 2500000}
+  valecourt:  {name: "a townhouse near the court",      price: 4000000}
+  cinderhold: {name: "a basalt house above the forges", price: 5500000}
+  hrimgard:   {name: "a timbered hall on the ridge",     price: 5000000}
+  dunmarrow:  {name: "a terrace house on the Deep Stair", price: 6000000}
+  brinewatch: {name: "a salvage-broker's quay house",   price: 4500000}
+  amaranth:   {name: "a terraced house under the vines", price: 5000000}
+
+# How many relics a relic dealer keeps (default 1). The far-lands dealers keep more, and sell relics of their own region.
+relic_shelves: {cinderhold: 2, hrimgard: 2, dunmarrow: 2, brinewatch: 3, amaranth: 2}
+
+# Upgrades. towns (optional): the only towns whose houses can take it - the best work is done in the far lands, so reaching them pays.
+# words: what the player might call it when buying.
+upgrades:
+  strongroom: {name: strongroom, price: 800000,  words: [strongroom, vault, cellar, storeroom],
+               text: "Your item box grows by 40 slots - in every home you own.", stash_bonus: 40}
+  workshop:   {name: workshop,   price: 1500000, words: [workshop, forge, smithy, workbench],
+               text: "A forge and a workbench at home, free to use, no one's permission needed."}
+  garden:     {name: garden,     price: 600000,  words: [garden, herb, herbs, plot],
+               text: "Herbs grow while you are away: 2 to 4 gathered each day you come home."}
+  hearth:     {name: hearth,     price: 1000000, words: [hearth, kitchen, larder],
+               text: "A cook's hearth: a hot meal waits each day, restoring a quarter of your stamina and health when you first sit down."}
+  reliquary:  {name: reliquary,  price: 5000000, towns: [cinderhold, hrimgard, dunmarrow, brinewatch, amaranth], words: [reliquary, treasury, great hoard],
+               text: "A warded chamber of stone and iron: your item box grows by another 80 slots - in every home you own.", stash_bonus: 80}
+  fortify:    {name: fortification, price: 2000000, words: [fortify, fortification, walls, wall, palisade, watchtower],
+               text: "Stone walls and a watchtower: if a cataclysm brings your town down, a house this strong is far less likely to fall with it.", defense: 0.35}
+  banquet_hall: {name: banquet hall, price: 8000000, towns: [cinderhold, hrimgard, dunmarrow, brinewatch, amaranth], words: [banquet, feast hall, great hall of your own],
+               text: "A long table and a hired cook: the daily meal restores three fifths of your stamina and health, and a third of your mana.", restore: 0.6, restore_mana: 0.33}
+
+# Rebuilding a ruined house costs this share of its price (see data/rules/events.yaml, cataclysm.home).
+garden_herbs: [2, 4]
+hearth_restore: 0.25
+workshop_stations: {forge: {owner: "", fee: 0}, workbench: {owner: "", fee: 0}}

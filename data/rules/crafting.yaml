@@ -1,0 +1,44 @@
+# CRAFTING RULES - gear the player makes, commissions, and merchants' stock.
+
+# Material units a piece of gear needs, by slot. Two-handed weapons use main_hand_two_handed.
+units:
+  body: 6
+  head: 2
+  hands: 2
+  feet: 2
+  off_hand: 4
+  main_hand: 3
+  main_hand_two_handed: 4
+
+# The workstation each material family needs. Places list the stations they have (places.yaml).
+stations:
+  metal: forge
+  hide: tanning_rack
+  cloth: loom
+  wood: workbench
+
+gear_minutes: 120          # time to make one piece of gear yourself
+goods_skill_gain: 0.5      # skill gained for brewing or cooking (gear teaches more)
+gear_skill_gain: 2.0       # base skill gained for a piece of gear; less as your skill rises
+
+# Quality: crafting score = skill + bonuses + a roll of +/- roll_spread. The highest threshold reached wins.
+roll_spread: 15
+quality:
+  crude: -100
+  common: 10
+  uncommon: 40
+  rare: 65
+  epic: 88
+
+# Commissions: what an NPC crafter charges and how long it takes.
+commission_labor: 0.5      # share of the finished item's value charged for the work
+commission_days: 1
+
+# Merchant stock (roles.yaml decides who keeps stock). A merchant's stock is replaced every restock_days.
+stock_rarity_weights: {crude: 30, common: 60, uncommon: 10}
+
+# Markets that trade at high item levels stock better goods. The last tier whose from_level the item reaches applies.
+stock_rarity_by_level:
+  - {from_level: 70, weights: {crude: 10, common: 50, uncommon: 36, rare: 4}}
+  - {from_level: 100, weights: {common: 35, uncommon: 42, rare: 21, epic: 2}}
+  - {from_level: 140, weights: {common: 20, uncommon: 42, rare: 31, epic: 7}}

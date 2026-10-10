@@ -1,0 +1,13 @@
+# WORK - odd jobs NPCs can offer the player.
+
+wage_per_hour: 20        # copper; what honest village labor pays
+wage_spread: 0.5         # an offer may be this much above or below the going rate
+max_minutes: 480         # the longest job someone will offer
+stamina_per_hour: 15     # percent of stamina the work costs, per hour
+trust_on_finish: 2       # trust gained by doing the work well
+unpaid_trust: 2          # trust gained for helping when nothing was offered
+
+# Skinning and butchering what you kill.
+skin_minutes: 15         # per carcass
+carcass_hours: 24        # carcasses are gone after this long (scavengers, rot)
+skin_chance: 0.6         # base chance of a clean hide or good meat; crafting skill adds up to +0.3

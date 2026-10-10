@@ -1,0 +1,52 @@
+# Peoples of Rivia. Naming styles keep generated NPC names consistent.
+# Add elves, orcs, or anything else as you decide what exists.
+
+- id: human
+  name: Human
+  naming_style: Plain, earthy names, often with a family name taken from a trade or place.
+  example_names: [Brenna Holt, Aldric Venn, Mara Tull, Hollis Crane, Tom Ashby]
+
+- id: dwarf
+  name: Dwarf
+  naming_style: Short and hard-sounding, with a clan name.
+  example_names: [Durgan Stonebrow, Hilde Ironvein, Brokk Deephall]
+
+- id: halfling
+  name: Halfling
+  naming_style: Warm, rounded names, often plants, food or small comforts.
+  example_names: [Pip Underbough, Marigold Tealeaf, Tobin Burrows]
+
+- id: half_elf
+  name: Half-elf
+  naming_style: Softer, flowing first names with a human family name.
+  example_names: [Aelin Marsh, Corin Wyld, Sera Venn]
+
+- id: elf
+  name: Elf
+  naming_style: Long, lyrical names with soft consonants, often with a house or grove name.
+  example_names: [Aerendil Thalorien, Sylwen Ashgrove, Caelith Moonbrook, Ithiel Varanor]
+
+- id: gnome
+  name: Gnome
+  naming_style: Bright, quick names, often with a clever or whimsical family name.
+  example_names: [Fizzwick Tumblecog, Nissa Brightbolt, Orrin Quillsprocket]
+
+- id: goliath
+  name: Goliath
+  naming_style: A short birth name, a nickname earned by deeds, and a clan name.
+  example_names: ["Kavaki Stormwatch", "Thalai Long-Stride", "Gauthak Frostpeak"]
+
+- id: orc
+  name: Orc
+  naming_style: Strong, guttural names, often with a name earned in the community.
+  example_names: [Grushna Hold-Fast, Durak Stonejaw, Mogra Ashwind]
+
+- id: dragonborn
+  name: Dragonborn
+  naming_style: Clan name first, then a proud given name with hard sounds.
+  example_names: [Kerrhylon Arjhan, Myastan Sora, Daardendrian Medrash]
+
+- id: genasi
+  name: Genasi
+  naming_style: Names that echo the element of their heritage - flowing, flickering, still or rushing.
+  example_names: [Ember Sahl, Tamsin Rill, Ozar Duneshade, Lirra Windsong]

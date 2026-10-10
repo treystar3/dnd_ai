@@ -1,0 +1,8 @@
+# CREATURE ROSTER RULES
+#
+# rarity_weight: how likely each rarity is to be rolled when a zone's creatures are chosen.
+rarity_weight:
+  common: 10
+  uncommon: 4
+  rare: 1
+  legendary: 0.05

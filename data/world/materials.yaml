@@ -1,0 +1,812 @@
+# MATERIALS - what equipment is made of.
+#
+# Material is the era of a piece of gear; rarity is how special it is within that era.
+#
+# family:            metal | hide | cloth | wood. Each base item in items.yaml takes one family.
+# levels:            [min, max] item levels this material appears at
+# rarity:            how often it is chosen among materials that fit a level (common, uncommon, rare, legendary)
+# weapon_multiplier / armor_multiplier: strength compared with a plain material (default 1.0)
+# weight_shift:      -1 makes armor one weight class lighter, +1 heavier
+# extra_properties:  bonus properties every item of this material carries
+# any / weapon / armor: built-in effects. any applies to all items; weapon only to weapons; armor to everything else.
+#                    Magnitudes are written at "rare" size: the game scales them by the material's rarity (equipment.yaml material_bonus_size),
+#                    so a common material gives less than a rare one for the same line. Amounts of damage, defense, health, attributes and
+#                    elements grow with the item level; chance stats (evasion, stealth...) grow gently (material_chance_growth).
+#                    Each effect is a stat from stats.yaml, a trigger from triggers.yaml, and a percentage.
+# weapon_flags / armor_flags: special mechanics -
+#                    armor_pierce: % of the target's armor ignored     crit_resist: % less chance to be critically hit
+#                    ward_fraction: % of armor also counts as ward      magic_power: % more spell damage
+#                    adaptive: strikes as physical or spell, whichever the target resists less
+# drops_from:        creatures (bestiary ids) that can drop this raw material when killed
+# source:            where it comes from in the world
+#
+# No armor material gives a bonus against a kind of enemy: that would make a found upgrade worth leaving in the pack. Armor materials are
+# rewarded as sets instead (data/world/sets.yaml). A few WEAPON materials keep an 'against' bonus (cold iron, silver, ghostwood, infernal
+# iron): a weapon is picked for the fight ahead, and these are meant to be rare.
+
+materials:
+- id: bronze
+  name: bronze
+  family: metal
+  levels: [1, 20]
+  rarity: common
+  source: Village smiths like Parth's
+- id: bog_iron
+  name: bog iron
+  family: metal
+  levels: [1, 25]
+  rarity: uncommon
+  source: Wend Vale marshes
+  weight_shift: 1
+  note: Cheapest metal there is, but heavier than it should be.
+- id: iron
+  name: iron
+  family: metal
+  levels: [10, 50]
+  rarity: common
+  source: Most towns
+- id: cold_iron
+  name: cold iron
+  family: metal
+  found_with: [fey, fiend, hostile people]
+  levels: [20, 80]
+  rarity: uncommon
+  source: Forged without fire or magic
+  weapon:
+  - {modifies: damage, trigger: against_fey, magnitude: 20}
+- id: silver
+  name: silver
+  family: metal
+  found_with: [monstrous race, giant, lycanthrope]
+  levels: [25, 90]
+  rarity: uncommon
+  source: Mined in hills and mountains
+  weapon_multiplier: 0.85
+  weapon:
+  - {modifies: damage, trigger: against_undead, magnitude: 20}
+  - {modifies: damage, trigger: against_lycanthropes, magnitude: 20}
+- id: steel
+  name: steel
+  family: metal
+  found_with: [hostile people, person template, construct, monstrous race]
+  levels: [40, 120]
+  rarity: common
+  source: Real forges in larger towns
+- id: gravesteel
+  name: gravesteel
+  family: metal
+  found_with: [undead]
+  levels: [60, 160]
+  rarity: uncommon
+  source: Smelted from barrow-mound ore
+  weapon:
+  - {modifies: damage, trigger: after_defeating_foe, magnitude: 12}
+  armor:
+  - {modifies: damage, trigger: after_defeating_foe, magnitude: 6}
+- id: quicksilver
+  name: quicksilver alloy
+  family: metal
+  found_with: [aberration, elemental, construct]
+  levels: [70, 180]
+  rarity: uncommon
+  source: Alchemists' forges
+  armor_multiplier: 0.85
+  any:
+  - {modifies: movement, trigger: always, magnitude: 10}
+- id: sunsteel
+  name: sunsteel
+  family: metal
+  found_with: [celestial, dragon, giant]
+  levels: [90, 240]
+  rarity: rare
+  source: Forged at noon on high peaks
+  weapon:
+  - {modifies: damage, trigger: in_daylight, magnitude: 15}
+  armor:
+  - {modifies: defense, trigger: in_daylight, magnitude: 10}
+- id: moonsilver
+  name: moonsilver
+  family: metal
+  found_with: [fey, lycanthrope, celestial]
+  levels: [90, 240]
+  rarity: rare
+  source: Mined only by moonlight
+  weapon:
+  - {modifies: damage, trigger: at_night, magnitude: 15}
+  armor:
+  - {modifies: defense, trigger: at_night, magnitude: 10}
+- id: mithril
+  name: mithril
+  family: metal
+  found_with: [giant, construct, monstrous race, hostile people]
+  levels: [100, 260]
+  rarity: common
+  source: Deep mountain mines
+  weight_shift: -1
+- id: stormbrass
+  name: stormbrass
+  family: metal
+  found_with: [elemental, giant, dragon]
+  levels: [120, 280]
+  rarity: rare
+  source: Struck by lightning during forging
+  weapon:
+  - {modifies: damage, trigger: in_bad_weather, magnitude: 18}
+  armor:
+  - {modifies: defense, trigger: in_bad_weather, magnitude: 12}
+- id: glassteel
+  name: glassteel
+  family: metal
+  found_with: [construct, aberration, elemental]
+  levels: [150, 350]
+  rarity: rare
+  source: Crystal fused into steel
+  armor_multiplier: 0.7
+  weapon:
+  - {modifies: crit_damage, trigger: always, magnitude: 10}
+- id: wyrmgold
+  name: wyrmgold
+  family: metal
+  found_with: [dragon]
+  levels: [200, 450]
+  rarity: rare
+  source: Alloyed from dragon-hoard gold
+  weapon_multiplier: 0.85
+  armor_multiplier: 0.75
+  extra_properties: 1
+  any:
+  - {modifies: persuasion, trigger: in_settlements, magnitude: 10}
+- id: adamantine
+  name: adamantine
+  family: metal
+  found_with: [construct, giant, monstrosity]
+  levels: [220, 700]
+  rarity: common
+  source: The deepest underground
+  weapon_flags: {armor_pierce: 25}
+  armor_flags: {crit_resist: 50}
+- id: infernal_iron
+  name: infernal iron
+  family: metal
+  found_with: [fiend]
+  levels: [300, 600]
+  rarity: rare
+  source: Cracked Plains, from fiends' gear
+  weapon:
+  - {modifies: damage, trigger: against_celestials, magnitude: 20}
+- id: starmetal
+  name: starmetal
+  family: metal
+  found_with: [celestial, dragon]
+  levels: [400, 700]
+  rarity: legendary
+  source: Fallen stars
+  extra_properties: 1
+- id: rawhide
+  name: rawhide
+  family: hide
+  levels: [1, 10]
+  rarity: common
+  source: Deer, boar, goats
+  drops_from: [deer, goat, elk]
+- id: wolf_hide
+  name: wolf hide
+  family: hide
+  levels: [1, 15]
+  rarity: common
+  source: Wolves
+  drops_from: [wolf]
+  any:
+  - {modifies: stealth, trigger: in_wilderness, magnitude: 6}
+- id: boar_hide
+  name: boar hide
+  family: hide
+  levels: [5, 25]
+  rarity: common
+  source: Boars
+  drops_from: [boar, giant_boar]
+  any:
+  - {modifies: defense, trigger: while_defending, magnitude: 8}
+- id: bear_hide
+  name: bear hide
+  family: hide
+  levels: [10, 40]
+  rarity: common
+  source: Bears
+  drops_from: [black_bear, brown_bear, polar_bear]
+  any:
+  - {modifies: max_health, trigger: always, magnitude: 6}
+- id: dire_wolf_pelt
+  name: dire wolf pelt
+  family: hide
+  levels: [15, 40]
+  rarity: uncommon
+  source: Dire wolves and worgs
+  drops_from: [dire_wolf, worg]
+  any:
+  - {modifies: dexterity, trigger: always, magnitude: 6}
+- id: ankheg_chitin
+  name: ankheg chitin
+  family: hide
+  levels: [15, 60]
+  rarity: uncommon
+  source: Ankhegs
+  armor_multiplier: 1.4
+  drops_from: [ankheg]
+- id: owlbear_hide
+  name: owlbear hide
+  family: hide
+  levels: [30, 70]
+  rarity: uncommon
+  source: Owlbears
+  armor_multiplier: 1.3
+  drops_from: [owlbear]
+- id: crocodile_hide
+  name: crocodile hide
+  family: hide
+  levels: [40, 110]
+  rarity: uncommon
+  source: Crocodiles
+  drops_from: [crocodile, giant_crocodile]
+  any:
+  - {modifies: stealth, trigger: in_swamp, magnitude: 10}
+- id: winter_wolf_pelt
+  name: winter wolf pelt
+  family: hide
+  levels: [50, 120]
+  rarity: uncommon
+  source: Winter wolves
+  drops_from: [winter_wolf]
+  any:
+  - {modifies: cold_resistance, trigger: always, magnitude: 12}
+- id: basilisk_hide
+  name: basilisk hide
+  family: hide
+  levels: [60, 150]
+  rarity: rare
+  source: Basilisks
+  weight_shift: 1
+  armor_multiplier: 1.3
+  drops_from: [basilisk]
+  any:
+  - {modifies: resolve, trigger: always, magnitude: 10}
+- id: griffon_down
+  name: griffon down
+  family: hide
+  levels: [60, 150]
+  rarity: rare
+  source: Griffons
+  drops_from: [griffon]
+  any:
+  - {modifies: evasion, trigger: while_elevated, magnitude: 12}
+- id: manticore_hide
+  name: manticore hide
+  family: hide
+  levels: [70, 160]
+  rarity: rare
+  source: Manticores
+  drops_from: [manticore]
+  any:
+  - {modifies: physical_resistance, trigger: always, magnitude: 8}
+- id: drake_scale
+  name: drake scale
+  family: hide
+  levels: [80, 200]
+  rarity: rare
+  source: Drakes
+  armor_flags: {ward_fraction: 50}
+  drops_from: [lesser_drake, drake, elder_drake]
+  any:
+  - {modifies: fire_resistance, trigger: always, magnitude: 10}
+- id: troll_hide
+  name: troll hide
+  family: hide
+  levels: [120, 260]
+  rarity: rare
+  source: Trolls
+  drops_from: [troll]
+  any:
+  - {modifies: recovery, trigger: always, magnitude: 20}
+- id: wyvern_leather
+  name: wyvern leather
+  family: hide
+  levels: [150, 300]
+  rarity: rare
+  source: Wyverns
+  drops_from: [wyvern]
+  any:
+  - {modifies: acid_damage, trigger: always, magnitude: 10}
+- id: remorhaz_plate
+  name: remorhaz plate
+  family: hide
+  levels: [150, 300]
+  rarity: rare
+  source: Remorhazes
+  drops_from: [remorhaz]
+  any:
+  - {modifies: all_elemental_resistance, trigger: always, magnitude: 6}
+- id: hydra_scale
+  name: hydra scale
+  family: hide
+  levels: [160, 320]
+  rarity: rare
+  source: Hydras
+  drops_from: [hydra]
+  any:
+  - {modifies: cold_damage, trigger: always, magnitude: 8}
+  - {modifies: recovery, trigger: always, magnitude: 15}
+- id: dragon_scale
+  name: dragon scale
+  family: hide
+  levels: [350, 700]
+  rarity: legendary
+  source: True dragons only
+  armor_multiplier: 1.3
+  armor_flags: {ward_fraction: 75}
+  drops_from: [brass_dragon_wyrmling, copper_dragon_wyrmling, black_dragon_wyrmling, bronze_dragon_wyrmling, green_dragon_wyrmling, silver_dragon_wyrmling, white_dragon_wyrmling, blue_dragon_wyrmling, gold_dragon_wyrmling,
+    red_dragon_wyrmling, young_brass_dragon, young_white_dragon, young_black_dragon, young_copper_dragon, young_bronze_dragon, young_green_dragon, young_blue_dragon, young_silver_dragon, young_gold_dragon,
+    young_red_dragon, adult_brass_dragon, adult_white_dragon, adult_black_dragon, adult_copper_dragon, adult_bronze_dragon, adult_green_dragon, adult_blue_dragon, adult_silver_dragon, adult_gold_dragon,
+    adult_red_dragon, ancient_brass_dragon, ancient_white_dragon, ancient_black_dragon, ancient_copper_dragon, ancient_bronze_dragon, ancient_green_dragon, ancient_blue_dragon, ancient_silver_dragon, ancient_gold_dragon,
+    ancient_red_dragon]
+- id: wool_linen
+  name: wool
+  family: cloth
+  levels: [1, 15]
+  rarity: common
+  source: Any village
+- id: courtiers_velvet
+  name: courtier's velvet
+  family: cloth
+  found_with: [hostile people, person template]
+  levels: [10, 80]
+  rarity: uncommon
+  source: Tailors in larger towns
+  armor_multiplier: 0.5
+  any:
+  - {modifies: persuasion, trigger: in_settlements, magnitude: 12}
+  - {modifies: persuasion, trigger: in_conversation, magnitude: 8}
+- id: spider_silk
+  name: spider silk
+  family: cloth
+  levels: [20, 80]
+  rarity: uncommon
+  source: Giant spiders
+  drops_from: [giant_spider, giant_wolf_spider]
+  any:
+  - {modifies: poison_resistance, trigger: always, magnitude: 8}
+- id: ettercap_silk
+  name: ettercap silk
+  family: cloth
+  levels: [25, 70]
+  rarity: uncommon
+  source: Ettercaps
+  drops_from: [ettercap]
+  any:
+  - {modifies: poison_damage, trigger: always, magnitude: 8}
+- id: leafweave
+  name: leafweave
+  family: cloth
+  levels: [40, 120]
+  rarity: rare
+  source: Dryads
+  drops_from: [dryad]
+  any:
+  - {modifies: recovery, trigger: in_wilderness, magnitude: 15}
+- id: phase_silk
+  name: phase silk
+  family: cloth
+  levels: [60, 150]
+  rarity: rare
+  source: Phase spiders
+  drops_from: [phase_spider]
+  any:
+  - {modifies: evasion, trigger: always, magnitude: 8}
+- id: wraithcloth
+  name: wraithcloth
+  family: cloth
+  levels: [120, 260]
+  rarity: rare
+  source: Remains of wraiths
+  drops_from: [wraith]
+  any:
+  - {modifies: necrotic_damage, trigger: always, magnitude: 6}
+  - {modifies: stealth, trigger: at_night, magnitude: 10}
+- id: shadowweave
+  name: shadowweave
+  family: cloth
+  levels: [150, 350]
+  rarity: rare
+  source: Woven from shadows in deep ruins
+  drops_from: [shadow]
+  any:
+  - {modifies: stealth, trigger: always, magnitude: 12}
+  - {modifies: dexterity, trigger: always, magnitude: 8}
+- id: stormweave
+  name: stormweave
+  family: cloth
+  levels: [300, 500]
+  rarity: rare
+  source: Air elementals
+  drops_from: [air_elemental]
+  any:
+  - {modifies: lightning_resistance, trigger: always, magnitude: 12}
+  - {modifies: movement, trigger: always, magnitude: 10}
+- id: ember_silk
+  name: ember silk
+  family: cloth
+  levels: [300, 550]
+  rarity: rare
+  source: Salamanders
+  armor_flags: {magic_power: 15}
+  drops_from: [salamander]
+  any:
+  - {modifies: charisma, trigger: always, magnitude: 8}
+- id: seraph_silk
+  name: seraph silk
+  family: cloth
+  levels: [400, 700]
+  rarity: legendary
+  source: Angels
+  drops_from: [deva, planetar]
+  any:
+  - {modifies: defense, trigger: always, magnitude: 8}
+  - {modifies: radiant_resistance, trigger: always, magnitude: 12}
+- id: ash
+  name: ash
+  family: wood
+  levels: [1, 30]
+  rarity: common
+  source: Any forest
+- id: willow
+  name: willow
+  family: wood
+  levels: [1, 30]
+  rarity: common
+  source: Riverbanks
+  weapon:
+  - {modifies: accuracy, trigger: first_round_of_combat, magnitude: 10}
+- id: bone
+  name: bone
+  family: wood
+  levels: [1, 40]
+  rarity: common
+  source: Beasts and undead
+  weapon_multiplier: 0.9
+  armor_multiplier: 0.9
+- id: yew
+  name: yew
+  family: wood
+  found_with: [plant, fey]
+  levels: [20, 90]
+  rarity: uncommon
+  source: Old forests
+  weapon:
+  - {modifies: crit_chance, trigger: always, magnitude: 3}
+- id: blackthorn
+  name: blackthorn
+  family: wood
+  found_with: [plant, fey]
+  levels: [30, 90]
+  rarity: uncommon
+  source: Thickets at the Greywood's edge
+  any:
+  - {modifies: damage, trigger: when_attacked, magnitude: 10}
+- id: whalebone
+  name: whalebone
+  family: wood
+  found_with: [monstrosity, beast]
+  levels: [40, 120]
+  rarity: uncommon
+  source: Coasts
+  weight_shift: -1
+  any:
+  - {modifies: max_stamina, trigger: always, magnitude: 8}
+- id: ironwood
+  name: ironwood
+  family: wood
+  found_with: [plant]
+  levels: [60, 180]
+  rarity: uncommon
+  source: Deep forests
+  weapon_multiplier: 1.15
+  armor_multiplier: 1.15
+- id: mammoth_ivory
+  name: mammoth ivory
+  family: wood
+  levels: [60, 140]
+  rarity: rare
+  source: Mammoths
+  drops_from: [mammoth, elephant]
+  any:
+  - {modifies: intimidation, trigger: always, magnitude: 12}
+- id: bog_oak
+  name: bog oak
+  family: wood
+  found_with: [plant, ooze]
+  levels: [60, 150]
+  rarity: uncommon
+  source: Ancient trees sunk in swamps
+  armor_multiplier: 1.3
+- id: drake_bone
+  name: drake bone
+  family: wood
+  levels: [80, 200]
+  rarity: rare
+  source: Drakes
+  drops_from: [lesser_drake, drake, elder_drake]
+  weapon:
+  - {modifies: damage, trigger: always, magnitude: 8}
+- id: ghostwood
+  name: ghostwood
+  family: wood
+  found_with: [undead, plant]
+  levels: [150, 300]
+  rarity: rare
+  source: Haunted ruins
+  weapon:
+  - {modifies: damage, trigger: against_magic, magnitude: 25}
+- id: treant_heartwood
+  name: treant heartwood
+  family: wood
+  levels: [150, 350]
+  rarity: rare
+  source: Treants
+  weapon_flags: {magic_power: 20}
+  drops_from: [treant]
+- id: dragonbone
+  name: dragonbone
+  family: wood
+  levels: [350, 700]
+  rarity: legendary
+  source: True dragons
+  weapon_flags: {adaptive: 1}
+  drops_from: [brass_dragon_wyrmling, copper_dragon_wyrmling, black_dragon_wyrmling, bronze_dragon_wyrmling, green_dragon_wyrmling, silver_dragon_wyrmling, white_dragon_wyrmling, blue_dragon_wyrmling, gold_dragon_wyrmling,
+    red_dragon_wyrmling, young_brass_dragon, young_white_dragon, young_black_dragon, young_copper_dragon, young_bronze_dragon, young_green_dragon, young_blue_dragon, young_silver_dragon, young_gold_dragon,
+    young_red_dragon, adult_brass_dragon, adult_white_dragon, adult_black_dragon, adult_copper_dragon, adult_bronze_dragon, adult_green_dragon, adult_blue_dragon, adult_silver_dragon, adult_gold_dragon,
+    adult_red_dragon, ancient_brass_dragon, ancient_white_dragon, ancient_black_dragon, ancient_copper_dragon, ancient_bronze_dragon, ancient_green_dragon, ancient_blue_dragon, ancient_silver_dragon, ancient_gold_dragon,
+    ancient_red_dragon]
+# --- the far lands: end-game materials. Each is tied to a region's creatures (drops_from) and its city's trade. ---
+- id: cindersteel
+  name: cindersteel
+  family: metal
+  levels: [95, 240]
+  rarity: uncommon
+  source: Cinderhold's caldera-fed furnaces
+  weapon_flags: {armor_pierce: 12}
+  drops_from: [slag_golem, magma_ogre, caldera_colossus]
+  weapon:
+  - {modifies: damage, trigger: at_low_health, magnitude: 14}
+  armor:
+  - {modifies: recovery, trigger: always, magnitude: 8}
+- id: obsidian_steel
+  name: obsidian steel
+  family: metal
+  levels: [110, 260]
+  rarity: rare
+  source: Glass-black blades folded from the Cinder Caldera's obsidian
+  weapon_multiplier: 1.1
+  armor_multiplier: 0.9
+  weapon_flags: {armor_pierce: 25}
+  drops_from: [obsidian_sentinel, brazier_lord]
+- id: stormiron
+  name: stormiron
+  family: metal
+  levels: [100, 250]
+  rarity: uncommon
+  source: Iron struck by the Thunder Spires' lightning
+  drops_from: [aerie_sentinel, stone_colossus_warden, thunder_roc]
+  weapon:
+  - {modifies: lightning_damage, trigger: always, magnitude: 8}
+  armor:
+  - {modifies: lightning_resistance, trigger: always, magnitude: 8}
+- id: deepsilver
+  name: deepsilver
+  family: metal
+  levels: [105, 260]
+  rarity: rare
+  source: Runed ore from below the Deep Roads
+  armor_flags: {ward_fraction: 40}
+  drops_from: [crystal_hulk, undervault_guardian, deep_dwarf_forgemaster]
+  any:
+  - {modifies: resolve, trigger: always, magnitude: 8}
+  weapon:
+  - {modifies: radiant_damage, trigger: always, magnitude: 8}
+- id: brinesteel
+  name: brinesteel
+  family: metal
+  levels: [100, 250]
+  rarity: uncommon
+  source: Salvage steel, sea-cured in the wrecks off Brinewatch
+  drops_from: [coral_golem, sunken_knight, brine_serpent]
+  any:
+  - {modifies: max_health, trigger: always, magnitude: 8}
+  armor:
+  - {modifies: recovery, trigger: always, magnitude: 10}
+- id: jadesteel
+  name: jadesteel
+  family: metal
+  levels: [100, 250]
+  rarity: rare
+  source: Alloy from the jade temples under the Maw
+  weight_shift: -1
+  drops_from: [jade_warrior, temple_guardian_serpent]
+  weapon:
+  - {modifies: damage, trigger: first_round_of_combat, magnitude: 12}
+  armor:
+  - {modifies: resolve, trigger: at_low_health, magnitude: 8}
+- id: barrowgold
+  name: barrowgold
+  family: metal
+  levels: [115, 280]
+  rarity: rare
+  source: Grave-goods of the dead empire, in the Sepulchre Fields
+  drops_from: [grave_knight_order, revenant_marshal, barrow_king]
+  weapon:
+  - {modifies: damage, trigger: against_large_foes, magnitude: 12}
+  armor:
+  - {modifies: defense, trigger: always, magnitude: 6}
+- id: scorchhide
+  name: scorchhide
+  family: hide
+  levels: [90, 240]
+  rarity: uncommon
+  source: Scorchhide behemoths and magma crawlers
+  armor_flags: {ward_fraction: 30}
+  drops_from: [scorchhide_behemoth, magma_crawler, ash_hound]
+  any:
+  - {modifies: constitution, trigger: always, magnitude: 6}
+- id: thunderhide
+  name: thunderhide
+  family: hide
+  levels: [105, 260]
+  rarity: rare
+  source: Thunder rocs and skyspine griffons
+  drops_from: [thunder_roc, skyspine_griffon, thunderbird]
+  any:
+  - {modifies: evasion, trigger: always, magnitude: 8}
+  - {modifies: movement, trigger: always, magnitude: 8}
+- id: umberhide
+  name: umberhide
+  family: hide
+  levels: [95, 240]
+  rarity: uncommon
+  source: Umber tunnelers and deep stalkers
+  drops_from: [umber_tunneler, deep_stalker, cavern_crawler]
+  any:
+  - {modifies: defense, trigger: always, magnitude: 5}
+  armor:
+  - {modifies: max_health, trigger: always, magnitude: 6}
+- id: krakenhide
+  name: krakenhide
+  family: hide
+  levels: [110, 260]
+  rarity: rare
+  source: Kraken spawn and brine serpents
+  drops_from: [nightmare_kraken_spawn, brine_serpent, abyssal_angler]
+  any:
+  - {modifies: max_stamina, trigger: always, magnitude: 10}
+  armor:
+  - {modifies: cold_resistance, trigger: always, magnitude: 10}
+- id: jadescale
+  name: jadescale
+  family: hide
+  levels: [95, 240]
+  rarity: uncommon
+  source: Jade jaguars and temple serpents
+  drops_from: [jade_jaguar, stalker_mantis, temple_guardian_serpent]
+  any:
+  - {modifies: wisdom, trigger: always, magnitude: 6}
+  armor:
+  - {modifies: stealth, trigger: always, magnitude: 8}
+- id: cloudspun
+  name: cloudspun silk
+  family: cloth
+  levels: [100, 250]
+  rarity: rare
+  source: Spun from storm-cloud by the Stormcrown's harpies
+  drops_from: [cloudcrown_harpy, wind_elemental_lord]
+  any:
+  - {modifies: movement, trigger: after_moving, magnitude: 8}
+- id: deepweb
+  name: deepweb silk
+  family: cloth
+  levels: [100, 250]
+  rarity: uncommon
+  source: Drider matrons of the Lightless Deep
+  armor_flags: {ward_fraction: 40}
+  drops_from: [silent_drider_matron, shadow_swarm]
+  any:
+  - {modifies: stealth, trigger: always, magnitude: 10}
+- id: tidesilk
+  name: tidesilk
+  family: cloth
+  levels: [100, 250]
+  rarity: uncommon
+  source: Sirens and tide hags of the drowned shore
+  drops_from: [siren_choir, tide_hag]
+  any:
+  - {modifies: max_mana, trigger: always, magnitude: 10}
+  armor:
+  - {modifies: acid_resistance, trigger: always, magnitude: 8}
+- id: gravelace
+  name: gravelace
+  family: cloth
+  levels: [115, 270]
+  rarity: rare
+  source: Shrouds woven by the Sepulchre's wailing choirs
+  armor_flags: {ward_fraction: 60}
+  drops_from: [banshee_choir, death_shepherd]
+  any:
+  - {modifies: necrotic_resistance, trigger: always, magnitude: 10}
+- id: sunpetal
+  name: sunpetal weave
+  family: cloth
+  levels: [100, 250]
+  rarity: uncommon
+  source: Orchid mimics and vine stalkers of the Maw
+  drops_from: [orchid_mimic, vine_stalker]
+  any:
+  - {modifies: radiant_resistance, trigger: always, magnitude: 10}
+- id: cinderwood
+  name: cinderwood
+  family: wood
+  levels: [95, 240]
+  rarity: uncommon
+  source: Charred, ever-smouldering trunks of the ash wastes
+  drops_from: [cinderbird, sulfur_wisp]
+  weapon:
+  - {modifies: fire_damage, trigger: always, magnitude: 8}
+- id: stormoak
+  name: stormoak
+  family: wood
+  levels: [100, 250]
+  rarity: uncommon
+  source: Lightning-split oak of the Stormcrown
+  drops_from: [storm_raven, rime_giant]
+  any:
+  - {modifies: intelligence, trigger: always, magnitude: 6}
+- id: glowcap_timber
+  name: glowcap timber
+  family: wood
+  levels: [95, 240]
+  rarity: uncommon
+  source: Fungal wood grown in the Deep Roads
+  weapon_flags: {magic_power: 15}
+  drops_from: [glowcap_myconid, spore_tyrant]
+  any:
+  - {modifies: max_mana, trigger: always, magnitude: 8}
+- id: wreckwood
+  name: wreckwood
+  family: wood
+  levels: [95, 240]
+  rarity: common
+  source: Salt-hardened timbers from the wrecks off Brinewatch
+  drops_from: [shipwreck_lurker, kelp_horror]
+  any:
+  - {modifies: strength, trigger: always, magnitude: 5}
+- id: jadewood
+  name: jadewood
+  family: wood
+  levels: [100, 250]
+  rarity: rare
+  source: Heartwood of the Maw's bloodroot horrors
+  drops_from: [bloodroot_horror, vine_blight]
+  weapon:
+  - {modifies: accuracy, trigger: always, magnitude: 8}
+  armor:
+  - {modifies: magical_resistance, trigger: always, magnitude: 8}
+
+gems:
+- {id: garnet, name: garnet, focus: max_health, rarity: common}
+- {id: topaz, name: topaz, focus: max_stamina, rarity: common}
+- {id: amethyst, name: amethyst, focus: resolve, rarity: common}
+- {id: sapphire, name: sapphire, focus: defense, rarity: uncommon}
+- {id: ruby, name: ruby, focus: damage, rarity: uncommon}
+- {id: emerald, name: emerald, focus: recovery, rarity: uncommon}
+- {id: onyx, name: onyx, focus: stealth, rarity: common}
+- {id: pearl, name: pearl, focus: persuasion, rarity: uncommon}
+- {id: moonstone, name: moonstone, focus: perception, rarity: common}
+- {id: diamond, name: diamond, focus: all, rarity: legendary}
+- {id: fire_opal, name: fire opal, focus: damage, rarity: rare}
+- {id: jade, name: jade, focus: evasion, rarity: uncommon}
+- {id: black_pearl, name: black pearl, focus: max_mana, rarity: rare}

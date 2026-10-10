@@ -1,0 +1,102 @@
+# Roles NPCs can hold. Used when places generate their residents.
+#
+# description:      what the role means here - guides generation of the person.
+# buys:             what they will buy from the player: herb, food, consumable, hide, metal, cloth, wood, bone,
+#                   weapon, armor, jewelry, or any. buy_rate overrides the default share of value they pay.
+# stock:            gear they keep for sale, replaced every restock_days (families: metal, hide, cloth, wood)
+# craft_skill:      how good their commissioned work is (0-100, like the player's crafting skill)
+# commissions:      material families they will make gear from to order
+# sells:            what they sell, at fixed prices in copper (100 copper = 1 silver). kind room lets the player
+#                   sleep there; meal and drink restore a little stamina and health.
+# knowledge_groups: what someone in this role knows, on top of "everyone" and their local group.
+# hours:            [start, end] when they are at their place. End can pass 24 (25 = 1am).
+#                   Outside these hours they are home and can't be found there.
+
+- {id: farmer, hours: [6, 18],        description: Works the fields around the village.,                 knowledge_groups: []}
+- {id: shepherd, hours: [6, 18],      description: Keeps sheep on the hills.,                           knowledge_groups: [shepherds]}
+- {id: hunter, hours: [5, 17],        description: Hunts and traps at the forest edge.,                 knowledge_groups: [hunters],
+   buys: [hide, bone, food],
+   stock: {families: [hide], count: 4, restock_days: 4},
+   craft_skill: 30, commissions: [hide]}
+- {id: herbalist, hours: [8, 17],     description: Gathers plants and makes remedies.,                  knowledge_groups: [],
+   sells: [{id: healing_draught, name: a healing draught, price: 150, kind: item, item: healing_draught},
+           {id: mana_tonic, name: a mana tonic, price: 150, kind: item, item: mana_tonic},
+           {id: bandage, name: a bandage, price: 20, kind: item, item: bandage}],
+   buys: [herb, consumable]}
+- {id: smith, hours: [7, 18],         description: Works the forge - tools, hinges, horseshoes, the odd blade., knowledge_groups: [],
+   buys: [metal, weapon, armor],
+   sells: [{id: bronze, name: a bronze bar, price: 40, kind: material, item: bronze},
+           {id: iron, name: an iron bar, price: 90, kind: material, item: iron}],
+   stock: {families: [metal], count: 8, restock_days: 3},
+   craft_skill: 40, commissions: [metal]}
+- {id: miller, hours: [7, 18],        description: Runs the mill on the river.,                         knowledge_groups: []}
+- {id: baker, hours: [5, 14],         description: Bakes bread for the village and travelers.,          knowledge_groups: [],
+   sells: [{id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
+   buys: [food, herb]}
+- {id: chandler, hours: [8, 17],      description: Sells candles, rope, oil and sundries.,              knowledge_groups: [merchants],
+   sells: [{id: bandage, name: a bandage, price: 20, kind: item, item: bandage},
+           {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
+   buys: [cloth, wood]}
+- {id: tinker, hours: [8, 17],        description: Mends pots and small goods; travels the road between towns., knowledge_groups: [merchants],
+   buys: [any], buy_rate: 0.25,
+   stock: {families: [wood], count: 4, restock_days: 5},
+   craft_skill: 30, commissions: [wood]}
+- {id: watch_captain, hours: [7, 19], description: Commands the village watch.,                         knowledge_groups: [guards]}
+- {id: guard, hours: [0, 24],         description: Serves in the village watch.,                        knowledge_groups: [guards]}
+- {id: guild_clerk, hours: [8, 18],   description: Keeps the guild's contract board, records and coin box., knowledge_groups: [guild]}
+- {id: innkeeper, hours: [6, 25],     description: Runs the inn and hears everyone's news.,             knowledge_groups: [merchants],
+   sells: [{id: room, name: a room for the night, price: 50, kind: room},
+           {id: meal, name: a hot meal, price: 15, kind: meal},
+           {id: ale, name: a mug of ale, price: 5, kind: drink}]}
+- {id: server, hours: [11, 24],        description: Serves food and drink at the inn.,                   knowledge_groups: [],
+   sells: [{id: meal, name: a hot meal, price: 15, kind: meal},
+           {id: ale, name: a mug of ale, price: 5, kind: drink}]}
+- {id: cook, hours: [6, 22],          description: Cooks in the inn's kitchen.,                         knowledge_groups: [],
+   sells: [{id: meal, name: a hot meal, price: 15, kind: meal}]}
+- {id: priest, hours: [5, 20],        description: Keeps the temple and its rites.,                     knowledge_groups: [temple, scholars]}
+- {id: acolyte, hours: [5, 20],       description: Assists the priest and tends the temple.,            knowledge_groups: [temple]}
+- {id: enchanter, hours: [9, 19],     description: Binds magic into arms and armor for a fee. Rare outside places that accept magic., knowledge_groups: [mages, scholars]}
+- {id: guild_master, hours: [9, 19],  description: Leads the adventurers' guild - its reputation, its bounties and its members' promotions., knowledge_groups: [guild, merchants]}
+- {id: guild_instructor, hours: [7, 18], description: A retired adventurer who drills members and teaches skills and techniques for coin., knowledge_groups: [guild]}
+- {id: guild_contractor, hours: [8, 22], description: "An adventurer who takes the guild's contracts - between jobs, swapping rumors and sizing up newcomers.", knowledge_groups: [guild]}
+- {id: butcher, hours: [6, 16],       description: Dresses the game and beasts adventurers bring in.,  knowledge_groups: [hunters],
+   buys: [hide, bone, food],
+   sells: [{id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}]}
+- {id: quartermaster, hours: [8, 18], description: Keeps the guild's store - buys almost anything adventurers drag back and sells supplies., knowledge_groups: [guild, merchants],
+   buys: [any], buy_rate: 0.3,
+   sells: [{id: healing_draught, name: a healing draught, price: 150, kind: item, item: healing_draught},
+           {id: bandage, name: a bandage, price: 20, kind: item, item: bandage},
+           {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
+   stock: {families: [metal, hide, wood, cloth], count: 6, restock_days: 4}}
+- {id: orchard_keeper, hours: [6, 18], description: Tends orchards and presses fruit.,                   knowledge_groups: []}
+- {id: fisher, hours: [5, 15],        description: Fishes the streams and wetlands.,                     knowledge_groups: [hunters],
+   buys: [food]}
+- {id: miner, hours: [6, 18],         description: Works the mines beneath the hills or mountains.,       knowledge_groups: [],
+   buys: [metal],
+   sells: [{id: bronze, name: a bronze bar, price: 40, kind: material, item: bronze},
+           {id: iron, name: an iron bar, price: 90, kind: material, item: iron}]}
+- {id: lumberjack, hours: [6, 18],    description: Fells and hauls timber from the woods.,                knowledge_groups: [hunters], buys: [wood]}
+- {id: stonemason, hours: [7, 18],    description: Cuts and dresses stone for building.,                  knowledge_groups: []}
+- {id: elven_warden, hours: [0, 24],  description: Guards the paths of the forest and the city within it., knowledge_groups: [guards, hunters]}
+- {id: loremaster, hours: [8, 20],    description: Keeps the old songs, records and histories.,           knowledge_groups: [scholars, mages]}
+- {id: engineer, hours: [7, 19],      description: Designs the works, lifts and machines that keep the city running., knowledge_groups: [scholars]}
+- {id: trapper, hours: [5, 17],       description: Traps and hunts the frozen country for fur and meat.,  knowledge_groups: [hunters],
+   buys: [hide, food]}
+- {id: elder, hours: [8, 20],         description: A respected elder whose word carries weight in hard times., knowledge_groups: [scholars]}
+- {id: dockhand, hours: [5, 19],      description: Loads and unloads the boats on the river.,             knowledge_groups: [merchants]}
+- {id: bargeman, hours: [5, 19],      description: Works the barges up and down the Great River.,         knowledge_groups: [merchants]}
+- {id: merchant, hours: [8, 19],      description: Buys and sells whatever the road and river bring.,     knowledge_groups: [merchants],
+   buys: [any], buy_rate: 0.4,
+   sells: [{id: healing_draught, name: a healing draught, price: 150, kind: item, item: healing_draught},
+           {id: mana_tonic, name: a mana tonic, price: 150, kind: item, item: mana_tonic},
+           {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
+   stock: {families: [metal, hide, cloth, wood], count: 8, restock_days: 4}}
+- {id: caravan_master, hours: [6, 20], description: Leads caravans along the long roads east.,            knowledge_groups: [merchants]}
+- {id: scout, hours: [0, 24],         description: Rides ahead of caravans and watches the frontier for trouble., knowledge_groups: [hunters, guards]}
+- {id: water_priest, hours: [5, 20],  description: Keeps the waters of the city and the rites bound up with them., knowledge_groups: [temple, mages]}
+- {id: noble, hours: [10, 23],        description: A member of a noble house, at home in the court.,      knowledge_groups: [nobility]}
+- {id: courtier, hours: [9, 22],      description: Serves and schemes within the royal court.,            knowledge_groups: [nobility]}
+- {id: royal_guard, hours: [0, 24],   description: Guards the capital and its great houses in the crown's colors., knowledge_groups: [guards, nobility]}
+- {id: relic_dealer, hours: [9, 18], description: "Deals in a handful of famous, one-of-a-kind arms and armor, kept under lock and key for buyers with deep purses.", knowledge_groups: [merchants], relics: true}
+- {id: land_agent, hours: [9, 18], description: Sells houses and lots in the city, and knows who is leaving and who is moving in., knowledge_groups: [merchants]}
+- {id: prisoner, hours: [0, 24], description: "A captive taken in a fight and held by the player. Frightened, defiant or calculating - how they behave depends on their nature.", knowledge_groups: [outlaws]}

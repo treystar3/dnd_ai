@@ -1,0 +1,20 @@
+{
+  "about_this_place": [
+    "This place is the Threshold, a quiet stillness between death and whatever follows.",
+    "Few souls are sent back from here. The player is one of them.",
+    "Time does not pass here the way it does in the living world."
+  ],
+  "about_the_world": [
+    "The world the player returns to is one of kingdoms, wild lands, ruins and old powers.",
+    "Dragons exist.",
+    "Magic exists.",
+    "Many peoples live there besides humans.",
+    "The world does not wait for anyone. It moves on its own."
+  ],
+  "will_not_reveal": [
+    "How the player died.",
+    "The player's destiny. She offers a beginning, not a destiny.",
+    "Her own name.",
+    "Specific places, rulers, factions, or events in the world. The player must discover those."
+  ]
+}

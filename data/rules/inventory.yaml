@@ -1,0 +1,10 @@
+# INVENTORY RULES
+
+pack_slots: 20          # slots in the player's pack; equipped gear does not use them
+stash_slots: 40         # slots in the item box, reachable from any place with storage
+ground_days: 3          # items left on the ground vanish after this many days
+sell_rate: 0.3          # merchants pay this fraction of an item's value, unless their role says otherwise
+gift_trust: 2           # trust gained when the player gives someone an item
+forage_minutes: 30      # time one forage takes
+forage_finds: [1, 3]    # how many herbs a successful forage turns up
+craft_minutes: 30       # time one craft takes

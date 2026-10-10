@@ -1,0 +1,73 @@
+# ENCHANTING
+#
+# Enchantments come from two places:
+#   - every material in materials.yaml with drops_from: spend one raw piece to give an item that material's effects
+#   - the general enchantments below, which cost only coin
+# Enchanting requires an NPC with the enchanter role where you are (or debug mode).
+
+slots: {crude: 0, common: 1, uncommon: 1, rare: 2, epic: 2, legendary: 3}
+
+# The fee is a share of what a contract pays at the item's level (so it keeps pace with what you earn), x the option's fee_multiplier,
+# x (1 + extra_per_used x enchantments already on the item).
+fee_share: 0.4
+extra_per_used: 0.75
+# A material's essence costs by how rare the material is (general enchantments set their own fee_multiplier below).
+material_fee: {common: 0.5, uncommon: 1.0, rare: 1.5, legendary: 2.5}
+
+# Chance of success, minus a penalty per enchantment already on the item. Failure loses the reagent; the fee is kept.
+success: 95
+penalty_per_used: 15
+
+# Names given to material enchantments. Others default to "of the <first creature that drops it>".
+names:
+  rawhide: of the Hunt
+  drake_scale: of the Drake
+  drake_bone: of the Drake
+  dragon_scale: of the Dragon
+  dragonbone: of the Dragon
+  spider_silk: of the Spider
+  mammoth_ivory: of the Mammoth
+
+# General enchantments. Each is one stat, and an item only accepts it if that piece of gear could roll the stat (the same lists as in
+# equipment.yaml roll_lists, or the lane of a ring or amulet), and it is not already enchanted with that stat (an enchantment may add to a rolled stat).
+# Companion enchantments are only offered to characters who keep companions.
+general:
+  - {id: keen, name: Keen, suffix: of Keenness, applies: any, fee_multiplier: 2, effects: [{modifies: accuracy, magnitude: 8}]}
+  - {id: sharpness, name: Sharpness, suffix: of Sharpness, applies: weapon, fee_multiplier: 2, effects: [{modifies: damage, magnitude: 8}]}
+  - {id: precision, name: Precision, suffix: of Precision, applies: any, fee_multiplier: 3, effects: [{modifies: crit_chance, magnitude: 3}]}
+  - {id: savagery, name: Savagery, suffix: of Savagery, applies: any, fee_multiplier: 3, effects: [{modifies: crit_damage, magnitude: 10}]}
+  - {id: fire_edge, name: Flame edge, suffix: of Flame, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: fire_damage, magnitude: 6}]}
+  - {id: cold_edge, name: Frost edge, suffix: of Frost, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: cold_damage, magnitude: 6}]}
+  - {id: lightning_edge, name: Storm edge, suffix: of Storm, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: lightning_damage, magnitude: 6}]}
+  - {id: poison_edge, name: Venom edge, suffix: of Venom, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: poison_damage, magnitude: 6}]}
+  - {id: acid_edge, name: Corrosion edge, suffix: of Corrosion, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: acid_damage, magnitude: 6}]}
+  - {id: necrotic_edge, name: Blight edge, suffix: of Blight, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: necrotic_damage, magnitude: 6}]}
+  - {id: radiant_edge, name: Radiance edge, suffix: of Radiance, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: radiant_damage, magnitude: 6}]}
+  - {id: warding, name: Warding, suffix: of Warding, applies: armor, fee_multiplier: 2, effects: [{modifies: defense, magnitude: 5}]}
+  - {id: vigor, name: Vigor, suffix: of Vigor, applies: any, fee_multiplier: 2, effects: [{modifies: max_health, magnitude: 5}]}
+  - {id: bulwark, name: Bulwark, suffix: of the Bulwark, applies: any, fee_multiplier: 2.5, effects: [{modifies: physical_resistance, magnitude: 6}]}
+  - {id: spellward, name: Spellward, suffix: of Spellward, applies: any, fee_multiplier: 2.5, effects: [{modifies: magical_resistance, magnitude: 6}]}
+  - {id: fire_ward, name: Flame ward, suffix: of the Flame Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: fire_resistance, magnitude: 6}]}
+  - {id: cold_ward, name: Frost ward, suffix: of the Frost Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: cold_resistance, magnitude: 6}]}
+  - {id: lightning_ward, name: Storm ward, suffix: of the Storm Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: lightning_resistance, magnitude: 6}]}
+  - {id: poison_ward, name: Venom ward, suffix: of the Venom Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: poison_resistance, magnitude: 6}]}
+  - {id: acid_ward, name: Corrosion ward, suffix: of the Corrosion Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: acid_resistance, magnitude: 6}]}
+  - {id: necrotic_ward, name: Blight ward, suffix: of the Blight Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: necrotic_resistance, magnitude: 6}]}
+  - {id: radiant_ward, name: Radiance ward, suffix: of the Radiance Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: radiant_resistance, magnitude: 6}]}
+  - {id: aegis, name: Aegis, suffix: of the Aegis, applies: armor, fee_multiplier: 3, effects: [{modifies: all_elemental_resistance, magnitude: 3}]}
+  - {id: swiftness, name: Swiftness, suffix: of Swiftness, applies: any, fee_multiplier: 2, effects: [{modifies: movement, magnitude: 10}]}
+  - {id: elusion, name: Elusion, suffix: of Elusion, applies: any, fee_multiplier: 2, effects: [{modifies: evasion, magnitude: 8}]}
+  - {id: shadow, name: Shadow, suffix: of Shadows, applies: any, fee_multiplier: 2, effects: [{modifies: stealth, magnitude: 8}]}
+  - {id: endurance, name: Endurance, suffix: of Endurance, applies: any, fee_multiplier: 2, effects: [{modifies: max_stamina, magnitude: 6}]}
+  - {id: mending, name: Mending, suffix: of Mending, applies: any, fee_multiplier: 2, effects: [{modifies: recovery, magnitude: 5}]}
+  - {id: clarity, name: Clarity, suffix: of Clarity, applies: any, fee_multiplier: 2, effects: [{modifies: max_mana, magnitude: 6}]}
+  - {id: resolve, name: Resolve, suffix: of Resolve, applies: any, fee_multiplier: 2, effects: [{modifies: resolve, magnitude: 8}]}
+  - {id: strength, name: Strength, suffix: of Strength, applies: any, fee_multiplier: 3, effects: [{modifies: strength, magnitude: 6}]}
+  - {id: agility, name: Agility, suffix: of Agility, applies: any, fee_multiplier: 3, effects: [{modifies: dexterity, magnitude: 6}]}
+  - {id: constitution, name: Fortitude, suffix: of Fortitude, applies: any, fee_multiplier: 3, effects: [{modifies: constitution, magnitude: 6}]}
+  - {id: intelligence, name: Intellect, suffix: of Intellect, applies: any, fee_multiplier: 3, effects: [{modifies: intelligence, magnitude: 6}]}
+  - {id: wisdom, name: Insight, suffix: of Insight, applies: any, fee_multiplier: 3, effects: [{modifies: wisdom, magnitude: 6}]}
+  - {id: charisma, name: Presence, suffix: of Presence, applies: any, fee_multiplier: 3, effects: [{modifies: charisma, magnitude: 6}]}
+  - {id: artisan, name: Artisan, suffix: of the Artisan, applies: any, fee_multiplier: 2, effects: [{modifies: crafting, magnitude: 6}]}
+  - {id: kinship, name: Kinship, suffix: of Kinship, applies: any, fee_multiplier: 2.5, effects: [{modifies: companion_damage, magnitude: 8}]}
+  - {id: guardianship, name: Guardianship, suffix: of the Guardian, applies: any, fee_multiplier: 2.5, effects: [{modifies: companion_durability, magnitude: 8}]}

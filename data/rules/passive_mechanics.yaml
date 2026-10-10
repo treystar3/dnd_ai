@@ -1,0 +1,216 @@
+# PASSIVE MECHANICS - passives that change how things work, not just a percentage.
+# The skill generator picks from this list and gives each a name and description in the class's own theme.
+# The engine runs them (engine/combat.py for combat, scenes/world.py for world).
+#
+# kind:     combat | world
+# values:   [light, moderate] - the strength at each tier. Use the same number twice for on/off mechanics.
+# text:     what it does, shown to the player and the generator. {value} is replaced by the tier's value.
+# companion_only: only offered to classes that rely on companions
+# suits:    fit tags for character creation, same as stats.yaml
+
+# --- combat ---
+- {id: riposte,       kind: combat, values: [8, 15],  text: "When struck in melee, {value}% chance to strike back at once.", suits: {archetypes: [warrior, rogue], themes: [duelist, counter, fencer, blade, spear]}}
+- {id: aegis,         kind: combat, values: [10, 20], text: "The first hit you take each round is reduced by {value}%.", suits: {archetypes: [warrior], themes: [guardian, shield, knight, protector, bulwark]}}
+- {id: retribution,   kind: combat, values: [8, 15],  text: "Returns {value}% of damage you take to the attacker.", suits: {archetypes: [warrior], themes: [thorn, vengeance, retribution, spite]}}
+- {id: vampiric,      kind: combat, values: [4, 8],   text: "Heals you for {value}% of the damage you deal.", suits: {archetypes: [], themes: [blood, vampire, soul, siphon, necromancy, essence]}}
+- {id: executioner,   kind: combat, values: [20, 35], text: "+{value}% damage against enemies below 30% health.", suits: {archetypes: [rogue, warrior], themes: [assassin, executioner, hunter, predator, slayer]}}
+- {id: relentless,    kind: combat, values: [3, 5],   text: "Each consecutive hit deals +{value}% more damage, up to five times. A miss resets it.", suits: {archetypes: [warrior], themes: [berserker, fury, momentum, relentless]}}
+- {id: regeneration,  kind: combat, values: [1, 2],   text: "You recover {value}% of your health every round of combat.", suits: {archetypes: [support], themes: [troll, regeneration, life, druid, vitality]}}
+- {id: last_stand,    kind: combat, values: [12, 20], text: "Below 25% health: +{value}% damage and +20% defense.", suits: {archetypes: [warrior], themes: [martyr, last stand, desperate, defiant]}}
+- {id: hardening,     kind: combat, values: [2, 4],   text: "Each hit you take this fight reduces the next by {value}% more, up to five times.", suits: {archetypes: [warrior], themes: [iron, stone, endurance, unbreakable]}}
+- {id: triumph,       kind: combat, values: [4, 8],   text: "Defeating an enemy restores {value}% of your health.", suits: {archetypes: [warrior], themes: [reaper, soul, hunter, glory, conqueror]}}
+- {id: windwalker,    kind: combat, values: [12, 20], text: "When an attack misses you, your next strike deals +{value}% damage.", suits: {archetypes: [rogue], themes: [wind, acrobat, dancer, aerial, evasion]}}
+- {id: phantom,       kind: combat, values: [4, 8],   text: "{value}% chance to slip through an attack untouched.", suits: {archetypes: [rogue, mage], themes: [shadow, ghost, phantom, spirit, mist]}}
+- {id: echoing,       kind: combat, values: [8, 15],  text: "{value}% chance an ability doesn't go on cooldown.", suits: {archetypes: [mage], themes: [echo, arcane, rhythm, song, resonance]}}
+- {id: unburdened,    kind: combat, values: [8, 15],  text: "Abilities cost {value}% less.", suits: {archetypes: [mage, support], themes: [efficient, discipline, monk, focus, meditation]}}
+- {id: cleave,        kind: combat, values: [20, 35], text: "Your hits also strike a second nearby enemy for {value}% damage.", suits: {archetypes: [warrior], themes: [cleave, sweep, whirlwind, axe, berserker]}}
+- {id: spellblade,    kind: combat, values: [8, 15],  text: "Every hit also deals magical damage equal to {value}% of the blow.", suits: {archetypes: [mage, warrior], themes: [arcane, spellblade, runic, enchanted, battlemage]}}
+- {id: frostbite,     kind: combat, values: [8, 15],  text: "{value}% chance on hit to slow the target.", suits: {archetypes: [], themes: [frost, ice, cold, crippling, hamstring]}}
+- {id: rending,       kind: combat, values: [10, 20], text: "{value}% chance on hit to make the target bleed.", suits: {archetypes: [rogue, warrior], themes: [blade, claw, rend, savage, beast]}}
+- {id: thunderous,    kind: combat, values: [4, 8],   text: "{value}% chance on hit to stun the target.", suits: {archetypes: [warrior], themes: [thunder, hammer, crushing, impact, plunge]}}
+- {id: first_blood,   kind: combat, values: [0, 0],   text: "Your first strike in every fight is a critical hit.", suits: {archetypes: [rogue], themes: [ambush, assassin, first strike, quick, initiative]}}
+- {id: unyielding,    kind: combat, values: [0, 0],   text: "You cannot be stunned or knocked prone.", suits: {archetypes: [warrior], themes: [steadfast, mountain, anchor, unyielding, heavy]}}
+- {id: sanctified,    kind: combat, values: [0, 0],   text: "You cannot be made to bleed or be frightened.", suits: {archetypes: [support, warrior], themes: [holy, faith, paladin, sacred, priest]}}
+- {id: fearsome,      kind: combat, values: [0, 0],   text: "Lower-level enemies may be frightened when a fight begins.", suits: {archetypes: [warrior], themes: [dread, menace, terror, dragon, roar]}}
+- {id: second_wind,   kind: combat, values: [12, 20], text: "Once per fight, dropping below 25% health restores {value}% of it.", suits: {archetypes: [warrior, support], themes: [endurance, survivor, stubborn, defiant]}}
+- {id: opportunist,   kind: combat, values: [15, 30], text: "+{value}% damage against enemies that are slowed, prone, stunned, bleeding or frightened.", suits: {archetypes: [rogue], themes: [opportunist, cunning, trickster, predator]}}
+- {id: beastbane,     kind: combat, values: [8, 15], text: "+{value}% damage against beasts.", suits: {archetypes: [], themes: [hunter, ranger, trapper, beast]}}
+- {id: gravewarden,   kind: combat, values: [8, 15], text: "+{value}% damage against the undead.", suits: {archetypes: [support], themes: [holy, grave, exorcist, priest, light]}}
+- {id: giantsbane,    kind: combat, values: [8, 15], text: "+{value}% damage against giants.", suits: {archetypes: [], themes: [giant, slayer, mountain]}}
+- {id: dragonslayer,  kind: combat, values: [8, 15], text: "+{value}% damage against dragons and their kin.", suits: {archetypes: [], themes: [dragon, dragoon, wyrm, slayer, drake]}}
+- {id: hellbane,      kind: combat, values: [8, 15], text: "+{value}% damage against fiends.", suits: {archetypes: [], themes: [holy, demon, inquisitor, exorcist]}}
+- {id: warbreaker,    kind: combat, values: [8, 15], text: "+{value}% damage against goblins, orcs and their like.", suits: {archetypes: [warrior], themes: [soldier, warden, frontier, war]}}
+- {id: dragonward,    kind: combat, values: [10, 20], text: "You take {value}% less damage from dragons and their kin.", suits: {archetypes: [], themes: [dragon, dragoon, scale, wyrm]}}
+- {id: graveward,     kind: combat, values: [10, 20], text: "You take {value}% less damage from the undead.", suits: {archetypes: [], themes: [grave, holy, death, necromancy]}}
+- {id: guardian,      kind: combat, values: [10, 20], companion_only: true, text: "Your companions take {value}% less damage.", suits: {archetypes: [], themes: [summoner, beast, tamer, bond, pack]}}
+- {id: bulwark,       kind: combat, values: [0, 0],   companion_only: true, text: "Enemies come for you instead of your companions.", suits: {archetypes: [warrior], themes: [protector, shepherd, guardian, bond]}}
+
+- {id: spellmirror,   kind: combat, values: [8, 15],  text: "Returns {value}% of magical damage you take to the caster.", suits: {archetypes: [mage], themes: [mirror, ward, arcane]}}
+- {id: stormcaller,   kind: combat, values: [8, 15],  text: "{value}% chance on hit to call down lightning for extra magical damage.", suits: {archetypes: [mage], themes: [storm, thunder, lightning]}}
+- {id: wardbreaker,   kind: combat, values: [15, 30], text: "Your attacks ignore {value}% of magical wards.", suits: {archetypes: [mage], themes: [arcane, nullify, breaker]}}
+- {id: hellward,      kind: combat, values: [10, 20], text: "You take {value}% less damage from fiends.", suits: {archetypes: [], themes: [holy, demon, exorcist]}}
+- {id: giantward,     kind: combat, values: [10, 20], text: "You take {value}% less damage from giants.", suits: {archetypes: [], themes: [giant, mountain]}}
+- {id: killer_instinct, kind: combat, values: [3, 6], text: "+{value}% chance to land a critical hit.", suits: {archetypes: [rogue], themes: [assassin, precision, predator]}}
+- {id: piercing,      kind: combat, values: [10, 20], text: "Your attacks ignore {value}% of armor.", suits: {archetypes: [rogue, warrior], themes: [spear, piercing, lance, bolt]}}
+- {id: bloodlust,     kind: combat, values: [4, 8],   text: "Critical hits restore {value}% of your health.", suits: {archetypes: [warrior], themes: [berserker, blood, savage]}}
+- {id: battle_rhythm, kind: combat, values: [3, 6],   text: "Each hit you land restores {value}% of your stamina.", suits: {archetypes: [warrior], themes: [rhythm, discipline, dancer, monk]}}
+- {id: soul_harvest,  kind: combat, values: [8, 15],  text: "Defeating an enemy restores {value}% of your mana.", suits: {archetypes: [mage], themes: [soul, necromancy, reaper]}}
+- {id: blinding,      kind: combat, values: [6, 12],  text: "{value}% chance on hit to blind the target.", suits: {archetypes: [], themes: [light, radiant, flash, sand, dazzle]}}
+- {id: terrify,       kind: combat, values: [6, 12],  text: "{value}% chance on hit to frighten the target.", suits: {archetypes: [], themes: [dread, terror, nightmare, discord]}}
+- {id: barrier,       kind: combat, values: [8, 15],  text: "Every fight begins with a barrier that absorbs damage equal to {value}% of your health.", suits: {archetypes: [mage, support], themes: [ward, shield, barrier, bark]}}
+- {id: mana_shield,   kind: combat, values: [10, 20], text: "{value}% of the damage you take is drawn from your mana instead, at two mana per point, while it lasts.", suits: {archetypes: [mage], themes: [arcane, mana, shield]}}
+- {id: rally,         kind: combat, values: [5, 10],  text: "When a fight begins, you and your companions gain a barrier of {value}% of your health.", suits: {archetypes: [support], themes: [leader, commander, banner, rally]}}
+- {id: inspire,       kind: combat, values: [10, 20], companion_only: true, text: "Your companions deal {value}% more damage.", suits: {archetypes: [support], themes: [leader, commander, pack, bond]}}
+- {id: battle_cry,    kind: combat, values: [20, 35], text: "When a fight begins, each enemy has a {value}% chance to be frightened.", suits: {archetypes: [warrior], themes: [roar, warcry, banner, dread]}}
+
+- {id: flurry,        kind: combat, values: [12, 20], text: "{value}% chance to strike again at once, for 60% damage.", suits: {archetypes: [rogue, warrior], themes: [monk, martial, flurry, fist, swift]}}
+- {id: deflect,       kind: combat, values: [12, 20], text: "{value}% chance to turn a blow aside, taking half its damage.", suits: {archetypes: [rogue], themes: [monk, deflect, discipline, parry]}}
+- {id: hex,           kind: combat, values: [10, 18], text: "Your first hit curses an enemy; cursed enemies take +{value}% damage from you for the rest of the fight.", suits: {archetypes: [mage], themes: [warlock, hex, curse, pact, witch]}}
+- {id: blood_pact,    kind: combat, values: [12, 20], text: "You deal {value}% more damage, but take half that much more yourself.", suits: {archetypes: [mage], themes: [warlock, pact, blood, bargain, patron]}}
+
+# --- world ---
+- {id: trusted_face,  kind: world,  values: [5, 10],  text: "People you meet for the first time start out trusting you {value} points more.", suits: {archetypes: [support], themes: [charm, diplomat, noble, bard, healer, honest]}}
+- {id: beast_friend,  kind: world,  values: [0, 0],   text: "Wild beasts don't hunt you; they keep their distance unless you strike first.", suits: {archetypes: [], themes: [beast, druid, nature, tamer, ranger, animism]}}
+- {id: danger_sense,  kind: world,  values: [0, 0],   text: "You are never caught off guard: hostile creatures are always spotted at a distance.", suits: {archetypes: [rogue], themes: [scout, sentinel, watcher, instinct, senses]}}
+- {id: scavenger,     kind: world,  values: [25, 50], text: "You find {value}% more coin and a better chance of taking materials from the fallen.", suits: {archetypes: [rogue], themes: [scavenger, thief, hunter, trapper, merchant]}}
+- {id: trailblazer,   kind: world,  values: [10, 20], text: "You travel {value}% faster.", suits: {archetypes: [], themes: [ranger, wanderer, traveler, scout, wind, swift]}}
+- {id: keen_judge,    kind: world,  values: [0, 0],   text: "You read a fight before it starts: you see your exact odds.", suits: {archetypes: [mage, rogue], themes: [tactician, scholar, strategist, veteran]}}
+- {id: tracker,       kind: world,  values: [0, 0],   text: "Arriving somewhere wild, you read the signs of every creature that roams there.", suits: {archetypes: [], themes: [hunter, ranger, tracker, beast, scout]}}
+- {id: lucky_find,    kind: world,  values: [10, 20], text: "{value}% chance to find an extra item on the fallen.", suits: {archetypes: [rogue], themes: [lucky, fortune, scavenger, thief]}}
+- {id: thrifty,       kind: world,  values: [15, 25], text: "{value}% chance to save a material whenever you craft.", suits: {archetypes: [support], themes: [smith, artisan, craft, frugal, tinker]}}
+- {id: masterwork,    kind: world,  values: [8, 15],  text: "Things you craft turn out better, as if your crafting skill were {value} points higher.", suits: {archetypes: [support], themes: [smith, artisan, master, craft, forge]}}
+- {id: quick_hands,   kind: world,  values: [20, 35], text: "Crafting takes you {value}% less time.", suits: {archetypes: [support, rogue], themes: [tinker, artisan, nimble, craft]}}
+- {id: quick_study,   kind: world,  values: [25, 50], text: "Your crafting skill grows {value}% faster.", suits: {archetypes: [support, mage], themes: [apprentice, scholar, craft, artisan, alchemist]}}
+- {id: haggler,       kind: world,  values: [10, 20], text: "Merchants give you {value}% better prices, buying and selling.", suits: {archetypes: [rogue, support], themes: [merchant, trader, haggler, silver tongue, bard]}}
+
+# --- world mechanics, each owned by one to three kinds of class ---
+- {id: drillmaster,      kind: world, values: [25, 50], text: "Drills at the guild teach you {value}% more.", suits: {archetypes: [warrior], themes: [soldier, veteran, drill, discipline, knight]}}
+- {id: veterans_eye,     kind: world, values: [15, 30], text: "You know good steel: weapons and armor sell for {value}% more.", suits: {archetypes: [warrior], themes: [veteran, soldier, mercenary, smith, weapon]}}
+- {id: town_defender,    kind: world, values: [50, 100], text: "Towns take your good deeds to heart: reputation you earn is {value}% greater.", suits: {archetypes: [warrior, support], themes: [guardian, protector, sentinel, defender, warden]}}
+- {id: safe_camp,        kind: world, values: [0, 0],   text: "You can rest in any cleared dungeon chamber, not just quiet ones.", suits: {archetypes: [warrior], themes: [guardian, sentinel, delver, veteran, watchful]}}
+- {id: blood_price,      kind: world, values: [20, 40], text: "Hunts and bounties pay you {value}% more.", suits: {archetypes: [warrior, rogue], themes: [berserker, hunter, bounty, mercenary, slayer]}}
+- {id: butcher,          kind: world, values: [20, 35], text: "{value}% better odds of clean hides and good meat when you skin or butcher.", suits: {archetypes: [warrior], themes: [berserker, hunter, savage, beast, trapper]}}
+- {id: cache_hunter,     kind: world, values: [40, 80], text: "Dungeon caches yield {value}% more coin to you.", suits: {archetypes: [rogue], themes: [thief, treasure, scavenger, delver, burglar]}}
+- {id: trap_sense,       kind: world, values: [0, 0],   text: "You always spot dungeon traps before they spring.", suits: {archetypes: [rogue], themes: [thief, trap, scout, burglar, shadow]}}
+- {id: forager,          kind: world, values: [50, 100], text: "Foraging turns up {value}% more.", suits: {archetypes: [support], themes: [ranger, druid, herbalist, wild, forager]}}
+- {id: wayfinder,        kind: world, values: [0, 0],   text: "Closed roads and blocked passes don't stop you - you always know a way around.", suits: {archetypes: [], themes: [ranger, wanderer, pathfinder, scout, traveler]}}
+- {id: arcane_appraiser, kind: world, values: [20, 35], text: "Enchanters charge you {value}% less - you know what the work is worth.", suits: {archetypes: [mage], themes: [arcane, enchanter, scholar, rune, artificer]}}
+- {id: scholars_memory,  kind: world, values: [0, 0],   text: "When you recall lore, you remember one fact more.", suits: {archetypes: [mage], themes: [scholar, sage, lore, archivist, wizard]}}
+- {id: dread_name,       kind: world, values: [0, 0],   text: "Threats never cost you standing - people expect no less of you.", suits: {archetypes: [mage, warrior], themes: [necromancer, dread, death, warlock, fear]}}
+- {id: grave_robber,     kind: world, values: [30, 60], text: "{value}% better chance of gear in dungeon caches.", suits: {archetypes: [rogue, mage], themes: [necromancer, grave, tomb, crypt, delver]}}
+- {id: green_hands,      kind: world, values: [100, 150], text: "In spring and summer, foraging turns up {value}% more.", suits: {archetypes: [support], themes: [druid, nature, growth, green, season]}}
+- {id: field_medic,      kind: world, values: [30, 60], text: "Bandages and draughts you use heal {value}% more.", suits: {archetypes: [support], themes: [healer, medic, cleric, herbal, mend]}}
+- {id: brewer,           kind: world, values: [25, 50], text: "{value}% chance to brew one extra draught, tonic or bandage.", suits: {archetypes: [support], themes: [healer, alchemist, herbalist, brewer, apothecary]}}
+- {id: good_employer,    kind: world, values: [30, 60], text: "People you work for pay you {value}% more.", suits: {archetypes: [support, warrior], themes: [leader, commander, captain, steward, diligent]}}
+- {id: crowd_pleaser,    kind: world, values: [50, 100], text: "Performances earn you {value}% more in tips.", suits: {archetypes: [support], themes: [bard, performer, minstrel, entertainer, song]}}
+- {id: local_favorite,   kind: world, values: [0, 0],   text: "A good performance raises your standing in the town.", suits: {archetypes: [support], themes: [bard, performer, charm, celebrity, minstrel]}}
+- {id: familiar_forager, kind: world, values: [40, 80], text: "With your companion beside you, foraging turns up {value}% more.", companion_only: true, suits: {archetypes: [], themes: [summoner, beast, familiar, bond, druid]}}
+- {id: oathbound,        kind: world, values: [10, 20], text: "Guards and priests trust you {value} points more from the first meeting.", suits: {archetypes: [warrior, support], themes: [paladin, oath, holy, knight, templar]}}
+- {id: almsgiver,        kind: world, values: [0, 0],   text: "Gifts raise your standing in town three times as much.", suits: {archetypes: [support], themes: [paladin, charity, healer, saint, generous]}}
+- {id: inner_calm,       kind: world, values: [25, 50], text: "Rest restores {value}% more.", suits: {archetypes: [support], themes: [monk, meditation, calm, discipline, serene]}}
+- {id: ascetic,          kind: world, values: [30, 50], text: "You need little: rooms and meals cost you {value}% less.", suits: {archetypes: [support], themes: [monk, ascetic, humble, pilgrim, wanderer]}}
+- {id: patron_whispers,  kind: world, values: [0, 0],   text: "Once a day, your first attempt to recall lore can't fail - something whispers the answer.", suits: {archetypes: [mage], themes: [warlock, patron, pact, eldritch, whisper]}}
+- {id: dark_charisma,    kind: world, values: [0, 0],   text: "A failed attempt to persuade still half-works.", suits: {archetypes: [mage, rogue], themes: [warlock, charm, silver, manipulator, seducer]}}
+- {id: commission_broker, kind: world, values: [20, 35], text: "Commissions cost you {value}% less and are ready sooner.", suits: {archetypes: [support], themes: [artisan, merchant, broker, guild, crafter]}}
+
+# --- expansion: world mechanics, each owned by one family ---
+# warrior
+- {id: weapon_wise,        kind: world, values: [10, 20], text: "Smiths and quartermasters sell you weapons for {value}% less.", suits: {archetypes: [warrior], themes: [soldier, weapon, arms, smith, mercenary]}}
+- {id: soldiers_bearing,   kind: world, values: [10, 20], text: "+{value}% intimidation against anyone who carries arms - guards, hunters, contractors.", suits: {archetypes: [warrior], themes: [soldier, veteran, knight, officer, mercenary]}}
+- {id: campaigner,         kind: world, values: [0, 0],   text: "Sleeping rough in the wild restores you as fully as a bed.", suits: {archetypes: [warrior], themes: [soldier, veteran, campaign, march, mercenary]}}
+- {id: victors_name,       kind: world, values: [0, 0],   text: "Winning a fight in the wilds beside a town raises your standing in that town.", suits: {archetypes: [warrior], themes: [champion, glory, knight, hero, duelist]}}
+- {id: delvers_wage,       kind: world, values: [15, 30], text: "Dungeon contracts pay you {value}% more.", suits: {archetypes: [warrior], themes: [mercenary, delver, sellsword, adventurer]}}
+# guardian
+- {id: night_watch,        kind: world, values: [0, 0],   text: "Nothing catches you while you rest outdoors; your sleep is never interrupted.", suits: {archetypes: [warrior], themes: [guard, sentinel, watch, shield, protector]}}
+- {id: helping_hand,       kind: world, values: [0, 0],   text: "Unpaid help earns you twice the trust and standing.", suits: {archetypes: [warrior, support], themes: [protector, guardian, shield, humble, kind]}}
+- {id: road_warden,        kind: world, values: [25, 50], text: "Delivery contracts pay you {value}% more.", suits: {archetypes: [warrior], themes: [warden, escort, road, protector, guard]}}
+- {id: shelter_earned,     kind: world, values: [0, 0],   text: "Inns in towns where you're well liked won't charge you for a room.", suits: {archetypes: [warrior], themes: [protector, defender, guardian, town, hero]}}
+- {id: patient_watch,      kind: world, values: [10, 20], text: "+{value}% to find what you search for in the wild.", suits: {archetypes: [warrior], themes: [sentinel, watch, patience, vigil, guard]}}
+- {id: keeper_of_oaths,    kind: world, values: [25, 50], text: "Personal requests from townsfolk pay you {value}% more.", suits: {archetypes: [warrior], themes: [oath, duty, protector, honor, guardian]}}
+# berserker
+- {id: raw_appetite,       kind: world, values: [100, 100], text: "Food restores twice as much for you.", suits: {archetypes: [warrior], themes: [berserker, savage, feral, beast, hunger]}}
+- {id: wild_presence,      kind: world, values: [10, 20], text: "+{value}% intimidation.", suits: {archetypes: [warrior], themes: [berserker, savage, rage, feral, brute]}}
+- {id: trophy_hunter,      kind: world, values: [0, 0],   text: "Large and huge creatures you skin yield double.", suits: {archetypes: [warrior], themes: [hunter, trophy, savage, beast, berserker]}}
+- {id: blood_warm,         kind: world, values: [0, 0],   text: "Cold lands and storms never slow or wear on you.", suits: {archetypes: [warrior], themes: [north, frost, savage, barbarian, storm]}}
+- {id: restless,           kind: world, values: [0, 0],   text: "A night's sleep takes you half as long.", suits: {archetypes: [warrior], themes: [berserker, restless, rage, feral, tireless]}}
+# rogue
+- {id: fence_friend,       kind: world, values: [25, 50], text: "Rings and amulets sell for {value}% more.", suits: {archetypes: [rogue], themes: [thief, fence, smuggler, burglar, jewel]}}
+- {id: night_prowler,      kind: world, values: [15, 25], text: "+{value}% stealth at night.", suits: {archetypes: [rogue], themes: [thief, shadow, night, assassin, burglar]}}
+- {id: second_look,        kind: world, values: [0, 0],   text: "Searching a dungeon chamber always turns up something.", suits: {archetypes: [rogue], themes: [thief, delver, scavenger, treasure, burglar]}}
+# ranger
+- {id: weather_wise,       kind: world, values: [0, 0],   text: "Bad weather never slows your travel.", suits: {archetypes: [rogue], themes: [ranger, wanderer, scout, weather, wilds]}}
+- {id: hunters_larder,     kind: world, values: [0, 0],   text: "Foraging in the wild can turn up game meat as well as herbs.", suits: {archetypes: [rogue], themes: [ranger, hunter, trapper, woodsman, wilds]}}
+- {id: game_warden,        kind: world, values: [0, 0],   text: "Searching for a hunt contract's quarry in the right place always finds it.", suits: {archetypes: [rogue], themes: [ranger, hunter, tracker, warden, bounty]}}
+- {id: old_haunts,         kind: world, values: [15, 25], text: "Wild places you've been before are {value}% less dangerous for you.", suits: {archetypes: [rogue], themes: [ranger, woodsman, scout, wanderer, wilds]}}
+# mage
+- {id: bookish,            kind: world, values: [10, 20], text: "+{value}% to lore.", suits: {archetypes: [mage], themes: [scholar, wizard, study, books, sage]}}
+- {id: mana_well,          kind: world, values: [25, 50], text: "Mana returns {value}% faster outside combat.", suits: {archetypes: [mage], themes: [wizard, sorcerer, arcane, mana, magic]}}
+- {id: marked_by_gift,     kind: world, values: [10, 15], text: "In the kingdom, nobles, courtiers and mages trust you {value} more from the first meeting; common folk 5 less.", suits: {archetypes: [mage], themes: [noble, court, gifted, sorcerer, wizard]}}
+- {id: spell_scholar,      kind: world, values: [25, 40], text: "Learning a new ability from an instructor costs {value}% less and takes half the time.", suits: {archetypes: [mage], themes: [scholar, student, wizard, study, arcane]}}
+- {id: arcane_echoes,      kind: world, values: [0, 0],   text: "You sense what waits on each floor of a dungeon before you go down.", suits: {archetypes: [mage], themes: [diviner, seer, arcane, sense, wizard]}}
+- {id: arcane_tutor,       kind: world, values: [25, 40], text: "Tutoring at the guild costs you {value}% less.", suits: {archetypes: [mage], themes: [scholar, teacher, wizard, study, sage]}}
+# necromancer
+- {id: deaths_ledger,      kind: world, values: [20, 40], text: "Undead you destroy give {value}% more experience.", suits: {archetypes: [mage], themes: [necromancer, death, undead, grave, bone]}}
+- {id: bone_collector,     kind: world, values: [0, 0],   text: "Skinning and butchering often yield bone as well.", suits: {archetypes: [mage], themes: [necromancer, bone, ossuary, death, grave]}}
+- {id: tomb_sleeper,       kind: world, values: [0, 0],   text: "You can rest in any cleared chamber of a barrow or crypt.", suits: {archetypes: [mage], themes: [necromancer, tomb, crypt, grave, death]}}
+- {id: unsettling_presence, kind: world, values: [15, 25], text: "+{value}% intimidation at night.", suits: {archetypes: [mage], themes: [necromancer, dread, shadow, death, night]}}
+- {id: last_possessions,   kind: world, values: [25, 50], text: "Bandits, cultists and other people you defeat carry {value}% more coin.", suits: {archetypes: [mage, rogue], themes: [necromancer, grave, plunder, death, reaper]}}
+- {id: memento_mori,       kind: world, values: [0, 0],   text: "Death takes a quarter of your coin instead of half.", suits: {archetypes: [mage], themes: [necromancer, death, undying, lich, grave]}}
+# druid
+- {id: speaker_for_wild,   kind: world, values: [10, 15], text: "Farmers, shepherds, hunters and herbalists trust you {value} more from the first meeting.", suits: {archetypes: [support], themes: [druid, nature, grove, wild, green]}}
+- {id: root_and_rot,       kind: world, values: [50, 100], text: "In autumn and winter, foraging turns up {value}% more.", suits: {archetypes: [support], themes: [druid, decay, season, winter, cycle]}}
+- {id: herb_wise,          kind: world, values: [25, 50], text: "{value}% chance to save an herb whenever you brew.", suits: {archetypes: [support], themes: [druid, herbalist, green, healer, nature]}}
+# healer
+- {id: bedside_manner,     kind: world, values: [10, 20], text: "+{value}% insight in conversation; people in trouble open up to you.", suits: {archetypes: [support], themes: [healer, cleric, physician, kind, comfort]}}
+- {id: apothecary,         kind: world, values: [25, 50], text: "Draughts and tonics sell for {value}% more.", suits: {archetypes: [support], themes: [healer, apothecary, alchemist, physician, herbalist]}}
+- {id: mercy_remembered,   kind: world, values: [0, 0],   text: "Kindness - unpaid help and gifts - also raises your standing in the next town down the road.", suits: {archetypes: [support], themes: [healer, saint, mercy, kind, pilgrim]}}
+- {id: tireless_tending,   kind: world, values: [0, 0],   text: "Helping people with their work costs you no stamina and takes half the time.", suits: {archetypes: [support], themes: [healer, servant, tireless, devoted, humble]}}
+# leader
+- {id: recruiter,          kind: world, values: [10, 20], text: "Guild contractors trust you {value} more from the first meeting.", suits: {archetypes: [warrior, support], themes: [leader, captain, commander, warlord, recruiter]}}
+- {id: born_to_rank,       kind: world, values: [0, 0],   text: "Guild promotions need one fewer contract.", suits: {archetypes: [warrior, support], themes: [leader, ambitious, captain, noble, command]}}
+- {id: rally_the_town,     kind: world, values: [0, 0],   text: "Settling a situation the world threw at a town earns double the standing.", suits: {archetypes: [warrior, support], themes: [leader, hero, champion, captain, rally]}}
+- {id: quartermasters_friend, kind: world, values: [15, 25], text: "The guild quartermaster's prices are {value}% better for you.", suits: {archetypes: [warrior, support], themes: [leader, quartermaster, officer, logistics, captain]}}
+# bard
+- {id: silver_tongue,      kind: world, values: [10, 20], text: "+{value}% deception.", suits: {archetypes: [support, rogue], themes: [bard, liar, charm, trickster, silver]}}
+- {id: sing_for_supper,    kind: world, values: [0, 0],   text: "A good performance at an inn earns you that night's room.", suits: {archetypes: [support], themes: [bard, minstrel, wandering, song, tavern]}}
+- {id: songs_of_the_road,  kind: world, values: [0, 0],   text: "Your performances spread your standing to neighboring towns.", suits: {archetypes: [support], themes: [bard, fame, song, wandering, story]}}
+- {id: gossips_ear,        kind: world, values: [0, 0],   text: "People readily share the news and talk they've heard with you.", suits: {archetypes: [support, rogue], themes: [bard, gossip, spy, rumor, charm]}}
+- {id: stage_presence,     kind: world, values: [10, 20], text: "+{value}% performance.", suits: {archetypes: [support], themes: [bard, performer, actor, stage, song]}}
+- {id: old_ballads,        kind: world, values: [15, 25], text: "+{value}% lore about places, history and legends.", suits: {archetypes: [support], themes: [bard, skald, history, legend, ballad]}}
+- {id: easy_company,       kind: world, values: [0, 0],   text: "People you've met warm to you a little more each time you talk, up to +10 trust.", suits: {archetypes: [support], themes: [bard, friend, charm, company, warm]}}
+# summoner
+- {id: faithful_guardian,      kind: world, values: [0, 0],   text: "When you fall, your companion guards your purse - you lose no coin when you die.", companion_only: true, suits: {archetypes: [support], themes: [summoner, bond, beast, familiar, spirit]}}
+- {id: pack_instinct,      kind: world, values: [20, 30], text: "With your companion beside you, the wilds are {value}% less likely to find you.", companion_only: true, suits: {archetypes: [support], themes: [summoner, pack, beast, instinct, wild]}}
+- {id: crowd_draw,         kind: world, values: [50, 100], text: "Performances with your companion present earn {value}% more.", companion_only: true, suits: {archetypes: [support], themes: [summoner, showman, familiar, beast, charm]}}
+- {id: sniffer,            kind: world, values: [15, 25], text: "+{value}% to find creatures you search for, with your companion beside you.", companion_only: true, suits: {archetypes: [support], themes: [summoner, hound, beast, hunt, track]}}
+- {id: second_eyes,        kind: world, values: [10, 20], text: "+{value}% perception with your companion present.", companion_only: true, suits: {archetypes: [support], themes: [summoner, familiar, watch, spirit, owl]}}
+- {id: gentle_approach,    kind: world, values: [0, 0],   text: "Timid animals don't flee from you.", suits: {archetypes: [support], themes: [summoner, beast, gentle, tamer, animal]}}
+- {id: pack_beast,         kind: world, values: [4, 6],   text: "With your companion beside you, your pack holds {value} more.", companion_only: true, suits: {archetypes: [support], themes: [summoner, beast, burden, mount, companion]}}
+- {id: mood_reader,        kind: world, values: [10, 20], text: "+{value}% insight with your companion present - it senses what people hide.", companion_only: true, suits: {archetypes: [support], themes: [summoner, familiar, spirit, empathy, sense]}}
+- {id: shared_rest,        kind: world, values: [25, 50], text: "Resting with your companion restores you {value}% more.", companion_only: true, suits: {archetypes: [support], themes: [summoner, bond, companion, rest, kinship]}}
+# paladin
+- {id: honest_face,        kind: world, values: [15, 25], text: "+{value}% persuasion but 15% less deception - people believe your truths and see through your lies.", suits: {archetypes: [warrior, support], themes: [paladin, oath, honest, holy, knight]}}
+- {id: righteous_hunt,     kind: world, values: [25, 50], text: "Contracts against undead and fiends pay you {value}% more.", suits: {archetypes: [warrior, support], themes: [paladin, holy, crusader, inquisitor, light]}}
+- {id: sanctuary,          kind: world, values: [0, 0],   text: "A night in a temple restores you fully, free of charge.", suits: {archetypes: [warrior, support], themes: [paladin, temple, faith, holy, priest]}}
+- {id: pilgrims_pace,      kind: world, values: [15, 25], text: "On the named roads, you travel {value}% faster.", suits: {archetypes: [warrior, support], themes: [paladin, pilgrim, road, crusade, journey]}}
+# monk
+- {id: still_mind,         kind: world, values: [10, 20], text: "+{value}% insight.", suits: {archetypes: [rogue, support], themes: [monk, meditation, calm, mind, discipline]}}
+- {id: long_road_walker,   kind: world, values: [0, 0],   text: "Long journeys never tire you.", suits: {archetypes: [rogue, support], themes: [monk, pilgrim, wanderer, endurance, road]}}
+- {id: meditative_study,   kind: world, values: [0, 0],   text: "Tutoring sessions take you half the time.", suits: {archetypes: [rogue, support], themes: [monk, study, discipline, focus, meditation]}}
+- {id: quiet_step,         kind: world, values: [10, 20], text: "+{value}% stealth outside combat.", suits: {archetypes: [rogue, support], themes: [monk, silent, shadow, discipline, still]}}
+- {id: light_pack,         kind: world, values: [4, 6],   text: "Your pack holds {value} more.", suits: {archetypes: [rogue, support], themes: [monk, ascetic, wanderer, simple, travel]}}
+# warlock
+- {id: patrons_gift,       kind: world, values: [0, 0],   text: "Once a week, your patron leaves something of value where you sleep.", suits: {archetypes: [mage], themes: [warlock, patron, pact, gift, otherworld]}}
+- {id: forbidden_lore,     kind: world, values: [20, 30], text: "+{value}% lore about the dead, fiends, curses and the Hollow.", suits: {archetypes: [mage], themes: [warlock, forbidden, occult, dark, secret]}}
+- {id: night_bound,        kind: world, values: [0, 0],   text: "At night, your mana returns twice as fast.", suits: {archetypes: [mage], themes: [warlock, night, moon, shadow, dark]}}
+- {id: patron_dreams,      kind: world, values: [0, 0],   text: "When something world-changing is unfolding, your patron shows you glimpses of it in your dreams.", suits: {archetypes: [mage], themes: [warlock, dream, prophecy, patron, vision]}}
+- {id: warded,             kind: world, values: [30, 50], text: "Traps hurt you {value}% less.", suits: {archetypes: [mage], themes: [warlock, ward, hex, protection, pact]}}
+# artisan
+- {id: material_eye,       kind: world, values: [20, 40], text: "Raw materials sell for {value}% more.", suits: {archetypes: [support], themes: [artisan, smith, merchant, craft, trader]}}
+- {id: workshop_regular,   kind: world, values: [0, 0],   text: "Stations in towns that like you charge you no fee.", suits: {archetypes: [support], themes: [artisan, smith, craftsman, guild, workshop]}}
+- {id: field_kit,          kind: world, values: [15, 25], text: "You can craft without a station, as if your skill were {value} points lower.", suits: {archetypes: [support], themes: [artisan, tinker, field, inventor, wanderer]}}
+- {id: salvager,           kind: world, values: [0, 0],   text: "Selling or dropping gear gives you back one unit of its material.", suits: {archetypes: [support], themes: [artisan, salvage, scrap, tinker, smith]}}
+- {id: signature_work,     kind: world, values: [25, 50], text: "Gear you crafted sells for {value}% more.", suits: {archetypes: [support], themes: [artisan, master, smith, craftsman, signature]}}
+- {id: never_shoddy,       kind: world, values: [0, 0],   text: "What you craft never comes out crude.", suits: {archetypes: [support], themes: [artisan, careful, smith, craftsman, quality]}}
+- {id: prospector,         kind: world, values: [0, 0],   text: "Foraging in hills and mountains can turn up ore.", suits: {archetypes: [support], themes: [artisan, miner, prospector, smith, dwarf]}}
+- {id: known_craftsman,    kind: world, values: [0, 0],   text: "Selling your own work in a town raises your standing there.", suits: {archetypes: [support], themes: [artisan, craftsman, reputation, smith, master]}}

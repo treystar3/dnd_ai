@@ -1,0 +1,279 @@
+# Personality traits. Each NPC rolls 3 when the player first meets them, and keeps them
+# permanently unless an event in the world changes one (see npc/traits.py).
+#
+# rarity:    common, uncommon or rare - how often it is rolled.
+# conflicts: traits that can never appear together. Listing one side is enough.
+# Add, remove or reword freely. Descriptions are what the NPC's voice is built from.
+
+# --- common ---
+- id: brave
+  description: Faces danger and hard truths instead of avoiding them.
+  rarity: common
+  conflicts: [cowardly]
+- id: cautious
+  description: Thinks twice, prefers the safe choice, distrusts haste.
+  rarity: common
+  conflicts: [reckless]
+- id: curious
+  description: Asks questions; wants to know how things work and where strangers come from.
+  rarity: common
+- id: kind
+  description: Notices others' troubles and tries to ease them.
+  rarity: common
+  conflicts: [cruel]
+- id: honest
+  description: Says what they believe is true, even when it costs them.
+  rarity: common
+  conflicts: [deceitful]
+- id: generous
+  description: Shares freely and dislikes haggling over small things.
+  rarity: common
+  conflicts: [greedy]
+- id: friendly
+  description: Warm with strangers and quick to make conversation.
+  rarity: common
+  conflicts: [aloof]
+- id: hardworking
+  description: Rarely idle; respects effort and resents laziness.
+  rarity: common
+  conflicts: [lazy]
+- id: cheerful
+  description: Finds the bright side and jokes through trouble.
+  rarity: common
+  conflicts: [gloomy]
+- id: patient
+  description: Slow to anger, willing to wait or explain twice.
+  rarity: common
+  conflicts: [hot_tempered]
+- id: practical
+  description: Cares about what works, not what sounds grand.
+  rarity: common
+  conflicts: [dreamy]
+- id: loyal
+  description: Stands by family, friends and promises.
+  rarity: common
+  conflicts: [fickle]
+- id: gossipy
+  description: Loves news about other people and passes it on.
+  rarity: common
+  conflicts: [secretive]
+- id: stubborn
+  description: Once decided, very hard to move.
+  rarity: common
+  conflicts: [easygoing]
+- id: proud
+  description: Sensitive about their standing, skill or name.
+  rarity: common
+  conflicts: [humble]
+- id: humble
+  description: Downplays their own worth; uneasy with praise.
+  rarity: common
+  conflicts: [proud, vain]
+- id: pious
+  description: Takes the gods seriously; keeps the rites and sees signs.
+  rarity: common
+  conflicts: [skeptical]
+- id: superstitious
+  description: Believes in omens, charms and bad luck.
+  rarity: common
+  conflicts: [skeptical]
+- id: protective
+  description: Puts the safety of their own people first.
+  rarity: common
+- id: frugal
+  description: Careful with every coin.
+  rarity: common
+  conflicts: [extravagant]
+- id: blunt
+  description: Says things plainly, sometimes too plainly.
+  rarity: common
+  conflicts: [tactful]
+- id: tactful
+  description: Chooses words carefully to avoid giving offense.
+  rarity: common
+  conflicts: [blunt]
+- id: talkative
+  description: Fills silence and tells long stories.
+  rarity: common
+  conflicts: [quiet]
+- id: quiet
+  description: Speaks little and listens a great deal.
+  rarity: common
+  conflicts: [talkative]
+- id: nosy
+  description: Wants to know other people's business.
+  rarity: common
+- id: sentimental
+  description: Attached to memories, keepsakes and old ways.
+  rarity: common
+  conflicts: [cold]
+- id: trusting
+  description: Takes people at their word.
+  rarity: common
+  conflicts: [suspicious, paranoid]
+- id: suspicious
+  description: Assumes strangers want something from them.
+  rarity: common
+  conflicts: [trusting]
+- id: easygoing
+  description: Rolls with things and is hard to rattle.
+  rarity: common
+  conflicts: [stubborn, anxious]
+- id: humorous
+  description: Quick with a joke or a dry remark.
+  rarity: common
+- id: hospitable
+  description: Feels a duty to feed and shelter guests.
+  rarity: common
+- id: dutiful
+  description: Does what law, family or station expects of them.
+  rarity: common
+  conflicts: [rebellious]
+- id: calm
+  description: Steady under pressure.
+  rarity: common
+  conflicts: [anxious]
+- id: forgiving
+  description: Lets old wrongs go.
+  rarity: common
+  conflicts: [vengeful]
+- id: set_in_ways
+  description: Distrusts new things and new people.
+  rarity: common
+  conflicts: [adventurous]
+
+# --- uncommon ---
+- id: anxious
+  description: Worries constantly about what might go wrong.
+  rarity: uncommon
+  conflicts: [calm, easygoing]
+- id: ambitious
+  description: Wants more than their station and works toward it.
+  rarity: uncommon
+  conflicts: [content]
+- id: content
+  description: Happy with what they have.
+  rarity: uncommon
+  conflicts: [ambitious]
+- id: greedy
+  description: Wants more coin and goods, and measures people by them.
+  rarity: uncommon
+  conflicts: [generous]
+- id: secretive
+  description: Keeps their own business close and deflects questions.
+  rarity: uncommon
+  conflicts: [gossipy]
+- id: cynical
+  description: Expects the worst of people and institutions.
+  rarity: uncommon
+  conflicts: [idealistic]
+- id: idealistic
+  description: Believes things can and should be better.
+  rarity: uncommon
+  conflicts: [cynical]
+- id: vain
+  description: Cares a great deal how they look and how others see them.
+  rarity: uncommon
+  conflicts: [humble]
+- id: gloomy
+  description: Expects bad outcomes and is slow to smile.
+  rarity: uncommon
+  conflicts: [cheerful]
+- id: hot_tempered
+  description: Quick to anger and quick to shout.
+  rarity: uncommon
+  conflicts: [patient]
+- id: lazy
+  description: Avoids effort whenever they can.
+  rarity: uncommon
+  conflicts: [hardworking]
+- id: reckless
+  description: Acts first and thinks later.
+  rarity: uncommon
+  conflicts: [cautious]
+- id: cowardly
+  description: Avoids danger and confrontation, sometimes shamefully.
+  rarity: uncommon
+  conflicts: [brave]
+- id: aloof
+  description: Distant and hard to get to know.
+  rarity: uncommon
+  conflicts: [friendly]
+- id: fickle
+  description: Changes loyalties and opinions easily.
+  rarity: uncommon
+  conflicts: [loyal]
+- id: envious
+  description: Resents other people's good fortune.
+  rarity: uncommon
+- id: flirtatious
+  description: Charming and playful with those who catch their eye.
+  rarity: uncommon
+- id: dreamy
+  description: Head full of stories and faraway places.
+  rarity: uncommon
+  conflicts: [practical]
+- id: extravagant
+  description: Spends freely and loves fine things.
+  rarity: uncommon
+  conflicts: [frugal]
+- id: rebellious
+  description: Chafes at authority and rules.
+  rarity: uncommon
+  conflicts: [dutiful]
+- id: adventurous
+  description: Hungry for new places and experiences.
+  rarity: uncommon
+  conflicts: [set_in_ways]
+- id: skeptical
+  description: Wants proof; doubts gods, omens and tall tales.
+  rarity: uncommon
+  conflicts: [pious, superstitious, fanatical]
+- id: competitive
+  description: Needs to win, even at small things.
+  rarity: uncommon
+- id: bitter
+  description: Holds on to old disappointments.
+  rarity: uncommon
+- id: deceitful
+  description: Lies easily when it serves them.
+  rarity: uncommon
+  conflicts: [honest]
+- id: shrewd
+  description: Sharp at bargains and at reading motives.
+  rarity: uncommon
+
+# --- rare ---
+- id: cruel
+  description: Takes pleasure in other people's discomfort.
+  rarity: rare
+  conflicts: [kind]
+- id: paranoid
+  description: Believes others are plotting against them.
+  rarity: rare
+  conflicts: [trusting]
+- id: fanatical
+  description: Devoted to a cause or faith beyond reason.
+  rarity: rare
+  conflicts: [skeptical]
+- id: vengeful
+  description: Never forgets a wrong and means to repay it.
+  rarity: rare
+  conflicts: [forgiving]
+- id: cold
+  description: Shows little feeling and is hard to move.
+  rarity: rare
+  conflicts: [sentimental]
+- id: reclusive
+  description: Avoids company whenever possible.
+  rarity: rare
+  conflicts: [talkative]
+- id: manipulative
+  description: Steers people toward what they want without them noticing.
+  rarity: rare
+- id: haunted
+  description: Carries something from their past that still troubles them.
+  rarity: rare
+- id: obsessive
+  description: Fixated on one thing above all else.
+  rarity: rare

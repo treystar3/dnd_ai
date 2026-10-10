@@ -1,0 +1,192 @@
+# ARCS - quests that turn out to be bigger than they looked. Chains and arcs are decided by the ENGINE when a contract is
+# accepted, and built as a FIXED skeleton of nodes. The model dresses the skeleton once; it can never add a node, move
+# the ending, or stretch the story. A story always has an end, and a clock that runs out.
+
+# --- how the game decides what a posting really is -------------------------------------------------------------
+# When a "missing person" contract is taken, the engine rolls once (seeded by the campaign and the contract):
+#   simple: a short job.   chain: a few linked steps.   arc: a long story across the land.
+# Gates are checked first; a roll that lands on something locked falls back to the next size down.
+scale:
+  weights: {simple: 70, chain: 22, arc: 8}
+  min_level: {chain: 8, arc: 20}        # your level; below it that size is never rolled
+  min_rank: {chain: E, arc: D}          # your guild rank
+  hall_tier_bonus: {1: 3, 2: 6}         # extra arc weight from a great hall's tier (see guild.yaml hall_tiers)
+  one_active_arc: true                  # only one chain or arc runs at a time
+  cooldown_days: 20                     # after one ends, a quiet spell before the next
+  min_cities: {arc: 3}                  # an arc needs this many different settlements to cross
+
+# --- the fixed shape ------------------------------------------------------------------------------------------
+# nodes: how many steps, decided once. That number is the whole story. Nothing adds to it.
+nodes: {simple: [2, 2], chain: [3, 4], arc: [5, 7]}
+# The step at which a chain or arc reveals it is bigger than a missing person (the quest is renamed and its length shown).
+reveal_at: {chain: 2, arc: 2}
+# The whole story must be finished within this many days, or the world moves on without you.
+# Arcs have no time limit. effect_days is how long a revealed story's mark on the world lasts.
+effect_days: {simple: 14, chain: 30, arc: 100}
+# What a node of each kind asks of the player
+node_kinds: {contact: "question a person", site: "search a place for what it hides", lair: "clear a hideout and take its leader", boss: "face the one behind it"}
+# A camp is a leader plus a real garrison. Balance (win rates measured by simulating fights against the bots' characters): a straight charge
+# at a full camp wins roughly 1 time in 5 to 1 in 4; clearing half of it quietly first wins about 85%, a third of it about 95%; a sneak attack on
+# the leader (3x damage, rest of the camp slow to react) roughly doubles the charge odds. Old notes follow.
+# (older note)
+# "boss" rank is 6x health and 1.6x damage, so a boss at the player's own level is a near-certain loss even alone. A lair leader
+# is "elite" (1.6x health) at nearly the player's level; the finale is a "boss" at about half the player's level with a couple of
+# weak followers, which comes out near an even fight for a character that is prepared.
+# A camp of people is a real camp (many fighters, each weak); beasts and monsters come in smaller groups. Only the first wave
+# fights at once; the rest are in the camp and arrive in waves while the fight lasts (see combat reserves).
+camp_size:                                   # fighters besides the leader
+  people: {lair: [8, 12], boss: [10, 14]}
+  other:  {lair: [5, 7], boss: [6, 9]}
+camp_level:                                  # followers, of the player's level
+  people: {lair: [0.60, 0.70], boss: [0.40, 0.48]}
+  other:  {lair: [0.95, 1.05], boss: [0.55, 0.65]}
+leader_level: {lair: 1.0, boss: 0.5}         # the leader, of the player's level
+camp_waves:                                  # fighters in the first wave; a new wave of this many every few rounds
+  first: 3
+  every: 2
+  count: 2
+  quiet_start: {leader: 4, all: 6}           # after a sneak attack the rest of the camp is slower to come (first round a wave may arrive)
+# How many tries a stubborn contact gets before the trail turns up another way (at a cost of time)
+max_attempts: 3
+partial_cost_days: 2
+# Pay: multiples of the contract's rank reward, on top of normal contract pay
+rewards: {simple: 0.5, chain: 1.5, arc: 5.0}
+node_pay: 0.15                          # each step's share of the rank reward, paid as you go
+rank_credit: {simple: 1, chain: 2, arc: 3}
+contract_mult: {simple: 1.0, chain: 1.5, arc: 3.0}
+# What the ring does to the roads while it lives (danger effects, tagged so outlaw ambushes follow)
+# How much of a template's own world effect a story applies once its size is revealed (simple stories apply none)
+effect_scale: {simple: 0, chain: 0.5, arc: 1.0}
+failure_danger: 40
+failure_days: 30
+
+# --- prisoners and what the fight leaves behind ---------------------------------------------------------------
+prisoner:
+  chance: 0.35                          # a won fight against outlaws leaves one survivor who yields
+  rep_chance_per_point: 0.004           # outlaw reputation shifts that chance
+  min_chance: 0.1
+  max_chance: 0.85
+  tip_chance: 0.5                       # a random prisoner knows something worth a lead
+  trust_start: 35
+  gate_trust: 65                        # trust at which they talk without being pressed
+  gate_checks: [persuasion, intimidation, deception]
+  deal_words: ["spare you", "let you go", "let you live", "won't kill", "wont kill", "will not kill", "you'll live", "you will live",
+               "set you free", "free you", "release you", "walk away", "no harm"]
+  names: [Dorn, Kell, Marek, Sorin, Vask, Tobren, Hale, Garrick, Brannoc, Ferrow, Jessk, Orlen, Ruddick, Skarn, Teague, Wynn]
+# Outlaw reputation (-100..100): what you do with the people you beat.
+outlaw_rep:
+  spare: 3                              # let a prisoner go, no deal
+  keep_deal: 6                          # let one go after promising to
+  kill: -4                              # kill a prisoner who yielded
+  kill_after_deal: -10                  # kill one after promising mercy
+  kill_after_talk: -6                   # kill one who answered your questions, no deal made
+
+# --- search sites: a step that is a place, not a person -------------------------------------------------------
+# On arrival the player works the place with their best fitting skill (the template names two). Each failed try costs
+# hours; three failures and the thread turns up another way, at a cost of days (the same rule as a stubborn contact).
+site:
+  hours_per_try: 5
+  bonus_per_clue: 0            # (reserved) extra odds for earlier clues found properly
+
+# --- confrontation finales: the last step settled by evidence instead of a fight --------------------------------
+# Odds = your best listed skill + evidence. Success ends the story with the leader yielding. Anything less and they fight.
+confront:
+  evidence_per_step: 6         # per step answered properly (a trail gone cold adds nothing)
+  evidence_cap: 24
+  prisoner_on_win: true
+
+# --- where the people behind a story stand against you ---------------------------------------------------------
+# Fights at lairs and bosses use the template's creature lists, scaled to the player's level (not to the creature's usual range).
+people_categories: ["hostile people", "person template"]     # these yield and can be questioned; others fight to the end
+
+# --- a template may let outlaw reputation matter ---------------------------------------------------------------
+rep_matters:
+  open_at: 25                  # this much standing with outlaws and contacts talk without being pressed
+  shut_at: -25                 # this little and they want more trust before they talk
+  shut_extra_trust: 15
+
+# --- effects a story has on the world while it runs --------------------------------------------------------------
+effects:
+  prices_scarcity: 20          # default price rise (percent) for "prices" stories in the contact towns
+  failure_prices: 30
+
+# --- defaults for any template that does not say -----------------------------------------------------------------
+template_defaults:
+  subject_kind: person         # person | object | matter
+  mix: {contact: 3, lair: 1}
+  site_in: wild                # wild | town
+  site_checks: [perception, lore]
+  finale: fight                # fight | confront
+  confront_checks: [persuasion, insight]
+  leaders: [bandit_captain]
+  minions: [bandit]
+  minion_name: outlaw
+  lair_desc: a hideout held by the people behind it
+  boss_desc: the stronghold of the one behind it all
+  site_desc: a place that may hold a clue
+  effect: {kind: danger, value: 25}
+  rep_matters: false
+
+# Wording by kind of subject. {name} is the model's name for the subject, {place} the first lead, {looks} how it looks.
+kinds:
+  person:
+    start: "The last anyone saw {name}, {looks}, was near {place}. Ask after them there."
+    end: "{name} was found and freed. {premise}"
+    win: "The player has beaten {leader} and found {name} ({looks}) alive. What was really going on: {premise} Describe the rescue and what the player now understands, in a short, satisfying close."
+    yield_win: "The one behind it, {leader}, has surrendered, and {name} ({looks}) is found alive. What was really going on: {premise} Describe it briefly."
+    over: "{name} is freed."
+    news: "The people behind {title} are broken, and {name} is home."
+  object:
+    start: "Word of {name} points first to {place}. Ask there."
+    end: "{name} was recovered. {premise}"
+    win: "The player has beaten {leader} and recovered {name}. What was really going on: {premise} Describe it in a short, satisfying close."
+    yield_win: "{leader} has given way, and {name} is in the player's hands. What was really going on: {premise} Describe it briefly."
+    over: "{name} is recovered."
+    news: "{title} is over: {name} is found, and those behind it are broken."
+  matter:
+    start: "Something is wrong, and the first sign of it is at {place}. Ask there."
+    end: "The matter of {name} is settled. {premise}"
+    win: "The player has beaten {leader} and put an end to {name}. What was really going on: {premise} Describe it in a short, satisfying close."
+    yield_win: "{leader} has been exposed and yields, and {name} is at an end. What was really going on: {premise} Describe it briefly."
+    over: "{name} is ended."
+    news: "{title} is over: those behind {name} are broken."
+
+# Approaching a hideout. The camp is built once and remembered: guards you remove stay gone, the alert carries over.
+# alert 0 = unaware, 1 = wary, 2 (alarm) = the fight starts. It falls by one for each day you stay away.
+camp_approach:
+  alarm: 2
+  decay_days: 1
+  scout:  {check: perception, hours: 1, edge: 15, edge_partial: 5}
+  sneak:  {check: stealth, hours: 1, level_weight: 0.5, level_cap: [-15, 12], alert_penalty: 10, night_bonus: 10, xp_share: 1.0}
+  ambush: {check: stealth, hours: 1, level_weight: 0.5, level_cap: [-15, 12], alert_penalty: 10, guard_penalty: 8, night_bonus: 10}
+  bluff:  {checks: [deception, persuasion], hours: 1, alert_penalty: 10, guard_penalty: 5, rep_weight: 0.2, rep_cap: 15}
+  scare:  {check: intimidation, hours: 1, level_weight: 0.5, level_cap: [-15, 12], leader_penalty: 10, alert_penalty: 10}
+  missing_every: 3        # every this many guards removed, someone notices men are missing: alert +1
+  methods:                # what a clever description can earn, but only if the scene really offers it
+    bonus: 5
+    cap: 10
+    patience_hours: 2
+    cover_biomes: [forest, jungle, swamp, grassland, hills, mountains, coast, ruins, primeval, farmland, cracked_plains, underground]
+  fail_alert: 2
+  partial_alert: 1
+
+# --- a gift at the end of a story ---------------------------------------------------------------------------------
+# Someone who does not keep companions can still be given an animal at the end of a chain or an arc: a grateful family's dog,
+# a hawk that would not leave. It is weaker than a bonded companion (see combat.yaml creatures.companion_gift), one at a time.
+gift_companion:
+  chance: {simple: 0, chain: 0.15, arc: 0.40}
+  # perks: the world bonuses the animal brings (ids from passive_mechanics.yaml), at about half of what a class gets
+  animals:
+    - {creature: mastiff, role: guardian, how: "a mastiff that will not leave your side",
+       perks: {night_watch: 0, pack_instinct: 12}}
+    - {creature: hawk,    role: scout,    how: "a hawk that circles overhead and comes to your fist",
+       perks: {second_eyes: 8, sniffer: 10}}
+    - {creature: raven,   role: scout,    how: "a raven that has followed you since the first clue",
+       perks: {bookish: 8, mood_reader: 8}}
+    - {creature: owl,     role: scout,    how: "an owl that keeps watch while you sleep",
+       perks: {night_prowler: 10, shared_rest: 15}}
+    - {creature: cat,     role: striker,  how: "a lean cat that walks the road beside you",
+       perks: {quiet_step: 8, hunters_larder: 0}}
+    - {creature: wolf,    role: striker,  how: "a half-tamed wolf the whole village said to take",
+       perks: {sniffer: 10, wild_presence: 8}}
+  names: [Biscuit, Ash, Tansy, Rook, Pepper, Juniper, Mote, Bramble, Sorrel, Flint, Wren, Cinder, Moss, Clover, Ember]

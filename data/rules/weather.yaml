@@ -1,0 +1,31 @@
+# WEATHER
+#
+# Weather is rolled by the engine in blocks of change_every_hours. It tends to persist:
+# the previous block's condition gets its weight multiplied by stickiness.
+# Rolls are seeded per campaign, so a given day's weather is fixed once it happens.
+
+change_every_hours: 6
+stickiness: 3
+
+conditions:
+  - {id: clear,    label: Clear,    emoji: "☀️", night_emoji: "🌙", weight: 4,   temperature_shift: 0}
+  - {id: fair,     label: Fair,     emoji: "🌤️", night_emoji: "🌙", weight: 3,   temperature_shift: 0}
+  - {id: overcast, label: Overcast, emoji: "☁️", weight: 3,   temperature_shift: 0}
+  - {id: windy,    label: Windy,    emoji: "💨", weight: 1,   temperature_shift: -1}
+  - {id: fog,      label: Foggy,    emoji: "🌫️", weight: 1,   temperature_shift: -1}
+  - {id: rain,     label: Rain,     emoji: "🌧️", weight: 2,   temperature_shift: -1}
+  - {id: storm,    label: Storm,    emoji: "⛈️", weight: 0.5, temperature_shift: -1}
+
+# Temperature steps, coldest first.
+temperatures: [freezing, cold, cool, mild, warm, hot]
+
+# Base temperature step (index into the list above) for each time of day.
+by_period:
+  deep night: 1
+  before dawn: 1
+  dawn: 2
+  morning: 2
+  midday: 3
+  afternoon: 4
+  evening: 3
+  night: 2

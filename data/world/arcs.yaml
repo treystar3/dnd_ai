@@ -1,0 +1,565 @@
+# Story templates for arcs: 30 of them. A template says WHAT kind of story it is, how its steps are mixed, how it ends,
+# and which creatures stand against the player. The engine fixes the shape; the model supplies names, clues and colour once.
+#
+# board:      the contract as posted ({subject}, {place}).        subjects: phrases the engine picks from for {subject}.
+# truth:      the real story, given to the model so its clues fit one plot.     subject_kind: person | object | matter
+# contacts:   roles of the people in towns who know something.                   mix: weights for the steps between first and last
+# finale:     fight (the last step is a battle) or confront (evidence first; if it fails they fight).
+# leaders / minions: creature ids (scaled to the player's level; people yield, monsters fight on).
+# effect:     what the story does to the world while it runs: danger (roads), prices (towns) or none.
+# Anything left out takes template_defaults in rules/arcs.yaml.
+
+# ---------------------------------------------------------------- crime and conspiracy
+- id: smuggling_ring
+  board: "Missing: {subject}, last seen near {place}"
+  subjects: ["a miller's daughter", "a courier", "a merchant's apprentice", "a young scholar", "a herder's son", "a ferryman's wife"]
+  truth: >
+    The missing person saw something they should not have - a shipment, a ledger, a face - and was taken by a smuggling ring
+    that moves contraband along the roads between the great cities, paying off a few officials. The ring is run by one
+    person who is not at the first camp. Every camp and contact on the trail knows only the next link.
+  contacts: [merchant, innkeeper, dockhand, caravan_master, courtier, guard, bargeman]
+  minion_name: smuggler
+  lair_desc: a smugglers' camp hidden off the road
+  boss_desc: the ring leader's stronghold
+  tags: [smuggl, outlaw, bandit]
+
+- id: counterfeit_mint
+  board: "Investigate: {subject}, first noticed near {place}"
+  subjects: ["false coins in the market", "clipped and plated silver", "counterfeit crowns passing in trade"]
+  subject_kind: matter
+  truth: >
+    Counterfeit coin is flooding the markets. It is struck at a hidden mint in a ruined keep by a gang with a skilled
+    engraver, and carried out through merchants who do not know what they pass on. Each town holds a link: who passed it,
+    who sold the metal, who supplies the dies.
+  contacts: [merchant, innkeeper, smith, guard, courtier, caravan_master]
+  mix: {contact: 3, site: 1, lair: 1}
+  site_checks: [perception, insight]
+  leaders: [bandit_captain]
+  minions: [thug, bandit]
+  minion_name: coiner
+  lair_desc: a workshop of coiners behind a false front
+  boss_desc: a hidden mint under a ruined keep
+  site_desc: a cache of bad coin, or a smith's back room
+  effect: {kind: prices, value: 15}
+
+- id: poisoned_wells
+  board: "Investigate: {subject}, starting near {place}"
+  subjects: ["villages falling sick one after another", "a fever that follows the wells", "a sickness spreading along the roads"]
+  subject_kind: matter
+  truth: >
+    The wells of several villages are being fouled on purpose by a cult-backed alchemist testing a poison. The sickness
+    follows a trail of buyers and carriers, and the poison is made in a hidden workshop by fanatics.
+  contacts: [herbalist, priest, elder, farmer, merchant, water_priest]
+  mix: {contact: 3, site: 2, lair: 1}
+  site_in: town
+  site_checks: [lore, perception]
+  leaders: [cult_fanatic]
+  minions: [cultist, thug]
+  minion_name: poisoner
+  lair_desc: a cult's hidden workshop
+  boss_desc: the alchemist's stronghold
+  site_desc: a fouled well or a sick-house
+  effect: {kind: prices, value: 20}
+
+- id: forged_writs
+  board: "Investigate: {subject}, reported near {place}"
+  subjects: ["guild writs that do not match the ledgers", "forged contracts bearing real seals", "falsified deeds turning up in court"]
+  subject_kind: matter
+  truth: >
+    Writs, deeds and guild contracts are being forged to defraud and to cover thefts. Clerks and scribes were bribed or
+    blackmailed in several towns. Behind it is one organiser who holds a hidden office where the originals are kept.
+  contacts: [guild_clerk, courtier, merchant, noble, watch_captain, loremaster]
+  mix: {contact: 4, site: 1}
+  site_in: town
+  site_checks: [insight, lore]
+  finale: confront
+  confront_checks: [insight, persuasion, deception]
+  leaders: [spy, assassin]
+  minions: [thug]
+  minion_name: hired blade
+  lair_desc: a scribes' den where forged seals are kept
+  boss_desc: the forger-lord's hidden office
+  site_desc: a registry or a clerk's records
+  effect: {kind: none, value: 0}
+
+- id: slaver_pipeline
+  tags: [outlaw, bandit]
+  board: "Missing: {subject}, last seen near {place}"
+  subjects: ["three villagers from a border hamlet", "a shepherd and her brothers", "a family of river folk", "a travelling troupe's youngest"]
+  truth: >
+    People are being taken from lonely places and sold on a chain of buyers that stretches from the border to the great cities.
+    Each stage - the takers, the carters, the dealers - knows only the next. The chain ends at a fortress where the captives are held.
+  contacts: [dockhand, caravan_master, merchant, bargeman, guard, innkeeper]
+  mix: {contact: 3, lair: 2}
+  leaders: [bandit_captain]
+  minions: [bandit, thug]
+  minion_name: slaver
+  lair_desc: a slavers' holding camp
+  boss_desc: the slaver fortress
+  effect: {kind: danger, value: 30}
+
+- id: assassins_ledger
+  board: "Investigate: {subject}, found near {place}"
+  subjects: ["a dead man's book of names", "a ledger of paid-for killings", "a coded book taken from a murdered fence"]
+  subject_kind: object
+  truth: >
+    A ledger of contracted killings, found on a dead man, lists names and payments. Each lead is a person who paid, a person
+    who carried messages, or a victim's kin. The last name in the book is the player's. The one behind it is a master
+    assassin who is cleaning up loose ends.
+  contacts: [innkeeper, merchant, noble, watch_captain, courtier, guard]
+  mix: {contact: 4, site: 1}
+  site_checks: [perception, insight]
+  leaders: [assassin, spy]
+  minions: [thug, bandit]
+  minion_name: cutthroat
+  lair_desc: a killers' safe house
+  boss_desc: the master assassin's hideaway
+  effect: {kind: none, value: 0}
+
+# ---------------------------------------------------------------- cults and the unseen
+- id: sleeping_cult
+  board: "Investigate: {subject}, reported near {place}"
+  subjects: ["villagers sleepwalking at night", "whole households that will not wake", "people walking out of town in their sleep"]
+  subject_kind: matter
+  truth: >
+    A dream-priest in a buried temple is pulling people's sleeping minds into a ritual, using sleepers as fuel. The cult
+    recruits through dreams. Each town has a sufferer, a healer or a witness who saw where the sleepers walk.
+  contacts: [priest, acolyte, elder, herbalist, innkeeper, water_priest]
+  mix: {contact: 3, site: 1, lair: 1}
+  site_checks: [insight, lore]
+  leaders: [cult_fanatic]
+  minions: [cultist]
+  minion_name: dreamer
+  lair_desc: a cult's night shrine
+  boss_desc: a buried temple where the dreamers gather
+  site_desc: a field where sleepers gather, or a dream-marked stone
+  effect: {kind: none, value: 0}
+
+- id: hollow_saints
+  board: "Investigate: {subject}, noticed near {place}"
+  subjects: ["relics swapped for cursed copies", "shrines whose relics turned to dust", "saints' bones gone missing before a festival"]
+  subject_kind: object
+  truth: >
+    The true relics of the shrines have been stolen and replaced by cursed copies that sap faith and luck. A cult of the
+    stolen faith holds the originals and means to use them. Recovering them returns the blessing.
+  contacts: [priest, acolyte, merchant, relic_dealer, stonemason, water_priest]
+  mix: {contact: 3, site: 2}
+  site_in: town
+  site_checks: [lore, perception]
+  leaders: [cult_fanatic, priest]
+  minions: [cultist, thug]
+  minion_name: zealot
+  lair_desc: a thieves' reliquary
+  boss_desc: the cult's hidden sanctum
+  site_desc: a shrine whose relic is false
+  effect: {kind: none, value: 0}
+
+- id: gravediggers_master
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["graves found empty at dawn", "bodies sold off before burial", "crypts opened from beneath"]
+  subject_kind: matter
+  truth: >
+    A necromancer is buying and stealing the dead from several towns through gravediggers and body-sellers. The bodies
+    gather in a crypt where he is raising an army.
+  contacts: [priest, stonemason, guard, innkeeper, watch_captain, acolyte]
+  mix: {contact: 2, site: 1, lair: 2}
+  leaders: [wight, vampire_spawn, mummy, wraith, vampire, mummy_lord]
+  minions: [zombie, skeleton, ghoul, ghast]
+  minion_name: risen dead
+  lair_desc: a crypt where the stolen dead are kept
+  boss_desc: the necromancer's deep crypt
+  site_desc: a robbed grave or a body-seller's cellar
+  effect: {kind: danger, value: 20}
+
+- id: starfall_heresy
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["a falling star and the madness after it", "glowing stones that drive people mad", "lights in the sky and a spreading fever of the mind"]
+  subject_kind: matter
+  truth: >
+    A fallen star broke into fragments that warp the minds of those near them. Each town holds a fragment or its victims,
+    and a cult gathers the shards at the crater, where something is beginning to wake.
+  contacts: [loremaster, enchanter, priest, scout, elder, engineer]
+  mix: {contact: 2, site: 3}
+  site_checks: [lore, perception]
+  leaders: [gibbering_mouther, chuul, otyugh, cloaker, aboleth]
+  minions: [cultist, cult_fanatic]
+  minion_name: star-struck
+  lair_desc: a camp of the star-struck
+  boss_desc: the crater where the star fell
+  site_desc: a fragment's glow
+  effect: {kind: none, value: 0}
+
+- id: bound_name
+  board: "Investigate: {subject}, whispered of near {place}"
+  subjects: ["a demon's name split among scholars", "the five pieces of a true name", "a binding-word scattered across the land"]
+  subject_kind: object
+  truth: >
+    A demon's true name was split among scholars long ago, each guarding a piece. A cult is gathering them to break the
+    binding. The player must collect or protect the pieces before the cult does; the last piece lies where the cult will
+    perform the rite.
+  contacts: [loremaster, enchanter, priest, noble, courtier, acolyte]
+  mix: {contact: 3, site: 2}
+  site_in: town
+  site_checks: [lore, insight]
+  leaders: [imp, bearded_devil, succubus_incubus, barbed_devil, vrock, bone_devil, horned_devil]
+  minions: [cultist, cult_fanatic, dretch]
+  minion_name: cultist
+  lair_desc: a cult's ritual hall
+  boss_desc: the place where the rite is to be spoken
+  site_desc: a scholar's sealed vault
+  effect: {kind: none, value: 0}
+
+- id: plague_bearers
+  board: "Investigate: {subject}, starting near {place}"
+  subjects: ["a wasting sickness with no cause", "a fever that follows travellers", "a plague spreading from person to person"]
+  subject_kind: matter
+  truth: >
+    A disease is being spread by carriers, each infected by the last, tracing back to a ruined hospice where something
+    unquiet was disturbed. The source is a corrupted thing that keeps spreading it.
+  contacts: [herbalist, priest, innkeeper, watch_captain, elder, acolyte]
+  mix: {contact: 3, site: 2}
+  site_checks: [lore, perception]
+  leaders: [ghast, wight, night_hag, vampire_spawn]
+  minions: [zombie, ghoul, giant_rat_diseased]
+  minion_name: plague-ridden
+  lair_desc: a plague-house of the sick and the mad
+  boss_desc: the ruined hospice where it began
+  site_desc: a plague-house or a quarantined well
+  effect: {kind: prices, value: 25}
+
+# ---------------------------------------------------------------- politics and war
+- id: false_heir
+  board: "Investigate: {subject}, said to be near {place}"
+  subjects: ["a pretender rallying lords", "a claimant to the throne whose story does not add up", "a lost heir who surfaced too conveniently"]
+  subject_kind: matter
+  truth: >
+    A claimant to a great seat is rallying support with a forged past. Proof lies in three places: a witness to the old
+    household, a missing record, and a letter of the real heir's fate. When confronted with enough proof he is exposed.
+  contacts: [courtier, noble, guard, watch_captain, royal_guard, loremaster]
+  mix: {contact: 4, site: 1}
+  site_in: town
+  site_checks: [insight, lore]
+  finale: confront
+  confront_checks: [persuasion, insight, intimidation, deception]
+  leaders: [knight, veteran, assassin]
+  minions: [guard, thug]
+  minion_name: retainer
+  lair_desc: a retainer's hall
+  boss_desc: the pretender's hold
+  site_desc: a court record room
+  effect: {kind: none, value: 0}
+
+- id: border_provocations
+  tags: [raider]
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["raids that look staged", "attacks on two realms by the same hand", "burnings blamed on the neighbour"]
+  subject_kind: matter
+  truth: >
+    "Bandit" raids on two realms are staged by a third party who profits from their war. The raiders wear false marks and
+    are paid by a sponsor who meets them in a border fort. Proof must reach the right ears before blood is spilled.
+  contacts: [scout, guard, watch_captain, caravan_master, hunter, noble]
+  mix: {contact: 2, lair: 2, site: 1}
+  finale: confront
+  confront_checks: [insight, persuasion, intimidation]
+  leaders: [veteran, knight]
+  minions: [bandit, thug]
+  minion_name: false raider
+  lair_desc: a raiders' camp wearing false colours
+  boss_desc: a border fort where the sponsor meets his hirelings
+  site_desc: a burned farm or an abandoned camp
+  effect: {kind: danger, value: 30}
+
+- id: stolen_seal
+  board: "Missing: {subject}, taken near {place}"
+  subjects: ["a lord's signet ring", "a magistrate's seal", "a guild-master's seal"]
+  subject_kind: object
+  truth: >
+    A thief took a seal of office and is selling its use to those who forge decrees. The seal passes from hand to hand
+    through the cities; the last holder is a fence-lord with a hidden strongroom.
+  contacts: [guard, merchant, innkeeper, noble, courtier, dockhand]
+  mix: {contact: 3, lair: 1, site: 1}
+  site_checks: [perception, stealth]
+  leaders: [spy, assassin, bandit_captain]
+  minions: [thug, bandit]
+  minion_name: fence's man
+  lair_desc: a fence's back room
+  boss_desc: the fence-lord's strongroom
+  effect: {kind: none, value: 0}
+
+- id: mercenary_betrayal
+  tags: [raider]
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["a hired company that stopped defending the pass", "sellswords who changed sides", "a garrison that opened the gate"]
+  subject_kind: matter
+  truth: >
+    A mercenary company hired to hold a pass has been bought by a rival and now lets raiders through. Some of its sworn
+    soldiers are loyal and unhappy, and a paymaster holds the proof. Their captain can be shamed or beaten.
+  contacts: [guard, watch_captain, scout, innkeeper, quartermaster, merchant]
+  mix: {contact: 3, lair: 2}
+  finale: confront
+  confront_checks: [intimidation, persuasion, insight]
+  leaders: [veteran, knight, gladiator]
+  minions: [bandit, berserker]
+  minion_name: sellsword
+  lair_desc: a sellsword picket
+  boss_desc: the mercenary captain's keep
+  effect: {kind: danger, value: 25}
+
+- id: siege_breaker
+  tags: [raider]
+  board: "Help wanted: {subject}, near {place}"
+  subjects: ["a besieged town needs relief", "a border town under siege", "a hold cut off by a besieging host"]
+  subject_kind: matter
+  truth: >
+    A town is besieged and its lord's calls for help were intercepted. The player must win allies in several towns - a
+    caravan master's grain, a captain's riders, a priest's blessing - and bring them to break the siege, ending with a battle at the siege lines.
+  contacts: [noble, elder, watch_captain, caravan_master, priest, merchant, quartermaster]
+  mix: {contact: 5, lair: 1}
+  leaders: [bugbear, ogre, ettin, hill_giant, stone_giant, frost_giant]
+  minions: [goblin, hobgoblin, orc, gnoll, bugbear]
+  minion_name: besieger
+  lair_desc: a besiegers' picket
+  boss_desc: the siege lines of the besieging host
+  effect: {kind: danger, value: 20}
+
+- id: succession_murders
+  board: "Protect: {subject}, last at {place}"
+  subjects: ["the last living heir of a minor house", "the youngest of three heirs", "a noble's only surviving child"]
+  truth: >
+    Heirs of a great house are dying one after another and the last living one is in danger. The killer works through
+    servants and hired blades and is protecting an inheritance that is not theirs. The player must find who is behind it before the last heir falls.
+  contacts: [courtier, noble, guard, royal_guard, priest, server]
+  mix: {contact: 4, site: 1}
+  site_in: town
+  site_checks: [perception, insight]
+  leaders: [assassin, spy]
+  minions: [thug, bandit]
+  minion_name: hired blade
+  lair_desc: a killers' safe house
+  boss_desc: the killer's hidden retreat
+  site_desc: the scene of a murder
+  effect: {kind: none, value: 0}
+  start: "{name}, {looks}, is in danger and was last seen near {place}. Start there."
+  end: "{name} was kept safe and the killer is stopped. {premise}"
+
+# ---------------------------------------------------------------- monsters and nature
+- id: drakes_tithe
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["villages paying a tribute to something", "a yearly tithe sent into the hills", "herds vanishing on a schedule"]
+  subject_kind: matter
+  truth: >
+    Villagers have long paid a hidden tribute of livestock, then coin, to something in the hills. A go-between profits and a drake
+    demands more each year. Break the arrangement by learning who set it up and facing what takes the tithe.
+  contacts: [shepherd, farmer, elder, merchant, hunter, innkeeper]
+  mix: {contact: 3, site: 1, lair: 1}
+  leaders: [lesser_drake, drake, wyvern, elder_drake, young_red_dragon]
+  minions: [kobold, bandit, lizardfolk]
+  minion_name: tribute guard
+  lair_desc: a go-between's guarded cache
+  boss_desc: the drake's lair
+  site_desc: a tithe-stone or a stripped pasture
+  effect: {kind: danger, value: 20}
+
+- id: silent_forest
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["birdsong gone from a forest", "animals fleeing a woodland", "a hunt that finds nothing"]
+  subject_kind: matter
+  truth: >
+    The animals are fleeing a woodland because of three things: poachers, a fouled spring, and something old and hungry stirring beneath it.
+    Trappers and wardens have pieces of the story; the heart of it lies at the spring.
+  contacts: [hunter, trapper, lumberjack, elven_warden, herbalist, scout]
+  mix: {contact: 2, site: 2, lair: 1}
+  site_checks: [perception, lore]
+  leaders: [green_hag, awakened_tree, shambling_mound, treant, hydra]
+  minions: [worg, awakened_shrub, giant_rat]
+  minion_name: stricken beast
+  lair_desc: a poachers' camp
+  boss_desc: the fouled spring and what stirs beneath
+  site_desc: a stripped glade, spoor or a poisoned pool
+  effect: {kind: danger, value: 15}
+
+- id: broken_wardstones
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["standing stones found toppled", "ward-stones knocked down one by one", "an old line of stones broken at night"]
+  subject_kind: matter
+  truth: >
+    The standing stones that kept monsters from the roads are being toppled by saboteurs working for something that wants the way open.
+    The player must find the saboteurs and re-light the stones before the line breaks.
+  contacts: [elder, priest, stonemason, scout, water_priest, hunter]
+  mix: {contact: 2, site: 3, lair: 1}
+  site_checks: [lore, perception]
+  leaders: [cult_fanatic, berserker, ogre, troll, oni]
+  minions: [goblin, bandit, orc]
+  minion_name: saboteur
+  lair_desc: a camp of saboteurs
+  boss_desc: the place where the saboteurs' master works
+  site_desc: a toppled ward-stone to be raised and re-lit
+  effect: {kind: danger, value: 20}
+
+- id: storm_caller
+  board: "Investigate: {subject}, over {place}"
+  subjects: ["freak storms ruining the harvest", "hail in high summer", "lightning that follows a road"]
+  subject_kind: matter
+  truth: >
+    A hermit with a stolen artifact is calling storms - at first by accident, now to punish those who wronged him.
+    Farmers, fishers and priests see the pattern; the hermit's tower lies at its centre.
+  contacts: [fisher, farmer, elder, water_priest, bargeman, priest]
+  mix: {contact: 3, site: 1, lair: 1}
+  site_checks: [perception, lore]
+  leaders: [druid, air_elemental, djinni]
+  minions: [sprite, dust_mephit, steam_mephit]
+  minion_name: storm-sprite
+  lair_desc: a place where the weather turns wild
+  boss_desc: the hermit's storm-wracked tower
+  site_desc: a scorched field or a lightning-struck stone
+  effect: {kind: prices, value: 20}
+
+- id: wyrm_hoard_map
+  board: "Investigate: {subject}, said to be near {place}"
+  subjects: ["a treasure map torn in four", "four pieces of a map to a dragon's hoard", "a hoard-map shared among rivals"]
+  subject_kind: object
+  truth: >
+    A map to a dragon's hoard was torn in four, each piece held by a rival with their own reasons. The player must win the pieces by bargain, theft or
+    trade, and the last site is the dragon's own lair.
+  contacts: [merchant, loremaster, tinker, innkeeper, noble, caravan_master]
+  mix: {contact: 3, site: 2, lair: 0}
+  site_checks: [perception, lore]
+  leaders: [drake, wyvern, young_black_dragon, young_green_dragon, adult_green_dragon]
+  minions: [kobold, bandit]
+  minion_name: hoard-guard
+  lair_desc: a rival's armed camp
+  boss_desc: the dragon's lair
+  site_desc: a landmark the map marks
+  effect: {kind: none, value: 0}
+
+# ---------------------------------------------------------------- mysteries and history
+- id: lost_expedition
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["a vanished party and a torn diary", "an expedition that never returned", "a lost company's last letter"]
+  subject_kind: matter
+  truth: >
+    An expedition sent to explore the wilds vanished. A diary found on a dead man traces its route; each stop shows
+    what went wrong, and the final camp holds what killed them.
+  contacts: [scout, innkeeper, elder, hunter, loremaster, trapper]
+  mix: {contact: 2, site: 3}
+  site_checks: [perception, lore]
+  leaders: [owlbear, manticore, behir, chimera, remorhaz]
+  minions: [worg, ettercap, giant_rat]
+  minion_name: wild thing
+  lair_desc: the expedition's camp, now a monster's den
+  boss_desc: the expedition's last camp, where the thing that killed them lairs
+  site_desc: an abandoned campsite along the expedition's route
+  effect: {kind: none, value: 0}
+
+- id: dead_kings_crown
+  board: "Investigate: {subject}, said to be near {place}"
+  subjects: ["the lost crown of a dead king", "a dead king's crown and its guardians", "the grave-crown of an old line"]
+  subject_kind: object
+  truth: >
+    The crown of a dead king lies with his oath-bound knights, who remain as undead guardians. Each held a clue to the
+    next; the last holds the crown itself.
+  contacts: [loremaster, noble, priest, elder, stonemason, relic_dealer]
+  mix: {contact: 2, lair: 2, site: 1}
+  site_in: town
+  site_checks: [lore, insight]
+  leaders: [wight, mummy, wraith, vampire, lich]
+  minions: [skeleton, ghoul, shadow, ghost]
+  minion_name: oath-bound dead
+  lair_desc: a barrow of the dead king's knights
+  boss_desc: the dead king's tomb
+  site_desc: a dusty archive or a sealed monument
+  effect: {kind: none, value: 0}
+
+- id: dragoon_records
+  board: "Research: {subject}, last known near {place}"
+  subjects: ["the lost history of the dragoons", "the records of the dragoon order", "the scattered archives of the dragoons"]
+  subject_kind: object
+  truth: >
+    The history of the dragoons was scattered after the order fell: archives, ruins, veterans' memories, and a final
+    record kept in the order's last stronghold, still guarded by what the order left behind.
+  contacts: [loremaster, elder, guild_clerk, priest, quartermaster, noble]
+  mix: {contact: 3, site: 3}
+  site_checks: [lore, insight]
+  leaders: [animated_armor, shield_guardian, clay_golem, stone_golem, iron_golem]
+  minions: [flying_sword, animated_armor]
+  minion_name: warding construct
+  lair_desc: a ruined barracks of the order
+  boss_desc: the order's last stronghold
+  site_desc: an archive, a ruin or an old veteran's trunk
+  effect: {kind: none, value: 0}
+
+- id: archive_forgery
+  board: "Investigate: {subject}, said to be near {place}"
+  subjects: ["a famous chronicle that is false", "a history that was rewritten", "a revered account with a forged page"]
+  subject_kind: matter
+  truth: >
+    A celebrated account of a great deed was falsified by a house that profits from the lie. Original sources survive
+    in several places; when the truth is laid out the forger can be shamed or beaten.
+  contacts: [loremaster, guild_clerk, priest, noble, courtier, stonemason]
+  mix: {contact: 3, site: 2}
+  site_in: town
+  site_checks: [lore, insight]
+  finale: confront
+  confront_checks: [lore, persuasion, insight]
+  leaders: [spy, noble, knight]
+  minions: [thug, guard]
+  minion_name: hired blade
+  lair_desc: a back room of paid scribes
+  boss_desc: the house that profits from the lie
+  site_desc: an original source in an archive
+  effect: {kind: none, value: 0}
+
+# ---------------------------------------------------------------- personal and faction
+- id: guildmates_debt
+  tags: [outlaw]
+  board: "Favour: {subject}, near {place}"
+  subjects: ["a former guildmate begging help", "an old comrade in debt", "a friend from the guild's early days"]
+  subject_kind: person
+  truth: >
+    An old guildmate is in deep debt and has gone to ground. The debts lead through creditors to the crime boss who owns them.
+    Freeing them means paying, outwitting or beating that boss.
+  contacts: [merchant, innkeeper, guard, guild_clerk, caravan_master, server]
+  mix: {contact: 4, lair: 1}
+  leaders: [bandit_captain]
+  minions: [thug, bandit]
+  minion_name: debt-collector
+  lair_desc: a debt-collectors' hole
+  boss_desc: the crime boss's stronghold
+  effect: {kind: none, value: 0}
+
+- id: rivals_trail
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["a rival adventurer always one step ahead", "a rival who reaches every target first", "a competitor with an uncanny lead"]
+  subject_kind: person
+  truth: >
+    A rival adventurer keeps reaching the player's targets first. Each stop reveals that the rival is being fed leads by someone
+    who means to use both of them. At the end the player faces both.
+  contacts: [innkeeper, guild_clerk, merchant, scout, guild_contractor, guild_master]
+  mix: {contact: 3, site: 1, lair: 1}
+  site_checks: [perception, insight]
+  leaders: [veteran, knight, gladiator, assassin]
+  minions: [bandit, thug]
+  minion_name: hireling
+  lair_desc: a camp where the rival's patron's people wait
+  boss_desc: the patron's hideout, with the rival beside them
+  site_desc: somewhere the rival has just been
+  effect: {kind: none, value: 0}
+  start: "A rival, {name}, {looks}, was last seen near {place}. Find where they went."
+
+- id: prisoners_bargain
+  tags: [outlaw, bandit]
+  board: "Investigate: {subject}, near {place}"
+  subjects: ["a captured bandit's offer of a name", "a prisoner who will trade a name for freedom", "a captive outlaw with something to sell"]
+  subject_kind: matter
+  truth: >
+    A captured bandit offered a name in exchange for freedom, and the name leads to a network of outlaws who deal in
+    stolen goods across the realm. Outlaws talk more freely to those who have kept their word to prisoners, and less to those who have not.
+  contacts: [innkeeper, dockhand, guard, merchant, caravan_master, bargeman]
+  mix: {contact: 4, lair: 1}
+  rep_matters: true
+  leaders: [bandit_captain]
+  minions: [bandit, thug]
+  minion_name: outlaw
+  lair_desc: an outlaw hideout
+  boss_desc: the fence-lord's stronghold
+  effect: {kind: danger, value: 20}

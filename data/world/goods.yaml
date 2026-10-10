@@ -1,0 +1,33 @@
+# GOODS - things that stack: herbs, food and consumables.
+#
+# kind:       herb | food | consumable
+# price:      value in copper (100 copper = 1 silver). Merchants buy at a fraction of this.
+# stack:      how many fit in one pack slot
+# restores:   for consumables and food - percent of each pool restored when used
+# cures:      statuses a consumable removes (bleeding, slowed, frightened...)
+# combat:     true if it can be used mid-fight (it takes your turn)
+# grows_in:   for herbs - biomes where foraging can find it, with a chance per forage
+# drops_from: for food - creatures that can yield it when killed
+
+- {id: silverleaf,   name: silverleaf,   kind: herb, price: 15, stack: 10, grows_in: {forest: 0.5, farmland: 0.2},
+   description: "A pale, silver-backed leaf that steeps into a healing draught."}
+- {id: moonpetal,    name: moonpetal,    kind: herb, price: 25, stack: 10, grows_in: {forest: 0.3},
+   description: "A blue-white flower that closes by day; the base of mana tonics."}
+- {id: yarrow,       name: yarrow,       kind: herb, price: 8,  stack: 10, grows_in: {farmland: 0.5, forest: 0.3},
+   description: "A feathery wound-herb; packed into a bandage it stanches bleeding."}
+- {id: wild_garlic,  name: wild garlic,  kind: herb, price: 5,  stack: 10, grows_in: {forest: 0.4, farmland: 0.4},
+   description: "Pungent and plentiful; it keeps travel food edible."}
+
+- {id: venison,      name: venison,      kind: food, price: 20, stack: 10, drops_from: [deer, elk],
+   description: "Lean deer meat."}
+- {id: boar_meat,    name: boar meat,    kind: food, price: 20, stack: 10, drops_from: [boar, giant_boar],
+   description: "Dark, fatty boar meat."}
+
+- {id: healing_draught, name: healing draught, kind: consumable, price: 150, stack: 5, combat: true,
+   restores: {health: 30}, description: "A bitter green draught that knits wounds closed."}
+- {id: mana_tonic,      name: mana tonic,      kind: consumable, price: 150, stack: 5, combat: true,
+   restores: {mana: 30}, description: "A cold, faintly glowing tonic that refills spent magic."}
+- {id: bandage,         name: bandage,         kind: consumable, price: 20,  stack: 10, combat: true,
+   restores: {health: 10}, cures: [bleeding], description: "A yarrow-packed linen bandage."}
+- {id: trail_ration,    name: trail ration,    kind: consumable, price: 15,  stack: 10, combat: false,
+   restores: {stamina: 30, health: 5}, description: "Dried meat and hard bread, seasoned to keep."}

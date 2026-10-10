@@ -1,0 +1,60 @@
+# ROADS - the named routes between places. Travel narration mentions the road you're on.
+# from/to are place ids; the connection itself (and its travel time) is in places.yaml.
+
+- {id: kings_road, name: the King's Road, from: parth, to: willowmead,
+   description: "The main road south, through Parth's grasslands and farms into the wetter farmland around Willowmead. Busy with farmers, merchants and travelers."}
+- {id: river_road, name: the River Road, from: willowmead, to: riverhaven,
+   description: "Follows the Great River south through wetlands, farmland and the widening river valley."}
+- {id: old_quarry_road, name: the Old Quarry Road, from: parth, to: greyhollow,
+   description: "Runs north, leaving the plains behind as the land rises into hills and woods toward the mining country. Carts carry ore and timber south along it."}
+- {id: blackpine_road, name: Blackpine Road, from: greyhollow, to: eldervale,
+   description: "Climbs from rocky foothills into dense pine and then the ancient forest, growing overgrown and hard to tell from the woods as it nears Eldervale."}
+- {id: kings_pass, name: the King's Pass, from: parth, to: ironvein,
+   description: "Follows a valley through rolling hills and highlands into the Grey Mountains, narrowing to a pass. A trade route between farmland and the dwarves."}
+- {id: frostpass, name: the Frostpass, from: ironvein, to: frostholm,
+   description: "Crosses some of the hardest country there is - mountain valleys, high alpine ground, past the snowline into tundra. Far worse in winter."}
+- {id: old_forest_trail, name: the Old Forest Trail, from: eldervale, to: frostholm,
+   description: "An ancient path rather than a road, older than the kingdoms, through old woods, highland forest and alpine ground into the frozen north."}
+- {id: red_road, name: the Red Road, from: parth, to: redstone,
+   description: "Runs east from fertile grassland into dry grass, scrub, and finally the red hills and badlands around Redstone."}
+- {id: sun_road, name: the Sun Road, from: redstone, to: sunspire,
+   description: "Crosses ever more arid country - badlands, scrub, rocky desert, then the great desert around Sunspire. One of the great long trade routes."}
+- {id: royal_road, name: the Royal Road, from: parth, to: valecourt,
+   description: "The best-kept road in the region, running west through farmland into hills, vineyards, valleys and great noble estates."}
+- {id: southern_route, name: the southern trade route, from: riverhaven, to: sunspire,
+   description: "The long merchant route linking the Great River to the Sunscar, by river, road and caravan."}
+- {id: ember_road, name: the Ember Road, from: sunspire, to: cinderhold,
+   description: "Leaves the last oasis and runs east across salt flats and black rock, the sand turning to ash and the horizon to a glow. Few caravans make it without an escort."}
+- {id: cloud_stair, name: the Cloud Stair, from: frostholm, to: hrimgard,
+   description: "A giants' road of enormous stone steps climbing through the snow into the clouds, worn by weather and left by something far bigger than people."}
+- {id: deep_stair, name: the Deep Stair, from: ironvein, to: dunmarrow,
+   description: "A dwarven stair down through the mountain's roots, lit by crystal lamps and guarded at every landing. The air thickens and the sound of the world above fades."}
+- {id: sunken_road, name: the Sunken Road, from: valecourt, to: brinewatch,
+   description: "Runs west from the royal vales to a cold, stony coast, past farms, then wreck-timber fences, then salt marsh and the smell of the sea."}
+- {id: jade_way, name: the Jade Way, from: riverhaven, to: amaranth,
+   description: "Follows a southern river into a heat that thickens by the day, from farmland to bamboo to jungle roots lifting the paving stones."}
+- {id: bone_road, name: the Bone Road, from: brinewatch, to: sepulchre_fields,
+   description: "A white road of crushed shell and bone, reaching inland from the drowned coast toward the dead empire's tombs. Nobody camps beside it."}
+
+- {id: thunder_stair, name: the Thunder Stair, from: thunder_spires, to: tempest_throne,
+   description: "A giants' stair climbing out of the last of the cloud into a sky that hums. The rods on the steps are still warm from the last strike."}
+- {id: slag_causeway, name: the Slag Causeway, from: cinder_caldera, to: furnace_of_ages,
+   description: "A road of fused bone and obsidian laid across the glass-hot floor of the caldera, the heat rising through the soles of your boots."}
+- {id: rune_gallery_way, name: the Rune Gallery Way, from: lightless_deep, to: abyssal_gallery,
+   description: "A broad tunnel carved with scenes older than the dwarves, lit by lamps that burn dim and sometimes go out for no reason."}
+- {id: ebb_path, name: the Ebb Path, from: drowned_shore, to: leviathan_trench,
+   description: "A causeway of wreck-timber that only exists at low tide. The tide table is carved into a post at the start. The last line is blank."}
+- {id: root_stair, name: the Root Stair, from: jade_maw_jungle, to: heartroot_sanctum,
+   description: "A stair of living roots rising toward the oldest temple in the Maw. The roots lean toward warmth, and the steps change under your weight."}
+- {id: marshal_road, name: the Marshal's Road, from: sepulchre_fields, to: throne_of_ashes,
+   description: "The empire's last road of white stone, lined with the armoured dead standing at attention. Their eyes track you as you go."}
+- {id: icefall_trail, name: the Icefall Trail, from: rimewind_barrens, to: worldfrost_expanse,
+   description: "A path across blue ice and between crevasses, marked by trappers' cairns, some of them with nobody left to mark them."}
+- {id: mirror_track, name: the Mirror Track, from: sunscar_desert, to: glass_sea,
+   description: "A caravan track that turns from sand to glass without warning, so bright at noon that guides cover their eyes and walk by sound."}
+- {id: causeway_of_the_old_people, name: the Old Causeway, from: mirewater_fens, to: blackwater_deeps,
+   description: "A rotting causeway of pale logs laid by a people no river-town remembers, sinking a little further into the black water each year."}
+- {id: giants_march, name: the Giants' March, from: howling_downs, to: shattered_downs,
+   description: "A track through broken hills strewn with weapons the size of felled trees. The wind carries a sound like distant war-horns."}
+- {id: tidewrack_road, name: the Tidewrack Road, from: wreck_coast, to: sunken_crown,
+   description: "A cliff road above a retreating sea, with the drowned capital's towers showing a little more with every visit."}

@@ -1,0 +1,177 @@
+# TRIGGERS - when a passive applies. The engine checks the condition; the model never decides it.
+#
+# condition:  what must be true, in plain words. Shown to the skill generator.
+# checks:     the engine state the condition reads. Engine-facing; implemented as each system
+#             (combat, positioning, settlements) is built.
+# context:    combat | out_of_combat | anywhere
+# noncombat:  true if it mainly applies outside fights (used for creation balance rules).
+# suits:      fit tags for character creation, same as stats.yaml.
+
+- id: always
+  condition: Always active.
+  checks: none
+  context: anywhere
+  suits: {archetypes: [], themes: []}
+
+- id: after_moving
+  condition: The character changed position or range this round or last.
+  checks: combat.moved_recently
+  context: combat
+  suits: {archetypes: [rogue], themes: [mobility, skirmish, acrobat, aerial, swift, wind]}
+
+- id: when_attacked
+  condition: An enemy attacked the character since their last turn.
+  checks: combat.attacked_since_last_turn
+  context: combat
+  suits: {archetypes: [warrior], themes: [counter, duelist, defender, riposte]}
+
+- id: while_defending
+  condition: The character chose to defend, guard or brace this round.
+  checks: combat.defending
+  context: combat
+  suits: {archetypes: [warrior], themes: [guardian, shield, knight, protector, bulwark]}
+
+- id: at_low_health
+  condition: The character is below a third of their health.
+  checks: health_fraction_below_one_third
+  context: anywhere
+  suits: {archetypes: [warrior], themes: [berserker, martyr, desperate, last stand, fury]}
+
+- id: while_elevated
+  condition: The character is above their target - on a ledge, cart, rooftop, or mid-leap.
+  checks: position.elevated
+  context: combat
+  suits: {archetypes: [], themes: [aerial, dragoon, leap, sky, plunge, high ground]}
+
+- id: against_large_foes
+  condition: The target is much larger than a person - a bear, ogre, giant or dragon.
+  checks: target.size_large_or_bigger
+  context: combat
+  suits: {archetypes: [warrior], themes: [slayer, giant, hunter, dragon, monster]}
+
+- id: against_magic
+  condition: The opposing attack or effect is magical.
+  checks: incoming.is_magical
+  context: anywhere
+  suits: {archetypes: [], themes: [witch hunter, antimagic, ward, nullify, inquisitor]}
+
+- id: first_round_of_combat
+  condition: The first round of a fight.
+  checks: combat.round_is_first
+  context: combat
+  suits: {archetypes: [rogue], themes: [ambush, assassin, initiative, striker, quick]}
+
+- id: after_defeating_foe
+  condition: The character defeated an enemy within the last round.
+  checks: combat.defeated_enemy_recently
+  context: combat
+  suits: {archetypes: [warrior], themes: [berserker, reaper, momentum, hunter, soul]}
+
+- id: in_conversation
+  condition: The character is talking with someone outside a fight.
+  checks: scene.in_conversation
+  context: out_of_combat
+  noncombat: true
+  suits: {archetypes: [support, rogue], themes: [diplomat, charm, noble, merchant, spy]}
+
+- id: while_performing
+  condition: The character is openly performing for an audience.
+  checks: scene.performing
+  context: out_of_combat
+  noncombat: true
+  suits: {archetypes: [support], themes: [bard, performer, music, dancer, song]}
+
+- id: out_of_combat
+  condition: No fight is happening.
+  checks: not combat.active
+  context: out_of_combat
+  noncombat: true
+  suits: {archetypes: [], themes: []}
+
+- id: in_settlements
+  condition: The character is inside a village, town or city.
+  checks: location.is_settlement
+  context: anywhere
+  noncombat: true
+  suits: {archetypes: [rogue, support], themes: [urban, courtly, merchant, thief, noble, street]}
+
+- id: in_wilderness
+  condition: The character is outside any settlement.
+  checks: not location.is_settlement
+  context: anywhere
+  noncombat: true
+  suits: {archetypes: [], themes: [ranger, druid, hunter, nature, wild, beast, forest]}
+
+- id: with_companion_present
+  condition: At least one of the character's companions is nearby.
+  checks: companions.present
+  context: anywhere
+  suits: {archetypes: [], themes: [summoner, beast, tamer, necromancer, pack, binder, bond]}
+
+# --- time, weather and place (the engine already tracks all three) ---
+- id: in_daylight
+  condition: It is daytime.
+  checks: clock.not_dark
+  context: anywhere
+  suits: {archetypes: [], themes: [sun, light, dawn, radiant, solar]}
+
+- id: at_night
+  condition: It is dark - night, deep night or before dawn.
+  checks: clock.is_dark
+  context: anywhere
+  suits: {archetypes: [rogue], themes: [night, moon, shadow, dark, stalker]}
+
+- id: in_bad_weather
+  condition: It is raining or storming.
+  checks: weather.rain_or_storm
+  context: anywhere
+  suits: {archetypes: [], themes: [storm, thunder, lightning, rain, tempest]}
+
+- id: in_swamp
+  condition: The character is in a swamp, marsh or bog.
+  checks: location.biome_is_swamp
+  context: anywhere
+  suits: {archetypes: [], themes: [swamp, marsh, bog, fen]}
+
+- id: in_arctic
+  condition: The character is in frozen lands.
+  checks: location.biome_is_arctic
+  context: anywhere
+  suits: {archetypes: [], themes: [frost, ice, winter, snow, cold]}
+
+# --- by what you are fighting ---
+- id: against_undead
+  condition: The opponent is undead.
+  checks: target.category_undead
+  context: combat
+  suits: {archetypes: [], themes: [holy, paladin, priest, exorcist, grave, light]}
+
+- id: against_fiends
+  condition: The opponent is a fiend.
+  checks: target.category_fiend
+  context: combat
+  suits: {archetypes: [], themes: [holy, demon hunter, exorcist, inquisitor]}
+
+- id: against_fey
+  condition: The opponent is fey.
+  checks: target.category_fey
+  context: combat
+  suits: {archetypes: [], themes: [iron, hunter, witch hunter]}
+
+- id: against_beasts
+  condition: The opponent is a beast or swarm of beasts.
+  checks: target.category_beast
+  context: combat
+  suits: {archetypes: [], themes: [hunter, ranger, trapper, beast]}
+
+- id: against_celestials
+  condition: The opponent is a celestial.
+  checks: target.category_celestial
+  context: combat
+  suits: {archetypes: [], themes: [infernal, fallen, heretic]}
+
+- id: against_lycanthropes
+  condition: The opponent is a lycanthrope.
+  checks: target.category_lycanthrope
+  context: combat
+  suits: {archetypes: [], themes: [silver, hunter, moon]}

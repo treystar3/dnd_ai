@@ -1,0 +1,10 @@
+# CURRENCY
+#
+# Money is stored internally as a single number of the smallest coin, so there are
+# never rounding or change-making problems. It is only split into coins for display.
+# List from largest to smallest. per_next_smaller: how many of the next coin down equal one of this.
+
+denominations:
+  - {id: gold,   symbol: "₲", per_next_smaller: 100}
+  - {id: silver, symbol: "Ş", per_next_smaller: 100}
+  - {id: copper, symbol: "₵"}

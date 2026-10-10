@@ -1,0 +1,25 @@
+# HOW LONG THE VOICES SPEAK. The engine decides how much a moment deserves; the model fills that space.
+# Quiet moments stay short. First sights, turning points and big talk get room.
+
+narration:                   # the narrator, by the weight of the moment
+  brief:  {length: "one to three sentences", tokens: 350}
+  normal: {length: "two to five sentences", tokens: 600}
+  rich:   {length: "a full paragraph of five to eight sentences", tokens: 950}
+  major:  {length: "two short paragraphs, up to eleven sentences in all", tokens: 1300}
+
+npc:                         # what a person says, by how much the conversation calls for
+  short:  {length: "one to three sentences", tokens: 800, frame: "up to two sentences before, one after"}
+  medium: {length: "two to five sentences", tokens: 900, frame: "up to three sentences before, two after"}
+  long:   {length: "a real answer: five to nine sentences, the way a person tells a story or explains something that matters to them", tokens: 1300,
+           frame: "up to four sentences before, three after"}
+
+# Points toward a longer reply. 0 = short, 1-2 = medium, 3+ = long. Guarded or laconic people stay shorter regardless.
+points:
+  long_player_message_words: 18
+  long_conversation_turns: 6
+  trust: 65
+  open_question: [why, how come, how did, how do, tell me, explain, what happened, what do you know, story, rumor, rumour,
+                  news, history, remember, describe, what is it like, what's it like, where did, who is, who was, who are]
+  weighty: [please, help me, missing, abducted, kidnapped, stolen, stole, murder, killed, died, dead, lost, afraid, danger,
+            urgent, desperate, plead, begging, sorry, forgive, secret, truth, swear, promise, betray]
+quiet_traits: [laconic, taciturn, reserved, guarded, suspicious, gruff, shy, stoic]

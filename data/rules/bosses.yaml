@@ -1,0 +1,144 @@
+# BOSSES - what makes a campaign or cataclysm boss feel like the end of a story rather than a big creature.
+# A boss fights like a D&D set-piece: it acts between everyone else's turns (legendary actions), shrugs off the first few attempts to
+# disable it (legendary resistance), has a signature move that comes back every few rounds, changes when bloodied, and will not die
+# on the first killing blow (a last stand). It speaks at the start, when bloodied, at the last stand, and when it falls.
+# The numbers here are the whole balance of it; the engine owns them, the model only supplies the words (and the world, as always).
+
+tiers:
+  #            legendary actions per round | legendary resistances | extra attack on its own turn (share of normal) | last stand
+  campaign:  {actions: 3, resist: 2, extra: 0.3, last_stand: true}
+  cataclysm: {actions: 4, resist: 3, extra: 0.8, last_stand: true}
+  leader:    {actions: 4, resist: 2, extra: 0.7, last_stand: true}     # the head of a war host
+  captain:   {actions: 2, resist: 1, extra: 0.3, last_stand: false}    # a war captain
+
+legendary_strike: 0.6            # a legendary attack's damage as a share of a normal blow
+signature_every: 2                # the signature move comes on rounds 2, 5, 8 ... (and at once when it is bloodied)
+bloodied_at: 0.5                  # health share at which the fight changes
+bloodied: {damage: 1.3, shield_pct: 6}      # it hits harder and throws up a barrier of this share of its health
+last_stand: {hp_pct: 22, damage: 1.4}       # on the first killing blow it stays up at this share of health, hits harder
+negative_statuses: [stunned, prone, frightened, slowed, blinded, bleeding]
+guard_share: 0.10                 # a summoned guard has this share of the boss's health, and half its damage
+max_guards: 4
+
+# Each kit is a way of fighting. `signature` is the big move; `legendary` is what it does between turns (cost 1 or 2 actions).
+# kinds: strike (a quick blow), sweep (hits you and everyone with you), cow (frightens or slows you), bolster (a barrier on itself),
+#        mend (heals itself), summon (a guard steps in), rend (a blow that opens a wound), smite (a heavy blow at the weakest of you)
+kits:
+  person:                          # a captain, a warlord, a champion: someone with an army behind them
+    signature: {name: Rallying Command, kind: summon, mult: 0.0, text: "{name} bellows an order and fresh fighters close ranks around them"}
+    legendary:
+      - {name: Riposte, cost: 1, kind: strike, text: "{name} turns a blow aside and answers it in the same motion"}
+      - {name: Barked Order, cost: 1, kind: bolster, text: "{name} snaps an order and a shield wall hardens around them"}
+      - {name: Cut Down the Weak, cost: 2, kind: smite, text: "{name} cuts through the line and goes for the weakest of you"}
+      - {name: Terrible Presence, cost: 1, kind: cow, status: frightened, text: "{name}'s gaze falls on you like a verdict"}
+    lines:
+      intro: "{name} draws a weapon and steps out of the ranks. 'It ends here. Everything you did, everything you fought for - here.'"
+      bloodied: "{name} wipes blood from their face and laughs. 'Good. Now I will stop holding back.'"
+      last_stand: "{name} should have fallen - but staggers up, refusing the dark. 'Not yet. Not while one of my people still stands.'"
+      fall: "{name} falls at last, and the fighting around you goes quiet."
+  dragon:
+    signature: {name: Breath Weapon, kind: sweep, mult: 1.6, text: "{name} rears back and the whole field vanishes in a torrent of ruin"}
+    legendary:
+      - {name: Tail Sweep, cost: 1, kind: strike, text: "{name}'s tail whips across the ground"}
+      - {name: Wing Buffet, cost: 1, kind: cow, status: prone, text: "{name} beats its wings and the gale throws you down"}
+      - {name: Rending Pass, cost: 2, kind: rend, text: "{name} sweeps past and opens you with its claws"}
+    lines:
+      intro: "{name} uncoils from the dark, vast and unhurried. The air itself goes hot. 'So small. So very small to have come so far.'"
+      bloodied: "{name} roars, and the world shakes. 'You have hurt me. Nothing has hurt me in a thousand years.'"
+      last_stand: "{name} drags itself up on shattered wings, fire pouring from its jaws. 'I will not die to you.'"
+      fall: "{name} gives a last rattling breath, and the fire in its eyes goes out."
+  fiend:
+    signature: {name: Hellfire, kind: sweep, mult: 1.4, text: "{name} tears open the ground and fire answers"}
+    legendary:
+      - {name: Lash, cost: 1, kind: strike, text: "{name} lashes out across the gap"}
+      - {name: Dread Whisper, cost: 1, kind: cow, status: frightened, text: "{name} whispers each of your names, and the whisper is true"}
+      - {name: Infernal Bargain, cost: 2, kind: mend, text: "{name} drinks the pain of the field and mends"}
+    lines:
+      intro: "{name} smiles. 'I have waited so long for someone to try.'"
+      bloodied: "{name} shudders; the mask slips. 'Enough games.'"
+      last_stand: "{name} burns brighter, refusing to be sent home. 'Not like this.'"
+      fall: "{name} unravels into smoke and a last, thin laugh."
+  undead:
+    signature: {name: Grave Chill, kind: sweep, mult: 1.3, text: "{name} breathes out, and the cold of the grave rolls over you all"}
+    legendary:
+      - {name: Reaping Touch, cost: 1, kind: strike, text: "{name} reaches out with a dead hand"}
+      - {name: Wail, cost: 1, kind: cow, status: frightened, text: "{name} wails, and the sound goes through you like a blade"}
+      - {name: Feed on the Living, cost: 2, kind: mend, text: "{name} drinks the life from the air and stands straighter"}
+    lines:
+      intro: "{name} rises, and the dead rise with it. 'The long sleep is over. Come and join it.'"
+      bloodied: "{name}'s form frays at the edges, and something far older looks out."
+      last_stand: "{name} is torn apart and knits itself whole. 'Death has no claim on me.'"
+      fall: "{name} comes apart like old cloth, at peace for the first time in an age."
+  giant:
+    signature: {name: Earthshaker, kind: sweep, mult: 1.4, text: "{name} brings a fist down and the ground leaps beneath you"}
+    legendary:
+      - {name: Stomp, cost: 1, kind: strike, text: "{name} stamps down where you stand"}
+      - {name: Hurl Rubble, cost: 1, kind: strike, text: "{name} tears up a boulder and throws it"}
+      - {name: Roar, cost: 2, kind: cow, status: slowed, text: "{name} roars, and your legs go to lead"}
+    lines:
+      intro: "{name} stands as tall as a tower. The ground trembles with each breath. 'LITTLE ONES.'"
+      bloodied: "{name} bellows and beats its chest. The rage is total."
+      last_stand: "{name} sways, bloody, and does not fall. The rage will not let it."
+      fall: "{name} topples, and the ground shakes one last time."
+  aberration:
+    signature: {name: Mind Rend, kind: sweep, mult: 1.3, text: "{name} turns its attention on all of you at once, and thought itself breaks"}
+    legendary:
+      - {name: Gaze, cost: 1, kind: cow, status: blinded, text: "{name}'s eye opens, and the world goes white"}
+      - {name: Tendril, cost: 1, kind: strike, text: "{name} lashes a tendril from nowhere"}
+      - {name: Warp Flesh, cost: 2, kind: mend, text: "{name} reknits itself into a new and worse shape"}
+    lines:
+      intro: "{name} knows your names before you speak them. The air is wrong around it. 'You are late. Your ending is already written.'"
+      bloodied: "{name} peels open along impossible seams and something else looks out."
+      last_stand: "{name} forgets its wounds, and the wound forgets itself."
+      fall: "{name} folds up like a thought let go of."
+  elemental:
+    signature: {name: Cataclysm Burst, kind: sweep, mult: 1.5, text: "{name} detonates outward in a wave of raw force"}
+    legendary:
+      - {name: Surge, cost: 1, kind: strike, text: "{name} surges forward"}
+      - {name: Fury, cost: 1, kind: cow, status: slowed, text: "{name} drives you back, a wall of storm"}
+      - {name: Gather, cost: 2, kind: bolster, text: "{name} draws the land into itself"}
+    lines:
+      intro: "{name} is the storm given a mind. 'THIS PLACE IS MINE.'"
+      bloodied: "{name} burns hotter, wilder, with nothing left to hold it back."
+      last_stand: "{name} scatters, and gathers again, whole."
+      fall: "{name} disperses at last into only wind and silence."
+  construct:
+    signature: {name: Overload, kind: sweep, mult: 1.4, text: "{name}'s core flares, and it hurls everything it has outward"}
+    legendary:
+      - {name: Piston Strike, cost: 1, kind: strike, text: "{name} slams down with an engine's patience"}
+      - {name: Reinforce, cost: 1, kind: bolster, text: "{name} reroutes power into its plating"}
+      - {name: Seize, cost: 2, kind: cow, status: slowed, text: "{name} grips you in iron hands"}
+    lines:
+      intro: "{name} wakes, and the old orders move through it like blood. 'INTRUDERS. REMOVE.'"
+      bloodied: "{name} shudders; something in it breaks and burns."
+      last_stand: "{name} keeps moving long after it should have stopped."
+      fall: "{name} grinds to a halt, and the light behind its eyes goes dark."
+  monstrosity:
+    signature: {name: Frenzy, kind: sweep, mult: 1.3, text: "{name} goes wild, striking out at everything at once"}
+    legendary:
+      - {name: Lunge, cost: 1, kind: strike, text: "{name} lunges"}
+      - {name: Savage Roar, cost: 1, kind: cow, status: frightened, text: "{name} roars and your nerve slips"}
+      - {name: Maul, cost: 2, kind: rend, text: "{name} closes with you and tears"}
+    lines:
+      intro: "{name} stalks into the open, and every living thing nearby has gone silent."
+      bloodied: "{name} shakes the blood from its coat and comes on harder."
+      last_stand: "{name} should be dead, and is not."
+      fall: "{name} crashes down and lies still."
+  default:
+    signature: {name: Fury, kind: sweep, mult: 1.3, text: "{name} lashes out at everything around it"}
+    legendary:
+      - {name: Strike, cost: 1, kind: strike, text: "{name} strikes"}
+      - {name: Menace, cost: 1, kind: cow, status: frightened, text: "{name} looms over you"}
+      - {name: Recover, cost: 2, kind: mend, text: "{name} steadies itself and mends"}
+    lines:
+      intro: "{name} turns on you with deadly purpose."
+      bloodied: "{name} is hurt, and furious."
+      last_stand: "{name} refuses to fall."
+      fall: "{name} falls."
+
+# which kit a creature category fights with
+category_kit: {humanoid: person, "hostile people": person, "person template": person, dragon: dragon, fiend: fiend, undead: undead,
+               giant: giant, aberration: aberration, elemental: elemental, construct: construct, monstrosity: monstrosity}
+
+# The chance a fallen boss leaves its own relic: a legendary ring or amulet carrying the kit's signature (data/rules/accessories.yaml).
+relic_chance: {campaign: 1.0, cataclysm: 1.0, leader: 0.6, captain: 0.25, dungeon: 0.35}

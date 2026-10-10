@@ -1,0 +1,39 @@
+# HEALTH, STAMINA AND MANA
+#
+# max = base + per_level x (level - 1) + sum of (attribute x weight), then x (1 + always-on passive bonus)
+#
+# Growth comes mostly from attributes, which rise with the points you allocate each level.
+# per_level is a small amount everyone gains regardless of how they spend their points.
+
+pools:
+  health:
+    base: 30
+    per_level: 5
+    attributes: {constitution: 3, strength: 0.5}
+    modifier: max_health
+  stamina:
+    base: 20
+    per_level: 3
+    attributes: {constitution: 1.5, dexterity: 1}
+    modifier: max_stamina
+  mana:                         # the attribute part comes from `mana_casting` below, not from fixed attributes
+    base: 5
+    per_level: 2
+    attributes: {}
+    modifier: max_mana
+
+# Mana grows with the attribute a character casts with (intelligence for a wizard, charisma for a warlock or bard, wisdom for a priest):
+# cast_weight x that attribute, plus other_weight x the best of the other two mental attributes.
+# A spell costs a share of the REFERENCE pool for the character's level (what a dedicated caster has at that level), not of their own pool,
+# so a bigger pool means more spells and a smaller one means fewer. `reference` describes that dedicated caster.
+mana_casting:
+  cast_weight: 3
+  other_weight: 1
+  reference: {attribute_start: 30, attribute_per_level: 3, other_attribute: 10}
+
+# Recovery while time passes outside combat, as a fraction of the maximum per hour.
+# The recovery stat (from passives) speeds this up.
+regen_per_hour:
+  health: 0.05
+  stamina: 0.6
+  mana: 0.15

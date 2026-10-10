@@ -1,0 +1,168 @@
+# COMBAT RULES - every number combat uses. Tune with: python tools/balance.py
+
+round_seconds: 6
+
+hit:
+  base: 75          # chance to hit an equal opponent
+  spread: 40        # how far an accuracy advantage can swing it
+  min: 5
+  max: 95
+  point_blank: 25   # accuracy lost by a physical ranged attacker (a bow) against an enemy already engaged with them
+  graze_band: 15    # the last N points under the hit chance are grazes (half damage)
+
+crit:
+  base: 5
+  max: 50                # crit chance never exceeds this percent, whatever gear and passives add
+  dexterity_spread: 10
+  multiplier: 1.5
+
+damage:
+  attribute_bonus: 0.35   # weapon attribute x this, added to weapon damage
+  unarmed: 2
+  variance: 0.15          # +/- 15%
+  multiplier: {basic: 1.0, light: 1.0, moderate: 1.75, heavy: 2.5}
+
+# Abilities cost a percentage of the matching pool, so they never become free at high levels.
+ability_cost_percent: {light: 8, moderate: 15, heavy: 25}      # mana: a finite pool, spent and not refilled mid-fight
+# Stamina is a rhythm instead: cheaper moves, a share of a typical pool at your level (so stamina gear helps),
+# refilled by fighting. A landed basic attack and each new round give some back; a critical hit gives more.
+stamina_cost_percent: {light: 10, moderate: 20, heavy: 35}
+momentum: {round: 4, hit: 5, crit: 10}
+healing_percent: {light: 15, moderate: 25, heavy: 40}
+defend_percent: {basic: 50, light: 30, moderate: 45, heavy: 60}
+
+mitigation:
+  # reduction = armor / (armor + armor_k x attacker growth), capped. Growth = 1 + item_level_growth x (level - 1).
+  armor_k: 15
+  cap: 75
+  wisdom_ward: 0.1        # wisdom x this adds to ward
+
+elevated_accuracy: 10
+
+spell_base_damage: 6         # a damaging spell's base power when the caster holds no stronger magical focus
+
+flee:
+  first_action: 90           # running as your very first action of a fight
+  first_action_engaged: 70   # ...when an enemy was already on top of you
+  base: 35                   # everything below applies once you've done anything else
+  band: {engaged: -20, near: 10, far: 40}
+  dexterity_spread: 30
+
+statuses:
+  slowed:     {evasion: -15, accuracy: -10}
+  prone:      {evasion: -15}
+  frightened: {accuracy: -10}
+  blinded:    {accuracy: -30}
+  bleeding:   {damage_percent: 3}
+  stunned:    {}
+  unaware:    {}      # surprised by a sneak attack: loses its first turn and takes unaware_damage times damage
+
+creatures:
+  # Lift: a creature weaker than the benchmark build of its level (size, ability score and category below) is strengthened toward it, so
+  # no same-level creature is a pushover. Stronger creatures are untouched. It phases in from from_level to full strength at full_level.
+  health_factor: 0.5
+  lift: {strength: 1.0, max: 2.2, benchmark_size: Huge, benchmark_score: 15, benchmark_category: monstrosity, from_level: 50, full_level: 90}
+  size_health: {Tiny: 0.6, Small: 0.8, Medium: 1.0, Large: 1.35, Huge: 1.8, Gargantuan: 2.4}
+  size_damage: {Tiny: 2.2, Small: 3.0, Medium: 4.0, Large: 5.0, Huge: 6.0, Gargantuan: 7.2}
+  natural_armor:
+    beast: 1
+    swarm: 0
+    monstrosity: 2
+    dragon: 4
+    construct: 5
+    undead: 1
+    giant: 2
+    aberration: 2
+    elemental: 2
+    fiend: 3
+    celestial: 3
+    fey: 1
+    plant: 2
+    ooze: 0
+    lycanthrope: 2
+    monstrous race: 2
+    hostile people: 2
+    person template: 2
+  magical_categories: [fiend, celestial, fey, elemental, dragon]
+  ranged_attack_words: [bow, sling, crossbow, javelin, spit, breath, ray, bolt, spear throw]
+  # Past start_level, creatures keep growing: each level adds this much more health, damage and armor (stacking on the normal curve).
+  late_growth: {start_level: 60, health: 0.0, damage: 0.004, armor: 0.006,
+                 size_factor: {Huge: 0.7, Gargantuan: 0.5}}   # the very large already start strong, so they grow less
+  # Tuning against gear (tools/tune.py): [level, health x, damage x] multipliers on every wild creature, so that a character wearing a typical
+  # mix of gear for their level wins an ordinary same-level fight in about six rounds having lost about 40% of their health.
+  # Levels in between blend smoothly. Re-measure and edit these whenever gear numbers change.
+  calibration: [[1, 2.4, 0.8], [3, 1.9, 0.66], [8, 1.46, 1.5], [15, 1.88, 2.45], [25, 1.98, 4.2], [40, 1.92, 5.1], [60, 1.85, 4.65], [90, 1.82, 4.58],
+                [130, 1.62, 4.35], [180, 1.49, 4.2], [250, 1.46, 4.28], [350, 1.3, 4.2], [500, 1.15, 4.28]]
+  # The same for pack creatures (on top of the above): a pack is meant to be about as hard as a single creature of its level.
+  # The same for pack creatures (on top of the above): a pack is meant to be about as hard as a single creature of its level.
+  pack_calibration: [[1, 0.65, 0.65], [3, 0.9, 0.9], [8, 1.2, 1.2], [15, 0.95, 0.95], [25, 0.85, 0.85], [40, 1.0, 1.0], [60, 1.15, 1.15], [90, 1.15, 1.15],
+                     [130, 1.4, 1.4], [180, 1.4, 1.4], [250, 1.4, 1.4], [350, 1.5, 1.5], [500, 1.5, 1.5]]
+  # A bonded companion fights harder than a wild beast of its kind; the bonus grows with the player's level past start_level.
+  # An animal given as a reward to someone who does not keep companions is a helper, not a partner.
+  companion_gift: {health: 0.5, damage: 0.4}
+  companion: {health: 1.0, damage: 0.8, late_health: 0.004, late_damage: 0.003, start_level: 40}
+  # A summoned spirit is as big as the ability that calls it (light: Medium, moderate: Large, heavy: Huge) and is built for its role.
+  spirit:
+    size: {light: Medium, moderate: Large, heavy: Huge}
+    role: {striker: {health: 1.0, damage: 1.3}, guardian: {health: 1.4, damage: 0.8}, scout: {health: 0.8, damage: 0.8}, support: {health: 0.9, damage: 0.7}}
+  rank: {normal: {health: 1, damage: 1}, elite: {health: 1.35, damage: 1.05}, boss: {health: 2.6, damage: 1.2}}
+  # Pack creatures (those whose smallest group is 2 or more) are individually weaker - the threat is in numbers.
+  pack: {health: 0.45, damage: 0.45}
+  # Group sizes lean toward the smallest: each extra member is this much less likely than the one before.
+  group_size_falloff: 0.4
+  # Past this level packs run bigger: each extra member is less unlikely (falloff eases toward the late value by full_level).
+  late_pack: {from_level: 90, full_level: 140, falloff: 0.7, extra_cap: 2}
+  # Low-level creatures hit softer: damage x factor up to soft_until_level, easing back to full by full_by_level.
+  low_level_damage: {factor: 0.65, soft_until_level: 5, full_by_level: 10}
+
+encounters:
+  chance_on_arrival: 0.35
+  chance_per_hour: 0.15
+  chance_on_search: 0.65    # actively searching or hunting a dangerous place
+  search_minutes: 20
+  tracker_bonus: 0.15       # extra search chance for characters with the Tracker passive
+  roster_size: 6
+  elite_chance: 0.05
+  elite_scaling: {from_level: 90, full_level: 140, health: 1.6, damage: 1.8}   # on top of the elite rank multipliers: x1.6 health, x1.8 damage by level 140
+  elite_late: {start_level: 60, per_level: 0.005, cap: 0.45}   # elites turn up more often in the far lands
+
+xp:
+  kill_base: 25
+  kill_exponent: 1.25
+  need_base: 100
+  need_exponent: 1.35
+  need_late: {start_level: 75, per_level: 0.015}   # each level past start_level makes the next one this much dearer (stacking)
+  rank: {normal: 1, elite: 3, boss: 10}
+  lower_level_exponent: 2   # XP shrinks fast for enemies below your level
+  higher_level_cap: 2       # at most double XP for enemies above you
+
+loot:
+  coins_per_level: 20       # copper, for creatures that carry coin
+  # Ore, silver and rare timber are not sold by the bar. They turn up on the right kind of creature once you are near the material's level.
+  material_finds: {chance: 0.35, quantity: [1, 3], level_floor: 0.75, rarity: {common: 1, uncommon: 0.7, rare: 0.4, legendary: 0.1}}
+  material_chance: 0.6      # chance a creature drops each raw material listed for it in materials.yaml
+  coin_categories: [hostile people, monstrous race, person template, lycanthrope]
+  item_chance: {hostile people: 0.15, monstrous race: 0.12, person template: 0.2, default: 0.05, beast: 0, swarm: 0, plant: 0, ooze: 0}
+  legendary_jewelry: 0.25      # of legendary drops, the share that are rings or amulets (they carry the wonders)
+  rarity_weights: {common: 70, uncommon: 22, rare: 6.5, epic: 0.12, legendary: 0.01}
+  # Never rolled on a weapon, armor, ring or amulet (materials, sets, gems and enchants may still carry them).
+  resist_magnitude: {uncommon: [3, 5], rare: [5, 8], epic: [8, 12], legendary: [12, 16]}   # percent, for a resistance
+  all_resist_share: 0.5     # all_elemental_resistance rolls this share of a single resistance
+  crit_magnitude: {uncommon: [1, 2], rare: [2, 3], epic: [3, 4], legendary: [4, 6]}   # points of crit chance
+  crit_damage_magnitude: {uncommon: [5, 8], rare: [8, 12], epic: [12, 18], legendary: [18, 25]}   # points added to the crit multiplier (150% -> 170%)
+  companion_magnitude: {uncommon: [4, 7], rare: [7, 11], epic: [11, 16], legendary: [16, 24]}   # percent more companion damage / durability
+  conditional_rolls: false   # true: some rolled properties only work in daylight, at night, in bad weather and so on
+  not_on_gear: [insight, persuasion, intimidation, deception, performance, lore, perception]
+  property_magnitude: {uncommon: [5, 8], rare: [8, 12], epic: [12, 16], legendary: [16, 20]}
+  # Bosses (a dungeon's master) drop their own reward, whatever kind of creature they are.
+  boss: {items: 2, rarity_weights: {rare: 55, epic: 33, legendary: 12}, coins_per_level: [15, 30]}
+
+# Damage multiplier against a target that is unaware (a sneak attack)
+unaware_damage: 3.0
+
+# A hired priest heals the most hurt friend below this share of health, by this percent of their maximum, then rests a few rounds. (A full party of three roughly triples the odds against a full camp; one or two hirelings barely move them.)
+ally_heal: {below: 0.60, pct: 8, cooldown: 3}
+
+death:
+  days_pass: 3
+  coin_lost: 0.5       # the share of your coin lost on death; levels and gear are kept

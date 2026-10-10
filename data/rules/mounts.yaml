@@ -1,0 +1,7 @@
+# MOUNTS - what a stable in a city sells, and how a rider picks the mount to ride.
+# The mounts themselves (speed, stamina, price) are in events.yaml under grand.mounts; one with no price is never sold.
+# A city has a stable. Each stable stocks a few mounts, fixed for the campaign (seeded by the city), and always one cheap one.
+stable_place_types: [city]
+stock_size: 3
+always_stock_up_to: 150000      # at least one mount costing no more than this (copper) is always on offer
+# Reaching a place faster needs a mount that is not too tired: a mount is a convenience, not a second character.

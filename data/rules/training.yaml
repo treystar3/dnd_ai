@@ -1,0 +1,24 @@
+# TRAINING at the guild, from the instructor. Members pay these prices; outsiders pay outsider_multiplier times.
+
+outsider_multiplier: 2
+
+# Drills: sparring for experience. Once a day, and only up to max_level - past that, the world teaches more.
+drills: {fee_per_level: 10, hours: 2, xp_share: 0.15, per_day: 1, max_level: 40}
+
+# Tutoring: a lasting bonus to one check. Each session costs more than the last in that skill.
+tutoring:
+  base_fee: 100
+  fee_per_session: 60
+  hours: 3
+  bonus: 2              # percent added to the check per session
+  cap: 20               # most a skill can be raised by tutoring
+  skills: [insight, persuasion, intimidation, deception, stealth, perception, lore, performance]
+
+# Learning a new ability: the instructor offers a few that fit what you asked for and your class; you pick one.
+abilities:
+  base_fee: 300
+  fee_per_level: 60
+  hours: 4
+  options: 3
+  starting: 2           # abilities a character begins with
+  levels_per_new: 3     # one more learnable ability every this many levels

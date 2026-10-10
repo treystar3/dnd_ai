@@ -1,0 +1,13 @@
+MODEL = "gemma4:12b"
+THINK = False
+NUM_CTX = 32768
+DEFAULT_TEMPERATURE = 0.8
+LOG_PATH = "logs/llm_calls.jsonl"
+DEBUG = False
+MAX_TOKENS = 800
+REQUEST_TIMEOUT = 120
+COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
+NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles it in game)
+LOG_MAX_MB = 5            # when logs/llm_calls.jsonl grows past this, it is trimmed
+LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
+LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part

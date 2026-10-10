@@ -1,0 +1,9 @@
+# RECIPES - what the player can make from goods.
+#
+# makes:        the good produced, and how many
+# ingredients:  goods by id, or any good carrying a tag (tag: food)
+
+- {id: healing_draught, makes: {healing_draught: 1}, ingredients: [{good: silverleaf, count: 2}]}
+- {id: mana_tonic,      makes: {mana_tonic: 1},      ingredients: [{good: moonpetal, count: 2}]}
+- {id: bandage,         makes: {bandage: 2},         ingredients: [{good: yarrow, count: 2}]}
+- {id: trail_ration,    makes: {trail_ration: 2},    ingredients: [{kind: food, count: 1}, {good: wild_garlic, count: 1}]}

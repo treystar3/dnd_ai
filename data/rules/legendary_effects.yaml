@@ -1,0 +1,143 @@
+# LEGENDARY EFFECTS - one per legendary item, on top of its rolled properties.
+# Unlike properties, these are mechanics the engine executes (engine/combat.py).
+#
+# applies:  weapon | armor | jewelry
+#           weapon  = effects that act in combat (strikes, afflictions, slaying)
+#           armor   = effects that act in combat on the damage you take (reduction, avoidance, survival)
+#           jewelry = rings and amulets: the wonders, effects the world answers to (see `world`)
+# value:    the effect's strength; meaning depends on the effect (shown in its description)
+# enabled:  false keeps an effect from ever rolling
+
+- {id: vampiric,     name: Vampiric,      applies: weapon, value: 15, description: "Heals you for {value}% of the damage you deal."}
+- {id: retribution,  name: Retribution,   applies: armor,  value: 20, description: "Returns {value}% of the damage you take to the attacker."}
+- {id: deathward,    name: Deathward,     applies: armor,    value: 20, description: "Once per fight, a killing blow leaves you at 1 health and you recover {value}% of your health."}
+- {id: cleave,       name: Cleave,        applies: weapon, value: 50, description: "Your hits also strike a second nearby enemy for {value}% damage."}
+- {id: executioner,  name: Executioner,   applies: weapon, value: 50, description: "+{value}% damage against enemies below 30% health."}
+- {id: first_blood,  name: First Blood,   applies: weapon, value: 0,  description: "Your first strike in every fight is a critical hit."}
+- {id: relentless,   name: Relentless,    applies: weapon, value: 8,  description: "Each consecutive hit deals +{value}% more damage, up to five times. A miss resets it."}
+- {id: aegis,        name: Aegis,         applies: armor,  value: 30, description: "The first hit you take each round is reduced by {value}%."}
+- {id: phantom,      name: Phantom,       applies: armor,  value: 15, description: "{value}% chance to slip through an attack untouched."}
+- {id: stormcaller,  name: Stormcaller,   applies: weapon, value: 25, description: "{value}% chance on hit to call lightning for extra spell damage."}
+- {id: frostbite,    name: Frostbite,     applies: weapon, value: 30, description: "{value}% chance on hit to slow the target."}
+- {id: rending,      name: Rending,       applies: weapon, value: 35, description: "{value}% chance on hit to make the target bleed."}
+- {id: thunderous,   name: Thunderous,    applies: weapon, value: 12, description: "{value}% chance on hit to stun the target."}
+- {id: echoing,      name: Echoing,       applies: weapon,    value: 30, description: "{value}% chance an ability doesn't go on cooldown."}
+- {id: unburdened,   name: Unburdened,    applies: weapon,    value: 30, description: "Abilities cost {value}% less."}
+- {id: regeneration, name: Regeneration,  applies: armor,  value: 3,  description: "You recover {value}% of your health every round of combat."}
+- {id: unyielding,   name: Unyielding,    applies: armor,  value: 0,  description: "You cannot be stunned or knocked prone."}
+- {id: fearsome,     name: Fearsome,      applies: weapon,    value: 0,  description: "Lower-level enemies may be frightened when a fight begins."}
+- {id: wardbreaker,  name: Wardbreaker,   applies: weapon, value: 50, description: "Your attacks ignore {value}% of spell wards."}
+- {id: last_stand,   name: Last Stand,    applies: armor,    value: 30, description: "Below 25% health: +{value}% damage and +20% defense."}
+- {id: lightfoot,    name: Lightfoot,     applies: jewelry,  value: 25, description: "Travel {value}% faster, and fleeing is much easier."}
+- {id: packbond,     name: Packbond,      applies: weapon,    value: 35, companions: true, description: "{value}% chance each time you hit that every companion strikes the same target at once."}
+- {id: lifebinder,   name: Lifebinder,    applies: weapon,    value: 20, companions: true, description: "Your companions are healed for {value}% of the damage you deal."}
+- {id: lifeline,     name: Lifeline,      applies: armor,     value: 0,  companions: true, description: "Once per fight, a companion that would fall is held to life at 1 health."}
+- {id: guardian,     name: Guardian,      applies: armor,    value: 30, companions: true, description: "Your companions take {value}% less damage."}
+- {id: spellblade,   name: Spellblade,    applies: weapon, value: 25, description: "Every hit also deals spell damage equal to {value}% of the blow."}
+- {id: longreach,    name: Longreach,     applies: weapon, value: 0,  description: "Melee strikes reach like a spear."}
+- {id: dragonslayer, name: Dragonslayer,  applies: weapon, value: 40, category: dragon,         description: "+{value}% damage against dragons and their kin."}
+- {id: giantsbane,   name: Giantsbane,    applies: weapon, value: 40, category: giant,          description: "+{value}% damage against giants."}
+- {id: gravewarden,  name: Gravewarden,   applies: weapon, value: 40, category: undead,         description: "+{value}% damage against the undead."}
+- {id: hellbane,     name: Hellbane,      applies: weapon, value: 40, category: fiend,          description: "+{value}% damage against fiends."}
+- {id: beastbane,    name: Beastbane,     applies: weapon, value: 40, category: beast,          description: "+{value}% damage against beasts."}
+- {id: warbreaker,   name: Warbreaker,    applies: weapon, value: 40, category: monstrous race, description: "+{value}% damage against goblins, orcs and their like."}
+- {id: soulbound,    name: Soulbound,     applies: any,    value: 0,  enabled: false, description: "Bound to your soul: it survives your death."}
+
+# --- armor ---
+- {id: riposte,      name: Riposte,       applies: armor,  value: 25, description: "When struck in melee, {value}% chance to strike back at once."}
+- {id: hardening,    name: Hardening,     applies: armor,  value: 5,  description: "Each hit you take hardens you: {value}% less damage per hit already taken this fight, up to five times."}
+- {id: spellmirror,  name: Spellmirror,   applies: armor,  value: 30, description: "Returns {value}% of spell damage you take to the caster."}
+- {id: triumph,      name: Triumph,       applies: armor,  value: 10, description: "Defeating an enemy restores {value}% of your health."}
+- {id: windwalker,   name: Windwalker,    applies: armor,  value: 30, description: "When an attack misses you, your next strike deals +{value}% damage."}
+- {id: sanctified,   name: Sanctified,    applies: armor,  value: 0,  description: "You cannot be made to bleed or be frightened."}
+- {id: bulwark,      name: Bulwark,       applies: armor,  value: 0,  description: "Enemies come for you instead of your companions."}
+- {id: shadowmantle, name: Shadowmantle,  applies: jewelry,  value: 15, description: "Escape is all but certain when nothing is engaged with you, and +{value}% easier otherwise."}
+- {id: dragonward,   name: Dragonward,    applies: armor,  value: 30, category: dragon, description: "You take {value}% less damage from dragons and their kin."}
+- {id: graveward,    name: Graveward,     applies: armor,  value: 30, category: undead, description: "You take {value}% less damage from the undead."}
+- {id: hellward,     name: Hellward,      applies: armor,  value: 30, category: fiend,  description: "You take {value}% less damage from fiends."}
+- {id: giantward,    name: Giantward,     applies: armor,  value: 30, category: giant,  description: "You take {value}% less damage from giants."}
+
+# --- wonders: not numbers, but things the world answers to. `world` names the passive mechanic the wearer gains
+#     (the same ones classes can have), so every existing hook already honors them. ---
+- {id: wildkin,      name: Wildkin,       applies: jewelry,  value: 0,  world: beast_friend,     description: "Wild beasts keep their distance from you unless you strike first."}
+- {id: waywise,      name: Waywise,       applies: jewelry,    value: 0,  world: wayfinder,        description: "Closed roads and blocked passes never stop you; you always find a way around."}
+- {id: vigil,        name: Ever-Watchful, applies: jewelry,  value: 0,  world: night_watch,      description: "Nothing catches you while you rest outdoors; your sleep is never interrupted."}
+- {id: hearthfire,   name: Hearthfire,    applies: jewelry,  value: 0,  world: campaigner,       description: "Sleeping rough in the wild restores you as fully as a bed."}
+- {id: whisperer,    name: Whisperer,     applies: jewelry,    value: 0,  world: patron_whispers,  description: "Once a day, your first attempt to recall lore cannot fail; something whispers the answer."}
+- {id: honeyed,      name: Honeyed Word,  applies: jewelry,    value: 0,  world: dark_charisma,    description: "A failed attempt to persuade still half-works."}
+- {id: dread,        name: Dread Name,    applies: jewelry,    value: 0,  world: dread_name,       description: "Threats never cost you standing; people expect no less of you."}
+- {id: trapseer,     name: Trapseer,      applies: jewelry,    value: 0,  world: trap_sense,       description: "You always spot dungeon traps before they spring."}
+- {id: farsight,     name: Farsight,      applies: jewelry,    value: 0,  world: danger_sense,     description: "You are never caught off guard: hostile creatures are always spotted at a distance."}
+- {id: huntsmans_eye, name: Huntsman's Eye, applies: jewelry,  value: 0,  world: tracker,          description: "Arriving somewhere wild, you read the signs of every creature that roams there."}
+- {id: oracle,       name: Oracle,        applies: jewelry,    value: 0,  world: keen_judge,       description: "You read a fight before it starts: you see your exact odds."}
+- {id: fortunes_favor, name: Fortune's Favor, applies: jewelry, value: 30, world: lucky_find,      description: "{value}% chance of a second chance at a find on every enemy you fell."}
+- {id: phoenix,      name: Phoenix,       applies: jewelry,  value: 7,  description: "Once every {value} days, a killing blow does not kill you: you rise from the ashes at half health, with nothing lost, and the fight is over."}
+
+# --- armor: damage reduction ---
+- {id: stoneskin,    name: Stoneskin,     applies: armor,  value: 12, description: "You take {value}% less damage from everything."}
+- {id: plating,      name: Plating,       applies: armor,  value: 25, description: "You take {value}% less physical damage."}
+- {id: spellward,    name: Spellward,     applies: armor,  value: 25, description: "You take {value}% less spell damage."}
+- {id: unbroken,     name: Unbroken,      applies: armor,  value: 25, description: "No single blow can take more than {value}% of your health at once."}
+
+# --- the casters' own: these change how spells are cast, not how hard they hit ---
+- {id: archmage,       name: Archmage's Focus, applies: weapon, damage: magical, value: 50, description: "The first spell of every fight costs nothing and hits {value}% harder."}
+- {id: overchannel,    name: Overchannel,      applies: weapon, damage: magical, value: 2,  description: "Out of mana, you can pay for a spell in blood instead: {value} health for each mana you lack. It can leave you hurt, never dead."}
+- {id: arcane_recall,  name: Arcane Recall,    applies: weapon, damage: magical, value: 1,  description: "Casting a spell brings every other ability {value} round closer to ready."}
+- {id: starfall,       name: Starfall,         applies: weapon, damage: magical, value: 60, description: "Every fourth spell you cast also calls down starfall on every enemy, for {value}% of a spell's base power."}
+- {id: ward_conversion, name: Ward Conversion, applies: armor, tag: ward, value: 40, description: "Magical damage you take feeds you: you regain mana equal to {value}% of it."}
+
+# --- the far lands: weapon effects (combat) ---
+- {id: flurry,        name: Stormflurry,   applies: weapon, value: 25, description: "{value}% chance a hit is followed at once by a second, weaker strike."}
+- {id: bloodlust,     name: Bloodthirst,   applies: weapon, value: 15, description: "A critical hit heals you for {value}% of your health."}
+- {id: opportunist,   name: Hamstringer,   applies: weapon, value: 35, description: "+{value}% damage against enemies that are slowed, prone, stunned, bleeding or frightened."}
+- {id: terrify,       name: Dread Edge,    applies: weapon, value: 20, description: "{value}% chance on hit to frighten the target."}
+- {id: blinding,      name: Ashblind,      applies: weapon, value: 15, description: "{value}% chance on hit to blind the target."}
+- {id: hex,           name: Hexbrand,      applies: weapon, value: 0,  description: "Your first hit on an enemy lays a curse on it: it takes more damage from you for the rest of the fight."}
+- {id: soul_harvest,  name: Soul Reaper,   applies: weapon, damage: magical, value: 30, description: "Each enemy you fell restores {value}% of your mana."}
+- {id: battle_rhythm, name: War Rhythm,    applies: weapon, value: 4,  description: "Each hit restores {value}% of your stamina."}
+- {id: elementbane,   name: Elementbane,   applies: weapon, value: 40, category: elemental,    description: "+{value}% damage against elementals."}
+- {id: mindbane,      name: Mindbane,      applies: weapon, value: 40, category: aberration,   description: "+{value}% damage against aberrations - the things from beneath."}
+- {id: rootcleaver,   name: Rootcleaver,   applies: weapon, value: 40, category: plant,        description: "+{value}% damage against plants and the things that grow."}
+- {id: runebreaker,   name: Runebreaker,   applies: weapon, value: 40, category: construct,    description: "+{value}% damage against constructs and golems."}
+- {id: monsterbane,   name: Monsterbane,   applies: weapon, value: 40, category: monstrosity,  description: "+{value}% damage against monstrosities."}
+- {id: fayslayer,     name: Fayslayer,     applies: weapon, value: 40, category: fey,          description: "+{value}% damage against the fey, hags included."}
+- {id: manhunter,     name: Manhunter,     applies: weapon, value: 40, category: hostile people, description: "+{value}% damage against bandits, cultists and other hostile folk."}
+
+# --- the far lands: armor effects (damage you take) ---
+- {id: elementward,   name: Elementward,   applies: armor, value: 30, category: elemental,    description: "You take {value}% less damage from elementals."}
+- {id: mindward,      name: Mindward,      applies: armor, value: 30, category: aberration,   description: "You take {value}% less damage from aberrations."}
+- {id: briarward,     name: Briarward,     applies: armor, value: 30, category: plant,        description: "You take {value}% less damage from plants and the things that grow."}
+- {id: runeward,      name: Runeward,      applies: armor, value: 30, category: construct,    description: "You take {value}% less damage from constructs."}
+- {id: monsterward,   name: Monsterward,   applies: armor, value: 30, category: monstrosity,  description: "You take {value}% less damage from monstrosities."}
+- {id: bladeward,     name: Bladeward,     applies: armor, value: 30, category: hostile people, description: "You take {value}% less damage from bandits, cultists and other hostile folk."}
+- {id: wildward,      name: Wildward,      applies: armor, value: 30, category: beast,        description: "You take {value}% less damage from beasts."}
+- {id: fayward,       name: Fayward,       applies: armor, value: 30, category: fey,          description: "You take {value}% less damage from the fey."}
+- {id: deflect,       name: Deflecting,    applies: armor, value: 20, description: "{value}% chance that any blow you take is halved."}
+- {id: second_wind,   name: Second Wind,   applies: armor, value: 40, description: "Once per fight, dropping below a quarter of your health heals you for {value}% of it."}
+- {id: mana_shield,   name: Manaplate,     applies: armor, tag: ward, value: 50, description: "Your mana absorbs {value}% of the damage you take, at two mana for each point."}
+
+# --- the far lands: wonders (jewelry) ---
+- {id: forgeheart,    name: Forgeheart,    applies: jewelry, value: 12, world: masterwork,     description: "Things you craft turn out better, as if your crafting skill were {value} points higher."}
+- {id: coalkeeper,    name: Coalkeeper,    applies: jewelry, value: 25, world: thrifty,         description: "{value}% chance to save a material whenever you craft."}
+- {id: assayers_eye,  name: Assayer's Eye, applies: jewelry, value: 40, world: material_eye,    description: "Raw materials sell for {value}% more."}
+- {id: delvers_lantern, name: Delver's Lantern, applies: jewelry, value: 80, world: cache_hunter, description: "Dungeon caches yield {value}% more coin to you."}
+- {id: tomb_robber,   name: Tomb-Robber,   applies: jewelry, value: 60, world: grave_robber,    description: "{value}% better chance of gear in dungeon caches."}
+- {id: reapers_tally, name: Reaper's Tally, applies: jewelry, value: 40, world: deaths_ledger,  description: "Undead you destroy give {value}% more experience."}
+- {id: wreckers_mark, name: Wrecker's Mark, applies: jewelry, value: 0, world: salvager,       description: "Selling or dropping gear gives you back one unit of its material."}
+- {id: brokers_seal,  name: Broker's Seal, applies: jewelry, value: 20, world: haggler,         description: "Merchants give you {value}% better prices, buying and selling."}
+- {id: gale_ward,     name: Gale-Ward,     applies: jewelry, value: 0,  world: weather_wise,    description: "Bad weather never slows your travel."}
+- {id: giantskin,     name: Giantskin,     applies: jewelry, value: 0,  world: trophy_hunter,   description: "Large and huge creatures you skin yield double."}
+- {id: maw_herbalist, name: Maw-Herbalist, applies: jewelry, value: 100, world: forager,       description: "Foraging turns up {value}% more."}
+- {id: jade_physician, name: Jade Physician, applies: jewelry, value: 60, world: field_medic,  description: "Bandages and draughts you use heal {value}% more."}
+- {id: sages_memory,  name: Sage's Memory, applies: jewelry, value: 0,  world: scholars_memory, description: "When you recall lore, you remember one fact more."}
+- {id: wellspring,    name: Wellspring,    applies: jewelry, value: 50, world: mana_well,       description: "Mana returns {value}% faster outside combat."}
+- {id: arcane_bargain, name: Arcane Bargain, applies: jewelry, value: 35, world: arcane_appraiser, description: "Enchanters charge you {value}% less - you know what the work is worth."}
+- {id: roadbreaker,  name: Roadbreaker,   applies: jewelry, value: 20, world: trailblazer,     description: "You travel {value}% faster."}
+- {id: bone_hoard,    name: Bone-Hoard,    applies: jewelry, value: 0,  world: bone_collector,  description: "Skinning and butchering often yield bone as well."}
+- {id: warden_wage,   name: Warden's Wage, applies: jewelry, value: 30, world: delvers_wage,    description: "Dungeon contracts pay you {value}% more."}
+
+# --- monk wraps: only bare-handed weapons (tag: unarmed) can roll these ---
+- {id: ki_strike,     name: Ki Strike,     applies: weapon, tag: unarmed, value: 6,  description: "Each hit restores {value}% of your stamina, twice that on a critical hit."}
+- {id: open_palm,     name: Open Palm,     applies: weapon, tag: unarmed, value: 18, description: "{value}% chance on hit to sweep the target off their feet (always on a critical hit)."}
+- {id: flowing_step,  name: Flowing Step,  applies: weapon, tag: unarmed, value: 15, description: "Each time an attack misses you, your next strike deals +{value}% damage. It stacks up to three times."}
+- {id: still_water,   name: Still Water,   applies: weapon, tag: unarmed, value: 18, description: "While you wear no body armor, you take {value}% less damage."}

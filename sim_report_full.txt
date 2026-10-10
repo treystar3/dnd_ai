@@ -1,0 +1,1232 @@
+
+====================================================================================================
+1. HEADLINE
+====================================================================================================
+warrior   level 153 | day 1176 | steps  21299 | deaths  60 | guild rank D | ended: reached level 150 | 660s
+mage      level 150 | day  368 | steps   8671 | deaths  10 | guild rank S | ended: reached level 150 | 201s
+summoner  level 150 | day  633 | steps  12065 | deaths  22 | guild rank S | ended: reached level 150 | 329s
+priest    level 150 | day 1360 | steps  13127 | deaths  40 | guild rank D | ended: reached level 150 | 490s
+ranger    level 150 | day  367 | steps  10798 | deaths  11 | guild rank S | ended: reached level 150 | 240s
+bard      level 150 | day 1183 | steps  17809 | deaths  28 | guild rank S | ended: reached level 150 | 537s
+smith     level 150 | day  490 | steps  11643 | deaths  35 | guild rank S | ended: reached level 150 | 265s
+paladin   level 150 | day  878 | steps  14129 | deaths  31 | guild rank D | ended: reached level 150 | 386s
+monk      level 150 | day  540 | steps  12524 | deaths  28 | guild rank S | ended: reached level 150 | 302s
+warlock   level 150 | day  845 | steps  14084 | deaths  15 | guild rank C | ended: reached level 150 | 386s
+
+Day each level was reached (deaths so far in brackets):
+  level        warrior           mage       summoner         priest         ranger           bard          smith        paladin           monk        warlock
+     10       30 (  3)       12 (  0)       68 (  3)       35 (  5)       13 (  0)       29 (  3)       56 ( 13)       29 (  4)       36 (  4)       24 (  2)
+     15       54 (  6)       28 (  2)       82 (  4)       48 (  6)       19 (  0)       63 (  7)       81 ( 16)       50 (  6)       50 (  5)       36 (  3)
+     20       99 (  8)       53 (  5)       90 (  4)       84 ( 11)       31 (  0)       76 (  7)      102 ( 19)       79 (  8)       60 (  6)       61 (  6)
+     25      113 (  9)       70 (  5)      112 (  4)      105 ( 13)       50 (  2)       99 (  7)      122 ( 19)       96 (  8)       75 (  7)       79 (  6)
+     30      154 ( 14)       94 (  7)      134 (  5)      137 ( 15)       71 (  3)      123 (  7)      144 ( 21)      140 ( 11)       91 (  8)      106 (  8)
+     35      211 ( 19)      119 ( 10)      163 (  6)      165 ( 17)       85 (  4)      153 (  9)      193 ( 24)      185 ( 13)      111 (  9)      128 (  8)
+     40      264 ( 27)      134 ( 10)      204 ( 11)      206 ( 21)       98 (  6)      171 (  9)      227 ( 28)      207 ( 13)      137 ( 12)      152 ( 11)
+     45      333 ( 30)      143 ( 10)      228 ( 14)      301 ( 28)      117 (  9)      191 (  9)      258 ( 28)      245 ( 18)      173 ( 14)      165 ( 11)
+     50      395 ( 36)      150 ( 10)      261 ( 18)      331 ( 29)      127 (  9)      222 ( 11)      293 ( 33)      270 ( 18)      190 ( 14)      180 ( 11)
+     55      452 ( 39)      164 ( 10)      292 ( 19)      394 ( 32)      134 (  9)      247 ( 11)      310 ( 34)      300 ( 19)      232 ( 18)      198 ( 12)
+     60      493 ( 41)      173 ( 10)      303 ( 19)      412 ( 32)      146 (  9)      319 ( 16)      332 ( 35)      332 ( 20)      259 ( 20)      216 ( 12)
+     65      536 ( 43)      183 ( 10)      318 ( 19)      455 ( 34)      168 (  9)      357 ( 16)      364 ( 35)      363 ( 22)      285 ( 21)      234 ( 12)
+     70      559 ( 43)      194 ( 10)      345 ( 19)      505 ( 36)      182 (  9)      401 ( 18)      384 ( 35)      394 ( 22)      316 ( 23)      248 ( 12)
+     75      588 ( 44)      222 ( 10)      354 ( 19)      535 ( 36)      199 (  9)      441 ( 18)      404 ( 35)      414 ( 22)      336 ( 23)      256 ( 12)
+     80      629 ( 47)      233 ( 10)      376 ( 19)      599 ( 39)      212 (  9)      479 ( 19)      415 ( 35)      437 ( 22)      375 ( 25)      273 ( 12)
+     85      661 ( 49)      238 ( 10)      389 ( 19)      652 ( 39)      219 (  9)      514 ( 19)      421 ( 35)      463 ( 23)      404 ( 25)      301 ( 12)
+     90      693 ( 49)      265 ( 10)      409 ( 19)      680 ( 39)      232 (  9)      580 ( 21)      426 ( 35)      488 ( 23)      430 ( 26)      327 ( 12)
+     95      751 ( 51)      274 ( 10)      415 ( 19)      703 ( 39)      243 (  9)      629 ( 21)      430 ( 35)      507 ( 23)      435 ( 26)      353 ( 12)
+    100      789 ( 52)      278 ( 10)      420 ( 19)      720 ( 39)      258 (  9)      668 ( 21)      435 ( 35)      541 ( 23)      443 ( 27)      381 ( 12)
+    105      860 ( 53)      280 ( 10)      423 ( 19)      734 ( 39)      268 (  9)      706 ( 22)      448 ( 35)      588 ( 23)      450 ( 27)      404 ( 12)
+    110      928 ( 53)      283 ( 10)      426 ( 19)      746 ( 39)      280 (  9)      749 ( 22)      451 ( 35)      626 ( 25)      455 ( 27)      428 ( 12)
+    115     1022 ( 55)      286 ( 10)      429 ( 19)      781 ( 40)      294 (  9)      830 ( 22)      454 ( 35)      675 ( 26)      457 ( 27)      488 ( 12)
+    120     1034 ( 55)      289 ( 10)      441 ( 20)      786 ( 40)      305 (  9)      889 ( 24)      457 ( 35)      720 ( 26)      460 ( 27)      532 ( 12)
+    125     1054 ( 55)      325 ( 10)      454 ( 20)      832 ( 40)      310 (  9)      981 ( 24)      461 ( 35)      752 ( 27)      475 ( 27)      549 ( 13)
+    130     1076 ( 56)      330 ( 10)      478 ( 20)      915 ( 40)      317 (  9)     1059 ( 25)      466 ( 35)      772 ( 27)      479 ( 27)      564 ( 13)
+    135     1095 ( 57)      335 ( 10)      488 ( 20)     1033 ( 40)      323 (  9)     1082 ( 26)      471 ( 35)      809 ( 28)      485 ( 27)      584 ( 14)
+    140     1119 ( 58)      349 ( 10)      544 ( 21)     1129 ( 40)      341 ( 10)     1090 ( 26)      477 ( 35)      825 ( 28)      506 ( 27)      607 ( 15)
+    145     1143 ( 58)      355 ( 10)      592 ( 22)     1250 ( 40)      354 ( 10)     1159 ( 28)      483 ( 35)      852 ( 30)      530 ( 27)      725 ( 15)
+    150              -      368 ( 10)      633 ( 22)     1360 ( 40)              -     1182 ( 28)      490 ( 35)              -      540 ( 28)              -
+
+====================================================================================================
+2. WHERE XP, COIN AND TIME COME FROM
+====================================================================================================
+
+warrior: XP sources: fights 96%, hunting 2%
+   coin earned: sales 62,645s, fights 49,160s, travel 978s, guild 453s, hunting 355s | spent: enchant 24,250s, hunting 19,878s, rest 14,690s, gear 13,742s, training 2,453s
+   time: travel 48%, fighting 28%, rest 12%, hunting 8%, guild 2%
+   gear at the end: neck: steel amulet with moonstone (legendary, lv40); ring_1: brinesteel ring with topaz of Keenness (uncommon, lv100); main_hand: crude brinesteel greatsword (crude, lv127); head: stormiron war crown of Warding (uncommon, lv141); hands: brinesteel vambraces of Keenness (common, lv109)
+   purse at the end: 36,096 silver
+
+mage: XP sources: fights 55%, travel 22%, guild 12%, social 6%, arc 2%, hunting 1%
+   coin earned: sales 1,608,057s, travel 62,710s, social 35,938s, guild 33,607s, fights 14,166s | spent: wealth 400,000s, enchant 7,093s, gear 5,411s, training 2,565s, travel 897s
+   time: travel 43%, fighting 24%, arc 11%, rest 7%, hunting 6%, guild 5%, training 3%
+   gear at the end: ring_1: Braniel (legendary, lv16); main_hand: glowcap timber runestaff of Keenness (uncommon, lv95); head: crude brinesteel helm (crude, lv115); neck: Kordra (legendary, lv66); hands: crude tidesilk spellgloves (crude, lv130)
+   purse at the end: 1,340,636 silver
+
+summoner: XP sources: fights 60%, guild 17%, travel 12%, hunting 7%, arc 1%
+   coin earned: sales 71,773s, guild 51,400s, travel 33,443s, fights 20,762s, hunting 6,283s | spent: hunting 61,258s, rest 18,342s, enchant 10,903s, travel 8,347s, gear 6,275s
+   time: travel 42%, fighting 26%, hunting 9%, arc 8%, rest 7%, guild 3%
+   gear at the end: ring_1: Isilwyn (legendary, lv12); ring_2: Vaelith (legendary, lv20); body: brinesteel scale mail of Warding (common, lv104); hands: brinesteel gauntlets of Keenness (common, lv113); feet: brinesteel sabatons of Warding (common, lv102)
+   purse at the end: 71,627 silver
+
+priest: XP sources: fights 92%, hunting 6%, travel 1%
+   coin earned: sales 365,756s, fights 48,483s, hunting 11,282s, travel 803s, guild 122s | spent: gear 139,921s, wealth 110,000s, enchant 28,619s, hunting 16,684s, training 2,456s
+   time: travel 52%, fighting 34%, rest 5%, hunting 3%, arc 3%
+   gear at the end: ring_1: Sylwyn (legendary, lv31); main_hand: Tharith (legendary, lv103); off_hand: deepsilver bulwark of Warding (common, lv116); hands: brinesteel gauntlets of Keenness (common, lv110); ring_2: Tharoth of Keenness (rare, lv103)
+   purse at the end: 114,382 silver
+
+ranger: XP sources: fights 56%, guild 23%, travel 13%, sales 4%, arc 2%, hunting 2%
+   coin earned: sales 303,416s, guild 66,547s, fights 42,644s, travel 36,368s, arc 5,804s | spent: wealth 133,800s, delving 83,981s, enchant 18,470s, gear 13,354s, training 2,490s
+   time: travel 39%, rest 21%, fighting 15%, hunting 8%, guild 7%, arc 4%, training 3%
+   gear at the end: ring_1: cold iron ring with onyx of Keenness (common, lv32); neck: Branith (legendary, lv80); body: mithril scale mail of Warding (uncommon, lv119); feet: manticore hide stormstriders of Warding (uncommon, lv117); head: brinesteel helm of Warding (common, lv121)
+   purse at the end: 193,951 silver
+
+bard: XP sources: fights 74%, guild 9%, hunting 7%, travel 7%
+   coin earned: sales 71,951s, guild 26,950s, fights 18,688s, travel 12,102s, hunting 11,291s | spent: hunting 37,301s, enchant 11,678s, travel 8,483s, delving 8,398s, gear 5,804s
+   time: travel 48%, fighting 27%, rest 14%, arc 4%, hunting 3%, guild 2%
+   gear at the end: ring_1: iron ring with jade of Keenness (common, lv10); ring_2: Koroth (legendary, lv17); main_hand: x of Keenness (rare, lv94); hands: crude brinesteel gauntlets (crude, lv131); head: cindersteel helm of Warding (common, lv128)
+   purse at the end: 53,750 silver
+
+smith: XP sources: fights 56%, travel 21%, guild 17%, hunting 4%, arc 1%
+   coin earned: sales 83,356s, travel 62,069s, guild 47,713s, fights 16,839s, hunting 10,958s | spent: gear 24,100s, enchant 13,554s, hunting 9,884s, training 2,580s, travel 1,708s
+   time: travel 31%, fighting 26%, hunting 13%, arc 13%, rest 6%, guild 5%
+   gear at the end: ring_1: Korgar (legendary, lv19); hands: brinesteel vambraces of Keenness (common, lv106); neck: Branwyn (legendary, lv30); body: brinesteel plate armor of Warding (common, lv103); feet: stormiron greaves of Warding (common, lv109)
+   purse at the end: 155,657 silver
+
+paladin: XP sources: fights 90%, hunting 7%, travel 1%
+   coin earned: sales 208,987s, fights 18,328s, hunting 1,961s, travel 1,098s, guild 304s | spent: hunting 172,988s, enchant 13,388s, gear 9,790s, travel 2,841s, training 2,479s
+   time: travel 50%, fighting 21%, rest 15%, hunting 7%, guild 3%, arc 2%
+   gear at the end: ring_1: bronze ring with topaz of Keenness (common, lv13); hands: steel gauntlets (legendary, lv99); feet: crude brinesteel greaves (crude, lv114); head: brinesteel greathelm of Warding (common, lv113); main_hand: brinesteel glaive of Keenness (common, lv123)
+   purse at the end: 25,974 silver
+
+monk: XP sources: fights 63%, guild 13%, travel 13%, hunting 9%
+   coin earned: sales 53,431s, guild 41,559s, travel 37,508s, fights 4,159s, training 1,874s | spent: hunting 42,480s, enchant 15,572s, gear 10,058s, travel 5,758s, training 2,473s
+   time: travel 41%, fighting 26%, rest 11%, arc 9%, hunting 6%, guild 4%
+   gear at the end: ring_1: bronze ring with moonstone of Keenness (common, lv16); neck: Kormund (legendary, lv40); feet: tidesilk veilwalkers of Warding (common, lv112); main_hand: winter wolf pelt hand wraps of Keenness (legendary, lv90); hands: brinesteel gauntlets of Keenness (common, lv114)
+   purse at the end: 61,190 silver
+
+warlock: XP sources: fights 97%
+   coin earned: sales 77,673s, fights 8,643s, guild 1,214s, travel 1,197s, arc 551s | spent: enchant 20,716s, hunting 13,277s, rest 12,408s, gear 7,456s, travel 2,617s
+   time: travel 50%, fighting 29%, rest 10%, arc 4%, hunting 4%
+   gear at the end: neck: Koriel (legendary, lv20); ring_1: Thardra (legendary, lv22); main_hand: glowcap timber warbow of Keenness (rare, lv99); head: cindersteel helm of Warding (uncommon, lv99); hands: brinesteel gauntlets of Keenness (common, lv126)
+   purse at the end: 29,271 silver
+
+====================================================================================================
+3. FIGHTS BY LEVEL BAND
+====================================================================================================
+
+warrior:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      63   67%   29%    5%     6.2      22%    0.70      -2.2
+          10-19     195   92%    5%    3%     6.4      15%    0.94      -9.7
+          20-34     176   81%   13%    6%     5.6      18%    0.84      -7.3
+          35-49     180   69%   21%    9%     7.0      19%    0.76      -5.7
+          50-64     180   77%   19%    4%     8.0      27%    0.87      -9.8
+          65-79     179   83%   15%    2%     7.1      21%    0.81     -12.3
+          80-99     157   89%    8%    3%    10.2      24%    0.89      -9.0
+        100-124     362   77%   22%    1%     7.1      11%    0.77     -32.4
+        125-150     397   95%    4%    1%     7.3      13%    0.97     -40.9
+
+mage:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      26   85%   15%    0%     4.5      15%    0.86      -3.0
+          10-19      60   83%    8%    8%     4.2      19%    0.86      -4.1
+          20-34      78   87%    8%    5%     5.9      15%    0.88      -6.2
+          35-49      63   97%    2%    2%    10.6       1%    0.96      -4.7
+          50-64      53   98%    2%    0%    11.6       3%    0.94      -3.4
+          65-79      46  100%    0%    0%    10.3       0%    1.00      -2.0
+          80-99      65  100%    0%    0%     7.6       0%    1.00     -13.2
+        100-124     156   90%   10%    0%     5.9       0%    0.92     -22.9
+        125-150     167  100%    0%    0%     5.0       2%    0.99     -29.4
+
+summoner:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      31   84%    6%   10%     5.9      30%    0.93      +0.0
+          10-19      53   96%    2%    2%     5.4      23%    0.98      -3.3
+          20-34     110   98%    0%    2%     6.3      16%    0.99     -10.8
+          35-49      90   84%    2%   13%     7.9      30%    0.97      -7.6
+          50-64      82   99%    0%    1%     4.8      16%    1.00     -11.1
+          65-79      63  100%    0%    0%     4.9      10%    0.99     -15.2
+          80-99      96   99%    1%    0%     4.7      14%    0.99      -8.6
+        100-124     121   99%    0%    1%     4.0      14%    1.00      -7.1
+        125-150     252   87%   12%    1%     3.1       8%    0.87     -33.4
+
+priest:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      45   40%   49%   11%     4.3      22%    0.44      -0.1
+          10-19     101   63%   32%    5%     4.5      16%    0.63      -3.2
+          20-34     177   88%    8%    4%     3.8      12%    0.91      -9.7
+          35-49     183   72%   21%    7%     4.3      17%    0.73      -6.6
+          50-64     115   81%   15%    4%     5.7      18%    0.82      -4.2
+          65-79     138   83%   14%    3%     5.6      15%    0.85     -11.8
+          80-99     114   95%    4%    1%     7.7      13%    0.92      -9.5
+        100-124     175   99%    0%    1%     6.1       6%    1.00     -17.9
+        125-150     282  100%    0%    0%     8.0       5%    1.00     -28.4
+
+ranger:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      21   95%    5%    0%     7.6      22%    0.95      -2.0
+          10-19      70   93%    7%    0%     5.5      16%    0.93      -3.4
+          20-34     128   82%   15%    3%     4.9      17%    0.82      -4.5
+          35-49      98   78%   17%    5%     7.9      26%    0.79      -3.9
+          50-64      99   88%   12%    0%     9.0      27%    0.91      -9.3
+          65-79     114   96%    4%    1%     6.3      17%    0.95     -10.5
+          80-99     102   91%    9%    0%     6.3      12%    0.92     -19.5
+        100-124     115   98%    2%    0%     7.6      11%    0.98     -27.8
+        125-150     223   88%   12%    0%     6.6       9%    0.87     -31.9
+
+bard:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      47   60%   34%    6%     5.3      21%    0.61      -1.1
+          10-19     108   42%   55%    4%     4.8      15%    0.43      -3.5
+          20-34     119   94%    4%    2%     6.2      14%    0.92      -9.1
+          35-49     122   94%    5%    1%     9.0       8%    0.90      -8.1
+          50-64     153   88%    8%    4%     8.6       8%    0.86     -11.3
+          65-79     190   75%   24%    2%     5.9       6%    0.72     -16.2
+          80-99     136   88%   11%    1%     9.5       9%    0.84     -11.1
+        100-124     215   93%    6%    1%     9.9       5%    0.91     -15.5
+        125-150     296   85%   14%    1%     7.8       5%    0.83     -28.3
+
+smith:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      45   62%    9%   29%     8.1      46%    0.83      -1.7
+          10-19      84   64%   29%    7%     6.4      23%    0.65      -2.4
+          20-34     152   84%   13%    3%     5.5      12%    0.83      -8.0
+          35-49     114   68%   25%    7%     6.2      24%    0.71      -6.7
+          50-64      73   92%    4%    4%     7.5      19%    0.91     -12.0
+          65-79      39  100%    0%    0%    10.1       3%    1.00      -4.9
+          80-99      75  100%    0%    0%     8.9       3%    1.00      -0.4
+        100-124     102  100%    0%    0%     9.7       6%    1.00      -4.9
+        125-150     176  100%    0%    0%     9.5       5%    1.00     -24.8
+
+paladin:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      36   75%   17%    8%     8.0      31%    0.80      -0.4
+          10-19      72   65%   28%    7%     5.4      23%    0.67      -5.1
+          20-34     204   91%    6%    2%     4.5      14%    0.92     -12.9
+          35-49      98   84%   11%    5%     6.5      28%    0.82      -3.0
+          50-64     108   89%    7%    4%     6.3      28%    0.87      -5.0
+          65-79     151   88%   12%    0%     5.9      19%    0.87     -12.7
+          80-99     131   92%    7%    1%     6.7      20%    0.88      -9.7
+        100-124     207   88%   10%    2%     6.1      17%    0.89     -11.3
+        125-150     326   92%    7%    1%     6.0      14%    0.91     -20.5
+
+monk:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      50   38%   54%    8%     6.8      30%    0.47      -0.3
+          10-19      60   93%    3%    3%     6.4      21%    0.89      -4.9
+          20-34     142   84%   15%    1%     6.2      16%    0.86      -7.0
+          35-49      94   72%   21%    6%     6.6      26%    0.75      -2.8
+          50-64      74   86%    4%    9%     8.9      30%    0.92      -8.7
+          65-79     135   92%    5%    3%     6.8      21%    0.93     -13.1
+          80-99     140   83%   16%    1%     8.8      11%    0.81      -6.3
+        100-124     134   96%    4%    0%     8.1       6%    0.89     -12.5
+        125-150     242   83%   17%    0%     7.2       3%    0.83     -19.2
+
+warlock:  band    fights  win   fled  died  rounds  hp-lost  rating  foe-lvl vs yours
+            1-9      22   82%    9%    9%     5.5      25%    0.85      -1.9
+          10-19      68   69%   25%    6%     4.2      12%    0.72      -4.9
+          20-34     152   86%   13%    1%     3.8      10%    0.84      -9.2
+          35-49      73   78%   18%    4%     6.0      18%    0.79      -2.0
+          50-64      61   97%    2%    2%     9.1       8%    0.95      -3.6
+          65-79      67   96%    4%    0%     7.8       4%    0.94      -3.5
+          80-99      99  100%    0%    0%    13.4       0%    1.00     -10.6
+        100-124     200   94%    6%    0%    10.5       0%    0.94     -12.2
+        125-150     337   88%   12%    1%    10.3       1%    0.88     -25.2
+
+====================================================================================================
+3b. DOES THE DANGER RATING TELL THE TRUTH? (fights the bot chose to fight)
+====================================================================================================
+rating shown   fights   actually won   died
+  0.00-0.20        0            -       -
+  0.20-0.40       65          60%     28%
+  0.40-0.60      177          70%     22%
+  0.60-0.80      239          81%     11%
+  0.80-0.95      258          87%     10%
+  0.95-1.00     9513          99%      1%
+labels shown: {'favorable': 514, 'trivial': 9257, 'even': 281, 'dangerous': 200}
+
+====================================================================================================
+4. DEATHS
+====================================================================================================
+
+warrior: 60 deaths | by band: 1-9: 3, 10-19: 5, 20-34: 11, 35-49: 17, 50-64: 7, 65-79: 4, 80-99: 5, 100-124: 3, 125-150: 5
+   where: elderwild 6, grey_mountains 5, northern_tundra 5, blackpine_forest 4, thunder_spires 3
+   to: bandit 13, roc_chick_flock 5, young_green_dragon 4, thug 3, river_stalker 3, bandit_captain 3
+   rating at the start of the fight that killed them: 30 of 60 had been rated 60%+ winnable; median 0.60
+
+mage: 10 deaths | by band: 1-9: 0, 10-19: 5, 20-34: 4, 35-49: 1, 50-64: 0, 65-79: 0, 80-99: 0, 100-124: 0, 125-150: 0
+   where: red_badlands 4, greyhollow_foothills 1, road_bf682d86 1, grey_mountains 1, road_557db1ce 1
+   to: crag_ogre 4, manticore 2, otyugh 1, rockslide_elemental 1, bandit_captain 1, ice_troll 1
+   rating at the start of the fight that killed them: 3 of 10 had been rated 60%+ winnable; median 0.35
+
+summoner: 22 deaths | by band: 1-9: 3, 10-19: 1, 20-34: 2, 35-49: 12, 50-64: 1, 65-79: 0, 80-99: 0, 100-124: 1, 125-150: 2
+   where: greyhollow_foothills 2, ash_wastes 2, greywood 1, willowmead_wetlands 1, road_249ee44f 1
+   to: wyvern_rider_raider 4, orc_warband_chief 3, sunscar_basilisk 3, cockatrice 2, bandit_captain 2, ledge_wyvern 2
+   rating at the start of the fight that killed them: 20 of 22 had been rated 60%+ winnable; median 0.98
+
+priest: 40 deaths | by band: 1-9: 5, 10-19: 5, 20-34: 7, 35-49: 12, 50-64: 5, 65-79: 4, 80-99: 1, 100-124: 1, 125-150: 0
+   where: willowmead_wetlands 6, blackpine_forest 4, grey_mountains 3, northern_tundra 3, sunken_vaults 2
+   to: cultist 4, giant_boar 3, cult_fanatic 3, roc_chick_flock 3, stone_troll 3, crag_ogre 3
+   rating at the start of the fight that killed them: 18 of 40 had been rated 60%+ winnable; median 0.54
+
+ranger: 11 deaths | by band: 1-9: 0, 10-19: 0, 20-34: 4, 35-49: 5, 50-64: 0, 65-79: 1, 80-99: 0, 100-124: 0, 125-150: 1
+   where: grey_mountains 6, blackpine_forest 1, northern_tundra 1, dungeon_grey_mountains 1, elderwild 1
+   to: stone_troll 5, sunscar_basilisk 2, centaur 1, ice_troll 1, snow_stalker 1, elder_drake 1
+   rating at the start of the fight that killed them: 3 of 11 had been rated 60%+ winnable; median 0.46
+
+bard: 28 deaths | by band: 1-9: 3, 10-19: 4, 20-34: 2, 35-49: 1, 50-64: 6, 65-79: 3, 80-99: 2, 100-124: 3, 125-150: 4
+   where: thunder_spires 3, willowmead_wetlands 2, greyhollow_foothills 2, lightless_deep 2, road_7d44c5b8 1
+   to: ash_gnoll_pack 6, bandit 4, doomhound 4, cult_fanatic 3, skyspine_griffon 3, ogre 2
+   rating at the start of the fight that killed them: 7 of 28 had been rated 60%+ winnable; median 0.21
+
+smith: 35 deaths | by band: 1-9: 13, 10-19: 6, 20-34: 5, 35-49: 8, 50-64: 3, 65-79: 0, 80-99: 0, 100-124: 0, 125-150: 0
+   where: greywood 11, willowmead_wetlands 4, grey_mountains 3, x_the_quiet_spot_191 3, red_badlands 2
+   to: bandit 25, dire_wolf 7, worg 6, crag_ogre 5, animated_armor 4, rockslide_elemental 4
+   rating at the start of the fight that killed them: 18 of 35 had been rated 60%+ winnable; median 0.62
+
+paladin: 31 deaths | by band: 1-9: 3, 10-19: 5, 20-34: 5, 35-49: 5, 50-64: 4, 65-79: 0, 80-99: 1, 100-124: 4, 125-150: 4
+   where: blackpine_forest 4, northern_tundra 4, thunder_spires 4, greyhollow_foothills 3, sepulchre_fields 3
+   to: animated_armor 12, bandit 7, bandit_captain 4, barge_pirate 4, snow_stalker 4, mercenary_legion 4
+   rating at the start of the fight that killed them: 8 of 31 had been rated 60%+ winnable; median 0.17
+
+monk: 28 deaths | by band: 1-9: 4, 10-19: 2, 20-34: 2, 35-49: 6, 50-64: 7, 65-79: 4, 80-99: 2, 100-124: 0, 125-150: 1
+   where: greywood 3, willowmead_wetlands 2, blackpine_forest 2, northern_tundra 2, mirewater_fens 2
+   to: bandit 10, swarm_of_insects 2, centaur 2, glacier_crawler 2, hydra 2, gorgon_herd 2
+   rating at the start of the fight that killed them: 15 of 28 had been rated 60%+ winnable; median 0.71
+
+warlock: 15 deaths | by band: 1-9: 2, 10-19: 4, 20-34: 2, 35-49: 3, 50-64: 1, 65-79: 0, 80-99: 0, 100-124: 0, 125-150: 3
+   where: thunder_spires 3, greyhollow_foothills 2, blackpine_forest 2, greywood 1, red_badlands 1
+   to: thug 3, bandit 3, young_blue_dragon 3, berserker 2, crag_ogre 2, cultist 2
+   rating at the start of the fight that killed them: 6 of 15 had been rated 60%+ winnable; median 0.38
+
+====================================================================================================
+5. THE GUILD
+====================================================================================================
+
+warrior: rank timeline: F@day2/lv2 -> E@day31/lv10 -> D@day1134/lv142 | contracts done by letter: {'F': 24, 'E': 9, 'D': 1}
+   bounty        tried   2 done 100% | avg 0.0 days when done | letters {'F': 2}
+   deliver       tried   3 done  67% | avg 0.0 days when done | letters {'F': 3}
+   delve         tried   1 done   0% | avg 0.0 days when done | letters {'E': 1}
+   gather        tried   8 done 100% | avg 0.4 days when done | letters {'F': 8}
+   hunt          tried   5 done  80% | avg 0.8 days when done | letters {'F': 3, 'E': 2}
+   materials     tried  14 done  93% | avg 0.5 days when done | letters {'F': 4, 'E': 10}
+   missing       tried   2 done  50% | avg 0.9 days when done | letters {'F': 1, 'D': 1}
+   contract XP 29,050 (0% of all XP) | contract coin 453 silver
+
+mage: rank timeline: F@day2/lv1 -> E@day21/lv10 -> D@day71/lv25 -> C@day146/lv47 -> B@day194/lv70 -> A@day278/lv101 -> S@day368/lv150 | contracts done by letter: {'F': 35, 'E': 13, 'D': 6, 'C': 17, 'B': 15, 'A': 45}
+   bounty        tried  14 done  86% | avg 0.4 days when done | letters {'F': 1, 'E': 3, 'C': 2, 'B': 1, 'A': 7}
+   deliver       tried   8 done 100% | avg 0.1 days when done | letters {'F': 8}
+   delve         tried   4 done  75% | avg 1.0 days when done | letters {'D': 1, 'C': 1, 'A': 2}
+   dungeon_boss  tried   3 done  67% | avg 1.1 days when done | letters {'C': 2, 'A': 1}
+   gather        tried  16 done  88% | avg 0.5 days when done | letters {'F': 16}
+   hunt          tried  55 done  80% | avg 0.9 days when done | letters {'E': 9, 'D': 8, 'C': 4, 'B': 11, 'A': 23}
+   materials     tried  11 done  82% | avg 0.5 days when done | letters {'F': 6, 'B': 2, 'A': 3}
+   missing       tried   8 done 100% | avg 6.5 days when done | letters {'E': 2, 'F': 2, 'D': 1, 'C': 3}
+   contract XP 1,052,082 (12% of all XP) | contract coin 33,607 silver
+
+summoner: rank timeline: F@day66/lv8 -> E@day73/lv10 -> D@day112/lv25 -> C@day231/lv47 -> B@day346/lv71 -> A@day420/lv101 -> S@day633/lv150 | contracts done by letter: {'F': 33, 'E': 11, 'D': 10, 'C': 10, 'B': 12, 'A': 40}
+   bounty        tried  19 done  95% | avg 1.6 days when done | letters {'D': 1, 'C': 1, 'B': 2, 'A': 15}
+   deliver       tried  13 done 100% | avg 0.0 days when done | letters {'F': 13}
+   delve         tried   4 done  75% | avg 1.9 days when done | letters {'D': 3, 'B': 1}
+   dungeon_boss  tried   4 done  50% | avg 2.4 days when done | letters {'E': 1, 'D': 2, 'A': 1}
+   gather        tried  15 done 100% | avg 0.4 days when done | letters {'F': 15}
+   hunt          tried  34 done  76% | avg 0.9 days when done | letters {'F': 2, 'E': 5, 'D': 4, 'C': 2, 'B': 6, 'A': 15}
+   materials     tried  11 done  91% | avg 1.2 days when done | letters {'F': 1, 'E': 2, 'B': 2, 'A': 5, 'C': 1}
+   missing       tried  12 done 100% | avg 6.1 days when done | letters {'F': 2, 'E': 2, 'D': 3, 'C': 3, 'B': 1, 'A': 1}
+   contract XP 1,551,150 (17% of all XP) | contract coin 51,400 silver
+
+priest: rank timeline: F@day2/lv1 -> E@day36/lv10 -> D@day632/lv81 | contracts done by letter: {'F': 18, 'E': 5}
+   deliver       tried   6 done 100% | avg 0.0 days when done | letters {'F': 6}
+   gather        tried   7 done 100% | avg 0.4 days when done | letters {'F': 7}
+   hunt          tried   6 done  17% | avg 0.6 days when done | letters {'F': 2, 'E': 4}
+   materials     tried   5 done  60% | avg 0.6 days when done | letters {'F': 3, 'E': 2}
+   missing       tried   7 done  43% | avg 12.7 days when done | letters {'F': 2, 'E': 5}
+   contract XP 7,460 (0% of all XP) | contract coin 122 silver
+
+ranger: rank timeline: F@day2/lv2 -> E@day13/lv10 -> D@day63/lv28 -> C@day127/lv50 -> B@day203/lv77 -> A@day258/lv100 | contracts done by letter: {'F': 17, 'E': 7, 'D': 8, 'C': 11, 'B': 20, 'A': 51}
+   bounty        tried  22 done 100% | avg 0.8 days when done | letters {'C': 1, 'B': 4, 'A': 17}
+   deliver       tried   7 done 100% | avg 0.0 days when done | letters {'F': 7}
+   delve         tried   4 done 100% | avg 1.7 days when done | letters {'C': 1, 'B': 1, 'A': 2}
+   dungeon_boss  tried   9 done  56% | avg 1.7 days when done | letters {'D': 2, 'B': 2, 'A': 5}
+   gather        tried   6 done 100% | avg 0.2 days when done | letters {'F': 6}
+   hunt          tried  45 done  76% | avg 1.3 days when done | letters {'E': 6, 'D': 8, 'C': 6, 'B': 6, 'A': 19}
+   materials     tried  12 done 100% | avg 0.7 days when done | letters {'F': 4, 'E': 1, 'B': 5, 'A': 2}
+   missing       tried   7 done 100% | avg 2.6 days when done | letters {'F': 1, 'D': 3, 'C': 3}
+   contract XP 1,982,119 (23% of all XP) | contract coin 66,547 silver
+
+bard: rank timeline: F@day2/lv2 -> E@day29/lv10 -> D@day102/lv25 -> C@day242/lv53 -> B@day1012/lv126 -> A@day1110/lv142 | contracts done by letter: {'F': 31, 'E': 11, 'D': 9, 'C': 9, 'B': 10, 'A': 15}
+   bounty        tried  10 done  80% | avg 0.7 days when done | letters {'F': 1, 'E': 1, 'A': 8}
+   deliver       tried  10 done 100% | avg 0.0 days when done | letters {'F': 10}
+   delve         tried   4 done  50% | avg 3.1 days when done | letters {'D': 1, 'C': 2, 'B': 1}
+   dungeon_boss  tried   1 done   0% | avg 0.0 days when done | letters {'A': 1}
+   gather        tried  11 done 100% | avg 0.5 days when done | letters {'F': 11}
+   hunt          tried  27 done  63% | avg 1.6 days when done | letters {'F': 3, 'E': 6, 'D': 9, 'B': 4, 'A': 5}
+   materials     tried  21 done  81% | avg 2.3 days when done | letters {'F': 4, 'E': 1, 'C': 10, 'B': 6}
+   missing       tried  11 done  64% | avg 6.5 days when done | letters {'F': 4, 'E': 4, 'D': 1, 'C': 1, 'B': 1}
+   contract XP 851,318 (9% of all XP) | contract coin 26,950 silver
+
+smith: rank timeline: F@day2/lv1 -> E@day56/lv10 -> D@day123/lv25 -> C@day261/lv45 -> B@day404/lv76 -> A@day435/lv102 -> S@day490/lv150 | contracts done by letter: {'F': 48, 'E': 12, 'D': 14, 'C': 11, 'B': 17, 'A': 49}
+   bounty        tried  14 done 100% | avg 0.2 days when done | letters {'E': 1, 'C': 2, 'B': 1, 'A': 10}
+   deliver       tried   8 done 100% | avg 0.0 days when done | letters {'F': 8}
+   delve         tried   6 done  67% | avg 1.4 days when done | letters {'E': 1, 'D': 3, 'A': 2}
+   dungeon_boss  tried   5 done  40% | avg 0.6 days when done | letters {'E': 1, 'D': 2, 'A': 2}
+   gather        tried  32 done  88% | avg 0.9 days when done | letters {'F': 32}
+   hunt          tried  59 done  68% | avg 0.8 days when done | letters {'F': 3, 'E': 10, 'D': 10, 'C': 5, 'B': 12, 'A': 19}
+   materials     tried  16 done 100% | avg 0.4 days when done | letters {'F': 4, 'E': 1, 'B': 3, 'A': 8}
+   missing       tried  12 done  92% | avg 6.7 days when done | letters {'E': 2, 'F': 2, 'D': 3, 'C': 5}
+   contract XP 1,487,321 (17% of all XP) | contract coin 47,713 silver
+
+paladin: rank timeline: F@day2/lv1 -> E@day31/lv10 -> D@day102/lv26 | contracts done by letter: {'F': 30, 'E': 10, 'D': 4}
+   bounty        tried   2 done  50% | avg 0.4 days when done | letters {'E': 2}
+   deliver       tried   6 done 100% | avg 0.0 days when done | letters {'F': 6}
+   delve         tried   1 done   0% | avg 0.0 days when done | letters {'E': 1}
+   dungeon_boss  tried   2 done  50% | avg 2.0 days when done | letters {'E': 1, 'D': 1}
+   gather        tried  14 done 100% | avg 0.6 days when done | letters {'F': 14}
+   hunt          tried  21 done  38% | avg 2.5 days when done | letters {'F': 4, 'E': 11, 'D': 6}
+   materials     tried   5 done  60% | avg 0.9 days when done | letters {'F': 5}
+   missing       tried   7 done  71% | avg 1.9 days when done | letters {'F': 3, 'E': 3, 'D': 1}
+   contract XP 19,003 (0% of all XP) | contract coin 304 silver
+
+monk: rank timeline: F@day2/lv1 -> E@day43/lv12 -> D@day78/lv25 -> C@day204/lv51 -> B@day421/lv87 -> A@day453/lv108 -> S@day540/lv150 | contracts done by letter: {'F': 26, 'E': 11, 'D': 7, 'C': 7, 'B': 11, 'A': 36}
+   bounty        tried  10 done 100% | avg 0.4 days when done | letters {'E': 1, 'C': 1, 'A': 8}
+   deliver       tried  10 done 100% | avg 0.0 days when done | letters {'F': 10}
+   delve         tried   5 done 100% | avg 1.9 days when done | letters {'F': 1, 'E': 1, 'D': 1, 'A': 2}
+   dungeon_boss  tried   3 done  67% | avg 1.0 days when done | letters {'E': 1, 'D': 1, 'C': 1}
+   gather        tried  11 done 100% | avg 0.4 days when done | letters {'F': 11}
+   hunt          tried  37 done  62% | avg 1.2 days when done | letters {'F': 3, 'E': 6, 'D': 7, 'B': 8, 'A': 13}
+   materials     tried  11 done  91% | avg 0.4 days when done | letters {'F': 3, 'B': 5, 'A': 3}
+   missing       tried   8 done  62% | avg 9.4 days when done | letters {'F': 1, 'E': 3, 'D': 2, 'C': 2}
+   contract XP 1,240,190 (13% of all XP) | contract coin 41,559 silver
+
+warlock: rank timeline: F@day2/lv1 -> E@day29/lv12 -> D@day92/lv26 -> C@day183/lv51 | contracts done by letter: {'F': 26, 'E': 10, 'D': 9, 'C': 5}
+   deliver       tried  11 done 100% | avg 0.0 days when done | letters {'F': 11}
+   delve         tried   2 done 100% | avg 1.6 days when done | letters {'E': 1, 'C': 1}
+   dungeon_boss  tried   1 done 100% | avg 4.3 days when done | letters {'D': 1}
+   gather        tried  12 done  92% | avg 0.3 days when done | letters {'F': 12}
+   hunt          tried  16 done  62% | avg 1.5 days when done | letters {'F': 1, 'E': 10, 'D': 3, 'C': 2}
+   materials     tried   2 done 100% | avg 0.3 days when done | letters {'F': 2}
+   missing       tried   9 done  78% | avg 6.2 days when done | letters {'E': 4, 'D': 4, 'C': 1}
+   contract XP 71,425 (1% of all XP) | contract coin 1,214 silver
+
+====================================================================================================
+5b. DUNGEONS
+====================================================================================================
+
+warrior: 1 delves | cleared 0 | died in 1 | unfinished 0
+   the Black Hollow               den     E            lv13 delve         died 
+
+mage: 7 delves | cleared 7 | died in 0 | unfinished 0
+   the Bone-strewn Hollow         den     E-D, boss C  lv37 delve         done 0.2
+   the Gnawed Lair                den     E-D, boss C  lv50 dungeon_boss  done 0.3
+   the Rat-King's Burrows         warren  C-B-A        lv70 delve         done 0.0
+   the Glittering Mine            mine    D-C          lv81 dungeon_boss  done 0.1
+   the Black Caves                den     C-B-A        lv137 dungeon_boss  done 0.0
+   the Collapsed Delve            mine    B-A-S        lv142 delve         done 0.8
+   the Abandoned Workings         mine    A-S          lv149 delve         done 0.0
+
+summoner: 8 delves | cleared 8 | died in 0 | unfinished 0
+   the Crooked Warren             warren  F-E          lv15 dungeon_boss  done 2.6
+   the Red Burrows                warren  E-D          lv28 delve         done 1.2
+   the Smoking Burrows            warren  E-D          lv42 delve         done 0.8
+   the Smoking Burrows            warren  E-D          lv45 dungeon_boss  done 0.4
+   the Deep Den                   den     E-D-C        lv49 dungeon_boss  done 3.5
+   the Howling Den                den     E-D, boss C  lv53 delve         done 0.8
+   the Drowned Deeps              mine    C-B-A        lv98 delve         done 0.4
+   the Black Caves                den     C-B-A        lv130 dungeon_boss  done 0.0
+
+priest: 0 delves | cleared 0 | died in 0 | unfinished 0
+
+ranger: 12 delves | cleared 10 | died in 2 | unfinished 0
+   the Deep Caves                 den     E-D          lv44 dungeon_boss  died 
+   the Collapsed Workings         mine    E-D-C        lv44 dungeon_boss  done 0.0
+   the Deep Caves                 den     D-C-B        lv81 dungeon_boss  done 1.3
+   the Weeping Ossuary            barrow  C-A          lv86 delve         done 0.7
+   the Black Den                  den     D-C-B        lv88 delve         done 1.2
+   the Sunken Ossuary             barrow  C-B          lv95 dungeon_boss  done 0.2
+   the Broken Stronghold          warren  C-B-A        lv107 delve         done 0.1
+   the Crooked Warren             warren  C-B-A        lv121 delve         done 0.9
+   the Old Deeps                  mine    C-B-A        lv135 dungeon_boss  died 
+   the Howling Den                den     C-B-A        lv137 dungeon_boss  done 1.6
+   the Broken Stronghold          warren  C-B-A        lv146 dungeon_boss  done 0.1
+   the Sunken Tomb                barrow  B-A          lv148 dungeon_boss  done 0.4
+
+bard: 3 delves | cleared 2 | died in 1 | unfinished 0
+   the Drowned Halls              aerie   C-B-A        lv95 delve         done 1.1
+   the Bone-strewn Hollow         den     C-B-A        lv131 delve         done 0.8
+   the Lightless Undercroft       vault   C-B-A        lv142 dungeon_boss  died 
+
+smith: 11 delves | cleared 7 | died in 1 | unfinished 3
+   the Howling Hollow             den     F-E          lv12 delve         done 1.5
+   the Weeping Crypt              barrow  F-E          lv27 dungeon_boss  done 0.1
+   the Red Warren                 warren  E-D          lv35 delve         done 0.4
+   the Drowned Workings           mine    E-D          lv42 delve         done 0.8
+   the Drowned Workings           mine    E-D          lv44 delve         done 0.4
+   the Drowned Workings           mine    E-D          lv45 dungeon_boss  done 2.2
+   the Bone-strewn Caves          den     E-D          lv55 dungeon_boss  died 
+   the Black Scar                 rift    C-B-A        lv141 dungeon_boss  done 0.5
+   the Black Scar                 rift    C-B-A        lv144 dungeon_boss  unfinished 0.0
+   the Black Scar                 rift    C-B-A        lv145 delve         unfinished 0.0
+   the Black Scar                 rift    C-B-A        lv145 delve         unfinished 0.0
+
+paladin: 3 delves | cleared 1 | died in 2 | unfinished 0
+   the Old Deeps                  mine    E            lv11 delve         died 
+   the Weeping Ossuary            barrow  F-E          lv21 dungeon_boss  done 1.6
+   the Bone-strewn Den            den     E-D          lv32 dungeon_boss  died 
+
+monk: 8 delves | cleared 7 | died in 1 | unfinished 0
+   the Deep Hollow                den     F-E          lv 8 delve         done 1.1
+   the Ashen Tomb                 barrow  F-E          lv13 delve         done 1.1
+   the Red Stronghold             warren  F-E          lv15 dungeon_boss  done 1.5
+   the Howling Den                den     E-D          lv50 dungeon_boss  died 
+   the Howling Den                den     E-D, boss C  lv51 delve         done 0.4
+   the Collapsed Workings         mine    D-C          lv81 dungeon_boss  done 0.3
+   the Thunderous Halls           aerie   B-A-S        lv114 delve         done 0.4
+   the Bone-strewn Lair           den     C-B-A        lv139 delve         done 0.1
+
+warlock: 3 delves | cleared 3 | died in 0 | unfinished 0
+   the Weeping Barrow             barrow  E            lv30 delve         done 1.5
+   the Deep Lair                  den     E-D          lv50 dungeon_boss  done 2.6
+   the Glittering Deeps           mine    C-B-A        lv86 delve         done 0.7
+
+====================================================================================================
+6. TRAVERSAL: DOES GOING SOMEWHERE MEAN SOMETHING?
+====================================================================================================
+
+warrior: 1284 trips | 48% of game time spent walking | avg trip 11.0h | longest 227h
+   trips ending in the wild: 0 of 1284; of those - met something on arrival
+   trips of 8+ hours: 262 - of which wild-bound met a fight: -; town-bound (nothing on the way): 262
+   blocked by a closed route: 38 times
+   places visited: 53 | never visited: cracked_plains, drowned_shore, dunmarrow_guild, eldervale_guild, ironvein_guild, sunken_vaults, sunspire_guild, trading_square, valecourt_guild, windbreak_ridge
+   first visits: guild_house(d1,L1), greywood(d1,L1), tilted_plough(d2,L4), greyhollow(d6,L5), willowmead_wetlands(d10,L5), dungeon_willowmead_wetlands(d10,L5), south_fields(d11,L5), parth(d11,L6), watch_tower(d13,L7), greyhollow_foothills(d17,L8), red_badlands(d24,L9), willowmead(d29,L9), parth_temple(d39,L12), great_river_reaches(d41,L13), dungeon_great_river_reaches(d46,L13), blackpine_forest(d53,L14), riverhaven(d89,L18), redstone(d95,L19), grey_mountains(d136,L28), ironvein(d136,L28), frostholm_guild(d172,L32), frostholm(d192,L32)
+
+mage: 445 trips | 43% of game time spent walking | avg trip 11.5h | longest 202h
+   trips ending in the wild: 0 of 445; of those - met something on arrival
+   trips of 8+ hours: 121 - of which wild-bound met a fight: -; town-bound (nothing on the way): 121
+   blocked by a closed route: 20 times
+   places visited: 48 | never visited: brinewatch, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, great_river_reaches, howling_downs, ironvein_guild, jade_maw_jungle, lightless_deep, riverhaven, riverhaven_guild
+   first visits: guild_house(d1,L1), south_fields(d1,L1), parth(d2,L1), greywood(d3,L1), tilted_plough(d3,L2), parth_temple(d4,L3), greyhollow_foothills(d7,L5), greyhollow(d7,L5), willowmead_wetlands(d11,L9), willowmead(d11,L9), red_badlands(d12,L10), watch_tower(d20,L10), blackpine_forest(d21,L10), redstone(d29,L15), grey_mountains(d77,L26), ironvein(d77,L27), frostholm_guild(d107,L31), dungeon_grey_mountains(d124,L36), frostholm(d134,L40), northern_tundra(d134,L40), ironcrown_peaks(d168,L58), sunspire_guild(d184,L67)
+
+summoner: 588 trips | 42% of game time spent walking | avg trip 13.0h | longest 247h
+   trips ending in the wild: 0 of 588; of those - met something on arrival
+   trips of 8+ hours: 185 - of which wild-bound met a fight: -; town-bound (nothing on the way): 185
+   blocked by a closed route: 0 times
+   places visited: 53 | never visited: brinewatch, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, lightless_deep, riverhaven_guild, sepulchre_fields, sunspire_guild, trading_square, valecourt_guild
+   first visits: guild_house(d1,L1), parth(d1,L1), south_fields(d1,L1), greywood(d41,L1), tilted_plough(d41,L2), willowmead_wetlands(d46,L5), willowmead(d46,L5), greyhollow_foothills(d50,L5), x_the_quiet_spot_48(d53,L5), greyhollow(d67,L9), parth_temple(d71,L10), dungeon_greywood(d78,L12), watch_tower(d88,L19), great_river_reaches(d89,L19), riverhaven(d89,L19), redstone(d96,L20), red_badlands(d100,L21), blackpine_forest(d106,L23), dungeon_blackpine_forest(d129,L28), grey_mountains(d138,L30), ironvein(d138,L30), frostholm_guild(d171,L36)
+
+priest: 882 trips | 52% of game time spent walking | avg trip 23.9h | longest 322h
+   trips ending in the wild: 0 of 882; of those - met something on arrival
+   trips of 8+ hours: 255 - of which wild-bound met a fight: -; town-bound (nothing on the way): 255
+   blocked by a closed route: 10 times
+   places visited: 48 | never visited: brinewatch, cracked_plains, dunmarrow, dunmarrow_guild, eldervale_guild, hrimgard, hrimgard_guild, ironvein_guild, red_badlands, redstone, rimewind_barrens, riverhaven_guild, stormcrown_heights, trading_square
+   first visits: guild_house(d1,L1), greyhollow(d2,L1), willowmead_wetlands(d3,L1), dungeon_willowmead_wetlands(d3,L1), willowmead(d13,L2), south_fields(d23,L2), watch_tower(d24,L2), greywood(d24,L3), tilted_plough(d24,L3), greyhollow_foothills(d32,L9), parth_temple(d35,L10), x_the_quiet_spot_69(d40,L13), great_river_reaches(d57,L18), blackpine_forest(d66,L18), eldervale(d74,L19), parth(d104,L25), grey_mountains(d105,L25), ironvein(d105,L25), riverhaven(d115,L26), x_the_quiet_spot_181(d135,L29), frostholm_guild(d170,L35), northern_tundra(d170,L35)
+
+ranger: 716 trips | 39% of game time spent walking | avg trip 5.5h | longest 59h
+   trips ending in the wild: 0 of 716; of those - met something on arrival
+   trips of 8+ hours: 147 - of which wild-bound met a fight: -; town-bound (nothing on the way): 147
+   blocked by a closed route: 5 times
+   places visited: 45 | never visited: amaranth, ash_wastes, brinewatch, cinder_caldera, cinderhold, cinderhold_guild, cracked_plains, drowned_shore, eldervale_guild, emerald_mire, hrimgard, hrimgard_guild, jade_maw_jungle, riverhaven_guild
+   first visits: guild_house(d1,L1), tilted_plough(d1,L1), greywood(d2,L3), parth_temple(d5,L6), greyhollow_foothills(d7,L7), greyhollow(d9,L9), willowmead_wetlands(d10,L9), willowmead(d10,L9), watch_tower(d12,L9), red_badlands(d13,L10), redstone(d13,L10), south_fields(d26,L18), blackpine_forest(d30,L19), great_river_reaches(d40,L22), riverhaven(d40,L23), grey_mountains(d44,L23), ironvein(d44,L24), frostholm_guild(d76,L33), northern_tundra(d92,L38), frostholm(d92,L39), dungeon_grey_mountains(d109,L43), ironcrown_peaks(d147,L60)
+
+bard: 1510 trips | 48% of game time spent walking | avg trip 10.1h | longest 260h
+   trips ending in the wild: 0 of 1510; of those - met something on arrival
+   trips of 8+ hours: 235 - of which wild-bound met a fight: -; town-bound (nothing on the way): 235
+   blocked by a closed route: 34 times
+   places visited: 54 | never visited: brinewatch, cracked_plains, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, riverhaven_guild, sepulchre_fields, trading_square, valecourt_guild, wreck_coast
+   first visits: guild_house(d1,L1), tilted_plough(d1,L1), greywood(d2,L3), watch_tower(d3,L4), willowmead_wetlands(d4,L5), willowmead(d4,L6), greyhollow(d7,L7), dungeon_willowmead_wetlands(d10,L8), greyhollow_foothills(d15,L8), parth(d25,L9), south_fields(d25,L9), x_the_quiet_spot_93(d56,L14), red_badlands(d63,L15), redstone(d63,L15), blackpine_forest(d74,L19), parth_temple(d80,L21), great_river_reaches(d81,L21), riverhaven(d81,L21), grey_mountains(d125,L30), ironvein(d125,L30), frostholm_guild(d156,L36), frostholm(d188,L44)
+
+smith: 552 trips | 31% of game time spent walking | avg trip 9.2h | longest 147h
+   trips ending in the wild: 0 of 552; of those - met something on arrival
+   trips of 8+ hours: 162 - of which wild-bound met a fight: -; town-bound (nothing on the way): 162
+   blocked by a closed route: 11 times
+   places visited: 42 | never visited: amaranth, brinewatch, cracked_plains, deep_roads_tunnels, delvers_deep, drowned_shore, dunmarrow, dunmarrow_guild, eldervale, eldervale_guild, emerald_mire, howling_downs, hrimgard, hrimgard_guild
+   first visits: guild_house(d1,L1), greyhollow_foothills(d2,L1), greyhollow(d2,L3), greywood(d6,L3), watch_tower(d10,L3), parth(d10,L3), willowmead_wetlands(d10,L4), willowmead(d10,L4), south_fields(d14,L4), tilted_plough(d19,L7), parth_temple(d55,L10), red_badlands(d56,L10), dungeon_greyhollow_foothills(d72,L12), blackpine_forest(d76,L13), redstone(d78,L13), dungeon_willowmead_wetlands(d90,L15), grey_mountains(d129,L26), dungeon_red_badlands(d137,L27), frostholm_guild(d154,L30), great_river_reaches(d158,L30), ironvein(d171,L30), dungeon_grey_mountains(d193,L35)
+
+paladin: 1161 trips | 50% of game time spent walking | avg trip 9.8h | longest 214h
+   trips ending in the wild: 0 of 1161; of those - met something on arrival
+   trips of 8+ hours: 253 - of which wild-bound met a fight: -; town-bound (nothing on the way): 253
+   blocked by a closed route: 0 times
+   places visited: 56 | never visited: cracked_plains, dunmarrow_guild, eldervale_guild, riverhaven_guild, sunspire_guild, trading_square, valecourt_guild, wreck_coast
+   first visits: guild_house(d1,L1), south_fields(d1,L1), parth(d2,L1), greywood(d3,L1), tilted_plough(d3,L1), parth_temple(d17,L9), greyhollow_foothills(d18,L9), red_badlands(d26,L9), redstone(d26,L10), blackpine_forest(d32,L10), dungeon_red_badlands(d39,L11), greyhollow(d42,L11), willowmead_wetlands(d43,L11), willowmead(d43,L11), riverhaven(d55,L16), great_river_reaches(d63,L17), watch_tower(d78,L19), dungeon_greyhollow_foothills(d78,L19), dungeon_blackpine_forest(d108,L26), grey_mountains(d188,L35), ironvein(d188,L35), frostholm_guild(d199,L38)
+
+monk: 658 trips | 41% of game time spent walking | avg trip 8.5h | longest 237h
+   trips ending in the wild: 0 of 658; of those - met something on arrival
+   trips of 8+ hours: 131 - of which wild-bound met a fight: -; town-bound (nothing on the way): 131
+   blocked by a closed route: 26 times
+   places visited: 55 | never visited: cinder_caldera, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, jade_maw_jungle, lightless_deep, riverhaven_guild, trading_square, valecourt_guild
+   first visits: guild_house(d1,L1), greywood(d1,L1), tilted_plough(d1,L1), south_fields(d2,L3), parth(d3,L4), willowmead_wetlands(d4,L4), willowmead(d4,L4), parth_temple(d16,L4), watch_tower(d17,L5), greyhollow(d18,L6), dungeon_willowmead_wetlands(d19,L6), greyhollow_foothills(d34,L9), dungeon_greywood(d47,L14), red_badlands(d51,L16), redstone(d51,L17), great_river_reaches(d61,L20), riverhaven(d61,L20), blackpine_forest(d68,L22), grey_mountains(d92,L30), ironvein(d92,L30), frostholm_guild(d96,L32), frostholm(d96,L32)
+
+warlock: 794 trips | 50% of game time spent walking | avg trip 15.0h | longest 259h
+   trips ending in the wild: 0 of 794; of those - met something on arrival
+   trips of 8+ hours: 158 - of which wild-bound met a fight: -; town-bound (nothing on the way): 158
+   blocked by a closed route: 31 times
+   places visited: 50 | never visited: brinewatch, cracked_plains, delvers_deep, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, howling_downs, ironvein_guild, rimewind_barrens, riverhaven_guild, trading_square, valecourt, valecourt_guild
+   first visits: guild_house(d1,L1), south_fields(d1,L1), parth_temple(d4,L3), greywood(d4,L3), parth(d6,L5), tilted_plough(d6,L6), greyhollow_foothills(d10,L6), watch_tower(d15,L7), willowmead_wetlands(d16,L7), willowmead(d16,L7), greyhollow(d23,L9), blackpine_forest(d36,L17), red_badlands(d49,L18), redstone(d49,L18), dungeon_willowmead_wetlands(d55,L19), great_river_reaches(d64,L21), riverhaven(d64,L21), dungeon_blackpine_forest(d73,L24), grey_mountains(d97,L28), ironvein(d97,L28), dungeon_red_badlands(d104,L29), frostholm_guild(d131,L36)
+
+====================================================================================================
+7. DO THE WILD PLACES FEEL DIFFERENT? (what the bots actually met and got, pooled across classes)
+====================================================================================================
+place                    danger fights creatures xp/fight  coin/f loot/f rare+  win% foe-lv  most common
+greywood                   1-10    555        25       56      30   0.03     2   96%      4  wolf, dire_wolf, giant_wasp
+south_fields                1-3      1         1       29       0   0.00     0  100%      2  swarm_of_ravens
+willowmead_wetlands        2-12    352        34       56       9   0.03     5   48%      6  thug, bandit, cult_fanatic
+greyhollow_foothills       5-18    330        15      348     166   0.12     3   79%     12  bandit, dire_wolf, crag_ogre
+red_badlands               8-22    408        15      369     251   0.11     6   73%     31  bandit, crag_ogre, ogre
+great_river_reaches        8-25    301        16      633      89   0.09    11   92%     20  barge_pirate, giant_pike, river_stalker
+blackpine_forest          12-30    535        24      621     330   0.18    27   88%     18  bandit, centaur, bandit_captain
+grey_mountains            20-45    752        28     1701    1825   0.11    44   87%     32  roc_chick_flock, ice_troll, crag_ogre
+sunscar_desert            30-80     88        15     2597     262   0.17     2   90%     44  desert_raider_band, tomb_guardian_mummy, sunscar_basilisk
+northern_tundra           35-70    427        12     2323     114   0.04     4   80%     50  snow_stalker, tundra_nomad_raider, mammoth
+hollow_barrows            45-75    425        11     3486      18   0.07     7   96%     56  vampire_spawn, otyugh, tomb_guardian_mummy
+mirewater_fens            45-80    330        14     2583      65   0.06     6   96%     50  drowned_troll, bog_horror, leech_swarm_mass
+ironcrown_peaks           50-90    389        14     3280      33   0.04     1   84%     62  stone_troll, ice_troll, mountain_hag
+sunken_vaults             55-95    206        18     8976    5741   0.25    10   87%     88  duergar_warband, deep_gnome_cultist, rust_horror
+howling_downs            60-100    190        10     5039    2964   0.21    13   92%     71  bandit, elder_drake, bandit_captain
+rimewind_barrens         60-100     50         9     4943       0   0.06     0   98%     73  ice_troll, aurora_elemental, glacier_drake
+emerald_mire             62-100     20         9    10446     369   0.15     2  100%     91  howler_troop, troll_regenerant, fey_court_knight
+smoulder_fields          62-100    354        20     9361    3065   0.14     5   97%     89  pyre_zealot, gorgon_herd, cinder_swarm
+elderwild                65-105    370        11     7789    8521   0.11     8   82%     88  bandit_captain, elder_drake, treant
+delvers_deep             65-105    105        21    10001     969   0.15     7   92%     95  crystal_hulk, gloomstalker_pack, deep_gnome_cultist
+windbreak_ridge          68-105    130        19     7205    7877   0.06     1   93%     97  storm_raven, air_elemental_swarm, rime_giant
+wreck_coast              70-110     17        10    10455    1643   0.35     5  100%     91  siren_choir, mercenary_legion, shipwreck_lurker
+ash_wastes               75-125    682        26     9237    1887   0.10     3   92%    102  cinderling_brood, ash_hound, pyre_zealot
+deep_roads_tunnels       80-135    248        22    13296   14143   0.15     3   98%    107  deep_dwarf_forgemaster, deep_stalker, doomhound
+jade_maw_jungle          80-150    145        17    13296    7244   0.08     2   96%    108  howler_troop, jade_jaguar, poison_dart_tribe
+stormcrown_heights       85-140    269        22    11717     602   0.10     2   97%    111  manticore_alpha, air_elemental_swarm, mercenary_legion
+drowned_shore            90-160     36         8     9179     305   0.11     1  100%    107  siren_choir, crab_titan, rust_horror
+sepulchre_fields        100-160    312        22    10997     233   0.11     0   82%    124  banshee_choir, plague_wight_horde, grave_knight_order
+cinder_caldera          105-160    471        24    12944    1039   0.13     6   97%    118  wyvern_rider_raider, furnace_imp, pyre_zealot
+thunder_spires          110-160    567        26    11325     263   0.10     7   82%    120  storm_hound, air_elemental_swarm, rime_giant
+lightless_deep          115-165    477        24    13906    7777   0.15    12   93%    124  duergar_warband, echo_wraith, troll_regenerant
+
+creature kinds met overall: 272 of 521 | top 5 account for 16% of all enemies: bandit 8%, pyre_zealot 3%, wolf 2%, bandit_captain 2%, ice_troll 2%
+   warrior: distinct creature kinds after N fights -> 50:13 200:28 500:48 1000:75
+   mage: distinct creature kinds after N fights -> 50:18 200:46 500:83
+   summoner: distinct creature kinds after N fights -> 50:13 200:43 500:91
+   priest: distinct creature kinds after N fights -> 50:16 200:33 500:69 1000:115
+   ranger: distinct creature kinds after N fights -> 50:12 200:34 500:63
+   bard: distinct creature kinds after N fights -> 50:15 200:38 500:70 1000:111
+   smith: distinct creature kinds after N fights -> 50:11 200:24 500:85
+   paladin: distinct creature kinds after N fights -> 50:16 200:38 500:69 1000:120
+   monk: distinct creature kinds after N fights -> 50:18 200:32 500:68 1000:117
+   warlock: distinct creature kinds after N fights -> 50:14 200:39 500:86 1000:122
+
+====================================================================================================
+7b. LEVEL COVERAGE: how many places are worth visiting at each level?
+====================================================================================================
+levels with only one zone (or none) in range: []
+level ranges by zone: south_fields 1-3, greywood 1-10, willowmead_wetlands 2-12, greyhollow_foothills 5-18, great_river_reaches 8-25, red_badlands 8-22, blackpine_forest 12-30, grey_mountains 20-45, sunscar_desert 30-80, northern_tundra 35-70, hollow_barrows 45-75, mirewater_fens 45-80, ironcrown_peaks 50-90, sunken_vaults 55-95, cracked_plains 60-700, howling_downs 60-100, rimewind_barrens 60-100, smoulder_fields 62-100, emerald_mire 62-100, elderwild 65-105, delvers_deep 65-105, windbreak_ridge 68-105, wreck_coast 70-110, ash_wastes 75-125, deep_roads_tunnels 80-135, jade_maw_jungle 80-150, stormcrown_heights 85-140, drowned_shore 90-160, sepulchre_fields 100-160, cinder_caldera 105-160, thunder_spires 110-160, lightless_deep 115-165
+   level 5: greywood, willowmead_wetlands, greyhollow_foothills
+   level 15: greyhollow_foothills, blackpine_forest, great_river_reaches, red_badlands
+   level 25: blackpine_forest, grey_mountains, great_river_reaches
+   level 35: grey_mountains, northern_tundra, sunscar_desert
+   level 45: grey_mountains, northern_tundra, sunscar_desert, hollow_barrows, mirewater_fens
+   level 55: northern_tundra, sunscar_desert, hollow_barrows, mirewater_fens, ironcrown_peaks, sunken_vaults
+   level 65: northern_tundra, sunscar_desert, hollow_barrows, mirewater_fens, ironcrown_peaks, sunken_vaults, howling_downs, rimewind_barrens, elderwild, smoulder_fields, emerald_mire, delvers_deep
+   level 75: sunscar_desert, ash_wastes, hollow_barrows, mirewater_fens, ironcrown_peaks, sunken_vaults, howling_downs, rimewind_barrens, elderwild, smoulder_fields, windbreak_ridge, emerald_mire, wreck_coast, delvers_deep
+
+====================================================================================================
+8. THE WORLD AS GENERATED: how alike are places?
+====================================================================================================
+
+warrior (seed 10): wild-zone rosters: mean overlap between two zones 0.01; most alike: northern_tundra/rimewind_barrens 0.50, sunken_vaults/delvers_deep 0.33, howling_downs/elderwild 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 5, 'swarm': 1}
+   greywood               6 kinds, 6 found nowhere else | {'beast': 4, 'swarm': 1, 'fey': 1}
+   willowmead_wetlands    6 kinds, 6 found nowhere else | {'monstrous race': 1, 'undead': 2, 'beast': 3}
+   greyhollow_foothills   6 kinds, 3 found nowhere else | {'monstrosity': 2, 'hostile people': 1, 'lycanthrope': 1, 'beast': 1, 'giant': 1}
+   great_river_reaches    6 kinds, 4 found nowhere else | {'swarm': 1, 'monstrosity': 1, 'fey': 1, 'undead': 1, 'hostile people': 1, 'beast': 1}
+   red_badlands           6 kinds, 1 found nowhere else | {'beast': 1, 'hostile people': 2, 'giant': 2, 'monstrosity': 1}
+   blackpine_forest       6 kinds, 3 found nowhere else | {'hostile people': 2, 'plant': 1, 'fey': 1, 'monstrosity': 1, 'beast': 1}
+   grey_mountains         6 kinds, 2 found nowhere else | {'elemental': 1, 'beast': 1, 'monstrosity': 3, 'giant': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'monstrosity': 3, 'undead': 1, 'hostile people': 1, 'swarm': 1}
+   northern_tundra        6 kinds, 2 found nowhere else | {'monstrosity': 1, 'beast': 3, 'hostile people': 1, 'undead': 1}
+   hollow_barrows         6 kinds, 6 found nowhere else | {'undead': 3, 'monstrosity': 1, 'aberration': 1, 'construct': 1}
+   mirewater_fens         6 kinds, 4 found nowhere else | {'plant': 1, 'fey': 2, 'swarm': 1, 'giant': 2}
+   ironcrown_peaks        6 kinds, 2 found nowhere else | {'giant': 3, 'monstrosity': 1, 'hostile people': 1, 'elemental': 1}
+   sunken_vaults          6 kinds, 1 found nowhere else | {'giant': 1, 'beast': 1, 'fiend': 1, 'monstrosity': 3}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 5, 'elemental': 1}
+   howling_downs          6 kinds, 2 found nowhere else | {'monstrosity': 1, 'hostile people': 2, 'dragon': 2, 'giant': 1}
+   rimewind_barrens       6 kinds, 1 found nowhere else | {'monstrosity': 1, 'undead': 1, 'elemental': 1, 'beast': 2, 'giant': 1}
+   smoulder_fields        6 kinds, 2 found nowhere else | {'fiend': 1, 'elemental': 1, 'undead': 1, 'beast': 1, 'monstrosity': 1, 'hostile people': 1}
+   emerald_mire           6 kinds, 3 found nowhere else | {'fey': 1, 'monstrosity': 2, 'plant': 1, 'giant': 1, 'beast': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'giant': 1, 'dragon': 3, 'plant': 1}
+   delvers_deep           6 kinds, 2 found nowhere else | {'hostile people': 1, 'monstrosity': 3, 'construct': 1, 'beast': 1}
+   windbreak_ridge        6 kinds, 1 found nowhere else | {'beast': 2, 'giant': 3, 'elemental': 1}
+   wreck_coast            6 kinds, 4 found nowhere else | {'undead': 1, 'fey': 2, 'plant': 1, 'aberration': 1, 'monstrosity': 1}
+   ash_wastes             6 kinds, 2 found nowhere else | {'beast': 2, 'giant': 1, 'monstrosity': 1, 'elemental': 2}
+   deep_roads_tunnels     6 kinds, 2 found nowhere else | {'monstrosity': 2, 'swarm': 2, 'dragon': 1, 'elemental': 1}
+   jade_maw_jungle        6 kinds, 4 found nowhere else | {'construct': 1, 'beast': 1, 'monstrosity': 2, 'plant': 1, 'hostile people': 1}
+   stormcrown_heights     6 kinds, 3 found nowhere else | {'beast': 2, 'monstrosity': 2, 'elemental': 1, 'giant': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'undead': 1, 'monstrosity': 3, 'construct': 1, 'beast': 1}
+   sepulchre_fields       6 kinds, 3 found nowhere else | {'hostile people': 1, 'undead': 2, 'elemental': 1, 'fiend': 1, 'swarm': 1}
+   cinder_caldera         6 kinds, 3 found nowhere else | {'elemental': 1, 'giant': 1, 'monstrosity': 1, 'beast': 1, 'hostile people': 1, 'dragon': 1}
+   thunder_spires         6 kinds, 2 found nowhere else | {'hostile people': 1, 'dragon': 1, 'monstrosity': 2, 'elemental': 1, 'giant': 1}
+   lightless_deep         6 kinds, 3 found nowhere else | {'hostile people': 1, 'swarm': 1, 'ooze': 1, 'undead': 1, 'construct': 1, 'fiend': 1}
+
+mage (seed 60): wild-zone rosters: mean overlap between two zones 0.01; most alike: stormcrown_heights/thunder_spires 0.33, northern_tundra/rimewind_barrens 0.33, howling_downs/elderwild 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'swarm': 1, 'beast': 5}
+   greywood               6 kinds, 5 found nowhere else | {'beast': 5, 'dragon': 1}
+   willowmead_wetlands    6 kinds, 5 found nowhere else | {'plant': 1, 'beast': 1, 'undead': 2, 'swarm': 1, 'monstrous race': 1}
+   greyhollow_foothills   6 kinds, 1 found nowhere else | {'hostile people': 2, 'beast': 2, 'monstrosity': 1, 'giant': 1}
+   great_river_reaches    6 kinds, 5 found nowhere else | {'plant': 1, 'beast': 1, 'monstrosity': 1, 'hostile people': 1, 'swarm': 1, 'undead': 1}
+   red_badlands           6 kinds, 2 found nowhere else | {'hostile people': 2, 'monstrosity': 1, 'beast': 2, 'giant': 1}
+   blackpine_forest       6 kinds, 5 found nowhere else | {'fey': 1, 'giant': 1, 'hostile people': 2, 'monstrosity': 2}
+   grey_mountains         6 kinds, 3 found nowhere else | {'beast': 1, 'hostile people': 1, 'fey': 1, 'giant': 2, 'elemental': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'monstrosity': 3, 'undead': 1, 'hostile people': 1, 'swarm': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'beast': 3, 'giant': 1, 'hostile people': 1, 'monstrosity': 1}
+   hollow_barrows         6 kinds, 5 found nowhere else | {'monstrosity': 1, 'undead': 3, 'aberration': 1, 'construct': 1}
+   mirewater_fens         6 kinds, 6 found nowhere else | {'fey': 2, 'plant': 2, 'giant': 1, 'undead': 1}
+   ironcrown_peaks        6 kinds, 3 found nowhere else | {'fey': 1, 'beast': 1, 'giant': 2, 'hostile people': 1, 'dragon': 1}
+   sunken_vaults          6 kinds, 2 found nowhere else | {'monstrosity': 1, 'ooze': 1, 'giant': 1, 'hostile people': 2, 'plant': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 5, 'elemental': 1}
+   howling_downs          6 kinds, 2 found nowhere else | {'hostile people': 2, 'dragon': 2, 'giant': 1, 'monstrosity': 1}
+   rimewind_barrens       6 kinds, 3 found nowhere else | {'beast': 2, 'dragon': 1, 'elemental': 1, 'monstrosity': 1, 'giant': 1}
+   smoulder_fields        6 kinds, 3 found nowhere else | {'monstrosity': 2, 'beast': 2, 'elemental': 1, 'giant': 1}
+   emerald_mire           6 kinds, 3 found nowhere else | {'hostile people': 1, 'plant': 1, 'giant': 1, 'fey': 1, 'monstrosity': 1, 'beast': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'plant': 1, 'dragon': 3, 'giant': 1}
+   delvers_deep           6 kinds, 2 found nowhere else | {'construct': 1, 'monstrosity': 1, 'elemental': 1, 'ooze': 1, 'swarm': 1, 'fiend': 1}
+   windbreak_ridge        6 kinds, 2 found nowhere else | {'giant': 3, 'elemental': 2, 'monstrosity': 1}
+   wreck_coast            6 kinds, 4 found nowhere else | {'monstrosity': 2, 'fey': 2, 'elemental': 1, 'plant': 1}
+   ash_wastes             6 kinds, 2 found nowhere else | {'hostile people': 1, 'monstrosity': 2, 'beast': 1, 'construct': 1, 'elemental': 1}
+   deep_roads_tunnels     6 kinds, 4 found nowhere else | {'fiend': 2, 'monstrosity': 1, 'hostile people': 1, 'fey': 1, 'aberration': 1}
+   jade_maw_jungle        6 kinds, 3 found nowhere else | {'monstrosity': 4, 'beast': 1, 'plant': 1}
+   stormcrown_heights     6 kinds, 1 found nowhere else | {'giant': 2, 'monstrosity': 2, 'hostile people': 1, 'elemental': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'undead': 2, 'hostile people': 1, 'monstrosity': 1, 'plant': 1, 'elemental': 1}
+   sepulchre_fields       6 kinds, 4 found nowhere else | {'undead': 3, 'monstrosity': 2, 'construct': 1}
+   cinder_caldera         6 kinds, 3 found nowhere else | {'monstrosity': 2, 'hostile people': 1, 'construct': 1, 'fiend': 1, 'dragon': 1}
+   thunder_spires         6 kinds, 2 found nowhere else | {'giant': 2, 'elemental': 2, 'dragon': 1, 'monstrosity': 1}
+   lightless_deep         6 kinds, 2 found nowhere else | {'monstrosity': 2, 'plant': 1, 'swarm': 1, 'ooze': 1, 'undead': 1}
+
+summoner (seed 27): wild-zone rosters: mean overlap between two zones 0.01; most alike: south_fields/x_the_quiet_spot_48 0.50, mirewater_fens/x_the_quiet_spot_349 0.50, northern_tundra/rimewind_barrens 0.33
+   south_fields           6 kinds, 2 found nowhere else | {'beast': 6}
+   greywood               6 kinds, 5 found nowhere else | {'beast': 3, 'hostile people': 1, 'dragon': 1, 'monstrosity': 1}
+   x_the_quiet_spot_48    6 kinds, 2 found nowhere else | {'beast': 5, 'swarm': 1}
+   willowmead_wetlands    6 kinds, 5 found nowhere else | {'swarm': 1, 'undead': 1, 'plant': 1, 'beast': 2, 'monstrous race': 1}
+   greyhollow_foothills   6 kinds, 3 found nowhere else | {'hostile people': 3, 'giant': 1, 'beast': 1, 'monstrosity': 1}
+   great_river_reaches    6 kinds, 4 found nowhere else | {'plant': 1, 'monstrosity': 1, 'hostile people': 1, 'undead': 1, 'swarm': 1, 'beast': 1}
+   red_badlands           6 kinds, 2 found nowhere else | {'monstrosity': 2, 'beast': 1, 'hostile people': 2, 'giant': 1}
+   blackpine_forest       6 kinds, 4 found nowhere else | {'monstrosity': 2, 'beast': 2, 'giant': 1, 'hostile people': 1}
+   grey_mountains         6 kinds, 3 found nowhere else | {'hostile people': 1, 'dragon': 1, 'elemental': 1, 'monstrosity': 2, 'beast': 1}
+   sunscar_desert         6 kinds, 4 found nowhere else | {'monstrosity': 3, 'undead': 2, 'hostile people': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'hostile people': 1, 'giant': 1, 'beast': 2, 'monstrosity': 1, 'elemental': 1}
+   hollow_barrows         6 kinds, 5 found nowhere else | {'aberration': 1, 'construct': 1, 'undead': 2, 'monstrosity': 2}
+   mirewater_fens         6 kinds, 2 found nowhere else | {'fey': 1, 'giant': 1, 'plant': 1, 'undead': 1, 'dragon': 1, 'swarm': 1}
+   x_the_quiet_spot_349   6 kinds, 2 found nowhere else | {'plant': 2, 'dragon': 1, 'fey': 2, 'swarm': 1}
+   ironcrown_peaks        6 kinds, 2 found nowhere else | {'monstrosity': 2, 'fey': 1, 'hostile people': 1, 'lycanthrope': 1, 'giant': 1}
+   sunken_vaults          6 kinds, 4 found nowhere else | {'hostile people': 1, 'ooze': 1, 'monstrosity': 3, 'swarm': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 5, 'elemental': 1}
+   howling_downs          6 kinds, 1 found nowhere else | {'hostile people': 2, 'giant': 1, 'monstrosity': 1, 'dragon': 2}
+   rimewind_barrens       6 kinds, 3 found nowhere else | {'giant': 1, 'monstrosity': 1, 'beast': 2, 'dragon': 1, 'undead': 1}
+   smoulder_fields        6 kinds, 3 found nowhere else | {'beast': 2, 'hostile people': 1, 'monstrous race': 1, 'undead': 1, 'monstrosity': 1}
+   emerald_mire           6 kinds, 5 found nowhere else | {'hostile people': 1, 'plant': 2, 'monstrosity': 3}
+   elderwild              6 kinds, 3 found nowhere else | {'plant': 1, 'hostile people': 1, 'giant': 1, 'dragon': 3}
+   delvers_deep           6 kinds, 1 found nowhere else | {'beast': 1, 'giant': 1, 'swarm': 1, 'undead': 1, 'plant': 1, 'fey': 1}
+   windbreak_ridge        6 kinds, 3 found nowhere else | {'monstrosity': 2, 'giant': 2, 'beast': 1, 'hostile people': 1}
+   wreck_coast            6 kinds, 2 found nowhere else | {'plant': 1, 'undead': 1, 'monstrosity': 3, 'elemental': 1}
+   ash_wastes             6 kinds, 3 found nowhere else | {'swarm': 1, 'monstrosity': 2, 'giant': 1, 'elemental': 1, 'beast': 1}
+   deep_roads_tunnels     6 kinds, 2 found nowhere else | {'ooze': 1, 'plant': 1, 'undead': 1, 'monstrosity': 1, 'giant': 1, 'hostile people': 1}
+   jade_maw_jungle        6 kinds, 4 found nowhere else | {'giant': 1, 'monstrosity': 1, 'plant': 1, 'beast': 3}
+   stormcrown_heights     6 kinds, 2 found nowhere else | {'beast': 2, 'elemental': 1, 'hostile people': 1, 'giant': 2}
+   drowned_shore          6 kinds, 3 found nowhere else | {'monstrosity': 1, 'undead': 2, 'fey': 1, 'aberration': 1, 'elemental': 1}
+   sepulchre_fields       6 kinds, 4 found nowhere else | {'undead': 4, 'swarm': 1, 'monstrosity': 1}
+   cinder_caldera         6 kinds, 5 found nowhere else | {'fiend': 1, 'hostile people': 2, 'elemental': 1, 'giant': 1, 'monstrosity': 1}
+   thunder_spires         6 kinds, 4 found nowhere else | {'monstrosity': 2, 'giant': 2, 'dragon': 1, 'beast': 1}
+   lightless_deep         6 kinds, 2 found nowhere else | {'ooze': 1, 'undead': 1, 'swarm': 1, 'fey': 1, 'construct': 2}
+
+priest (seed 21): wild-zone rosters: mean overlap between two zones 0.01; most alike: blackpine_forest/x_the_quiet_spot_181 0.50, northern_tundra/rimewind_barrens 0.33, howling_downs/elderwild 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 5, 'swarm': 1}
+   greywood               6 kinds, 6 found nowhere else | {'beast': 4, 'hostile people': 1, 'swarm': 1}
+   willowmead_wetlands    6 kinds, 6 found nowhere else | {'undead': 3, 'beast': 2, 'swarm': 1}
+   greyhollow_foothills   6 kinds, 0 found nowhere else | {'hostile people': 2, 'beast': 3, 'monstrosity': 1}
+   x_the_quiet_spot_69    6 kinds, 2 found nowhere else | {'hostile people': 1, 'beast': 3, 'lycanthrope': 1, 'giant': 1}
+   great_river_reaches    6 kinds, 5 found nowhere else | {'beast': 2, 'hostile people': 1, 'swarm': 1, 'monstrosity': 1, 'plant': 1}
+   red_badlands           6 kinds, 2 found nowhere else | {'monstrosity': 2, 'hostile people': 2, 'beast': 1, 'giant': 1}
+   blackpine_forest       6 kinds, 0 found nowhere else | {'monstrosity': 3, 'fey': 1, 'beast': 1, 'hostile people': 1}
+   x_the_quiet_spot_181   6 kinds, 1 found nowhere else | {'fey': 1, 'monstrosity': 3, 'plant': 1, 'giant': 1}
+   grey_mountains         6 kinds, 2 found nowhere else | {'elemental': 1, 'giant': 2, 'beast': 1, 'monstrosity': 2}
+   sunscar_desert         6 kinds, 6 found nowhere else | {'monstrosity': 4, 'undead': 1, 'swarm': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'giant': 1, 'beast': 2, 'monstrosity': 2, 'elemental': 1}
+   hollow_barrows         6 kinds, 6 found nowhere else | {'monstrosity': 2, 'undead': 2, 'construct': 2}
+   mirewater_fens         6 kinds, 5 found nowhere else | {'swarm': 1, 'fey': 2, 'plant': 1, 'giant': 1, 'beast': 1}
+   ironcrown_peaks        6 kinds, 3 found nowhere else | {'beast': 1, 'elemental': 1, 'giant': 2, 'fey': 1, 'monstrosity': 1}
+   sunken_vaults          6 kinds, 2 found nowhere else | {'monstrosity': 3, 'ooze': 1, 'swarm': 1, 'hostile people': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 5, 'elemental': 1}
+   howling_downs          6 kinds, 1 found nowhere else | {'hostile people': 2, 'monstrosity': 1, 'dragon': 2, 'giant': 1}
+   rimewind_barrens       6 kinds, 2 found nowhere else | {'beast': 1, 'monstrosity': 1, 'undead': 1, 'giant': 2, 'dragon': 1}
+   smoulder_fields        6 kinds, 3 found nowhere else | {'monstrosity': 1, 'elemental': 1, 'monstrous race': 1, 'beast': 1, 'fiend': 1, 'swarm': 1}
+   emerald_mire           6 kinds, 4 found nowhere else | {'fey': 1, 'beast': 2, 'plant': 1, 'monstrosity': 1, 'hostile people': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'dragon': 3, 'plant': 1, 'giant': 1}
+   delvers_deep           6 kinds, 2 found nowhere else | {'hostile people': 1, 'plant': 1, 'monstrosity': 2, 'ooze': 1, 'fiend': 1}
+   windbreak_ridge        6 kinds, 2 found nowhere else | {'monstrosity': 2, 'beast': 2, 'hostile people': 1, 'dragon': 1}
+   wreck_coast            6 kinds, 4 found nowhere else | {'elemental': 2, 'plant': 1, 'monstrosity': 1, 'hostile people': 1, 'undead': 1}
+   ash_wastes             6 kinds, 3 found nowhere else | {'elemental': 3, 'beast': 1, 'monstrosity': 1, 'fiend': 1}
+   x_the_quiet_spot_617   6 kinds, 3 found nowhere else | {'giant': 1, 'monstrosity': 2, 'undead': 1, 'hostile people': 1, 'construct': 1}
+   deep_roads_tunnels     6 kinds, 3 found nowhere else | {'beast': 1, 'swarm': 2, 'plant': 1, 'monstrosity': 1, 'giant': 1}
+   jade_maw_jungle        6 kinds, 3 found nowhere else | {'monstrosity': 2, 'beast': 1, 'dragon': 1, 'plant': 1, 'giant': 1}
+   stormcrown_heights     6 kinds, 3 found nowhere else | {'monstrosity': 2, 'hostile people': 1, 'giant': 2, 'dragon': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'fey': 1, 'monstrosity': 2, 'elemental': 1, 'beast': 1, 'undead': 1}
+   sepulchre_fields       6 kinds, 4 found nowhere else | {'undead': 2, 'monstrosity': 1, 'construct': 1, 'hostile people': 1, 'fiend': 1}
+   cinder_caldera         6 kinds, 3 found nowhere else | {'undead': 1, 'swarm': 1, 'monstrosity': 1, 'beast': 2, 'fiend': 1}
+   thunder_spires         6 kinds, 5 found nowhere else | {'monstrosity': 2, 'beast': 2, 'dragon': 1, 'giant': 1}
+   lightless_deep         6 kinds, 3 found nowhere else | {'monstrosity': 1, 'undead': 1, 'hostile people': 2, 'construct': 1, 'plant': 1}
+
+ranger (seed 68): wild-zone rosters: mean overlap between two zones 0.02; most alike: howling_downs/x_the_quiet_spot_372 1.00, greyhollow_foothills/red_badlands 0.50, stormcrown_heights/windbreak_ridge 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 6}
+   greywood               6 kinds, 4 found nowhere else | {'beast': 4, 'hostile people': 1, 'swarm': 1}
+   willowmead_wetlands    6 kinds, 6 found nowhere else | {'beast': 2, 'swarm': 2, 'monstrous race': 1, 'undead': 1}
+   greyhollow_foothills   6 kinds, 1 found nowhere else | {'beast': 3, 'lycanthrope': 1, 'giant': 1, 'hostile people': 1}
+   great_river_reaches    6 kinds, 4 found nowhere else | {'fey': 1, 'undead': 1, 'monstrosity': 1, 'swarm': 1, 'plant': 1, 'hostile people': 1}
+   red_badlands           6 kinds, 0 found nowhere else | {'lycanthrope': 1, 'hostile people': 3, 'beast': 1, 'giant': 1}
+   blackpine_forest       6 kinds, 3 found nowhere else | {'monstrosity': 2, 'lycanthrope': 1, 'hostile people': 2, 'beast': 1}
+   grey_mountains         6 kinds, 3 found nowhere else | {'beast': 1, 'hostile people': 1, 'giant': 3, 'monstrosity': 1}
+   sunscar_desert         6 kinds, 4 found nowhere else | {'construct': 1, 'monstrosity': 3, 'hostile people': 1, 'undead': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'giant': 1, 'hostile people': 1, 'beast': 2, 'undead': 1, 'monstrosity': 1}
+   hollow_barrows         6 kinds, 5 found nowhere else | {'undead': 2, 'aberration': 1, 'monstrosity': 2, 'construct': 1}
+   mirewater_fens         6 kinds, 4 found nowhere else | {'plant': 2, 'swarm': 1, 'fey': 1, 'dragon': 1, 'giant': 1}
+   ironcrown_peaks        6 kinds, 1 found nowhere else | {'fey': 1, 'beast': 1, 'giant': 2, 'monstrosity': 2}
+   sunken_vaults          6 kinds, 4 found nowhere else | {'plant': 2, 'monstrosity': 2, 'ooze': 1, 'swarm': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 5, 'elemental': 1}
+   howling_downs          6 kinds, 0 found nowhere else | {'hostile people': 2, 'giant': 1, 'monstrosity': 1, 'dragon': 2}
+   rimewind_barrens       6 kinds, 4 found nowhere else | {'dragon': 2, 'monstrosity': 1, 'elemental': 1, 'undead': 1, 'giant': 1}
+   x_the_quiet_spot_372   6 kinds, 0 found nowhere else | {'giant': 1, 'hostile people': 2, 'monstrosity': 1, 'dragon': 2}
+   smoulder_fields        6 kinds, 3 found nowhere else | {'elemental': 1, 'hostile people': 1, 'monstrosity': 2, 'beast': 1, 'fiend': 1}
+   emerald_mire           6 kinds, 3 found nowhere else | {'beast': 3, 'plant': 2, 'hostile people': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'giant': 1, 'dragon': 3, 'plant': 1}
+   delvers_deep           6 kinds, 3 found nowhere else | {'construct': 1, 'monstrosity': 1, 'ooze': 1, 'giant': 2, 'plant': 1}
+   windbreak_ridge        6 kinds, 1 found nowhere else | {'monstrosity': 1, 'beast': 3, 'giant': 2}
+   wreck_coast            6 kinds, 3 found nowhere else | {'fey': 1, 'hostile people': 1, 'undead': 1, 'monstrosity': 2, 'beast': 1}
+   ash_wastes             6 kinds, 4 found nowhere else | {'hostile people': 1, 'beast': 1, 'giant': 1, 'elemental': 2, 'monstrosity': 1}
+   deep_roads_tunnels     6 kinds, 3 found nowhere else | {'elemental': 1, 'plant': 1, 'monstrosity': 3, 'hostile people': 1}
+   jade_maw_jungle        6 kinds, 1 found nowhere else | {'plant': 2, 'monstrosity': 2, 'giant': 1, 'beast': 1}
+   stormcrown_heights     6 kinds, 1 found nowhere else | {'beast': 2, 'monstrosity': 1, 'elemental': 1, 'giant': 1, 'hostile people': 1}
+   drowned_shore          6 kinds, 4 found nowhere else | {'monstrosity': 2, 'aberration': 1, 'hostile people': 2, 'plant': 1}
+   sepulchre_fields       6 kinds, 5 found nowhere else | {'monstrosity': 2, 'undead': 3, 'elemental': 1}
+   cinder_caldera         6 kinds, 2 found nowhere else | {'fiend': 1, 'monstrosity': 3, 'undead': 1, 'hostile people': 1}
+   thunder_spires         6 kinds, 2 found nowhere else | {'giant': 1, 'hostile people': 1, 'dragon': 1, 'monstrosity': 3}
+   lightless_deep         6 kinds, 5 found nowhere else | {'dragon': 1, 'hostile people': 2, 'construct': 1, 'monstrosity': 1, 'undead': 1}
+
+bard (seed 39): wild-zone rosters: mean overlap between two zones 0.02; most alike: northern_tundra/rimewind_barrens 0.50, greyhollow_foothills/red_badlands 0.50, sunken_vaults/delvers_deep 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 6}
+   greywood               6 kinds, 5 found nowhere else | {'beast': 3, 'swarm': 1, 'monstrosity': 1, 'plant': 1}
+   willowmead_wetlands    6 kinds, 5 found nowhere else | {'monstrous race': 1, 'plant': 1, 'undead': 2, 'swarm': 1, 'beast': 1}
+   greyhollow_foothills   6 kinds, 0 found nowhere else | {'hostile people': 1, 'giant': 2, 'beast': 2, 'monstrosity': 1}
+   x_the_quiet_spot_93    6 kinds, 3 found nowhere else | {'giant': 1, 'monstrosity': 3, 'beast': 1, 'hostile people': 1}
+   great_river_reaches    6 kinds, 4 found nowhere else | {'monstrosity': 1, 'fey': 1, 'beast': 2, 'plant': 1, 'hostile people': 1}
+   red_badlands           6 kinds, 1 found nowhere else | {'dragon': 1, 'hostile people': 2, 'giant': 1, 'beast': 1, 'monstrosity': 1}
+   blackpine_forest       6 kinds, 3 found nowhere else | {'beast': 1, 'hostile people': 2, 'fey': 1, 'giant': 1, 'monstrosity': 1}
+   grey_mountains         6 kinds, 4 found nowhere else | {'hostile people': 1, 'giant': 2, 'beast': 1, 'monstrosity': 1, 'elemental': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'monstrosity': 3, 'hostile people': 1, 'swarm': 1, 'undead': 1}
+   northern_tundra        6 kinds, 2 found nowhere else | {'hostile people': 1, 'beast': 1, 'giant': 1, 'monstrosity': 2, 'undead': 1}
+   hollow_barrows         6 kinds, 6 found nowhere else | {'construct': 2, 'undead': 3, 'aberration': 1}
+   mirewater_fens         6 kinds, 5 found nowhere else | {'swarm': 1, 'beast': 1, 'giant': 1, 'plant': 2, 'fey': 1}
+   ironcrown_peaks        6 kinds, 3 found nowhere else | {'dragon': 1, 'giant': 1, 'monstrosity': 2, 'fey': 1, 'beast': 1}
+   sunken_vaults          6 kinds, 1 found nowhere else | {'plant': 2, 'monstrosity': 1, 'undead': 1, 'hostile people': 1, 'swarm': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 6}
+   howling_downs          6 kinds, 1 found nowhere else | {'hostile people': 2, 'dragon': 2, 'monstrosity': 1, 'giant': 1}
+   rimewind_barrens       6 kinds, 1 found nowhere else | {'beast': 1, 'giant': 1, 'monstrosity': 1, 'dragon': 1, 'undead': 1, 'elemental': 1}
+   smoulder_fields        6 kinds, 3 found nowhere else | {'beast': 1, 'fiend': 1, 'elemental': 1, 'monstrous race': 1, 'monstrosity': 1, 'swarm': 1}
+   emerald_mire           6 kinds, 4 found nowhere else | {'monstrosity': 1, 'beast': 3, 'plant': 1, 'giant': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'giant': 1, 'dragon': 3, 'plant': 1}
+   delvers_deep           6 kinds, 2 found nowhere else | {'monstrosity': 3, 'undead': 1, 'swarm': 1, 'fiend': 1}
+   windbreak_ridge        6 kinds, 3 found nowhere else | {'giant': 1, 'monstrosity': 3, 'elemental': 1, 'beast': 1}
+   wreck_coast            6 kinds, 3 found nowhere else | {'elemental': 1, 'monstrosity': 1, 'undead': 2, 'fey': 2}
+   ash_wastes             6 kinds, 3 found nowhere else | {'beast': 1, 'swarm': 1, 'monstrosity': 1, 'hostile people': 2, 'giant': 1}
+   deep_roads_tunnels     6 kinds, 0 found nowhere else | {'swarm': 1, 'hostile people': 1, 'fey': 1, 'plant': 1, 'monstrosity': 1, 'fiend': 1}
+   jade_maw_jungle        6 kinds, 2 found nowhere else | {'monstrosity': 2, 'fey': 1, 'beast': 1, 'plant': 2}
+   stormcrown_heights     6 kinds, 2 found nowhere else | {'monstrosity': 1, 'giant': 1, 'elemental': 1, 'beast': 1, 'hostile people': 1, 'construct': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'undead': 2, 'hostile people': 1, 'aberration': 1, 'monstrosity': 2}
+   sepulchre_fields       6 kinds, 5 found nowhere else | {'elemental': 1, 'undead': 3, 'fey': 1, 'monstrosity': 1}
+   cinder_caldera         6 kinds, 1 found nowhere else | {'monstrosity': 2, 'elemental': 1, 'swarm': 1, 'construct': 1, 'hostile people': 1}
+   thunder_spires         6 kinds, 2 found nowhere else | {'giant': 2, 'beast': 1, 'dragon': 1, 'monstrosity': 2}
+   lightless_deep         6 kinds, 3 found nowhere else | {'giant': 1, 'fey': 1, 'undead': 1, 'hostile people': 1, 'ooze': 2}
+
+smith (seed 84): wild-zone rosters: mean overlap between two zones 0.01; most alike: grey_mountains/x_the_quiet_spot_191 0.50, grey_mountains/ironcrown_peaks 0.50, northern_tundra/rimewind_barrens 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 5, 'swarm': 1}
+   greywood               6 kinds, 4 found nowhere else | {'beast': 3, 'swarm': 1, 'hostile people': 1, 'monstrous race': 1}
+   willowmead_wetlands    6 kinds, 6 found nowhere else | {'beast': 2, 'undead': 2, 'swarm': 2}
+   greyhollow_foothills   6 kinds, 2 found nowhere else | {'beast': 4, 'hostile people': 1, 'giant': 1}
+   great_river_reaches    6 kinds, 5 found nowhere else | {'hostile people': 1, 'beast': 2, 'plant': 1, 'swarm': 1, 'monstrosity': 1}
+   red_badlands           6 kinds, 2 found nowhere else | {'hostile people': 3, 'monstrosity': 1, 'giant': 1, 'beast': 1}
+   blackpine_forest       6 kinds, 4 found nowhere else | {'giant': 1, 'monstrosity': 3, 'plant': 1, 'beast': 1}
+   grey_mountains         6 kinds, 1 found nowhere else | {'giant': 3, 'fey': 1, 'monstrosity': 1, 'dragon': 1}
+   x_the_quiet_spot_191   6 kinds, 2 found nowhere else | {'beast': 1, 'fey': 1, 'giant': 3, 'monstrosity': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'monstrosity': 4, 'construct': 1, 'hostile people': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'beast': 2, 'monstrosity': 1, 'hostile people': 1, 'giant': 1, 'elemental': 1}
+   hollow_barrows         6 kinds, 6 found nowhere else | {'undead': 3, 'monstrosity': 2, 'construct': 1}
+   mirewater_fens         6 kinds, 5 found nowhere else | {'fey': 2, 'swarm': 1, 'plant': 2, 'giant': 1}
+   ironcrown_peaks        6 kinds, 2 found nowhere else | {'beast': 1, 'giant': 1, 'elemental': 1, 'dragon': 1, 'monstrosity': 1, 'fey': 1}
+   sunken_vaults          6 kinds, 2 found nowhere else | {'plant': 2, 'ooze': 1, 'monstrosity': 1, 'beast': 1, 'swarm': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 4, 'elemental': 2}
+   howling_downs          6 kinds, 2 found nowhere else | {'hostile people': 2, 'monstrosity': 1, 'giant': 1, 'dragon': 2}
+   rimewind_barrens       6 kinds, 3 found nowhere else | {'dragon': 1, 'undead': 1, 'giant': 1, 'monstrosity': 1, 'beast': 1, 'elemental': 1}
+   smoulder_fields        6 kinds, 2 found nowhere else | {'fiend': 1, 'dragon': 1, 'elemental': 1, 'monstrosity': 2, 'hostile people': 1}
+   emerald_mire           6 kinds, 4 found nowhere else | {'beast': 3, 'plant': 1, 'monstrosity': 1, 'construct': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'dragon': 3, 'plant': 1, 'giant': 1}
+   delvers_deep           6 kinds, 1 found nowhere else | {'ooze': 2, 'monstrosity': 2, 'hostile people': 1, 'giant': 1}
+   windbreak_ridge        6 kinds, 3 found nowhere else | {'monstrosity': 2, 'giant': 2, 'elemental': 1, 'beast': 1}
+   wreck_coast            6 kinds, 2 found nowhere else | {'plant': 1, 'monstrosity': 1, 'aberration': 1, 'undead': 1, 'hostile people': 1, 'beast': 1}
+   ash_wastes             6 kinds, 3 found nowhere else | {'elemental': 2, 'undead': 1, 'monstrosity': 1, 'beast': 1, 'monstrous race': 1}
+   deep_roads_tunnels     6 kinds, 4 found nowhere else | {'undead': 1, 'plant': 1, 'elemental': 1, 'monstrosity': 1, 'hostile people': 1, 'fiend': 1}
+   jade_maw_jungle        6 kinds, 2 found nowhere else | {'undead': 1, 'beast': 1, 'dragon': 1, 'hostile people': 1, 'giant': 1, 'plant': 1}
+   stormcrown_heights     6 kinds, 1 found nowhere else | {'dragon': 1, 'elemental': 2, 'hostile people': 1, 'beast': 1, 'giant': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'beast': 1, 'monstrosity': 2, 'plant': 1, 'aberration': 1, 'construct': 1}
+   sepulchre_fields       6 kinds, 3 found nowhere else | {'swarm': 1, 'hostile people': 1, 'undead': 2, 'fey': 1, 'monstrosity': 1}
+   cinder_caldera         6 kinds, 0 found nowhere else | {'hostile people': 1, 'elemental': 2, 'giant': 1, 'fiend': 1, 'construct': 1}
+   x_the_quiet_spot_489   6 kinds, 2 found nowhere else | {'elemental': 1, 'construct': 1, 'monstrosity': 1, 'beast': 1, 'giant': 2}
+   thunder_spires         6 kinds, 0 found nowhere else | {'monstrosity': 3, 'elemental': 1, 'giant': 1, 'hostile people': 1}
+   lightless_deep         6 kinds, 3 found nowhere else | {'ooze': 1, 'hostile people': 1, 'giant': 1, 'monstrosity': 1, 'construct': 1, 'fey': 1}
+
+paladin (seed 42): wild-zone rosters: mean overlap between two zones 0.01; most alike: sunken_vaults/delvers_deep 0.50, northern_tundra/rimewind_barrens 0.33, lightless_deep/sunken_vaults 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 6}
+   greywood               6 kinds, 5 found nowhere else | {'beast': 3, 'dragon': 1, 'monstrous race': 1, 'hostile people': 1}
+   willowmead_wetlands    6 kinds, 6 found nowhere else | {'undead': 2, 'plant': 1, 'beast': 2, 'swarm': 1}
+   greyhollow_foothills   6 kinds, 2 found nowhere else | {'beast': 2, 'hostile people': 2, 'giant': 1, 'monstrosity': 1}
+   great_river_reaches    6 kinds, 4 found nowhere else | {'beast': 2, 'fey': 1, 'swarm': 1, 'monstrosity': 1, 'hostile people': 1}
+   red_badlands           6 kinds, 3 found nowhere else | {'beast': 1, 'hostile people': 4, 'monstrosity': 1}
+   blackpine_forest       6 kinds, 5 found nowhere else | {'monstrosity': 3, 'hostile people': 1, 'giant': 1, 'beast': 1}
+   grey_mountains         6 kinds, 4 found nowhere else | {'giant': 2, 'monstrosity': 2, 'elemental': 1, 'beast': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'construct': 1, 'hostile people': 1, 'swarm': 1, 'monstrosity': 2, 'undead': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'monstrosity': 1, 'beast': 3, 'giant': 1, 'elemental': 1}
+   hollow_barrows         6 kinds, 5 found nowhere else | {'undead': 3, 'aberration': 1, 'monstrosity': 1, 'construct': 1}
+   mirewater_fens         6 kinds, 4 found nowhere else | {'swarm': 1, 'fey': 1, 'giant': 2, 'beast': 1, 'plant': 1}
+   ironcrown_peaks        6 kinds, 4 found nowhere else | {'giant': 4, 'monstrosity': 1, 'fey': 1}
+   sunken_vaults          6 kinds, 0 found nowhere else | {'hostile people': 2, 'beast': 1, 'undead': 1, 'monstrosity': 1, 'giant': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 4, 'elemental': 2}
+   howling_downs          6 kinds, 2 found nowhere else | {'monstrosity': 1, 'hostile people': 2, 'dragon': 3}
+   rimewind_barrens       6 kinds, 3 found nowhere else | {'monstrosity': 1, 'giant': 2, 'elemental': 1, 'undead': 1, 'dragon': 1}
+   smoulder_fields        6 kinds, 2 found nowhere else | {'beast': 1, 'undead': 1, 'hostile people': 1, 'monstrosity': 1, 'fiend': 2}
+   emerald_mire           6 kinds, 4 found nowhere else | {'beast': 2, 'hostile people': 1, 'plant': 3}
+   elderwild              6 kinds, 4 found nowhere else | {'plant': 1, 'dragon': 3, 'hostile people': 1, 'giant': 1}
+   delvers_deep           6 kinds, 0 found nowhere else | {'hostile people': 1, 'fiend': 1, 'monstrosity': 2, 'undead': 1, 'beast': 1}
+   windbreak_ridge        6 kinds, 3 found nowhere else | {'monstrosity': 3, 'beast': 1, 'elemental': 1, 'giant': 1}
+   wreck_coast            6 kinds, 3 found nowhere else | {'elemental': 1, 'undead': 1, 'fey': 1, 'plant': 1, 'monstrosity': 1, 'hostile people': 1}
+   ash_wastes             6 kinds, 1 found nowhere else | {'beast': 1, 'hostile people': 2, 'giant': 1, 'monstrosity': 1, 'fiend': 1}
+   deep_roads_tunnels     6 kinds, 2 found nowhere else | {'ooze': 1, 'plant': 1, 'fiend': 1, 'monstrosity': 2, 'hostile people': 1}
+   jade_maw_jungle        6 kinds, 3 found nowhere else | {'beast': 3, 'monstrosity': 1, 'plant': 1, 'giant': 1}
+   stormcrown_heights     6 kinds, 2 found nowhere else | {'monstrosity': 3, 'giant': 1, 'beast': 1, 'hostile people': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'hostile people': 1, 'construct': 1, 'fey': 1, 'monstrosity': 1, 'undead': 1, 'beast': 1}
+   sepulchre_fields       6 kinds, 6 found nowhere else | {'fey': 1, 'undead': 2, 'monstrosity': 2, 'construct': 1}
+   cinder_caldera         6 kinds, 3 found nowhere else | {'giant': 1, 'beast': 1, 'swarm': 1, 'monstrosity': 1, 'fiend': 1, 'hostile people': 1}
+   thunder_spires         6 kinds, 3 found nowhere else | {'dragon': 2, 'giant': 1, 'monstrosity': 2, 'hostile people': 1}
+   lightless_deep         6 kinds, 2 found nowhere else | {'monstrosity': 1, 'ooze': 1, 'hostile people': 2, 'dragon': 1, 'undead': 1}
+
+monk (seed 11): wild-zone rosters: mean overlap between two zones 0.01; most alike: howling_downs/elderwild 0.33, greyhollow_foothills/red_badlands 0.33, deep_roads_tunnels/sunken_vaults 0.33
+   south_fields           6 kinds, 6 found nowhere else | {'beast': 5, 'swarm': 1}
+   greywood               6 kinds, 5 found nowhere else | {'beast': 4, 'monstrosity': 1, 'monstrous race': 1}
+   willowmead_wetlands    6 kinds, 6 found nowhere else | {'beast': 3, 'swarm': 2, 'undead': 1}
+   greyhollow_foothills   6 kinds, 2 found nowhere else | {'hostile people': 2, 'giant': 2, 'beast': 1, 'monstrosity': 1}
+   great_river_reaches    6 kinds, 6 found nowhere else | {'swarm': 1, 'hostile people': 1, 'plant': 1, 'beast': 1, 'monstrosity': 1, 'undead': 1}
+   red_badlands           6 kinds, 1 found nowhere else | {'hostile people': 4, 'giant': 1, 'beast': 1}
+   blackpine_forest       6 kinds, 2 found nowhere else | {'giant': 1, 'monstrosity': 2, 'hostile people': 1, 'beast': 1, 'fey': 1}
+   grey_mountains         6 kinds, 4 found nowhere else | {'beast': 1, 'lycanthrope': 1, 'monstrosity': 1, 'dragon': 1, 'elemental': 1, 'giant': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'swarm': 1, 'monstrosity': 3, 'undead': 1, 'hostile people': 1}
+   northern_tundra        6 kinds, 4 found nowhere else | {'undead': 1, 'monstrosity': 2, 'beast': 2, 'hostile people': 1}
+   hollow_barrows         6 kinds, 6 found nowhere else | {'construct': 1, 'undead': 3, 'aberration': 1, 'monstrosity': 1}
+   mirewater_fens         6 kinds, 6 found nowhere else | {'fey': 1, 'plant': 2, 'beast': 1, 'giant': 1, 'monstrosity': 1}
+   ironcrown_peaks        6 kinds, 2 found nowhere else | {'fey': 1, 'monstrosity': 2, 'giant': 2, 'elemental': 1}
+   sunken_vaults          6 kinds, 1 found nowhere else | {'plant': 1, 'hostile people': 2, 'beast': 1, 'monstrosity': 2}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 6}
+   howling_downs          6 kinds, 1 found nowhere else | {'hostile people': 2, 'giant': 1, 'dragon': 2, 'monstrosity': 1}
+   rimewind_barrens       6 kinds, 2 found nowhere else | {'beast': 2, 'elemental': 1, 'monstrosity': 1, 'dragon': 1, 'giant': 1}
+   smoulder_fields        6 kinds, 2 found nowhere else | {'elemental': 1, 'swarm': 1, 'monstrosity': 2, 'undead': 1, 'hostile people': 1}
+   emerald_mire           6 kinds, 2 found nowhere else | {'giant': 1, 'fey': 1, 'beast': 1, 'hostile people': 2, 'plant': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'giant': 1, 'dragon': 3, 'plant': 1}
+   delvers_deep           6 kinds, 3 found nowhere else | {'monstrosity': 1, 'swarm': 1, 'fiend': 1, 'ooze': 1, 'beast': 1, 'plant': 1}
+   windbreak_ridge        6 kinds, 2 found nowhere else | {'beast': 2, 'giant': 1, 'dragon': 1, 'elemental': 1, 'hostile people': 1}
+   wreck_coast            6 kinds, 4 found nowhere else | {'monstrosity': 1, 'fey': 2, 'hostile people': 1, 'elemental': 1, 'plant': 1}
+   ash_wastes             6 kinds, 2 found nowhere else | {'beast': 1, 'monstrosity': 1, 'hostile people': 1, 'giant': 1, 'elemental': 2}
+   deep_roads_tunnels     6 kinds, 1 found nowhere else | {'monstrosity': 2, 'plant': 1, 'hostile people': 2, 'undead': 1}
+   jade_maw_jungle        6 kinds, 3 found nowhere else | {'hostile people': 1, 'monstrosity': 2, 'plant': 2, 'beast': 1}
+   stormcrown_heights     6 kinds, 2 found nowhere else | {'elemental': 1, 'beast': 2, 'monstrosity': 2, 'hostile people': 1}
+   drowned_shore          6 kinds, 3 found nowhere else | {'undead': 2, 'construct': 1, 'fey': 1, 'hostile people': 1, 'elemental': 1}
+   sepulchre_fields       6 kinds, 4 found nowhere else | {'monstrosity': 1, 'undead': 4, 'hostile people': 1}
+   cinder_caldera         6 kinds, 2 found nowhere else | {'giant': 1, 'swarm': 1, 'beast': 2, 'monstrosity': 1, 'construct': 1}
+   thunder_spires         6 kinds, 3 found nowhere else | {'elemental': 1, 'monstrosity': 3, 'giant': 2}
+   lightless_deep         6 kinds, 1 found nowhere else | {'ooze': 2, 'swarm': 1, 'giant': 1, 'monstrosity': 1, 'undead': 1}
+
+warlock (seed 99): wild-zone rosters: mean overlap between two zones 0.02; most alike: drowned_shore/wreck_coast 0.50, stormcrown_heights/windbreak_ridge 0.33, stormcrown_heights/thunder_spires 0.33
+   south_fields           6 kinds, 5 found nowhere else | {'beast': 5, 'swarm': 1}
+   greywood               6 kinds, 4 found nowhere else | {'beast': 2, 'hostile people': 1, 'dragon': 1, 'plant': 1, 'giant': 1}
+   x_the_quiet_spot_88    6 kinds, 3 found nowhere else | {'beast': 2, 'monstrous race': 1, 'swarm': 2, 'hostile people': 1}
+   willowmead_wetlands    6 kinds, 5 found nowhere else | {'undead': 1, 'monstrous race': 1, 'swarm': 1, 'beast': 2, 'plant': 1}
+   greyhollow_foothills   6 kinds, 3 found nowhere else | {'lycanthrope': 1, 'hostile people': 2, 'beast': 2, 'monstrosity': 1}
+   great_river_reaches    6 kinds, 3 found nowhere else | {'hostile people': 1, 'swarm': 1, 'plant': 1, 'fey': 1, 'beast': 1, 'undead': 1}
+   red_badlands           6 kinds, 2 found nowhere else | {'giant': 2, 'monstrosity': 2, 'hostile people': 2}
+   blackpine_forest       6 kinds, 3 found nowhere else | {'hostile people': 2, 'fey': 1, 'monstrosity': 2, 'giant': 1}
+   grey_mountains         6 kinds, 4 found nowhere else | {'giant': 3, 'fey': 1, 'dragon': 1, 'monstrosity': 1}
+   sunscar_desert         6 kinds, 5 found nowhere else | {'swarm': 1, 'undead': 1, 'monstrosity': 2, 'construct': 1, 'hostile people': 1}
+   northern_tundra        6 kinds, 3 found nowhere else | {'monstrosity': 2, 'giant': 1, 'beast': 2, 'hostile people': 1}
+   hollow_barrows         6 kinds, 5 found nowhere else | {'undead': 2, 'aberration': 1, 'monstrosity': 2, 'construct': 1}
+   mirewater_fens         6 kinds, 4 found nowhere else | {'giant': 1, 'plant': 1, 'monstrosity': 1, 'swarm': 1, 'fey': 2}
+   ironcrown_peaks        6 kinds, 5 found nowhere else | {'beast': 1, 'monstrosity': 1, 'giant': 3, 'elemental': 1}
+   sunken_vaults          6 kinds, 3 found nowhere else | {'giant': 1, 'ooze': 1, 'undead': 1, 'monstrosity': 1, 'beast': 1, 'swarm': 1}
+   cracked_plains         6 kinds, 6 found nowhere else | {'fiend': 4, 'elemental': 2}
+   howling_downs          6 kinds, 2 found nowhere else | {'hostile people': 2, 'dragon': 2, 'monstrosity': 1, 'giant': 1}
+   rimewind_barrens       6 kinds, 3 found nowhere else | {'beast': 1, 'monstrosity': 1, 'dragon': 2, 'elemental': 1, 'giant': 1}
+   smoulder_fields        6 kinds, 2 found nowhere else | {'monstrous race': 1, 'elemental': 2, 'fiend': 1, 'swarm': 1, 'monstrosity': 1}
+   emerald_mire           6 kinds, 3 found nowhere else | {'plant': 3, 'monstrosity': 2, 'beast': 1}
+   elderwild              6 kinds, 3 found nowhere else | {'hostile people': 1, 'dragon': 3, 'plant': 1, 'giant': 1}
+   delvers_deep           6 kinds, 3 found nowhere else | {'plant': 1, 'monstrosity': 2, 'giant': 1, 'hostile people': 2}
+   windbreak_ridge        6 kinds, 3 found nowhere else | {'giant': 2, 'beast': 2, 'monstrosity': 1, 'elemental': 1}
+   wreck_coast            6 kinds, 2 found nowhere else | {'elemental': 1, 'undead': 1, 'fey': 1, 'monstrosity': 1, 'hostile people': 1, 'beast': 1}
+   ash_wastes             6 kinds, 3 found nowhere else | {'hostile people': 1, 'swarm': 1, 'monstrosity': 2, 'dragon': 1, 'elemental': 1}
+   deep_roads_tunnels     6 kinds, 2 found nowhere else | {'swarm': 1, 'giant': 1, 'aberration': 1, 'ooze': 1, 'fiend': 1, 'construct': 1}
+   jade_maw_jungle        6 kinds, 3 found nowhere else | {'beast': 1, 'plant': 2, 'monstrosity': 2, 'fey': 1}
+   stormcrown_heights     6 kinds, 1 found nowhere else | {'beast': 2, 'dragon': 1, 'giant': 2, 'elemental': 1}
+   drowned_shore          6 kinds, 2 found nowhere else | {'plant': 1, 'undead': 1, 'elemental': 1, 'fey': 1, 'monstrosity': 2}
+   sepulchre_fields       6 kinds, 6 found nowhere else | {'undead': 4, 'monstrosity': 1, 'elemental': 1}
+   cinder_caldera         6 kinds, 3 found nowhere else | {'giant': 1, 'swarm': 1, 'dragon': 1, 'hostile people': 1, 'construct': 1, 'elemental': 1}
+   thunder_spires         6 kinds, 3 found nowhere else | {'elemental': 1, 'construct': 1, 'giant': 3, 'beast': 1}
+   lightless_deep         6 kinds, 3 found nowhere else | {'ooze': 1, 'monstrosity': 4, 'giant': 1}
+
+Same place, different campaigns (roster overlap between seeds):
+   south_fields           mean overlap 0.37
+   greywood               mean overlap 0.16
+   willowmead_wetlands    mean overlap 0.30
+   greyhollow_foothills   mean overlap 0.29
+   blackpine_forest       mean overlap 0.37
+   grey_mountains         mean overlap 0.33
+   northern_tundra        mean overlap 0.54
+   great_river_reaches    mean overlap 0.66
+   red_badlands           mean overlap 0.44
+   sunscar_desert         mean overlap 0.48
+   ash_wastes             mean overlap 0.16
+   cinder_caldera         mean overlap 0.16
+   stormcrown_heights     mean overlap 0.19
+   thunder_spires         mean overlap 0.16
+   deep_roads_tunnels     mean overlap 0.16
+   lightless_deep         mean overlap 0.22
+   drowned_shore          mean overlap 0.25
+   jade_maw_jungle        mean overlap 0.18
+   sepulchre_fields       mean overlap 0.15
+   hollow_barrows         mean overlap 0.62
+   mirewater_fens         mean overlap 0.49
+   ironcrown_peaks        mean overlap 0.35
+   sunken_vaults          mean overlap 0.20
+   howling_downs          mean overlap 0.94
+   rimewind_barrens       mean overlap 0.60
+   elderwild              mean overlap 1.00
+   smoulder_fields        mean overlap 0.22
+   windbreak_ridge        mean overlap 0.17
+   emerald_mire           mean overlap 0.25
+   wreck_coast            mean overlap 0.27
+   delvers_deep           mean overlap 0.17
+
+====================================================================================================
+8b. TOWNS: what each settlement offers
+====================================================================================================
+240 settlements/places with people. mean overlap of offerings between two settlements: 0.01
+most alike: road_deec8f65/road_d42a0480 1.00, road_deec8f65/road_b5d0ffe5 1.00, road_deec8f65/road_9c1d25b7 1.00, road_deec8f65/road_76681101 1.00, road_deec8f65/road_21681190 1.00
+
+place             type     people  roles  trade lv stock best item lv top rarity avg price(s)
+parth             town         24     10    [1, 6]    28            6   uncommon           31
+trading_square    square        3      3    [1, 6]     4            5     common           37
+watch_tower       guardpost      5      2    [1, 5]     0            0          -            0
+guild_house       guild         8      6    [1, 5]     6            5   uncommon           16
+tilted_plough     inn           4      4    [1, 5]     0            0          -            0
+parth_temple      temple        2      2    [1, 5]     0            0          -            0
+willowmead        village       8      7    [1, 6]     8            6   uncommon           75
+eldervale_guild   guild         7      6    [1, 5]     6            4     common           32
+ironvein_guild    guild         7      6    [1, 5]    14            5   uncommon           33
+frostholm_guild   guild         6      5    [1, 5]     6            5   uncommon           14
+riverhaven_guild  guild         7      6    [1, 5]     6            5   uncommon           47
+sunspire_guild    guild         6      5    [1, 5]     6            5     common            8
+valecourt_guild   guild         6      5    [1, 5]     6            5     common            8
+cinderhold_guild  guild         6      5    [1, 5]     6            5   uncommon           43
+hrimgard_guild    guild         6      5    [1, 5]     6            4     common           15
+dunmarrow_guild   guild         6      5    [1, 5]     6            5     common           18
+road_cdd9486a     road          1      1    [1, 5]     8            4     common           27
+road_deec8f65     road          1      1    [1, 5]     8            5     common           12
+road_4396524d     road          1      1    [1, 5]     8            5     common           25
+road_76681101     road          1      1    [1, 5]     8            5   uncommon           40
+road_b5d0ffe5     road          1      1    [1, 5]     8            5   uncommon           40
+road_94e6134f     road          1      1    [1, 5]     8            5   uncommon           55
+road_aad83e59     road          1      1    [1, 5]     8            4   uncommon           13
+road_86e8ba9b     road          1      1    [1, 5]     8            5     common           10
+road_955fa46b     road          1      1    [1, 5]     8            5     common            7
+road_21681190     road          1      1    [1, 5]     8            5     common           21
+road_9c1d25b7     road          1      1    [1, 5]     8            5   uncommon           52
+road_7b63e55e     road          1      1    [1, 5]     8            5     common           22
+road_10816cdc     road          1      1    [1, 5]     8            5   uncommon           46
+road_a8f746dc     road          1      1    [1, 5]     8            4     common           10
+road_23b768ac     road          1      1    [1, 5]     8            4   uncommon            6
+road_30b340e3     road          1      1    [1, 5]     8            5   uncommon           48
+road_a8ee9a63     road          1      1    [1, 5]     8            5   uncommon           20
+road_dd13d6e8     road          1      1    [1, 5]     8            5     common           21
+road_d42a0480     road          1      1    [1, 5]     8            5     common           12
+road_ef3664d4     road          1      1    [1, 5]     8            5     common            4
+road_260e607b     road          1      1    [1, 5]     8            5   uncommon           14
+greyhollow        town         11      7   [4, 14]     8           14   uncommon           64
+redstone          town          8      8   [8, 22]    16           22   uncommon           48
+riverhaven        city          9      7  [10, 35]    24           34   uncommon           75
+eldervale         city          8      7  [15, 40]     0            0          -            0
+ironvein          city         14     11  [15, 45]    16           44   uncommon          100
+frostholm         city         10      9  [20, 45]    12           45   uncommon          106
+sunspire          city         15     11  [20, 50]    16           49   uncommon           76
+valecourt         city         24     16  [20, 60]    16           59   uncommon          102
+brinewatch        city         14      9 [60, 100]    16           96     common          970
+amaranth          city         15     12 [65, 105]    20          100   uncommon          388
+cinderhold        city         19     12 [70, 115]    56          115   uncommon          927
+hrimgard          city         11      9 [80, 125]    28          124   uncommon         1430
+dunmarrow         city         16     10 [90, 135]    32          135   uncommon         1081
+
+Can a character find gear at their level? (best stock item level available anywhere)
+   level 10: 12 towns sell gear within 80% of that level (greyhollow, ironvein, frostholm, riverhaven, redstone)
+   level 25: 11 towns sell gear within 80% of that level (ironvein, frostholm, riverhaven, redstone, sunspire)
+   level 40: 10 towns sell gear within 80% of that level (ironvein, frostholm, riverhaven, sunspire, valecourt)
+   level 55: 9 towns sell gear within 80% of that level (ironvein, frostholm, sunspire, valecourt, cinderhold)
+   level 70: 6 towns sell gear within 80% of that level (valecourt, cinderhold, hrimgard, dunmarrow, brinewatch)
+   highest-level item for sale anywhere: 135
+
+====================================================================================================
+9. DOES THE WORLD MOVE WHILE YOU PLAY?
+====================================================================================================
+
+warrior: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 32 situations {'normal': 24, 'uncommon': 5, 'cataclysm': 1, 'rare': 2} outcomes {'ended': 18, 'resolved': 12, 'active': 2} | history 200 | news 300 | live effects 5
+   people: 325 generated, 85 met, 10 with an active motive, 55 with a mood, 50 relationships | gone: 91
+   campaign-defining events: 0; reputation: None
+
+mage: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 31 situations {'normal': 23, 'uncommon': 6, 'rare': 1, 'cataclysm': 1} outcomes {'resolved': 14, 'ended': 16, 'active': 1} | history 193 | news 300 | live effects 1
+   people: 239 generated, 81 met, 13 with an active motive, 20 with a mood, 12 relationships | gone: 48
+   campaign-defining events: 0; reputation: None
+
+summoner: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 30 situations {'normal': 23, 'uncommon': 5, 'rare': 1, 'campaign': 1} outcomes {'ended': 17, 'resolved': 13} | history 200 | news 300 | live effects 5
+   people: 336 generated, 157 met, 20 with an active motive, 44 with a mood, 14 relationships | gone: 116
+   campaign-defining events: 1; reputation: None
+
+priest: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 30 situations {'uncommon': 6, 'normal': 21, 'rare': 2, 'campaign': 1} outcomes {'resolved': 10, 'ended': 20} | history 200 | news 300 | live effects 4
+   people: 280 generated, 107 met, 19 with an active motive, 53 with a mood, 43 relationships | gone: 89
+   campaign-defining events: 1; reputation: None
+
+ranger: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 30 situations {'normal': 27, 'uncommon': 2, 'rare': 1} outcomes {'ended': 15, 'resolved': 15} | history 181 | news 300 | live effects 3
+   people: 207 generated, 66 met, 11 with an active motive, 19 with a mood, 10 relationships | gone: 61
+   campaign-defining events: 0; reputation: None
+
+bard: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 32 situations {'normal': 27, 'uncommon': 3, 'campaign': 1, 'rare': 1} outcomes {'ended': 16, 'resolved': 14, 'active': 2} | history 200 | news 300 | live effects 1
+   people: 364 generated, 150 met, 15 with an active motive, 64 with a mood, 43 relationships | gone: 134
+   campaign-defining events: 1; reputation: None
+
+smith: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 31 situations {'normal': 24, 'uncommon': 4, 'rare': 2, 'cataclysm': 1} outcomes {'ended': 20, 'resolved': 10, 'active': 1} | history 200 | news 300 | live effects 11
+   people: 216 generated, 90 met, 14 with an active motive, 22 with a mood, 18 relationships | gone: 57
+   campaign-defining events: 0; reputation: None
+
+paladin: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 33 situations {'cataclysm': 1, 'normal': 23, 'uncommon': 7, 'rare': 2} outcomes {'active': 3, 'ended': 15, 'resolved': 15} | history 200 | news 300 | live effects 8
+   people: 384 generated, 168 met, 31 with an active motive, 38 with a mood, 33 relationships | gone: 164
+   campaign-defining events: 0; reputation: None
+
+monk: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 32 situations {'cataclysm': 1, 'rare': 5, 'normal': 23, 'uncommon': 3} outcomes {'active': 2, 'ended': 15, 'resolved': 15} | history 200 | news 300 | live effects 7
+   people: 337 generated, 143 met, 24 with an active motive, 32 with a mood, 20 relationships | gone: 107
+   campaign-defining events: 0; reputation: None
+
+warlock: town arrivals 0 | something going on (situation/news/price change): - | with a visible situation - | with news to hear - | prices off normal -
+   pulse: 32 situations {'normal': 23, 'uncommon': 7, 'rare': 2} outcomes {'resolved': 13, 'ended': 17, 'active': 2} | history 200 | news 300 | live effects 2
+   people: 261 generated, 67 met, 4 with an active motive, 44 with a mood, 34 relationships | gone: 62
+   campaign-defining events: 0; reputation: None
+
+====================================================================================================
+10. BUGS AND ERRORS
+====================================================================================================
+    2x [paladin,summoner] FileNotFoundError: [Errno 2] No such file or directory: 'logs/llm_calls.tmp' -> 'logs/llm_calls.jsonl' 
+        File "/usr/lib/python3.13/pathlib/_local.py", line 780, in replace | os.replace(self, target) | ~~~~~~~~~~^^^^^^^^^^^^^^ | FileNotFoundError: [Errno 2] No such file or directory: 'logs/llm_calls.tmp' -> 'logs/llm_calls.jsonl'
+
+invariant violations: {'warrior': {}, 'mage': {'health_over_max': (16, '686.0')}, 'summoner': {'health_over_max': (5, '1912.0')}, 'priest': {'health_over_max': (12, '1005')}, 'ranger': {'health_over_max': (6, '422.0')}, 'bard': {'health_over_max': (6, '1484.0')}, 'smith': {}, 'paladin': {}, 'monk': {'health_over_max': (4, '320.0')}, 'warlock': {'health_over_max': (13, '1160.0')}}
+
+====================================================================================================
+11. MODEL CALLS (the real-time cost with a local model)
+====================================================================================================
+warrior: 47,880 requests over 1176 game days / 21299 steps: Narration 22,351, CombatIntent 13,688, ActionPlan 7,595, RoadEvent 1,008, NPCReply 919, DialogueFrame 919
+mage: 19,394 requests over 368 game days / 8671 steps: Narration 8,747, CombatIntent 4,850, ActionPlan 3,775, NPCReply 510, DialogueFrame 510, RoadEvent 343
+summoner: 27,203 requests over 633 game days / 12065 steps: Narration 12,317, ActionPlan 7,719, CombatIntent 4,300, NPCReply 675, DialogueFrame 675, RoadEvent 593
+priest: 31,073 requests over 1360 game days / 13127 steps: Narration 14,088, CombatIntent 7,727, ActionPlan 5,363, RoadEvent 1,353, NPCReply 735, DialogueFrame 735
+ranger: 23,717 requests over 367 game days / 10798 steps: Narration 11,026, CombatIntent 6,550, ActionPlan 4,197, NPCReply 562, DialogueFrame 562, RoadEvent 268
+bard: 40,370 requests over 1183 game days / 17809 steps: Narration 18,538, CombatIntent 10,785, ActionPlan 6,947, RoadEvent 1,020, NPCReply 852, DialogueFrame 852
+smith: 25,883 requests over 490 game days / 11643 steps: Narration 11,656, CombatIntent 6,718, ActionPlan 4,885, NPCReply 644, DialogueFrame 644, RoadEvent 411
+paladin: 32,262 requests over 878 game days / 14129 steps: Narration 14,587, CombatIntent 7,895, ActionPlan 6,216, NPCReply 833, DialogueFrame 833, RoadEvent 650
+monk: 27,907 requests over 540 game days / 12524 steps: Narration 12,881, CombatIntent 7,876, ActionPlan 4,569, NPCReply 593, DialogueFrame 593, RoadEvent 422
+warlock: 32,163 requests over 845 game days / 14084 steps: Narration 14,972, CombatIntent 9,390, ActionPlan 4,629, RoadEvent 887, NPCReply 569, DialogueFrame 569
+(at roughly 2-4 seconds per call on a local 12B model, 100,000 calls is 55-110 hours of waiting)
+
+====================================================================================================
+12. END GAME (levels 100-150): is it too easy?
+====================================================================================================
+class      d100  d125  d150 | deaths 1-99 / 100+ | rank S? | far kills | hall | legendaries | coin(gold)
+warrior     789  1054     - |        52 / 8     |       D |       645 | frostholm_guild  |    4 | 361
+mage        278   325   368 |        10 / 0     |       S |       275 | frostholm_guild  |   10 | 13,406
+summoner    420   454   633 |        19 / 3     |       S |       420 | frostholm_guild  |   12 | 716
+priest      720   832  1360 |        39 / 1     |       D |       585 | frostholm_guild  |    8 | 1,144
+ranger      258   310     - |        10 / 1     |       S |       125 | frostholm_guild  |   12 | 1,940
+bard        668   981  1182 |        21 / 7     |       S |       420 | frostholm_guild  |    1 | 538
+smith       435   461   490 |        35 / 0     |       S |       463 | frostholm_guild  |    7 | 1,557
+paladin     541   752     - |        23 / 8     |       D |       686 | frostholm_guild  |    5 | 260
+monk        443   475   540 |        27 / 1     |       S |       449 | frostholm_guild  |    2 | 612
+warlock     381   549     - |        12 / 3     |       C |       683 | frostholm_guild  |    6 | 293
+
+How hard the fights are, by band (pooled over classes): win%, fled%, died%, avg rounds, avg health lost, foe level vs yours
+       1-9 n=  386 win  64% fled  26% died   9% rounds   6.3 hp-lost  27% rating 0.70 foe -1.2
+     10-19 n=  871 win  76% fled  20% died   4% rounds   5.4 hp-lost  18% rating 0.77 foe -5.1
+     20-34 n= 1438 win  87% fled  10% died   3% rounds   5.1 hp-lost  14% rating 0.88 foe -8.7
+     35-49 n= 1115 win  78% fled  16% died   6% rounds   6.9 hp-lost  20% rating 0.80 foe -5.4
+     50-64 n=  998 win  87% fled   9% died   3% rounds   7.8 hp-lost  19% rating 0.89 foe -8.3
+     65-79 n= 1122 win  88% fled  11% died   1% rounds   6.6 hp-lost  14% rating 0.87 foe -11.8
+     80-99 n= 1115 win  92% fled   7% died   1% rounds   8.5 hp-lost  12% rating 0.91 foe -9.8
+   100-124 n= 1787 win  91% fled   8% died   1% rounds   7.5 hp-lost   8% rating 0.91 foe -18.4
+   125-150 n= 2698 win  91% fled   8% died   1% rounds   7.2 hp-lost   7% rating 0.91 foe -28.6
+
+Per class, fights at level 100+: n, win%, avg health lost, share of fights that cost under 25% health, deaths
+  warrior   n= 764 win  87% hp-lost  12% easy  83% deaths 8 rounds 7.2
+  mage      n= 323 win  95% hp-lost   1% easy  98% deaths 0 rounds 5.5
+  summoner  n= 373 win  91% hp-lost  10% easy  89% deaths 3 rounds 3.4
+  priest    n= 457 win 100% hp-lost   5% easy  96% deaths 1 rounds 7.2
+  ranger    n= 338 win  91% hp-lost  10% easy  89% deaths 1 rounds 6.9
+  bard      n= 511 win  88% hp-lost   5% easy  92% deaths 7 rounds 8.7
+  smith     n= 278 win 100% hp-lost   6% easy  95% deaths 0 rounds 9.6
+  paladin   n= 533 win  90% hp-lost  15% easy  79% deaths 8 rounds 6.0
+  monk      n= 376 win  88% hp-lost   4% easy  94% deaths 1 rounds 7.6
+  warlock   n= 537 win  90% hp-lost   1% easy  99% deaths 3 rounds 10.4
+
+What they died to at level 100+ (pooled):
+  wraith_lord 3, young_blue_dragon 3, doomhound 2, glacier_drake 2, treasure_wyrm 2, barrow_king 2, stone_colossus_warden 2, temple_guardian_serpent 2, wind_elemental_lord 2, young_gold_dragon 1, lost_legion_soldier 1, manticore_alpha 1
+
+Gear at the end (slot: rarity, item level), and what was found over the run:
+  warrior   neck:leg40, ring_1:unc100, main_hand:cru127, head:unc141, hands:com109, body:rar147, feet:rar95, ring_2:leg72
+            found {'crude': 7, 'uncommon': 58, 'common': 94, 'rare': 14, 'legendary': 4} | legendaries [('steel amulet with moonstone', 'amulet', 'honeyed', 'lv34'), ('Koroth', 'soft_slippers', 'briarward', 'lv146'), ('Thardra', 'leather', 'spellward', 'lv146'), ('Tharwyn', 'ring', '', 'lv146')]
+  mage      ring_1:leg16, main_hand:unc95, head:cru115, neck:leg66, hands:cru130, feet:unc89, ring_2:leg106, body:leg161
+            found {'crude': 10, 'common': 67, 'uncommon': 46, 'rare': 19, 'epic': 6, 'legendary': 10} | legendaries [('Vaelmund', 'amulet', '', 'lv26'), ('Braniel', 'ring', '', 'lv31'), ('Vaelwyn', 'ring', '', 'lv37'), ('Korgar', 'ring', '', 'lv54'), ('Kordra', 'amulet', '', 'lv80')]
+  summoner  ring_1:leg12, ring_2:leg20, body:com104, hands:com113, feet:com102, main_hand:unc140, head:leg154, off_hand:com3, neck:leg57
+            found {'uncommon': 56, 'common': 75, 'crude': 3, 'rare': 25, 'legendary': 12, 'epic': 5} | legendaries [('Isilith', 'longbow', 'dragonslayer', 'lv13'), ('Mordra', 'amulet', '', 'lv20'), ('Isilwyn', 'ring', '', 'lv24'), ('Sylwyn', 'gauntlets', 'unyielding', 'lv29'), ('Korwyn', 'club', 'giantsbane', 'lv29')]
+  priest    ring_1:leg31, main_hand:leg103, off_hand:com116, hands:com110, ring_2:rar103, body:leg138, feet:leg118, neck:leg108, head:unc91
+            found {'crude': 6, 'common': 82, 'uncommon': 54, 'legendary': 8, 'rare': 17, 'epic': 3} | legendaries [('cold iron shortsword', 'shortsword', 'rending', 'lv23'), ('Isilwyn', 'amulet', 'hearthfire', 'lv77'), ('Sylwyn', 'ring', '', 'lv81'), ('Tharith', 'spirit_totem', 'thunderous', 'lv89'), ('Syliel', 'chainmail', 'triumph', 'lv142')]
+  ranger    ring_1:com32, neck:leg80, body:unc119, feet:unc117, head:com121, hands:com106, main_hand:com122, ring_2:leg74, off_hand:com123
+            found {'uncommon': 55, 'rare': 19, 'epic': 12, 'common': 63, 'crude': 2, 'legendary': 12} | legendaries [('Braniel', 'amulet', 'phoenix', 'lv48'), ('Vaeliel', 'amulet', '', 'lv57'), ('Moriel', 'ring', 'bone_hoard', 'lv80'), ('Koriel', 'longbow', 'rootcleaver', 'lv85'), ('Tharoth', 'amulet', '', 'lv85')]
+  bard      ring_1:com10, ring_2:leg17, main_hand:rar94, hands:cru131, head:com128, neck:unc75, feet:unc96, body:unc140
+            found {'crude': 6, 'rare': 21, 'common': 100, 'uncommon': 54, 'epic': 7, 'legendary': 1} | legendaries [('Koroth', 'ring', '', 'lv34')]
+  smith     ring_1:leg19, hands:com106, neck:leg30, body:com103, feet:com109, head:unc124, ring_2:leg132, main_hand:unc125
+            found {'crude': 11, 'uncommon': 68, 'common': 92, 'rare': 35, 'epic': 25, 'legendary': 7} | legendaries [('Isilmund', 'robe', 'riposte', 'lv27'), ('Korgar', 'ring', '', 'lv27'), ('Thargar', 'shortsword', 'relentless', 'lv39'), ('Vaelwyn', 'iron_helm', 'monsterward', 'lv61'), ('Branwyn', 'amulet', '', 'lv61')]
+  paladin   ring_1:com13, hands:leg99, feet:cru114, head:com113, main_hand:com123, body:com125, neck:leg102, ring_2:com103
+            found {'common': 99, 'crude': 6, 'uncommon': 55, 'epic': 4, 'rare': 5, 'legendary': 5} | legendaries [('Korgar', 'battleaxe', 'terrify', 'lv35'), ('Kormund', 'ring', '', 'lv35'), ('steel gauntlets', 'gauntlets', 'sanctified', 'lv93'), ('Drendra', 'torc', 'waywise', 'lv135'), ('Drenmund', 'torc', '', 'lv135')]
+  monk      ring_1:com16, neck:leg40, feet:com112, main_hand:leg90, hands:com114, body:com109, ring_2:unc52, head:rar110, off_hand:unc116
+            found {'common': 69, 'crude': 7, 'uncommon': 59, 'rare': 11, 'epic': 6, 'legendary': 2} | legendaries [('Kordra', 'iron_boots', 'aegis', 'lv54'), ('Kormund', 'amulet', '', 'lv79')]
+  warlock   neck:leg20, ring_1:leg22, main_hand:rar99, head:unc99, hands:com126, feet:unc97, ring_2:leg87, body:com158
+            found {'common': 93, 'crude': 6, 'rare': 21, 'uncommon': 48, 'legendary': 6, 'epic': 4} | legendaries [('Isilwyn', 'boots', 'retribution', 'lv29'), ('Koriel', 'amulet', '', 'lv40'), ('Koroth', 'amulet', '', 'lv42'), ('Isilmund', 'greatsword', 'frostbite', 'lv48'), ('Thardra', 'ring', '', 'lv56')]
+
+Wealth: homes and relics bought, coin at the end
+  warrior   homes ['cinderhold'] relics [] wealth buys [] coin 361 gold
+  mage      homes ['cinderhold', 'hrimgard'] relics ['galewards_band', 'giantskin_mantle'] wealth buys [('house', 'hrimgard'), ('relic', 'the Gale-Ward Band'), ('relic', 'the Giantskin Mantle')] coin 13,406 gold
+  summoner  homes [] relics [] wealth buys [] coin 716 gold
+  priest    homes ['cinderhold'] relics ['pyrewalker_greaves', 'cinderqueens_torc'] wealth buys [('relic', "the Cinderqueen's Torc")] coin 1,144 gold
+  ranger    homes ['brinewatch'] relics ['greenwardens_ring', 'delvers_lantern'] wealth buys [('relic', "the Greenwarden's Ring"), ('relic', "the Delver's Lantern")] coin 1,940 gold
+  bard      homes [] relics [] wealth buys [] coin 538 gold
+  smith     homes ['dunmarrow'] relics [] wealth buys [] coin 1,557 gold
+  paladin   homes [] relics [] wealth buys [] coin 260 gold
+  monk      homes [] relics [] wealth buys [] coin 612 gold
+  warlock   homes ['brinewatch'] relics [] wealth buys [] coin 293 gold
+
+Mana (casters) and parties/camps
+  warrior   mana: hit empty in 0/1894 fights, dry-round share 0.00, avg low point 1.00 | party fell 7 | camps 8
+  mage      mana: hit empty in 138/714 fights, dry-round share 0.04, avg low point 0.48 | party fell 0 | camps 46
+  summoner  mana: hit empty in 99/898 fights, dry-round share 0.07, avg low point 0.52 | party fell 4 | camps 43
+  priest    mana: hit empty in 327/1330 fights, dry-round share 0.10, avg low point 0.40 | party fell 2 | camps 7
+  ranger    mana: hit empty in 13/970 fights, dry-round share 0.00, avg low point 0.90 | party fell 0 | camps 51
+  bard      mana: hit empty in 794/1386 fights, dry-round share 0.25, avg low point 0.27 | party fell 8 | camps 77
+  smith     mana: hit empty in 0/860 fights, dry-round share 0.00, avg low point 1.00 | party fell 9 | camps 12
+  paladin   mana: hit empty in 522/1333 fights, dry-round share 0.24, avg low point 0.23 | party fell 6 | camps 7
+  monk      mana: hit empty in 0/1071 fights, dry-round share 0.00, avg low point 1.00 | party fell 6 | camps 79
+  warlock   mana: hit empty in 330/1079 fights, dry-round share 0.08, avg low point 0.39 | party fell 3 | camps 60

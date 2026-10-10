@@ -1,0 +1,608 @@
+# NAMED RELICS - fixed, hand-made legendary items sold in the great cities by a relic dealer. This is the POOL: each new
+# campaign draws one relic per dealer town from it (engine/property.stock), so every run has a different shelf. One of each
+# in a run; once bought, a relic is gone from the shelf for good. Prices are in copper (10,000 = 1 gold).
+# base/material/effect must exist in the catalog, materials and legendary_effects. Properties are fixed, not rolled.
+
+- id: kingsfall
+  name: Kingsfall
+  title: the Blade of Valecourt
+  base: longsword
+  material: quicksilver
+  level: 78
+  effect: executioner
+  properties: [{modifies: damage, magnitude: 12}, {modifies: accuracy, magnitude: 8}, {modifies: persuasion, trigger: in_settlements, magnitude: 10}, {modifies: resolve, magnitude: 6}]
+  description: A court-made blade of quicksilver steel, said to have ended three pretenders to the throne. It has never been notched.
+  price: 8000000
+
+- id: sunwardens_mail
+  name: Sunwarden's Mail
+  title: gold-bright and heat-proof
+  base: chainmail
+  material: sunsteel
+  level: 92
+  effect: sanctified
+  properties: [{modifies: defense, magnitude: 14}, {modifies: max_health, magnitude: 12}, {modifies: recovery, magnitude: 6}, {modifies: evasion, trigger: in_daylight, magnitude: 10}]
+  description: Rings of sunsteel that drink the desert light and give it back as warmth. The wardens of the Sunspire wore it on the long watch.
+  price: 9000000
+
+- id: deepforge_aegis
+  name: the Deepforge Aegis
+  title: shield of the lower halls
+  base: tower_shield
+  material: gravesteel
+  level: 66
+  effect: aegis
+  properties: [{modifies: defense, magnitude: 14}, {modifies: max_stamina, magnitude: 12}, {modifies: defense, trigger: against_large_foes, magnitude: 10}, {modifies: damage, magnitude: 6}]
+  description: Beaten out in the deepest forge of Ironvein and quenched in the black water below it. Giants' clubs ring off it like bells.
+  price: 5000000
+
+- id: whisperstring
+  name: Whisperstring
+  title: the Eldervale longbow
+  base: longbow
+  material: ironwood
+  level: 70
+  effect: rending
+  properties: [{modifies: accuracy, magnitude: 14}, {modifies: stealth, magnitude: 12}, {modifies: perception, magnitude: 10}, {modifies: evasion, trigger: in_wilderness, magnitude: 8}]
+  description: Grown, not carved - a single ironwood limb coaxed into a bow by three generations of Eldervale's bowyers. Its string makes no sound at all.
+  price: 5500000
+
+- id: frostwolf_mantle
+  name: the Frostwolf Mantle
+  title: worn by a winter chieftain
+  base: studded
+  material: winter_wolf_pelt
+  level: 64
+  effect: last_stand
+  properties: [{modifies: max_health, magnitude: 14}, {modifies: defense, trigger: in_arctic, magnitude: 14}, {modifies: resolve, magnitude: 8}, {modifies: intimidation, magnitude: 10}]
+  description: Pelts of the great white wolves of the tundra, sewn by a chieftain's own hand. The cold that kills others passes it by.
+  price: 4000000
+
+- id: tidecallers_staff
+  name: the Tidecaller's Staff
+  title: of the river reaches
+  base: arcane_staff
+  material: drake_bone
+  level: 82
+  effect: spellblade
+  properties: [{modifies: max_mana, magnitude: 16}, {modifies: lore, magnitude: 12}, {modifies: damage, magnitude: 8}, {modifies: recovery, magnitude: 8}]
+  description: A staff of drake bone, bound in river-silver. The water of the Great River is said to answer to whoever holds it.
+  price: 6000000
+
+- id: ashen_locket
+  name: the Ashen Locket
+  title: that has burned and not been consumed
+  base: amulet
+  material: wyrmgold
+  level: 70
+  effect: phoenix
+  properties: [{modifies: max_health, magnitude: 12}, {modifies: resolve, magnitude: 10}, {modifies: max_mana, magnitude: 10}, {modifies: defense, trigger: in_daylight, magnitude: 6}]
+  description: A locket of blackened gold holding a single grey feather. Its first wearer is said to have died seven times and been buried none.
+  price: 7000000
+
+- id: greenwardens_ring
+  name: the Greenwarden's Ring
+  title: signet of the old forest
+  base: ring
+  material: moonsilver
+  level: 60
+  effect: wildkin
+  properties: [{modifies: stealth, trigger: in_wilderness, magnitude: 14}, {modifies: perception, magnitude: 10}, {modifies: max_health, magnitude: 10}, {modifies: persuasion, trigger: in_wilderness, magnitude: 8}]
+  description: Moon-pale silver grown through with a living root. Foxes sit at its wearer's feet, and wolves look away.
+  price: 4200000
+
+- id: stormwalkers_band
+  name: the Stormwalker's Band
+  title: that has outrun weather
+  base: ring
+  material: stormbrass
+  level: 62
+  effect: waywise
+  properties: [{modifies: evasion, magnitude: 10}, {modifies: stealth, magnitude: 8}, {modifies: max_stamina, magnitude: 12}, {modifies: perception, trigger: in_wilderness, magnitude: 8}]
+  description: Worn on a hundred roads and loosened by none. No gate stays shut to its wearer, and no pass is truly closed.
+  price: 3800000
+
+- id: eye_of_the_far_watch
+  name: the Eye of the Far Watch
+  title: that sees what is coming
+  base: amulet
+  material: glassteel
+  level: 66
+  effect: farsight
+  properties: [{modifies: perception, magnitude: 14}, {modifies: insight, magnitude: 10}, {modifies: resolve, magnitude: 6}, {modifies: stealth, trigger: at_night, magnitude: 10}]
+  description: A glass eye on a steel chain, taken from a tower that fell a thousand years ago. Its wearer is never surprised.
+  price: 4500000
+
+- id: murmur
+  name: Murmur
+  title: the stone that answers
+  base: amulet
+  material: starmetal
+  level: 66
+  effect: whisperer
+  properties: [{modifies: lore, magnitude: 14}, {modifies: max_mana, magnitude: 12}, {modifies: damage, magnitude: 6}, {modifies: perception, magnitude: 8}]
+  description: A pendant that hums when a question is asked near it. Something on the other side of the metal always knows.
+  price: 5200000
+
+- id: silvertongue_ring
+  name: the Silvertongue Ring
+  title: that no one could refuse
+  base: ring
+  material: wyrmgold
+  level: 58
+  effect: honeyed
+  properties: [{modifies: persuasion, magnitude: 14}, {modifies: deception, magnitude: 10}, {modifies: performance, magnitude: 14}, {modifies: insight, magnitude: 6}]
+  description: Set with a stone that is not quite any colour. Even a refusal sounds like the beginning of a yes.
+  price: 3600000
+
+- id: thieftakers_signet
+  name: the Thieftaker's Signet
+  title: that feels every trap
+  base: ring
+  material: sunsteel
+  level: 60
+  effect: trapseer
+  properties: [{modifies: crafting, magnitude: 14}, {modifies: perception, magnitude: 10}, {modifies: accuracy, magnitude: 8}, {modifies: stealth, magnitude: 8}]
+  description: Taken from the hand of the city's last great thieftaker. It tightens toward every wire, plate and hidden needle.
+  price: 3400000
+
+- id: hollow_kings_signet
+  name: the Hollow King's Signet
+  title: a name no one dares say twice
+  base: ring
+  material: infernal_iron
+  level: 74
+  effect: dread
+  properties: [{modifies: intimidation, magnitude: 16}, {modifies: resolve, magnitude: 12}, {modifies: defense, magnitude: 8}, {modifies: max_health, magnitude: 8}]
+  description: Black iron, never rusted, never warm. People step aside for its wearer and are somehow grateful to have been allowed to.
+  price: 6500000
+
+- id: emberwardens_pendant
+  name: the Emberwarden's Pendant
+  title: that keeps a fire in its setting
+  base: amulet
+  material: sunsteel
+  level: 68
+  effect: hearthfire
+  properties: [{modifies: max_health, magnitude: 12}, {modifies: defense, magnitude: 10}, {modifies: movement, magnitude: 14}, {modifies: recovery, magnitude: 10}]
+  description: Sunsteel that holds the day's heat until morning. A night on bare stone feels like a night in a good bed.
+  price: 4800000
+
+- id: stoneheart_plate
+  name: Stoneheart
+  title: the plate that was a mountain
+  base: plate
+  material: starmetal
+  level: 72
+  effect: stoneskin
+  properties: [{modifies: defense, magnitude: 14}, {modifies: max_health, magnitude: 14}, {modifies: resolve, magnitude: 8}]
+  description: Hammered from a fallen star and never fully cooled. Blows land on it the way rain lands on a cliff.
+  price: 8500000
+
+- id: bloodletter
+  name: Bloodletter
+  title: the blade that drinks
+  base: shortsword
+  material: infernal_iron
+  level: 64
+  effect: vampiric
+  properties: [{modifies: damage, magnitude: 14}, {modifies: accuracy, magnitude: 10}, {modifies: max_health, magnitude: 8}, {modifies: intimidation, magnitude: 8}]
+  description: A short black blade that is always faintly wet. What it takes from an enemy, it gives to the hand that holds it.
+  price: 5600000
+
+- id: starfall_staff
+  name: the Starfall Staff
+  title: that remembers the night sky
+  base: arcane_staff
+  material: treant_heartwood
+  level: 80
+  effect: starfall
+  properties: [{modifies: max_mana, magnitude: 16}, {modifies: damage, magnitude: 12}, {modifies: lore, magnitude: 10}, {modifies: recovery, magnitude: 10}]
+  description: Cut from a heartwood that grew under one unbroken night. Every fourth word of power it speaks is answered by the stars.
+  price: 9000000
+
+- id: first_word_wand
+  name: the First Word
+  title: wand of the first spell
+  base: wand
+  material: ghostwood
+  level: 72
+  effect: archmage
+  properties: [{modifies: damage, magnitude: 14}, {modifies: max_mana, magnitude: 12}, {modifies: insight, magnitude: 10}, {modifies: accuracy, magnitude: 8}]
+  description: A wand that has never needed to be loaded. The first spell it speaks costs its bearer nothing at all.
+  price: 6800000
+
+- id: tidemages_robe
+  name: the Tidemage's Robe
+  title: that drinks the storm
+  base: robe
+  material: stormweave
+  level: 70
+  effect: ward_conversion
+  properties: [{modifies: max_mana, magnitude: 16}, {modifies: defense, trigger: against_magic, magnitude: 14}, {modifies: resolve, magnitude: 8}, {modifies: recovery, magnitude: 10}]
+  description: Woven in a lightning-struck harbour. Spells that break on it do not vanish; they run into its wearer like rain into a cistern.
+  price: 6200000
+
+- id: emberfang
+  name: Emberfang
+  title: the Ash-Blind Blade
+  base: falchion
+  material: cindersteel
+  level: 110
+  effect: blinding
+  home: [cinderhold]
+  properties: [{modifies: damage, magnitude: 14}, {modifies: accuracy, magnitude: 10}, {modifies: max_stamina, magnitude: 8}, {modifies: intimidation, magnitude: 8, trigger: in_settlements}]
+  description: Folded nine times in the furnaces under Cinderhold, quenched in ash instead of water. Those it cuts cannot see for the smoke that rises from the wound.
+  price: 14000000
+
+- id: calderaplate
+  name: the Calderaplate
+  title: forged in the crater's heart
+  base: warplate
+  material: obsidian_steel
+  level: 126
+  effect: stoneskin
+  home: [cinderhold]
+  properties: [{modifies: defense, magnitude: 16}, {modifies: max_health, magnitude: 14}, {modifies: recovery, magnitude: 8}, {modifies: resolve, magnitude: 8}]
+  description: Black glass plate that the Cinder Caldera's own smiths said could not be made. It is warm to the touch, always, and the heat will not pass through.
+  price: 20000000
+
+- id: forgeheart_signet
+  name: the Forgeheart Signet
+  title: worn by the first master of Cinderhold
+  base: signet
+  material: cindersteel
+  level: 105
+  effect: forgeheart
+  home: [cinderhold]
+  properties: [{modifies: crafting, magnitude: 14}, {modifies: max_stamina, magnitude: 8}, {modifies: recovery, magnitude: 6}, {modifies: persuasion, magnitude: 6, trigger: in_settlements}]
+  description: The ring of the first master smith of Cinderhold, set with a coal that has never cooled. Anything made in its glow comes out finer than it should.
+  price: 12000000
+
+- id: cinderqueens_torc
+  name: the Cinderqueen's Torc
+  title: a collar of living coal
+  base: torc
+  material: cindersteel
+  level: 108
+  effect: coalkeeper
+  home: [cinderhold]
+  properties: [{modifies: max_health, magnitude: 10}, {modifies: defense, magnitude: 8}, {modifies: crafting, magnitude: 10}, {modifies: resolve, magnitude: 6}]
+  description: Said to have been worn by the genasi queen who tamed the first caldera-forge. Nothing she worked with it was ever wasted.
+  price: 11000000
+
+- id: pyrewalker_greaves
+  name: the Pyrewalker Greaves
+  title: boots for a sea of cinders
+  base: greaves
+  material: obsidian_steel
+  level: 118
+  effect: elementward
+  home: [cinderhold]
+  properties: [{modifies: defense, magnitude: 12}, {modifies: movement, magnitude: 14}, {modifies: evasion, magnitude: 8}, {modifies: max_health, magnitude: 8}]
+  description: Greaves of glass-black steel, made for those who wade rivers of slag. Elementals turn aside from the wearer as though from kin.
+  price: 13000000
+
+- id: skysplitter
+  name: Skysplitter
+  title: the Stormcrown greataxe
+  base: greataxe
+  material: stormiron
+  level: 120
+  effect: thunderous
+  home: [hrimgard]
+  properties: [{modifies: damage, magnitude: 16}, {modifies: accuracy, magnitude: 8}, {modifies: max_health, magnitude: 8}, {modifies: intimidation, magnitude: 10}]
+  description: A giant's axe hammered down to a man's grip by Hrimgard's smiths. Where the head meets a skull the sky seems to answer.
+  price: 18000000
+
+- id: giantskin_mantle
+  name: the Giantskin Mantle
+  title: stitched from a storm giant
+  base: dragonhide
+  material: thunderhide
+  level: 114
+  effect: giantward
+  home: [hrimgard]
+  properties: [{modifies: defense, magnitude: 14}, {modifies: max_health, magnitude: 12}, {modifies: intimidation, magnitude: 10}, {modifies: evasion, magnitude: 8}]
+  description: Cut from the hide of a storm giant that tried to take Hrimgard in the old days. The giants who see it on you stop, and reconsider.
+  price: 14000000
+
+- id: galewards_band
+  name: the Gale-Ward Band
+  title: a ring that parts the wind
+  base: signet
+  material: stormiron
+  level: 106
+  effect: gale_ward
+  home: [hrimgard]
+  properties: [{modifies: movement, magnitude: 12}, {modifies: evasion, magnitude: 8}, {modifies: perception, magnitude: 8}, {modifies: resolve, magnitude: 6}]
+  description: A thin ring of lightning-struck iron. The storms that guard the Stormcrown peaks slide around the one who carries it.
+  price: 11000000
+
+- id: voltstring
+  name: Voltstring
+  title: the Thunder Spires warbow
+  base: warbow
+  material: stormoak
+  level: 118
+  effect: stormcaller
+  home: [hrimgard]
+  properties: [{modifies: accuracy, magnitude: 16}, {modifies: damage, magnitude: 12}, {modifies: perception, magnitude: 10}, {modifies: evasion, magnitude: 6}]
+  description: Strung with a thread of captured lightning, on a bow cut from a split oak. Its arrows arrive with the thunder already in them.
+  price: 16000000
+
+- id: giantkillers_torc
+  name: the Giantkiller's Torc
+  title: worn by the one who refused the challenge
+  base: torc
+  material: stormiron
+  level: 112
+  effect: giantskin
+  home: [hrimgard]
+  properties: [{modifies: damage, magnitude: 8}, {modifies: max_health, magnitude: 10}, {modifies: intimidation, magnitude: 12}, {modifies: resolve, magnitude: 8}]
+  description: The torc of a hunter who skinned three giants and was welcomed at the feast regardless. The hides of big things come away cleanly in the wearer's hands.
+  price: 12000000
+
+- id: runebreaker_maul
+  name: the Runebreaker Maul
+  title: hammer of the lower halls
+  base: warmaul
+  material: deepsilver
+  level: 120
+  effect: runebreaker
+  home: [dunmarrow]
+  properties: [{modifies: damage, magnitude: 16}, {modifies: accuracy, magnitude: 8}, {modifies: max_stamina, magnitude: 10}, {modifies: resolve, magnitude: 8}]
+  description: Cast in Dunmarrow when the Deep Roads' golems first woke. A single blow stops the runes in a construct's chest.
+  price: 18000000
+
+- id: deepvault_bulwark
+  name: the Deepvault Bulwark
+  title: shield of the last stair
+  base: bulwark_shield
+  material: deepsilver
+  level: 124
+  effect: unbroken
+  home: [dunmarrow]
+  properties: [{modifies: defense, magnitude: 16}, {modifies: max_health, magnitude: 14}, {modifies: max_stamina, magnitude: 10}, {modifies: resolve, magnitude: 10}]
+  description: The shield that held the Deep Stair's last landing against whatever came up. It is dented in a thousand places, and not a dent goes through.
+  price: 20000000
+
+- id: delvers_lantern
+  name: the Delver's Lantern
+  title: a torc of crystal and rune
+  base: torc
+  material: deepsilver
+  level: 110
+  effect: delvers_lantern
+  home: [dunmarrow]
+  properties: [{modifies: perception, magnitude: 12}, {modifies: max_stamina, magnitude: 8}, {modifies: resolve, magnitude: 8}, {modifies: stealth, magnitude: 8}]
+  description: A crystal lamp on a torc, burning without oil. Hidden caches in the dark seem to turn toward its light.
+  price: 12000000
+
+- id: lightless_cowl
+  name: the Lightless Cowl
+  title: woven by drider matrons
+  base: seers_cowl
+  material: deepweb
+  level: 116
+  effect: mindward
+  home: [dunmarrow]
+  properties: [{modifies: defense, magnitude: 10}, {modifies: resolve, magnitude: 14}, {modifies: stealth, magnitude: 10}, {modifies: insight, magnitude: 8}]
+  description: A cowl of deepweb silk that has seen the bottom of the Lightless Deep and kept its wearer's mind. Aberrations lose their grip on the one beneath it.
+  price: 13000000
+
+- id: gloomneedles
+  name: the Gloomneedles
+  title: paired stilettos of the deep
+  base: stilettos
+  material: deepsilver
+  level: 114
+  effect: mindbane
+  home: [dunmarrow]
+  properties: [{modifies: damage, magnitude: 12}, {modifies: accuracy, magnitude: 12}, {modifies: stealth, magnitude: 12}, {modifies: evasion, magnitude: 8}]
+  description: Two needles of runed silver, made to open the skulls of things that think too loudly. The aberrations of the dark fear them above all other steel.
+  price: 15000000
+
+- id: glowcap_runestaff
+  name: the Glowcap Runestaff
+  title: a staff that grew in the dark
+  base: runestaff
+  material: glowcap_timber
+  level: 122
+  effect: arcane_recall
+  home: [dunmarrow]
+  properties: [{modifies: damage, magnitude: 14}, {modifies: max_mana, magnitude: 16}, {modifies: lore, magnitude: 10}, {modifies: recovery, magnitude: 8}]
+  description: A staff of living fungal wood, its runes alight with spore-glow. Each spell it speaks seems to warm the next.
+  price: 19000000
+
+- id: wreckers_signet
+  name: the Wrecker's Signet
+  title: stamped by Brinewatch's wreck-brokers
+  base: signet
+  material: brinesteel
+  level: 104
+  effect: wreckers_mark
+  home: [brinewatch]
+  properties: [{modifies: persuasion, magnitude: 10, trigger: in_settlements}, {modifies: perception, magnitude: 10}, {modifies: crafting, magnitude: 8}, {modifies: max_health, magnitude: 6}]
+  description: The brass signet that settles claims on drowned wrecks. Gear broken down under its mark gives up more than it should.
+  price: 11000000
+
+- id: sunken_glaive
+  name: the Sunken Glaive
+  title: raised from a drowned hall
+  base: glaive
+  material: brinesteel
+  level: 116
+  effect: rending
+  home: [brinewatch]
+  properties: [{modifies: damage, magnitude: 14}, {modifies: accuracy, magnitude: 10}, {modifies: max_health, magnitude: 8}, {modifies: evasion, magnitude: 6}]
+  description: A glaive of the drowned kingdom's guard, still bright after centuries under the tide. Its cuts keep bleeding long after the blow.
+  price: 15000000
+
+- id: krakenhide_coat
+  name: the Krakenhide Coat
+  title: spun from a sea-giant's skin
+  base: shadowleathers
+  material: krakenhide
+  level: 118
+  effect: phantom
+  home: [brinewatch]
+  properties: [{modifies: evasion, magnitude: 14}, {modifies: stealth, magnitude: 10}, {modifies: max_stamina, magnitude: 10}, {modifies: defense, magnitude: 8}]
+  description: Dark, oily hide that no blade seems to hold on. Wearers say the water moves out of the way for them.
+  price: 14000000
+
+- id: sirens_raiment
+  name: the Siren's Raiment
+  title: sung into being
+  base: archmage_raiment
+  material: tidesilk
+  level: 120
+  effect: mana_shield
+  home: [brinewatch]
+  properties: [{modifies: max_mana, magnitude: 16}, {modifies: defense, magnitude: 10}, {modifies: persuasion, magnitude: 8}, {modifies: recovery, magnitude: 8}]
+  description: A raiment of tidesilk woven under a siren's song. Its wearer's mana swells and ebbs with the tide, and shields them like a second skin.
+  price: 17000000
+
+- id: brokers_seal
+  name: the Broker's Seal
+  title: a ring that closes every deal
+  base: signet
+  material: brinesteel
+  level: 108
+  effect: brokers_seal
+  home: [brinewatch]
+  properties: [{modifies: persuasion, magnitude: 14}, {modifies: insight, magnitude: 8}, {modifies: deception, magnitude: 8}, {modifies: max_health, magnitude: 6}]
+  description: Struck for the free-port's top salvage broker. It is whispered that no one has ever won a bargain against the hand wearing it.
+  price: 11000000
+
+- id: jaguar_lords_fangs
+  name: the Jaguar-Lord's Fangs
+  title: paired stilettos of the Maw
+  base: stilettos
+  material: jadesteel
+  level: 112
+  effect: opportunist
+  home: [amaranth]
+  properties: [{modifies: damage, magnitude: 14}, {modifies: accuracy, magnitude: 12}, {modifies: stealth, magnitude: 12}, {modifies: evasion, magnitude: 8}]
+  description: Needle blades cut from a jungle lord's stone claws. They find the wound in whatever you have already hurt.
+  price: 14000000
+
+- id: jade_physicians_torc
+  name: the Jade Physician's Torc
+  title: a healer's collar
+  base: torc
+  material: jadesteel
+  level: 106
+  effect: jade_physician
+  home: [amaranth]
+  properties: [{modifies: recovery, magnitude: 14}, {modifies: max_health, magnitude: 10}, {modifies: insight, magnitude: 8}, {modifies: resolve, magnitude: 6}]
+  description: A torc of carved jade inlaid with silver. Draughts and bandages work faster for the wearer than they have any right to.
+  price: 11000000
+
+- id: maw_herbalists_ring
+  name: the Maw-Herbalist's Ring
+  title: green stone, green fingers
+  base: signet
+  material: jadesteel
+  level: 104
+  effect: maw_herbalist
+  home: [amaranth]
+  properties: [{modifies: perception, magnitude: 10}, {modifies: stealth, magnitude: 8}, {modifies: recovery, magnitude: 8}, {modifies: max_stamina, magnitude: 8}]
+  description: Worn by the herbalists of Amaranth, who go into the Maw and sometimes return with pockets full. The jungle gives up more of itself to the one wearing it.
+  price: 11000000
+
+- id: vinewardens_coat
+  name: the Vinewarden's Coat
+  title: a coat that grows back
+  base: dragonhide
+  material: jadescale
+  level: 116
+  effect: regeneration
+  home: [amaranth]
+  properties: [{modifies: max_health, magnitude: 14}, {modifies: recovery, magnitude: 12}, {modifies: defense, magnitude: 10}, {modifies: stealth, magnitude: 8}]
+  description: A coat of jadescale scales, living vine woven between. Cuts in it heal over, and so, a little, do cuts in the wearer.
+  price: 16000000
+
+- id: hushbolt
+  name: Hushbolt
+  title: the Jadewood arbalest
+  base: arbalest
+  material: jadewood
+  level: 118
+  effect: first_blood
+  home: [amaranth]
+  properties: [{modifies: accuracy, magnitude: 16}, {modifies: damage, magnitude: 12}, {modifies: stealth, magnitude: 12}, {modifies: perception, magnitude: 8}]
+  description: A temple arbalest of green heartwood that makes no sound when it fires. The first bolt of every fight lands where it was meant to.
+  price: 15000000
+
+- id: barrow_kings_crown
+  name: the Barrow King's Crown
+  title: a crown that remembers
+  base: war_crown
+  material: barrowgold
+  level: 128
+  effect: graveward
+  home: [brinewatch]
+  properties: [{modifies: defense, magnitude: 12}, {modifies: resolve, magnitude: 14}, {modifies: intimidation, magnitude: 14}, {modifies: max_health, magnitude: 10}]
+  description: Taken from a barrow-king of the dead empire. The undead part before the wearer as before a king of their own.
+  price: 20000000
+
+- id: last_legion_blade
+  name: the Last Legion Blade
+  title: oath-iron of the dead empire
+  base: falchion
+  material: barrowgold
+  level: 124
+  effect: gravewarden
+  home: [brinewatch]
+  properties: [{modifies: damage, magnitude: 16}, {modifies: accuracy, magnitude: 10}, {modifies: resolve, magnitude: 10}, {modifies: max_stamina, magnitude: 8}]
+  description: The blade of the last legion of a lost empire, still sworn to the dead. The undead it touches feel the oath tighten.
+  price: 18000000
+
+- id: reapers_tally_ring
+  name: the Reaper's Tally
+  title: a ring of knotted gold
+  base: signet
+  material: barrowgold
+  level: 120
+  effect: reapers_tally
+  home: [brinewatch]
+  properties: [{modifies: lore, magnitude: 10}, {modifies: resolve, magnitude: 10}, {modifies: max_mana, magnitude: 8}, {modifies: intimidation, magnitude: 8}]
+  description: Every knot is a count of the dead put down. The ring records them, and what the fallen carried is passed on to the carrier.
+  price: 15000000
+
+- id: tomb_robbers_torc
+  name: the Tomb-Robber's Torc
+  title: gold from a hundred crypts
+  base: torc
+  material: barrowgold
+  level: 116
+  effect: tomb_robber
+  home: [brinewatch]
+  properties: [{modifies: perception, magnitude: 12}, {modifies: stealth, magnitude: 10}, {modifies: evasion, magnitude: 8}, {modifies: persuasion, magnitude: 6}]
+  description: A torc of mismatched grave-gold. Whoever wore it before you took a king's fortune out of the Fields; the caches yield better to its holder.
+  price: 13000000
+
+- id: shroud_of_the_wailing
+  name: the Shroud of the Wailing
+  title: gravelace of a hundred voices
+  base: archmage_raiment
+  material: gravelace
+  level: 122
+  effect: spellward
+  home: [brinewatch]
+  properties: [{modifies: defense, magnitude: 10}, {modifies: resolve, magnitude: 14}, {modifies: max_mana, magnitude: 12}, {modifies: stealth, magnitude: 8}]
+  description: A raiment of gravelace that the wailing choirs of the Sepulchre Fields wove from their own song. Spells pass through it as though through fog.
+  price: 18000000
+
+- id: soulreapers_scepter
+  name: the Soul-Reaper's Scepter
+  title: a scepter of bone-white gold
+  base: scepter
+  material: barrowgold
+  level: 124
+  effect: soul_harvest
+  home: [brinewatch]
+  properties: [{modifies: damage, magnitude: 14}, {modifies: max_mana, magnitude: 14}, {modifies: lore, magnitude: 10}, {modifies: intimidation, magnitude: 10}]
+  description: A scepter that drinks what leaves the fallen. Each kill returns a measure of mana to the hand that holds it.
+  price: 19000000

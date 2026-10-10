@@ -1,0 +1,230 @@
+"""Prompt text. Category lists are built from the engine enums so they never drift."""
+
+from core.models import (
+    COMPANION_TARGETS,
+    NONCOMBAT_TARGETS,
+    NONCOMBAT_TRIGGERS,
+    CompanionKind,
+    CompanionRole,
+)
+from core.rules import FAMILIES, MECHANICS, STATS, TRIGGERS
+from llm.contracts import ClassInterpretation
+
+
+def _list(values) -> str:
+    return ", ".join(v.value for v in values)
+
+
+CLASSIFY_SYSTEM = """You interpret a player's character concept for a high-fantasy RPG.
+Map the concept to exactly one archetype: warrior, mage, rogue, or support.
+The archetype is the mechanical foundation; pick the one that best fits how the character fights or contributes.
+Give the custom class a short evocative name. Use the player's own name for it if they gave one.
+combat_identity is a few words on weapon and fighting style.
+themes are 2-4 short thematic keywords.
+summary is one or two sentences describing the class in-world.
+focus is how the concept spends its time: combat (mostly fighting), balanced (fighting and life beyond it), or social (mostly people, performance, knowledge, trade or intrigue rather than fighting).
+constraints are explicit limits or preferences the player stated, such as "avoids melee" or "never kills". Empty list if none. Never invent constraints.
+uses_companions is true only if the concept relies on summoned, tamed, raised, bound or hired allies to fight or act on their behalf.
+primary_attributes are the 2 or 3 attributes this concept relies on most, most important first:
+  strength (heavy weapons, raw force), dexterity (finesse, bows, speed, agility), constitution (toughness, endurance),
+  intelligence (arcane study and spellcraft), wisdom (faith, nature, perception), charisma (presence, performance, pacts).
+casting_attribute is what powers this concept's magic, if it has any: intelligence (studied, arcane - wizards,
+  artificers of spells), wisdom (faith, nature, spirits - clerics, druids, shamans), charisma (pacts, performance,
+  innate gifts - warlocks, bards, sorcerers). Leave it empty only if the concept uses no magic at all.
+families are one to three kinds of class this concept draws on, most important first. Choose from:
+{families}
+  A Dragoon might be warrior and ranger; a bard who heals, bard and healer; a necromancer with thralls, necromancer and
+  summoner; a warlock bound to a dark patron, warlock and mage; a martial-arts monk, monk and rogue.
+Respond only with JSON matching the schema.""".replace("{families}", "\n".join(f"  {k}: {v.description}" for k, v in FAMILIES.items()))
+
+ACTIVES_SYSTEM = f"""You design level 1 ACTIVE abilities for a custom RPG class.
+An active ability is something the character deliberately does in a moment.
+Propose exactly 15 distinct abilities with unique names.
+They must be appropriate for a beginner: grounded, modest, not world-shaking.
+Make them varied so the player has a real choice.
+You only choose categories; the game engine decides all numbers. Never include numbers in descriptions.
+
+effect:
+  damage, healing, control, defense, mobility, utility: ordinary effects.
+  influence: sways a person's feelings, beliefs or choices (calm, frighten, charm, persuade, unsettle).
+  summon: calls or creates a companion that stays and acts on its own turns.
+  command: directs a companion that is already present.
+  crafting: improves the next thing they make - forging, leatherwork, brewing, cooking. Only for classes that are
+    about making things, and then include 2 or 3.
+tier: light, moderate, or heavy. Most should be light or moderate; at most 3 heavy.
+reach: self, melee, extended, ranged, or area.
+resource: stamina for physical techniques, mana for magical ones.
+context: combat, out_of_combat, or both.
+  The request states how many abilities must be usable outside combat (out_of_combat or both): social, stealth, exploration, knowledge, performance or survival uses that fit the class.
+  If the class focus is social, most of its abilities should be about people, performance, knowledge or intrigue, not fighting.
+summons: only for summon abilities, and required for them. Describe the companion:
+  name, one-sentence description, kind ({_list(CompanionKind)}), role ({_list(CompanionRole)}).
+
+If the class uses companions: include 2 to 4 summon abilities and 2 to 3 command abilities, and keep the character's own direct attacks few and light.
+Name command abilities as evocative techniques, calls or signals, never in the form "Command: X".
+The class constraints are absolute. If it says the character avoids melee, give no melee-reach abilities.
+description is one sentence describing what the ability looks and feels like.
+Respond only with JSON matching the schema."""
+
+_STAT_LINES = "\n".join(f"  {s.id}: {s.covers}" for s in STATS.values())
+_TRIGGER_LINES = "\n".join(f"  {t.id}: {t.condition}" for t in TRIGGERS.values())
+
+PASSIVES_SYSTEM = f"""You design level 1 PASSIVE traits for a custom RPG class.
+A passive is NOT an action. It is a quality, instinct, or piece of training that changes how the character performs.
+Never describe the character performing a move. Describe what they are, know, or have become.
+Propose exactly 15 distinct passives with unique names, written in the class's own theme and voice.
+
+There are two kinds of passive:
+
+kind "mechanic": changes HOW something works. Pick one of the OFFERED MECHANICS in the request, by its id
+  (o1, o2, ...), and make it the class's own: give it a name and description that fit the theme
+  (a Dragoon's counterattack is not a bard's). Some offered mechanics only work under a condition - let the
+  name and description reflect it. The game sets the strength from the tier. Each id may be used at most once.
+
+kind "stat": a steady edge. Choose what it improves (modifies) and when (trigger):
+  modifies:
+{_STAT_LINES}
+  trigger:
+{_TRIGGER_LINES}
+
+Rules:
+- The request states how many passives must be mechanics. Mechanics are what make a class feel unique, so favor
+  the ones that fit, and avoid the generic.
+- At most 1 stat passive may modify max_health, max_stamina or max_mana, and it must use trigger always.
+- At most 4 stat passives may use trigger always.
+- The request states how many passives must matter outside combat: world mechanics, or stat passives that modify
+  {_list(NONCOMBAT_TARGETS)}, or use trigger {_list(NONCOMBAT_TRIGGERS)}.
+- If the class uses companions, at least 3 passives must strengthen companions: modify {_list(COMPANION_TARGETS)},
+  use trigger with_companion_present, or be an offered mechanic marked (companions).
+- Never reuse any name listed as already taken, and never use anything listed as not available.
+tier: light or moderate only. Most should be light.
+For a stat passive leave mechanic empty; for a mechanic passive leave modifies and trigger empty.
+description is one sentence of in-world flavor: where the quality comes from or how it feels. Do not restate numbers.
+Respond only with JSON matching the schema."""
+
+
+def class_context(interp: ClassInterpretation) -> str:
+    constraints = "; ".join(interp.constraints) if interp.constraints else "none"
+    return (
+        f"Archetype: {interp.archetype.value}\n"
+        f"Class: {interp.custom_class}\n"
+        f"Combat identity: {interp.combat_identity}\n"
+        f"Themes: {', '.join(interp.themes)}\n"
+        f"Summary: {interp.summary}\n"
+        f"Families: {', '.join(interp.families) or 'unspecified'}\n"
+        f"Focus: {interp.focus}\n"
+        f"Constraints: {constraints}\n"
+        f"Uses companions: {'yes' if interp.uses_companions else 'no'}"
+    )
+
+
+def actives_user(interp: ClassInterpretation, min_noncombat: int) -> str:
+    return (
+        class_context(interp)
+        + f"\n\nRequired: at least {min_noncombat} abilities usable outside combat."
+        + "\nGenerate 15 active abilities."
+    )
+
+
+def passives_user(
+    interp: ClassInterpretation,
+    taken_names: list[str],
+    min_noncombat: int,
+    fit_stats: list[str],
+    fit_triggers: list[str],
+    unavailable: list[str],
+    offered_lines: list[str] = (),
+    min_mechanics: int = 0,
+) -> str:
+    return (
+        class_context(interp)
+        + "\nOFFERED MECHANICS:\n" + "\n".join(f"  {line}" for line in offered_lines)
+        + f"\nRequired: at least {min_mechanics} passives of kind mechanic."
+        + f"\nNames already taken: {', '.join(taken_names)}"
+        + f"\n\nBest-fit modifies for this class: {', '.join(fit_stats) or 'no strong preference'}"
+        + f"\nBest-fit triggers for this class: {', '.join(fit_triggers) or 'no strong preference'}"
+        + (f"\nNot available for this class: {', '.join(unavailable)}" if unavailable else "")
+        + f"\n\nRequired: at least {min_noncombat} passives that matter outside combat."
+        + "\nGenerate 15 passive traits."
+    )
+
+
+MECH_PASSIVES_SYSTEM = """You design level 1 PASSIVE traits for a custom RPG class. A passive is a quality, instinct
+or piece of training - never an action the character performs.
+
+The request lists OFFERED MECHANICS, each with an id like o4. Choose the requested number of them - the ones that
+best fit this class - and make each the class's own:
+  option_id: the offered id you chose, exactly as written (o4).
+  name: a short evocative name in the class's theme. A Dragoon's counterattack and a bard's are named differently.
+  description: one sentence of in-world flavor - where the quality comes from or how it feels. If the mechanic only
+    works under a condition, let the flavor reflect it. No numbers.
+  tier: light or moderate. Most should be light.
+Never reuse a name listed as already taken. Respond only with JSON matching the schema."""
+
+
+def mech_passives_user(interp, taken: list[str], offered_lines: list[str], count: int, min_companion: int,
+                       min_world: int = 0) -> str:
+    extra = f"\nAt least {min_world} must be world mechanics." if min_world else ""
+    extra += f"\nAt least {min_companion} must be mechanics marked (companions)." if min_companion else ""
+    return (
+        class_context(interp)
+        + f"\nNames already taken: {', '.join(taken)}"
+        + "\n\nOFFERED MECHANICS:\n" + "\n".join(f"  {line}" for line in offered_lines)
+        + f"\n\nChoose exactly {count}.{extra}"
+    )
+
+
+STAT_PASSIVES_SYSTEM = f"""You design level 1 PASSIVE traits for a custom RPG class: steady edges in one stat.
+A passive is a quality, instinct or piece of training - never an action the character performs.
+
+Each passive has:
+  modifies - the one thing it improves:
+{_STAT_LINES}
+  trigger - when it applies:
+{_TRIGGER_LINES}
+  name - short and evocative, in the class's theme.
+  description - one sentence of in-world flavor. No numbers.
+  tier - light or moderate. Most should be light.
+
+Rules:
+- At most 1 may modify max_health, max_stamina or max_mana, and it must use trigger always.
+- At most 3 may use trigger always. Prefer conditions that fit the class.
+- The request says how many must matter outside combat: modify {_list(NONCOMBAT_TARGETS)},
+  or use trigger {_list(NONCOMBAT_TRIGGERS)}.
+- Vary what they modify. Never reuse a name listed as taken, never use anything listed as not available.
+Respond only with JSON matching the schema."""
+
+
+def stat_passives_user(interp, taken: list[str], count: int, min_noncombat: int, fit_stats: list[str],
+                       fit_triggers: list[str], unavailable: list[str], min_companion: int) -> str:
+    lines = [class_context(interp),
+             f"Names already taken: {', '.join(taken)}",
+             f"Best-fit modifies for this class: {', '.join(fit_stats) or 'no strong preference'}",
+             f"Best-fit triggers for this class: {', '.join(fit_triggers) or 'no strong preference'}"]
+    if unavailable:
+        lines.append(f"Not available for this class: {', '.join(unavailable)}")
+    lines.append(f"\nWrite exactly {count}. At least {min_noncombat} must matter outside combat.")
+    if min_companion:
+        lines.append(f"At least {min_companion} must strengthen companions (companion_damage, companion_durability, "
+                     "or trigger with_companion_present).")
+    return "\n".join(lines)
+
+
+LEARN_SYSTEM = """You are a guild instructor - a retired adventurer - deciding which techniques or spells to teach a member.
+Offer exactly the requested number of ACTIVE abilities: things they deliberately do in a moment. They must fit what
+the player ASKED TO LEARN first, and their class second. Make them distinct from each other and from what they
+already know, so the choice is real. Grounded and practical, suited to their level - not world-shaking.
+
+Each ability: name, description (one sentence of what it looks and feels like), effect (damage, healing, control,
+defense, mobility, utility, influence, summon, command or crafting), tier (light, moderate, or heavy only at level 10
+or higher), reach (self, melee, extended, ranged or area), resource (stamina for physical techniques, mana for magic),
+context (combat, out_of_combat or both). For summon abilities include summons (name, description, kind, role).
+Never include numbers. Respond only with JSON matching the schema."""
+
+
+def learn_user(c, request: str, count: int) -> str:
+    known = ", ".join(a.name for a in c.actives) or "none"
+    return (f"CLASS: {c.custom_class} ({c.archetype.value})\nLEVEL: {c.level}\n"
+            f"MAIN ATTRIBUTES: {', '.join(c.primary_attributes) or 'unspecified'}\n"
+            f"ABILITIES THEY KNOW: {known}\n"
+            f'THEY ASKED TO LEARN: "{request}"\n\nOffer exactly {count}.')

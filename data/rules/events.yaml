@@ -1,0 +1,161 @@
+# BIG EVENTS - campaigns and cataclysms. The engine owns every number here; the model only names things and writes the telling.
+#
+# A CAMPAIGN is a region-sized turn that unfolds over weeks. It can put a creature, a camp or a seal in the world, and it can be
+# ended by the player in several ways (resolution paths) - or in a way nobody planned, which a judge call can recognize.
+# A CATACLYSM is the rare, world-shaking top tier that unlocks at high level: wars, awakenings, invasions, plagues. It moves
+# across the map by the engine's geography, can bring towns down, and can kill anyone - by rolls from the circumstances.
+
+# ---------- campaigns ----------
+campaign:
+  every_days: 60                 # one campaign-or-cataclysm slot opens about this often (a per-pulse chance); one at a time
+  prefer_marked: true            # scenarios marked campaign: true are chosen first
+
+# Guild contract pay is multiplied by the size of the event that posted it.
+contract_tier_mult: {normal: 1.0, uncommon: 1.5, rare: 2.5, campaign: 5.0, cataclysm: 8.0}
+
+# ---------- what an event can put into the world ----------
+spawn:
+  chance: 0.40                   # share of encounters at a place with a live spawn that are the spawn
+  boss_chance: 0.25              # a boss spawn is rarer (rolled first when both are live)
+  boss_health: 4                 # an event's boss has this many times a normal creature's health (the usual 'boss' rank is 6)
+  boss_over_band: 3              # a campaign boss is this many levels above the top of its place's band
+  cataclysm_boss_over: [2, 6]    # a cataclysm boss is this many levels above the player
+  max_group: 3                   # a non-boss spawn comes in 1 to this many
+  days: 30                       # default life of a spawn (cleared sooner if the event is ended)
+camp:
+  days: 12                       # a camp stays this long unless the effect says otherwise
+seal:
+  days: 40
+
+# ---------- judge: did the player end it in a way nobody planned? ----------
+judge:
+  tiers: [rare, campaign, cataclysm]
+  min_stage: 1                   # the event must have moved on at least once
+  per_day: 1                     # at most one call per event per game day
+  max_calls: 8                   # and this many in all
+  partial_delay: 0.30            # a partial result pushes the next stage back by this share of the time left
+  partial_pay: 0.25              # and pays this share of a grand reward's gold
+  relevant_deeds: [kill, persuade, dungeon_cleared, quest_done, deliver]
+  keep_deeds: 300
+
+# ---------- the grand reward for ending a campaign or cataclysm yourself ----------
+grand:
+  campaign:
+    gold_levels: 12              # coins = this many times a same-level top-rank contract reward
+    kinds: {item: 40, deed: 20, mount: 20, title: 20}
+    item_over: 6                 # the item is this many levels above the player
+    reputation: 25
+  cataclysm:
+    gold_levels: 40
+    kinds: {item: 40, deed: 20, mount: 20, title: 20}
+    item_over: 12
+    reputation: 50
+    second: true                 # a cataclysm gives a second prize from the other kinds, and always a title
+  deed_homes_fallback: true      # no house to give in that town: the nearest town with one
+  # price is in copper; a mount with no price is never sold - it can only be won (see data/rules/mounts.yaml)
+  mounts:
+    palfrey:       {name: "a gentle palfrey",           speed: 0.20, stamina: 0.25, min_level: 1,  price: 60000}
+    mountain_pony: {name: "a sure-footed mountain pony", speed: 0.25, stamina: 0.60, min_level: 1, price: 120000}
+    destrier:      {name: "a war-trained destrier",   speed: 0.30, stamina: 0.40, min_level: 1,  price: 300000}
+    courser:       {name: "a swift courser",           speed: 0.38, stamina: 0.30, min_level: 1,  price: 450000}
+    marsh_strider: {name: "a long-legged marsh strider", speed: 0.30, stamina: 0.50, min_level: 40, price: 900000}
+    war_griffon:   {name: "a tamed war griffon",        speed: 0.55, stamina: 0.70, min_level: 85}
+    storm_drake:   {name: "a storm drake hatchling grown to saddle", speed: 0.65, stamina: 0.80, min_level: 110}
+  titles: [Warden, Shield, Hand, Bane, Keeper, Mender, Breaker, Beacon]
+
+# ---------- allies: people of the realm who fight beside you against an event's boss ----------
+allies:
+  min_trust: 55
+  max_join: 2
+  # npc role -> party role and the share of the player's level they fight at
+  roles:
+    guild_master:   {party: fighter, share: 0.90}
+    guard:          {party: fighter, share: 0.70}
+    watch_captain:  {party: fighter, share: 0.80}
+    royal_guard:    {party: fighter, share: 0.85}
+    elven_warden:   {party: archer,  share: 0.85}
+    hunter:         {party: archer,  share: 0.65}
+    trapper:        {party: archer,  share: 0.60}
+    scout:          {party: rogue,   share: 0.65}
+    priest:         {party: priest,  share: 0.70}
+    water_priest:   {party: priest,  share: 0.75}
+    enchanter:      {party: mage,    share: 0.70}
+    loremaster:     {party: mage,    share: 0.60}
+  death_when_down: 0.65          # a volunteer who goes down in the fight dies this often; otherwise they are carried out alive
+
+# ---------- cataclysm ----------
+cataclysm:
+  gate_level: 85
+  chance: {start: 0.20, end: 0.50, end_level: 120}    # chance a big-event slot becomes a cataclysm, by player level
+  min_gap_days: 100              # days between one cataclysm ending and the next beginning
+  guaranteed_by_level: 100       # a run with none yet gets one at the next slot once the player is this high
+  leader_roles: [noble, guild_master, courtier, watch_captain, royal_guard, priest, water_priest]
+  treaty_fall_halving: 0.5       # each leader won over multiplies later falls by this
+  stages: 6
+  stage_days: [14, 24]           # length of each stage
+  warn_stages: 1                 # towns in the path get a warning this many stages ahead
+  # how the hit towns spread over stages 1..6 (stage 0 is omens at the origin only)
+  spread: [0, 1, 2, 2, 2, 1]
+  boss_levels_over: [2, 6]
+  towns_prices: [20, 60]         # % at a town in the path
+  towns_danger: [20, 60]
+  siege_danger: 40               # extra danger in a town under siege
+  # a hit town falls (or holds) by a roll
+  fall:
+    base: 0.30
+    per_stage: 0.04              # later stages hit harder
+    player_present: 0.40         # multiplier if the player stands in the town when it is hit
+    boss_dead: 0.0               # nothing falls once the boss is dead
+  # who dies when a town falls (share of its residents at risk) and when it holds
+  toll: {falls: 0.32, holds: 0.04}
+  role_risk: {guard: 1.8, watch_captain: 1.8, royal_guard: 1.8, guild_master: 1.3, hunter: 1.3, miner: 1.2, smith: 1.1,
+              farmer: 1.0, innkeeper: 0.9, priest: 0.8, acolyte: 0.8, loremaster: 0.7, noble: 0.7, courtier: 0.7}
+  flee_share: 0.45               # of those caught, the share who run (move away) instead of dying
+  met_risk: 0.8                  # people the player has met are a little likelier to be spared than strangers
+  trust_shield: 0.01             # each point of trust above 50 lowers a person's risk by this much (max 0.4)
+  vacancy_days: {guild_clerk: [3, 6], guild_master: [4, 8], guild_instructor: [4, 8], guild_contractor: [3, 6],
+                 quartermaster: [3, 6], default: [8, 20]}
+  refugees: 2                    # people (of the dead's roles) who arrive in the nearest unhit settlement per fallen town
+  home:
+    ruin_when_falls: 0.70        # a house in a fallen town is ruined this often
+    fortified: 0.25              # ... and this often with the Fortify upgrade
+    rebuild_share: 0.35          # rebuilding costs this share of the house price
+  kinds:
+    awakening:
+      weight: 3
+      origin: [cinder_caldera, ash_wastes, lightless_deep, deep_roads_tunnels, jade_maw_jungle, stormcrown_heights, drowned_shore,
+               thunder_spires, sepulchre_fields]
+      about: "an ancient power stirs and wakes, and the land around it suffers"
+      boss_categories: [dragon, giant, elemental, fiend, undead, aberration, construct, ooze, monstrosity, plant]
+      towns: 6
+      fall_mult: 1.0
+      boss_chance: 1.0
+    invasion:
+      weight: 3
+      origin: [cracked_plains, red_badlands, sunscar_desert, northern_tundra, ash_wastes]
+      about: "a horde pours out of the wild toward the settled lands"
+      boss_categories: [humanoid, hostile people, giant, fiend, monstrosity, undead]
+      towns: 7
+      fall_mult: 1.15
+      boss_chance: 0.85
+    war:
+      weight: 2
+      origin: [valecourt, hrimgard, cinderhold, sunspire, ironvein, riverhaven, dunmarrow]
+      about: "two powers go to war over land, honour or gold, and the towns between them are caught"
+      boss_categories: [humanoid, hostile people, giant]
+      towns: 6
+      fall_mult: 0.9
+      boss_chance: 0.0        # a war has no monster to slay: it ends at a table, or by breaking the armies
+      leaders: true           # two sides, each with someone who can end it; persuading both makes peace
+      captains: 2             # ... or take a side and break the other's host: this many war captains, then its leader
+      captain_pool: [veteran, knight, gladiator, bandit_captain, assassin, mage]   # war captains and leaders are always people
+      leader_pool: [knight, gladiator, mage, assassin, archmage]
+      captain_health: 2.5     # a war captain's health as a multiple of a normal creature's (a leader and a boss use spawn.boss_health)
+    plague:
+      weight: 2
+      origin: [sepulchre_fields, willowmead_wetlands, drowned_shore, jade_maw_jungle, lightless_deep]
+      about: "a sickness spreads from town to town, and something unnatural feeds it"
+      boss_categories: [undead, ooze, aberration, plant, monstrosity, beast]
+      towns: 7
+      fall_mult: 0.8
+      boss_chance: 0.5

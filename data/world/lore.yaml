@@ -1,0 +1,303 @@
+# Facts about Rivia, tagged by who knows them.
+# The Taking is the kingdom's practice (the crown at Valecourt). Eldervale, Ironvein, Frostholm and Sunspire each see
+# magic their own way, and know the Taking only as the kingdom's custom.
+#
+# known_by: knowledge groups (from world.yaml) whose members know this fact.
+#           An NPC knowing a fact doesn't mean they'll share it - personality decides that.
+# found_at: places where the player can discover it in the world (a notice, a record, a carving).
+
+- id: magic_rare_daily
+  text: In Parth, magic is known but almost never part of ordinary life - the gifted are taken young, so folk light fires with flint and heal with herbs.
+  known_by: [parth_locals]
+
+- id: the_taking
+  text: >
+    Children who show signs of magic must be reported. Seekers sent by the nobility test
+    them and take the gifted away to be trained and placed in noble houses.
+    Officially it is the Summons; common folk call it the Taking.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, valecourt_locals, redstone_locals]
+  found_at: [trading_square]
+
+- id: taking_payment
+  text: A family whose child is taken receives a payment from the crown or the noble house.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, valecourt_locals, redstone_locals]
+
+- id: taken_rarely_return
+  text: Children who are taken almost never come home again.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, redstone_locals, merchants]
+
+- id: hiding_is_crime
+  text: Hiding a gifted child is a crime. Families caught doing it are punished.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, valecourt_locals, redstone_locals]
+  found_at: [trading_square]
+
+- id: seekers_visit
+  text: Seekers travel the countryside every few years. Nobody knows exactly when one will come.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, redstone_locals]
+
+- id: mages_serve_nobles
+  text: In noble houses, mages do daily work - keeping fires, preserving food, lighting halls.
+  known_by: [nobility, mages, merchants]
+
+- id: parth_on_trade_road
+  text: Parth exists because the trade road crosses the Wend there; travelers keep it alive.
+  known_by: [parth_locals, merchants]
+
+- id: greywood_wolves
+  text: Wolves come out of the Greywood after sheep, especially in winter.
+  known_by: [parth_locals, shepherds, hunters]
+
+- id: greywood_worse
+  text: In hard winters, things worse than wolves come out of the Greywood. Few who say so have seen them.
+  known_by: [shepherds, hunters, guild]
+
+- id: watch_guild_friction
+  text: The watch resents that villagers bring real trouble to the guild instead of to them.
+  known_by: [guards, guild]
+
+- id: temple_older_than_parth
+  text: The temple stood before Parth was built. The village grew up around it.
+  known_by: [temple, scholars]
+
+- id: nameless_shrine
+  text: >
+    The worn shrine belongs to a goddess of passage with no remembered name.
+    Villagers leave small offerings there at funerals.
+  known_by: [temple, parth_locals]
+
+# --- the wider world (from the world writeup) ---
+
+- id: parth_crossroads
+  text: Parth sits where the kingdom's roads meet - north to Greyhollow, northeast to Ironvein, east to Redstone, south to Willowmead and west to Valecourt.
+  known_by: [everyone]
+
+- id: taking_seen_from_outside
+  text: The kingdom takes its magically gifted children into the service of its nobles. Outsiders find the custom strange, cruel, or simply foolish.
+  known_by: [eldervale_locals, ironvein_locals, frostholm_locals, sunspire_locals, merchants]
+
+- id: willowmead_slow
+  text: Willowmead is a slow, rural place of farms and orchards, one of the region's important farming villages. Magic stays outside village life there.
+  known_by: [willowmead_locals, parth_locals, merchants]
+
+- id: greyhollow_trades
+  text: Greyhollow grew up around what lies under its hills - mining, timber and stonework - and sends its ore and wood south to Parth.
+  known_by: [greyhollow_locals, parth_locals, merchants]
+
+- id: greyhollow_magic
+  text: In Greyhollow, magic is thought of as something for the wealthy or the specialized, not for working folk.
+  known_by: [greyhollow_locals]
+
+- id: eldervale_ancient
+  text: Eldervale is older than the kingdoms around it. Many of its traditions predate them entirely.
+  known_by: [eldervale_locals, scholars]
+
+- id: eldervale_magic
+  text: In Eldervale, magic is simply part of existence, as natural as the forest - it belongs to no class of people.
+  known_by: [eldervale_locals, mages]
+
+- id: ironvein_craft
+  text: Ironvein runs through the mountains and the vast deeps beneath them; its people live by mining, craft and engineering.
+  known_by: [ironvein_locals, merchants]
+
+- id: ironvein_magic
+  text: In Ironvein, magic is a craft like any other - something to be studied, refined and built into the works of civilization.
+  known_by: [ironvein_locals, mages]
+
+- id: frostholm_endurance
+  text: Frostholm's isolation and the harshness of the north have made its people value endurance, community and preparation above all.
+  known_by: [frostholm_locals]
+
+- id: frostholm_magic
+  text: In Frostholm, powerful magic is rare and treated with suspicion and caution - long hardship taught them to.
+  known_by: [frostholm_locals]
+
+- id: frostpass_winter
+  text: The Frostpass between Ironvein and Frostholm is far harder in winter, and some winters it cannot be crossed at all.
+  known_by: [frostholm_locals, ironvein_locals, merchants]
+
+- id: riverhaven_trade
+  text: Riverhaven is one of the kingdom's great centers of trade, a meeting point for merchants and travelers from everywhere.
+  known_by: [riverhaven_locals, merchants, everyone]
+
+- id: riverhaven_divide
+  text: In Riverhaven, the wealthy and the institutions know magic well; ordinary people hardly at all. The divide is like Parth's, but softer.
+  known_by: [riverhaven_locals]
+
+- id: redstone_frontier
+  text: Redstone is the last real stop before the desert - caravans heading east refit and hire guards there.
+  known_by: [redstone_locals, merchants, parth_locals]
+
+- id: redstone_magic
+  text: In Redstone, magical ability is uncommon, and where it appears it carries spiritual or cultural weight among its peoples.
+  known_by: [redstone_locals]
+
+- id: sunspire_water
+  text: Sunspire is built around one of the Sunscar's great sources of water, and its whole culture turns on water.
+  known_by: [sunspire_locals, merchants]
+
+- id: sunspire_magic
+  text: In Sunspire, magic is common and bound up with faith - seen as a gift of the natural and divine forces of the world, not a privilege of rank.
+  known_by: [sunspire_locals, mages]
+
+- id: valecourt_court
+  text: Valecourt is the political heart of the kingdom - noble families, courts and institutions competing for influence.
+  known_by: [valecourt_locals, nobility, merchants]
+
+- id: valecourt_magic
+  text: In Valecourt, magic is highly respected and almost wholly held by the nobility and institutions of power. The kingdom's magical hierarchy is plainest there.
+  known_by: [valecourt_locals, nobility, mages]
+
+- id: hollow_tales
+  text: Travelers' tales speak of a place called the Hollow, somewhere beyond the known lands. A city, the remains of one, or something that only looks like one - no two tellings agree, and no road leads there.
+  known_by: [everyone]
+
+- id: hollow_no_magic
+  text: Some say there is no magic at all in the Hollow.          # one of the conflicting accounts
+  known_by: [frostholm_locals, greyhollow_locals]
+
+- id: hollow_other_rules
+  text: Some say magic in the Hollow obeys entirely different rules.   # one of the conflicting accounts
+  known_by: [eldervale_locals, scholars, mages]
+
+- id: great_halls_pay_more
+  text: >
+    The guild's halls are not equal. Those in the hard-edged cities (Frostholm and Sunspire above all, and Ironvein and
+    Valecourt after them) post the biggest contracts, with expeditions to far, dangerous country, and pay a good deal
+    more for the same work than the smaller halls do. The greatest halls of all are in the far lands - Cinderhold,
+    Hrimgard and Dunmarrow - and they pay nearly double. Members who have outgrown the work at their home hall go there.
+  known_by: [guild, merchants]
+
+# --- the far lands ---
+
+- id: far_lands_exist
+  text: >
+    Beyond the settled kingdom are five far lands, each reached by one long road from one great city: the Ashen Reach beyond
+    Sunspire, the Stormcrown beyond Frostholm, the Deep Roads below Ironvein, the drowned coast west of Valecourt and the Jade Maw
+    south of Riverhaven. The creatures there are not like the ones at home, and the guild's highest ranks work nowhere else.
+  known_by: [guild, merchants, scholars]
+
+- id: ember_road_danger
+  text: The Ember Road to Cinderhold is two weeks of ash and salt flat; the only caravans that make it pay for escorts in dragonborn steel.
+  known_by: [sunspire_locals, cinderhold_locals, merchants]
+
+- id: cinderhold_fires
+  text: Cinderhold's forges are fed from the caldera itself, and the smiths there work metal no other city can heat. Gear made there outlasts its makers.
+  known_by: [cinderhold_locals, sunspire_locals, merchants, guild]
+
+- id: hrimgard_storm_song
+  text: Hrimgard sings to the storm each night. The song keeps the lightning off the roofs, and it is said to be a language the giants taught the first settlers.
+  known_by: [hrimgard_locals, frostholm_locals, merchants]
+
+- id: giants_halls
+  text: The giants of the Stormcrown do not raid the city; they trade, and sometimes accept a challenge. Those who refuse a giant's challenge are not welcome at its feasts again.
+  known_by: [hrimgard_locals, frostholm_locals, guild]
+
+- id: dunmarrow_bell
+  text: When Dunmarrow's war-bell tolls twice, the gates close, and nobody is let in till the bell tolls once. The gatekeepers do not say what comes up the stair on those nights.
+  known_by: [dunmarrow_locals, ironvein_locals, guild]
+
+- id: lightless_deep_madness
+  text: Parties that go far into the Lightless Deep sometimes come back counting more than they set out with. The dwarves have a rite for it.
+  known_by: [dunmarrow_locals, ironvein_locals, mages, scholars]
+
+- id: brinewatch_lanterns
+  text: Brinewatch keeps lanterns burning on every quay all night. The old sailors say the drowned will not climb a lit stair.
+  known_by: [brinewatch_locals, valecourt_locals, merchants]
+
+- id: drowned_kingdom
+  text: The kingdom that sank off the western coast was called Ys-Calavar. Its bells can still be heard at low tide, and its salvage makes more fortunes than the sea takes.
+  known_by: [brinewatch_locals, scholars, nobility, merchants]
+
+- id: jade_maw_swallows
+  text: The Jade Maw is said to have swallowed a whole army of the old empire. The temples under its roots are real, and so are the things that guard them.
+  known_by: [amaranth_locals, riverhaven_locals, scholars, guild]
+
+- id: sepulchre_dead_empire
+  text: The Sepulchre Fields hold the burial grounds of an empire that predates every kingdom. The graves hold more than bones, and some of them hold armies.
+  known_by: [brinewatch_locals, scholars, nobility, mages]
+  found_at: [sepulchre_fields]
+
+# --- the uttermost reaches ---
+
+- id: tempest_throne_voice
+  text: Above the Thunder Spires there is a hall where the storm answers questions. Hrimgard's skalds say it has given three true answers since the first thane, and that each was paid for.
+  known_by: [hrimgard_locals, frostholm_locals, guild]
+  found_at: [tempest_throne]
+
+- id: storm_sovereign_oath
+  text: The giants of the Stormcrown swore an oath to something in the lightning before they built their first hall. They will not say what they were promised, only that the oath is not finished.
+  known_by: [hrimgard_locals, scholars]
+
+- id: furnace_of_ages_forge
+  text: Cinderhold's first smiths took their fire from a furnace under the caldera that was lit before there were smiths. They still send one apprentice a generation to feed it, and none have returned.
+  known_by: [cinderhold_locals, sunspire_locals, guild]
+  found_at: [furnace_of_ages]
+
+- id: slag_titans
+  text: The titans of the Furnace walk to the shore when the caldera sags. Caravan masters on the Ember Road say a thin black smoke on the horizon means turn back.
+  known_by: [cinderhold_locals, sunspire_locals, merchants]
+
+- id: abyssal_gallery_carvings
+  text: Below the Lightless Deep is a gallery carved with scenes from before the first dwarf. The dwarves of Dunmarrow seal any copy of those scenes and will not say why.
+  known_by: [dunmarrow_locals, ironvein_locals, scholars]
+  found_at: [abyssal_gallery]
+
+- id: first_dwarf_makers
+  text: Dunmarrow's rune-masters teach that the dwarves did not make the Deep Roads. They found them, already finished, and learned their craft from the machines that still keep them.
+  known_by: [dunmarrow_locals, mages, scholars]
+
+- id: leviathan_trench_tide
+  text: At the lowest tides a cleft opens off the drowned shore, a mile of black water between coral walls. Brinewatch's wreck-brokers say nothing that goes in at the ebb has ever come back before the flood.
+  known_by: [brinewatch_locals, valecourt_locals, merchants]
+  found_at: [leviathan_trench]
+
+- id: drowned_goddess
+  text: The kingdom that sank on the western coast was devoted to something it called the Mother of Tides. The wrecks off Brinewatch are said to hum on the night she is remembered.
+  known_by: [brinewatch_locals, temple, scholars]
+
+- id: heartroot_sanctum_roots
+  text: The oldest temple in the Jade Maw was never abandoned. The jungle grew around it, and what tends the roots there keeps the vines from the city, for a price Amaranth's herbalists will not discuss.
+  known_by: [amaranth_locals, riverhaven_locals, scholars]
+  found_at: [heartroot_sanctum]
+
+- id: maw_serpent_god
+  text: The jungle empire's last priest-kings did not die. Amaranth's guides say they gave themselves to something coiled under the temples, and that the Maw has been quietly growing since.
+  known_by: [amaranth_locals, scholars]
+
+- id: throne_of_ashes_legion
+  text: In the dead empire's last palace the armoured dead still stand at the gates. They have not been told the war is over, and guild veterans say they answer to a name, not a banner.
+  known_by: [brinewatch_locals, guild, scholars]
+  found_at: [throne_of_ashes]
+
+- id: unburied_legion
+  text: The legion of the Sepulchre Fields was buried standing, in ranks, with their spears. Barrow-delvers learn early not to dig where the rows are straight.
+  known_by: [brinewatch_locals, guild, temple]
+
+- id: worldfrost_wyrm_bones
+  text: The ice miles thick on the Worldfrost Expanse is full of dragon bones. Frostholm's trappers say the wyrms there are not extinct, only sleeping, and a deep crack or a hard winter wakes one.
+  known_by: [frostholm_locals, hrimgard_locals, hunters]
+  found_at: [worldfrost_expanse]
+
+- id: glass_sea_fire
+  text: The Glass Sea was sand until something burned it to a mirror. Sunspire's scholars date the fire from the time of the dead empire, and cannot agree on who lit it.
+  known_by: [sunspire_locals, redstone_locals, scholars]
+  found_at: [glass_sea]
+
+- id: glass_sea_singing
+  text: Caravans that cross the Glass Sea at night hear it sing. Anyone who follows the sound is found at dawn, standing, facing the same direction.
+  known_by: [sunspire_locals, redstone_locals, merchants]
+
+- id: blackwater_deeps_lights
+  text: Pale lights move under the black water of the Blackwater Deeps. Riverhaven's bargemen say the fens are older than the river, and that the lights are the drowned forest remembering.
+  known_by: [riverhaven_locals, willowmead_locals, merchants]
+  found_at: [blackwater_deeps]
+
+- id: shattered_downs_battle
+  text: The Shattered Downs are a giants' battlefield, and the weapons are still in the ground. Valecourt's heralds note that no noble house has ever claimed the land, and that the old giants' pact says nobody may.
+  known_by: [valecourt_locals, greyhollow_locals, scholars]
+  found_at: [shattered_downs]
+
+- id: sunken_crown_capital
+  text: The drowned capital of the lost western kingdom lies in a ring of cliffs, its towers still lit by wrecker's fires nobody lit. The tide goes out further every year.
+  known_by: [brinewatch_locals, valecourt_locals, merchants]
+  found_at: [sunken_crown]

@@ -1,0 +1,117 @@
+# RINGS AND AMULETS - a different kind of gear from armor.
+#
+# Armor is a number you wear. An accessory has an identity, assembled fresh for every drop so no two playthroughs hold the same one:
+#   a LANE      what kind of wearer it suits. A ring is a thing of the hand (the striker's ring, the trickster's ring);
+#               an amulet is a thing of the heart (the warden's amulet, the mystic's amulet).
+#   a TRAIT     the always-on gift: stats from the lane's list, and from rare up a minor combat mechanic.
+#   a POWER     a limited-use active ability: it takes your action, costs nothing, and can be used a few times a fight.
+#   a GIFT      from epic up, a quiet gift the world answers to (a lane's world mechanic).
+# The model never decides any of this. It only names the piece and writes its history from the playthrough's own story.
+#
+# Each rarity strengthens all of it:
+#   stats  rolled stat bonuses (the lane's stats)          mech   strength of the trait mechanic (0 = none)
+#   power  strength of the power (0 = none)                uses   times a fight          world  whether it carries a world gift
+rarity:
+  crude:     {stats: 0, mech: 0,   power: 0,   uses: 0, world: false}
+  common:    {stats: 1, mech: 0,   power: 0,   uses: 0, world: false}
+  uncommon:  {stats: 2, mech: 0,   power: 0,   uses: 0, world: false}
+  rare:      {stats: 2, mech: 0.6, power: 0.7, uses: 1, world: false}
+  epic:      {stats: 3, mech: 1.0, power: 1.0, uses: 1, world: true}
+  legendary: {stats: 3, mech: 1.3, power: 1.4, uses: 2, world: false}   # a legendary also carries a wonder (legendary_effects.yaml)
+
+# Which lanes a base can have. Anything not listed here is a ring or an amulet by its slot.
+slot_lanes: {ring: [striker, trickster], neck: [warden, mystic]}
+
+lanes:
+  striker:
+    label: striker's
+    flavor: made for someone who fights with the hand - quick, hard, finishing
+    stats: [damage, accuracy, max_stamina, resolve, recovery, strength, dexterity, crit_chance, crit_damage, elemental_damage]
+    mechs: {relentless: 4, executioner: 25, opportunist: 20, flurry: 15, bloodlust: 8, battle_rhythm: 3, cleave: 30}
+    world: {fortunes_favor: 15, warden_wage: 15, reapers_tally: 20, wreckers_mark: 0}
+    powers: [smite, frenzy, rend]
+  trickster:
+    label: trickster's
+    flavor: made for someone who wins by not being where the blow lands
+    stats: [evasion, stealth, accuracy, movement, damage, dexterity, charisma, crit_chance, crit_damage, elemental_damage]
+    mechs: {phantom: 8, windwalker: 20, deflect: 12, terrify: 12, blinding: 8, riposte: 15}
+    world: {trapseer: 0, farsight: 0, honeyed: 0, brokers_seal: 10, dread: 0}
+    powers: [vanish, dazzle, sleight]
+  warden:
+    label: warden's
+    flavor: made for someone who holds the line and is still standing at the end
+    stats: [defense, resolve, max_health, recovery, max_stamina, constitution, physical_resistance, magical_resistance, elemental_resistance, companion_durability]
+    mechs: {regeneration: 1, aegis: 15, stoneskin: 5, deflect: 12, second_wind: 25, hardening: 3, triumph: 5, plating: 10, spellward: 10}
+    world: {hearthfire: 0, jade_physician: 30, gale_ward: 0, vigil: 0}
+    powers: [barrier, mend, bastion]
+  mystic:
+    label: mystic's
+    flavor: made for someone whose power is the mind and what the mind can call
+    stats: [max_mana, damage, accuracy, resolve, recovery, intelligence, wisdom, charisma, magical_resistance, elemental_resistance, crit_chance, crit_damage, elemental_damage, companion_damage, companion_durability]
+    mechs: {soul_harvest: 15, ward_conversion: 25, mana_shield: 25, unburdened: 15, echoing: 15, spellblade: 15, arcane_recall: 1}
+    world: {whisperer: 0, wellspring: 30, sages_memory: 0, arcane_bargain: 20}
+    powers: [font, nova, veil]
+
+# The powers. `scale` lists the numbers that grow with the rarity's power; the rest stay as written.
+# kinds (engine/relics.py): smite, mend, barrier, buff, mark, dazzle, font, nova, rally, reset
+powers:
+  smite:   {name: a crushing blow, kind: smite,   mult: 200, scale: [mult],
+            text: "Strike one enemy at once for {mult}% of a blow, whatever the distance."}
+  frenzy:  {name: a surge of fury, kind: buff, rounds: 3, mech: {flurry: 40, bloodlust: 12}, scale: [flurry, bloodlust],
+            text: "For {rounds} rounds, {flurry}% of your hits are followed by a second strike and critical hits heal you."}
+  rend:    {name: a marking cut, kind: mark, rounds: 3,
+            text: "Mark one enemy: it bleeds and is cursed, taking more damage from you."}
+  vanish:  {name: slipping the blow, kind: buff, rounds: 2, mech: {phantom: 55}, scale: [phantom],
+            text: "For {rounds} rounds, {phantom}% of attacks against you pass through you like smoke."}
+  dazzle:  {name: a blinding flash, kind: dazzle, rounds: 2,
+            text: "Blind and slow the enemy nearest you; the rest of the field is left unsettled."}
+  sleight: {name: a sleight of the moment, kind: reset, stamina: 35, scale: [stamina],
+            text: "Every ability you have is ready again, and you recover {stamina}% of your stamina."}
+  barrier: {name: a shell of light, kind: barrier, pct: 30, scale: [pct],
+            text: "Wrap yourself in a barrier worth {pct}% of your health."}
+  mend:    {name: a closing of wounds, kind: mend, pct: 28, scale: [pct],
+            text: "Heal {pct}% of your health and stop any bleeding."}
+  bastion: {name: unmoving stone, kind: buff, rounds: 3, mech: {stoneskin: 22, unyielding: 0}, scale: [stoneskin],
+            text: "For {rounds} rounds you take {stoneskin}% less damage and cannot be stunned or knocked down."}
+  font:    {name: a deep draught, kind: font, mana: 40, cooldown: 2, scale: [mana],
+            text: "Recover {mana}% of your mana and bring every ability {cooldown} rounds nearer to ready."}
+  nova:    {name: a burst of power, kind: nova, mult: 110, scale: [mult],
+            text: "A wave of magic strikes every enemy for {mult}% of a spell."}
+  veil:    {name: a mirrored veil, kind: buff, rounds: 3, mech: {spellward: 40, ward_conversion: 50}, scale: [spellward, ward_conversion],
+            text: "For {rounds} rounds you take {spellward}% less spell damage and feed on what still lands."}
+
+# A boss's own relic. Always legendary, always a ring or an amulet, and always the boss kit's signature on top of a rolled lane.
+# `fight` and `world` are passive; `power` is a power in place of the lane's own. One variant is picked at random.
+bosses:
+  undead:
+    - {id: thrall, fight: {thrall: 1}, text: "The first enemy you slay in a fight rises as it was in life and fights beside you until the fight ends or it falls again."}
+    - {id: gravecold, power: {name: the grave's breath, kind: nova, mult: 90, status: slowed, text: "A wave of grave-cold strikes every enemy for {mult}% of a spell and slows them."}}
+  aberration:
+    - {id: unmasking, world: {lie_sense: 1}, text: "Whenever someone lies to you, the stone turns cold and you know it."}
+    - {id: unseen_eye, power: {name: the unblinking eye, kind: dazzle, rounds: 2, wide: true, text: "Blind and slow every enemy in the field."}}
+  giant:
+    - {id: earthshaker, fight: {earthshaker: 15}, text: "Your blows have a {value}% chance to knock the enemy flat (always on a critical hit), and nothing can knock you down."}
+    - {id: titan_stride, power: {name: a giant's stride, kind: buff, rounds: 3, mech: {stoneskin: 30, unyielding: 0, cleave: 60}, text: "For 3 rounds you take 30% less damage, cannot be stunned or knocked down, and your hits cleave."}}
+  elemental:
+    - {id: attunement, fight: {attunement: 6}, text: "Each ability you use attunes you further: +{value}% damage per stack, up to five, for the rest of the fight."}
+    - {id: stormcall, power: {name: the gathered storm, kind: nova, mult: 150, text: "The storm answers you: every enemy takes {mult}% of a spell."}}
+  construct:
+    - {id: iron_will, fight: {iron_will: 2}, text: "The first {value} afflictions you suffer each fight are shrugged off, and each one steels your blows (+10% damage)."}
+    - {id: steelheart, power: {name: the unbending heart, kind: barrier, pct: 55, text: "Wrap yourself in a barrier worth 55% of your health."}}
+  monstrosity:
+    - {id: many_heads, fight: {many_heads: 60}, text: "Once a round, after you strike, another head of the beast strikes a second enemy for {value}% of a blow."}
+    - {id: rending_bite, power: {name: the beast's hunger, kind: mark, rounds: 4, text: "Mark one enemy: it bleeds and is cursed, taking more damage from you."}}
+  dragon:
+    - {id: wyrmfire, power: {name: a dragon's breath, kind: nova, mult: 170, status: frightened, text: "Breathe ruin over the field: every enemy takes {mult}% of a spell and may flee in terror."}}
+    - {id: dread, fight: {fearsome: 0, terrify: 25}, text: "Lesser foes may break at the sight of you, and your hits may terrify."}
+  fiend:
+    - {id: bargain, power: {name: a devil's bargain, kind: buff, rounds: 3, mech: {blood_pact: 60, vampiric: 20}, drain: 8, collapse: weary,
+                            text: "For 3 rounds you deal far more damage and drain life from your wounds, but you bleed 8% of your health each round and are slowed when it ends."}}
+    - {id: bloodpact_ring, fight: {bloodlust: 18, vampiric: 12}, text: "Critical hits heal you greatly, and every wound you deal feeds you."}
+  person:
+    - {id: rally, power: {name: a rallying cry, kind: rally, pct: 30, text: "Your companions recover 30% of their health and strike at once; you gain a barrier of the same size."}}
+    - {id: duelist, fight: {riposte: 30, hex: 0}, text: "When struck in melee you may strike back at once, and your first hit on an enemy lays a curse on it."}
+  default:
+    - {id: deathless, power: {name: a hand on the threshold, kind: buff, rounds: 3, mech: {deathless: 1}, collapse: spent,
+                              text: "For 3 rounds you cannot fall below 1 health - but when it ends you are left with nothing: stamina and mana are gone."}}
+    - {id: quickened, power: {name: a stolen moment, kind: reset, stamina: 60, text: "Every ability you have is ready again, and you recover 60% of your stamina."}}

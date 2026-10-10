@@ -1,0 +1,60 @@
+# CHECKS - rolls for uncertain things outside combat. The player sees only the outcome.
+#
+# chance = base + (attribute - attribute_center) * attribute_weight + passive bonuses + situation, kept to [min, max]
+# The roll is 1-100. margin = chance - roll. The outcome is the first degree whose margin is reached.
+
+base: 50
+attribute_center: 15
+attribute_weight: 1.5
+min: 5
+max: 95
+degrees:
+  strong success: 30
+  success: 0
+  partial: -15
+  failure: -1000
+
+# How much the other person's trust in you helps, per point of trust above or below 50.
+trust_weight: {persuasion: 0.5, deception: 0.3, insight: 0.2, performance: 0.2}
+
+# How someone's personality shifts the odds. Positive is easier for the player.
+traits:
+  suspicious:   {deception: -20, persuasion: -10, stealth: -10}
+  paranoid:     {deception: -20, persuasion: -15, stealth: -20}
+  skeptical:    {deception: -15, persuasion: -10}
+  cynical:      {persuasion: -10, performance: -10}
+  shrewd:       {deception: -15, persuasion: -5}
+  trusting:     {deception: 20, persuasion: 10}
+  friendly:     {persuasion: 10, insight: 5}
+  kind:         {persuasion: 10}
+  generous:     {persuasion: 10}
+  hospitable:   {persuasion: 5}
+  gossipy:      {insight: 10, persuasion: 5}
+  talkative:    {insight: 10}
+  secretive:    {insight: -20}
+  quiet:        {insight: -10}
+  aloof:        {insight: -10, persuasion: -10}
+  cold:         {insight: -10, persuasion: -10, performance: -10}
+  deceitful:    {insight: -10, deception: -10}
+  manipulative: {deception: -20, persuasion: -10}
+  honest:       {insight: 10}
+  blunt:        {insight: 10}
+  cowardly:     {intimidation: 25}
+  anxious:      {intimidation: 15, insight: 10}
+  brave:        {intimidation: -20}
+  hot_tempered: {intimidation: -10, persuasion: -5}
+  proud:        {intimidation: -10, persuasion: -10}
+  stubborn:     {persuasion: -15}
+  set_in_ways:  {persuasion: -10}
+  greedy:       {persuasion: 5}
+  vain:         {deception: 10, persuasion: 10}
+  sentimental:  {persuasion: 10, performance: 15}
+  dreamy:       {stealth: 10, performance: 10}
+  nosy:         {stealth: -15}
+  cautious:     {stealth: -10, deception: -5}
+  curious:      {performance: 10}
+  fanatical:    {persuasion: -20, intimidation: -10}
+  calm:         {intimidation: -10}
+
+# Performance tips in places where people gather (copper): by outcome.
+tips: {strong success: [30, 60], success: [10, 25], partial: [0, 5], failure: [0, 0]}

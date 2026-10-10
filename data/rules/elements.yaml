@@ -1,0 +1,33 @@
+# ELEMENTS - the damage kinds a fight can carry besides plain physical/magical, so a resistance on gear has something to resist.
+# An attack's element is read from words: a creature's name, id and attack names, or an ability's name and description.
+# keywords match the START of a word (so "frost" catches "frostbite" but "light" never catches "lightning").
+# creature_hints: a creature id/name containing the text counts as that element even if its attacks don't say it (dragons by colour).
+resist_cap: 75          # total resistance to one thing never exceeds this percent
+elements:
+  fire:      [fire, flame, flaming, burn, scorch, ember, cinder, inferno, magma, lava, pyre, blaze, smolder, smoulder, salamander, hellfire, immol]
+  cold:      [frost, ice, icy, cold, freez, frozen, winter, chill, rime, snow, glacier, blizzard]
+  lightning: [lightning, thunder, shock, spark, storm, tempest]
+  poison:    [poison, venom, toxic, spore, plague, blight, noxious]
+  acid:      [acid, corro, caustic, rust, dissolv]
+  necrotic:  [necrotic, death, decay, rot, grave, wither, curse, shadow, wraith, drain, soul, haunt, tomb]
+  radiant:   [radiant, holy, divine, smite, sunfire, radiance, celestial, angelic, blessed, sacred]
+creature_hints:
+  red dragon: fire
+  white dragon: cold
+  blue dragon: lightning
+  black dragon: acid
+  green dragon: poison
+  brass dragon: fire
+  copper dragon: acid
+  bronze dragon: lightning
+  silver dragon: cold
+  gold dragon: fire
+  fire elemental: fire
+  water elemental: cold
+  air elemental: lightning
+  hellhound: fire
+  wight: necrotic
+  wraith: necrotic
+  ghoul: necrotic
+  vampire: necrotic
+  lich: necrotic

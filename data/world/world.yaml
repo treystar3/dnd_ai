@@ -1,0 +1,70 @@
+# RIVIA - world overview
+#
+# Reference material for the engine and NPCs. The player never reads these files;
+# they learn everything through what they see, who they talk to, and what they find.
+# Anything marked "invented" was suggested, not decided - rename or cut freely.
+
+name: Rivia
+
+summary: >
+  A traditional high-fantasy land of kingdoms, wild country and old ruins, where
+  different creatures belong to different biomes. Magic is real; how it is viewed
+  and used varies from place to place.
+
+# Where the player wakes after leaving the Threshold.
+start_location: south_fields
+
+# Who-knows-what groups. Every fact in lore.yaml says which of these know it.
+# NPCs only know facts tagged for groups they belong to.
+knowledge_groups:
+  everyone: Anyone living in Rivia.
+  parth_locals: People who live in or around Parth.
+  shepherds: Shepherds and herders.
+  hunters: Hunters and trappers.
+  guards: Members of a town watch.
+  guild: Adventurers' guild members and staff.
+  temple: Priests and acolytes.
+  merchants: Traveling traders and caravan folk.
+  nobility: Noble houses and those who serve inside them.
+  mages: Trained mages.
+  scholars: The learned - archivists, sages, some priests.
+  willowmead_locals: People of Willowmead and its farms.
+  greyhollow_locals: People of Greyhollow and the northern hills.
+  eldervale_locals: People of Eldervale and the Blackpine.
+  ironvein_locals: People of Ironvein and the Grey Mountains.
+  frostholm_locals: People of Frostholm and the far north.
+  riverhaven_locals: People of Riverhaven and the Great River.
+  redstone_locals: People of Redstone and the eastern frontier.
+  sunspire_locals: People of Sunspire and the Sunscar.
+  cinderhold_locals: People of Cinderhold and the Ashen Reach.
+  hrimgard_locals: People of Hrimgard and the Stormcrown.
+  dunmarrow_locals: People of Dunmarrow and the Deep Roads.
+  brinewatch_locals: People of Brinewatch and the drowned coast.
+  amaranth_locals: People of Amaranth and the Jade Maw.
+  valecourt_locals: People of Valecourt and the royal vales.
+  outlaws: Bandits, smugglers and others who live outside the law.
+  nobody: Known to no living person. Discoverable only through the world itself.
+
+# Biomes. Places name one; creatures in bestiary.yaml list the biomes they live in.
+biomes:
+  farmland: Cultivated fields and pasture around settlements.
+  grassland: Open plains and meadows.
+  forest: Temperate woodland.
+  jungle: Hot, dense tropical forest.
+  hills: Rolling uplands and moors.
+  mountains: High peaks, crags and passes.
+  swamp: Marsh, fen and bog.
+  coast: Shorelines, cliffs and beaches.
+  ocean: Open sea.
+  freshwater: Rivers and lakes.
+  desert: Sand and dry waste.
+  arctic: Frozen lands.
+  underground: Caves, tunnels and deep places.
+  ruins: Abandoned strongholds, tombs and old places.
+  urban: Towns and villages.
+  primeval: Lost lands where prehistoric beasts survive.
+  cracked_plains: A shattered wasteland where fiends are said to wage their wars.
+  volcanic: Ash plains, lava fields, calderas and cinder - land still being made.
+  highpeaks: Storm-wracked peaks above the cloud line, where giants keep their halls.
+  deep_underground: Lightless caverns and vaults far beneath the dwarven roads, older than any kingdom.
+  drowned: A sunken coast of reefs, wrecks and drowned halls, half sea and half land.

@@ -1,0 +1,880 @@
+# Places in Rivia.
+#
+# visible:   what anyone can see there. The narrator only describes these (plus what's happening).
+# residents: roles the engine fills with generated NPCs the first time the place is entered.
+#            Names, looks and personalities are generated then; the role list is yours.
+# peoples:   population mix (relative weights). Child places inherit from their parent.
+# connects:  extra places reachable from here, with walking minutes: {greywood: 30}.
+#            Parent, children and siblings are always reachable, 5 minutes apart.
+# locals_group: knowledge group residents here belong to. Child places inherit it.
+# biome:     what kind of land this is (see world.yaml). Decides which creatures can live here.
+# danger:    [min, max] creature levels found here. No danger means no wild creatures appear.
+# storage:   true if the player's item box can be reached here.
+# trade_level: [min, max] item levels merchants here stock and make.
+# stations:  workstations here for crafting gear, who owns each (they must be at work) and the fee to use it.
+# anchors:   creatures that always live here, whatever else is rolled - use this to keep the roster true to
+#            your lore (the Greywood has wolves because the villagers say so).
+
+- id: parth
+  name: Parth
+  type: town
+  region: wend_vale
+  visible:
+    - Timber-and-stone houses gathered where the trade road crosses the river Wend.
+    - Grain fields and low sheep hills on every side but the north.
+    - To the north, the dark edge of the Greywood.
+    - Hearths and ovens are lit by flint and tinder; nothing here is kindled by magic.
+    - Roads leave in every direction - the Old Quarry Road north, the King's Pass northeast, the Red Road east,
+      the King's Road south and the Royal Road west.
+  peoples: {human: 85, halfling: 6, dwarf: 5, half_elf: 4}
+  biome: urban
+  locals_group: parth_locals
+  connects: {greywood: 30, willowmead: 480, greyhollow: 600, eldervale: 1320, ironvein: 1440, redstone: 1200, valecourt: 1680}
+  residents: {farmer: 6, shepherd: 2, hunter: 1, herbalist: 1, smith: 1, miller: 1, land_agent: 1}
+  trade_level: [1, 6]
+  stations: {forge: {owner: smith, fee: 50}, tanning_rack: {owner: hunter, fee: 20}}
+
+- id: south_fields
+  name: the south fields
+  type: fields
+  region: wend_vale
+  biome: farmland
+  danger: [1, 3]
+  connects: {parth: 15}
+  visible:
+    - Rows of grain, a dirt track between them, and the roofs of Parth a short walk north.
+    - A low stone wall, a scarecrow, birds startling up from the stalks.
+
+- id: trading_square
+  name: the trading square
+  type: square
+  region: wend_vale
+  parent: parth
+  visible:
+    - A cobbled square with a stone well at its center.
+    - A weathered notice post covered in layers of nailed-up paper.
+    - A few permanent stalls; on market day, carts and traveling merchants fill the rest.
+  residents: {baker: 1, chandler: 1, tinker: 1}
+  trade_level: [1, 6]
+  stations: {workbench: {owner: tinker, fee: 20}, loom: {owner: chandler, fee: 20}}
+
+- id: watch_tower
+  name: the watch tower
+  type: guardpost
+  region: wend_vale
+  parent: parth
+  visible:
+    - A squat stone tower by the road, a bell hung under its eaves.
+    - A bench by the door where a guard is usually sitting.
+  residents: {watch_captain: 1, guard: 4}
+
+- id: guild_house
+  name: the adventurers' guild house
+  type: guild
+  region: wend_vale
+  parent: parth
+  visible:
+    - A converted granary with the guild's sign over the door.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 3, butcher: 1, quartermaster: 1}
+
+- id: tilted_plough
+  name: the Tilted Plough          # invented
+  type: inn
+  region: wend_vale
+  parent: parth
+  visible:
+    - A long, low inn with a crooked painted plough on its sign.
+    - A front room of locals at their usual tables; stairs up to rooms for travelers.
+  residents: {innkeeper: 1, server: 1, cook: 1}
+  storage: true
+
+- id: parth_temple
+  name: the temple of Parth
+  type: temple
+  region: wend_vale
+  parent: parth
+  visible:
+    - A small stone temple, plainly much older than the houses around it.
+    - Several altars; the largest is hung with harvest offerings.
+    - In a side alcove, a worn shrine to a figure whose face has been rubbed smooth.
+  residents: {priest: 1, acolyte: 1}
+
+- id: greywood
+  name: the Greywood               # invented
+  type: forest
+  region: wend_vale
+  biome: forest
+  danger: [1, 10]
+  anchors: [wolf]
+  visible:
+    - Old, close-grown forest. Light fails quickly past the first trees.
+    - Woodcutters' stumps along the edge; few paths lead deeper.
+
+- id: cracked_plains
+  name: the Cracked Plains           # invented; not connected to anywhere yet
+  type: wasteland
+  region: cracked_plains_region
+  biome: cracked_plains
+  danger: [60, 700]
+  visible:
+    - Grey earth split into endless plates by cracks too deep to see the bottom of.
+    - Scorched rock, old bones and broken weapons scattered as far as the eye can see.
+    - A low red haze on the horizon that never lifts.
+
+# --- the wider kingdom and beyond (from the world writeup) ---
+
+- id: willowmead
+  name: Willowmead
+  type: village
+  region: great_river
+  visible:
+    - A quiet farming village of humans and halflings among orchards, grazing fields and slow streams.
+    - To the south, the land softens into the wetlands of the Great River.
+    - The King's Road runs north to Parth; the River Road runs south to Riverhaven.
+  peoples: {human: 60, halfling: 40}
+  biome: urban
+  locals_group: willowmead_locals
+  connects: {riverhaven: 960, willowmead_wetlands: 45}
+  residents: {farmer: 2, orchard_keeper: 1, fisher: 1, herbalist: 1, innkeeper: 1}
+  storage: true
+  trade_level: [1, 6]
+
+- id: willowmead_wetlands
+  name: the Willowmead wetlands
+  type: wetland
+  region: great_river
+  biome: swamp
+  danger: [2, 12]
+  visible:
+    - Reed beds, black pools and slow channels where the Great River's waters spread out.
+    - Herons, frogsong, and the smell of mud and rot.
+
+- id: greyhollow
+  name: Greyhollow
+  type: town
+  region: northern_hills
+  visible:
+    - A rough, busy mining and lumber town where the farmland gives way to hills and rocky foothills.
+    - Spoil heaps, timber yards and the ring of picks; humans, dwarves and halflings work side by side.
+    - The Old Quarry Road runs south to Parth; Blackpine Road climbs northwest toward Eldervale.
+  peoples: {human: 50, dwarf: 30, halfling: 20}
+  biome: urban
+  locals_group: greyhollow_locals
+  connects: {eldervale: 900, greyhollow_foothills: 40, hollow_barrows: 110}
+  residents: {miner: 3, lumberjack: 2, stonemason: 1, smith: 1, innkeeper: 1, guard: 1}
+  storage: true
+  trade_level: [4, 14]
+  stations: {forge: {owner: smith, fee: 50}}
+
+- id: greyhollow_foothills
+  name: the Greyhollow foothills
+  type: hills
+  region: northern_hills
+  biome: hills
+  danger: [5, 18]
+  visible:
+    - Rocky foothills and mixed woodland, scarred with old workings and abandoned quarries.
+
+- id: blackpine_forest
+  name: the Blackpine Forest
+  type: forest
+  region: blackpine
+  biome: forest
+  danger: [12, 30]
+  connects: {greyhollow: 480, eldervale: 480}
+  visible:
+    - Immense, ancient pines and older trees between them; the light is green and dim even at noon.
+    - The road here is half swallowed by moss and root.
+
+- id: eldervale
+  name: Eldervale
+  type: city
+  region: blackpine
+  visible:
+    - An ancient elven city woven into the Blackpine - homes, halls and walkways grown into the living forest.
+    - Lights that are plainly magic hang among the branches, and no one remarks on them.
+    - Blackpine Road leads southeast to Greyhollow; the Old Forest Trail leads north toward Frostholm.
+  peoples: {elf: 70, half_elf: 25, human: 5}
+  biome: urban
+  locals_group: eldervale_locals
+  connects: {frostholm: 2880, elderwild: 130}
+  residents: {elven_warden: 2, loremaster: 1, herbalist: 1, enchanter: 1, innkeeper: 1, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [15, 40]
+
+- id: ironvein
+  name: Ironvein
+  type: city
+  region: grey_mountains
+  visible:
+    - A great dwarven city carved into the Grey Mountains and the deep places beneath them.
+    - Vast halls, forge-light, lifts and machinery; magic worked into stone and steel like any other craft.
+    - The King's Pass descends southwest to Parth; the Frostpass climbs north toward Frostholm.
+  peoples: {dwarf: 75, gnome: 15, human: 10}
+  biome: urban
+  locals_group: ironvein_locals
+  connects: {frostholm: 2400, grey_mountains: 60, ironcrown_peaks: 150}
+  residents: {miner: 2, smith: 1, engineer: 1, enchanter: 1, merchant: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [15, 45]
+  stations: {forge: {owner: smith, fee: 80}, workbench: {owner: engineer, fee: 40}}
+
+- id: grey_mountains
+  name: the Grey Mountains
+  type: mountains
+  region: grey_mountains
+  biome: mountains
+  danger: [20, 45]
+  visible:
+    - Bare grey peaks, scree slopes and narrow passes where the wind never stops.
+
+- id: frostholm
+  name: Frostholm
+  type: city
+  region: far_north
+  visible:
+    - A hard northern city in a valley of snow and ice, built for endurance against the cold.
+    - Goliaths, humans, orcs and dwarves share long halls and fires; the community is everything here.
+    - The Frostpass leads south to Ironvein; the Old Forest Trail leads southwest toward Eldervale.
+  peoples: {goliath: 30, human: 30, orc: 25, dwarf: 15}
+  biome: urban
+  locals_group: frostholm_locals
+  connects: {northern_tundra: 60, rimewind_barrens: 140}
+  residents: {trapper: 2, hunter: 1, smith: 1, elder: 1, innkeeper: 1, guard: 1, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [20, 45]
+  stations: {forge: {owner: smith, fee: 70}}
+
+- id: northern_tundra
+  name: the northern tundra
+  type: tundra
+  region: far_north
+  biome: arctic
+  danger: [35, 70]
+  visible:
+    - Open tundra and glacier under a white sky; snow to the horizon and nothing to break the wind.
+
+- id: riverhaven
+  name: Riverhaven
+  type: city
+  region: great_river
+  visible:
+    - A great trading city on the Great River - wharves, warehouses, barges and a crowd from everywhere.
+    - Fine houses on the rise above the docks, where the wealthy keep magic close; the docks below rarely see it.
+    - The River Road runs north to Willowmead; the southern trade routes run on toward the Sunscar.
+  peoples: {human: 55, halfling: 15, half_elf: 10, dwarf: 8, elf: 5, dragonborn: 4, gnome: 3}
+  biome: urban
+  locals_group: riverhaven_locals
+  connects: {sunspire: 4320, great_river_reaches: 45, mirewater_fens: 100}
+  residents: {merchant: 2, dockhand: 2, bargeman: 1, priest: 1, enchanter: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [10, 35]
+
+- id: great_river_reaches
+  name: the Great River reaches
+  type: river
+  region: great_river
+  biome: freshwater
+  danger: [8, 25]
+  visible:
+    - Wide brown water, sandbars and drowned woods along the Great River below the city.
+
+- id: redstone
+  name: Redstone
+  type: town
+  region: eastern_frontier
+  visible:
+    - A frontier town of red stone and dust where the grassland runs out into scrub and red hills.
+    - Caravans resting and refitting; humans, orcs and dragonborn trading in the same yards.
+    - The Red Road runs west to Parth; the Sun Road runs east into the Sunscar.
+  peoples: {human: 50, orc: 25, dragonborn: 25}
+  biome: urban
+  locals_group: redstone_locals
+  connects: {sunspire: 3600, red_badlands: 45}
+  residents: {caravan_master: 1, scout: 1, smith: 1, merchant: 1, innkeeper: 1, guard: 1}
+  storage: true
+  trade_level: [8, 22]
+  stations: {forge: {owner: smith, fee: 50}}
+
+- id: red_badlands
+  name: the red badlands
+  type: badlands
+  region: eastern_frontier
+  biome: hills
+  danger: [8, 22]
+  visible:
+    - Red hills, dry gullies and wind-cut rock under a hard sky.
+
+- id: sunspire
+  name: Sunspire
+  type: city
+  region: sunscar
+  visible:
+    - A vast desert city raised around one of the Sunscar's great waters, its towers bright in the sun.
+    - Magic is everywhere here, part of worship and daily life alike, and no one hides it.
+    - The Sun Road leads west to Redstone; the southern trade routes lead northwest toward Riverhaven.
+  peoples: {dragonborn: 40, human: 30, genasi: 30}
+  biome: urban
+  locals_group: sunspire_locals
+  connects: {sunscar_desert: 90, sunken_vaults: 120}
+  residents: {water_priest: 2, merchant: 2, caravan_master: 1, enchanter: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [20, 50]
+
+- id: sunscar_desert
+  name: the Sunscar
+  type: desert
+  region: sunscar
+  biome: desert
+  danger: [30, 80]
+  visible:
+    - Sand, salt flats and mesas to every horizon; heat that shimmers the air.
+
+- id: valecourt
+  name: Valecourt
+  type: city
+  region: royal_vales
+  visible:
+    - The royal capital - towers, palaces and great houses over rolling valleys of vineyards and estates.
+    - Everything is grander, cleaner and better kept than in the countryside; the gap is plain to see.
+    - Magic is everywhere in the great houses and nearly nowhere in the streets below them.
+    - The Royal Road runs east to Parth.
+  peoples: {human: 85, half_elf: 8, elf: 4, dwarf: 3}
+  biome: urban
+  connects: {howling_downs: 130}
+  locals_group: valecourt_locals
+  residents: {noble: 2, courtier: 1, royal_guard: 2, enchanter: 1, merchant: 1, priest: 1, innkeeper: 1, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [20, 60]
+
+- id: eldervale_guild
+  name: the Eldervale guild hall
+  type: guild
+  region: blackpine
+  parent: eldervale
+  visible:
+    - An elven hall grown into the living wood, with the guild's sign carved into a living trunk.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+- id: ironvein_guild
+  name: the Ironvein guild hall
+  type: guild
+  region: grey_mountains
+  parent: ironvein
+  visible:
+    - A dwarven hall cut into the stone, with a stone door with the guild's sign beaten into iron.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+- id: frostholm_guild
+  name: the Frostholm guild hall
+  type: guild
+  region: far_north
+  parent: frostholm
+  visible:
+    - A long, low hall with a roaring fire, with a hide banner with the guild's sign by the door.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+- id: riverhaven_guild
+  name: the Riverhaven guild hall
+  type: guild
+  region: great_river
+  parent: riverhaven
+  visible:
+    - A hall on the waterfront, with the guild's sign hung over the river quay.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+- id: sunspire_guild
+  name: the Sunspire guild hall
+  type: guild
+  region: sunscar
+  parent: sunspire
+  visible:
+    - A sandstone hall in the shade of the spire, with the guild's sign painted in red on the lintel.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+- id: valecourt_guild
+  name: the Valecourt guild hall
+  type: guild
+  region: royal_vales
+  parent: valecourt
+  visible:
+    - A grand hall of the guild, with the guild's sign in gilt over great doors.
+    - Inside, a board of pinned contracts and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+# =====================================================================================================
+# THE FAR LANDS - beyond the settled map. Each is a long road from its gateway city; creature levels ~75-190.
+# =====================================================================================================
+
+# --- the Ashen Reach (beyond the Sunscar) ---
+
+- id: cinderhold
+  name: Cinderhold
+  type: city
+  region: ashen_reach
+  visible:
+    - A city of black stone and bright forges raised on the lip of an old caldera, its streets lit red from below.
+    - Dragonborn and genasi smiths, flamekeepers and caravan masters; everyone here works a fire, and nobody wastes it.
+    - Ash falls like snow. Shutters, awnings and cloaks are all the same grey.
+    - The Ember Road runs northwest across the desert to Sunspire; the ash plains lie to the east.
+  peoples: {dragonborn: 40, genasi: 35, human: 15, dwarf: 10}
+  biome: urban
+  locals_group: cinderhold_locals
+  connects: {sunspire: 2900, ash_wastes: 90, smoulder_fields: 120}
+  residents: {smith: 2, merchant: 2, enchanter: 1, priest: 1, innkeeper: 1, guard: 2, caravan_master: 1, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [95, 150]
+  stations: {forge: {owner: smith, fee: 150}}
+
+- id: ash_wastes
+  name: the ash wastes
+  type: wasteland
+  region: ashen_reach
+  biome: volcanic
+  danger: [75, 125]
+  visible:
+    - Black ash plains drifting in dunes, split by rivers of slow orange light.
+    - Hot wind, sulphur and the far boom of the caldera.
+
+- id: cinder_caldera
+  name: the Cinder Caldera
+  type: wasteland
+  region: ashen_reach
+  biome: volcanic
+  danger: [105, 160]
+  connects: {ash_wastes: 480}
+  visible:
+    - A crater miles across with a lake of molten rock at its heart and fortress-sized obsidian ribs at its edge.
+    - The air itself sags with heat. Things that live here were made for it.
+
+- id: cinderhold_guild
+  name: the Cinderhold guild hall
+  type: guild
+  region: ashen_reach
+  parent: cinderhold
+  visible:
+    - A black basalt hall lit by a forge-fire that has not gone out in a century, the guild's sign hammered in copper above it.
+    - Inside, a long board of pinned contracts, many of them marked with the red seal of the highest ranks, and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+# --- the Stormcrown (beyond the northern snows) ---
+
+- id: hrimgard
+  name: Hrimgard
+  type: city
+  region: stormcrown
+  visible:
+    - A fortress-city of massive timber and stone on a ridge in the clouds, built by people who live beside giants.
+    - Goliaths, orcs and mountain humans in long halls with enormous doors, so the biggest guests can come in.
+    - Lightning walks the peaks at night. The city keeps iron rods on every roof and sings to the storm.
+    - The Cloud Stair leads south through the snow to Frostholm; the high peaks begin at the gates.
+  peoples: {goliath: 45, orc: 25, human: 15, dwarf: 15}
+  biome: urban
+  locals_group: hrimgard_locals
+  connects: {frostholm: 3300, stormcrown_heights: 100, windbreak_ridge: 150}
+  residents: {trapper: 1, hunter: 1, smith: 2, elder: 1, merchant: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [105, 165]
+  stations: {forge: {owner: smith, fee: 160}}
+
+- id: stormcrown_heights
+  name: the Stormcrown Heights
+  type: mountains
+  region: stormcrown
+  biome: highpeaks
+  danger: [85, 140]
+  visible:
+    - Bare spires and glacier shelves above the cloud line, scoured by wind that never drops.
+    - Giant-sized stairs cut into the rock, long abandoned or not abandoned at all.
+
+- id: thunder_spires
+  name: the Thunder Spires
+  type: mountains
+  region: stormcrown
+  biome: highpeaks
+  danger: [110, 160]
+  connects: {stormcrown_heights: 500}
+  visible:
+    - The highest peaks of the Stormcrown, each topped by a halo of constant lightning.
+    - Halls in the rock too large for human hands, and a sky that feels close enough to touch.
+
+- id: hrimgard_guild
+  name: the Hrimgard guild hall
+  type: guild
+  region: stormcrown
+  parent: hrimgard
+  visible:
+    - A vast timbered hall with a roof of iron plates and a door three times a man's height, the guild's sign carved into its beam.
+    - Inside, a board of contracts for hunts no one else would put a price on, and a clerk's desk on a platform.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+# --- the Deep Roads (beneath the Grey Mountains) ---
+
+- id: dunmarrow
+  name: Dunmarrow
+  type: city
+  region: deep_roads
+  visible:
+    - A dwarven city carved down through the roots of the mountains, terrace under terrace, lit by glowing crystal and forges.
+    - The gates open on the Deep Stair; below is the old road, and below that, the dark.
+    - Rune-masters, miners and tunnel-wardens, all of whom are armed and none of whom tell you what they have seen.
+    - A great bell tolls the watch. When it tolls twice in a row, the gates close.
+  peoples: {dwarf: 80, gnome: 10, human: 5, orc: 5}
+  biome: urban
+  locals_group: dunmarrow_locals
+  connects: {ironvein: 1900, deep_roads_tunnels: 80, delvers_deep: 130}
+  residents: {miner: 2, smith: 2, engineer: 1, stonemason: 1, elder: 1, merchant: 1, innkeeper: 1, guard: 2, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [115, 175]
+  stations: {forge: {owner: smith, fee: 180}}
+
+- id: deep_roads_tunnels
+  name: the Deep Roads
+  type: underground
+  region: deep_roads
+  biome: deep_underground
+  danger: [80, 135]
+  visible:
+    - Broad tunnels cut by hands long gone, lined with fallen statues and rails of rusted bronze.
+    - Water ticks in the dark. Somewhere, something much bigger than you moves in the rock.
+
+- id: lightless_deep
+  name: the Lightless Deep
+  type: underground
+  region: deep_roads
+  biome: deep_underground
+  danger: [115, 165]
+  connects: {deep_roads_tunnels: 400}
+  visible:
+    - Caverns beyond any map, vast enough to hold weather, lit only by fungus and the eyes of things that watch.
+    - The silence is total and pressing. Lamps burn dim here, and some go out for no reason.
+
+- id: dunmarrow_guild
+  name: the Dunmarrow guild hall
+  type: guild
+  region: deep_roads
+  parent: dunmarrow
+  visible:
+    - A stone vault near the lowest gate, the guild's sign cut in a slab of black iron, a war-bell hanging beside it.
+    - Inside, a board of deep contracts with warding-runes at every corner, and a clerk's desk.
+  residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
+
+# --- the drowned coast (west of the royal vales) ---
+
+- id: brinewatch
+  name: Brinewatch
+  type: city
+  region: drowned_coast
+  visible:
+    - A free port stacked up a sea-cliff above a bay of broken masts, run by captains and wreck-brokers.
+    - Salvage is the city's only trade. Whatever the tide uncovers is auctioned by dawn.
+    - Lanterns burn on every quay all night, to keep the drowned from walking up the stairs.
+  peoples: {human: 45, half_elf: 15, dragonborn: 10, halfling: 10, orc: 10, gnome: 10}
+  biome: urban
+  locals_group: brinewatch_locals
+  connects: {valecourt: 3300, drowned_shore: 80, sepulchre_fields: 1700, wreck_coast: 110}
+  residents: {dockhand: 2, fisher: 2, merchant: 2, innkeeper: 1, guard: 2, priest: 1, enchanter: 1, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [85, 140]
+
+- id: drowned_shore
+  name: the drowned shore
+  type: coast
+  region: drowned_coast
+  biome: drowned
+  danger: [90, 160]
+  visible:
+    - Reefs, tidal flats and the roofs of sunken halls, slick with weed, half under water at every tide.
+    - Wrecks lie where they fell, some of them lit from within.
+
+# --- the Jade Maw (south of the Great River) ---
+
+- id: amaranth
+  name: Amaranth
+  type: city
+  region: jade_maw
+  visible:
+    - A city of green stone and living trellis, raised on the broken terraces of a jungle empire.
+    - Herbalists, guides, relic-brokers and the people who go out into the Maw and sometimes come back.
+    - "Everything here is damp and growing: moss on the walls, vines on the market stalls, flowers in the guards' helms."
+  peoples: {human: 40, halfling: 20, genasi: 15, dragonborn: 15, half_elf: 10}
+  biome: urban
+  locals_group: amaranth_locals
+  connects: {riverhaven: 3400, jade_maw_jungle: 80, emerald_mire: 120}
+  residents: {herbalist: 1, hunter: 1, scout: 1, merchant: 2, priest: 1, innkeeper: 1, guard: 2, caravan_master: 1, relic_dealer: 1, land_agent: 1}
+  storage: true
+  trade_level: [90, 145]
+
+- id: jade_maw_jungle
+  name: the Jade Maw
+  type: jungle
+  region: jade_maw
+  biome: jungle
+  danger: [80, 150]
+  visible:
+    - Jungle so dense the day is a green dusk, hung with vines the thickness of a man.
+    - Ruined stepped temples under the roots, and the constant sound of things moving just out of sight.
+
+# --- the Sepulchre Fields (the dead empire) ---
+
+- id: sepulchre_fields
+  name: the Sepulchre Fields
+  type: ruins
+  region: sepulchre
+  biome: ruins
+  danger: [100, 160]
+  visible:
+    - Miles of barrow, mausoleum and bone-white road under a sky the colour of old pewter.
+    - Statues of kings, each with the face worn off, line avenues that go on past the horizon.
+
+# --- middle-depth danger zones (levels ~45-110), so there is somewhere to adventure between the first lands and the far reaches ---
+
+- id: hollow_barrows
+  name: the Hollow Barrows
+  type: ruins
+  region: northern_hills
+  biome: ruins
+  danger: [45, 75]
+  visible:
+    - Grass-grown barrows pitted by old robbers' shafts, the stones leaning like bad teeth.
+    - A cold that does not belong to the season hangs in the low places.
+
+- id: mirewater_fens
+  name: the Mirewater Fens
+  type: wetland
+  region: great_river
+  biome: swamp
+  danger: [45, 80]
+  visible:
+    - Black water, rotten reeds and islands of root that move when stepped on.
+    - Lights drift between the trees where nothing should be burning.
+
+- id: ironcrown_peaks
+  name: the Ironcrown Peaks
+  type: mountains
+  region: grey_mountains
+  biome: mountains
+  danger: [50, 90]
+  visible:
+    - Sheer grey crags above the mine-road, scarred by rockslides and old giant-tracks.
+    - Cairns mark where those who climbed did not come down.
+
+- id: sunken_vaults
+  name: the Sunken Vaults
+  type: underground
+  region: sunscar
+  biome: deep_underground
+  danger: [55, 95]
+  visible:
+    - Stairs worn by a thousand years of feet lead down under the dunes into cut-stone halls.
+    - The air below is dry as a held breath, and things stir in it.
+
+- id: howling_downs
+  name: the Howling Downs
+  type: hills
+  region: royal_vales
+  biome: hills
+  danger: [60, 100]
+  visible:
+    - Wind-scoured downland beyond the last vineyards, dotted with shepherds' cairns and older stones.
+    - Something large keeps to the ridgelines and watches the road.
+
+- id: rimewind_barrens
+  name: the Rimewind Barrens
+  type: tundra
+  region: far_north
+  biome: arctic
+  danger: [60, 100]
+  visible:
+    - A white plain where the wind never stops and the ice sings under foot.
+    - Frozen shapes stand in the drifts, too still and too tall for men.
+
+- id: elderwild
+  name: the Elderwild
+  type: forest
+  region: blackpine
+  biome: forest
+  danger: [65, 105]
+  visible:
+    - Trees older than the city, their roots heaving up the road and their crowns shutting out the sky.
+    - The hunters of Eldervale will not name what lives deeper in.
+
+- id: smoulder_fields
+  name: the Smoulder Fields
+  type: wasteland
+  region: ashen_reach
+  biome: volcanic
+  danger: [62, 100]
+  visible:
+    - Black glass plains split by vents, the ground warm through boot leather.
+    - Ash falls like grey snow and the air tastes of iron.
+
+- id: windbreak_ridge
+  name: Windbreak Ridge
+  type: mountains
+  region: stormcrown
+  biome: highpeaks
+  danger: [68, 105]
+  visible:
+    - A knife-edge ridge above the cloud line, hung with frozen prayer-flags and old siege-ladders.
+    - Storms break on it from three sides and thunder answers from within the rock.
+
+- id: emerald_mire
+  name: the Emerald Mire
+  type: jungle
+  region: jade_maw
+  biome: jungle
+  danger: [62, 100]
+  visible:
+    - Steaming green gloom, vines thick as hawsers and flowers that open toward warm blood.
+    - Drums, or something like drums, answer from the canopy at night.
+
+- id: wreck_coast
+  name: the Wreck Coast
+  type: coast
+  region: drowned_coast
+  biome: drowned
+  danger: [70, 110]
+  visible:
+    - A ship-graveyard shore of snapped masts, black reefs and tides that run the wrong way.
+    - The drowned crews are said to walk the shallows at low water.
+
+- id: delvers_deep
+  name: the Delvers' Deep
+  type: underground
+  region: deep_roads
+  biome: deep_underground
+  danger: [65, 105]
+  visible:
+    - A dwarven mining gallery abandoned in a night, its lamps still hanging, its carts still loaded.
+    - The tunnels beyond the last lamp are older than the dwarves who dug here.
+
+
+# --- the uttermost reaches (levels ~100-190): the deepest ground of each far land, plus a few wild places between ---
+
+- id: tempest_throne
+  name: the Tempest Throne
+  type: mountains
+  region: stormcrown
+  biome: highpeaks
+  danger: [140, 190]
+  connects: {thunder_spires: 600}
+  visible:
+    - A summit-hall of black stone where the storm itself seems to sit, ringed by columns of standing lightning.
+    - The thunder here is a voice. Those who climb this far are answered.
+
+- id: furnace_of_ages
+  name: the Furnace of Ages
+  type: wasteland
+  region: ashen_reach
+  biome: volcanic
+  danger: [145, 190]
+  connects: {cinder_caldera: 600}
+  visible:
+    - A sea of white-hot glass beneath a roof of ash cloud, crossed by bridges of fused bone and obsidian.
+    - Titans of slag walk the shores. Nothing that is not fire survives long without being it.
+
+- id: abyssal_gallery
+  name: the Abyssal Gallery
+  type: underground
+  region: deep_roads
+  biome: deep_underground
+  danger: [140, 190]
+  connects: {lightless_deep: 700}
+  visible:
+    - A cavern-gallery of impossible scale, its walls carved with scenes from before the first dwarf.
+    - The dark is not empty. It listens, and it has been listening a very long time.
+
+- id: leviathan_trench
+  name: the Leviathan Trench
+  type: coast
+  region: drowned_coast
+  biome: drowned
+  danger: [135, 185]
+  connects: {drowned_shore: 600}
+  visible:
+    - A cleft in the seabed that opens at low tide, a mile of black water between walls of coral and drowned stone.
+    - Bones as long as ships lie in the shallows. Something has been feeding here for ages.
+
+- id: heartroot_sanctum
+  name: the Heartroot Sanctum
+  type: jungle
+  region: jade_maw
+  biome: jungle
+  danger: [130, 185]
+  connects: {jade_maw_jungle: 600}
+  visible:
+    - A cathedral of living wood grown around the oldest temple in the Maw, lit green from within.
+    - The roots move toward warmth. So do the things that tend them.
+
+- id: throne_of_ashes
+  name: the Throne of Ashes
+  type: ruins
+  region: sepulchre
+  biome: ruins
+  danger: [140, 190]
+  connects: {sepulchre_fields: 600}
+  visible:
+    - The last palace of the dead empire, a city of white stone under a sky that is always dusk.
+    - Ranks of armoured dead stand at every gate. They have not been told the war is over.
+
+- id: worldfrost_expanse
+  name: the Worldfrost Expanse
+  type: wasteland
+  region: far_north
+  biome: arctic
+  danger: [100, 165]
+  connects: {rimewind_barrens: 480}
+  visible:
+    - A glacier plain without horizon, blue ice miles thick, its crevasses lit from below by cold light.
+    - Ice-wyrm bones lie frozen in the walls. Some are not dead.
+
+- id: glass_sea
+  name: the Glass Sea
+  type: wasteland
+  region: sunscar
+  biome: desert
+  danger: [100, 165]
+  connects: {sunscar_desert: 500}
+  visible:
+    - A desert fused to glass by some ancient fire, flat and mirror-bright, with shattered towers rising out of it.
+    - Mirages walk in daylight. By night the glass sings.
+
+- id: blackwater_deeps
+  name: the Blackwater Deeps
+  type: wasteland
+  region: great_river
+  biome: swamp
+  danger: [95, 155]
+  connects: {mirewater_fens: 480}
+  visible:
+    - A drowned forest of pale trees standing in black water, joined by rotting causeways of an older people.
+    - Lights move under the surface, and the mist has a voice.
+
+- id: shattered_downs
+  name: the Shattered Downs
+  type: hills
+  region: royal_vales
+  biome: hills
+  danger: [95, 150]
+  connects: {howling_downs: 420}
+  visible:
+    - Hills broken open by something enormous, scattered with standing stones taller than towers.
+    - Giants' battlefields lie here, unburied, with the weapons still in the ground.
+
+- id: sunken_crown
+  name: the Sunken Crown
+  type: coast
+  region: drowned_coast
+  biome: coast
+  danger: [100, 155]
+  connects: {wreck_coast: 420}
+  visible:
+    - A ring of sea-cliffs around a drowned capital, its towers still lit by wrecker's fires nobody lit.
+    - The tide goes out further here each year, and the things that follow it in are growing bolder.

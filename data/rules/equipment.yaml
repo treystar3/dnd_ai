@@ -1,0 +1,88 @@
+# EQUIPMENT RULES
+#
+# Item numbers are always computed by the engine:
+#   value = base x rarity multiplier x material grade x (1 + item_level_growth x (item_level - 1))
+# where "value" is a weapon's damage or a piece of armor's armor / ward.
+
+slots: [main_hand, off_hand, head, body, hands, feet, neck, ring_1, ring_2]
+
+item_level_growth: 0.08
+# A piece of gear can be worn once you are within this many levels of its item level: a level 120 item needs character level 110.
+# This keeps a rich character from buying gear far beyond their level. Gear already worn is never taken off by it.
+equip_level_margin: 10
+# Gear gives FLAT amounts for these stats instead of a percentage (recovery stays a percentage, and the chance stats - accuracy, evasion,
+# movement, resolve, stealth, crafting - are plain points on a roll). A rolled "+9" is worth that share of a reference value at the item's
+# own level, so a higher-level piece gives more: max health/stamina/mana take the pool of a typical character of that level, damage takes
+# a typical weapon's damage, and defense takes a typical blow (damage_ref x defense_hit) and takes that much off every hit.
+flat_gear:
+  stats: [damage, defense, max_health, max_stamina, max_mana, strength, dexterity, constitution, intelligence, wisdom, charisma,
+          fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
+  attribute: {start: 15, per_level: 3}
+  damage_ref: 8
+  defense_hit: 2.0
+
+# What a piece of gear can roll, by what it is (a ring or amulet has its own lanes in accessories.yaml). A piece rolls only from its
+# type's list plus its slot's extras, so a sword never rolls mana and a robe never rolls damage.
+#   weapons: focus = magical (wand, staff, lute...), ranged = bows and slings, finesse = melee weapons used with DEX, melee = the rest
+#   armor:   cloth = anything with a ward value, then by weight; shield = anything in the off hand
+#            heavy armor and shields can roll every elemental resistance; lighter armor only a few. Any material can carry any of these.
+roll_lists:
+  weapon:
+    melee:   [damage, accuracy, max_stamina, max_health, resolve, recovery, strength, crit_chance, crit_damage, elemental_damage]
+    finesse: [damage, accuracy, evasion, stealth, movement, max_stamina, dexterity, crit_chance, crit_damage, elemental_damage]
+    ranged:  [damage, accuracy, stealth, movement, max_stamina, evasion, dexterity, crit_chance, crit_damage, elemental_damage]
+    focus:   [max_mana, damage, accuracy, resolve, recovery, own_attribute, crit_chance, crit_damage, elemental_damage, companion_damage]        # own_attribute: the attribute the weapon casts with
+  armor:
+    heavy:   [defense, max_health, resolve, max_stamina, recovery, strength, constitution, physical_resistance, elemental_resistance, all_elemental_resistance]
+    medium:  [defense, max_health, max_stamina, evasion, resolve, recovery, movement, constitution, dexterity, physical_resistance, elemental_resistance]
+    light:   [evasion, stealth, movement, max_stamina, defense, recovery, dexterity, wisdom, elemental_resistance]
+    cloth:   [max_mana, resolve, recovery, evasion, defense, stealth, intelligence, wisdom, charisma, magical_resistance, elemental_resistance, companion_durability]
+    shield:  [defense, resolve, max_health, max_stamina, recovery, strength, constitution, physical_resistance, magical_resistance,
+              elemental_resistance, all_elemental_resistance]
+  slot_extra:
+    hands: [accuracy, damage, crafting]
+    feet:  [movement]
+    head:  [resolve]
+
+# Stats that exist only on gear. Attributes and elemental damage are flat (shares of a typical attribute / weapon at the item's level);
+# a resistance is a percent cut to damage of that kind (combat.yaml loot.resist_magnitude); crit_chance and crit_damage are flat percentage points: chance added to the crit roll, damage added to the crit multiplier.
+# elemental_resistance and elemental_damage in a list mean "one of the seven elements, picked when the item is rolled", so a list is not
+# swamped by seven near-identical entries. all_elemental_resistance cuts every element at once, for a smaller amount (loot.all_resist_share),
+# and only heavy armor and shields can roll it. Every armor can roll any single element.
+gear_only_stats:
+  attribute: [strength, dexterity, constitution, intelligence, wisdom, charisma]
+  resistance: [physical_resistance, magical_resistance, fire_resistance, cold_resistance, lightning_resistance, poison_resistance,
+               acid_resistance, necrotic_resistance, radiant_resistance, all_elemental_resistance]
+  elemental_damage: [fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
+  crit: [crit_chance, crit_damage]
+random_element: {elemental_resistance: resistance, elemental_damage: elemental_damage}
+
+# A material's grade multiplies a weapon's damage and an armor's value, on top of any multiplier of its own. It follows the lowest
+# level the material appears at (points are [level, grade], blended in between), so a better metal is better at the same item level
+# and rarity: mithril plate hits harder than steel plate, which beats iron, which beats bronze.
+# A material's built-in bonuses are written at "rare" size and scaled by how plain the material is. Chance stats (evasion, stealth,
+# accuracy...) cannot grow like amounts of damage or health, so they grow gently with item level instead: +growth per level, up to the cap.
+material_bonus_size: {common: 0.6, uncommon: 0.8, rare: 1.0, legendary: 1.3}
+material_chance_growth: 0.004
+material_chance_cap: 2.0
+material_grade: [[1, 0.9], [10, 1.0], [40, 1.15], [100, 1.5], [220, 1.9], [400, 2.4], [700, 3.0]]
+ordinary_price_cap: 40000   # gear below epic never prices above this (times the item-level growth), so only epic and legendary finds can be jackpots
+
+# crude: starting gear and junk. properties: how many bonus properties an item of this rarity rolls.
+rarities:
+  crude:     {multiplier: 0.7,  properties: 0, price: 0.4}
+  common:    {multiplier: 1.0,  properties: 0, price: 1.0}
+  uncommon:  {multiplier: 1.15, properties: 1, price: 3.0}
+  rare:      {multiplier: 1.3,  properties: 2, price: 10.0}
+  epic:      {multiplier: 1.5,  properties: 3, price: 40.0}
+  legendary: {multiplier: 1.75, properties: 4, price: 200.0}
+
+# Heavier armor protects more but costs evasion and stealth (percentage points) and slows stamina recovery.
+weight_classes:
+  light:  {evasion: 0,   stealth: 0,   stamina_recovery: 1.0}
+  medium: {evasion: -5,  stealth: -10, stamina_recovery: 0.9}
+  heavy:  {evasion: -15, stealth: -25, stamina_recovery: 0.75}
+
+# What a new character wakes with.
+starting_coins: {silver: 10}
+starting_rarity: crude

@@ -1,0 +1,15 @@
+# CHARACTER CREATION AND LEVELING
+
+# Starting attributes. Every attribute begins at starting_base; the player adds starting_points
+# on top, and no attribute may exceed starting_cap at creation.
+# Total at creation = starting_base x 6 + starting_points.
+starting_base: 10
+starting_points: 40
+starting_cap: 30
+
+# When the player describes their build in words ("strong and nimble") instead of numbers,
+# the attributes they care about most receive these values, in order. Must add up to the total above.
+priority_template: [26, 22, 18, 14, 10, 10]
+
+# Attribute points granted at each level-up, spent with #allocate. There is no level cap.
+points_per_level: 5
