@@ -10,6 +10,7 @@ import random
 
 from core.models import Item
 import config
+from engine import ability_traits as AT
 from engine import accessories, bosses, inventory, clock, combat, death, events, items, leveling, loot, money, party, pools, taming
 from llm.contracts import AccessoryName, CombatIntent, GoddessLine, LegendaryName, LootName, Narration
 from llm.gateway import LLMError, generate
@@ -51,6 +52,11 @@ class CombatScene:
         c = ws.player.character
         near = []
         for comp in c.companions:
+            if comp.fallen and not comp.dead and ws.minutes >= comp.recover_at:
+                comp.fallen = False
+                console.note(f"{comp.name} is back on its feet.")
+            if not comp.active:
+                continue
             shape = ws.world.bestiary.get(comp.creature) or _Shape(comp)
             spirit = None if comp.creature in ws.world.bestiary else (comp.tier, comp.role)
             ally = combat.companion_fighter(shape, c.level, f"ally_{comp.id}", comp.name, spirit, gift=comp.source == "gift")
@@ -66,6 +72,7 @@ class CombatScene:
               wave: tuple[int, int, int] = (2, 2, 1)) -> "CombatScene":
         c = ws.player.character
         events.recruit_allies(ws, enemies)
+        prep = ws.field_prep(enemies)
         fighters = [combat.fighter_from_character(c)]
         near, later = cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
         fighters += near
@@ -97,6 +104,8 @@ class CombatScene:
         if opening_events:
             event += " As the fight begins: " + "; ".join(opening_events)
         ws.narrate_with(cp.START_SYSTEM, event)
+        for line in prep:
+            console.note(line)
         if pools.mechanic(c, "keen_judge") is not None:
             label = f"{label} - you judge your odds at {rate:.0%}"
         scene.show(danger=label)
@@ -131,6 +140,8 @@ class CombatScene:
             you += " · elevated"
         if p.statuses:
             you += f" · {', '.join(p.statuses)}"
+        if p.buffs:
+            you += " · " + ", ".join(f"{b['name']} ({b['rounds']})" for b in p.buffs.values())
         lines.append(you)
         console.combat_panel(lines)
 
@@ -146,7 +157,9 @@ class CombatScene:
                 left = max(0, m.uses - p.relic_uses.get(m.id, 0))
                 abilities.append(f"{m.id}: {m.name} (a power of a ring or amulet you wear: {m.text} {left} use{'s' if left != 1 else ''} left) - {note}")
                 continue
-            abilities.append(f"{m.id}: {m.name} ({m.tier} {m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource}) - {note}")
+            extra = AT.describe(m)
+            abilities.append(f"{m.id}: {m.name} ({m.tier} {m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource})"
+                             f"{' [' + extra + ']' if extra else ''} - {note}")
         enemies = [f"{e.id}: {e.name}, {e.band}" for e in self.fight.enemies()]
         usable = [inventory.label(i) for i in self.ws.player.character.inventory
                   if i.good and inventory.GOODS[i.good].combat]
@@ -267,6 +280,28 @@ class CombatScene:
 
     # ---------- endings ----------
 
+    def companions_after_fight(self, fallen_ids: set[str]) -> None:
+        """A bonded companion who went down is out for a day; a beast may not survive, a summoned spirit only disperses."""
+        ws = self.ws
+        c = ws.player.character
+        rules = combat.RULES["creatures"]["companion_fall"]
+        changed = False
+        for comp in c.companions:
+            if f"ally_{comp.id}" not in fallen_ids or not comp.active:
+                continue
+            changed = True
+            comp.fallen = True
+            comp.recover_at = ws.minutes + int(rules["recover_hours"] * 60)
+            if comp.creature in ws.world.bestiary and self.rng.random() < rules["death_chance"]:
+                comp.dead = True
+                console.note(f"{comp.name} is dead. It fell protecting you.")
+            elif comp.creature in ws.world.bestiary:
+                console.note(f"{comp.name} is badly hurt and will need a day to recover.")
+            else:
+                console.note(f"{comp.name} disperses. It will return in a day, or sooner if you call it again.")
+        if changed:
+            ws.store.save_player(ws.player)
+
     def finish(self) -> None:
         f, ws = self.fight, self.ws
         ws.store.save_combat(None)
@@ -277,6 +312,7 @@ class CombatScene:
         fallen = [a for a in f.fighters if a.side == "ally" and a.id.startswith("ally_") and not a.alive]
         events.fallen_allies(ws, {a.id for a in fallen})
         ws.party_after_fight(fallen)
+        self.companions_after_fight({a.id for a in fallen})
         if f.over == "victory":
             self.victory()
             ws.dungeon_fight_over("victory")

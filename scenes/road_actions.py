@@ -44,6 +44,8 @@ class RoadActions:
     def run_journey(self, route: list[str], walk: int, text: str) -> None:
         stretches = roads.edges(self.world, route, walk)
         legs = roads.plan_legs(walk)
+        quiet = getattr(self, "journey_event_factor", 1.0)        # Swift Step thins out the troubles on this trip
+        self.journey_event_factor = 1.0
         log = list((self.player.road or {}).get("log", []))
         done = events = 0
         for k, leg in enumerate(legs):
@@ -53,7 +55,7 @@ class RoadActions:
                 continue
             i, frac = roads.position(stretches, done)
             a, b, m = stretches[i]
-            if m < R["min_edge_minutes"] or self.rng.random() >= R["chance_per_leg"]:
+            if m < R["min_edge_minutes"] or self.rng.random() >= R["chance_per_leg"] * quiet:
                 continue
             outcome = self.road_event(route, a, b, m, frac, text, log)
             if outcome:

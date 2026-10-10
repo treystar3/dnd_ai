@@ -1,0 +1,255 @@
+# FIELD ABILITIES - what a character's out-of-combat abilities actually do. Every non-combat ability has one function,
+# assigned by the model when the character is made (or by a one-time classifier for older characters).
+# Nothing lasts: each use is one deliberate act with an immediate result, and each ability then needs time to recover.
+
+cooldown_minutes: {light: 30, moderate: 60, heavy: 120}     # game minutes before the same ability can be used again
+
+# Each function: label, blurb (shown on the ability), fits (passive-family names that favor it in the per-character draw),
+# words (class text that favors it), and optionally needs: companions (only offered to classes that keep them).
+# A character is offered a handful (see offer below) and each of their outside-combat abilities takes a DIFFERENT one.
+functions:
+  scout:
+    label: scout
+    blurb: look ahead - reveals what waits in the next chamber or the wild around you, and shows you the way past traps and dark
+    fits: [ranger, rogue, mage, monk]
+    words: [see, watch, eye, hawk, scout, sight, vision, lookout, seer, sense]
+  shelter:
+    label: shelter
+    blurb: make a safe camp - you can rest undisturbed here, even deep in a dungeon, and wake fully restored
+    fits: [druid, ranger, guardian, healer, artisan]
+    words: [camp, shelter, hearth, ward, refuge, haven, fortress, home, tent]
+  haste:
+    label: haste
+    blurb: quicken your step - your next journey takes less time and costs less strength
+    fits: [ranger, monk, rogue, mage]
+    words: [swift, wind, run, speed, dash, fleet, flight, blink, stride, gallop]
+  influence:
+    label: influence
+    blurb: sway someone - they warm to you and your next words to them carry more weight
+    fits: [bard, leader, paladin, warlock]
+    words: [charm, persuade, voice, diplomat, noble, silver, court, envoy, smooth]
+  shadow:
+    label: shadow
+    blurb: slip past - avoid the next fight in a dungeon or the next wild encounter, and move unseen in town
+    fits: [rogue, ranger, warlock, necromancer, monk]
+    words: [shadow, stealth, sneak, veil, night, ghost, hidden, silent, cloak, assassin]
+  recall:
+    label: recall
+    blurb: draw on what you know - bring up knowledge about the place or people before you
+    fits: [mage, bard, necromancer, monk, warlock]
+    words: [lore, scholar, sage, study, book, history, memory, wisdom, scribe, archive]
+  showmanship:
+    label: showmanship
+    blurb: put on a show - earn coin and goodwill from whoever is watching, once a day in any one place
+    fits: [bard, leader]
+    words: [song, perform, music, dance, story, tale, jest, juggl, stage, minstrel, entertain]
+  trapfinder:
+    label: trapfinder
+    blurb: sense hidden traps - the next trap below is found and disarmed for good
+    fits: [rogue, ranger, artisan]
+    words: [trap, delver, tomb, trick, lock, mechanism, burglar, treasure, tinker, scoundrel]
+  beastspeak:
+    label: beastspeak
+    blurb: speak with animals - they tell you what lives here, and the beasts of the wild leave you be for a while
+    fits: [druid, ranger, summoner]
+    words: [beast, animal, wild, pack, wolf, hawk, forest, nature, shepherd, tamer, hunter]
+  swift_step:
+    label: swift step
+    blurb: light on your feet - your next journey leaves you fresher and draws far fewer troubles on the road
+    fits: [ranger, monk, rogue, druid]
+    words: [light, step, nimble, trail, wander, walker, pilgrim, courier, scout, runner]
+  barter:
+    label: barter
+    blurb: drive a bargain - the next thing you buy or sell goes at a better price
+    fits: [bard, leader, artisan, rogue]
+    words: [merchant, trade, haggle, coin, bargain, broker, gold, caravan, deal, shop]
+  read_the_room:
+    label: read the room
+    blurb: read a person - their mood, what weighs on them and how much they trust you
+    fits: [bard, rogue, leader, healer, monk]
+    words: [read, empath, insight, mind, face, listen, perceptive, observe, detective, sense]
+  intimidate:
+    label: intimidate
+    blurb: loom - your next attempt to frighten that person is far likelier to work, at the cost of their goodwill
+    fits: [warrior, berserker, guardian, warlock, necromancer, leader]
+    words: [fear, menace, terror, dread, brute, glare, bully, enforcer, scar, savage, mercenary]
+  pickpocket:
+    label: pickpocket
+    blurb: lift a purse - take coin from someone nearby; get caught and they will not forget it
+    fits: [rogue, bard]
+    words: [thief, pick, cutpurse, pilfer, steal, nimble, fingers, urchin, burglar, scoundrel]
+  commune:
+    label: commune
+    blurb: ask the land, the dead or the gods what stirs - you learn of troubles brewing nearby
+    fits: [druid, healer, paladin, necromancer, warlock, monk]
+    words: [spirit, ancestor, divine, oracle, seer, prayer, ghost, shaman, priest, medium, omen]
+  tinker:
+    label: tinker
+    blurb: rig something useful from scraps - you make a few torches or other small goods on the spot
+    fits: [artisan, mage, rogue]
+    words: [tinker, gadget, smith, craft, invent, mechanic, alchemist, engineer, gear, build, forge]
+  treat:
+    label: treat
+    blurb: tend wounds - mend some of your hurt, and bring a fallen companion back to its feet
+    fits: [healer, druid, ranger, guardian, paladin]
+    words: [medic, heal, bandage, herb, surgeon, nurse, field, remedy, cure, mend]
+  bless:
+    label: bless
+    blurb: call down favor - every check you make for the next few hours is a little more likely to go your way
+    fits: [paladin, healer, leader, monk, druid]
+    words: [bless, blessing, prayer, faith, holy, divine, grace, luck, oath, saint, favor]
+  summon_labor:
+    label: summon labor
+    blurb: call a servant to carry your things - for a short while you can reach your item box from wherever you are
+    fits: [summoner, necromancer, mage, artisan]
+    words: [servant, minion, thrall, familiar, spirit, golem, porter, hands, conjure, retinue]
+  picklock:
+    label: picklock
+    blurb: work a lock - the next locked cache below opens, and holds more than an ordinary one
+    fits: [rogue, artisan, bard]
+    words: [lock, pick, thief, burglar, key, safe, vault, rogue, scoundrel, tumbler]
+  size_up:
+    label: size up
+    blurb: judge a foe - learn how it measures against you, and find the weak point before the next fight begins
+    fits: [warrior, guardian, berserker, ranger, leader]
+    words: [veteran, soldier, duelist, tactician, captain, hunter, judge, fighter, mercenary, knight]
+  revivify:
+    label: revivify
+    blurb: bring a companion back - one that has fallen or died is on its feet again at once
+    fits: [healer, paladin, necromancer, druid, summoner]
+    words: [revive, resurrect, raise, life, soul, spirit, necro, cleric, breath, phoenix]
+    needs: companions
+  snare:
+    label: snare
+    blurb: lay a trap - the next creature you fight here starts the fight already hurt
+    fits: [ranger, rogue, druid, artisan]
+    words: [trap, snare, hunter, trapper, ambush, wire, pit, poacher, woodsman, bait]
+  word_of_recall:
+    label: word of recall
+    blurb: speak the word - you stand in the last town you left, in a moment, from anywhere out of combat
+    fits: [mage, warlock, monk, paladin]
+    words: [teleport, portal, recall, gate, home, planar, waystone, warp, return, arcane]
+  phantom_steed:
+    label: phantom steed
+    blurb: call a spectral mount - a steed that cannot die answers you wherever you stand, and carries you faster than a horse
+    fits: [paladin, ranger, mage, warrior, leader]
+    words: [steed, horse, rider, cavalry, mount, knight, charger, phantom, spectral, dragoon]
+
+# How many functions a new character is offered (a random count in this range, never fewer than the abilities they must
+# have outside combat), and how many an instructor's lesson offers. Each ability takes a different one.
+offer: {size: [4, 5], lesson: 2}
+
+haste:
+  travel_cut_percent: {light: 15, moderate: 25, heavy: 35}
+  fatigue_cut_percent: {light: 30, moderate: 50, heavy: 70}
+  expires_minutes: 60            # the primer is wasted if you do not set out within the hour
+
+influence:
+  trust_gain: {light: 2, moderate: 4, heavy: 6}
+  next_check_bonus: {light: 10, moderate: 15, heavy: 20}     # on the next social check with that person
+
+shadow:
+  stealth_bonus: {light: 15, moderate: 25, heavy: 35}        # on the next stealth check
+  expires_minutes: 120
+
+shelter:
+  lasts_minutes: 720             # the camp holds this long, while you stay in the same spot
+
+scout:
+  light_minutes: 120             # a scouting spell that makes light holds for this long in a dark dungeon
+
+showmanship:
+  strong_tier: heavy             # heavy abilities earn a strong success; the rest a plain success
+  repeat_goodwill: 0             # a second show in the same place on the same day earns nothing
+
+# ---- the newer functions: every number by tier ----
+# A function can also set a floor on its cooldown (min_cooldown, game minutes) so a light ability cannot repeat it too fast.
+min_cooldown: {word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60}
+
+trapfinder:
+  minutes: 5
+
+beastspeak:
+  calm_minutes: {light: 90, moderate: 180, heavy: 300}     # beasts that would have found you pass by, within this long
+
+swift_step:
+  expires_minutes: 60
+  fatigue_cut_percent: {light: 40, moderate: 60, heavy: 80}
+  event_cut_percent: {light: 30, moderate: 50, heavy: 70}  # fewer troubles on the road
+
+barter:
+  discount_percent: {light: 10, moderate: 15, heavy: 25}    # off the next purchase, or on top of the next sale
+  expires_minutes: 180
+
+read_the_room:
+  minutes: 5
+
+intimidate:
+  bonus: {light: 15, moderate: 25, heavy: 35}               # on your next intimidation of that person
+  trust_cost: 3
+  expires_minutes: 120
+
+pickpocket:
+  coins_per_level: [3, 9]
+  partial_share: 0.5
+  strong_share: 1.5
+  trust_loss: {failure: 15, partial: 5}
+  reputation_loss: 2          # in the town, when caught (failure)
+
+commune:
+  minutes: 20
+  max_tales: {light: 1, moderate: 2, heavy: 3}
+
+tinker:
+  minutes: 20
+  makes:                      # what scraps become: good id -> how many by tier
+    torch: {light: 2, moderate: 3, heavy: 5}
+    bandage: {light: 0, moderate: 1, heavy: 2}
+
+treat:
+  minutes: 10
+  heal_percent: {light: 20, moderate: 30, heavy: 45}        # of your health
+  stamina_percent: {light: 10, moderate: 15, heavy: 20}
+
+bless:
+  bonus: {light: 5, moderate: 8, heavy: 12}                 # on every check
+  lasts_minutes: 240
+
+summon_labor:
+  open_minutes: {light: 20, moderate: 40, heavy: 90}        # how long your item box stays within reach
+
+picklock:
+  minutes: 10
+  locked_chance: 0.35         # of caches: a locked one holds more, but only a picklock opens it
+  coin_bonus: 0.75            # more coin
+  item_bonus: 0.25            # more chance of an item
+
+size_up:
+  armor_cut_percent: {light: 15, moderate: 25, heavy: 35}   # their armor and ward, for the fight
+  lasts_minutes: 180
+
+revivify:
+  minutes: 10
+
+snare:
+  hurt_percent: {light: 15, moderate: 25, heavy: 35}        # of their health, before the fight begins
+  lasts_minutes: 480
+
+word_of_recall:
+  minutes: 10
+
+phantom_steed:
+  speed: {light: 0.30, moderate: 0.40, heavy: 0.50}         # shorter journeys, as with a good horse
+  stamina: {light: 0.35, moderate: 0.45, heavy: 0.55}       # less wearying
+
+# Words that guide the older-character classifier and the fallback when the model gave no function.
+keywords:
+  scout: [see, spot, sense, detect, scan, survey, track, scout, lookout, perceiv, reveal, illumin, glow, light, divin, map, watch, gaze, hawk, eye, vision, search, find, locate, sight]
+  shelter: [shelter, camp, rest, ward, barrier, hearth, fortif, tent, refuge, sanctuary, haven, bivouac, cover, bunker, hut, warmth, fire]
+  haste: [haste, swift, quick, sprint, dash, stride, leap, fleet, flight, fly, teleport, blink, wind, speed, run, glide, gallop, surge, bound, step]
+  influence: [charm, persuade, calm, soothe, sway, inspire, intimid, compel, bargain, win over, convince, beguile, command, entranc, cow, plead, reassur]
+  shadow: [hide, stealth, shadow, sneak, veil, cloak, invisib, vanish, unseen, silen, disguise, mask, fade, camouflage, illusion, blend, dark, mist]
+  recall: [recall, remember, lore, knowledge, study, history, sage, ancestor, spirit, analy, identify, memory, commune, wisdom, read, insight, learn]
+  showmanship: [perform, song, sing, music, melody, dance, play, jest, story, tale, juggl, fanfare, showman, flourish, entertain, spectacle, ballad, recite, act, theat]
+
+default_by_effect: {mobility: haste, defense: shelter, influence: influence, utility: scout}

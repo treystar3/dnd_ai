@@ -36,6 +36,7 @@ from scenes.arc_actions import ArcActions
 from scenes.camp_actions import CampActions
 from scenes.party_actions import PartyActions
 from scenes.passive_hooks import PassiveHooks
+from scenes.field_actions import FieldActions
 from scenes import markup
 from engine import pulse, quests
 from engine import inventory as inv
@@ -58,7 +59,7 @@ SEARCH = encounters.E
 
 
 class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
-                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, PassiveHooks):
+                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, PassiveHooks, FieldActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -169,6 +170,10 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if self.combat or self.recently_fled:
             self.recently_fled = False
             return False
+        if self.shadow_active() and not self.dungeon_here() and self.place.danger and not self.player.delve:
+            self.use_shadow()
+            console.note("Something stirs nearby, but you are not noticed and it passes you by.")
+            return False
         chance = min(0.95, chance * pulse.danger_factor(self.store, self.player.location, self.minutes)
                      * self.danger_multiplier(self.player.location, not getattr(self, "first_arrival", True)))
         hit = encounters.roll(self.store, self.world, self.player.location, chance, self.rng, seek, contracts=self.player.quests)
@@ -176,6 +181,9 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             return False
         creature, enemies = hit
         console.debug(f"encounter: {len(enemies)} x {creature.id} (levels {[e.level for e in enemies]})")
+        if self.beasts_calm(creature):
+            console.note(f"A {creature.name.lower()} stirs nearby, but the animals have spoken for you and it passes by.")
+            return False
         if self.temperament(creature) == "passive":
             self.wildlife = (creature, enemies)
             names = ", ".join(e.name for e in enemies)
@@ -259,6 +267,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.leave_road(place_id)
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
+        self.note_town(place_id)
         self.first_arrival = place_id not in self.player.visited
         if self.first_arrival:
             self.player.visited.append(place_id)
@@ -280,6 +289,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.ensure_homes()
         self.ensure_road_place()
         self.ensure_dungeons()
+        self.ensure_field_uses()
         self.run_pulse()
         first_time = self.store.meta.turn == 0
         self.enter(self.player.location)
@@ -674,7 +684,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                                   for n in self.present for w in self.world.roles[n.role].sells]
                                  + [f"{i.name} from {n.id}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock)"
                                     for n, i, p in self.stock_here()],
-                                 [f"{a.id}: {a.name} ({a.effect.value})" for a in self.player.character.actives],
+                                 [f"{a.id}: {a.name} ({a.field_use or a.effect.value})" for a in self.player.character.actives if a.context.value != "combat"],
                                  [inv.label(i) for i in self.pack], [inv.label(i) for i in self.ground_here()],
                                  [inv.label(i) for i in self.player.stash] if self.can_store() else None,
                                  [f"{n.id} ({n.label()}) buys {', '.join(self.world.roles[n.role].buys)}"
@@ -738,7 +748,9 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if mount and walk >= 20:
             walk = max(1, round(walk * (1 - mount["speed"])))
             console.note(f"You ride {mount['name']}.")
-        self.travel_fatigue(walk)
+        walk, fatigue_factor = self.take_haste(walk)
+        fatigue_factor *= self.take_swift(walk)
+        self.travel_fatigue(walk, fatigue_factor)
         self.end_conversation()
         self.last_spoken = None
         console.debug(f"walking {walk} minutes: {' -> '.join(route)}")
@@ -973,6 +985,17 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             console.debug(f"{ability.name} is a crafting ability and they aren't crafting - looking instead")
             self.on_look(intent, text)
             return
+        if ability.context.value == "combat":
+            console.note(f"{ability.name} is a fighting technique - save it for a fight.")
+            self.halted = True
+            return
+        self.ensure_field_uses()
+        if ability.field_use:
+            refusal = self.field_precheck(ability, intent, text)
+            if refusal:
+                console.note(refusal)
+                self.halted = True
+                return
         pool = ability.resource.value
         table = "ability_cost_percent" if pool == "mana" else "stamina_cost_percent"
         cost = pools.reference_pool(pool, c.level) * COMBAT_RULES[table][ability.tier.value] / 100
@@ -993,6 +1016,11 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                                   source=ability.name, tier=getattr(t.tier, "value", t.tier), health=t.health, damage=t.damage)
                 c.companions.append(bound)
                 result = f"{bound.name} answers the call for the first time and is now bound to them."
+            elif bound.dead:
+                result = f"{bound.name} does not answer. It is gone, and only a revival could bring it back."
+            elif bound.fallen:
+                bound.fallen = False
+                result = f"{bound.name} answers the call again and stands ready at their side."
             else:
                 result = f"{bound.name} answers the call and stands ready at their side."
         elif effect == "crafting":
@@ -1003,9 +1031,17 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             gain = top * {"light": 0.15, "moderate": 0.25, "heavy": 0.4}[ability.tier.value]
             c.health = min(top, pools.current(c, "health") + gain)
             result = "Their wounds close a little."
+        elif ability.field_use:
+            result = self.field_apply(ability, intent, text)
+            if result is None:      # nothing came of it: no cost
+                setattr(c, pool, pools.current(c, pool) + cost)
+                self.halted = True
+                return
         else:
             result = ("The ability works as described, but nothing in the world changes because of it yet - describe "
                       "what they experience without inventing discoveries, information or outcomes.")
+        if effect in ("healing", "crafting"):
+            self.field_cooldown_start(ability)
         self.store.save_player(self.player)
         self.narrate(f"Outside of any fight, the player uses {ability.name}: {ability.description} {result}", text)
 
@@ -1118,7 +1154,8 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
 
     def on_wait(self, intent: ActionIntent, text: str) -> None:
         barrow = (self.dungeon_here() or {}).get("theme") == "barrow"
-        if self.place.type == "dungeon" and self.player.delve and not self.player.delve.get("rest") \
+        camped = self.camp_active()
+        if self.place.type == "dungeon" and self.player.delve and not self.player.delve.get("rest") and not camped \
                 and self.has("safe_camp") is None and not (barrow and self.owns("tomb_sleeper")):
             console.note("It's too dangerous to rest here. Find a quiet chamber, or climb back out.")
             self.halted = True
@@ -1138,7 +1175,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             step = min(60, minutes - waited)
             self.advance(step)
             waited += step
-            if self.place.danger and not self.owns("night_watch"):
+            if self.place.danger and not self.owns("night_watch") and not camped:
                 hit = encounters.roll(self.store, self.world, self.player.location,
                                       encounters.E["chance_per_hour"] * step / 60, self.rng)
                 if hit and self.temperament(hit[0]) != "passive":
@@ -1150,7 +1187,11 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             c.last_rest = self.player.location
             rough = self.place.danger and self.owns("campaigner")
             temple = self.place.type == "temple" and self.owns("sanctuary")
-            if rough or temple:
+            if camped:
+                for pool in ("health", "stamina", "mana"):
+                    setattr(c, pool, pools.maximum(c, pool))
+                console.note(f"You slept safely in your camp and woke fully rested. If you die, you will wake at {self.place.name}.")
+            elif rough or temple:
                 for pool in ("health", "stamina", "mana"):
                     setattr(c, pool, pools.maximum(c, pool))
                 console.note("You slept well and woke fully rested" + (" in the temple's quiet." if temple else

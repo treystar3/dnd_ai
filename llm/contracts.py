@@ -74,6 +74,12 @@ class CompanionProposal(BaseModel):
     role: CompanionRole
 
 
+from engine.field import FUNCTIONS as _FIELD_FUNCTIONS  # noqa: E402
+from engine import ability_traits as _AT  # noqa: E402
+
+FieldUse = Literal[tuple([""] + list(_FIELD_FUNCTIONS))]    # what an ability does outside combat (data/rules/field.yaml)
+
+
 class ActiveProposal(BaseModel):
     name: str
     description: str
@@ -84,14 +90,57 @@ class ActiveProposal(BaseModel):
     context: UseContext
     summons: CompanionProposal | None = None
     tags: list[str] = []
+    rider: Literal[tuple([""] + list(_AT.RIDERS))] = ""
+    shape: Literal[tuple([""] + list(_AT.SHAPES))] = ""
+    buff: Literal[tuple([""] + list(_AT.BUFFS))] = ""
+    buff_stat: Literal["", "armor", "ward", "both"] = ""
+    command: Literal["", "focus", "guard", "press", "hold", "distract"] = ""
+    field_use: FieldUse = ""
 
     @model_validator(mode="after")
     def summon_shape(self):
+        from engine import ability_traits as AT
+        if self.effect == Effect.BUFF:
+            if not self.buff:
+                raise ValueError(f"'{self.name}' is a buff ability and must say which buff it is (one of the buffs on offer)")
+            self.context = UseContext.COMBAT
+            self.reach = Reach.SELF
+            if self.buff == "bulwark" and not self.buff_stat:
+                self.buff_stat = "ward" if self.resource == "mana" else "armor"
+        else:
+            self.buff = self.buff_stat = ""
+        if self.effect == Effect.COMMAND:
+            self.command = self.command or "focus"
+        else:
+            self.command = ""
+        if self.buff != "bulwark":
+            self.buff_stat = ""
+        if self.effect not in (Effect.DAMAGE, Effect.CONTROL) or (self.rider and self.effect.value not in AT.RIDERS[self.rider]["applies"]):
+            self.rider = ""
+        if self.effect != Effect.DAMAGE or self.reach == Reach.AREA:
+            self.shape = ""
+        if self.effect == Effect.UTILITY:
+            self.context = UseContext.OUT_OF_COMBAT   # a utility ability does nothing in a fight
+        if self.effect in (Effect.HEALING, Effect.CRAFTING, Effect.SUMMON):
+            self.field_use = ""
+        elif self.effect == Effect.INFLUENCE and self.context != UseContext.COMBAT and not self.field_use:
+            self.field_use = "influence"
+        if self.context == UseContext.COMBAT:
+            self.field_use = ""
         if self.effect == Effect.SUMMON and self.summons is None:
             raise ValueError(f"'{self.name}' is a summon ability and must include summons describing the companion")
         if self.effect != Effect.SUMMON:
             self.summons = None
         return self
+
+
+class FieldAssignment(BaseModel):
+    name: str
+    function: FieldUse
+
+
+class FieldAssignments(BaseModel):
+    abilities: list[FieldAssignment]
 
 
 class ActiveSet(BaseModel):
@@ -106,10 +155,44 @@ class ActiveSet(BaseModel):
             raise ValueError("command abilities need at least one summon ability so there is something to command")
         if ctx.get("uses_companions") and effects.count(Effect.SUMMON) < 2:
             raise ValueError("this class relies on companions: include at least 2 summon abilities")
+        offered = ctx.get("offers")
+        if offered:
+            from engine import ability_traits as AT
+            AT.repair_shapes(self.skills, offered["shapes"])
+            for key, attr, label in (("riders", "rider", "rider"), ("shapes", "shape", "shape")):
+                used = [getattr(x, attr) for x in self.skills if getattr(x, attr)]
+                stray = [u for u in used if u not in offered[key]]
+                if stray:
+                    raise ValueError(f"{label} '{stray[0]}' was not on offer - use only: {', '.join(offered[key])}")
+                need = min(AT.T["need"][key], len(offered[key]))
+                if len(set(used)) < need:
+                    raise ValueError(f"use at least {need} different {key} from those on offer ({', '.join(offered[key])}), "
+                                     f"one per ability, on abilities they suit")
+            cmds = [x.command for x in self.skills if x.effect == Effect.COMMAND]
+            if len(set(cmds)) < len(cmds):
+                raise ValueError("every command ability must use a different command from those on offer: " + ", ".join(offered.get("commands", [])))
+            if any(c not in offered.get("commands", []) for c in cmds) and offered.get("commands"):
+                raise ValueError("command abilities may only use: " + ", ".join(offered["commands"]))
+            buffs = [x.buff for x in self.skills if x.effect == Effect.BUFF]
+            if any(b not in offered["buffs"] for b in buffs):
+                raise ValueError(f"buff abilities may only use: {', '.join(offered['buffs'])}")
+            if offered["buffs"] and not buffs:
+                raise ValueError(f"include at least {min(AT.T['need']['buffs'], len(offered['buffs']))} buff ability (effect buff) from those on offer")
+            if len(buffs) > 3:
+                raise ValueError("no more than 3 buff abilities")
+            if sum(1 for x in self.skills if x.rider or x.shape) > AT.T["max_decorated"]:
+                raise ValueError(f"at most {AT.T['max_decorated']} abilities may carry a rider or a shape - leave several plain")
+        functions = (offered or {}).get("functions") if offered else None
+        if functions:
+            from engine import field
+            field.repair(self.skills, functions)
         required = ctx.get("min_noncombat", 3)
-        usable_outside = sum(s.context != UseContext.COMBAT for s in self.skills)
+        selfish = (Effect.HEALING, Effect.CRAFTING, Effect.SUMMON)
+        usable_outside = sum(bool(s.context != UseContext.COMBAT and (s.effect in selfish or s.field_use)) for s in self.skills)
         if usable_outside < required:
-            raise ValueError(f"only {usable_outside} abilities are usable outside combat; at least {required} must have context out_of_combat or both")
+            raise ValueError(f"only {usable_outside} abilities are usable outside combat; at least {required} must have context out_of_combat AND "
+                             f"a field_use taken from the functions on offer, a different one for each (healing, crafting and summon abilities need none)"
+                             + (f". Functions on offer: {', '.join(functions)}" if functions else ""))
         return self
 
 
@@ -503,6 +586,10 @@ class LearnSet(BaseModel):
         if len(self.skills) != need:
             raise ValueError(f"offer exactly {need} abilities, not {len(self.skills)}")
         _check_names(self.skills, ctx.get("reserved_names", []), "abilities they already know")
+        functions = ctx.get("functions")
+        if functions is not None:
+            from engine import field
+            field.repair(self.skills, functions)
         return self
 
 

@@ -55,6 +55,13 @@ statuses:
   blinded:    {accuracy: -30}
   bleeding:   {damage_percent: 3}
   stunned:    {}
+  poisoned:   {damage_percent: 3, power: -10}     # damage over time; it hits softer (Venom)
+  burning:    {damage_percent: 4}                 # damage over time (Ignite)
+  weakened:   {power: -25}                        # deals less damage (Enfeeble)
+  exposed:    {protection: -30}                   # armor and ward count for less (Exposing)
+  marked:     {taken: 20}                         # takes more damage from the other side (Mark)
+  befuddled:  {}                                  # its next attack goes at a random fighter (Befuddle)
+  grappled:   {evasion: -10}                      # held in melee: cannot flee, hang back or be pushed away (Grappling)
   unaware:    {}      # surprised by a sneak attack: loses its first turn and takes unaware_damage times damage
 
 creatures:
@@ -101,6 +108,9 @@ creatures:
   # An animal given as a reward to someone who does not keep companions is a helper, not a partner.
   companion_gift: {health: 0.5, damage: 0.4}
   companion: {health: 1.0, damage: 0.8, late_health: 0.004, late_damage: 0.003, start_level: 40}
+  # A companion who goes down is out until it recovers. A summoned spirit only disperses (call it again, or wait);
+  # a beast has death_chance of not surviving at all, and only a revival brings it back.
+  companion_fall: {death_chance: 0.5, recover_hours: 24}
   # A summoned spirit is as big as the ability that calls it (light: Medium, moderate: Large, heavy: Huge) and is built for its role.
   spirit:
     size: {light: Medium, moderate: Large, heavy: Huge}
@@ -150,6 +160,15 @@ loot:
   all_resist_share: 0.5     # all_elemental_resistance rolls this share of a single resistance
   crit_magnitude: {uncommon: [1, 2], rare: [2, 3], epic: [3, 4], legendary: [4, 6]}   # points of crit chance
   crit_damage_magnitude: {uncommon: [5, 8], rare: [8, 12], epic: [12, 18], legendary: [18, 25]}   # points added to the crit multiplier (150% -> 170%)
+  # What a weapon's on-hit properties roll (weapons only). vampiric: percent of the damage dealt that heals you. The three chances: percent chance
+  # per hit to poison (3 rounds), set burning (3 rounds) or stun (1 round, so it rolls lower). siphons: percent of your mana or stamina each hit restores.
+  onhit_magnitude:
+    vampiric:       {uncommon: [2, 3], rare: [3, 5], epic: [5, 7],  legendary: [7, 10]}
+    envenom_chance: {uncommon: [4, 7], rare: [7, 11], epic: [11, 15], legendary: [15, 20]}
+    ignite_chance:  {uncommon: [4, 7], rare: [7, 11], epic: [11, 15], legendary: [15, 20]}
+    jolt_chance:    {uncommon: [2, 4], rare: [4, 6], epic: [6, 8],  legendary: [8, 12]}
+    siphon_mana:    {uncommon: [1, 1], rare: [1, 2], epic: [2, 3],  legendary: [3, 4]}
+    siphon_stamina: {uncommon: [1, 1], rare: [1, 2], epic: [2, 3],  legendary: [3, 4]}
   companion_magnitude: {uncommon: [4, 7], rare: [7, 11], epic: [11, 16], legendary: [16, 24]}   # percent more companion damage / durability
   conditional_rolls: false   # true: some rolled properties only work in daylight, at night, in bad weather and so on
   not_on_gear: [insight, persuasion, intimidation, deception, performance, lore, perception]

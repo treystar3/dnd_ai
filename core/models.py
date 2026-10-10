@@ -25,6 +25,7 @@ class Effect(str, Enum):
     SUMMON = "summon"
     COMMAND = "command"
     CRAFTING = "crafting"
+    BUFF = "buff"
 
 
 class PowerTier(str, Enum):
@@ -113,6 +114,12 @@ class Ability(BaseModel):
     cooldown: int
     companion: CompanionTemplate | None = None
     attribute: str = ""   # for mana abilities: the attribute of the magic discipline it belongs to
+    rider: str = ""       # an extra thing it does when it lands (engine/ability_traits.py)
+    shape: str = ""       # how a damage ability delivers its damage
+    buff: str = ""        # for the buff effect: bulwark, thorns or mend
+    command: str = ""     # for the command effect: focus, guard, press or hold
+    buff_stat: str = ""   # for bulwark: armor, ward or both
+    field_use: str = ""   # what it does outside combat: scout, shelter, haste, influence, shadow, recall or showmanship (engine/field.py)
 
 
 class Passive(BaseModel):
@@ -201,6 +208,13 @@ class Companion(BaseModel):
     health: int = 0              # the stored template numbers; the role-and-tier build of a summoned spirit
     damage: int = 0
     perks: dict[str, float] = {}  # world bonuses the creature brings: passive mechanic id -> value (a gifted animal)
+    fallen: bool = False         # went down in a fight; sits out until recover_at (or is called back by its summon ability)
+    recover_at: int = 0          # game minute when a fallen companion is on its feet again
+    dead: bool = False           # a beast that did not survive being downed; only a revival brings it back
+
+    @property
+    def active(self) -> bool:
+        return not (self.fallen or self.dead)
 
 
 class AllocationRecord(BaseModel):

@@ -35,6 +35,7 @@
    buys: [food, herb]}
 - {id: chandler, hours: [8, 17],      description: Sells candles, rope, oil and sundries.,              knowledge_groups: [merchants],
    sells: [{id: bandage, name: a bandage, price: 20, kind: item, item: bandage},
+           {id: torch, name: a torch, price: 8, kind: item, item: torch},
            {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
    buys: [cloth, wood]}
 - {id: tinker, hours: [8, 17],        description: Mends pots and small goods; travels the road between towns., knowledge_groups: [merchants],
@@ -66,6 +67,7 @@
    buys: [any], buy_rate: 0.3,
    sells: [{id: healing_draught, name: a healing draught, price: 150, kind: item, item: healing_draught},
            {id: bandage, name: a bandage, price: 20, kind: item, item: bandage},
+           {id: torch, name: a torch, price: 8, kind: item, item: torch},
            {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
    stock: {families: [metal, hide, wood, cloth], count: 6, restock_days: 4}}
 - {id: orchard_keeper, hours: [6, 18], description: Tends orchards and presses fruit.,                   knowledge_groups: []}
@@ -89,6 +91,7 @@
    buys: [any], buy_rate: 0.4,
    sells: [{id: healing_draught, name: a healing draught, price: 150, kind: item, item: healing_draught},
            {id: mana_tonic, name: a mana tonic, price: 150, kind: item, item: mana_tonic},
+           {id: torch, name: a torch, price: 8, kind: item, item: torch},
            {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
    stock: {families: [metal, hide, cloth, wood], count: 8, restock_days: 4}}
 - {id: caravan_master, hours: [6, 20], description: Leads caravans along the long roads east.,            knowledge_groups: [merchants]}

@@ -129,7 +129,7 @@ ENGINE_WORLD_MECHANICS = {"trusted_face", "beast_friend", "danger_sense", "scave
                           "cache_hunter", "trap_sense", "forager", "wayfinder", "arcane_appraiser", "scholars_memory",
                           "dread_name", "grave_robber", "green_hands", "field_medic", "brewer", "good_employer",
                           "crowd_pleaser", "local_favorite", "familiar_forager", "oathbound", "almsgiver", "inner_calm",
-                          "ascetic", "patron_whispers", "dark_charisma", "commission_broker",
+                          "ascetic", "patron_whispers", "dark_charisma", "commission_broker", "lucky_break",
                           *""" weapon_wise soldiers_bearing campaigner victors_name delvers_wage night_watch helping_hand
                           road_warden shelter_earned patient_watch keeper_of_oaths raw_appetite wild_presence trophy_hunter
                           blood_warm restless fence_friend night_prowler second_look weather_wise hunters_larder game_warden

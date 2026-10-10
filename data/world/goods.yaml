@@ -29,5 +29,7 @@
    restores: {mana: 30}, description: "A cold, faintly glowing tonic that refills spent magic."}
 - {id: bandage,         name: bandage,         kind: consumable, price: 20,  stack: 10, combat: true,
    restores: {health: 10}, cures: [bleeding], description: "A yarrow-packed linen bandage."}
+- {id: torch,          name: torch,           kind: consumable, price: 8,   stack: 10, combat: false,
+   description: "A pitch-soaked brand; burns for a long delve."}
 - {id: trail_ration,    name: trail ration,    kind: consumable, price: 15,  stack: 10, combat: false,
    restores: {stamina: 30, health: 5}, description: "Dried meat and hard bread, seasoned to keep."}

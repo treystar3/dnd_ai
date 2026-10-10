@@ -28,10 +28,10 @@ flat_gear:
 #            heavy armor and shields can roll every elemental resistance; lighter armor only a few. Any material can carry any of these.
 roll_lists:
   weapon:
-    melee:   [damage, accuracy, max_stamina, max_health, resolve, recovery, strength, crit_chance, crit_damage, elemental_damage]
-    finesse: [damage, accuracy, evasion, stealth, movement, max_stamina, dexterity, crit_chance, crit_damage, elemental_damage]
-    ranged:  [damage, accuracy, stealth, movement, max_stamina, evasion, dexterity, crit_chance, crit_damage, elemental_damage]
-    focus:   [max_mana, damage, accuracy, resolve, recovery, own_attribute, crit_chance, crit_damage, elemental_damage, companion_damage]        # own_attribute: the attribute the weapon casts with
+    melee:   [damage, accuracy, max_stamina, max_health, resolve, recovery, strength, crit_chance, crit_damage, elemental_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]
+    finesse: [damage, accuracy, evasion, stealth, movement, max_stamina, dexterity, crit_chance, crit_damage, elemental_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]
+    ranged:  [damage, accuracy, stealth, movement, max_stamina, evasion, dexterity, crit_chance, crit_damage, elemental_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]
+    focus:   [max_mana, damage, accuracy, resolve, recovery, own_attribute, crit_chance, crit_damage, elemental_damage, companion_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]        # own_attribute: the attribute the weapon casts with
   armor:
     heavy:   [defense, max_health, resolve, max_stamina, recovery, strength, constitution, physical_resistance, elemental_resistance, all_elemental_resistance]
     medium:  [defense, max_health, max_stamina, evasion, resolve, recovery, movement, constitution, dexterity, physical_resistance, elemental_resistance]
@@ -55,6 +55,7 @@ gear_only_stats:
                acid_resistance, necrotic_resistance, radiant_resistance, all_elemental_resistance]
   elemental_damage: [fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
   crit: [crit_chance, crit_damage]
+  onhit: [vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]    # weapons only: what a hit does besides damage
 random_element: {elemental_resistance: resistance, elemental_damage: elemental_damage}
 
 # A material's grade multiplies a weapon's damage and an armor's value, on top of any multiplier of its own. It follows the lowest

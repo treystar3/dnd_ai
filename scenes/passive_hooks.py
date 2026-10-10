@@ -31,7 +31,7 @@ class PassiveHooks:
         return self.has(mid) is not None
 
     def companion_here(self) -> bool:
-        return bool(self.player.character.companions)
+        return any(m.active for m in self.player.character.companions)
 
     # ---------- checks ----------
 
@@ -42,6 +42,18 @@ class PassiveHooks:
         def add(mid, label=None, when=True, sign=1):
             if when and self.owns(mid):
                 out.append((label or mid.replace("_", " "), sign * self.mech(mid)))
+        shadow = self.fld.get("shadow")
+        if check == "stealth" and shadow and shadow["until"] > self.minutes:
+            from engine.field import F as FIELD, tier_value
+            out.append(("shadowing", tier_value(FIELD["shadow"]["stealth_bonus"], shadow["tier"])))
+        if self.blessed_bonus():
+            out.append(("blessed", self.blessed_bonus()))
+        edge = self.fld.get("edge")
+        if npc is not None and edge and edge["npc"] == npc.id and edge["until"] > self.minutes \
+                and check in edge.get("only", ("persuasion", "intimidation", "deception")):
+            out.append(("cowed" if edge.get("only") else "won over", edge["bonus"]))
+        if check == "perception" and self.darkness_penalty():
+            out.append(("darkness", self.darkness_penalty()))
         if check == "intimidation":
             add("wild_presence")
             add("soldiers_bearing", when=bool(npc and npc.role in ARMED_ROLES))
@@ -169,11 +181,11 @@ class PassiveHooks:
         """The mount the player rides, if any (see data/rules/events.yaml, grand.mounts)."""
         return next((m for m in self.player.mounts if m["id"] == self.player.mount), None)
 
-    def travel_fatigue(self, walk: int) -> None:
+    def travel_fatigue(self, walk: int, factor: float = 1.0) -> None:
         if self.owns("long_road_walker") or walk < 60:
             return
         c = self.player.character
-        cost = min(TRAVEL["fatigue_max"], TRAVEL["fatigue_per_hour"] * walk / 60)
+        cost = min(TRAVEL["fatigue_max"], TRAVEL["fatigue_per_hour"] * walk / 60) * factor
         mount = self.mount_info()
         if mount:
             cost *= 1 - mount["stamina"]

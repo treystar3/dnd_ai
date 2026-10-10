@@ -31,7 +31,13 @@ class CheckActions:
         if check == "persuasion" and degree == "failure" and self.has("dark_charisma") is not None:
             degree = "partial"
         console.debug(f"{check}: {odds:.0f}% ({', '.join(why)}) - rolled {rolled}")
+        self.spend_edge(check, npc)
         console.note(checks.label(check, degree))
+        if degree == "failure":
+            lucky = self.lucky_save()
+            if lucky:
+                degree = "success"
+                console.note(f"A lucky break! You succeeded because of {lucky}.")
         return degree
 
     def target_npc(self, intent):

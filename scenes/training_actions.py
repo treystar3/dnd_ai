@@ -130,9 +130,19 @@ class TrainingActions:
             return
         console.wait(f"{teacher.label().capitalize()} considers what to teach you.")
         try:
-            result = generate("learn_abilities", prompts.LEARN_SYSTEM, prompts.learn_user(c, request, a["options"]),
+            from types import SimpleNamespace
+            from engine import ability_traits as AT
+            have = {x for x in ([ab.rider for ab in c.actives] + [ab.shape for ab in c.actives]) if x}
+            seen = SimpleNamespace(custom_class=c.custom_class, combat_identity="", summary=getattr(c, "class_summary", ""),
+                                   themes=[], families=[], archetype=c.archetype)
+            from engine import field as _field
+            owned_fn = {ab.field_use for ab in c.actives if ab.field_use}
+            offers = AT.draw_offers(seen, sizes={"riders": 3, "shapes": 2, "buffs": 1, "functions": _field.F["offer"]["lesson"]},
+                                    skip=have, owned_functions=owned_fn)
+            result = generate("learn_abilities", prompts.LEARN_SYSTEM, prompts.learn_user(c, request, a["options"], AT.offer_lines(offers)),
                               LearnSet, max_tokens=1500,
-                              validation_context={"count": a["options"], "reserved_names": [x.name for x in c.actives]})
+                              validation_context={"count": a["options"], "reserved_names": [x.name for x in c.actives],
+                                                "functions": offers["functions"]})
         except LLMError:
             console.note("The instructor can't settle on what to teach you right now. Ask again in a moment.")
             self.halted = True
@@ -140,7 +150,7 @@ class TrainingActions:
         self.learn_options = [materialize_active(p) for p in result.skills]
         self.learn_request = request
         fee = self.fee((a["base_fee"] + a["fee_per_level"] * c.level) * (1 - self.mech("spell_scholar") / 100))
-        console.show_actives(self.learn_options)
+        console.show_actives(self.learn_options, c.level)
         console.note(f"Learning one costs {money.words(fee)} and {a['hours']} hours. Say which you'll learn.")
 
     def on_learn_ability(self, intent, text: str) -> None:

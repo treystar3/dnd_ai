@@ -3,6 +3,7 @@
 import random
 
 from engine import clock, combat, dungeons, items, loot, money, quests
+from engine import field as _field
 from ui import console
 
 D = dungeons.D
@@ -89,9 +90,19 @@ class DungeonActions:
             where = "the first chamber" if (f, c) == (0, 0) else f"floor {f + 1}, where you left off"
             console.note(f"You descend into {d['name']} and make your way to {where}.")
         self.player.delve = {"dungeon": d["id"], "floor": f, "chamber": c, "rest": False}
+        self.ensure_light(d)
         self.advance(10)
         label = f"Floor {f + 1} [{floor['letter']}], chamber {c + 1} of {len(floor['chambers'])}"
         kind = chamber["kind"]
+        if kind == "fight" and not chamber.get("boss") and self.shadow_active():
+            self.use_shadow()
+            creature = self.world.bestiary[chamber["creature"]]
+            console.note(label)
+            console.note(f"You slip past the {creature.name.lower()} unseen. There's no fight, and no spoils.")
+            self.narrate(f"The player, unseen, slips past the {creature.name.lower()} in a chamber of {d['name']} and goes on. "
+                         f"Describe how they pass them without being noticed, fitting a {d['theme']}.", text)
+            self.chamber_cleared(d, f, c)
+            return
         if kind == "fight":
             creature = self.world.bestiary[chamber["creature"]]
             rank = "boss" if chamber.get("boss") else "normal"
@@ -106,7 +117,8 @@ class DungeonActions:
             return
         console.note(label)
         if kind == "trap":
-            degree = "success" if self.has("trap_sense") is not None else self.resolve("perception")
+            degree = "success" if (self.has("trap_sense") is not None or self.scouted_here(d, f, c) or chamber.get("disarmed")) \
+                else self.resolve("perception")
             pct = {"strong success": 0, "success": 0, "partial": D["trap"]["damage_partial"]}.get(degree, D["trap"]["damage_failure"])
             c_ = self.player.character
             from engine import pools
@@ -116,10 +128,13 @@ class DungeonActions:
             self.narrate(f"The player enters a chamber of {d['name']} and {what}. Describe the trap, fitting a {d['theme']}.", text)
         elif kind == "cache":
             lo, hi = D["cache"]["coins_per_level"]
-            coins = round(random.randint(lo, hi) * floor["level"] * (1 + (self.has("cache_hunter") or 0) / 100))
+            picked = bool(chamber.get("picked"))
+            coins = round(random.randint(lo, hi) * floor["level"] * (1 + (self.has("cache_hunter") or 0) / 100)
+                          * (1 + (_field.F["picklock"]["coin_bonus"] if picked else 0)))
             self.player.character.coins += coins
             found = [money.words(coins)]
-            if random.random() < D["cache"]["item_chance"] + (self.has("grave_robber") or 0) / 100:
+            if random.random() < D["cache"]["item_chance"] + (self.has("grave_robber") or 0) / 100 \
+                    + (_field.F["picklock"]["item_bonus"] if picked else 0):
                 item = self.cache_item(floor["level"])
                 self.to_pack(item)
                 found.append(item.name)

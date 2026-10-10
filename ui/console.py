@@ -66,18 +66,56 @@ def show_class(interp) -> None:
     print(f"[ constraints: {constraints} | companions: {'yes' if interp.uses_companions else 'no'} ]")
 
 
-def show_actives(abilities) -> None:
-    print("\nACTIVE ABILITIES   (C = combat, O = out of combat, B = both)")
+CONTEXT_WORD = {"combat": "combat only", "out_of_combat": "outside combat", "both": "combat and outside"}
+RULE = "─" * WIDTH
+
+
+def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) -> list[str]:
+    """One ability as a small card: name, what it is and costs, what it looks like, what makes it special, what it does outside a fight."""
+    from engine import ability_traits as at, field, pools
+    from engine.combat import RULES as COMBAT
+    pad = " " * indent
+    body = pad + " " * (5 if index is not None else 2)
+    table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
+    price = max(1, round(pools.reference_pool(a.resource.value, level) * COMBAT[table][a.tier.value] / 100))
+    if a.effect.value == "buff":
+        price = max(1, round(price * at.T["buff_cost"]))
+    if a.shape == "overcharge":
+        price = round(price * at.SHAPES["overcharge"]["cost"])
+    head = f"{pad}{index:>2}.  " if index is not None else f"{pad}◆ "
+    lines = [f"{head}{a.name}"]
+    facts = [f"{a.tier.value} {a.effect.value}", "on yourself" if a.reach.value == "self" else f"{a.reach.value} reach", f"{price} {a.resource.value}"]
+    if a.resource.value == "mana":
+        facts[-1] += f" ({(a.attribute or 'casting')[:3].upper()})" if a.attribute else ""
+    if a.cooldown:
+        facts.append(f"cooldown {a.cooldown}")
+    facts.append(CONTEXT_WORD[a.context.value])
+    lines.append(body + " · ".join(facts))
+    lines += textwrap.wrap(a.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)
+    for label, text in at.parts(a):
+        lines += textwrap.wrap(f"✦ {label}: {text}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
+    out = field.outside_text(a)
+    if out:
+        lines += textwrap.wrap(f"☼ Outside combat: {out}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
+    if a.companion:
+        c = a.companion
+        sp = COMBAT["creatures"]["spirit"]
+        r = sp["role"].get(c.role.value, {"health": 1, "damage": 1})
+        article = "an" if c.kind.value[:1] in "aeiou" else "a"
+        feel = {"striker": "hits hard", "guardian": "sturdy, hits softly", "scout": "quick but frail", "support": "fragile, weak in a fight"}.get(c.role.value, "")
+        lines += textwrap.wrap(f"⚑ Calls {c.name}, {article} {c.kind.value} {c.role.value} - {c.description}", WIDTH - len(body),
+                               initial_indent=body, subsequent_indent=body + "  ")
+        lines += textwrap.wrap(f"  {sp['size'][a.tier.value]} size ({a.tier.value} tier) · {c.role.value}: {feel} "
+                               f"({r['health']:g}× health, {r['damage']:g}× damage) · grows with your level",
+                               WIDTH - len(body), initial_indent=body, subsequent_indent=body + "    ")
+    return lines
+
+
+def show_actives(abilities, level: int = 1) -> None:
+    print(f"\n{RULE}\n ACTIVE ABILITIES   ✦ special effect   ☼ what it does outside combat\n{RULE}")
     for i, a in enumerate(abilities, 1):
-        print(
-            f"{i:>2}. {a.name:<28} {CONTEXT_LABEL[a.context.value]} {a.effect.value:<9} "
-            f"{a.tier.value:<8} {a.reach.value:<8} {a.resource.value:<7} "
-            f"pot={a.potency:<3} cost={a.cost:<3} cd={a.cooldown}"
-        )
-        print(f"    {a.description}")
-        if a.companion:
-            c = a.companion
-            print(f"    -> {c.name} ({c.kind.value} {c.role.value}) hp={c.health} dmg={c.damage}: {c.description}")
+        print("\n".join(ability_lines(a, level, i)))
+        print()
 
 
 def show_passives(passives) -> None:
@@ -159,27 +197,16 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
     if c.companions:
         _section("COMPANIONS")
         for comp in c.companions:
-            print(f"  {comp.name} - {comp.description} ({comp.source})")
+            state = " [dead]" if comp.dead else " [fallen, recovering]" if comp.fallen else ""
+            print(f"  {comp.name}{state} - {comp.description} ({comp.source})")
             if comp.perks:
                 from engine import arcs as _arcs
                 print(f"      {_arcs.perk_text(comp)}")
 
     _section("ACTIVE ABILITIES")
     for a in c.actives:
-        from engine.combat import RULES as COMBAT
-        from engine import pools as _pools
-        table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
-        pct = COMBAT[table][a.tier.value]
-        price = f"{max(1, round(_pools.reference_pool(a.resource.value, c.level) * pct / 100))} {a.resource.value}"
-        detail = f"{a.tier.value} {a.effect.value}, {a.reach.value} reach · {price}"
-        if a.resource.value == "mana":
-            detail += f" · uses {(a.attribute or c.casting_attribute or 'intelligence')[:3].upper()}"
-        if a.cooldown:
-            detail += f" · cooldown {a.cooldown}"
-        print(f"  {a.name} - {detail}")
-        print(textwrap.fill(a.description, WIDTH, initial_indent="      ", subsequent_indent="      "))
-        if a.companion:
-            print(f"      summons {a.companion.name} ({a.companion.kind.value} {a.companion.role.value})")
+        print("\n".join(ability_lines(a, c.level)))
+        print()
 
     _section("PASSIVES")
     for p in c.passives:

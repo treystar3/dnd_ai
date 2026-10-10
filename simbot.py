@@ -410,6 +410,14 @@ class Bot:
             if kind == "reset" and not p.cooldowns:
                 continue
             return dict(base, kind="ability", ability=m.id)
+        foes_near = [x for x in f.fighters if x.side == "enemy" and x.alive]
+        for m in moves:                                   # a buff goes up before the blows, once, if the fight is worth it
+            if m.effect == "buff" and m.id not in p.buffs and not p.counters.get("buffed_" + m.id) and foes_near and getattr(self, "last_rate", 1) < 0.9:
+                if m.buff == "mend" and hpf > 0.85:
+                    continue
+                if not any(b.get("kind") == m.buff for b in p.buffs.values()):
+                    p.counters["buffed_" + m.id] = 1
+                    return dict(base, kind="ability", ability=m.id)
         dmg = [m for m in moves if m.effect == "damage"]
         if dmg:
             best = max(dmg, key=lambda m: TIER.get(m.tier, 1))

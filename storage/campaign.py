@@ -71,6 +71,7 @@ class PlayerState(BaseModel):
     titles: list[str] = []         # honorifics earned by ending campaigns and cataclysms
     mounts: list[dict] = []        # mounts owned: {"id", "name", "speed", "stamina"} (see data/rules/events.yaml)
     mount: str = ""                # id of the mount ridden, if any
+    field: dict = {}               # field-ability state (scenes/field_actions.py): cd, camp, haste, edge, shadow, scouted, lit, shows
     road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume"}
 
 

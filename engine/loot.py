@@ -85,6 +85,9 @@ def roll_properties(rarity: str, rng: random.Random, extra: int = 0, only: list[
         elif cat == "companion":
             lo, hi = L["companion_magnitude"].get(rarity, L["companion_magnitude"]["uncommon"])
             magnitude = rng.randint(lo, hi)
+        elif cat == "onhit":
+            lo, hi = L["onhit_magnitude"][sid].get(rarity, L["onhit_magnitude"][sid]["uncommon"])
+            magnitude = rng.randint(lo, hi)
         elif cat == "crit":
             table = L["crit_damage_magnitude"] if sid == "crit_damage" else L["crit_magnitude"]
             lo, hi = table.get(rarity, table["uncommon"])

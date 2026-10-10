@@ -1,0 +1,184 @@
+# ABILITY TRAITS - what makes two abilities of the same tier play differently.
+# A RIDER is something extra a damage or control ability does when it lands. A SHAPE changes how a damage ability delivers its damage.
+# A BUFF is a combat-only effect on yourself that lasts a few rounds. Each character is offered a random draw of these at creation
+# (weighted toward what suits the class); the model fits them to abilities, the engine sets every number from the tier.
+
+offer: {riders: 6, shapes: 4, buffs: 3}
+max_multi: 2                                  # of the shapes on offer, at most this many are multi-hit ones (double strike, volley, barrage)
+need: {riders: 3, shapes: 2, buffs: 1}         # of the offered ones, how many an ability set must use at least
+plain_damage: 0.15                            # a damage ability with no rider and no shape deals this much more (Honed), so plain is never strictly worse
+max_decorated: 9                              # abilities with a rider or a shape: never all of them
+
+riders:
+  rend:    {label: Rending,  applies: [damage],  chance: {light: 50, moderate: 70, heavy: 90}, status: bleeding, rounds: 3,
+            text: "{chance}% chance to make the target bleed for 3 rounds",
+            fits: [warrior, rogue, ranger, berserker], words: [blade, claw, fang, knife, thorn, rend, slash, talon, hunt, saw]}
+  chill:   {label: Chilling, applies: [damage, control], chance: {light: 50, moderate: 70, heavy: 90}, status: slowed, rounds: 2,
+            text: "{chance}% chance to slow the target for 2 rounds",
+            fits: [mage, druid], words: [frost, ice, cold, winter, water, snow, mud, chain, bind, tar]}
+  dread:   {label: Dreadful, applies: [damage, control], chance: {light: 40, moderate: 55, heavy: 70}, status: frightened, rounds: 2,
+            text: "{chance}% chance to frighten the target for 2 rounds",
+            fits: [warlock, necromancer, rogue, berserker], words: [shadow, fear, death, curse, grave, night, terror, undead, wail, howl]}
+  dazzle:  {label: Dazzling, applies: [damage, control], chance: {light: 40, moderate: 55, heavy: 70}, status: blinded, rounds: 1,
+            text: "{chance}% chance to blind the target for 1 round",
+            fits: [healer, paladin, mage, bard], words: [light, flash, sun, radiant, smoke, dust, glare, spark, dawn, star]}
+  sunder:  {label: Sundering, applies: [damage], pierce: {light: 25, moderate: 40, heavy: 55},
+            text: "ignores {pierce}% of the target's armor or ward",
+            fits: [warrior, ranger, monk, guardian, berserker, artisan], words: [hammer, mace, crush, spear, arrow, pierce, bolt, ram, breaker, force]}
+  shove:   {label: Driving,  applies: [damage, control],
+            text: "pushes the target one step further away",
+            fits: [monk, warrior, guardian, mage, paladin], words: [wind, gale, shield, palm, thunder, bash, shove, blast, wave, push]}
+  siphon:  {label: Siphoning, applies: [damage], heal: {light: 15, moderate: 25, heavy: 35},
+            text: "heals you for {heal}% of the damage it deals",
+            fits: [healer, warlock, necromancer, druid, paladin], words: [blood, life, drain, soul, leech, vampire, sap, bloom, spirit, vitality]}
+  seeker:  {label: Seeking,  applies: [damage],
+            text: "always strikes the most wounded enemy",
+            fits: [ranger, rogue], words: [arrow, hunt, mark, eagle, track, seek, homing, eye, aim, snipe]}
+  thrift:  {label: Thrifty,  applies: [damage, control], refund: {light: 30, moderate: 40, heavy: 50},
+            text: "refunds {refund}% of the resource it cost",
+            fits: [monk, bard, mage, leader], words: [focus, discipline, flow, calm, still, economy, breath, balance, rhythm, precise]}
+
+  expose:  {label: Exposing, applies: [damage, control], chance: {light: 50, moderate: 70, heavy: 90}, status: exposed, rounds: 3,
+            text: "{chance}% chance to lower the target's armor and ward by 30% for 3 rounds",
+            fits: [warrior, rogue, ranger, monk, artisan, guardian], words: [expose, crack, shatter, break, rend, strip, open, weak, flaw, pry]}
+  hook:    {label: Hooking, applies: [damage, control],
+               reach: [ranged, extended],
+            text: "pulls a distant target one step closer",
+            fits: [ranger, rogue, warrior, necromancer, warlock], words: [hook, chain, pull, grab, drag, lasso, whip, tether, snare, grapple]}
+  grapple: {label: Grappling, applies: [damage, control], chance: {light: 50, moderate: 70, heavy: 90}, status: grappled, rounds: 2,
+               reach: [melee, extended],
+            text: "{chance}% chance to seize the target for 2 rounds: it is dragged into melee and cannot flee or be pushed away",
+            fits: [warrior, monk, berserker, druid, guardian], words: [grapple, grip, seize, hold, wrestle, vine, root, bind, clamp, throw]}
+  drain:   {label: Draining, applies: [damage], mana: {light: 6, moderate: 9, heavy: 12},
+            text: "restores {mana}% of your maximum mana when it lands",
+            fits: [mage, warlock, necromancer, healer, bard], words: [drain, siphon, leech, sap, absorb, tap, devour, essence, void, thirst]}
+  penetrate: {label: Penetrating, applies: [damage],
+            text: "ignores the target's resistances to the type and element of its damage",
+            fits: [mage, warlock, ranger, rogue, monk, warrior], words: [pierce, piercing, penetrate, needle, lance, drill, bore, spike, spear, bolt]}
+  venom:   {label: Venomous, applies: [damage], chance: {light: 50, moderate: 70, heavy: 90}, status: poisoned, rounds: 3,
+            text: "{chance}% chance to poison the target for 3 rounds (damage over time, and it hits 10% softer)",
+            fits: [rogue, ranger, druid, necromancer, warlock], words: [venom, poison, toxin, viper, spider, sting, blight, spore, fang, serpent]}
+  ignite:  {label: Igniting, applies: [damage], chance: {light: 50, moderate: 70, heavy: 90}, status: burning, rounds: 3,
+            text: "{chance}% chance to set the target burning for 3 rounds",
+            fits: [mage, warlock, paladin, druid, berserker], words: [fire, flame, burn, ember, blaze, inferno, scorch, torch, pyre, ignite]}
+  jolt:    {label: Jolting, applies: [damage], chance: {light: 15, moderate: 25, heavy: 35}, status: stunned, rounds: 1,
+            text: "{chance}% chance to stun the target for 1 round",
+            fits: [mage, monk, warrior, guardian, bard, artisan], words: [lightning, thunder, shock, jolt, spark, bolt, bash, slam, concuss, stun]}
+  mark:    {label: Marking, applies: [damage, control], chance: {light: 60, moderate: 80, heavy: 100}, status: marked, rounds: 3,
+            text: "{chance}% chance to mark the target: for 3 rounds it takes 20% more damage from you and your allies",
+            fits: [ranger, rogue, leader, paladin, bard], words: [mark, brand, hunt, target, sign, sigil, sight, eye, aim, hex]}
+  enfeeble: {label: Enfeebling, applies: [damage, control], chance: {light: 40, moderate: 55, heavy: 70}, status: weakened, rounds: 3,
+            text: "{chance}% chance to weaken the target: for 3 rounds it deals 25% less damage",
+            fits: [warlock, necromancer, healer, bard, druid, guardian], words: [weak, wither, sap, curse, enfeeble, drain, fatigue, exhaust, hex, bane]}
+  befuddle: {label: Befuddling, applies: [damage, control], chance: {light: 30, moderate: 45, heavy: 60}, status: befuddled, rounds: 2,
+            text: "{chance}% chance to befuddle the target: its next attack is aimed at a random fighter, friend or foe",
+            fits: [bard, mage, rogue, druid, warlock], words: [confuse, daze, muddle, illusion, trick, charm, whisper, mirage, bewilder, madness]}
+  rouse:   {label: Rousing, applies: [damage, control], companion: true, pct: {light: 20, moderate: 35, heavy: 50}, rounds: 3,
+            text: "your companions deal {pct}% more damage for 2 rounds",
+            fits: [summoner, druid, ranger, necromancer, leader], words: [rally, rouse, call, howl, urge, signal, whistle, inspire, command, hunt]}
+
+shapes:
+  volley:     {label: Volley,     parts: 3, each: 0.4,
+               text: "splits the attack into three hits of 40% damage each (120% in total)", multi: true,
+               hint: "an archer's Volley, a mage's Magic Missiles, a rogue's Triple Stab",
+               fits: [ranger, rogue, monk, mage], words: [arrow, dagger, bolt, flurry, barrage, missile, jab, shard, needle, volley]}
+  finisher:   {label: Finishing,  low: 0.75, high: 2.0,
+               text: "deals 75% damage to a healthy target, rising to 200% as the target nears death",
+               fits: [rogue, warlock, warrior, berserker, necromancer], words: [execute, reap, death, coup, kill, end, final, mercy, cull, guillotine]}
+  opener:     {label: Ambushing,  fresh: 1.6, worn: 0.8,
+               text: "deals 160% damage to a target above 90% health, but only 80% once it has been hurt",
+               fits: [rogue, ranger, monk], words: [ambush, assassin, sneak, alpha, charge, pounce, strike, first, surprise, lunge]}
+  chain:      {label: Chaining,   side: 0.55,
+               clash: [single target, single enemy, single foe, one target, one enemy, lone target, a single, one foe],
+               text: "also hits the next-closest enemy for 55% damage",
+               fits: [mage, warrior, bard, berserker], words: [lightning, chain, arc, ricochet, whirl, cleave, sweep, spark, jump, spread]}
+  overcharge: {label: Overcharged, cost: 1.5, damage: 1.4,
+               text: "costs 50% more and deals 40% more damage",
+               fits: [mage, warrior, warlock, berserker], words: [overload, surge, blast, fury, rage, channel, unleash, inferno, storm, fury]}
+
+  double:     {label: Double Strike, parts: 2, each: 0.6, multi: true,
+               text: "splits the attack into two hits of 60% damage each (120% in total)",
+               hint: "a swordsman's Twin Slash, a rogue's Dual Stab, a ranger's Double Shot",
+               fits: [warrior, rogue, monk, ranger, berserker], words: [twin, double, dual, pair, twofold, cross, fork, two, scissor, brace]}
+  barrage:    {label: Barrage, parts: 5, each: 0.25, multi: true,
+               text: "splits the attack into five hits of 25% damage each (125% in total)",
+               hint: "a monk's Flurry of Blows, a mage's Arcane Missiles, a rogue's Fan of Knives, an archer's Rain of Arrows",
+               fits: [monk, rogue, ranger, mage, bard], words: [barrage, rapid, rain, hail, fusillade, flurry, storm, blows, fists, missiles]}
+  sweeping:   {label: Sweeping,   share: 0.7,
+               reach: [melee, extended], clash: [single target, single enemy, single foe, one target, one enemy, lone target, a single, one foe],
+               text: "hits every enemy engaged with you for 70% damage each",
+               fits: [warrior, berserker, monk, guardian, paladin], words: [sweep, whirl, cleave, spin, arc, circle, reap, scythe, wheel, tempest]}
+  ricochet:   {label: Ricochet,   bounces: [0.6, 0.35],
+               clash: [single target, single enemy, single foe, one target, one enemy, lone target, a single, one foe],
+               text: "after the first hit it bounces to a random other enemy for 60%, then once more for 35%",
+               fits: [ranger, rogue, mage, bard], words: [ricochet, bounce, rebound, skip, glance, chain, spark, shard, carom]}
+  reliable:   {label: Reliable,   bonus: 1.0,
+               clash: [random, chaotic, unpredictable, volatile, erratic, wild, scatter, scattered],
+               text: "never misses and never crits, always dealing an average blow",
+               fits: [mage, paladin, ranger, guardian, healer, artisan], words: [sure, truestrike, unerring, steady, certain, guided, seeking, precise, aim, bolt]}
+  lunge:      {label: Lunge,      bonus: 1.3,
+               reach: [melee, extended],
+               text: "closes the gap as it strikes, and deals 130% damage if the target was not already in melee with you",
+               fits: [rogue, warrior, monk, ranger, berserker, paladin], words: [lunge, leap, dash, charge, pounce, spring, rush, dive, vault, thrust]}
+  flank:      {label: Flanking,   bonus: 1.4,
+               text: "deals 140% damage to a target your companions or allies have struck in the last round",
+               fits: [rogue, ranger, bard, leader, monk], words: [flank, backstab, behind, side, ambush, pincer, circle, pair, wolf, dirty]}
+  desperate:  {label: Desperate Strike, low: 0.8, high: 2.0,
+               text: "deals 80% damage at full health, rising to 200% as your own health runs out",
+               fits: [berserker, warrior, paladin, monk, guardian], words: [desperate, last, final, dying, defiant, wounded, rage, stand, survive, vengeance]}
+  combo:      {label: Combo,      step: 0.15, cap: 4,
+               text: "each consecutive use that hits the same target adds 15% damage (up to 60% more)",
+               fits: [monk, warrior, rogue, berserker, bard], words: [combo, chain, rhythm, string, rapid, strike, fist, dance, tempo, sequence]}
+  exploiting: {label: Exploiting, plain: 0.8, afflicted: 1.6,
+               text: "deals 80% damage to a target with nothing wrong with it, but 160% to one that is slowed, bleeding, stunned or otherwise afflicted",
+               fits: [rogue, warlock, ranger, necromancer, bard], words: [exploit, opportunity, weakness, vulnerable, open, finish, seize, punish, wound, prey]}
+  packhunt:   {label: Pack Hunt,  companion: true, share: 0.5,
+               text: "your companions pile onto the target after the hit, each for 50% of a normal blow",
+               fits: [ranger, druid, summoner, necromancer, leader], words: [pack, hunt, swarm, hounds, wolves, together, horde, hunter, beast, call]}
+
+buffs:
+  bulwark: {label: Bulwark, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 40, moderate: 70, heavy: 100}, both_share: 0.6,
+            text: "raises your {stat} by {pct}% for {rounds} rounds",
+            fits: [warrior, guardian, mage, healer, paladin, monk, druid, artisan], words: [armor, ward, shield, stone, barrier, aegis, plate, skin, bark, guard]}
+  thorns:  {label: Thorns, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 40, moderate: 70, heavy: 100},
+            text: "for {rounds} rounds, melee attackers that hit you take damage equal to {pct}% of your armor",
+            fits: [guardian, warrior, druid, paladin, artisan], words: [reactive, thorn, spike, retribution, aura, bristle, spite, flame, mirror, barb]}
+  mend:    {label: Mending, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 4, moderate: 6, heavy: 8},
+            text: "for {rounds} rounds, heals {pct}% of your max health at the start of each of your turns",
+            fits: [healer, druid, paladin, monk, leader], words: [mend, grove, bloom, renew, blessing, spring, heal, life, breath, vitality]}
+  manashield: {label: Mana Shield, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 40, moderate: 60, heavy: 80},
+            text: "for {rounds} rounds, {pct}% of the damage you take is paid from your mana instead (2 mana per point, while it lasts)",
+            fits: [mage, warlock, necromancer, healer, bard, druid], words: [mana, shield, barrier, ward, arcane, veil, bubble, bastion, sphere, mirror]}
+  empower: {label: Empower, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 20, moderate: 30, heavy: 40},
+            text: "for {rounds} rounds, your attacks and abilities deal {pct}% more damage",
+            fits: [warrior, mage, ranger, rogue, berserker, warlock, paladin], words: [empower, surge, might, focus, strength, rage, power, amplify, fervor, overdrive]}
+  frenzy:  {label: Frenzy, rounds: {light: 3, moderate: 4, heavy: 5}, pct: {light: 25, moderate: 40, heavy: 55},
+            text: "for {rounds} rounds, you deal {pct}% more damage but take {half}% more",
+            fits: [berserker, warrior, rogue, monk, druid], words: [frenzy, rage, fury, bloodlust, wild, berserk, reckless, savage, fever, howl]}
+  vampiric: {label: Vampiric Aura, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 12, moderate: 20, heavy: 30},
+            text: "for {rounds} rounds, you heal for {pct}% of the damage you deal",
+            fits: [necromancer, warlock, paladin, druid, berserker], words: [vampire, blood, aura, leech, drain, thirst, life, crimson, hunger, soul]}
+  elemental: {label: Elemental Weapon, rounds: {light: 4, moderate: 5, heavy: 6}, pct: {light: 20, moderate: 30, heavy: 40},
+            text: "for {rounds} rounds, every hit carries bonus elemental damage equal to {pct}% of the blow (the element named in the ability, fire if none)",
+            fits: [warrior, paladin, ranger, monk, rogue, mage], words: [flame, frost, storm, fire, ice, lightning, venom, enchant, imbue, brand]}
+
+commands:      # what a command ability tells your companions to do (effect command); each command ability on a character is a different one
+  focus: {label: Focus fire, strike: {light: 1.0, moderate: 1.3, heavy: 1.6},
+          text: "every companion strikes your target at once, for {strike_pct}% of a normal blow",
+          fits: [summoner, necromancer, druid, ranger, leader], words: [command, strike, attack, order, signal, lunge, sic, charge, hunt]}
+  guard: {label: Guard, rounds: {light: 3, moderate: 4, heavy: 5}, share: {light: 30, moderate: 45, heavy: 60},
+          text: "for {rounds} rounds, a companion takes {share}% of the damage aimed at you",
+          fits: [summoner, necromancer, druid, guardian, paladin], words: [guard, protect, shield, defend, ward, interpose, cover, shelter, bulwark]}
+  press: {label: Press the attack, rounds: {light: 3, moderate: 4, heavy: 5}, pct: {light: 25, moderate: 40, heavy: 60},
+          text: "for {rounds} rounds, your companions deal {pct}% more damage",
+          fits: [summoner, necromancer, druid, ranger, leader, berserker], words: [rally, press, frenzy, fury, urge, drive, inspire, howl, goad, bloodlust]}
+  hold: {label: Hold the line, rounds: {light: 3, moderate: 4, heavy: 5}, pct: {light: 20, moderate: 35, heavy: 50},
+         text: "for {rounds} rounds, your companions take {pct}% less damage",
+         fits: [summoner, necromancer, druid, guardian, paladin, healer], words: [hold, brace, steady, endure, stand, harden, fortify, mend, steel]}
+  distract: {label: Distract, rounds: {light: 2, moderate: 3, heavy: 4},
+             text: "for {rounds} rounds, every enemy turns on you and leaves your companions alone",
+             fits: [guardian, paladin, ranger, summoner, necromancer, druid, bard], words: [taunt, goad, distract, bait, lure, provoke, jeer, decoy, challenge, draw]}
+
+buff_cost: 0.6            # a buff deals no damage, so it costs this share of what a damaging ability of its tier costs
+bulwark_floor: 0.4        # a bulwark counts for at least this share of a basic suit of protection for your level, so cloth wearers benefit too
+thorns_floor: 0.4

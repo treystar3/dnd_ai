@@ -76,6 +76,7 @@
 - {id: trailblazer,   kind: world,  values: [10, 20], text: "You travel {value}% faster.", suits: {archetypes: [], themes: [ranger, wanderer, traveler, scout, wind, swift]}}
 - {id: keen_judge,    kind: world,  values: [0, 0],   text: "You read a fight before it starts: you see your exact odds.", suits: {archetypes: [mage, rogue], themes: [tactician, scholar, strategist, veteran]}}
 - {id: tracker,       kind: world,  values: [0, 0],   text: "Arriving somewhere wild, you read the signs of every creature that roams there.", suits: {archetypes: [], themes: [hunter, ranger, tracker, beast, scout]}}
+- {id: lucky_break,   kind: world,  values: [1, 2],   text: "Luck follows you: the first {value} check(s) you fail each day go your way instead, and you are told luck was the reason.", suits: {archetypes: [rogue, support], themes: [lucky, luck, fortune, gambler, fate, charm, dice, trickster]}}
 - {id: lucky_find,    kind: world,  values: [10, 20], text: "{value}% chance to find an extra item on the fallen.", suits: {archetypes: [rogue], themes: [lucky, fortune, scavenger, thief]}}
 - {id: thrifty,       kind: world,  values: [15, 25], text: "{value}% chance to save a material whenever you craft.", suits: {archetypes: [support], themes: [smith, artisan, craft, frugal, tinker]}}
 - {id: masterwork,    kind: world,  values: [8, 15],  text: "Things you craft turn out better, as if your crafting skill were {value} points higher.", suits: {archetypes: [support], themes: [smith, artisan, master, craft, forge]}}

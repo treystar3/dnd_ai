@@ -124,6 +124,7 @@ families:
     description: Thieves, assassins and duelists who win by precision, misdirection and timing.
     kin: [ranger, bard]
     options:
+      - {mechanic: lucky_break}
       - {mechanic: first_blood}
       - {mechanic: executioner}
       - {mechanic: opportunist}
@@ -157,6 +158,7 @@ families:
     description: Hunters, trackers and archers at home in the wild places.
     kin: [rogue, druid]
     options:
+      - {mechanic: lucky_break}
       - {mechanic: beastbane}
       - {mechanic: beastbane, when: in_wilderness, values: [12,20]}
       - {mechanic: tracker}
@@ -334,6 +336,7 @@ families:
     description: Commanders, nobles and captains who turn a fight with presence and orders.
     kin: [bard, paladin]
     options:
+      - {mechanic: lucky_break}
       - {mechanic: inspire}
       - {mechanic: rally}
       - {mechanic: battle_cry}
@@ -367,6 +370,7 @@ families:
     description: Performers whose music and words soothe, unsettle and inspire.
     kin: [leader, rogue]
     options:
+      - {mechanic: lucky_break}
       - {mechanic: trusted_face}
       - {mechanic: terrify}
       - {mechanic: blinding}
@@ -508,6 +512,7 @@ families:
     description: Pact-bound casters who trade with dark powers for curses and hungering magic.
     kin: [necromancer, mage]
     options:
+      - {mechanic: lucky_break}
       - {mechanic: hex}
       - {mechanic: hex, when: at_night, values: [18, 28]}
       - {mechanic: blood_pact}

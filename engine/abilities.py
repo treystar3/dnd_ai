@@ -16,8 +16,10 @@ from core.models import (
     PowerTier,
     Reach,
     Resource,
+    UseContext,
     Trigger,
 )
+from engine import field
 from llm.contracts import ActiveProposal, CompanionProposal, PassiveProposal
 
 TIER_POTENCY = {PowerTier.LIGHT: 4, PowerTier.MODERATE: 7, PowerTier.HEAVY: 10}
@@ -35,6 +37,7 @@ EFFECT_SCALE = {
     Effect.SUMMON: 1.0,
     Effect.COMMAND: 0.6,
     Effect.CRAFTING: 0.4,
+    Effect.BUFF: 0.5,
 }
 
 REACH_SCALE = {
@@ -79,6 +82,10 @@ def materialize_companion(p: CompanionProposal, tier: PowerTier) -> CompanionTem
 def materialize_active(p: ActiveProposal) -> Ability:
     potency = round(TIER_POTENCY[p.tier] * EFFECT_SCALE[p.effect] * REACH_SCALE[p.reach])
     companion = materialize_companion(p.summons, p.tier) if p.summons else None
+    use = field.function_for(p)
+    context = p.context
+    if context != UseContext.COMBAT and not use and not field.SELF_FUNCTIONED.get(p.effect.value):
+        context = UseContext.COMBAT        # nothing it could do outside a fight: keep it a combat ability
     return Ability(
         id=slugify(p.name),
         name=p.name.strip(),
@@ -87,12 +94,14 @@ def materialize_active(p: ActiveProposal) -> Ability:
         tier=p.tier,
         reach=p.reach,
         resource=Resource(p.resource),
-        context=p.context,
+        context=context,
         tags=p.tags,
         potency=max(1, potency),
         cost=TIER_COST[p.tier],
         cooldown=TIER_COOLDOWN[p.tier],
         companion=companion,
+        rider=p.rider, shape=p.shape, buff=p.buff, buff_stat=p.buff_stat, command=p.command,
+        field_use=use if context != UseContext.COMBAT else "",
     )
 
 

@@ -41,10 +41,12 @@ def casting_attribute(interp: ClassInterpretation) -> str:
 
 def generate_actives(interp: ClassInterpretation) -> list[Ability]:
     minimum = MIN_NONCOMBAT_ACTIVES[interp.focus]
+    from engine import ability_traits
+    offers = ability_traits.draw_offers(interp, min_functions=minimum)
     result = generate(
-        "generate_actives", prompts.ACTIVES_SYSTEM, prompts.actives_user(interp, minimum),
-        ActiveSet, max_tokens=3000,
-        validation_context={"uses_companions": interp.uses_companions, "min_noncombat": minimum},
+        "generate_actives", prompts.ACTIVES_SYSTEM, prompts.actives_user(interp, minimum, ability_traits.offer_lines(offers)),
+        ActiveSet, max_tokens=3600,
+        validation_context={"uses_companions": interp.uses_companions, "min_noncombat": minimum, "offers": offers},
     )
     abilities = [materialize_active(p) for p in result.skills]
     discipline = casting_attribute(interp)

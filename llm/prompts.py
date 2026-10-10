@@ -48,15 +48,35 @@ effect:
   damage, healing, control, defense, mobility, utility: ordinary effects.
   influence: sways a person's feelings, beliefs or choices (calm, frighten, charm, persuade, unsettle).
   summon: calls or creates a companion that stays and acts on its own turns.
-  command: directs a companion that is already present.
+  command: directs the companions already present. Give it a command from the commands on offer (every command ability a different one).
+  buff: a combat-only effect on the caster for a few rounds: raises armor or ward, reflects damage onto melee attackers, or
+    mends them each turn. Reach is self and context is combat. Set buff to one of the buffs on offer.
   crafting: improves the next thing they make - forging, leatherwork, brewing, cooking. Only for classes that are
     about making things, and then include 2 or 3.
 tier: light, moderate, or heavy. Most should be light or moderate; at most 3 heavy.
 reach: self, melee, extended, ranged, or area.
 resource: stamina for physical techniques, mana for spell ones.
-context: combat, out_of_combat, or both.
+context: combat, out_of_combat, or both. A utility ability is always out_of_combat.
   The request states how many abilities must be usable outside combat (out_of_combat or both): social, stealth, exploration, knowledge, performance or survival uses that fit the class.
   If the class focus is social, most of its abilities should be about people, performance, knowledge or intrigue, not fighting.
+rider and shape: the request lists the riders and shapes on offer for this character. Use at least 3 different riders and
+  at least 2 different shapes, each on an ability it suits, one rider or shape per ability (never both on one ability), and use
+  only those on offer. Use each rider and each shape on ONE ability only - never repeat one. Leave at least 6 abilities plain. Riders go on damage or control abilities; shapes on single-target
+  damage abilities (not reach area). Leave both empty on everything else.
+  Name and describe each such ability so it fits what it does (a chilling rider belongs on a frost spell, a volley on a barrage).
+  A rider or shape must match what the ability actually is and says: never put ricochet, chaining or sweeping on an ability described as
+  one target, lunge on a ranged spell, or reliable on something wild or chaotic. If nothing on offer suits an ability, leave it plain.
+  Give a multi-hit shape to an ability whose description is several strikes (a rapid sequence of fireballs, a flurry, a spread of arrows),
+  and never put some other shape on an ability that describes several hits. Multi-hit shapes (double, volley, barrage) must be named and described for THIS class: an archer's Multishot or Rain of Arrows,
+  a monk's Flurry of Blows, a mage's Arcane Missiles, a rogue's Fan of Knives or Twin Stab, a warrior's Rapid Strikes - never a generic
+  name. A barrage is five quick small hits, a double strike is two, a volley is three. Companion-only options (rouse, packhunt) are
+  offered only to classes that fight with companions. Put a buff's flavor in its name (a mage's Mana Shield, a berserker's Blood Frenzy,
+  a paladin's Flame Blade for elemental weapon - the element in an elemental weapon's name or description is the element it deals).
+field_use: REQUIRED for every ability whose context is out_of_combat or both, except healing, crafting and summon
+  abilities. It is what the ability does in the world outside a fight. The request lists the FUNCTIONS ON OFFER for this
+  character: pick the one that fits the ability and use ONLY those. Two abilities may never share a function, so each
+  function on offer is used at most once. If an ability fits none that are left, make it a combat ability (context combat)
+  and leave field_use empty. A function that is "always on" still counts as one ability's field_use.
 summons: only for summon abilities, and required for them. Describe the companion:
   name, one-sentence description, kind ({_list(CompanionKind)}), role ({_list(CompanionRole)}).
 
@@ -118,9 +138,10 @@ def class_context(interp: ClassInterpretation) -> str:
     )
 
 
-def actives_user(interp: ClassInterpretation, min_noncombat: int) -> str:
+def actives_user(interp: ClassInterpretation, min_noncombat: int, offers: str = "") -> str:
     return (
         class_context(interp)
+        + (f"\n\n{offers}" if offers else "")
         + f"\n\nRequired: at least {min_noncombat} abilities usable outside combat."
         + "\nGenerate 15 active abilities."
     )
@@ -219,12 +240,33 @@ Each ability: name, description (one sentence of what it looks and feels like), 
 defense, mobility, utility, influence, summon, command or crafting), tier (light, moderate, or heavy only at level 10
 or higher), reach (self, melee, extended, ranged or area), resource (stamina for physical techniques, mana for magic),
 context (combat, out_of_combat or both). For summon abilities include summons (name, description, kind, role).
+Effect buff is a combat-only boost to the caster for a few rounds (reach self). Some abilities may carry a rider or a shape,
+or be a buff - but only from the lists given in the request, and at most one trait per ability; leave the rest plain.
+For abilities usable outside combat (other than healing, crafting, summon) give field_use: one of the FUNCTIONS ON OFFER in the
+request, each used once (and none already used by an ability they know). If none fits, make it a combat ability.
 Never include numbers. Respond only with JSON matching the schema."""
 
 
-def learn_user(c, request: str, count: int) -> str:
+def learn_user(c, request: str, count: int, offers: str = "") -> str:
     known = ", ".join(a.name for a in c.actives) or "none"
     return (f"CLASS: {c.custom_class} ({c.archetype.value})\nLEVEL: {c.level}\n"
             f"MAIN ATTRIBUTES: {', '.join(c.primary_attributes) or 'unspecified'}\n"
             f"ABILITIES THEY KNOW: {known}\n"
-            f'THEY ASKED TO LEARN: "{request}"\n\nOffer exactly {count}.')
+            f'THEY ASKED TO LEARN: "{request}"\n'
+            + (f"\n{offers}\n" if offers else "") + f"\nOffer exactly {count}.")
+
+
+def _field_functions() -> str:
+    from engine.field import F
+    return "\n".join(f"{fn}: {spec['blurb']}" for fn, spec in F["functions"].items())
+
+
+FIELD_SYSTEM = f"""You assign each ability its function outside combat. The functions are:
+{_field_functions()}
+For each ability given, choose the one function that fits it best. If it truly could not be used outside a fight, answer with an empty string.
+Respond only with JSON matching the schema."""
+
+
+def field_user(abilities) -> str:
+    lines = [f"- {a.name} ({a.effect.value}, {a.reach.value}): {a.description}" for a in abilities]
+    return "Abilities:\n" + "\n".join(lines)

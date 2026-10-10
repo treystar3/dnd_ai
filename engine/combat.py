@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from core.models import Character
 from core.rules import ATTRIBUTES
+from engine import ability_traits as AT
 from engine import elements, items, pools, stats as _stats
 
 RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
@@ -43,6 +44,11 @@ class Move(BaseModel):
     cooldown: int = 0
     attribute: str = ""
     element: str = ""              # fire, cold... read from the ability's name and description (engine/elements.py)
+    rider: str = ""                # an extra effect when it lands (engine/ability_traits.py)
+    shape: str = ""                # how a damage ability delivers its damage
+    buff: str = ""                 # bulwark, thorns or mend (effect buff)
+    buff_stat: str = ""
+    command: str = ""
     uses: int = 0                  # a relic power: how many times a fight (0 = no limit)
     text: str = ""                 # a relic power: what it does, in words (for the ability list)
     relic: dict = {}               # a relic power: its kind and numbers (engine/relics.py)
@@ -288,6 +294,7 @@ def fighter_from_character(c: Character) -> Fighter:
                                          "intelligence")
     moves = [Move(id=a.id, name=a.name, effect=a.effect.value, tier=a.tier.value, reach=a.reach.value,
                   resource=a.resource.value, cooldown=a.cooldown,
+                  rider=a.rider, shape=a.shape, buff=a.buff, buff_stat=a.buff_stat, command=a.command,
                   attribute=a.attribute or (legacy if a.resource.value == "mana" else ""),
                   element=elements.of_text(f"{a.name} {a.description}")) for a in c.actives] + relics
     if weapon:
@@ -559,10 +566,10 @@ def crit_multiplier(att: Fighter) -> float:
     return RULES["crit"]["multiplier"] + bonus(att, "crit_damage", {"always"}) / 100
 
 
-def raw_damage(att: Fighter, multiplier: float, triggers: set[str], rng: random.Random) -> float:
+def raw_damage(att: Fighter, multiplier: float, triggers: set[str], rng: random.Random, steady: bool = False) -> float:
     d = RULES["damage"]
     base = att.weapon_damage + att.best_attr(att.weapon_attrs) * d["attribute_bonus"] + flat_bonus(att, "damage", triggers)
-    variance = rng.uniform(1 - d["variance"], 1 + d["variance"])
+    variance = 1.0 if steady else rng.uniform(1 - d["variance"], 1 + d["variance"])
     magic = 1 + att.magic_power / 100 if att.damage_type == "magical" or att.adaptive else 1
     return base * multiplier * (1 + bonus(att, "damage", triggers) / 100) * variance * magic
 
@@ -574,6 +581,12 @@ def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int,
     if attacker and attacker.adaptive:
         damage_type = "magical" if dfn.ward < dfn.armor else "physical"
     protection = dfn.ward if damage_type == "magical" else dfn.armor
+    if dfn.buffs:
+        bw = mechanics(dfn, combat).get("bulwark_ward" if damage_type == "magical" else "bulwark_armor", 0)
+        if bw:
+            floor = AT.T["bulwark_floor"] * m["armor_k"] * growth(attacker_level)
+            protection = max(protection, floor) * (1 + bw / 100)
+    protection *= max(0.1, 1 + status_mod(dfn, "protection") / 100)        # Exposing
     am = mechanics(attacker, combat, dfn) if attacker else {}
     if damage_type == "magical" and "wardbreaker" in am:
         protection *= 1 - min(90, am["wardbreaker"]) / 100
@@ -637,7 +650,8 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
                 damage_type: str = "physical") -> int:
     """Apply final damage to a fighter, with defensive legendary effects. Returns damage actually dealt."""
     L = mechanics(dfn, combat, source)
-    amount *= resist_factor(dfn, damage_type, (source.hit_element or source.element) if source else "")
+    if not (source and source.legendary.get("penetrating")):               # Penetrating ignores resistances
+        amount *= resist_factor(dfn, damage_type, (source.hit_element or source.element) if source else "")
     if "blood_pact" in L:
         amount *= 1 + L["blood_pact"] / 200
     ward = category_bonus(dfn, L, source, "ward")
@@ -721,12 +735,15 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
 
 
 def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, label: str, rng: random.Random,
-                 can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True) -> bool:
+                 can_cleave: bool = True, can_riposte: bool = True, how: str = "", can_flurry: bool = True,
+                 reliable: bool = False) -> bool:
     """Attack roll, damage and mitigation. Returns True if it landed."""
     how = how or weapon_phrase(att)
     A, D = mechanics(att, combat, dfn), mechanics(dfn, combat, att)
     if is_companion(att):
         multiplier *= 1 + max(0, companion_boost(combat, "companion_damage")) / 100
+        if "press" in A:
+            multiplier *= 1 + A["press"] / 100
     dfn.attacked_since_turn = True
     if "phantom" in D and rng.uniform(0, 100) < D["phantom"]:
         combat.log.append(f"{att.name} {label} {dfn.name}: passes through them like smoke (Phantom)")
@@ -739,6 +756,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     if "first_blood" in A and not att.first_blood_used:
         att.first_blood_used = True
         outcome = "crit"
+    if reliable:
+        outcome = "hit"                            # Reliable: never misses, never crits
     if outcome == "miss":
         att.relentless = 0
         combat.log.append(f"{att.name} {label} {dfn.name}: miss")
@@ -749,6 +768,11 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
             dfn.counters["flow"] = min(3, dfn.counters.get("flow", 0) + 1)
         return False
     mult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
+    mult *= max(0.2, 1 + status_mod(att, "power") / 100)                  # poisoned or weakened attackers hit softer
+    if att.side != dfn.side:
+        mult *= 1 + status_mod(dfn, "taken") / 100                       # a marked target takes more
+    if "empowered" in A:
+        mult *= 1 + A["empowered"] / 100
     if "executioner" in A and dfn.hp < dfn.max_hp * 0.3:
         mult *= 1 + A["executioner"] / 100
     if "relentless" in A:
@@ -778,7 +802,7 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
         mult *= 1 + A["flowing_step"] * att.counters["flow"] / 100
         tell(combat, f"{who(att)} {vb(att, 'flow', 'flows')} out of the dodge and into the blow (Flowing Step)")
         att.counters["flow"] = 0
-    dmg = raw_damage(att, mult, active_triggers(att, combat, dfn), rng)
+    dmg = raw_damage(att, mult, active_triggers(att, combat, dfn), rng, steady=reliable)
     taken, absorbed = mitigate(dfn, dmg, att.damage_type, att.level, combat, att)
     if "spellblade" in A:
         extra, _ = mitigate(dfn, dmg * A["spellblade"] / 100, "magical", att.level, combat, att)
@@ -786,7 +810,22 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     if "deflect" in D and rng.uniform(0, 100) < D["deflect"]:
         taken *= 0.5
         tell(combat, f"{who(dfn)} {vb(dfn, 'turn', 'turns')} the worst of it aside (Deflect)")
+    if "guarded" in D and dfn.side == "player":
+        guard = next((a for a in combat.allies() if is_companion(a)), None)
+        if guard:
+            moved = taken * min(90, D["guarded"]) / 100
+            taken -= moved
+            take_damage(combat, guard, moved, att, rng, att.damage_type)
+            tell(combat, f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
     taken = take_damage(combat, dfn, taken, att, rng, att.damage_type)
+    if att.side == "ally" and dfn.side == "enemy":
+        dfn.counters["flanked"] = combat.round                             # an ally has struck it (Flanking)
+    if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side:
+        floor = AT.T["thorns_floor"] * RULES["mitigation"]["armor_k"] * growth(att.level)
+        back = max(dfn.armor, floor) * D["thorns"] / 100
+        back = take_damage(combat, att, back, dfn, rng, "physical")
+        combat.log.append(f"{att.name} is hurt by {dfn.name}'s thorns: {back}")
+        tell(combat, f"{who(att)} {vb(att, 'are', 'is')} hurt for {back} as the blow rebounds (Thorns)")
     note = {"graze": " (graze)", "crit": " (critical)"}.get(outcome, "")
     soak = f", {round(absorbed)} absorbed" if absorbed >= 1 else ""
     combat.log.append(f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
@@ -805,6 +844,15 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
             taken += dealt
             combat.log.append(f"{att.name}'s {el} damage burns {dfn.name}: {dealt}")
             tell(combat, f"{el} damage follows the blow into {who(dfn)}" + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+    if "elemental_weapon" in A and dfn.alive and taken > 0:
+        buff = next((b for b in att.buffs.values() if b.get("kind") == "elemental"), {})
+        el = buff.get("element") or "fire"
+        part, _ = mitigate(dfn, dmg * A["elemental_weapon"] / 100, "magical", att.level, combat, att)
+        held, att.hit_element = att.hit_element, el
+        extra = take_damage(combat, dfn, part, att, rng, "magical")
+        att.hit_element = held
+        combat.log.append(f"{att.name}'s {el} weapon burns {dfn.name}: {extra}")
+        tell(combat, f"{el} flares along the blow and bites into {who(dfn)} (Elemental Weapon)")
     if "stormcaller" in A and dfn.alive and rng.uniform(0, 100) < A["stormcaller"]:
         bolt, _ = mitigate(dfn, dmg * 0.5, "magical", att.level, combat, att)
         combat.log.append(f"lightning strikes {dfn.name}: {take_damage(combat, dfn, bolt, att, rng, 'magical')} damage (Stormcaller)")
@@ -826,6 +874,24 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
             att.hp = min(att.max_hp, att.hp + heal)
             combat.log.append(f"{att.name} drinks {heal} health from the wound (Vampiric)")
             tell(combat, f"{whose(att)} weapon drinks from the wound, and strength flows back into {who(att)} (Vampiric)")
+    if att.side == "player" and taken > 0:                                  # on-hit properties rolled on the weapon
+        always = {"always"}
+        leech = bonus(att, "vampiric", always)
+        if leech and att.alive:
+            heal = round(taken * leech / 100)
+            if heal:
+                att.hp = min(att.max_hp, att.hp + heal)
+                tell(combat, f"the weapon drinks from the wound, and {heal} health flows back into {who(att)}")
+        if att.max_mana:
+            att.mana = min(att.max_mana, att.mana + att.max_mana * bonus(att, "siphon_mana", always) / 100)
+        if att.max_stamina:
+            att.stamina = min(att.max_stamina, att.stamina + att.max_stamina * bonus(att, "siphon_stamina", always) / 100)
+        for stat, status, rounds, word in (("envenom_chance", "poisoned", 3, "envenomed"), ("ignite_chance", "burning", 3, "ignited"),
+                                           ("jolt_chance", "stunned", 1, "jolted")):
+            chance = bonus(att, stat, always)
+            if chance and dfn.alive and rng.uniform(0, 100) < chance and add_status(combat, dfn, status, rounds):
+                combat.log.append(f"{dfn.name} is {status} (weapon)")
+                tell(combat, f"{who(dfn)} {STATUS_WORDS[status][0 if dfn.side == 'player' else 1]} (the weapon {word} it)")
     if att.side == "player" and "lifebinder" in A:
         for ally in (a for a in combat.allies() if is_companion(a)):
             ally.hp = min(ally.max_hp, ally.hp + round(taken * A["lifebinder"] / 100))
@@ -913,6 +979,13 @@ STATUS_WORDS = {
     "prone": ("are knocked off your feet", "is knocked off its feet"),
     "frightened": ("falter, fear gripping you", "falters, gripped by fear"),
     "blinded": ("are blinded, the world gone to white", "is blinded and flails"),
+    "poisoned": ("feel poison burning through your veins", "convulses as poison takes hold"),
+    "burning": ("are set alight", "is set alight"),
+    "weakened": ("feel your strength drain away", "wilts, its strength sapped"),
+    "exposed": ("are left open, your guard stripped away", "is left open, its guard stripped away"),
+    "marked": ("are marked out for destruction", "is marked out for destruction"),
+    "befuddled": ("reel, your thoughts scattered", "reels, its thoughts scattered"),
+    "grappled": ("are seized and held fast", "is seized and held fast"),
 }
 
 
@@ -956,6 +1029,10 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
     unburdened = mechanics(f, combat).get("unburdened", 0)
     if unburdened:
         cost *= 1 - min(90, unburdened) / 100
+    if move.shape == "overcharge":
+        cost *= AT.SHAPES["overcharge"]["cost"]
+    if move.effect == "buff":
+        cost *= AT.T["buff_cost"]
     return max(1, math.ceil(cost))
 
 
@@ -989,6 +1066,123 @@ def act_attack(combat: Combat, att: Fighter, target: Fighter, rng: random.Random
     apply_damage(combat, att, target, RULES["damage"]["multiplier"]["basic"], f"attacks ({att.weapon_name})", rng)
 
 
+def shaped_strike(combat: Combat, att: Fighter, t: Fighter, move: Move, mult: float, rng: random.Random) -> bool:
+    """One single-target damage ability, delivered the way its shape says."""
+    label, how = f"uses {move.name} on", f"with {move.name}"
+    sh = AT.SHAPES.get(move.shape)
+    if not sh:
+        return apply_damage(combat, att, t, mult, label, rng, how=how)
+    kind, frac = move.shape, t.hp / max(1, t.max_hp)
+    if "parts" in sh:                                  # volley, double strike, barrage: several smaller hits
+        landed = False
+        for i in range(sh["parts"]):
+            if not t.alive:
+                break
+            landed |= apply_damage(combat, att, t, mult * sh["each"], label if i == 0 else "strikes again at", rng,
+                                   how=how if i == 0 else f"as {move.name} keeps coming", can_cleave=(i == 0), can_flurry=(i == 0))
+        return landed
+    if kind == "sweeping":
+        victims = [t] + [e for e in combat.enemies() if e is not t and e.alive and e.band == "engaged"]
+        landed = False
+        for i, v in enumerate(victims):
+            if v.alive:
+                landed |= apply_damage(combat, att, v, mult * sh["share"], label if i == 0 else "sweeps on into", rng,
+                                       how=how if i == 0 else f"as {move.name} carries round", can_cleave=False, can_riposte=(i == 0))
+        return landed
+    steady = False
+    if kind == "finisher":
+        mult *= sh["low"] + (sh["high"] - sh["low"]) * (1 - frac)
+    elif kind == "opener":
+        mult *= sh["fresh"] if frac >= 0.9 else sh["worn"]
+    elif kind == "overcharge":
+        mult *= sh["damage"]
+    elif kind == "desperate":
+        mine = att.hp / max(1, att.max_hp)
+        mult *= sh["low"] + (sh["high"] - sh["low"]) * (1 - mine)
+    elif kind == "exploiting":
+        mult *= sh["afflicted"] if t.statuses else sh["plain"]
+    elif kind == "lunge":
+        if t.band != "engaged":
+            mult *= sh["bonus"]
+            t.band = "engaged"
+            tell(combat, f"{who(att)} {vb(att, 'close', 'closes')} the gap in a single bound")
+    elif kind == "flank":
+        if combat.round - t.counters.get("flanked", -9) <= 1 and t.counters.get("flanked") is not None:
+            mult *= sh["bonus"]
+            tell(combat, f"{who(t)} is caught between {whose(att)} blow and the others")
+    elif kind == "combo":
+        key = f"combo:{t.id}"
+        n = att.counters.get(key, 0)
+        for k in [k for k in att.counters if k.startswith("combo:") and k != key]:
+            att.counters.pop(k)
+        mult *= 1 + sh["step"] * min(sh["cap"], n)
+    elif kind == "reliable":
+        steady = True
+    landed = apply_damage(combat, att, t, mult, label, rng, how=how, reliable=steady)
+    if kind == "combo":
+        if landed:
+            att.counters[f"combo:{t.id}"] = att.counters.get(f"combo:{t.id}", 0) + 1
+        else:
+            att.counters.pop(f"combo:{t.id}", None)
+    if kind == "chain" and landed:
+        others = [e for e in combat.enemies() if e is not t and e.alive]
+        if others:
+            o = min(others, key=lambda e: BANDS.index(e.band))
+            apply_damage(combat, att, o, mult * sh["side"], "arcs on to", rng, how=f"from {move.name}", can_cleave=False, can_riposte=False)
+    elif kind == "ricochet" and landed:
+        last = t
+        for share in sh["bounces"]:
+            others = [e for e in combat.enemies() if e is not last and e.alive]
+            if not others:
+                break
+            last = rng.choice(others)
+            apply_damage(combat, att, last, mult * share, "ricochets into", rng, how=f"from {move.name}", can_cleave=False, can_riposte=False)
+    elif kind == "packhunt" and landed and t.alive:
+        for a in [a for a in combat.allies() if is_companion(a)]:
+            if t.alive:
+                apply_damage(combat, a, t, sh["share"], "pounces on", rng, can_cleave=False, can_riposte=False, can_flurry=False,
+                             how=f"as {whose(att)} {move.name} brings the pack in")
+    return landed
+
+
+def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: random.Random) -> None:
+    """What a rider adds after the ability lands (or takes hold): a status, a push or pull, a buff for companions. Siphon, thrift, seeker,
+    sunder and penetrate act elsewhere."""
+    r = AT.RIDERS.get(move.rider)
+    if not r:
+        return
+    if move.rider == "rouse":                          # companions, not the target
+        pack = [a for a in combat.allies() if is_companion(a)]
+        for a in pack:
+            a.buffs[move.id] = {"rounds": r["rounds"], "mech": {"press": AT.value(r["pct"], move.tier)}, "drain": 0,
+                                "collapse": "", "name": move.name, "kind": "rouse"}
+        if pack:
+            tell(combat, f"{who(att)} {vb(att, 'rouse', 'rouses')} {', '.join(a.name for a in pack)} to fight harder ({r['label']})")
+        return
+    if move.rider == "drain":
+        if att.max_mana and att.alive:
+            back = att.max_mana * AT.value(r["mana"], move.tier) / 100
+            att.mana = min(att.max_mana, att.mana + back)
+            tell(combat, f"{move.name} pulls {round(back)} mana back into {who(att)} ({r['label']})")
+        return
+    if not t or not t.alive:
+        return
+    if "status" in r:
+        if rng.uniform(0, 100) < AT.value(r["chance"], move.tier) and add_status(combat, t, r["status"], r["rounds"]):
+            combat.log.append(f"{t.name} is {r['status']} ({r['label']})")
+            tell(combat, f"{who(t)} {STATUS_WORDS[r['status']][0 if t.side == 'player' else 1]} ({r['label']})")
+            if r["status"] == "grappled":
+                t.band = "engaged"
+    elif move.rider == "shove" and t.band != "far" and "grappled" not in t.statuses:
+        t.band = BANDS[min(2, BANDS.index(t.band) + 1)]
+        combat.log.append(f"{t.name} is driven back")
+        tell(combat, f"{who(t)} {vb(t, 'are', 'is')} driven back by the force of it ({r['label']})")
+    elif move.rider == "hook" and t.band != "engaged":
+        step_closer(t)
+        combat.log.append(f"{t.name} is hauled closer")
+        tell(combat, f"{who(t)} {vb(t, 'are', 'is')} hauled a step closer ({r['label']})")
+
+
 def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random) -> str | None:
     problem = can_use(att, move, combat)
     if problem:
@@ -1011,6 +1205,12 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
         tell(combat, f"{who(att)} {vb(att, 'have', 'has')} nothing left to give, so {vb(att, 'pay', 'pays')} in blood (Overchannel)")
     else:
         att.mana -= cost
+    if move.rider == "thrift":
+        back = cost * AT.value(AT.RIDERS["thrift"]["refund"], move.tier) / 100
+        if move.resource == "stamina":
+            att.stamina = min(att.max_stamina, att.stamina + back)
+        else:
+            att.mana = min(att.max_mana, att.mana + back)
     if move.resource == "mana":
         att.spells_cast += 1
         if "arcane_recall" in am:
@@ -1021,6 +1221,8 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
     if move.cooldown and not (echo and rng.uniform(0, 100) < echo):
         att.cooldowns[move.id] = move.cooldown + 1
     mult = RULES["damage"]["multiplier"][move.tier]
+    if move.effect == "damage" and not move.rider and not move.shape:
+        mult *= 1 + AT.T["plain_damage"]                  # Honed: a plain damage ability is never strictly worse than a decorated one
     if free_cast:
         att.archmage_used = True
         mult *= 1 + am["archmage"] / 100
@@ -1037,15 +1239,47 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
             att.damage_type = "magical"
             att.weapon_damage = max(focus, RULES["spell_base_damage"] * growth(att.level))
         targets = enemies if move.reach == "area" else [target] if target else enemies[:1]
+        if move.rider == "seeker" and move.reach != "area" and enemies:
+            targets = [min(enemies, key=lambda e: e.hp / max(1, e.max_hp))]
+            combat.focus = targets[0].id
+        held_pierce, held_wb = att.armor_pierce, att.legendary.get("wardbreaker", 0)
+        held_pen = att.legendary.get("penetrating")
+        if move.rider == "penetrate":
+            att.legendary["penetrating"] = 1
+        if move.rider == "sunder":
+            cut = AT.value(AT.RIDERS["sunder"]["pierce"], move.tier)
+            att.armor_pierce += cut
+            att.legendary["wardbreaker"] = held_wb + cut
         landed = False
         for t in targets:
-            if move.reach != "area" and not in_reach(att, t, move.reach):
+            if move.reach != "area" and move.shape != "lunge" and not in_reach(att, t, move.reach):
                 step_closer(t)
                 combat.log.append(f"{att.name} closes in on {t.name}")
                 tell(combat, f"{who(att)} {vb(att, 'close', 'closes')} the distance to {who(t)}")
                 continue
-            landed |= apply_damage(combat, att, t, mult if move.reach != "area" else mult * 0.6, f"uses {move.name} on", rng,
-                                   how=f"with {move.name}")
+            before = t.hp
+            if move.reach == "area":
+                landed |= apply_damage(combat, att, t, mult * 0.6, f"uses {move.name} on", rng, how=f"with {move.name}")
+            else:
+                landed |= shaped_strike(combat, att, t, move, mult, rng)
+            if move.rider:
+                if move.rider == "siphon" and att.alive:
+                    gain = round(max(0.0, before - t.hp) * AT.value(AT.RIDERS["siphon"]["heal"], move.tier) / 100)
+                    if gain:
+                        att.hp = min(att.max_hp, att.hp + gain)
+                        tell(combat, f"{move.name} draws {gain} health back into {who(att)} ({AT.RIDERS['siphon']['label']})")
+                if move.rider not in ("drain", "rouse") or before > t.hp:
+                    apply_rider(combat, att, t, move, rng)
+        att.armor_pierce = held_pierce
+        if held_pen:
+            att.legendary["penetrating"] = held_pen
+        else:
+            att.legendary.pop("penetrating", None)
+        if move.rider == "sunder":
+            if held_wb:
+                att.legendary["wardbreaker"] = held_wb
+            else:
+                att.legendary.pop("wardbreaker", None)
         att.weapon_attrs, att.damage_type, att.weapon_damage = saved
         att.hit_element = ""
     elif move.effect in ("control", "influence"):
@@ -1063,6 +1297,19 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
                     combat.log.append(f"{att.name} uses {move.name} on {t.name}: {status}")
                     tell(combat, f"{who(att)} {vb(att, 'unleash', 'unleashes')} {move.name} on {who(t)}, and {who(t)} "
                                  f"{STATUS_WORDS[status][0 if t.side == 'player' else 1]}")
+                if move.rider:
+                    apply_rider(combat, att, t, move, rng)
+    elif move.effect == "buff":
+        mech = AT.buff_mech(move.buff, move.tier, move.buff_stat, magical=move.resource == "mana")
+        rounds = AT.value(AT.BUFFS[move.buff]["rounds"], move.tier)
+        for k, b in list(att.buffs.items()):
+            if b.get("kind") == move.buff:
+                att.buffs.pop(k)                      # one of each kind: a new casting replaces the old
+        att.buffs[move.id] = {"rounds": rounds, "mech": mech, "drain": 0, "collapse": "", "name": move.name, "kind": move.buff,
+                              "element": move.element or "fire"}
+        combat.log.append(f"{att.name} uses {move.name}: {AT.buff_text(move.buff, move.tier, move.buff_stat)}")
+        tell(combat, f"{who(att)} {vb(att, 'wrap', 'wraps')} {'yourself' if att.side == 'player' else 'itself'} in {move.name}: "
+                     f"{AT.buff_text(move.buff, move.tier, move.buff_stat)}")
     elif move.effect == "defense":
         att.defending = RULES["defend_percent"][move.tier]
         combat.log.append(f"{att.name} uses {move.name}: braced ({att.defending:.0f}% less damage)")
@@ -1094,13 +1341,34 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
         if target:
             combat.focus = target.id
         allies = combat.allies()
-        for a in allies:
-            if combat.enemies():
-                tgt = next((e for e in combat.enemies() if e.id == combat.focus), combat.enemies()[0])
-                apply_damage(combat, a, tgt, 1.0, "strikes on command at", rng, how=f"at {whose(att)} command")
+        pack = [a for a in allies if is_companion(a)]
+        kind = move.command or "focus"
+        spec = AT.COMMANDS[kind]
         if not allies:
             tell(combat, f"{who(att)} {vb(att, 'give', 'gives')} the command, but no companion is there to obey")
-        combat.log.append(f"{att.name} uses {move.name}: companions strike")
+        elif kind == "focus":
+            for a in allies:
+                if combat.enemies():
+                    tgt = next((e for e in combat.enemies() if e.id == combat.focus), combat.enemies()[0])
+                    apply_damage(combat, a, tgt, AT.value(spec["strike"], move.tier), "strikes on command at", rng,
+                                 how=f"at {whose(att)} command")
+        elif kind == "distract":
+            att.buffs[move.id] = {"rounds": AT.value(spec["rounds"], move.tier), "mech": {"taunt": 1}, "drain": 0,
+                                  "collapse": "", "name": move.name, "kind": "distract"}
+            tell(combat, f"{who(att)} {vb(att, 'draw', 'draws')} every eye in the fight - {AT.command_text(kind, move.tier)}")
+        elif not pack:
+            tell(combat, f"{who(att)} {vb(att, 'give', 'gives')} the command, but no companion answers it")
+        else:
+            rounds = AT.value(spec["rounds"], move.tier)
+            if kind == "guard":
+                att.buffs[move.id] = {"rounds": rounds, "mech": {"guarded": AT.value(spec["share"], move.tier)}, "drain": 0,
+                                      "collapse": "", "name": move.name, "kind": "guard"}
+            else:
+                mech = {"press": AT.value(spec["pct"], move.tier)} if kind == "press" else {"stoneskin": AT.value(spec["pct"], move.tier)}
+                for a in pack:
+                    a.buffs[move.id] = {"rounds": rounds, "mech": mech, "drain": 0, "collapse": "", "name": move.name, "kind": kind}
+            tell(combat, f"{who(att)} {vb(att, 'give', 'gives')} the order - {AT.command_text(kind, move.tier)}")
+        combat.log.append(f"{att.name} uses {move.name}: {spec['label'].lower()}")
     else:
         combat.log.append(f"{att.name} uses {move.name}: no clear effect in the fight")
         tell(combat, f"{who(att)} {vb(att, 'try', 'tries')} {move.name}, but it changes little in the heat of the fight")
@@ -1221,8 +1489,9 @@ def start_turn(f: Fighter, combat: Combat | None = None) -> bool:
         f.statuses.pop("prone", None)
     if "regeneration" in fm and f.alive:
         f.hp = min(f.max_hp, f.hp + max(1, round(f.max_hp * fm["regeneration"] / 100)))
-    if "bleeding" in f.statuses:
-        f.hp = max(0, f.hp - max(1, round(f.max_hp * RULES["statuses"]["bleeding"]["damage_percent"] / 100)))
+    for dot in ("bleeding", "poisoned", "burning"):
+        if dot in f.statuses:
+            f.hp = max(0, f.hp - max(1, round(f.max_hp * RULES["statuses"][dot]["damage_percent"] / 100)))
     skip = "stunned" in f.statuses
     if "prone" in f.statuses and not skip:
         f.statuses.pop("prone")
@@ -1255,7 +1524,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{e.name} loses its turn")
             tell(combat, f"{who(e)} reels, unable to act")
         return
-    pinned = {"slowed", "stunned", "prone"} & set(e.statuses)
+    pinned = {"slowed", "stunned", "prone", "grappled"} & set(e.statuses)
     if e.temperament == "passive" and combat.round > 1 and not pinned and not combat.gentle and \
             rng.random() < FLEE_CHANCE_PASSIVE.get(e.band, 0.4):
         e.fled = True
@@ -1266,9 +1535,22 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     targets = [t for t in targets if t.alive]
     if not targets:
         return
-    bulwark = "bulwark" in mechanics(combat.player, combat) and combat.player.alive
+    held = mechanics(combat.player, combat)
+    bulwark = ("bulwark" in held or "taunt" in held) and combat.player.alive      # taunt: Distract draws every enemy onto you
     target = combat.player if bulwark or rng.random() < 0.7 or len(targets) == 1 else rng.choice(targets[1:])
-    if "frightened" in e.statuses and e.band != "engaged":
+    if "befuddled" in e.statuses:                    # its attack goes wide: at a random fighter, friend or foe
+        e.statuses.pop("befuddled")
+        mix = [f for f in combat.fighters if f.alive and f is not e and not f.fled]
+        if mix:
+            target = rng.choice(mix)
+            combat.log.append(f"{e.name} is befuddled and turns on {target.name}")
+            tell(combat, f"{who(e)} lashes out blindly at {who(target)}")
+            if target.side == e.side:
+                e_band, e.band = e.band, "engaged"
+                apply_damage(combat, e, target, 1.0, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+                e.band = e_band
+                return
+    if "frightened" in e.statuses and e.band != "engaged" and "grappled" not in e.statuses:
         combat.log.append(f"{e.name} hangs back, afraid")
         tell(combat, f"{who(e)} hangs back, afraid to come closer")
         return

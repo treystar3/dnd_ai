@@ -2,6 +2,7 @@
 and instrumentation. The engine is real; only the model's writing is replaced."""
 
 import json
+import os
 import random
 import re
 import types
@@ -425,6 +426,20 @@ CLASSES = {
 }
 
 
+TRAIT_ACTIVES = {
+    "warrior": [("Stoneskin", "buff", "moderate", "self", "stamina", {"buff": "bulwark", "buff_stat": "armor"}),
+                ("Reactive Plates", "buff", "light", "self", "stamina", {"buff": "thorns"}),
+                ("Rending Cleave", "damage", "moderate", "melee", "stamina", {"rider": "rend"}),
+                ("Finishing Blow", "damage", "heavy", "melee", "stamina", {"shape": "finisher"})],
+    "mage": [("Mage Armor", "buff", "moderate", "self", "mana", {"buff": "bulwark", "buff_stat": "ward"}),
+             ("Chain Lightning", "damage", "moderate", "ranged", "mana", {"shape": "chain"}),
+             ("Frostbolt", "damage", "light", "ranged", "mana", {"rider": "chill"})],
+    "bard": [("Verse of Mending", "buff", "light", "self", "mana", {"buff": "mend"}),
+             ("Barbed Barrage", "damage", "moderate", "ranged", "mana", {"shape": "volley"}),
+             ("Silver Ward", "buff", "moderate", "self", "mana", {"buff": "bulwark", "buff_stat": "ward"})],
+}
+
+
 def make_character(cls_key: str, rng: random.Random):
     """Build a level-1 character the way creation would: abilities, drawn-and-chosen passives, stats, kit."""
     from character import creation
@@ -436,8 +451,11 @@ def make_character(cls_key: str, rng: random.Random):
                                  summary="x", focus="balanced", uses_companions=(cls_key == "summoner"), families=spec["families"],
                                  primary_attributes=spec["primary"], casting_attribute=spec["casting"])
     actives = []
-    for nm, effect, tier, reach, res in spec["actives"]:
+    extra = TRAIT_ACTIVES.get(cls_key, []) if os.environ.get("SIM_TRAITS") == "1" else []
+    for nm, effect, tier, reach, res, *more in list(spec["actives"]) + extra:
         d = dict(name=nm, description="d", effect=effect, tier=tier, reach=reach, resource=res, context="combat")
+        if more:
+            d.update(more[0])
         if effect == "summon":
             d["summons"] = (CompanionProposal(name="Stone Warden", description="a guardian of living stone", kind="spirit", role="guardian")
                             if "Warden" in nm else CompanionProposal(name="Wolf", description="a grey wolf", kind="beast", role="striker"))

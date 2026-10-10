@@ -49,7 +49,7 @@ class InventoryActions:
 
     def can_store(self) -> bool:
         return bool(getattr(self.place, "storage", False)) or \
-            (self.place.type == "guild" and self.guild_perks()["storage"])
+            (self.place.type == "guild" and self.guild_perks()["storage"]) or self.box_open()
 
     def consume(self, item: Item) -> str:
         """Apply a consumable or food to the player outside combat. Returns a short description of the effect."""
@@ -339,7 +339,7 @@ class InventoryActions:
 
     def companion_alive(self) -> bool:
         """A bound companion travels with the player (companions recover between fights)."""
-        return bool(self.player.character.companions)
+        return any(m.active for m in self.player.character.companions)
 
     def on_forage(self, intent, text: str) -> None:
         biome = self.place.biome
@@ -547,7 +547,7 @@ class InventoryActions:
         """(npc, item, price) for every piece of gear on sale from merchants present."""
         out = []
         from engine import pulse
-        haggle = max(0, 1 - (crafting.mechanic(self.player.character, "haggler") + self.guild_perks()["shop_discount"]) / 100) \
+        haggle = max(0, 1 - (crafting.mechanic(self.player.character, "haggler") + self.guild_perks()["shop_discount"] + self.barter_pct()) / 100) \
             * pulse.price_factor(self.store, self.world, self.player.location, self.minutes)
         for n in self.present:
             if self.world.roles[n.role].stock:
@@ -566,7 +566,7 @@ class InventoryActions:
             else:
                 console.note("No one here is selling anything.")
             return
-        haggle = 1 - crafting.mechanic(self.player.character, "haggler") / 100
+        haggle = 1 - (crafting.mechanic(self.player.character, "haggler") + self.barter_pct()) / 100
         for n in sellers:
             role = self.world.roles[n.role]
             console.note(f"{n.label()}:")
@@ -603,6 +603,7 @@ class InventoryActions:
             self.halted = True
             return True
         c.coins -= price
+        self.use_barter()
         if item.uid.startswith("relic_"):
             self.player.relics_bought.append(item.uid[len("relic_"):])
         else:
@@ -637,7 +638,7 @@ class InventoryActions:
             return
         sold = inv.take(self.pack, intent.item or text, max(1, intent.count))
         rate = (self.world.roles[buyer.role].buy_rate or R["sell_rate"]) * \
-            (1 + crafting.mechanic(self.player.character, "haggler") / 100)
+            (1 + (crafting.mechanic(self.player.character, "haggler") + self.barter_pct()) / 100)
         if sold.base != "raw_material" and not sold.good and self.has("veterans_eye"):
             rate *= 1 + self.has("veterans_eye") / 100
         rate *= self.sell_multiplier(sold)
@@ -645,6 +646,7 @@ class InventoryActions:
         self.salvage(sold)
         self.known_work_sold(sold)
         self.player.character.coins += paid
+        self.use_barter()
         buyer.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
                                      text=f"Bought {inv.label(sold)} from the stranger for {money.words(paid)}."))
         self.store.save_npc(buyer)

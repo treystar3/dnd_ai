@@ -363,7 +363,14 @@ def price(item: Item) -> int:
 DAMAGE_LABEL = {"magical": "spell"}                 # what the player sees; "magical" stays the stored id
 
 
+ONHIT_TEXT = {"vampiric": "heals you for {m}% of the damage you deal", "envenom_chance": "{m}% chance on hit to poison the target",
+              "ignite_chance": "{m}% chance on hit to set the target burning", "jolt_chance": "{m}% chance on hit to stun the target",
+              "siphon_mana": "each hit restores {m}% of your mana", "siphon_stamina": "each hit restores {m}% of your stamina"}
+
+
 def _describe_effect(e: Effect) -> str:
+    if e.modifies in ONHIT_TEXT:
+        return ONHIT_TEXT[e.modifies].format(m=e.magnitude)
     sign = "+" if e.magnitude >= 0 else ""
     when = "" if e.trigger == "always" else f" {e.trigger.replace('_', ' ')}"
     unit = "%" if e.modifies in ("recovery", "crit_chance", "crit_damage", "companion_damage", "companion_durability") or e.modifies.endswith("_resistance") else ""
