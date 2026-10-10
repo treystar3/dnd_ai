@@ -183,8 +183,8 @@ def fit_problem(a) -> str:
 def repair_shapes(skills, offered_shapes) -> None:
     """Keep each ability's shape and rider honest to what the ability is.
     1. An ability that describes several hits gets one of the offered multi-hit shapes in place of a shape that doesn't fit it.
-    2. A shape or rider that contradicts the ability (a ricochet on 'a beam that strikes a single target', a lunge on a ranged spell)
-       is dropped when the set can spare it, and otherwise refused with the reason so the model moves it to an ability it suits."""
+    2. A shape or rider that contradicts the ability (a ricochet on 'a beam that strikes a single target', a lunge on a ranged spell) is dropped.
+    The caller then runs dedupe_traits and fill_traits."""
     multi = [s for s in offered_shapes if SHAPES[s].get("multi")]
     for a in skills:
         if tier_of(a.effect) != "damage" or tier_of(a.reach) == "area":
@@ -197,15 +197,12 @@ def repair_shapes(skills, offered_shapes) -> None:
             a.shape = pick or ("volley" if "volley" in multi else multi[0])
         elif a.shape and len({s.shape for s in skills if s.shape}) > T["need"]["shapes"]:
             a.shape = ""
-    for a in skills:
-        why = fit_problem(a)
-        while why:
-            kind = "shape" if "(shape)" in why else "rider"
-            used = {getattr(s, kind) for s in skills if getattr(s, kind)}
-            if len(used) <= T["need"][kind + "s"] and sum(getattr(s, kind) == getattr(a, kind) for s in skills) == 1:
-                raise ValueError(why + f" - move that {kind} to an ability it suits, or use a different {kind} here")
-            setattr(a, kind, "")
+    for a in skills:                                       # a trait that contradicts the ability goes; the fill below finds it a better home
+        while True:
             why = fit_problem(a)
+            if not why:
+                break
+            setattr(a, "shape" if "(shape)" in why else "rider", "")
     dedupe_traits(skills)
 
 
@@ -228,3 +225,70 @@ def dedupe_traits(skills) -> None:
             for a in users:
                 if a is not keep:
                     setattr(a, kind, "")
+
+
+def infer_buff(a, candidates, used=()) -> str:
+    """Which buff an unlabeled buff ability is: bulwark if it names a stat, else the candidate whose flavor words appear in its text,
+    else the first candidate."""
+    candidates = [c for c in candidates if c in BUFFS]
+    if not candidates:
+        return "bulwark"
+    if getattr(a, "buff_stat", "") and "bulwark" in candidates:
+        return "bulwark"
+    text = f"{a.name} {a.description}".lower()
+    scored = [(2 * sum(w in text for w in BUFFS[c].get("words", [])) + (1 if c not in used else 0), -i, c) for i, c in enumerate(candidates)]
+    return max(scored)[2]
+
+
+def repair_buffs(skills, offered_buffs=None) -> None:
+    """A buff ability with no buff, or one that is not on offer, gets the best-fitting offered buff instead of failing the whole set."""
+    for a in skills:
+        if tier_of(a.effect) != "buff":
+            continue
+        if not a.buff or (offered_buffs and a.buff not in offered_buffs):
+            a.buff = infer_buff(a, offered_buffs or list(BUFFS), {s.buff for s in skills if s.buff})
+            if a.buff != "bulwark":
+                a.buff_stat = ""
+            elif not a.buff_stat:
+                a.buff_stat = "ward" if tier_of(a.resource) == "mana" else "armor"
+    extra = [a for a in skills if tier_of(a.effect) == "buff"][T["max_buffs"]:]
+    for a in extra:                                        # too many buffs: the surplus become plain defensive stances
+        a.effect = type(a.effect)("defense")
+        a.buff = a.buff_stat = ""
+
+
+def fill_traits(skills, offers: dict) -> None:
+    """The model sometimes ignores the minimums. Give each missing rider and shape to the ability it suits best: a plain ability of the right
+    kind, no contradiction with its text or reach, preferring wording that matches the trait. Never exceeds the cap on decorated abilities."""
+    for kind, table, key in (("rider", RIDERS, "riders"), ("shape", SHAPES, "shapes")):
+        offered = [t for t in offers.get(key, []) if t in table]
+        need = min(T["need"][key], len(offered))
+        while True:
+            used = {getattr(s, kind) for s in skills if getattr(s, kind)}
+            if len(used) >= need or sum(1 for s in skills if s.rider or s.shape) >= T["max_decorated"]:
+                break
+            best = None
+            for trait in offered:
+                if trait in used:
+                    continue
+                spec = table[trait]
+                for a in skills:
+                    effect = tier_of(a.effect)
+                    if getattr(a, kind) or (kind == "rider" and effect not in spec["applies"]) \
+                            or (kind == "shape" and (effect != "damage" or tier_of(a.reach) == "area")):
+                        continue
+                    setattr(a, kind, trait)
+                    problem = fit_problem(a)
+                    setattr(a, kind, "")
+                    text = f"{a.name} {a.description}".lower()
+                    multi_text = sounds_multi(a)
+                    if problem or (kind == "shape" and multi_text and not spec.get("multi")):
+                        continue
+                    other = a.shape if kind == "rider" else a.rider
+                    score = 2 * sum(w in text for w in spec.get("words", [])) - (1.5 if other else 0) \
+                        + (1 if spec.get("multi") and multi_text else 0) - (1 if spec.get("multi") and not multi_text else 0)
+                    if best is None or score > best[0]:
+                        best = (score, trait, a)
+            if best is None:
+                break
+            setattr(best[2], kind, best[1])

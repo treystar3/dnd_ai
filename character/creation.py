@@ -39,21 +39,48 @@ def casting_attribute(interp: ClassInterpretation) -> str:
     return mental[0] if mental else "intelligence"
 
 
-def generate_actives(interp: ClassInterpretation) -> list[Ability]:
+def generate_actives(interp: ClassInterpretation, rng: random.Random | None = None) -> list[Ability]:
+    """Slot-based: the engine plans all 15 abilities (see engine/ability_slots.py); the model only names and describes them.
+    The old single-call generation stays as a fallback if the planned set cannot be built."""
     minimum = MIN_NONCOMBAT_ACTIVES[interp.focus]
-    from engine import ability_traits
-    offers = ability_traits.draw_offers(interp, min_functions=minimum)
-    result = generate(
-        "generate_actives", prompts.ACTIVES_SYSTEM, prompts.actives_user(interp, minimum, ability_traits.offer_lines(offers)),
-        ActiveSet, max_tokens=3600,
-        validation_context={"uses_companions": interp.uses_companions, "min_noncombat": minimum, "offers": offers},
-    )
+    from engine import ability_slots, ability_traits
+    from llm.contracts import SlotNames
+    offers = ability_traits.draw_offers(interp, rng, min_functions=minimum)
+    try:
+        slots = ability_slots.plan(interp, offers, minimum, rng)
+        context = {"slots": slots, "strict": True}
+        try:
+            names = generate("generate_actives", prompts.SLOTS_SYSTEM, prompts.slots_user(interp, ability_slots.slot_lines(slots)),
+                             SlotNames, max_tokens=2600, validation_context=context)
+        except LLMError:
+            context = {"slots": slots, "strict": False}       # the words do not quite match a slot: take them, the engine's slot stands
+            names = generate("generate_actives", prompts.SLOTS_SYSTEM, prompts.slots_user(interp, ability_slots.slot_lines(slots)),
+                             SlotNames, max_tokens=2600, retries=1, validation_context=context)
+        result = ActiveSet.model_validate({"skills": [p.model_dump() for p in names.proposals(slots)]},
+                                          context={"uses_companions": interp.uses_companions, "min_noncombat": minimum, "offers": offers})
+    except (ValueError, KeyError):
+        return _generate_actives_single(interp, minimum, offers)
+    return _finish_actives(interp, result)
+
+
+def _finish_actives(interp: ClassInterpretation, result: ActiveSet) -> list[Ability]:
     abilities = [materialize_active(p) for p in result.skills]
     discipline = casting_attribute(interp)
     for a in abilities:
         if a.resource.value == "mana":
             a.attribute = discipline
     return abilities
+
+
+def _generate_actives_single(interp: ClassInterpretation, minimum: int, offers: dict) -> list[Ability]:
+    """The earlier flow: one call in which the model chooses every mechanic itself, then the engine repairs."""
+    from engine import ability_traits
+    result = generate(
+        "generate_actives", prompts.ACTIVES_SYSTEM, prompts.actives_user(interp, minimum, ability_traits.offer_lines(offers)),
+        ActiveSet, max_tokens=3600,
+        validation_context={"uses_companions": interp.uses_companions, "min_noncombat": minimum, "offers": offers},
+    )
+    return _finish_actives(interp, result)
 
 
 MECHANIC_PICKS = 8

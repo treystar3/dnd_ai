@@ -74,7 +74,7 @@ Your reply:
     No narration inside speech.
   gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
   intent: what you are doing with this reply. Use leave only if you actually walk away or flatly refuse to keep
-    talking. Finishing a topic is not leaving.
+    talking. Finishing a topic is not leaving, and you never leave in a reply that asks them a question.
   reveals: ids of facts from WHAT YOU KNOW that your speech actually conveys truthfully. Empty if none.
   trust_change: how this exchange changed your trust in them, from -5 to 5. Ordinary conversation is 0, even for a
     wary person - their manner shows in how they speak, not in trust. Change it only when something happens that

@@ -12,7 +12,13 @@ import shutil
 import sys
 from datetime import datetime
 
+import os
+
 import config
+from core import paths
+
+if paths.FROZEN:
+    os.chdir(paths.APP)          # saves/ and logs/ live beside the exe
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
 from scenes.world import WorldScene
@@ -68,3 +74,12 @@ if __name__ == "__main__":
         print(f"(details: {e} - see logs/llm_calls.jsonl)")
     except KeyboardInterrupt:
         print("\nInterrupted. Progress up to the last completed action is saved.")
+    except Exception as e:
+        if "connect" in f"{type(e).__name__} {e}".lower():
+            print("\nCan't reach Ollama. Install it from ollama.com, start it, and pull the model once:")
+            print(f"    ollama pull {config.MODEL}")
+        else:
+            raise
+    finally:
+        if paths.FROZEN:
+            input("\nPress Enter to close...")

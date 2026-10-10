@@ -357,11 +357,9 @@ check("hooking on a ranged strike is kept", build2(rider="hook", name="Scorch", 
 offers_tight = {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "ricochet"], "buffs": ["bulwark"]}
 ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(4, shape="finisher"), prop(6, effect="buff", buff="bulwark", reach="self"),
       prop(3, shape="ricochet", **beam)] + [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(9)]
-try:
-    ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers_tight, "min_noncombat": 0}); msg = ""
-except Exception as e:
-    msg = str(e)
-check("when the set cannot spare it, the model is told why and what to do", "single target" in msg and "move that shape" in msg, msg[:200])
+sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers_tight, "min_noncombat": 0}).skills
+check("a contradicting shape leaves its ability and is re-homed on one it suits, so the minimum still holds",
+      next(x for x in sk if x.name == "Scorch").shape == "" and len({x.shape for x in sk if x.shape}) >= 2, [x.shape for x in sk if x.shape])
 
 # ---- no repeated riders or shapes
 def build3(extra):
@@ -385,5 +383,68 @@ check("a plain damage ability hits about 15% harder than the same one with a rid
 check("a shaped ability does not get the bonus", 0.9 < lost(mv(shape="reliable"))[0] / unplain < 1.1 or True)
 check("the card says why", "honed" in AT.describe(abilities.materialize_active(ActiveProposal(name="Ignite", description="d", effect="damage", tier="light", reach="ranged", resource="mana", context="combat"))))
 check("a rider ability has no Honed line", "honed" not in AT.describe(abilities.materialize_active(ActiveProposal(name="Ignite", description="d", effect="damage", tier="light", reach="ranged", resource="mana", context="combat", rider="ignite"))))
+# ---- sets that used to fail whole: a buff with no buff named, a phantom steed written as a summon
+def sets(replacement, offers=None):
+    offers = offers or {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "opener"], "buffs": ["frenzy", "bulwark", "elemental"]}
+    ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(3, shape="finisher"), prop(4, shape="opener"), prop(8, name="Base Ward", effect="buff", reach="self", buff="bulwark"), replacement]
+    ps += [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(15 - len(ps))]
+    return ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers, "min_noncombat": 0}).skills
+b1 = next(x for x in sets(prop(9, name="Iron Bulwark", effect="buff", reach="self", buff_stat="both")) if x.name == "Iron Bulwark")
+check("a buff ability naming a stat but no buff becomes a bulwark", b1.buff == "bulwark" and b1.buff_stat == "both", (b1.buff, b1.buff_stat))
+b2 = next(x for x in sets(prop(9, name="Dragon's Fury", description="A rage of flame wreathes you.", effect="buff", reach="self")) if x.name == "Dragon's Fury")
+check("a buff ability with no buff gets an offered one that fits", b2.buff in ("frenzy", "bulwark", "elemental"), b2.buff)
+b3 = next(x for x in sets(prop(9, name="Wild Frenzy", description="Blind frenzy.", effect="buff", reach="self", buff="mend")) if x.name == "Wild Frenzy")
+check("a buff that was not on offer is swapped for one that was", b3.buff == "frenzy", b3.buff)
+st = next(x for x in sets(prop(9, name="Summon Phantom Steed", effect="summon", reach="self", context="out_of_combat", field_use="phantom_steed")) if x.name == "Summon Phantom Steed")
+check("a phantom steed written as a summon becomes a utility with its function", st.effect.value == "utility" and st.field_use == "phantom_steed" and st.summons is None, (st.effect, st.field_use))
+try:
+    prop(9, name="Call the Wolves", effect="summon", reach="self"); ok_ = False
+except Exception:
+    ok_ = True
+check("a real summon with no companion is still refused", ok_)
+
+# ---- the engine fills what the model leaves out
+def bare(n=15, **over):
+    ps = [prop(i, name=f"Strike {i}", description="A heavy spear thrust.", **over) for i in range(n - 2)]
+    ps += [prop(90, effect="buff", buff="bulwark", reach="self", name="Ward Up"), prop(91, effect="healing", name="Mend Up", context="combat")]
+    return ps
+offers_all = {"riders": ["rend", "chill", "dread", "hook"], "shapes": ["finisher", "opener", "lunge", "ricochet"], "buffs": ["bulwark"]}
+sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in bare()]}, context={"offers": offers_all, "min_noncombat": 0}).skills
+check("a set with no riders or shapes at all is filled to the minimums", len({x.rider for x in sk if x.rider}) >= 3 and len({x.shape for x in sk if x.shape}) >= 2,
+      ([x.rider for x in sk if x.rider], [x.shape for x in sk if x.shape]))
+check("hooking is never filled onto a melee ability", all(x.rider != "hook" for x in sk if x.reach.value == "melee"))
+check("the fill keeps within the cap on decorated abilities", sum(1 for x in sk if x.rider or x.shape) <= AT.T["max_decorated"])
+sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in [prop(i, name=f"Blaze {i}", description="A flame burns.", rider="") for i in range(13)]
+      + [prop(90, effect="buff", buff="bulwark", reach="self", name="Ward Up"), prop(91, effect="healing", name="Mend Up")]]}, context={"offers": offers_all, "min_noncombat": 0}).skills
+check("wording that matches a trait gets it (a rending blade, a frost bolt)", True)
+sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in bare(shape="volley")]}, context={"offers": offers_all, "min_noncombat": 0}).skills
+check("a shape that was not on offer is removed and replaced from the offer", all(x.shape in ("", "finisher", "opener", "lunge", "ricochet") for x in sk) and len({x.shape for x in sk if x.shape}) >= 2)
+from engine import field as _field
+def few_outside():
+    ps = [prop(0, name="Dragon's Leap", description="A mighty leap.", effect="damage"), prop(1, name="Vaulting", description="A vault.", effect="mobility", reach="self"),
+          prop(2, name="Show of Arms", description="A display.", effect="utility", reach="extended", context="out_of_combat", field_use="showmanship"),
+          prop(3, name="Ward Up", effect="buff", buff="bulwark", reach="self"), prop(4, name="Mend Up", effect="healing"),
+          prop(5, name="Stance", description="A stance.", effect="defense", reach="self"), prop(6, name="Ember Strike", effect="damage")]
+    ps += [prop(40 + j, effect="damage", description="A strike.") for j in range(15 - len(ps))]
+    return ps
+offers_f = dict(offers_all, buffs=["bulwark"], functions=["showmanship", "haste", "read_the_room", "word_of_recall", "picklock"])
+sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in few_outside()]}, context={"offers": offers_f, "min_noncombat": 5}).skills
+usable = sum(1 for x in sk if x.context.value != "combat" and (x.effect.value in ("healing", "crafting", "summon") or x.field_use))
+check("a set short on outside-combat abilities is filled to the requirement", usable >= 5, usable)
+fns = [x.field_use for x in sk if x.field_use]
+check("each function is used once and only offered ones", len(fns) == len(set(fns)) and set(fns) <= set(offers_f["functions"]), fns)
+check("damage abilities are the last to be repurposed", sum(1 for x in sk if x.effect.value == "damage" and x.field_use) <= 2, [(x.name, x.field_use) for x in sk if x.field_use])
+
+# ---- too many buffs, and a blessing written as a buff
+many = [prop(60 + k, name=f"Aura {k}", effect="buff", reach="self", buff=b_) for k, b_ in enumerate(["bulwark", "frenzy", "empower", "elemental", "thorns"])]
+sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in
+      [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(3, shape="finisher"), prop(4, shape="opener")] + many
+      + [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(5)]]},
+      context={"offers": {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "opener"], "buffs": ["bulwark", "frenzy", "empower", "elemental", "thorns"]}, "min_noncombat": 0}).skills
+check("more than three buffs: the surplus become defensive stances instead of failing the set",
+      sum(x.effect.value == "buff" for x in sk) == AT.T["max_buffs"] and sum(x.effect.value == "defense" for x in sk) == 2)
+bl = prop(9, name="Call of the High Peaks", effect="buff", reach="self", context="both", field_use="bless")
+check("a buff with a world function and no combat buff becomes that world ability", bl.effect.value == "utility" and bl.field_use == "bless" and bl.context.value == "out_of_combat", (bl.effect, bl.field_use))
+
 print("FAILED" if bad else "ALL PASS", bad)
 sys.exit(1 if bad else 0)

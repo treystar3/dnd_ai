@@ -20,9 +20,9 @@ class CheckActions:
             found.add("while_performing")
         return found
 
-    def resolve(self, check: str, npc=None, talking: bool = False, text: str = "") -> str:
+    def resolve(self, check: str, npc=None, talking: bool = False, text: str = "", extra=()) -> str:
         odds, why = checks.chance(self.player.character, check, self.check_triggers(check, talking), npc,
-                                  self.check_bonuses(check, npc, talking, text or getattr(self, "last_text", "")))
+                                  self.check_bonuses(check, npc, talking, text or getattr(self, "last_text", "")) + list(extra))
         degree, rolled = checks.roll(odds)
         today = clock.day(self.minutes)
         if check == "lore" and self.has("patron_whispers") is not None and self.player.character.whisper_day != today:
@@ -48,6 +48,8 @@ class CheckActions:
         """Roll the checks an action calls for. Returns True if the checks fully handled the action."""
         self.last_text = text
         wanted = [c for c in dict.fromkeys(intent.checks) if c in checks.CHECKS]
+        if intent.kind == "give" and any(w in (intent.item or "").lower() for w in self.COIN_WORDS):
+            wanted = [c for c in wanted if c != "persuasion"]       # offering coin rolls its own persuasion check (a bribe)
         if not wanted:
             return False
         npc = self.target_npc(intent)

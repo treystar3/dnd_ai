@@ -58,3 +58,53 @@ traits:
 
 # Performance tips in places where people gather (copper): by outcome.
 tips: {strong success: [30, 60], success: [10, 25], partial: [0, 5], failure: [0, 0]}
+
+# BRIBES - coin offered to someone for a favor ("look the other way", "let me through"). It is a persuasion roll; success takes the coins
+# (the favor itself happens only in the story), partial and failure keep them, and failure costs trust.
+# bonus = clamp(per_percent * (offer as a percent of what the person has) - break_even * per_percent, floor, cap)
+bribe:
+  per_percent: 3
+  break_even: 5            # an offer under this percent of their wealth is an insult; above it, it starts to tempt
+  floor: -15
+  cap: 35
+  trust: {success: 1, strong success: 2, partial: 0, failure: -3}
+  traits: {greedy: 15, corrupt: 20, desperate: 15, poor: 10, honest: -20, honorable: -20, proud: -10, fanatical: -25, loyal: -10, stern: -10, brave: -5}
+  duty_roles: {guard: -10, watch_captain: -15, royal_guard: -20, elven_warden: -20, priest: -15, water_priest: -15, guild_master: -15}
+  default_wealth: 2500      # copper: what an ordinary person has to their name
+  wealth:                   # copper, by role
+    farmer: 1200
+    shepherd: 800
+    hunter: 1500
+    herbalist: 1500
+    fisher: 900
+    miner: 1500
+    lumberjack: 1200
+    dockhand: 800
+    bargeman: 1200
+    guard: 2000
+    watch_captain: 8000
+    royal_guard: 6000
+    scout: 2000
+    server: 1000
+    cook: 1500
+    guild_clerk: 4000
+    quartermaster: 5000
+    innkeeper: 12000
+    baker: 3000
+    butcher: 3500
+    miller: 4000
+    smith: 6000
+    chandler: 4000
+    tinker: 2500
+    merchant: 25000
+    caravan_master: 30000
+    priest: 5000
+    water_priest: 5000
+    acolyte: 800
+    enchanter: 20000
+    guild_master: 30000
+    elder: 6000
+    noble: 200000
+    courtier: 60000
+    relic_dealer: 100000
+    land_agent: 30000

@@ -158,3 +158,46 @@ def repair(skills, offered: list[str]) -> None:
             s.field_use = scored[0]
             taken.add(scored[0])
 
+
+
+CONVERTIBLE = ("damage", "control", "mobility", "defense", "influence", "utility")
+SELFISH = ("healing", "crafting", "summon")
+
+
+def fill(skills, offered: list[str], required: int) -> None:
+    """The model sometimes leaves too few abilities usable outside combat. Count what it has and, if short:
+    1. an ability given a function but kept combat-only becomes usable in both;
+    2. unused offered functions go to the abilities they suit best (utility and influence first, damage last);
+    3. healing, crafting and summon abilities become usable in both."""
+    def val(x):
+        return getattr(x, "value", x)
+
+    def usable(s):
+        return val(s.context) != "combat" and (val(s.effect) in SELFISH or bool(s.field_use))
+
+    def count():
+        return sum(usable(s) for s in skills)
+
+    for s in skills:
+        if count() >= required:
+            return
+        if s.field_use and val(s.context) == "combat" and val(s.effect) in CONVERTIBLE:
+            s.context = type(s.context)("both") if hasattr(s.context, "value") else "both"
+    taken = {s.field_use for s in skills if s.field_use}
+    while count() < required:
+        free = [fn for fn in offered if fn not in taken]
+        cands = [s for s in skills if not s.field_use and val(s.effect) in CONVERTIBLE]
+        if not free or not cands:
+            break
+        weight = {"utility": 1.0, "influence": 1.0, "mobility": 0.5, "defense": 0.3, "control": 0.0, "damage": -0.5}
+        best = max(((sum(w in " ".join([s.name, s.description]).lower() for w in KEYWORDS[fn]) + weight[val(s.effect)], fn, s)
+                    for fn in free for s in cands), key=lambda t: t[0])
+        _, fn, s = best
+        s.field_use = fn
+        taken.add(fn)
+        s.context = type(s.context)("out_of_combat" if val(s.effect) in ("utility", "influence") else "both") if hasattr(s.context, "value") else "both"
+    for s in skills:
+        if count() >= required:
+            break
+        if val(s.effect) in SELFISH and val(s.context) == "combat":
+            s.context = type(s.context)("both") if hasattr(s.context, "value") else "both"

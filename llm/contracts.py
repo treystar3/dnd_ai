@@ -100,9 +100,12 @@ class ActiveProposal(BaseModel):
     @model_validator(mode="after")
     def summon_shape(self):
         from engine import ability_traits as AT
+        if self.effect == Effect.BUFF and not self.buff and not self.buff_stat and self.field_use:
+            self.effect = Effect.UTILITY               # a buff with a world function and no combat buff is that world function (a blessing, a mount)
+            self.context = UseContext.OUT_OF_COMBAT
         if self.effect == Effect.BUFF:
-            if not self.buff:
-                raise ValueError(f"'{self.name}' is a buff ability and must say which buff it is (one of the buffs on offer)")
+            if not self.buff and self.buff_stat:
+                self.buff = "bulwark"                  # a stat means a bulwark; any other missing buff is settled against the offer (ActiveSet)
             self.context = UseContext.COMBAT
             self.reach = Reach.SELF
             if self.buff == "bulwark" and not self.buff_stat:
@@ -113,7 +116,10 @@ class ActiveProposal(BaseModel):
             self.command = self.command or "focus"
         else:
             self.command = ""
-        if self.buff != "bulwark":
+        if self.effect == Effect.SUMMON and self.summons is None and self.field_use:
+            self.effect = Effect.UTILITY               # "call a phantom steed" is a world function, not a companion that fights
+            self.context = UseContext.OUT_OF_COMBAT
+        if self.buff and self.buff != "bulwark":
             self.buff_stat = ""
         if self.effect not in (Effect.DAMAGE, Effect.CONTROL) or (self.rider and self.effect.value not in AT.RIDERS[self.rider]["applies"]):
             self.rider = ""
@@ -150,6 +156,8 @@ class ActiveSet(BaseModel):
     def composition(self, info: ValidationInfo):
         ctx = _ctx(info)
         _check_names(self.skills, [])
+        from engine import ability_traits as _T
+        _T.repair_buffs(self.skills, (ctx.get("offers") or {}).get("buffs"))
         effects = [s.effect for s in self.skills]
         if Effect.COMMAND in effects and Effect.SUMMON not in effects:
             raise ValueError("command abilities need at least one summon ability so there is something to command")
@@ -158,7 +166,14 @@ class ActiveSet(BaseModel):
         offered = ctx.get("offers")
         if offered:
             from engine import ability_traits as AT
+            for x in self.skills:                                  # a trait that was not on offer goes (the fill below replaces it)
+                if x.rider and x.rider not in offered["riders"]:
+                    x.rider = ""
+                if x.shape and x.shape not in offered["shapes"]:
+                    x.shape = ""
             AT.repair_shapes(self.skills, offered["shapes"])
+            AT.dedupe_traits(self.skills)
+            AT.fill_traits(self.skills, offered)
             for key, attr, label in (("riders", "rider", "rider"), ("shapes", "shape", "shape")):
                 used = [getattr(x, attr) for x in self.skills if getattr(x, attr)]
                 stray = [u for u in used if u not in offered[key]]
@@ -178,8 +193,8 @@ class ActiveSet(BaseModel):
                 raise ValueError(f"buff abilities may only use: {', '.join(offered['buffs'])}")
             if offered["buffs"] and not buffs:
                 raise ValueError(f"include at least {min(AT.T['need']['buffs'], len(offered['buffs']))} buff ability (effect buff) from those on offer")
-            if len(buffs) > 3:
-                raise ValueError("no more than 3 buff abilities")
+            if len(buffs) > AT.T["max_buffs"]:
+                raise ValueError(f"no more than {AT.T['max_buffs']} buff abilities")
             if sum(1 for x in self.skills if x.rider or x.shape) > AT.T["max_decorated"]:
                 raise ValueError(f"at most {AT.T['max_decorated']} abilities may carry a rider or a shape - leave several plain")
         functions = (offered or {}).get("functions") if offered else None
@@ -187,6 +202,9 @@ class ActiveSet(BaseModel):
             from engine import field
             field.repair(self.skills, functions)
         required = ctx.get("min_noncombat", 3)
+        if functions:
+            from engine import field
+            field.fill(self.skills, functions, required)
         selfish = (Effect.HEALING, Effect.CRAFTING, Effect.SUMMON)
         usable_outside = sum(bool(s.context != UseContext.COMBAT and (s.effect in selfish or s.field_use)) for s in self.skills)
         if usable_outside < required:
@@ -194,6 +212,66 @@ class ActiveSet(BaseModel):
                              f"a field_use taken from the functions on offer, a different one for each (healing, crafting and summon abilities need none)"
                              + (f". Functions on offer: {', '.join(functions)}" if functions else ""))
         return self
+
+
+class SlotText(BaseModel):
+    slot: int
+    name: str
+    description: str
+    summons: CompanionProposal | None = None
+
+
+class SlotNames(BaseModel):
+    """The model's part of slot-based creation: a name and a description for each of the 15 planned abilities."""
+    skills: list[SlotText] = Field(min_length=15, max_length=15)
+
+    @model_validator(mode="after")
+    def composition(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        slots = ctx.get("slots")
+        if not slots:
+            return self
+        from engine import ability_slots as AS
+        by_n = {s["n"]: s for s in slots}
+        problems = []
+        seen = [x.slot for x in self.skills]
+        if sorted(seen) != sorted(by_n):
+            raise ValueError(f"give exactly one entry for each ability number 1 to {len(by_n)}, each with its own slot number")
+        for x in self.skills:
+            s = by_n[x.slot]
+            x.name, x.description = x.name.strip(), x.description.strip()
+            if not x.name or not x.description:
+                problems.append(f"ability {x.slot} needs a name and a description")
+                continue
+            if x.name.lower().startswith("command:") or len(x.name) > 40:
+                problems.append(f"ability {x.slot}: the name must be a short evocative title, not '{x.name}'")
+            if any(ch.isdigit() for ch in x.description):
+                problems.append(f"ability {x.slot}: no numbers in the description")
+            if s["effect"] == "summon" and x.summons is None:
+                problems.append(f"ability {x.slot} is a summon: describe its companion in summons")
+            if ctx.get("strict", True):
+                why = AS.text_problem(s, x.name, x.description)
+                if why:
+                    problems.append(why)
+        try:
+            _check_names(self.skills, ctx.get("reserved_names", []))
+        except ValueError as e:
+            problems.append(str(e))
+        if problems:
+            raise ValueError("; ".join(problems[:6]))
+        return self
+
+    def proposals(self, slots: list[dict]) -> list["ActiveProposal"]:
+        by_n = {x.slot: x for x in self.skills}
+        out = []
+        for s in sorted(slots, key=lambda s: s["n"]):
+            x = by_n[s["n"]]
+            out.append(ActiveProposal(
+                name=x.name, description=x.description, effect=s["effect"], tier=s["tier"], reach=s["reach"],
+                resource=s["resource"], context=s["context"], summons=x.summons if s["effect"] == "summon" else None,
+                rider=s["rider"], shape=s["shape"], buff=s["buff"], buff_stat=s["buff_stat"], command=s["command"],
+                field_use=s["field_use"]))
+        return out
 
 
 class PassiveProposal(BaseModel):
@@ -586,6 +664,8 @@ class LearnSet(BaseModel):
         if len(self.skills) != need:
             raise ValueError(f"offer exactly {need} abilities, not {len(self.skills)}")
         _check_names(self.skills, ctx.get("reserved_names", []), "abilities they already know")
+        from engine import ability_traits as _T
+        _T.repair_buffs(self.skills, (ctx.get("offers") or {}).get("buffs"))
         functions = ctx.get("functions")
         if functions is not None:
             from engine import field

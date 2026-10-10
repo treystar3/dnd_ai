@@ -7,6 +7,7 @@ offer: {riders: 6, shapes: 4, buffs: 3}
 max_multi: 2                                  # of the shapes on offer, at most this many are multi-hit ones (double strike, volley, barrage)
 need: {riders: 3, shapes: 2, buffs: 1}         # of the offered ones, how many an ability set must use at least
 plain_damage: 0.15                            # a damage ability with no rider and no shape deals this much more (Honed), so plain is never strictly worse
+max_buffs: 3                                  # buff abilities in a set; the model's surplus become defensive stances
 max_decorated: 9                              # abilities with a rider or a shape: never all of them
 
 riders:

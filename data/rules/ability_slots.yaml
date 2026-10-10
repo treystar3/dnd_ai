@@ -1,0 +1,91 @@
+# Slot-based ability creation: the engine plans the 15 starting actives (what each one does) and the model only names and
+# describes them. Everything a slot's mechanic needs is decided here and in engine/ability_slots.py.
+total: 15
+
+# share of a class's abilities that cost mana (the rest stamina), by archetype
+mana_share: {warrior: 0.0, rogue: 0.0, mage: 1.0, support: 0.7}
+hybrid_families: {paladin: 0.4, druid: 0.4, warlock: 0.7, necromancer: 0.8, summoner: 0.7, bard: 0.3}
+
+# how the combat-only remainder (after buffs, functions, healing, summons...) is split
+mix:
+  combat:   {damage: 0.60, control: 0.16, defense: 0.12, mobility: 0.12}
+  balanced: {damage: 0.48, control: 0.18, defense: 0.17, mobility: 0.17}
+  social:   {damage: 0.34, control: 0.22, defense: 0.22, mobility: 0.22}
+companion_damage_scale: 0.5
+heavy: {combat: 3, balanced: 2, social: 1}
+moderate_chance: 0.45
+min_damage: 2
+
+# reach of an ordinary attack, by archetype
+reach:
+  warrior: {melee: 0.65, extended: 0.2, ranged: 0.15}
+  rogue:   {melee: 0.5, ranged: 0.35, extended: 0.15}
+  mage:    {ranged: 0.55, area: 0.3, extended: 0.15}
+  support: {ranged: 0.5, extended: 0.3, melee: 0.1, area: 0.1}
+
+# what each outside-combat function becomes. defaults: effect utility, tier light, reach self, context out_of_combat
+function_defaults: {effect: utility, tier: light, reach: self, context: out_of_combat}
+functions:
+  scout: {reach: extended}
+  shelter: {reach: area, tier: moderate}
+  haste: {effect: mobility, context: both}
+  swift_step: {effect: mobility, context: both}
+  shadow: {effect: mobility, context: both}
+  influence: {effect: influence, reach: extended, context: both}
+  intimidate: {effect: influence, reach: extended, context: both}
+  read_the_room: {reach: extended}
+  showmanship: {reach: area, tier: moderate}
+  barter: {reach: extended}
+  pickpocket: {reach: extended}
+  commune: {tier: moderate}
+  trapfinder: {reach: extended}
+  beastspeak: {reach: extended}
+  size_up: {reach: extended}
+  snare: {reach: area}
+  picklock: {reach: extended}
+  treat: {reach: extended, tier: moderate}
+  revivify: {reach: extended, tier: heavy}
+  bless: {tier: moderate}
+  word_of_recall: {tier: heavy}
+  phantom_steed: {tier: moderate}
+  summon_labor: {}
+  recall: {}
+  tinker: {}
+
+# what the model is told each kind of slot is
+effects:
+  damage_single: one strike or one blast at a single target
+  damage_area: a blast or sweep that hits everything in an area
+  control: hinders the enemy (pins, slows, blinds, disrupts or rattles it) without being a proper attack
+  defense: a guarding stance or ward on yourself that blunts the blows you take this fight
+  mobility: a swift movement in a fight - a leap, dash, slip or blink
+  healing: restores health to you or an ally, in a fight or out of one
+  summon: calls a companion that stays and fights beside you on its own turns (also describe the companion in summons)
+  command: gives an order to the companions you already have
+  crafting: improves the next thing you make (forging, brewing, cooking, leatherwork)
+  influence: sways a person's feelings or choices
+  utility: something done outside a fight, out in the world
+
+# how a trait should read in the name and description (shapes, buffs and riders without their own words)
+depict:
+  chain: the blow arcs on to hit other enemies as well, so it reads as striking more than one foe
+  sweeping: a wide arc that also catches the enemies beside the target
+  ricochet: the strike glances off its target and bounces on to other enemies
+  reliable: a steady, precise, dependable strike - never wild, random or chaotic
+  lunge: a lunging, closing-in strike
+  flank: a strike from the side or behind
+  opener: the first, unexpected strike against a foe still fresh
+  finisher: a strike that ends an enemy already weakened
+  desperate: a reckless strike that grows deadlier when you are near death
+  combo: one strike that builds on the last, as a rhythm of attacks
+  overcharge: pouring extra power and effort into a single blow
+  exploiting: a strike that punishes an enemy already afflicted
+  packhunt: a strike your companions join in
+  bulwark: hardened armor or ward
+  thorns: a spiked or reflective guard that hurts those who strike you
+  mend: a steady, restoring glow that mends wounds each turn
+  manashield: a barrier of mana that takes the blows for you
+  empower: a surge of strength that makes everything you do hit harder
+  frenzy: a bloody frenzy that trades your safety for ferocity
+  vampiric: a life-drinking aura that feeds on what you strike
+  elemental: your weapon wreathed in an element - NAME the element in the ability name or description

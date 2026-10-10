@@ -44,8 +44,10 @@ kind:
                        jerkin, helm, spear or shield from materials in YOUR PACK
   work               - they do work or labor for or with a person here: help them, haul, load, carry, dig, chop,
                        tend - including taking up a job that person offered
-  harvest            - they skin, butcher, gut or harvest the bodies of creatures they killed
-  join_guild         - they join, sign up for or pay to enter the adventurers' guild
+  harvest            - they skin, butcher, gut or harvest the bodies of creatures they killed. "Skin it and harvest what I can"
+                       is ONE harvest, never a harvest plus an other
+  join_guild         - they join, sign up for or pay to enter the adventurers' guild, or say they want or hope to join it
+                       or its register (not a question about how)
   board              - they read or look over the guild's contract board
   accept_quest       - they take a contract from the board (item = its number or name), or say yes to a request
                        a person here just asked of them

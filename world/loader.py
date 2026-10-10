@@ -10,7 +10,8 @@ from typing import Literal
 import yaml
 from pydantic import Field, BaseModel, ValidationError, field_validator
 
-WORLD_DIR = Path("data/world")
+from core.paths import BUNDLE
+WORLD_DIR = BUNDLE / "data" / "world"
 LOCAL_STEP_MINUTES = 5
 DEFAULT_CONNECT_MINUTES = 20
 

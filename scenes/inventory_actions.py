@@ -231,6 +231,9 @@ class InventoryActions:
             console.note(f"You only have {money.words(c.coins)}.")
             self.halted = True
             return
+        if self.is_bribe(intent, text):
+            self.offer_bribe(intent, text, npc, amount)
+            return
         c.coins -= amount
         npc.trust = min(100, npc.trust + R["gift_trust"])
         self.reputation_change("gift")
@@ -243,6 +246,53 @@ class InventoryActions:
         intent.target = npc.id
         intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + \
             f"[They hand you {money.words(amount)}.]"
+        self.on_talk(intent, text)
+
+    BRIBE_WORDS = ("bribe", "look the other way", "blind eye", "let me through", "let me pass", "let me in", "keep quiet", "say nothing",
+                   "forget", "overlook", "in exchange", "for your silence", "slip ", "grease", "so that you", "if you will", "to let")
+
+    def is_bribe(self, intent, text: str) -> bool:
+        low = f"{text} {intent.summary}".lower()
+        return "persuasion" in intent.checks or any(w in low for w in self.BRIBE_WORDS)
+
+    def offer_bribe(self, intent, text: str, npc, amount: int) -> None:
+        """Coin offered for a favor: a persuasion roll, helped by how big the offer is next to what the person has. Success takes the coins
+        (the favor only happens in the story); otherwise the coins stay, and a failure costs trust. The person remembers it either way."""
+        from engine import checks as ck
+        B = ck.RULES["bribe"]
+        c = self.player.character
+        wealth = B["wealth"].get(npc.role, B["default_wealth"])
+        pct = amount / wealth * 100
+        bonus = max(B["floor"], min(B["cap"], B["per_percent"] * (pct - B["break_even"])))
+        extra = [(f"offer is {pct:.0f}% of their wealth", bonus)]
+        mods = sum(B["traits"].get(t, 0) for t in npc.traits) + B["duty_roles"].get(npc.role, 0)
+        if mods:
+            extra.append(("character and duty", mods))
+        degree = self.resolve("persuasion", npc, talking=True, text=text, extra=extra)
+        favor = (intent.summary or "").strip().rstrip(".") or "do them a favor"
+        paid = degree in ("strong success", "success")
+        day, turn = clock.day(self.minutes), self.store.meta.turn
+        npc.trust = max(0, min(100, npc.trust + B["trust"][degree]))
+        sum_ = money.words(amount)
+        if paid:
+            c.coins -= amount
+            npc.memories.append(Memory(day=day, turn=turn, text=f"Took {sum_} from the stranger as a bribe ({favor}). I was persuaded."))
+            self.reputation_change("gift")
+            console.note(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
+            effect = f"You are persuaded and take the {sum_}. You will do what they ask in the story, quietly."
+        elif degree == "partial":
+            npc.memories.append(Memory(day=day, turn=turn, text=f"The stranger offered {sum_} to {favor}. It was not enough; I held out for more."))
+            effect = f"You are tempted by the {sum_} but it is not enough; you do NOT take it yet, and you want more or something else."
+        else:
+            npc.memories.append(Memory(day=day, turn=turn, text=f"The stranger tried to bribe me with {sum_} ({favor}). I refused, and I trust them less for it."))
+            effect = f"You refuse the {sum_} and think less of them for offering. You do NOT take it."
+        console.debug(f"bribe: {sum_} is {pct:.1f}% of {npc.role} wealth {wealth}; bonus {bonus:+.0f}, traits/duty {mods:+d}; {degree}")
+        self.store.save_npc(npc)
+        self.store.save_player(self.player)
+        self.last_social = ("persuasion", degree, npc.id)
+        self.pending_check = f"[THE GAME HAS DECIDED: they offer you {sum_} to {favor}. {effect} Act on this.]"
+        intent.target = npc.id
+        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They offer you {sum_}.]"
         self.on_talk(intent, text)
 
     def on_give(self, intent, text: str) -> None:

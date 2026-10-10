@@ -166,11 +166,11 @@ def ok(ps):
     except Exception as e:
         return str(e)[:160]
 check("a full set validates", ok(full()) is True, ok(full()))
-check("too few riders is refused", ok(full(riders=1)) is not True)
-check("too few shapes is refused", ok(full(shapes=0)) is not True)
+check("too few riders are filled in from the offer", ok(full(riders=1)) is True, ok(full(riders=1)))
+check("too few shapes are filled in from the offer", ok(full(shapes=0)) is True, ok(full(shapes=0)))
 check("a set with no buff is refused", ok(full(buffs=0)) is not True)
 bad_off = full(); bad_off[0] = prop(0, rider="siphon"); bad_off[1] = prop(1, rider="seeker")
-check("a rider that wasn't offered is refused", ok(bad_off) is not True)
+check("a rider that wasn't offered is replaced from the offer", ok(bad_off) is True, ok(bad_off))
 p_ = prop(0, effect="healing", rider="rend", shape="volley")
 check("riders and shapes are stripped from abilities they don't suit", p_.rider == "" and p_.shape == "")
 p_ = prop(0, effect="buff", buff="bulwark", context="both", reach="melee")

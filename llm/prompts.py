@@ -77,6 +77,8 @@ field_use: REQUIRED for every ability whose context is out_of_combat or both, ex
   character: pick the one that fits the ability and use ONLY those. Two abilities may never share a function, so each
   function on offer is used at most once. If an ability fits none that are left, make it a combat ability (context combat)
   and leave field_use empty. A function that is "always on" still counts as one ability's field_use.
+A world function such as phantom_steed (a spectral mount) or summon_labor (a servant to carry things) is effect utility with its
+  field_use - never effect summon. Effect summon is only for a companion that fights beside the character, and it needs summons.
 summons: only for summon abilities, and required for them. Describe the companion:
   name, one-sentence description, kind ({_list(CompanionKind)}), role ({_list(CompanionRole)}).
 
@@ -85,6 +87,30 @@ Name command abilities as evocative techniques, calls or signals, never in the f
 The class constraints are absolute. If it says the character avoids melee, give no melee-reach abilities.
 description is one sentence describing what the ability looks and feels like.
 Respond only with JSON matching the schema."""
+
+SLOTS_SYSTEM = f"""You name and describe the level 1 ACTIVE abilities of a custom RPG class.
+The game engine has already decided exactly what each of the 15 numbered abilities does: its kind, power, reach, cost and special effect.
+Your job is only to give each one a NAME and a one-sentence DESCRIPTION, written for the class, so that the ability reads as exactly what
+the engine made - nothing more, nothing less.
+
+For every numbered ability:
+- name: a short evocative title of 1 to 4 words, in the class's own voice. Every name unique. Never "Command: X". No numbers.
+- description: ONE sentence of what it looks and feels like, no numbers. Depict the mechanic given under "does" and follow "write it as".
+  Do not add anything the ability does not do: no extra hits, no area effect, no healing, no mount, no companion, no status effect it lacks.
+  A single-blow ability is one strike or one blast at one target. A several-strikes ability is a flurry, volley or series, named to suit the class.
+  A defense, mobility, buff or self ability acts on the caster alone. An outside-combat function is shown by what the description does
+  (looking ahead, making camp, working a lock, bargaining), so the name and description should make that function obvious.
+- slot: the ability's number, exactly as given.
+- summons: only for a summon ability. Describe the companion: name, one-sentence description, kind ({_list(CompanionKind)}),
+  role ({_list(CompanionRole)}).
+Make the 15 sound varied, and keep them grounded for a beginner. Respect the class constraints (if the character avoids melee, never
+depict melee fighting). If the class uses companions, name command abilities as evocative calls or signals.
+Respond only with JSON matching the schema."""
+
+def slots_user(interp: ClassInterpretation, slot_text: str) -> str:
+    return class_context(interp) + "\n\nTHE 15 ABILITIES (the engine has decided these - name and describe each):\n" + slot_text + \
+        "\n\nName and describe all 15."
+
 
 _STAT_LINES = "\n".join(f"  {s.id}: {s.covers}" for s in STATS.values())
 _TRIGGER_LINES = "\n".join(f"  {t.id}: {t.condition}" for t in TRIGGERS.values())

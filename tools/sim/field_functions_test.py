@@ -81,7 +81,10 @@ def vset(ps, need=5):
 r = vset(fill([util(0, "scout"), util(1, "scout")]))
 check("a repeated function is handed a different offered one", not isinstance(r, str) and len({x.field_use for x in r.skills if x.field_use}) == 2)
 r = vset(fill([util(0, "scout")]))
-check("too few outside abilities are refused, and the offer is restated", isinstance(r, str) and "Functions on offer" in r, str(r)[:120])
+check("too few outside abilities are filled up to the requirement from the functions on offer",
+      not isinstance(r, str) and sum(1 for x in r.skills if x.context.value != "combat" and (x.effect.value in ("healing", "crafting", "summon") or x.field_use)) >= 5)
+r = vset(fill([util(0, "scout")]), need=20)
+check("a requirement the offer cannot meet is refused, and the offer is restated", isinstance(r, str) and "Functions on offer" in r, str(r)[:120])
 r = vset(fill([util(0, "scout"), util(1, "barter")]))
 check("two different offered functions pass", not isinstance(r, str), r if isinstance(r, str) else "")
 r = vset(fill([util(0, "scout"), util(1, "shadow"), util(2, "barter")]))

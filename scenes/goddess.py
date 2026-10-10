@@ -20,7 +20,8 @@ from llm.gateway import LLMError, generate
 from scenes import goddess_prompts as gp
 from ui import console
 
-KNOWLEDGE_PATH = Path("data/goddess_knowledge.json")
+from core.paths import BUNDLE
+KNOWLEDGE_PATH = BUNDLE / "data" / "goddess_knowledge.json"
 SPEAKER = "The Goddess"
 
 

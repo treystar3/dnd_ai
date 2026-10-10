@@ -168,8 +168,17 @@ def converse(
     )
 
     known_ids = {f.id for f in facts}
-    revealed = [r for r in reply.reveals if r in known_ids]
-    dropped = [r for r in reply.reveals if r not in known_ids]
+    import re as _re
+    spoken = set(_re.findall(r"[a-z]{5,}", reply.speech.lower()))
+    by_id = {f.id: f for f in facts}
+
+    def conveyed(fid: str) -> bool:
+        """The speech must actually carry the fact: it shares enough of the fact's own words (a fact merely claimed is not learned)."""
+        words = set(_re.findall(r"[a-z]{5,}", by_id[fid].text.lower()))
+        return len(words & spoken) >= min(3, max(1, len(words) // 4))
+
+    revealed = [r for r in reply.reveals if r in known_ids and conveyed(r)]
+    dropped = [r for r in reply.reveals if r not in revealed]
     if dropped:
         console.debug(f"ignored reveals {npc.name} does not know: {dropped}")
 

@@ -120,7 +120,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.advance(minutes)
 
     def goddess_knowledge(self) -> dict:
-        return json.loads(Path("data/goddess_knowledge.json").read_text(encoding="utf-8"))
+        return json.loads((__import__("core.paths", fromlist=["BUNDLE"]).BUNDLE / "data" / "goddess_knowledge.json").read_text(encoding="utf-8"))
 
     def gear_line(self) -> str:
         c = self.player.character
@@ -487,6 +487,32 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         plan = [a for k, a in enumerate(plan)
                 if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
                                                  and b.target in here_ids for b in plan[k + 1:]))] or plan
+        if not self.rank and self.clerk_here():     # paying or asking to join the guild, said to the clerk, is joining - and only once
+            asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
+            for a in plan:
+                low = f"{text} {a.summary}".lower()
+                about_guild = any(w in low for w in ("guild", "registry", "register", "registration", "membership"))
+                if about_guild and a.kind in ("talk", "buy", "give", "other") and not asking \
+                        and any(w in low for w in ("join", "fee", "pay", "sign", "enrol", "enroll", "register")):
+                    a.kind, a.target, a.ware, a.item = "join_guild", "", "", ""
+            seen_join = False
+            kept = []
+            for a in plan:
+                if a.kind == "join_guild":
+                    if seen_join:
+                        continue
+                    seen_join = True
+                kept.append(a)
+            plan = kept
+        for a in plan:                              # "I offer the guard 5 silver to look the other way" is giving coin, whatever it was read as
+            if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) \
+                    and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
+                m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
+                a.kind, a.item = "give", (m.group(0) if m else "coins")
+        HARVEST_WORDS = ("harvest", "skin", "butcher", "gut", "carcass", "hide", "meat", "parts", "gather")
+        plan = [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
+                if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
+                        and any(w in f"{a.summary} {a.item}".lower() for w in HARVEST_WORDS))] or plan
         for i, intent in enumerate(plan):
             if i and (self.combat or self.halted):
                 console.debug(f"stopping after {i} of {len(plan)} actions")
@@ -852,6 +878,10 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                 known.append(fact_id)
                 console.debug(f"player learned: {fact_id}")
         self.secret_after(npc, pending_secret)
+        if reply.intent == "leave" and reply.speech.rstrip().rstrip('"\'').endswith("?"):
+            reply.intent = "small_talk"            # someone who has just asked a question has not walked away
+        if reply.intent == "leave" and npc.role in ("guild_clerk",):
+            reply.intent = "small_talk"            # the clerk stays at the desk: the guild must stay reachable
         if reply.intent == "leave" and npc.id not in self.player.prisoners:
             console.note(f"{npc.label()} ends the conversation and steps away.")
             self.halted = True

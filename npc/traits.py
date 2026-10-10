@@ -14,7 +14,8 @@ from pydantic import BaseModel
 
 from npc.models import NPC, TraitChange
 
-TRAITS_PATH = Path("data/traits.yaml")
+from core.paths import BUNDLE
+TRAITS_PATH = BUNDLE / "data" / "traits.yaml"
 TRAIT_COUNT = 3
 RARITY_WEIGHT = {"common": 6, "uncommon": 3, "rare": 1}
 
