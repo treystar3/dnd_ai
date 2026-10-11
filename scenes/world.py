@@ -37,6 +37,8 @@ from scenes.camp_actions import CampActions
 from scenes.party_actions import PartyActions
 from scenes.passive_hooks import PassiveHooks
 from scenes.field_actions import FieldActions
+from scenes.audit_actions import AuditActions
+from scenes.law_actions import LawActions
 from scenes import markup
 from engine import pulse, quests
 from engine import inventory as inv
@@ -54,12 +56,12 @@ from world.loader import World
 
 QUIT_WORDS = {"quit", "exit", "/quit", "/exit"}
 TIME_COST = {"look": clock.LOOK_MINUTES, "talk": clock.TALK_MINUTES, "other": clock.OTHER_MINUTES,
-             "leave_conversation": 0}
+             "leave_conversation": 0, "steal": 5}
 SEARCH = encounters.E
 
 
 class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
-                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, PassiveHooks, FieldActions):
+                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, PassiveHooks, FieldActions, AuditActions, LawActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -477,6 +479,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             self.store.meta.turn += 1
             return
         plan = self.interpret(text)
+        raw_plan = [a.model_dump(exclude_defaults=True) for a in plan]
         if markup.has_markup(text):
             for a in plan:
                 if a.speech:
@@ -513,6 +516,10 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         plan = [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
                 if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
                         and any(w in f"{a.summary} {a.item}".lower() for w in HARVEST_WORDS))] or plan
+        plan = self.audit_plan(text, plan, raw_plan)
+        if plan is None:                            # the audit could not make sense of it: nothing happens, no time passes, the player rewords
+            self.buffering = False
+            return
         for i, intent in enumerate(plan):
             if i and (self.combat or self.halted):
                 console.debug(f"stopping after {i} of {len(plan)} actions")
@@ -521,6 +528,8 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             self.pending_check, self.pending_beats = "", []
             if not self.run_checks(intent, text):
                 getattr(self, f"on_{intent.kind}")(intent, text)
+                if intent.force and intent.kind != "attack":
+                    self.after_force(intent, text)
                 if self.pending_beats:
                     self.narrate(" ".join(self.pending_beats), text)
             if intent.mark.strip():
@@ -538,6 +547,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if self.buffering and self.exits_due and not self.combat:
             self.show_exits(force=True)
         self.buffering = False
+        self.law_check()
         self.store.meta.turn += 1
 
     def flush(self, player_text: str = "") -> None:
@@ -694,7 +704,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         others = (self.store.load_npc(i) for i in self.store.list_npcs() if i not in present)
         return [n for n in others if n.met_player]
 
-    def interpret(self, text: str) -> list[ActionIntent]:
+    def interpret(self, text: str, hint: str = "") -> list[ActionIntent]:
         places = [(p.id, p.name) for p in self.world.places.values() if p.id != self.player.location]
         people = [(n.id, n.label(), f"{n.role.replace('_', ' ')}. {n.description} {n.activity}") for n in self.present]
         elsewhere = [(n.id, f"{n.label()} ({n.role.replace('_', ' ')})", self.where_name(n.location))
@@ -717,7 +727,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                                   for n in self.present if self.world.roles[n.role].buys],
                                  [inv.GOODS[next(iter(r.makes))].name for r in inv.RECIPES.values()],
                                  [k.name for k in self.player.character.key_items],
-                                 markup.describe(text) if markup.has_markup(text) else ""),
+                                 markup.describe(text) if markup.has_markup(text) else "", hint),
             ActionPlan, temperature=0.2, max_tokens=700,
         ).actions
 
@@ -834,7 +844,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if first_time:
             rep = self.player.reputation.get(pulse.town_of(self.world, npc.location), 0)
             npc.trust = max(0, min(100, npc.trust + round(rep * pulse.P["reputation"]["trust_per_point"])
-                                   + self.first_meeting_trust(npc)))
+                                   + self.first_meeting_trust(npc) + self.heat_trust()))
         else:
             self.easy_company(npc)
         if first_time and self.has("oathbound") and set(self.world.roles[npc.role].knowledge_groups) & {"guards", "temple"}:
@@ -964,7 +974,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if seller.role == "quartermaster":
             off += self.mech("quartermasters_friend")
         ware = ware.model_copy(update={"price": round(ware.price * max(0, 1 - off / 100)
-                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes))})
+                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price())})
         if ware.kind == "room" and ((self.owns("shelter_earned") and self.town_rep() >= 30)
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})

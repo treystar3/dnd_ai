@@ -47,4 +47,6 @@ def describe(d: dict) -> str:
         return f"cleared the dungeon{where} and killed its master"
     if k == "quest_done":
         return f"finished the job '{d.get('title', 'a job')}'{where}"
+    if k == "offense":
+        return f"{d.get('offense', 'broke the law')}{(' (' + d['item'] + ')') if d.get('item') else ''}{where}, seen by {len(d.get('witnesses', []))}"
     return f"{k}{where}"

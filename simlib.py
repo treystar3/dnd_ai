@@ -100,19 +100,19 @@ class Stub:
         return {"text": f"[scene {NARR_COUNTER[0]}]"}
 
     # ---- guild instructor
-    def a_LearnSet(self, u, k):
-        level = int(re.search(r"LEVEL: (\d+)", u).group(1))
-        known = re.search(r"ABILITIES THEY KNOW: (.*)", u).group(1).split(", ")
-        n = int(re.search(r"Offer exactly (\d+)", u).group(1))
-        tiers = ["light", "moderate"] if level < 10 else ["moderate", "heavy"]
-        magic = self.cls in ("mage", "summoner", "priest", "bard", "warlock", "paladin")
+    def a_LessonWant(self, u, k):
+        req = re.search(r'THEY ASKED TO LEARN: "(.*)"', u).group(1).lower()
+        return {"kind": "passive" if "passive" in req or "trait" in req else "active",
+                "effect": "" if "passive" in req or "trait" in req else "damage", "stat": ""}
+
+    def a_LessonNames(self, u, k):
         out = []
-        for i in range(n):
+        for m in re.finditer(r"^(\d+)\. (\w+)", u, re.M):
             NAME_COUNTER[0] += 1
-            effect = ["damage", "damage", "defense"][i % 3]
-            out.append({"name": f"Technique {NAME_COUNTER[0]}", "description": "A learned technique.", "effect": effect,
-                        "tier": tiers[i % 2 if effect == "damage" else 0], "reach": "ranged" if magic else "melee",
-                        "resource": "mana" if magic else "stamina", "context": "combat"})
+            row = {"slot": int(m.group(1)), "name": f"Technique {NAME_COUNTER[0]}", "description": "A learned technique."}
+            if m.group(2) == "SUMMON":
+                row["summons"] = {"name": f"Spirit {NAME_COUNTER[0]}", "description": "A bound spirit.", "kind": "spirit", "role": "striker"}
+            out.append(row)
         return {"skills": out}
 
     # ---- the pulse

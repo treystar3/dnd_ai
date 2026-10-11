@@ -49,6 +49,8 @@ class NPC(BaseModel):
     knows_player_as: str = ""
     met_player: bool = False
     away_until: int = -1
+    looks_away_until: int = -1    # a bribed person sees nothing until this game minute
+    hidden: list[dict] = []       # story objects the player went looking for on this person: {"name", "description", "worth", "taken"}
     stock: list = []              # gear for sale (Item data), replaced on restock
     stock_day: int = -1           # day the current stock was laid out
     work_offer: dict | None = None  # paid work offered to the player: {task, pay, minutes}

@@ -44,6 +44,7 @@ class PlaceState(BaseModel):
     carcasses: list[dict] = []     # fallen creatures not yet skinned: {"creature", "level", "minute"}
     board: list[dict] = []         # guild contracts posted here
     extra_roles: dict[str, int] = {}  # people the world has brought here (arrivals), generated on the next visit
+    hidden: list[dict] = []        # story objects the player went looking for here: {"name", "description", "worth", "taken"}
     board_day: int = -1
 
 
@@ -72,6 +73,8 @@ class PlayerState(BaseModel):
     mounts: list[dict] = []        # mounts owned: {"id", "name", "speed", "stamina"} (see data/rules/events.yaml)
     mount: str = ""                # id of the mount ridden, if any
     field: dict = {}               # field-ability state (scenes/field_actions.py): cd, camp, haste, edge, shadow, scouted, lit, shows
+    heat: dict[str, dict] = {}     # how wanted you are, by town id: {"heat", "day"} (engine/law.py)
+    confronted: dict[str, int] = {}  # town id -> the last day guards stopped you there
     road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume"}
 
 

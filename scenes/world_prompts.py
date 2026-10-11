@@ -64,6 +64,10 @@ kind:
                        finishing off a captive prisoner in PEOPLE HERE is attack, with that prisoner's id as target.
   release            - they let a captive prisoner in PEOPLE HERE go free, spare them, or send them away unharmed - or
                        release a tamed companion back into the wild
+  steal              - they secretly take something that is not theirs: pick a pocket, lift or swipe an item from a stall, shelf,
+                       desk or person, slip something away unseen, or look through someone's things to take what they find.
+                       Item = what they take, in their words. Target = the person they take it from or whose it is, if any.
+                       Paying for something is buy, never steal. Asking for something is talk.
   other              - anything else they attempt
 destination: for move, the id of the place they mean. If they want to go to a person elsewhere, use that person's place id.
 target: for talk, the id of the person they address. If they talk to "someone", "anyone" or "the first person",
@@ -80,6 +84,8 @@ item: for buy (gear from stock), sell, use, drop, pick_up, give, show, discard, 
 wait_minutes: for wait, how long in minutes if they said a length ("an hour" = 60). Otherwise 0.
 wait_until: for wait, the time of day they want to wait until, if they said one. Otherwise empty.
   "until morning" = morning, "until tonight" = night, "until dark" = night, "until sunrise" = dawn.
+force: true only when they put their hands on someone against their will - grab, shove, pin, drag, strike with a hand or
+  hilt, hold a blade to them. Words alone, however harsh, are not force. A real fight is attack, not force.
 summary: one short line describing what they are doing.
 checks: the uncertain things this action attempts, if any (usually none, at most two):
   insight      - reading a person: their mood, motives, whether something troubles them or they are lying
@@ -91,6 +97,8 @@ checks: the uncertain things this action attempts, if any (usually none, at most
   lore         - trying to remember what they know about something
   performance  - playing music, singing, storytelling or showing off a skill for an audience
   Ordinary conversation, greetings and questions need no check. Only when the outcome is genuinely uncertain.
+  Grabbing someone by the collar and demanding an answer is talk with force true and checks [intimidation].
+  Stealing needs no check: the game rolls it.
   "I watch Julian unnoticed and try to work out what's wrong" is look with checks [stealth, insight].
 mark: if this action leaves a lasting physical change in the place - marking trees, carving something, hiding an item,
   building a fire, setting a snare, clearing a path - a short third-person note of it ("marked trees along the trail
@@ -102,7 +110,7 @@ def interpret_request(time_label: str, place_name: str, places: list[tuple[str, 
                       elsewhere: list[tuple[str, str, str]], partner: str | None, last_spoken: str | None,
                       text: str, wares: list[str] = (), abilities: list[str] = (), pack: list[str] = (),
                       ground: list[str] = (), box: list[str] | None = None, buyers: list[str] = (),
-                      recipes: list[str] = (), keys: list[str] = (), markup: str = "") -> str:
+                      recipes: list[str] = (), keys: list[str] = (), markup: str = "", hint: str = "") -> str:
     place_lines = "\n".join(f"  {pid}: {name}" for pid, name in places) or "  (none)"
     present = "\n".join(f"  {nid}: {label} - {desc}" for nid, label, desc in people) or "  (no one)"
     away = "\n".join(f"  {nid}: {label} - at {where}" for nid, label, where in elsewhere) or "  (no one)"
@@ -124,6 +132,7 @@ def interpret_request(time_label: str, place_name: str, places: list[tuple[str, 
         f"RECIPES: {', '.join(recipes)}\n\n"
         f'PLAYER TYPED: "{text}"'
         + (f"\nMARKUP:\n{markup}" if markup else "")
+        + (f"\nREVIEW NOTE (your first reading was questioned - read the player's words again and fix it):\n{hint}" if hint else "")
     )
 
 

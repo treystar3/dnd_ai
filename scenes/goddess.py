@@ -22,6 +22,7 @@ from ui import console
 
 from core.paths import BUNDLE
 KNOWLEDGE_PATH = BUNDLE / "data" / "goddess_knowledge.json"
+OPENING_PATH = BUNDLE / "data" / "opening.json"
 SPEAKER = "The Goddess"
 
 
@@ -33,7 +34,6 @@ class Step(str, Enum):
     PASSIVES = "passives"
     STATS = "stats"
     CONFIRM_STATS = "confirm_stats"
-    ASPIRATION = "aspiration"
     DONE = "done"
 
 
@@ -45,7 +45,6 @@ EXPECTS = {
     Step.PASSIVES: "choosing exactly two of the numbered traits",
     Step.STATS: "how to shape their body and mind: exact attribute numbers, or what matters most to them",
     Step.CONFIRM_STATS: "whether the attributes shown are right (confirm) or should change (decline)",
-    Step.ASPIRATION: "an optional aspiration, something they hope to achieve in their new life (decline if none)",
 }
 
 
@@ -60,18 +59,14 @@ class ThresholdScene:
         self.interp = None
         self.active_options = []
         self.passive_options = []
+        self.passives_job = None
         self.actives = []
         self.passives = []
         self.values: dict[str, int] = {}
         self.character: Character | None = None
 
     def run(self) -> Character:
-        console.wait("Darkness. Then, slowly, a soft and sourceless light.")
-        self.speak(
-            "The player has just awoken here. They died moments ago. Tell them so, gently. "
-            "Tell them it was not their time, and that you are offering a second chance. "
-            "Then ask their name."
-        )
+        self.opening()
         while self.step != Step.DONE:
             text = console.ask()
             if text.lower() in {"quit", "exit", "/quit", "/exit"}:
@@ -91,6 +86,15 @@ class ThresholdScene:
                 continue
             getattr(self, f"on_{self.step.value}")(turn)
         return self.character
+
+    def opening(self) -> None:
+        """The fixed opening: what happened and what comes next, the same every time. The goddess then answers whatever the player says."""
+        for beat in json.loads(OPENING_PATH.read_text(encoding="utf-8")):
+            if beat["who"] == "goddess":
+                console.say(beat["text"], SPEAKER)
+                self.transcript.append(("Goddess", beat["text"]))
+            else:
+                console.narrate(beat["text"])
 
     def speak(self, event: str) -> None:
         line = generate(
@@ -173,7 +177,6 @@ class ThresholdScene:
             console.wait("Threads of possibility gather in the dark around her hands.")
             try:
                 self.active_options = creation.generate_actives(self.interp)
-                self.passive_options = creation.generate_passives(self.interp, self.active_options)
             except LLMError as e:
                 console.debug(str(e))
                 console.wait("The threads slip through her fingers and scatter.")
@@ -185,6 +188,7 @@ class ThresholdScene:
                 "The player accepted your reading. The game now shows them fifteen techniques "
                 "they might carry back. Invite them to choose two."
             )
+            self.passives_job = creation.PassivesInBackground(self.interp, self.active_options)   # written while they read
         elif turn.kind in ("decline", "answer") and turn.text.strip():
             self.concept += f"\nRefinement: {turn.text.strip()}"
             self.read_class()
@@ -196,6 +200,17 @@ class ThresholdScene:
         if error:
             self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.")
             return
+        job = getattr(self, "passives_job", None)
+        if job is not None and not job.ready:
+            console.wait("Threads of possibility are still settling in her hands.")
+        try:
+            self.passive_options = job.result() if job is not None else creation.generate_passives(self.interp, self.active_options)
+        except LLMError as e:
+            console.debug(str(e))
+            console.note("The model couldn't shape your innate traits this time. Nothing is lost - choose your two techniques again to retry.")
+            self.passives_job = None
+            return
+        self.passives_job = None
         self.actives = [self.active_options[n - 1] for n in turn.picks]
         self.step = Step.PASSIVES
         console.show_passives(self.passive_options)
@@ -237,11 +252,7 @@ class ThresholdScene:
 
     def on_confirm_stats(self, turn: PlayerTurn) -> None:
         if turn.kind == "confirm":
-            self.step = Step.ASPIRATION
-            self.speak(
-                "The player accepted. Ask, lightly, whether there is something they hope to achieve "
-                "in their new life. Make clear it is not required."
-            )
+            self.finish()
         elif turn.kind == "decline":
             self.step = Step.STATS
             console.show_stat_rules(getattr(self, "guidance", []))
@@ -249,24 +260,15 @@ class ThresholdScene:
         else:
             self.redirect()
 
-    def on_aspiration(self, turn: PlayerTurn) -> None:
-        if turn.kind == "answer" and turn.text.strip():
-            self.finish(turn.text.strip())
-        elif turn.kind == "decline":
-            self.finish(None)
-        else:
-            self.redirect()
-
-    def finish(self, aspiration: str | None) -> None:
+    def finish(self) -> None:
         self.character = creation.build_character(
             self.name, self.interp, self.actives, self.passives,
-            Attributes(**self.values), aspiration,
+            Attributes(**self.values), None,
         )
         path = creation.save_character(self.character)
         self.step = Step.DONE
-        hope = f"Their aspiration: {aspiration}." if aspiration else "They named no aspiration."
         self.speak(
-            f"Creation is complete. {hope} Bid them farewell as they are sent back to the living world. "
-            "Their memory of this place begins to fade. Do not say where they will wake."
+            "Creation is complete. Bid them farewell as they are sent back to the living world. Their memory of this place, "
+            "and of who they were, begins to fade; what comes next is theirs to find. Do not say where they will wake."
         )
         console.note(f"Character saved to {path}")

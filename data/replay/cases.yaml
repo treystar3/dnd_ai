@@ -1,0 +1,123 @@
+# Replay cases for the intent audit gate (tools/replay.py).
+#   scene   - the facts: who is here (id: label), abilities the player has, wildlife nearby
+#   raw     - the plan the interpreter produced (what we are testing the gate against)
+#   audit   - recorded model replies for the deterministic run: meaning, matches, reason, and the plans it proposes (in order)
+#   expect  - the plan we want to end up with: a list of steps, each a subset of fields (kind is required)
+#   status  - skipped | unchanged | changed | failed
+# Add real turns with:  python tools/replay.py --promote logs/turns.jsonl -1
+- name: bear_harvest_twice
+  text: I skin the bear and harvest what I can
+  scene: {present: {}, wildlife: false}
+  raw:
+    - {kind: harvest, item: bear, summary: harvest the bear}
+    - {kind: other, summary: skin the bear carcass}
+  audit:
+    meaning: Skin the bear and take what can be harvested from it.
+    matches: false
+    reason: The second step repeats the first; skinning is harvesting.
+    proposals:
+      - [{kind: harvest, item: bear, summary: skin and harvest the bear}]
+  expect: [{kind: harvest}]
+  status: changed
+
+- name: guild_fee_is_not_shopping
+  text: I pay the registration fee for the guild
+  scene: {present: {clerk1: the clerk in spectacles}}
+  raw:
+    - {kind: talk, target: clerk1, speech: I pay the registration fee}
+    - {kind: buy, target: clerk1, ware: trail_rations, count: 2}
+  audit:
+    meaning: Pay the fee to join the guild.
+    matches: false
+    reason: A fee is a service, not a purchase of trail rations.
+    proposals:
+      - [{kind: join_guild, summary: pay the fee and register}]
+  expect: [{kind: join_guild}]
+  status: changed
+
+- name: clerk_should_stay
+  text: I was hoping to join the guild's registry
+  scene: {present: {clerk1: the clerk in spectacles}}
+  raw:
+    - {kind: talk, target: clerk1, speech: I was hoping to join the guild's registry}
+    - {kind: leave_conversation}
+  audit:
+    meaning: Ask the clerk about joining the guild.
+    matches: false
+    reason: The player never ended the conversation.
+    proposals:
+      - [{kind: talk, target: clerk1, speech: I was hoping to join the guild's registry}]
+  expect: [{kind: talk, target: clerk1}]
+  status: changed
+
+- name: bribe_the_guard
+  text: I offer the guard 5 silver to look the other way
+  scene: {present: {guard1: the gate guard}}
+  raw:
+    - {kind: talk, target: guard1, speech: Perhaps this will help you look the other way}
+  audit:
+    meaning: Give the guard 5 silver as a bribe.
+    matches: false
+    reason: Offering coin is giving, not just talking.
+    proposals:
+      - [{kind: give, target: guard1, item: 5 silver, summary: bribe to look the other way}]
+  expect: [{kind: give, target: guard1}]
+  status: changed
+
+- name: plain_purchase_is_left_alone
+  text: I buy a loaf of bread from Bram
+  scene: {present: {bram: Bram the innkeeper}}
+  raw:
+    - {kind: buy, target: bram, ware: bread}
+  expect: [{kind: buy, ware: bread}]
+  status: skipped
+
+- name: plain_walk_is_left_alone
+  text: I head north
+  scene: {present: {}}
+  raw:
+    - {kind: move, destination: north_gate}
+  expect: [{kind: move}]
+  status: skipped
+
+- name: talking_to_someone_who_is_not_here
+  text: I ask the blacksmith about swords
+  scene: {present: {clerk1: the clerk in spectacles}}
+  raw:
+    - {kind: talk, target: smith1, speech: Tell me about swords}
+  audit:
+    meaning: Ask a blacksmith about swords.
+    matches: false
+    reason: The blacksmith is not here.
+    proposals:
+      - [{kind: talk, target: clerk1, speech: Tell me about swords}]
+  expect: [{kind: talk, target: clerk1}]
+  status: changed
+
+- name: pickpocket_read_as_talk
+  text: I slip my hand into the merchant's pouch and take his purse
+  scene: {present: {m1: Varro the merchant}}
+  raw:
+    - {kind: talk, target: m1, speech: Nice weather today}
+  audit:
+    meaning: Secretly take the merchant's purse.
+    matches: false
+    reason: The player is stealing, not talking.
+    proposals:
+      - [{kind: steal, target: m1, item: purse}]
+  expect: [{kind: steal, target: m1}]
+  status: changed
+
+- name: collar_grab_is_force
+  text: I grab the guard by the collar and demand to know who hired him
+  scene: {present: {g1: the gate guard}}
+  raw:
+    - {kind: talk, target: g1, speech: "Who hired you?", checks: [intimidation]}
+  audit:
+    meaning: Seize the guard by the collar and demand an answer.
+    matches: false
+    reason: Putting hands on him is force, not just words.
+    proposals:
+      - [{kind: talk, target: g1, speech: "Who hired you?", checks: [intimidation], force: true}]
+  expect: [{kind: talk, target: g1, force: true}]
+  status: changed

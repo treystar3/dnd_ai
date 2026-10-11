@@ -19,11 +19,27 @@ SOCIAL = ("persuasion", "intimidation", "deception")
 
 
 def attribute_value(c: Character, check: str) -> float:
+    """The attribute a check runs on: what the character allocated. Points that gear adds never count for a check;
+    gear helps a check only through a bonus that names it (see gear_points)."""
     attr = STATS[check].attribute
     names = attr if isinstance(attr, list) else [attr] if attr else []
-    from engine import stats as _stats
-    gear = _stats.gear_attributes(c) if c.equipment else {}
-    return max((_stats.effective(c, a, gear) for a in names), default=RULES["attribute_center"])
+    return max((getattr(c.attributes, a) for a in names), default=RULES["attribute_center"])
+
+
+def passive_points(c: Character, check: str, active_triggers: set[str]) -> float:
+    return sum(p.magnitude for p in c.passives
+               if not p.mechanic and p.modifies and p.modifies.value == check and p.trigger.value in active_triggers)
+
+
+def gear_points(c: Character, check: str, active_triggers: set[str]) -> float:
+    """Points that worn gear gives this specific check (a '+20 stealth' ring is 20). Attribute points never come through here."""
+    from engine import items as _items
+    total = 0.0
+    for item in c.equipment.values():
+        for e in _items.effects(item):
+            if e.modifies == check and e.trigger in active_triggers:
+                total += e.magnitude
+    return total
 
 
 def chance(c: Character, check: str, active_triggers: set[str], npc=None,
@@ -34,11 +50,14 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
     attr_part = (attribute_value(c, check) - RULES["attribute_center"]) * RULES["attribute_weight"]
     value += attr_part
     why.append(f"attribute {attr_part:+.0f}")
-    passive = sum(p.magnitude for p in c.passives
-                  if not p.mechanic and p.modifies and p.modifies.value == check and p.trigger.value in active_triggers)
+    passive = passive_points(c, check, active_triggers)
     if passive:
         value += passive
         why.append(f"passives {passive:+.0f}")
+    worn = gear_points(c, check, active_triggers)
+    if worn:
+        value += worn
+        why.append(f"gear {worn:+.0f}")
     for label, amount in extra:
         value += amount
         why.append(f"{label} {amount:+.0f}")

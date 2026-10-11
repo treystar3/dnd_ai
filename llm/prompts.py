@@ -257,29 +257,45 @@ def stat_passives_user(interp, taken: list[str], count: int, min_noncombat: int,
     return "\n".join(lines)
 
 
-LEARN_SYSTEM = """You are a guild instructor - a retired adventurer - deciding which techniques or spells to teach a member.
-Offer exactly the requested number of ACTIVE abilities: things they deliberately do in a moment. They must fit what
-the player ASKED TO LEARN first, and their class second. Make them distinct from each other and from what they
-already know, so the choice is real. Grounded and practical, suited to their level - not world-shaking.
+LESSON_SYSTEM = f"""You are a guild instructor - a retired adventurer - naming the lessons you offer a member.
+The game engine has already decided exactly what each numbered lesson teaches: an ABILITY (what it does, its power, reach, cost
+and special effect) or a PASSIVE TRAIT (a lasting quality). Your job is only to give each one a NAME and a one-sentence
+DESCRIPTION, written for the member's class and what they asked to learn, so it reads as exactly what the engine made - nothing more.
 
-Each ability: name, description (one sentence of what it looks and feels like), effect (damage, healing, control,
-defense, mobility, utility, influence, summon, command or crafting), tier (light, moderate, or heavy only at level 10
-or higher), reach (self, melee, extended, ranged or area), resource (stamina for physical techniques, mana for magic),
-context (combat, out_of_combat or both). For summon abilities include summons (name, description, kind, role).
-Effect buff is a combat-only boost to the caster for a few rounds (reach self). Some abilities may carry a rider or a shape,
-or be a buff - but only from the lists given in the request, and at most one trait per ability; leave the rest plain.
-For abilities usable outside combat (other than healing, crafting, summon) give field_use: one of the FUNCTIONS ON OFFER in the
-request, each used once (and none already used by an ability they know). If none fits, make it a combat ability.
-Never include numbers. Respond only with JSON matching the schema."""
+For every numbered lesson:
+- name: a short evocative title of 1 to 4 words. Every name unique, and different from what they already know. No numbers.
+- description: ONE sentence, no numbers. For an ability, depict the mechanic under "does" and follow "write it as"; add nothing it does not do
+  (no extra hits, area effect, healing, mount, companion or status). A single-blow ability is one strike or blast at one target.
+  An ability on the caster alone has no target. An outside-combat function shows in what the description does.
+  For a PASSIVE TRAIT describe what the character IS, KNOWS or HAS BECOME - never an action they take.
+- slot: the lesson's number, exactly as given.
+- summons: only for a summon ability. Describe its companion: name, one-sentence description, kind ({_list(CompanionKind)}),
+  role ({_list(CompanionRole)}).
+Respect the class and its habits (if the character avoids melee, never depict melee fighting). Grounded and practical for their level.
+Respond only with JSON matching the schema."""
 
 
-def learn_user(c, request: str, count: int, offers: str = "") -> str:
-    known = ", ".join(a.name for a in c.actives) or "none"
+def lesson_user(c, request: str, slot_text: str) -> str:
+    known = ", ".join([a.name for a in c.actives] + [p.name for p in c.passives]) or "none"
     return (f"CLASS: {c.custom_class} ({c.archetype.value})\nLEVEL: {c.level}\n"
             f"MAIN ATTRIBUTES: {', '.join(c.primary_attributes) or 'unspecified'}\n"
-            f"ABILITIES THEY KNOW: {known}\n"
-            f'THEY ASKED TO LEARN: "{request}"\n'
-            + (f"\n{offers}\n" if offers else "") + f"\nOffer exactly {count}.")
+            f"THEY ALREADY KNOW: {known}\n"
+            f'THEY ASKED TO LEARN: "{request}"\n\nTHE LESSONS (the engine has decided these - name and describe each):\n{slot_text}\n\n'
+            "Name and describe every lesson.")
+
+
+WANT_SYSTEM = """A player asked a guild instructor to teach them something. Say what they are after.
+kind: "active" for something they do on purpose (a spell, technique, move), "passive" for a lasting quality (a knack, instinct, resistance,
+being better at something), "either" if the request does not say.
+effect: for an active, the one that fits best - damage, control, defense, mobility, healing, buff, utility, influence, summon or crafting;
+empty if the request is open.
+stat: for a passive, the one it improves - accuracy, evasion, defense, damage, movement, resolve, recovery, perception, stealth, insight,
+persuasion, intimidation, deception, performance, lore, crafting - empty if none is named.
+Respond only with JSON matching the schema."""
+
+
+def want_user(c, request: str) -> str:
+    return f'CLASS: {c.custom_class}\nTHEY ASKED TO LEARN: "{request}"'
 
 
 def _field_functions() -> str:

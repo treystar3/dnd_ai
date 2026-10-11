@@ -11,3 +11,6 @@ NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles i
 LOG_MAX_MB = 5            # when logs/llm_calls.jsonl grows past this, it is trimmed
 LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
 LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part
+
+AUDIT_ENABLED = True       # a second opinion on risky action plans (several steps, money words, an unmatched verb...); costs two quick model calls on those turns only
+TURN_LOG_PATH = "logs/turns.jsonl"  # one line per turn: what was typed, what was read, what the audit changed

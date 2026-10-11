@@ -118,6 +118,21 @@ def show_actives(abilities, level: int = 1) -> None:
         print()
 
 
+def show_lessons(options, level: int = 1) -> None:
+    """Lessons on offer: abilities as their usual cards, passive traits as small ones marked ◇."""
+    from core.models import Passive
+    print(f"\n{RULE}\n LESSONS   ✦ special effect   ☼ outside combat   ◇ a lasting trait\n{RULE}")
+    for i, o in enumerate(options, 1):
+        if isinstance(o, Passive):
+            body = " " * 7
+            print(f"  {i:>2}.  ◇ {o.name}")
+            print(body + f"{o.tier.value} passive trait · {o.effect_text()}")
+            print("\n".join(textwrap.wrap(o.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)))
+        else:
+            print("\n".join(ability_lines(o, level, i)))
+        print()
+
+
 def show_passives(passives) -> None:
     print("\nPASSIVE TRAITS   (◆ = changes how something works)")
     for i, p in enumerate(passives, 1):
@@ -213,8 +228,6 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
         print(f"  {'◆ ' if p.mechanic else ''}{p.name} - {p.effect_text()}")
         print(textwrap.fill(p.description, WIDTH, initial_indent="      ", subsequent_indent="      "))
 
-    _section("ASPIRATION")
-    print(f"  {'; '.join(c.aspirations) if c.aspirations else 'none yet'}")
     print("═" * WIDTH)
 
 

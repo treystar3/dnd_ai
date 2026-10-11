@@ -666,7 +666,7 @@ class Bot:
                 if opts:
                     def val(i):
                         t = opts[i].tier
-                        return (opts[i].effect.value == "damage", TIER.get(t.value if hasattr(t, "value") else t, 1))
+                        return (getattr(getattr(opts[i], "effect", None), "value", "") == "damage", TIER.get(t.value if hasattr(t, "value") else t, 1))
                     best = max(range(len(opts)), key=val)
                     self.act({"kind": "learn_ability", "item": str(best + 1)}, "choose", "training")
         for skill in ("insight", "perception"):

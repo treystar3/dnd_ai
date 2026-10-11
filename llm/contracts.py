@@ -221,42 +221,51 @@ class SlotText(BaseModel):
     summons: CompanionProposal | None = None
 
 
+def _slot_text_problems(skills, ctx) -> list[str]:
+    """What is wrong with the model's names and descriptions for a set of planned slots (empty if nothing)."""
+    slots = ctx.get("slots")
+    if not slots:
+        return []
+    from engine import ability_slots as AS
+    by_n = {s["n"]: s for s in slots}
+    problems = []
+    seen = [x.slot for x in skills]
+    if sorted(seen) != sorted(by_n):
+        raise ValueError(f"give exactly one entry for each number 1 to {len(by_n)}, each with its own slot number")
+    for x in skills:
+        s = by_n[x.slot]
+        passive = s.get("type") == "passive"
+        word = "passive trait" if passive else "ability"
+        x.name, x.description = x.name.strip(), x.description.strip()
+        if not x.name or not x.description:
+            problems.append(f"{word} {x.slot} needs a name and a description")
+            continue
+        if x.name.lower().startswith("command:") or len(x.name) > 40:
+            problems.append(f"{word} {x.slot}: the name must be a short evocative title, not '{x.name}'")
+        if any(ch.isdigit() for ch in x.description):
+            problems.append(f"{word} {x.slot}: no numbers in the description")
+        if passive:
+            continue
+        if s["effect"] == "summon" and x.summons is None:
+            problems.append(f"ability {x.slot} is a summon: describe its companion in summons")
+        if ctx.get("strict", True):
+            why = AS.text_problem(s, x.name, x.description)
+            if why:
+                problems.append(why)
+    try:
+        _check_names(skills, ctx.get("reserved_names", []), "things they already know")
+    except ValueError as e:
+        problems.append(str(e))
+    return problems
+
+
 class SlotNames(BaseModel):
     """The model's part of slot-based creation: a name and a description for each of the 15 planned abilities."""
     skills: list[SlotText] = Field(min_length=15, max_length=15)
 
     @model_validator(mode="after")
     def composition(self, info: ValidationInfo):
-        ctx = _ctx(info)
-        slots = ctx.get("slots")
-        if not slots:
-            return self
-        from engine import ability_slots as AS
-        by_n = {s["n"]: s for s in slots}
-        problems = []
-        seen = [x.slot for x in self.skills]
-        if sorted(seen) != sorted(by_n):
-            raise ValueError(f"give exactly one entry for each ability number 1 to {len(by_n)}, each with its own slot number")
-        for x in self.skills:
-            s = by_n[x.slot]
-            x.name, x.description = x.name.strip(), x.description.strip()
-            if not x.name or not x.description:
-                problems.append(f"ability {x.slot} needs a name and a description")
-                continue
-            if x.name.lower().startswith("command:") or len(x.name) > 40:
-                problems.append(f"ability {x.slot}: the name must be a short evocative title, not '{x.name}'")
-            if any(ch.isdigit() for ch in x.description):
-                problems.append(f"ability {x.slot}: no numbers in the description")
-            if s["effect"] == "summon" and x.summons is None:
-                problems.append(f"ability {x.slot} is a summon: describe its companion in summons")
-            if ctx.get("strict", True):
-                why = AS.text_problem(s, x.name, x.description)
-                if why:
-                    problems.append(why)
-        try:
-            _check_names(self.skills, ctx.get("reserved_names", []))
-        except ValueError as e:
-            problems.append(str(e))
+        problems = _slot_text_problems(self.skills, _ctx(info))
         if problems:
             raise ValueError("; ".join(problems[:6]))
         return self
@@ -372,7 +381,7 @@ class ActionIntent(BaseModel):
     kind: Literal["move", "look", "search", "explore", "talk", "leave_conversation", "buy", "sell", "ability", "use", "drop",
                   "pick_up", "give", "show", "discard", "store", "retrieve", "equip", "forage", "craft", "commission",
                   "work", "harvest", "join_guild", "board", "accept_quest", "abandon_quest", "train", "learn_ability",
-                  "delve", "leave_dungeon", "wait", "attack", "release", "other"]
+                  "delve", "leave_dungeon", "wait", "attack", "release", "steal", "other"]
     destination: str = ""
     target: str = ""
     speech: str = ""
@@ -386,10 +395,32 @@ class ActionIntent(BaseModel):
 
 
 
+    force: bool = False         # they put hands on someone: grab, shove, pin, strike (not a fight; a fight is attack)
+
     wait_minutes: int = 0
     wait_until: Literal["", "before dawn", "dawn", "morning", "midday", "afternoon", "evening", "night", "deep night"] = ""
     summary: str = ""
 
+
+
+class ObjectVerdict(BaseModel):
+    """Whether a person or place plausibly holds something the player went looking for, and what exactly it is."""
+    plausible: bool
+    name: str = ""
+    description: str = ""
+    worth: Literal["trinket", "ordinary", "valuable", "priceless"] = "ordinary"
+    reason: str = ""
+
+
+class AuditMeaning(BaseModel):
+    """One plain sentence: what the player wants to do."""
+    meaning: str
+
+
+class AuditVerdict(BaseModel):
+    """Whether a described plan does what the player meant."""
+    matches: bool
+    reason: str = ""
 
 
 class CampIntent(BaseModel):
@@ -653,25 +684,23 @@ class StatPassiveSet(BaseModel):
         return self
 
 
-class LearnSet(BaseModel):
-    """A few abilities an instructor offers to teach."""
-    skills: list[ActiveProposal]
+class LessonWant(BaseModel):
+    """What a player's request for a lesson is after, read by a small model call (the engine has a word list as a fallback)."""
+    kind: Literal["active", "passive", "either"] = "either"
+    effect: str = ""            # damage, control, defense, mobility, healing, buff, utility, influence, summon or crafting
+    stat: str = ""              # a passive stat the request names (stealth, perception, ...)
+
+
+class LessonNames(BaseModel):
+    """The model's part of a lesson: a name and a description for each planned lesson (ability or passive trait)."""
+    skills: list[SlotText] = Field(min_length=1, max_length=6)
 
     @model_validator(mode="after")
-    def valid(self, info: ValidationInfo):
-        ctx = _ctx(info)
-        need = ctx.get("count", 3)
-        if len(self.skills) != need:
-            raise ValueError(f"offer exactly {need} abilities, not {len(self.skills)}")
-        _check_names(self.skills, ctx.get("reserved_names", []), "abilities they already know")
-        from engine import ability_traits as _T
-        _T.repair_buffs(self.skills, (ctx.get("offers") or {}).get("buffs"))
-        functions = ctx.get("functions")
-        if functions is not None:
-            from engine import field
-            field.repair(self.skills, functions)
+    def composition(self, info: ValidationInfo):
+        problems = _slot_text_problems(self.skills, _ctx(info))
+        if problems:
+            raise ValueError("; ".join(problems[:6]))
         return self
-
 
 
 # ---------- the pulse: the world moving on its own ----------

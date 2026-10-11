@@ -14,7 +14,9 @@ tutoring:
   cap: 20               # most a skill can be raised by tutoring
   skills: [insight, persuasion, intimidation, deception, stealth, perception, lore, performance]
 
-# Learning a new ability: the instructor offers a few that fit what you asked for and your class; you pick one.
+# Learning something new: the instructor offers a few lessons (abilities and passive traits) that lean toward what you asked for,
+# plus one wildcard; you pick one. The engine plans every lesson (data below); the model only names and describes them.
+# Abilities and passives each have their own room: a character begins with `starting` of each and gains one more every `levels_per_new` levels.
 abilities:
   base_fee: 300
   fee_per_level: 60
@@ -22,3 +24,65 @@ abilities:
   options: 3
   starting: 2           # abilities a character begins with
   levels_per_new: 3     # one more learnable ability every this many levels
+
+# Passive traits are taught the same way, at the same price and time (these mirror the abilities above; change them separately if needed).
+passives:
+  base_fee: 300
+  fee_per_level: 60
+  hours: 4
+  starting: 2
+  levels_per_new: 3
+
+lessons:
+  biased: 2             # lessons that lean toward the request; the rest of the options are wildcards
+  wildcard_passive: 0.5 # when the request was for an ability, the chance the wildcard is a passive trait instead
+  moderate_level: 4     # below this, lessons are light
+  moderate_chance: 0.45
+  heavy_level: 10       # heavy attacks are only taught from here
+  heavy_chance: 0.25
+  shape_chance: 0.35    # a damage lesson carries a shape, a rider, or neither
+  rider_chance: 0.5
+  wildcard_effects: {damage: 3, control: 2, defense: 2, mobility: 2, healing: 1.5, buff: 1.5, utility: 2, influence: 1, summon: 1}
+  # conditions any class may be taught; the narrow ones (a biome, a foe type, weather) only if they suit the class
+  common_triggers: [always, after_moving, when_attacked, while_defending, at_low_health, first_round_of_combat, after_defeating_foe, in_conversation, while_performing, out_of_combat, in_settlements, in_wilderness, with_companion_present, in_daylight, at_night]
+  # passive traits that suit each kind of ability, for a request that names no stat
+  effect_stats:
+    damage: [damage, accuracy]
+    control: [accuracy, resolve]
+    defense: [defense, evasion, resolve]
+    mobility: [movement, evasion]
+    healing: [recovery, max_health]
+    buff: [resolve, damage]
+    utility: [perception, stealth, lore]
+    influence: [persuasion, intimidation, deception, insight]
+    summon: [companion_damage, companion_durability]
+    crafting: [crafting, lore]
+  # words that read a request when the model cannot
+  effect_words:
+    damage: [attack, strike, blast, hit, damage, fireball, fire, kill, slash, shoot, smite, bolt, lightning, stab]
+    healing: [heal, mend, cure, restore, bandage, recover]
+    control: [stun, slow, bind, root, trap, pin, hinder, blind, freeze, daze]
+    defense: [shield, block, guard, ward, parry, defend, deflect, protect]
+    mobility: [dash, leap, teleport, blink, flee, step, speed, sprint, escape]
+    buff: [empower, strengthen, rally, enrage, focus, harden]
+    utility: [sneak, hide, lock, scout, track, find, forage, camp, lift, steal]
+    influence: [charm, persuade, intimidate, convince, bluff, haggle, talk]
+    summon: [summon, conjure, companion, familiar]
+    crafting: [craft, forge, brew, repair]
+  passive_words: [passive, trait, talent, knack, instinct, resist, better at, good at, improve, sharper, tougher]
+  active_words: [spell, technique, move, ability, attack, cast, skill to, power]
+  stat_words:
+    stealth: [sneak, stealth, shadow, hide, quiet]
+    perception: [spot, notice, perceive, watchful, alert, keen]
+    persuasion: [haggle, persuade, charm]
+    intimidation: [intimidate, menace, threaten]
+    deception: [lie, bluff, deceive]
+    insight: [read people, sense motive, insight]
+    lore: [lore, knowledge, history, study]
+    evasion: [dodge, evade]
+    defense: [tough, armor, resilient]
+    damage: [hit harder, stronger blows]
+    accuracy: [aim, accurate]
+    movement: [faster, swift, quick]
+    recovery: [recover, regenerate]
+    resolve: [willpower, resolve, nerve]

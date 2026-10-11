@@ -83,6 +83,38 @@ def _generate_actives_single(interp: ClassInterpretation, minimum: int, offers: 
     return _finish_actives(interp, result)
 
 
+class PassivesInBackground:
+    """Passives only need the NAMES of the fifteen actives, so they are written while the player reads and picks abilities.
+    result() waits for them (with a short note if they are not ready) and tries once more, blocking, if the background attempt failed."""
+
+    def __init__(self, interp: ClassInterpretation, actives: list[Ability]):
+        import threading
+        self.interp, self.actives = interp, actives
+        self.value: list[Passive] | None = None
+        self.error: Exception | None = None
+        self.done = threading.Event()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _run(self) -> None:
+        try:
+            self.value = generate_passives(self.interp, self.actives)
+        except Exception as e:                     # reported by result(), which retries
+            self.error = e
+        finally:
+            self.done.set()
+
+    @property
+    def ready(self) -> bool:
+        return self.done.is_set()
+
+    def result(self) -> list[Passive]:
+        self.done.wait()
+        if self.value is not None:
+            return self.value
+        return generate_passives(self.interp, self.actives)
+
+
 MECHANIC_PICKS = 8
 STAT_PICKS = 7
 

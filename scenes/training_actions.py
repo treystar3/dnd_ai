@@ -4,11 +4,11 @@ from pathlib import Path
 
 import yaml
 
+from core.models import Passive
 from engine import clock, leveling, money
-from engine.abilities import materialize_active
-from llm import prompts
-from llm.contracts import LearnSet
-from llm.gateway import LLMError, generate
+from engine import lessons
+from llm.gateway import LLMError
+from scenes import lesson_ask
 from npc.models import Memory
 from ui import console
 
@@ -56,7 +56,7 @@ class TrainingActions:
             self.drill(teacher, text)
         elif self.asks_what(words):
             self.show_training()
-        elif any(w in words for w in ("learn", "teach", "ability", "spell", "technique", "move", "magic")):
+        elif any(w in words for w in ("learn", "teach", "ability", "spell", "technique", "move", "magic", "trait", "passive", "talent", "knack", "instinct")):
             self.offer_abilities(teacher, intent.item or text)
         else:
             self.show_training()
@@ -75,8 +75,9 @@ class TrainingActions:
         console.note(f"  drills - {money.words(self.fee(d['fee_per_level'] * c.level))}, {d['hours']} hours, once a day")
         console.note(f"  tutoring in {', '.join(t['skills'])} - from {money.words(self.fee(t['base_fee']))}, "
                      f"{t['hours']} hours, +{t['bonus']}% each time up to +{t['cap']}%")
-        console.note(f"  a new ability - {money.words(self.fee(a['base_fee'] + a['fee_per_level'] * c.level))}, "
-                     f"{a['hours']} hours (you know {len(c.actives)} of {self.ability_slots()} you can hold)")
+        console.note(f"  a new ability or passive trait - {money.words(self.fee(a['base_fee'] + a['fee_per_level'] * c.level))}, "
+                     f"{a['hours']} hours (you know {len(c.actives)} of {self.ability_slots()} abilities you can hold, "
+                     f"{len(c.passives)} of {self.passive_slots()} traits)")
 
     def drill(self, teacher, text: str) -> None:
         c, d = self.player.character, T["drills"]
@@ -121,37 +122,41 @@ class TrainingActions:
         self.narrate(f"The player spends {t['hours']} hours learning {skill} from {teacher.label()} - practice, "
                      "correction, and the knack of it starting to settle in.", text)
 
+    def passive_slots(self) -> int:
+        p = T["passives"]
+        return p["starting"] + self.player.character.level // p["levels_per_new"]
+
+    def lesson_fee(self, passive: bool) -> int:
+        c = self.player.character
+        a = T["passives" if passive else "abilities"]
+        discount = 0 if passive else self.mech("spell_scholar")
+        return self.fee((a["base_fee"] + a["fee_per_level"] * c.level) * (1 - discount / 100))
+
     def offer_abilities(self, teacher, request: str) -> None:
-        c, a = self.player.character, T["abilities"]
-        if len(c.actives) >= self.ability_slots():
-            nxt = (len(c.actives) - a["starting"] + 1) * a["levels_per_new"]
-            console.note(f"You can't take on another ability yet - you'll have room for one more at level {nxt}.")
+        """The instructor offers a few lessons - abilities and passive traits - leaning toward the request, plus a wildcard."""
+        c, a, p = self.player.character, T["abilities"], T["passives"]
+        can_a, can_p = len(c.actives) < self.ability_slots(), len(c.passives) < self.passive_slots()
+        if not (can_a or can_p):
+            nxt = min((len(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
+            console.note(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
             self.halted = True
             return
         console.wait(f"{teacher.label().capitalize()} considers what to teach you.")
+        want = lesson_ask.read_request(c, request)
+        slots = lessons.plan(c, want, can_active=can_a, can_passive=can_p)
         try:
-            from types import SimpleNamespace
-            from engine import ability_traits as AT
-            have = {x for x in ([ab.rider for ab in c.actives] + [ab.shape for ab in c.actives]) if x}
-            seen = SimpleNamespace(custom_class=c.custom_class, combat_identity="", summary=getattr(c, "class_summary", ""),
-                                   themes=[], families=[], archetype=c.archetype)
-            from engine import field as _field
-            owned_fn = {ab.field_use for ab in c.actives if ab.field_use}
-            offers = AT.draw_offers(seen, sizes={"riders": 3, "shapes": 2, "buffs": 1, "functions": _field.F["offer"]["lesson"]},
-                                    skip=have, owned_functions=owned_fn)
-            result = generate("learn_abilities", prompts.LEARN_SYSTEM, prompts.learn_user(c, request, a["options"], AT.offer_lines(offers)),
-                              LearnSet, max_tokens=1500,
-                              validation_context={"count": a["options"], "reserved_names": [x.name for x in c.actives],
-                                                "functions": offers["functions"]})
-        except LLMError:
+            options = lesson_ask.write(c, request, slots)
+        except (LLMError, ValueError, KeyError):
             console.note("The instructor can't settle on what to teach you right now. Ask again in a moment.")
             self.halted = True
             return
-        self.learn_options = [materialize_active(p) for p in result.skills]
+        self.learn_options = options
         self.learn_request = request
-        fee = self.fee((a["base_fee"] + a["fee_per_level"] * c.level) * (1 - self.mech("spell_scholar") / 100))
-        console.show_actives(self.learn_options, c.level)
-        console.note(f"Learning one costs {money.words(fee)} and {a['hours']} hours. Say which you'll learn.")
+        console.show_lessons(options, c.level)
+        fees = sorted({self.lesson_fee(isinstance(o, Passive)) for o in options})
+        hours = a["hours"] if len({a["hours"], p["hours"]}) == 1 else f"{a['hours']}-{p['hours']}"
+        price = money.words(fees[0]) if len(fees) == 1 else f"{money.words(fees[0])} to {money.words(fees[-1])}"
+        console.note(f"Learning one costs {price} and {hours} hours. Say which you'll learn.")
 
     def on_learn_ability(self, intent, text: str) -> None:
         options = getattr(self, "learn_options", None)
@@ -169,22 +174,29 @@ class TrainingActions:
             console.note("Which one? Say its number or name.")
             self.halted = True
             return
-        c, a = self.player.character, T["abilities"]
-        fee = self.fee((a["base_fee"] + a["fee_per_level"] * c.level) * (1 - self.mech("spell_scholar") / 100))
+        c = self.player.character
+        passive = isinstance(pick, Passive)
+        a = T["passives" if passive else "abilities"]
+        if (len(c.passives) >= self.passive_slots()) if passive else (len(c.actives) >= self.ability_slots()):
+            console.note(f"You have no room for another {'trait' if passive else 'ability'} yet.")
+            self.halted = True
+            return
+        fee = self.lesson_fee(passive)
         if not self.pay_for_training(fee, f"learning {pick.name}"):
             return
-        if pick.resource.value == "mana":
+        if not passive and pick.resource.value == "mana":
             req = (self.learn_request or "").lower() + " " + pick.description.lower()
             pick.attribute = next((attr for attr, ws in DISCIPLINE_WORDS.items() if any(w in req for w in ws)),
                                   c.casting_attribute or "intelligence")
-        self.advance(a["hours"] * 60 // (2 if self.owns("spell_scholar") else 1))
-        c.actives.append(pick)
+        self.advance(a["hours"] * 60 // (2 if (not passive and self.owns("spell_scholar")) else 1))
+        (c.passives if passive else c.actives).append(pick)
         self.learn_options = None
         teacher.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
                                        text=f"Taught the stranger {pick.name}."))
         self.store.save_npc(teacher)
         self.store.save_player(self.player)
-        uses = f" (uses {pick.attribute})" if pick.attribute else ""
+        uses = f" (uses {pick.attribute})" if not passive and pick.attribute else ""
         console.note(f"Learned {pick.name}{uses}. Paid {money.fmt(fee)}.")
-        self.narrate(f"The player spends {a['hours']} hours learning {pick.name} from {teacher.label()}: "
-                     f"{pick.description}", text)
+        what = "the trait" if passive else ""
+        self.narrate(f"The player spends {a['hours']} hours learning {what} {pick.name} from {teacher.label()}: "
+                     f"{pick.description}".replace("  ", " "), text)

@@ -49,7 +49,7 @@ kind:
   confirm  - they agree or accept what was offered
   decline  - they reject it, want something changed, or want nothing (for optional steps)
   other    - anything else
-text: for name, concept and aspiration steps, their answer in their own words. For decline, what they want changed, if they said.
+text: for name and concept steps, their answer in their own words. For decline, what they want changed, if they said.
   For a name, only the name itself.
 picks: for choosing steps, the option numbers they chose. Match option names to numbers if they used names.
 stats: only if they gave an exact number for every attribute.

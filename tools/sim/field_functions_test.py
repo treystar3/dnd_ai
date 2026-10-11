@@ -10,7 +10,7 @@ uc.note = lambda m, *a, **k: NOTES.append(str(m))
 from core.models import Companion
 from engine import field, dungeons, inventory as inv, checks, combat, abilities
 from engine import ability_traits as AT
-from llm.contracts import ActionIntent, ActiveProposal, LearnSet
+from llm.contracts import ActionIntent, ActiveProposal
 from npc.traits import load_traits
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
@@ -56,9 +56,6 @@ fns = [s.field_use for s in skills]
 check("repair keeps one per function", fns.count("scout") == 1 and fns[0] == "scout")
 check("repair drops functions not on offer", skills[3].field_use != "shadow")
 check("repair gives unused offered functions", all(f in ("", "scout", "barter", "pickpocket") for f in fns), fns)
-learn = LearnSet.model_validate({"skills": [s.model_dump() for s in [prop("X", "scout"), prop("Y", "scout"), prop("Z", "barter")]]},
-                                context={"count": 3, "reserved_names": [], "functions": ["scout", "barter"]})
-check("lesson abilities obey the offer", [s.field_use for s in learn.skills].count("scout") == 1)
 
 
 # ---------- the full ability set must obey the offer ----------

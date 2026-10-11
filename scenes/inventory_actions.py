@@ -277,6 +277,8 @@ class InventoryActions:
         if paid:
             c.coins -= amount
             npc.memories.append(Memory(day=day, turn=turn, text=f"Took {sum_} from the stranger as a bribe ({favor}). I was persuaded."))
+            from engine import law
+            npc.looks_away_until = self.minutes + law.N["look_away_minutes"]
             self.reputation_change("gift")
             console.note(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
             effect = f"You are persuaded and take the {sum_}. You will do what they ask in the story, quietly."
@@ -598,7 +600,7 @@ class InventoryActions:
         out = []
         from engine import pulse
         haggle = max(0, 1 - (crafting.mechanic(self.player.character, "haggler") + self.guild_perks()["shop_discount"] + self.barter_pct()) / 100) \
-            * pulse.price_factor(self.store, self.world, self.player.location, self.minutes)
+            * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price()
         for n in self.present:
             if self.world.roles[n.role].stock:
                 self.ensure_stock(n)
