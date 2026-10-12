@@ -45,6 +45,8 @@ class PlaceState(BaseModel):
     board: list[dict] = []         # guild contracts posted here
     extra_roles: dict[str, int] = {}  # people the world has brought here (arrivals), generated on the next visit
     hidden: list[dict] = []        # story objects the player went looking for here: {"name", "description", "worth", "taken"}
+    locks: list[dict] = []         # locked rooms and containers here: {"id", "name", "quality", "owner", "state", "jam", "change_day"}
+    bodies: list[dict] = []        # the fallen here, for Speak with a Corpse: {"creature", "name", "level", "category", "minute", "carried", "asked"}
     board_day: int = -1
 
 
@@ -74,6 +76,9 @@ class PlayerState(BaseModel):
     mount: str = ""                # id of the mount ridden, if any
     field: dict = {}               # field-ability state (scenes/field_actions.py): cd, camp, haste, edge, shadow, scouted, lit, shows
     heat: dict[str, dict] = {}     # how wanted you are, by town id: {"heat", "day"} (engine/law.py)
+    standing: dict[str, dict] = {}   # how the groups of each town regard you, hidden: town -> group -> [value, day] (engine/standing.py)
+    orenna: dict = {}                    # progress of the quest Orenna (engine/orenna.py)
+    standing_seen: dict[str, dict] = {}  # deed news already felt in far towns: news id -> town -> {group: change}
     confronted: dict[str, int] = {}  # town id -> the last day guards stopped you there
     road: dict | None = None       # stopped on the road: {"id", "from", "to", "place", "log", "text", "resume"}
 
@@ -174,6 +179,7 @@ class CampaignStore:
 
     def save_player(self, player: PlayerState) -> None:
         _write_atomic(self.root / "player.json", player.model_dump_json(indent=2))
+        self.save_meta()            # the clock and turn count live beside the player; saving one without the other lost the time on reload
 
     def legendary_names(self) -> list[str]:
         path = self.root / "legendaries.json"
@@ -188,6 +194,21 @@ class CampaignStore:
             path.unlink(missing_ok=True)
         else:
             _write_atomic(path, combat_json)
+
+    def save_story(self, recent: list[str], shown: dict) -> None:
+        _write_atomic(self.root / "story.json", json.dumps({"recent": recent, "shown": shown}))
+
+    def load_story(self) -> tuple[list[str], dict]:
+        path = self.root / "story.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+            recent = [t for t in data.get("recent", []) if isinstance(t, str)]
+            shown = data.get("shown", {})
+            if isinstance(shown, str):
+                shown = {"type": "narration", "text": shown}
+            return recent, shown if isinstance(shown, dict) else {}
+        except (OSError, ValueError, AttributeError):
+            return [], {}
 
     def load_combat(self) -> str | None:
         path = self.root / "combat.json"

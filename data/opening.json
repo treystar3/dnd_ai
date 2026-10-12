@@ -1,7 +1,42 @@
 [
-  {"who": "scene", "text": "Darkness. Then, slowly, a soft and sourceless light."},
-  {"who": "scene", "text": "You are dead. You know it the way you know your own name: without being told, and without being able to say how. There is no pain, only a vast quiet with no walls in it, and the sense that you are no longer alone."},
-  {"who": "goddess", "text": "Easy. There is no hurry here. You have died, and I am sorry for it, because it was not your time."},
-  {"who": "goddess", "text": "That is rare, and it is why you are still here. The living world is still open to you. I cannot give you a destiny, but I can give you a beginning, a second life."},
-  {"who": "goddess", "text": "I will ask who you wish to become, and what gifts you wish to carry back. Then I will send you home, and most of this place will fade from you. First: what is your name?"}
+  {
+    "who": "scene",
+    "text": "Darkness. Then, slowly, a soft and sourceless light."
+  },
+  {
+    "who": "scene",
+    "text": "You are dead. You know it the way you know your own name: without being told, and without being able to say how. There is no pain, only a vast quiet with no walls in it, and the sense that you are no longer alone."
+  },
+  {
+    "who": "goddess",
+    "text": "Oh? You can see me?\nMy child, that's never happened before. Countless souls pass through here every day, flowing around me like a cold river around a stone. I feel them pass, but nothing more. Just the chill they leave behind.\nBut you…"
+  },
+  {
+    "who": "scene",
+    "text": "She pauses, as though only now daring to believe what she feels."
+  },
+  {
+    "who": "goddess",
+    "text": "You're still warm."
+  },
+  {
+    "who": "scene",
+    "text": "Something moves in the light, a hand perhaps, reaching and not quite daring to touch."
+  },
+  {
+    "who": "goddess",
+    "text": "It wasn't your time. I felt it the moment you came, a life cut short and still reaching. Your body hasn't gone cold. There is still a way back, if I'm quick."
+  },
+  {
+    "who": "goddess",
+    "text": "And you must take it. There are things stirring in the world that no one is watching for, and the ones who should answer have stopped listening. I can't follow you there. But I can send you with something to meet it."
+  },
+  {
+    "who": "scene",
+    "text": "The light steadies around her voice, as though she has remembered what she is."
+  },
+  {
+    "who": "goddess",
+    "text": "I am Orenna. Now, quickly, my child, before you too go cold... what is your name?"
+  }
 ]

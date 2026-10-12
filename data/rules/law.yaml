@@ -30,7 +30,7 @@ notice:
 
 # Heat: how wanted you are in a town, 0-100.
 heat:
-  gain: {theft: 10, story_theft: 15, assault: 20, run: 10, valuable_bonus: 5}
+  gain: {theft: 10, story_theft: 15, assault: 20, run: 10, valuable_bonus: 5, break_in: 10}
   valuable_over: 10000             # items worth more than this (1 gold) add the bonus
   passerby_share: 0.5              # if only passers-by noticed (not the victim or a guard) the gain is this share
   decay_per_day: 4
@@ -45,6 +45,17 @@ heat:
   jail_fine_share: 0.5
   guard_roles: [guard, watch_captain, royal_guard]
 
+# LOCKS - opening a lock is rolled on the same bar as a theft. The lock adds its quality to the bar (percent of W, set by what it guards),
+# a jam adds more after each failed try, and a picklock ability adds to your score by its tier. A key opens its own lock with no roll.
+lock:
+  quality_by_worth: {trinket: 5, ordinary: 15, valuable: 35, priceless: 60}   # percent of W
+  jam_step: 10                     # added to the bar (percent of W) after each failure
+  jam_cap: 30
+  picklock_bonus: {light: 10, moderate: 20, heavy: 30}   # percent of W added to your score by a picklock ability
+  minutes: {strong success: 3, success: 8, partial: 20, failure: 15, key: 1}
+  key_change_days: 2               # a key taken unseen stops fitting after this many days (at once if it was seen)
+  max_per_place: 3
+
 # When someone you rough up fights back instead of backing down.
 fight_back:
   base: 15
@@ -55,4 +66,5 @@ fight_back:
 # Words that make the audit gate look twice: a theft or an act of force that the plan does not show.
 words:
   steal: [steal, pickpocket, pilfer, filch, swipe, snatch, lift, nick, purloin, burgle, rob]
+  unlock: [unlock, picklock, lockpick, jimmy, pry, "break in"]
   force: [grab, shove, seize, collar, slam, pin, choke, throttle, strangle, rough, punch, slap, drag]

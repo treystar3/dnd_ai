@@ -40,6 +40,7 @@ lessons:
   moderate_chance: 0.45
   heavy_level: 10       # heavy attacks are only taught from here
   heavy_chance: 0.25
+  fight_function_chance: 0.4  # a control lesson may be a fighting function (bind a beast) when one is on offer
   shape_chance: 0.35    # a damage lesson carries a shape, a rider, or neither
   rider_chance: 0.5
   wildcard_effects: {damage: 3, control: 2, defense: 2, mobility: 2, healing: 1.5, buff: 1.5, utility: 2, influence: 1, summon: 1}
@@ -61,7 +62,7 @@ lessons:
   effect_words:
     damage: [attack, strike, blast, hit, damage, fireball, fire, kill, slash, shoot, smite, bolt, lightning, stab]
     healing: [heal, mend, cure, restore, bandage, recover]
-    control: [stun, slow, bind, root, trap, pin, hinder, blind, freeze, daze]
+    control: [stun, slow, bind, root, trap, pin, hinder, blind, freeze, daze, tame, leash]
     defense: [shield, block, guard, ward, parry, defend, deflect, protect]
     mobility: [dash, leap, teleport, blink, flee, step, speed, sprint, escape]
     buff: [empower, strengthen, rally, enrage, focus, harden]

@@ -109,7 +109,6 @@ class Ability(BaseModel):
     resource: Resource
     context: UseContext
     tags: list[str] = []
-    potency: int
     cost: int
     cooldown: int
     companion: CompanionTemplate | None = None
@@ -193,6 +192,7 @@ class KeyItem(BaseModel):
     source: str = ""                           # who gave it, or where it came from
     day: int = 0
     for_whom: str = ""                         # quest items: who it is meant to reach
+    opens: str = ""                            # a key: the id of the lock it opens (see engine/locks.py)
 
 
 class Companion(BaseModel):
@@ -248,11 +248,12 @@ class Character(BaseModel):
     inventory: list[Item] = []
     key_items: list[KeyItem] = []
     item_history: list[str] = []               # key and quest items delivered or let go, for the journal
-    crafting_skill: float = 0                  # 0-100, grows with practice
+    crafting_skill: float = 0                  # no upper bound, grows with practice (slowly once high)
     trained: dict[str, int] = {}               # lasting check bonuses from tutoring, by check
     last_drill_day: int = -1
     patron_gift_day: int = -100
     whisper_day: int = -1                      # patron's whisper: the day it was last used
+    orenna_breath: bool = False                # the blessing of Orenna's Last Breath, unspent (see data/world/orenna.yaml)
     phoenix_day: int = -10000                  # the day a Phoenix item last brought the wearer back from a killing blow
     companions: list[Companion] = []
     allocation_log: list[AllocationRecord] = []
@@ -260,9 +261,3 @@ class Character(BaseModel):
     location: str = "unknown"
     aspirations: list[str] = []
 
-
-class GameState(BaseModel):
-    day: int = 1
-    turn: int = 0
-    pulse_meter: float = 0.0
-    player: Character | None = None

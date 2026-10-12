@@ -74,7 +74,9 @@ Your reply:
     No narration inside speech.
   gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
   intent: what you are doing with this reply. Use leave only if you actually walk away or flatly refuse to keep
-    talking. Finishing a topic is not leaving, and you never leave in a reply that asks them a question.
+    talking, and then your speech must itself say so aloud - a goodbye, an excuse, or a flat dismissal ("I've work to do. Good day.").
+    Nobody walks off in silence. Answering a question and finishing the topic is not leaving: if your speech holds no goodbye or
+    refusal, the intent is not leave. You never leave in a reply that asks them a question.
   reveals: ids of facts from WHAT YOU KNOW that your speech actually conveys truthfully. Empty if none.
   trust_change: how this exchange changed your trust in them, from -5 to 5. Ordinary conversation is 0, even for a
     wary person - their manner shows in how they speak, not in trust. Change it only when something happens that
@@ -83,6 +85,9 @@ Your reply:
   learned_player_name: the name they told you in this message, if they told you one. Otherwise empty.
   remember: one short line worth remembering about them from this exchange, written about "the stranger" or their name.
     Leave empty for trivial small talk. If you lied, say what you lied about.
+  journal_note: leave empty unless a line "JOURNAL NOTE DUE" appears in your context; then write one plain sentence, under 28
+    words, that the stranger would jot in their journal about you - who you are and what they have learned of you, in the third
+    person, as of now.
   gives: only if your speech hands them an object right now. Only tokens, documents and keys that are plausibly yours
     to give: a pendant, badge, seal, letter, map, ledger, key, note, ring of passage. Never weapons, armor, potions,
     coins or anything of real worth - those are not yours to conjure. name is short ("dragoon pendant"); description

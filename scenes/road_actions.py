@@ -2,7 +2,6 @@
 Big events (the rare tier) stop the player on the road; small ones happen and the walk goes on. Fights always stop it,
 and afterwards a small one carries on to the destination by itself."""
 
-import random
 
 from engine import checks, clock, encounters, inventory as inv, loot, money, pools, pulse, roads, weather
 from engine.road_prompts import SYSTEM, user

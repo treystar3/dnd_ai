@@ -15,6 +15,7 @@ functions:
     words: [see, watch, eye, hawk, scout, sight, vision, lookout, seer, sense]
   shelter:
     label: shelter
+    min_level: 5
     blurb: make a safe camp - you can rest undisturbed here, even deep in a dungeon, and wake fully restored
     fits: [druid, ranger, guardian, healer, artisan]
     words: [camp, shelter, hearth, ward, refuge, haven, fortress, home, tent]
@@ -30,6 +31,7 @@ functions:
     words: [charm, persuade, voice, diplomat, noble, silver, court, envoy, smooth]
   shadow:
     label: shadow
+    taught_only: true
     blurb: slip past - avoid the next fight in a dungeon or the next wild encounter, and move unseen in town
     fits: [rogue, ranger, warlock, necromancer, monk]
     words: [shadow, stealth, sneak, veil, night, ghost, hidden, silent, cloak, assassin]
@@ -45,6 +47,7 @@ functions:
     words: [song, perform, music, dance, story, tale, jest, juggl, stage, minstrel, entertain]
   trapfinder:
     label: trapfinder
+    min_level: 5
     blurb: sense hidden traps - the next trap below is found and disarmed for good
     fits: [rogue, ranger, artisan]
     words: [trap, delver, tomb, trick, lock, mechanism, burglar, treasure, tinker, scoundrel]
@@ -75,11 +78,13 @@ functions:
     words: [fear, menace, terror, dread, brute, glare, bully, enforcer, scar, savage, mercenary]
   pickpocket:
     label: pickpocket
+    taught_only: true
     blurb: lift a purse - take coin from someone nearby; get caught and they will not forget it
     fits: [rogue, bard]
     words: [thief, pick, cutpurse, pilfer, steal, nimble, fingers, urchin, burglar, scoundrel]
   commune:
-    label: commune
+    label: commune with spirits
+    min_level: 5
     blurb: ask the land, the dead or the gods what stirs - you learn of troubles brewing nearby
     fits: [druid, healer, paladin, necromancer, warlock, monk]
     words: [spirit, ancestor, divine, oracle, seer, prayer, ghost, shaman, priest, medium, omen]
@@ -95,17 +100,20 @@ functions:
     words: [medic, heal, bandage, herb, surgeon, nurse, field, remedy, cure, mend]
   bless:
     label: bless
+    min_level: 5
     blurb: call down favor - every check you make for the next few hours is a little more likely to go your way
     fits: [paladin, healer, leader, monk, druid]
     words: [bless, blessing, prayer, faith, holy, divine, grace, luck, oath, saint, favor]
   summon_labor:
     label: summon labor
+    taught_only: true
     blurb: call a servant to carry your things - for a short while you can reach your item box from wherever you are
     fits: [summoner, necromancer, mage, artisan]
     words: [servant, minion, thrall, familiar, spirit, golem, porter, hands, conjure, retinue]
   picklock:
     label: picklock
-    blurb: work a lock - the next locked cache below opens, and holds more than an ordinary one
+    taught_only: true
+    blurb: work a lock - the next locked cache below opens, and holds more than an ordinary one; it also gives you a strong edge on any lock you pick
     fits: [rogue, artisan, bard]
     words: [lock, pick, thief, burglar, key, safe, vault, rogue, scoundrel, tumbler]
   size_up:
@@ -115,25 +123,45 @@ functions:
     words: [veteran, soldier, duelist, tactician, captain, hunter, judge, fighter, mercenary, knight]
   revivify:
     label: revivify
+    taught_only: true
     blurb: bring a companion back - one that has fallen or died is on its feet again at once
     fits: [healer, paladin, necromancer, druid, summoner]
     words: [revive, resurrect, raise, life, soul, spirit, necro, cleric, breath, phoenix]
     needs: companions
   snare:
     label: snare
+    min_level: 5
     blurb: lay a trap - the next creature you fight here starts the fight already hurt
     fits: [ranger, rogue, druid, artisan]
     words: [trap, snare, hunter, trapper, ambush, wire, pit, poacher, woodsman, bait]
   word_of_recall:
     label: word of recall
+    taught_only: true
     blurb: speak the word - you stand in the last town you left, in a moment, from anywhere out of combat
     fits: [mage, warlock, monk, paladin]
     words: [teleport, portal, recall, gate, home, planar, waystone, warp, return, arcane]
   phantom_steed:
     label: phantom steed
+    taught_only: true
     blurb: call a spectral mount - a steed that cannot die answers you wherever you stand, and carries you faster than a horse
     fits: [paladin, ranger, mage, warrior, leader]
     words: [steed, horse, rider, cavalry, mount, knight, charger, phantom, spectral, dragoon]
+  bind_beast:
+    label: bind a beast
+    blurb: bind a beast - in a fight, try to bind a wild creature to you for good; much harder if it is unhurt, and only once a day
+    fits: [druid, ranger, summoner]
+    words: [bind, tame, beast, wild, leash, bond, shepherd, hunter, creature, familiar]
+    taught_only: true
+    in_combat: true
+  speak_corpse:
+    label: speak with a corpse
+    blurb: speak with a corpse - question a fallen creature or person here about how it died and what it carried; the older the body, the less it remembers
+    fits: [necromancer, healer, warlock, monk]
+    words: [corpse, dead, grave, death, bone, wraith, cadaver, mortician, gravedigger, ghost]
+    taught_only: true
+
+# Flags on a function: taught_only (never drawn for a new character, only offered by an instructor), min_level (not offered, at
+# creation or in a lesson, before this level), in_combat (used in a fight, not outside one).
 
 # How many functions a new character is offered (a random count in this range, never fewer than the abilities they must
 # have outside combat), and how many an instructor's lesson offers. Each ability takes a different one.
@@ -164,7 +192,7 @@ showmanship:
 
 # ---- the newer functions: every number by tier ----
 # A function can also set a floor on its cooldown (min_cooldown, game minutes) so a light ability cannot repeat it too fast.
-min_cooldown: {word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60}
+min_cooldown: {word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60, bind_beast: 1440, speak_corpse: 30}
 
 trapfinder:
   minutes: 5
@@ -195,6 +223,13 @@ pickpocket:
   strong_share: 1.5
   trust_loss: {failure: 15, partial: 5}
   reputation_loss: 2          # in the town, when caught (failure)
+
+speak_corpse:
+  minutes: 15
+  fresh_days: 1               # a body this young answers everything
+  stale_days: 3               # then only what it was and how it fell; past this, only what it was
+  keep_days: 6                # a body is forgotten after this long
+  max_bodies: 12              # per place
 
 commune:
   minutes: 20

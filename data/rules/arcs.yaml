@@ -23,6 +23,9 @@ reveal_at: {chain: 2, arc: 2}
 # The whole story must be finished within this many days, or the world moves on without you.
 # Arcs have no time limit. effect_days is how long a revealed story's mark on the world lasts.
 effect_days: {simple: 14, chain: 30, arc: 100}
+# A site may hold a body (decided by the engine, by the campaign seed): someone who knew the secret. A character who can Speak with a
+# Corpse and can pay for it learns the step's clue from it at once, with no search; anyone else searches as usual.
+body: {site_chance: 0.5}
 # What a node of each kind asks of the player
 node_kinds: {contact: "question a person", site: "search a place for what it hides", lair: "clear a hideout and take its leader", boss: "face the one behind it"}
 # A camp is a leader plus a real garrison. Balance (win rates measured by simulating fights against the bots' characters): a straight charge

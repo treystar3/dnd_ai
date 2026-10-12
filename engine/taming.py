@@ -3,7 +3,6 @@
 Rules live in data/rules/taming.yaml.
 """
 
-import random
 import uuid
 from pathlib import Path
 
@@ -81,3 +80,37 @@ def release(character, words: str):
     if pick:
         character.companions.remove(pick)
     return pick
+
+
+# ---------- Bind a Beast (the taught-only ability; see data/rules/taming.yaml, bind) ----------
+
+def binder(character):
+    """The character's Bind a Beast ability, or None."""
+    return next((a for a in character.actives if a.field_use == "bind_beast"), None)
+
+
+def bind_check(character, enemy, creature) -> str:
+    """Why this creature can't be bound with the ability, or '' when it can. A hurt creature is easier; an unhurt one is allowed."""
+    B = T["bind"]
+    comp = character.uses_companions
+    if creature is None or creature.unique or enemy.rank in T["refuse_ranks"]:
+        return f"{enemy.name.capitalize()} cannot be bound."
+    if creature.category not in T["categories"]:
+        return f"{enemy.name.capitalize()} is not something that can be bound."
+    if not comp and creature.rarity in B["refuse_rarity"]:
+        return f"{enemy.name.capitalize()} is far beyond anything you could bind."
+    if enemy.level > character.level + (T["level_margin"] if comp else B["level_margin"]):
+        return f"{enemy.name.capitalize()} is too strong for you to bind."
+    if len(tamed(character)) >= cap(character.level):
+        return "You already keep as many bound creatures as you can lead - release one first."
+    return ""
+
+
+def bind_chance(character, enemy, creature, tier) -> float:
+    """The taming odds, less a penalty for a creature that is not hurt, and never above what the ability's tier allows."""
+    B = T["bind"]
+    p = chance(character, enemy, creature)
+    share = enemy.hp / max(1.0, enemy.max_hp)
+    if share > B["healthy_share"]:
+        p -= B["unhurt_penalty"] * (share - B["healthy_share"]) / (1 - B["healthy_share"])
+    return max(T["min_chance"], min(B["ceiling"][getattr(tier, "value", tier)], p))

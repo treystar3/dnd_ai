@@ -48,6 +48,8 @@ functions:
   bless: {tier: moderate}
   word_of_recall: {tier: heavy}
   phantom_steed: {tier: moderate}
+  bind_beast: {effect: control, reach: ranged, context: both, tier: moderate}
+  speak_corpse: {reach: extended}
   summon_labor: {}
   recall: {}
   tinker: {}

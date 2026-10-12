@@ -6,13 +6,13 @@ the story ends. The model voices people and describes scenes. It can never add a
 import random
 import re
 
-from engine import arcs, checks, clock, combat, items, leveling, money, pulse, quests
+from engine import arcs, checks, clock, field, leveling, money, pulse, quests
 from engine.arcs import A
 from engine.arc_prompts import SYSTEM, user
 from llm.contracts import ArcStory
 from llm.gateway import LLMError, generate
 from npc.life import _unique_id
-from npc.models import NPC, Memory
+from npc.models import NPC
 from npc.traits import assign_traits, npc_rng
 from ui import console
 
@@ -154,6 +154,13 @@ class ArcActions:
         n["status"] = "active"
         self.store.save_arcs(data)
         if n["kind"] == "site":
+            if arcs.site_body(self.store.meta.seed, arc, n):
+                if self.question_site_body(data, arc, n, tpl):
+                    return False
+                if not n.get("body_seen"):
+                    n["body_seen"] = True
+                    self.store.save_arcs(data)
+                    console.note("A body lies here, and it has something to tell - if only you could make it speak.")
             self.work_site(data, arc, n, tpl)
             return False
         if n["kind"] == "boss" and tpl["finale"] == "confront":
@@ -167,6 +174,22 @@ class ArcActions:
         c = self.player.character
         scored = [(k, checks.chance(c, k, self.conditions(), extra=list(extra))[0]) for k in names]
         return max(scored, key=lambda x: x[1])
+
+    def question_site_body(self, data: dict, arc: dict, n: dict, tpl: dict) -> bool:
+        """A body at a site, and a character who can Speak with a Corpse: the dead give up the clue, no search needed."""
+        ab = self.pay_field_ability("speak_corpse")
+        if not ab:
+            return False
+        sn = self.story_node(arc, n["id"])
+        place = self.pname(n["place"])
+        self.field_cooldown_start(ab)
+        self.advance(field.F["speak_corpse"]["minutes"])
+        n["clue_given"] = True
+        self.narrate(f"The player finds a body at {place} ({tpl['site_desc']}) and uses {ab.name} to question it. Describe the dead giving "
+                     f"up what they knew, in two or three sentences, adding nothing beyond this: {sn.get('clue', '')}", "")
+        console.note(f"{ab.name}: the dead tell you what the place was hiding.")
+        self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
+        return True
 
     def work_site(self, data: dict, arc: dict, n: dict, tpl: dict) -> None:
         """Search a place with the best fitting skill. Failures cost hours; three and the thread turns up another way, at a cost of days."""
@@ -232,6 +255,7 @@ class ArcActions:
                     self.finish_arc(data, arc, leader if info.get("people", True) else None)
                     return
                 if info.get("people", True):
+                    self.standing_report("camp_cleared", None, self.pname(n["place"]))
                     self.make_prisoner(sn.get("npc_name") or info["leader"], sn.get("npc_looks", ""), arc=arc["id"], node=n["id"], named=True)
                     n["status"] = "active"
                     self.store.save_arcs(data)
@@ -479,6 +503,7 @@ class ArcActions:
         self.store.save_arcs(data)
         town = pulse.town_of(self.world, arc["hall"])
         self.reputation_add(town, 5 if arc["size"] != "simple" else 2)
+        self.standing_report("arc_won", None, title)
         self.weight_hint = "major"
         console.note(f"{W['over'].format(name=s['victim_name'][:1].upper() + s['victim_name'][1:])} {title} is over. "
                      f"+{money.fmt(coins)}, +{xp} XP - hand in the contract at the guild.")

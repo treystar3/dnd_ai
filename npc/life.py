@@ -212,3 +212,17 @@ def manner(npc: NPC, catalog: TraitCatalog, store: CampaignStore) -> str:
         assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
         store.save_npc(npc)
     return ", ".join(t.replace("_", " ") for t in npc.traits)
+
+
+PARTING = re.compile(
+    r"\b(good ?bye|farewell|good (day|night|morning|evening|luck|journey)|fare ye well|fare thee well|safe (travels|journey|road)|"
+    r"take care|be (off|gone)|off with you|go (away|on with you)|begone|leave me|let me be|leave it be|get (out|lost|away)|"
+    r"(i|we)('ve| have)? (got|have|must|need to|gotta) (work|go|be)|i('m| am) (busy|leaving|going)|must be (going|off)|"
+    r"(see|catch) you|until next|till next|that('s| is) (all|enough)|enough (of|talk)|no more|nothing more to (say|add)|"
+    r"don't (bother|waste)|stop (bothering|pestering)|piss off|shove off|walk away|and now,? if you|if you('ll| will) excuse me|excuse me)\b",
+    re.IGNORECASE)
+
+
+def has_parting(speech: str) -> bool:
+    """Whether what an NPC said actually ends the talk: a goodbye, an excuse, a flat dismissal. Nobody walks off in silence."""
+    return bool(PARTING.search(speech))

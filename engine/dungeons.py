@@ -14,6 +14,7 @@ from engine import quests
 
 ROOT = Path(__file__).resolve().parent.parent
 D = yaml.safe_load((ROOT / "data" / "rules" / "dungeons.yaml").read_text(encoding="utf-8"))
+FIXED_PLACES = {"first_hall"}      # places whose dungeon is written by a quest, never generated or remade
 
 
 def theme_for(place, world, rng: random.Random) -> str | None:
@@ -72,6 +73,8 @@ def generate(place, world, seed: str, now: int) -> dict | None:
 
 
 def due_for_respawn(d: dict, now: int) -> bool:
+    if d.get("fixed"):
+        return False
     return now >= d["made"] + D["respawn_days"] * 1440
 
 

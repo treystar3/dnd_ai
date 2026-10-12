@@ -6,7 +6,8 @@ and describes that object; the engine owns whether it exists, what it is worth, 
 import re
 
 from core.models import KeyItem
-from engine import checks, clock, deeds, inventory as inv, items, law, money, pulse
+from engine import checks, clock, deeds, inventory as inv, items, law, locks, money, pools, pulse, standing
+from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
 from llm.gateway import generate
 from npc.models import Memory
@@ -20,7 +21,10 @@ a smith their tools, a captain a seal, a hall a strongbox of papers). Say no to 
 pocket), to anything vague ("something valuable", "anything"), and to money, food, drink, weapons and armor.
 If plausible, give it a short name (two to four words), one plain sentence describing it (nothing magical unless the place is
 holy or arcane), and its worth: trinket (little), ordinary, valuable, or priceless (a relic or a great secret).
-If not, say why in a few words."""
+If not, say why in a few words.
+If the thing would be kept locked up (a ledger in a strongbox, a relic in a locked back room), set locked true and name what is locked in
+behind ("the back room", "a strongbox"). If the player is asking for a KEY, set is_key true and put what it opens in behind;
+a key is plausible when the holder would keep one (a shopkeeper's key to their own back room)."""
 
 
 def _words(text: str) -> set[str]:
@@ -40,13 +44,11 @@ class LawActions:
         return law.current_heat(self.player, self.town_here(), clock.day(self.minutes))
 
     def heat_price(self) -> float:
-        return law.price_factor(self.heat_here())
+        return law.price_factor(self.heat_here()) * self.standing_price()
 
     def heat_trust(self) -> int:
         return H["first_meeting_trust"] if self.heat_here() >= H["tiers"]["cold"] else 0
 
-    def heat_line(self) -> str:
-        return law.tier(self.heat_here())
 
     # ------------------------------------------------------------------ steal
     def watchers(self, owner) -> list:
@@ -57,8 +59,14 @@ class LawActions:
         """(list of hidden objects, saver) for the person or place the player is going through."""
         if owner:
             return owner.hidden, lambda: self.store.save_npc(owner)
-        state = self.store.load_place(self.player.location)
-        return state.hidden, lambda: self.store.save_place(state)
+        where = self.player.location
+        hidden = self.store.load_place(where).hidden
+
+        def save():                                   # reload, so a lock changed since is not overwritten
+            state = self.store.load_place(where)
+            state.hidden = hidden
+            self.store.save_place(state)
+        return hidden, save
 
     def find_loot(self, owner, wanted: str, text: str) -> dict:
         """What the player is reaching for: something real if there is a match, otherwise nothing yet."""
@@ -78,10 +86,12 @@ class LawActions:
                 if w.kind in ("item", "material") and w.item and w_words & (_words(w.name) | _words(w.id)):
                     return {"mode": "ware", "npc": n, "ware": w, "value": w.price, "label": w.name, "story": False}
         records, save = self.holder_record(owner)
-        for rec in records:
-            if w_words & _words(rec["name"]):
-                return {"mode": "hidden", "record": rec, "save": save, "value": law.worth_value(rec["worth"]), "label": rec["name"],
-                        "story": True, "taken": rec.get("taken", False), "owner": owner}
+        searched = [(records, save)] + ([self.holder_record(None)] if owner else [])
+        for recs, sv in searched:                     # a locked thing and its key live with the place, whoever owns them
+            for rec in recs:
+                if w_words & _words(rec["name"]):
+                    return {"mode": "hidden", "record": rec, "save": sv, "value": law.worth_value(rec["worth"]), "label": rec["name"],
+                            "story": True, "taken": rec.get("taken", False), "owner": owner}
         return {"mode": "new", "records": records, "save": save, "value": 0, "label": wanted or "something", "story": True, "owner": owner}
 
     def judge_object(self, owner, wanted: str, text: str) -> ObjectVerdict:
@@ -102,23 +112,13 @@ class LawActions:
         if loot["mode"] == "hidden" and loot["taken"]:
             nothing = f"{loot['label']} is already gone - the player took it earlier"
         elif loot["mode"] == "new":
-            if loot["records"]:
-                nothing = "there is nothing else of the kind to be found here"
-            else:
-                try:
-                    verdict = self.judge_object(owner, wanted, text)
-                except Exception:
-                    verdict = ObjectVerdict(plausible=False, reason="nothing turns up")
-                name = verdict.name.strip()
-                if not (verdict.plausible and name and self.story_object(name)
-                        and not any(k.name.lower() == name.lower() for k in c.key_items)):
-                    nothing = (verdict.reason.strip() or "nothing of the kind is here") if not verdict.plausible \
-                        else "nothing of the kind is here"
-                else:
-                    rec = {"name": name, "description": verdict.description.strip(), "worth": verdict.worth, "taken": False}
-                    loot["records"].append(rec)
-                    loot.update(mode="hidden", record=rec, value=law.worth_value(rec["worth"]), label=name, taken=False)
-                    loot["save"]()
+            nothing = self.create_object(owner, loot, wanted, text)
+        # something kept behind a lock stays out of reach until the lock is open (a key opens it at once)
+        if loot["mode"] == "hidden" and not nothing and loot["record"].get("lock"):
+            blocked = self.lock_blocks(loot["record"]["lock"], text)
+            if blocked:
+                self.narrate(blocked, text)
+                return
         holder = owner.label() if owner else f"the {self.place.name}"
         # the roll
         zone = law.zone_level(self.world, self.player.location)
@@ -143,6 +143,8 @@ class LawActions:
         if took:
             self.take_loot(loot, owner, holder)
         self.record_theft(loot, owner, noticed, took, degree, nothing, day, turn)
+        if took and loot["mode"] == "hidden" and loot["record"].get("opens"):
+            self.key_taken(loot["record"]["opens"], day, bool(noticed))
         self.narrate(self.theft_event(loot, holder, degree, took, nothing, res["hopeless"], owner, noticed), text)
         self.store.save_player(self.player)
 
@@ -166,7 +168,7 @@ class LawActions:
             loot["save"]()
             self.player.character.key_items.append(KeyItem(
                 id=re.sub(r"[^a-z0-9]+", "_", rec["name"].lower()).strip("_"), name=rec["name"], description=rec["description"],
-                kind="key", source=owner.name if owner else self.place.name, day=clock.day(self.minutes)))
+                kind="key", source=owner.name if owner else self.place.name, day=clock.day(self.minutes), opens=rec.get("opens", "")))
             console.note(f"Key item taken: {rec['name']} - {rec['description']}")
         console.note(f"You take {loot['label']}.")
 
@@ -187,6 +189,7 @@ class LawActions:
         guard = any(n.role in H["guard_roles"] for n in noticed)
         victim = bool(owner and owner in noticed)
         story = loot["story"]
+        self.standing_report("theft", noticed, what, 1.5 if story or loot["value"] > H["valuable_over"] else 1.0)
         deeds.log(self.store, "offense", self.minutes, self.player.location, offense="theft", item=what, took=took,
                   witnesses=[n.id for n in noticed], story=story)
         if not self.lawless_here():
@@ -214,6 +217,228 @@ class LawActions:
             base += " Nobody notices. No one reacts."
         return base
 
+    # ------------------------------------------------------------------ locks
+    def place_state(self):
+        return self.store.load_place(self.player.location)
+
+    def lock_by_id(self, lock_id: str) -> dict | None:
+        return next((l for l in self.place_state().locks if l["id"] == lock_id), None)
+
+    def save_lock(self, lock: dict) -> None:
+        state = self.place_state()
+        state.locks = [lock if l["id"] == lock["id"] else l for l in state.locks]
+        self.store.save_place(state)
+
+    def lock_for(self, behind: str, owner, worth: str) -> dict | None:
+        """The lock the model named: one already here that matches, or a new one (a place keeps only a few)."""
+        state = self.place_state()
+        found = locks.find(state.locks, behind, owner.id if owner else "")
+        if found:
+            return found
+        if len(state.locks) >= law.L["lock"]["max_per_place"]:
+            return None
+        lock = locks.make(behind, owner.id if owner else "", worth, state.locks)
+        state.locks.append(lock)
+        self.store.save_place(state)
+        return lock
+
+    def create_object(self, owner, loot: dict, wanted: str, text: str) -> str:
+        """The player went looking for something that does not exist yet. Ask whether it plausibly does; if so make it (behind a lock if
+        it would be kept so). Returns why nothing turned up, or '' when the object now exists (loot is updated to point at it)."""
+        c = self.player.character
+        asked_key = "key" in _words(wanted or text) or "key" in (wanted or text).lower()
+        every = loot["records"] + (self.holder_record(None)[0] if owner else [])
+        plain = [r for r in every if not r.get("opens")]
+        if plain and not asked_key:
+            return "there is nothing else of the kind to be found here"
+        try:
+            verdict = self.judge_object(owner, wanted, text)
+        except Exception:
+            verdict = ObjectVerdict(plausible=False, reason="nothing turns up")
+        name = verdict.name.strip()
+        if not (verdict.plausible and name and self.story_object(name)
+                and not any(k.name.lower() == name.lower() for k in c.key_items)):
+            return (verdict.reason.strip() or "nothing of the kind is here") if not verdict.plausible else "nothing of the kind is here"
+        rec = {"name": name, "description": verdict.description.strip(), "worth": verdict.worth, "taken": False}
+        behind = verdict.behind.strip()
+        if verdict.is_key:
+            lock = self.lock_for(behind or "the locked door", owner, verdict.worth)
+            if not lock:
+                return "nothing of the kind is here"
+            if any(r.get("opens") == lock["id"] for r in every):
+                return "there is nothing else of the kind to be found here"
+            rec["opens"] = lock["id"]
+        else:
+            if plain:
+                return "there is nothing else of the kind to be found here"
+            if verdict.locked and behind:
+                lock = self.lock_for(behind, owner, verdict.worth)
+                if lock:
+                    rec["lock"] = lock["id"]
+        if rec.get("lock") or rec.get("opens"):
+            place_recs, loot["save"] = self.holder_record(None)
+            place_recs.append(rec)
+        else:
+            loot["records"].append(rec)
+        loot.update(mode="hidden", record=rec, value=law.worth_value(rec["worth"]), label=name, taken=False)
+        loot["save"]()
+        return ""
+
+    def has_key(self, lock: dict) -> bool:
+        return any(k.opens == lock["id"] for k in self.player.character.key_items)
+
+    def lock_blocks(self, lock_id: str, text: str) -> str:
+        """If the lock is still shut: an event line (nothing is taken). A usable key opens it quietly and returns ''."""
+        lock = self.lock_by_id(lock_id)
+        if not lock or locks.is_open(lock):
+            return ""
+        day = clock.day(self.minutes)
+        if self.has_key(lock) and locks.key_fits(lock, day):
+            self.open_lock(lock, "key")
+            return ""
+        changed = " Their key no longer fits - the lock has been changed." if self.has_key(lock) else ""
+        console.note(f"{lock['name'].capitalize()} is locked.{changed}")
+        return (f"The player reaches for what is kept in {lock['name']}, but it is locked and they cannot get at it.{changed} "
+                f"Describe the closed door or lid. Do not invent anything they find; the lock must be opened first.")
+
+    def open_lock(self, lock: dict, how: str) -> None:
+        lock["state"] = "open"
+        self.save_lock(lock)
+        self.advance(law.L["lock"]["minutes"]["key"] if how == "key" else 0)
+        if how == "key":
+            console.note(f"Your key opens {lock['name']}.")
+
+    def key_taken(self, lock_id: str, day: int, seen: bool) -> None:
+        lock = self.lock_by_id(lock_id)
+        if lock:
+            locks.key_stolen(lock, day, seen)
+            self.save_lock(lock)
+
+    def pay_field_ability(self, fn: str):
+        """The character's ability with this field function, if it is ready and they can pay for it - paid for. Else None."""
+        c = self.player.character
+        ab = next((a for a in c.actives if a.field_use == fn), None)
+        if not ab or self.field_ready_in(ab):
+            return None
+        pool = ab.resource.value
+        table = "ability_cost_percent" if pool == "mana" else "stamina_cost_percent"
+        cost = pools.reference_pool(pool, c.level) * COMBAT_RULES[table][ab.tier.value] / 100
+        if pools.current(c, pool) < cost:
+            console.note(f"You have no {pool} left for {ab.name}.")
+            return None
+        setattr(c, pool, pools.current(c, pool) - cost)
+        return ab
+
+    def pay_picklock(self) -> tuple[float, str]:
+        """A picklock ability helps if the character has one and can pay for it. Returns (bonus percent of the window, its name)."""
+        ab = self.pay_field_ability("picklock")
+        if not ab:
+            if any(a.field_use == "picklock" for a in self.player.character.actives):
+                console.note("You try it by hand.")
+            return 0.0, ""
+        return float(law.L["lock"]["picklock_bonus"][ab.tier.value]), ab.name
+
+    def on_unlock(self, intent, text: str) -> None:
+        state = self.place_state()
+        owner = next((n for n in self.present if n.id == intent.target), None)
+        what = (intent.item or "").strip() or text
+        lock = locks.find(state.locks, what, owner.id if owner else "")
+        c = self.player.character
+        day, turn = clock.day(self.minutes), self.store.meta.turn
+        if lock and locks.is_open(lock):
+            self.narrate(f"The player goes to {lock['name']}; it is already open. Describe it in a sentence.", text)
+            return
+        if not lock:
+            lock = self.invent_lock(owner, what, text)
+            if not lock:
+                console.note("There is no lock here that you can find.")
+                self.halted = True
+                return
+        L = law.L["lock"]
+        lock_owner = next((n for n in self.present if n.id == lock["owner"]), None)
+        if self.has_key(lock) and locks.key_fits(lock, day):
+            self.open_lock(lock, "key")
+            self.narrate(f"The player opens {lock['name']} with a key they carry. Describe it in a sentence; nothing is found yet.", text)
+            self.store.save_player(self.player)
+            return
+        changed = self.has_key(lock)
+        # the roll
+        zone = law.zone_level(self.world, self.player.location)
+        triggers = self.check_triggers("stealth", False)
+        extras = sum(v for _, v in self.check_bonuses("stealth", lock_owner, False, text))
+        boost, tool = self.pay_picklock()
+        bonus = checks.passive_points(c, "stealth", triggers) + getattr(c, "trained", {}).get("stealth", 0) + extras + boost
+        watchers = self.watchers(lock_owner)
+        res = law.attempt(zone, c.attributes.dexterity, bonus, 0, lock_owner is not None, len(watchers), locks.difficulty(lock),
+                          checks.gear_points(c, "stealth", triggers))
+        degree = res["degree"]
+        console.debug(f"unlock: zone {zone}, window {res['window']}, score {res['score']:.0f}, bar {res['bar']:.0f}, "
+                      f"x{res['mult']:.2f}, roll {res['roll']} -> {degree}{' (hopeless)' if res['hopeless'] else ''}")
+        console.note(checks.label("Lock", degree))
+        noticed = []
+        if lock_owner and law.notices(degree, lock_owner.role, is_target=True):
+            noticed.append(lock_owner)
+        noticed += [w for w in watchers if law.notices(degree, w.role)]
+        opened = degree != "failure"
+        self.advance(L["minutes"][degree])
+        if opened:
+            lock["state"] = "open"
+        else:
+            locks.jam(lock)
+        self.save_lock(lock)
+        self.record_break_in(lock, lock_owner, noticed, opened, day, turn)
+        self.narrate(self.unlock_event(lock, degree, opened, res["hopeless"], tool, changed, noticed), text)
+        self.store.save_player(self.player)
+
+    def invent_lock(self, owner, what: str, text: str) -> dict | None:
+        """The player tries a lock nobody has mentioned. Ask whether this person or place plausibly has one; if so it exists now."""
+        try:
+            verdict = self.judge_object(owner, f"a locked {what}", f"{text} (is there plausibly a locked {what} here?)")
+        except Exception:
+            return None
+        behind = verdict.behind.strip() or verdict.name.strip()
+        if not (verdict.plausible and behind):
+            return None
+        return self.lock_for(behind, owner, verdict.worth)
+
+    def record_break_in(self, lock, owner, noticed, opened, day, turn) -> None:
+        what = lock["name"]
+        for n in noticed:
+            n.memories.append(Memory(day=day, turn=turn, text=(f"Caught the stranger {'breaking into' if opened else 'trying to break into'} {what}."
+                                                              if owner and n.id == owner.id else
+                                                              f"Saw the stranger {'break into' if opened else 'try to break into'} {what}.")))
+            n.trust = max(0, n.trust - (15 if owner and n.id == owner.id else 5))
+            self.store.save_npc(n)
+        if not noticed:
+            return
+        guard = any(n.role in H["guard_roles"] for n in noticed)
+        victim = bool(owner and owner in noticed)
+        self.standing_report("break_in", noticed, what)
+        deeds.log(self.store, "offense", self.minutes, self.player.location, offense="break_in", item=what, took=opened,
+                  witnesses=[n.id for n in noticed], story=False)
+        if not self.lawless_here():
+            gain = H["gain"]["break_in"] * (H["passerby_share"] if not (victim or guard) else 1)
+            heat = law.add_heat(self.player, self.town_here(), gain, day)
+            console.debug(f"offense: break-in, heat +{gain:.0f} -> {heat} in {self.town_here()}")
+
+    def unlock_event(self, lock, degree, opened, hopeless, tool, changed, noticed) -> str:
+        what = lock["name"]
+        by = f" with {tool}" if tool else ""
+        if opened:
+            how = {"strong success": "quickly and without a sound", "success": "after a little work",
+                   "partial": "but not quietly - the metal scrapes and clicks"}[degree]
+            base = f"The player works {what} open{by}, {how}. Describe the lock giving way. Do not say what lies beyond."
+        else:
+            base = (f"The player tries {what}{by} and cannot open it" + (" - it is far beyond their skill" if hopeless else "")
+                    + ". The lock holds, and it feels a little tighter than before.")
+        if changed:
+            base += " Their stolen key no longer fits; the lock has been changed."
+        if noticed:
+            who = ", ".join(n.label() for n in noticed)
+            base += (f" {who} notice{'s' if len(noticed) == 1 else ''} and react: sharp words, alarm or a hard stare. "
+                     f"Nobody draws a weapon or attacks; the game handles what comes next.")
+        return base
+
     # ------------------------------------------------------------------ force
     def after_force(self, intent, text: str) -> None:
         """Hands laid on someone: an assault. The target always knows; others may see."""
@@ -231,6 +456,7 @@ class LawActions:
         deeds.log(self.store, "offense", self.minutes, self.player.location, offense="assault", target=npc.id,
                   witnesses=[n.id for n in noticed])
         guard = any(n.role in H["guard_roles"] for n in noticed)
+        self.standing_report("assault", noticed, npc.label())
         if not self.lawless_here():
             gain = law.offense_heat("assault", 0, False, only_passersby=not (npc in noticed or guard) or False)
             heat = law.add_heat(self.player, self.town_here(), gain, day)
@@ -249,7 +475,7 @@ class LawActions:
             return
         town, day = self.town_here(), clock.day(self.minutes)
         heat = law.current_heat(self.player, town, day)
-        level = law.tier(heat)
+        level = law.tier(heat + standing.heat_shift(self.player, town, day))
         if level in ("clear", "cold") or self.player.confronted.get(town) == day:
             return
         guard = next((n for n in self.present if n.role in H["guard_roles"] and n.looks_away_until <= self.minutes), None)
@@ -302,6 +528,7 @@ class LawActions:
             if c.coins >= fine:
                 c.coins -= fine
                 law.set_heat(self.player, town, H["after_paid"], day)
+                self.standing_report("fine_paid", [guard])
                 remember(f"The stranger paid {money.words(fine)} to settle their crimes.")
                 console.note(f"You pay {money.fmt(fine)}. Purse: {money.fmt(c.coins)}")
                 self.narrate(f"The player pays {guard.label()} {money.words(fine)}. The guard counts it and lets them go with a warning.", "")
@@ -346,6 +573,7 @@ class LawActions:
             c.coins -= fine
             law.set_heat(self.player, town, law.current_heat(self.player, town, day) - H["bribe_relief"], day)
             guard.looks_away_until = self.minutes + law.N["look_away_minutes"]
+            self.standing_report("bribe_guard", [guard])
             guard.memories.append(Memory(day=day, turn=turn, text=f"Took {money.words(fine)} from the stranger to forget what I knew."))
             console.note(f"The coins vanish. Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away. Keep it brief.", "")

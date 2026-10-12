@@ -304,52 +304,6 @@ class PassiveProposal(BaseModel):
         return self
 
 
-class PassiveSet(BaseModel):
-    passives: list[PassiveProposal] = Field(min_length=15, max_length=15)
-
-    @model_validator(mode="after")
-    def composition(self, info: ValidationInfo):
-        ctx = _ctx(info)
-        all_ps = self.passives
-        _check_names(all_ps, ctx.get("reserved_names", []))
-        ps = [p for p in all_ps if p.kind == "stat"]
-        mech = [p for p in all_ps if p.kind == "mechanic"]
-        offered = ctx.get("offered", {})
-        if offered:
-            bad = sorted({p.mechanic for p in mech if p.mechanic not in offered})
-            if bad:
-                raise ValueError(f"not in OFFERED MECHANICS, use their ids (o1, o2, ...): {', '.join(bad)}")
-        ids = [p.mechanic for p in mech]
-        dupes = sorted({i for i in ids if ids.count(i) > 1})
-        if dupes:
-            raise ValueError(f"each offered mechanic may be used only once: {', '.join(dupes)}")
-        need = ctx.get("min_mechanics", 0)
-        if len(mech) < need:
-            raise ValueError(f"only {len(mech)} passives are mechanics; at least {need} must be kind mechanic")
-        banned = set(ctx.get("unavailable", []))
-        used_banned = sorted({p.modifies.value for p in ps if p.modifies.value in banned}
-                             | {p.trigger.value for p in ps if p.trigger.value in banned})
-        if used_banned:
-            raise ValueError(f"not available for this class, replace them: {', '.join(used_banned)}")
-        if sum(p.modifies in POOL_TARGETS for p in ps) > 1:
-            raise ValueError("at most 1 passive may modify max_health, max_stamina or max_mana")
-        always_on = sum(p.trigger == Trigger.ALWAYS or p.modifies in POOL_TARGETS for p in ps)
-        if always_on > 4:
-            raise ValueError(f"{always_on} passives are always-on; at most 4 may use trigger always")
-        required = ctx.get("min_noncombat", 4)
-        world_mech = set(ctx.get("world_options", []))
-        noncombat = sum(p.modifies in NONCOMBAT_TARGETS or p.trigger in NONCOMBAT_TRIGGERS for p in ps) \
-            + sum(p.mechanic in world_mech for p in mech)
-        if noncombat < required:
-            raise ValueError(f"only {noncombat} passives matter outside combat; at least {required} must have a social, stealth, insight or lore modifier, or an out-of-combat trigger")
-        if ctx.get("uses_companions"):
-            companion = sum(p.modifies in COMPANION_TARGETS or p.trigger == Trigger.WITH_COMPANION_PRESENT for p in ps) \
-                + sum(p.mechanic in set(ctx.get("companion_options", [])) for p in mech)
-            if companion < 3:
-                raise ValueError("this class relies on companions: at least 3 passives must modify companion_damage or companion_durability, or use trigger with_companion_present")
-        return self
-
-
 StatName = Literal["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
 
 
@@ -381,7 +335,7 @@ class ActionIntent(BaseModel):
     kind: Literal["move", "look", "search", "explore", "talk", "leave_conversation", "buy", "sell", "ability", "use", "drop",
                   "pick_up", "give", "show", "discard", "store", "retrieve", "equip", "forage", "craft", "commission",
                   "work", "harvest", "join_guild", "board", "accept_quest", "abandon_quest", "train", "learn_ability",
-                  "delve", "leave_dungeon", "wait", "attack", "release", "steal", "other"]
+                  "delve", "leave_dungeon", "wait", "attack", "release", "steal", "unlock", "other"]
     destination: str = ""
     target: str = ""
     speech: str = ""
@@ -410,6 +364,9 @@ class ObjectVerdict(BaseModel):
     description: str = ""
     worth: Literal["trinket", "ordinary", "valuable", "priceless"] = "ordinary"
     reason: str = ""
+    locked: bool = False       # the thing is kept behind a lock (a strongbox, a back room)
+    behind: str = ""           # what is locked: "the back room", "a strongbox" (also set for a key: what it opens)
+    is_key: bool = False       # the thing the player wants is the key to `behind`
 
 
 class AuditMeaning(BaseModel):
@@ -510,6 +467,7 @@ class NPCReply(BaseModel):
     gives: GiftProposal | None = None
     offers_work: WorkOffer | None = None
     offers_quest: QuestOffer | None = None
+    journal_note: str = ""
 
 
 class Narration(BaseModel):

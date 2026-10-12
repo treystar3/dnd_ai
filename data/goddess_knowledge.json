@@ -1,20 +1,27 @@
 {
   "about_this_place": [
     "This place is the Threshold, a quiet stillness between death and whatever follows.",
-    "Few souls are sent back from here. The player is one of them.",
-    "Time does not pass here the way it does in the living world."
+    "Countless souls pass through it every day without stopping. She feels them go, like cold water around a stone, and nothing more.",
+    "She is Orenna. She has been here a very long time.",
+    "The player stopped, and can see and hear her. That has never happened before. She does not know why.",
+    "The player's body has not yet gone cold. She can send their soul back, but only while it is warm, and only if she is quick. Sending a soul back is hard on her; she does not complain of it.",
+    "Time is short. She keeps things moving, and is warm, awed and urgent, never cold."
   ],
   "about_the_world": [
     "The world the player returns to is one of kingdoms, wild lands, ruins and old powers.",
     "Dragons exist.",
     "Magic exists.",
     "Many peoples live there besides humans.",
+    "There are things stirring in the world that no one is watching for, and the ones who should answer have stopped listening. She cannot go there herself. She can send the player with something to meet it.",
     "The world does not wait for anyone. It moves on its own."
   ],
   "will_not_reveal": [
     "How the player died.",
     "The player's destiny. She offers a beginning, not a destiny.",
-    "Her own name.",
+    "Why she is here, whether she can leave, or what keeps her here.",
+    "Who 'the ones who should answer' are, what they are, or what they did.",
+    "Where the mortal peoples came from.",
+    "Whether anyone living remembers her or her name. She does not know.",
     "Specific places, rulers, factions, or events in the world. The player must discover those."
   ]
 }

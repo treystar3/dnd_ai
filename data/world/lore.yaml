@@ -56,14 +56,11 @@
   known_by: [guards, guild]
 
 - id: temple_older_than_parth
-  text: The temple stood before Parth was built. The village grew up around it.
-  known_by: [temple, scholars]
-
-- id: nameless_shrine
   text: >
-    The worn shrine belongs to a goddess of passage with no remembered name.
-    Villagers leave small offerings there at funerals.
-  known_by: [temple, parth_locals]
+    Parth's temple is a rededicated roadside temple. Its lowest stones are older than the
+    priest can explain, and he dislikes being asked. Today it serves the Sun Warden, as
+    the whole kingdom does.
+  known_by: [temple, scholars]
 
 # --- the wider world (from the world writeup) ---
 
@@ -252,7 +249,7 @@
   found_at: [leviathan_trench]
 
 - id: drowned_goddess
-  text: The kingdom that sank on the western coast was devoted to something it called the Mother of Tides. The wrecks off Brinewatch are said to hum on the night she is remembered.
+  text: The kingdom that sank on the western coast was devoted to Maerith the Tide Caller, whom the coast still calls the Mother of Tides. The wrecks off Brinewatch are said to hum on the night she is remembered.
   known_by: [brinewatch_locals, temple, scholars]
 
 - id: heartroot_sanctum_roots
@@ -261,7 +258,7 @@
   found_at: [heartroot_sanctum]
 
 - id: maw_serpent_god
-  text: The jungle empire's last priest-kings did not die. Amaranth's guides say they gave themselves to something coiled under the temples, and that the Maw has been quietly growing since.
+  text: The jungle empire's last priest-kings did not die. Amaranth's guides say they gave themselves to something coiled under the temples, after trying to halt the turning of Ixmara the Cycle Keeper, and that the Maw has been quietly growing since.
   known_by: [amaranth_locals, scholars]
 
 - id: throne_of_ashes_legion
@@ -301,3 +298,159 @@
   text: The drowned capital of the lost western kingdom lies in a ring of cliffs, its towers still lit by wrecker's fires nobody lit. The tide goes out further every year.
   known_by: [brinewatch_locals, valecourt_locals, merchants]
   found_at: [sunken_crown]
+
+- id: orenna_name
+  text: The goddess who sent you back gave her name as Orenna. You have never heard anyone else say it.
+  known_by: [nobody]
+
+# --- faith and the old gods ---
+
+- id: gods_gentle_origin
+  text: >
+    The temples teach that the gods shaped the peoples out of love, and that each people was given its place in the world.
+  known_by: [everyone]
+
+- id: gods_many_settlements
+  text: >
+    Each great city holds to its own god, and the villages around it follow the same. In Wend Vale and the lands near Parth, that is the Sun Warden.
+  known_by: [everyone]
+
+- id: kingdom_sun_warden
+  text: >
+    Valecourt's kingdom honors Aurelan the Sun Warden, keeper of oaths and of the crown. Parth, Willowmead, Greyhollow and Redstone keep his rites, and the crown is sworn on his name.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, redstone_locals, valecourt_locals, temple, scholars]
+
+- id: god_aurelan
+  text: >
+    Aurelan the Sun Warden is the god of light, oaths and the crown. His faithful swear by his flame and keep their word because a broken oath is said to dim the sun a little.
+  known_by: [valecourt_locals, temple, scholars]
+
+- id: god_nhaelis
+  text: >
+    Nhaelis the Green Huntress rules wind and wood in Eldervale. Her faithful take only what they will use, and leave the first of any kill to the trees.
+  known_by: [eldervale_locals, temple, scholars]
+
+- id: god_kharun
+  text: >
+    Kharun the Mountain Smith is the god of stone and forge in Ironvein. His faithful hold a thing is worth what it takes to make, and bless the first hammer-blow of any work.
+  known_by: [ironvein_locals, temple, scholars]
+
+- id: god_nythra
+  text: >
+    Nythra the Deep Watcher is the god of the dark and the deep in Dunmarrow. Her faithful keep silence as devotion, and trust secrets to her before they trust them to people.
+  known_by: [dunmarrow_locals, temple, scholars]
+
+- id: god_isrenna
+  text: >
+    Isrenna the Frost Marshal is the god of cold and endurance in Frostholm. Her faithful do not complain of winter; they count enduring it as prayer.
+  known_by: [frostholm_locals, temple, scholars]
+
+- id: god_throndar
+  text: >
+    Throndar the Storm Judge is the god of lightning and verdicts in Hrimgard. The giants settle disputes under open sky so he may rule, and believe the storm falls on the guilty.
+  known_by: [hrimgard_locals, temple, scholars]
+
+- id: god_teluun
+  text: >
+    Teluun the River Steward is the god of rivers and trade in Riverhaven. Merchants pour a little water into the river before a deal, and call an honest scale his work.
+  known_by: [riverhaven_locals, merchants, temple, scholars]
+
+- id: god_maerith
+  text: >
+    Maerith the Tide Caller is the god of the sea in Brinewatch. Sailors leave a lit lantern for her before a voyage, and name the drowned aloud so she will carry them gently.
+  known_by: [brinewatch_locals, temple, scholars]
+
+- id: god_dahlira
+  text: >
+    Dahlira the Hearth Tender is the god of hearth, home and hospitality in Sunspire. Her faithful never turn a guest from the door, and keep a fire or a cup of water ready for one.
+  known_by: [sunspire_locals, temple, scholars]
+
+- id: god_ashkar
+  text: >
+    Ashkar the Pyre Herald is the god of fire and rebirth from ash in Cinderhold. Her faithful burn their dead and say that what is lost in fire is only waiting to return.
+  known_by: [cinderhold_locals, temple, scholars]
+
+- id: god_ixmara
+  text: >
+    Ixmara the Cycle Keeper tends growth, decay and renewal in Amaranth. Her faithful see no tragedy in rot, only the turning of one thing into the next.
+  known_by: [amaranth_locals, temple, scholars]
+
+- id: god_morrowen
+  text: >
+    Morrowen the Ferryman carries the dead across for a coin. The old burial cult of the Sepulchre Fields still lays a coin on the tongue so the passage is paid.
+  known_by: [temple, scholars]
+
+- id: ash_cults_burn
+  text: >
+    Some followers of fire have turned from Ashkar's rebirth to something hungrier. They are called the burning faithful, and are feared in Cinderhold.
+  known_by: [cinderhold_locals, temple, scholars]
+
+- id: tithe_boxes
+  text: >
+    Most temples keep a tithe box by the door. A coin dropped in is a gift to the god and is remembered by the priests.
+  known_by: [everyone]
+
+- id: chosen_commune
+  text: >
+    Temple lore holds that a chosen acolyte or a champion marked by a patron god can sometimes commune with them. Priests say it happens rarely and never on demand.
+  known_by: [temple, scholars]
+
+- id: peoples_one_god
+  text: >
+    Temple teaching traces each people to a single god who shaped them. Scholars note that the accounts agree a little too neatly, as though written by one hand.
+  known_by: [temple, scholars]
+
+- id: orenna_servants
+  text: >
+    The peoples of Rivia were made by the gods as servants: rows of figures that worked and did not choose. The temples' gentler story is not what the First Hall says.
+  known_by: [nobody]
+
+- id: orenna_gift
+  text: >
+    Orenna knelt among the gods' servants and breathed life and free will into them. Every people that is awake today is awake because of her.
+  known_by: [nobody]
+
+- id: orenna_revolt
+  text: >
+    The freed peoples turned on the gods. The gods spared them, because they had nothing else, and bound Orenna in their place.
+  known_by: [nobody]
+
+- id: orenna_forgetting
+  text: >
+    For thousands of years the gods have shaped the world from behind it, ending her worship and cutting her name from every wall. The door at the bottom of the First Hall is the place where you met her.
+  known_by: [nobody]
+
+- id: orenna_order
+  text: >
+    A small group who remember keep a half-circle coin cut through with a single line. Each time one of them has gone public, they were dead within days.
+  known_by: [nobody]
+
+- id: orenna_trail_lecturer
+  text: >
+    A lecturer was killed with no struggle, his eyes closed. A watchman saw a man in plain cloth leave at dawn, weeping.
+  known_by: [nobody]
+
+- id: orenna_trail_letter
+  text: >
+    A letter to a temple was sent on to the High Keeper's office at Valecourt, and a reply came back before the writer died.
+  known_by: [nobody]
+
+- id: orenna_trail_warning
+  text: >
+    The Sun Warden's temples report to one office at Valecourt on a fast relay. A private warning was read before its recipient ever saw it.
+  known_by: [nobody]
+
+- id: orenna_executioner
+  text: >
+    The killer is a man bound by oath to obey whoever holds his seal. He weeps for the dead, and he cannot name his holder.
+  known_by: [nobody]
+
+- id: orenna_registry
+  text: >
+    The register of bound services points to the High Keeper of Valecourt, who has held the seal of a champion of the Sun Warden for twenty-two years.
+  known_by: [nobody]
+
+- id: orenna_last_breath
+  text: >
+    Orenna's last breath is held in you. It will be spent the first time you would die.
+  known_by: [nobody]

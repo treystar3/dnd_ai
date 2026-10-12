@@ -3,13 +3,12 @@
 Rules live in data/rules/party.yaml. The engine decides everything here; the model only voices the scene.
 """
 
-import math
 import random
 from pathlib import Path
 
 import yaml
 
-from engine import clock, combat
+from engine import combat
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yaml.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))

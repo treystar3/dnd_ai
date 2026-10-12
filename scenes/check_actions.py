@@ -47,7 +47,7 @@ class CheckActions:
     def run_checks(self, intent, text: str) -> bool:
         """Roll the checks an action calls for. Returns True if the checks fully handled the action."""
         self.last_text = text
-        if intent.kind == "steal":          # a theft rolls its own bar (scenes/law_actions.py)
+        if intent.kind in ("steal", "unlock"):          # a theft rolls its own bar (scenes/law_actions.py)
             return False
         wanted = [c for c in dict.fromkeys(intent.checks) if c in checks.CHECKS]
         if intent.kind == "give" and any(w in (intent.item or "").lower() for w in self.COIN_WORDS):

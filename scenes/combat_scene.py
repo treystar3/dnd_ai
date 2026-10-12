@@ -7,6 +7,7 @@ and narrates the round from the engine's log.
 import json
 import math
 import random
+import re
 
 from core.models import Item
 import config
@@ -27,6 +28,28 @@ ROLE_PROFILES = {
 }
 
 
+TAG = re.compile(r"\s*[\[\(\{]\s*h\d+\s*[\]\)\}]", re.IGNORECASE)
+TAG_N = re.compile(r"\s*[\[\(\{]\s*h(\d+)\s*[\]\)\}]", re.IGNORECASE)
+
+
+def place_figures(text: str, hits: list[dict], window: bool) -> str:
+    """Swap each blow's tag in the narration for its figure, e.g. '(14 damage)'. Any figure the narrator left out goes on the end,
+    so a blow is never without its number. In the window a figure is a hoverable token (⟦id|figure⟧); in the terminal plain text."""
+    by_tag = {h['tag']: h for h in hits if h.get('figure')}
+    used = set()
+    def fig(h):
+        return f"⟦{h['id']}|{h['figure']}⟧" if window else h['figure']
+    def sub(m):
+        h = by_tag.get('h' + m.group(1))
+        if not h or h['tag'] in used:
+            return ''
+        used.add(h['tag'])
+        return ' ' + fig(h)
+    text = TAG_N.sub(sub, text)
+    missing = [fig(h) for t, h in by_tag.items() if t not in used]
+    return text + (' ' + ' '.join(missing) if missing else '')
+
+
 class _Shape:
     """A minimal creature-like object for companions that aren't in the bestiary (summoned spirits)."""
     def __init__(self, comp):
@@ -40,6 +63,7 @@ class CombatScene:
     def __init__(self, world_scene, fight: combat.Combat, creature_name: str):
         self.ws = world_scene
         self.fight = fight
+        fight.record = True
         self.creature_name = creature_name
         self.rng = random.Random()
         self.tamed: list[str] = []
@@ -77,6 +101,7 @@ class CombatScene:
         near, later = cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
         fighters += near
         fight = combat.Combat(fighters=fighters + enemies, place=ws.place.name, conditions=sorted(ws.conditions()))
+        fight.record = True                 # keep a breakdown of every blow for the window's combat log
         fight.ally_reserves = later
         fight.ally_arrive = party.P["hold_arrival_round"]
         fight.gentle = pools.mechanic(c, "gentle_approach") is not None
@@ -84,7 +109,7 @@ class CombatScene:
         fight.reinforce_every, fight.reinforce_count, fight.reinforce_from = wave
         scene = cls(ws, fight, creature.name)
         combat.opening(fight, scene.rng)
-        opening_events = list(fight.story)
+        opening_events = [TAG.sub("", e) for e in fight.story]          # the opening blows are logged, not narrated with figures
         fight.log, fight.story = [], []
         label, rate = combat.danger(fight)
         console.debug(f"danger estimate: {rate:.0%} win rate")
@@ -122,7 +147,39 @@ class CombatScene:
 
     # ---------- display ----------
 
+    def pane_data(self, danger: str = "") -> dict:
+        """The fight as plain data for the window's combat pane."""
+        f, p = self.fight, self.fight.player
+        def fighter(x):
+            return {"id": x.id, "name": x.name, "level": x.level, "hp": round(x.hp), "max_hp": x.max_hp, "band": x.band,
+                    "statuses": [[k, v] for k, v in x.statuses.items()], "elevated": x.elevated,
+                    "stamina": round(x.stamina), "max_stamina": x.max_stamina, "mana": round(x.mana), "max_mana": x.max_mana}
+        moves = []
+        for m in p.moves:
+            left = p.cooldowns.get(m.id, 0)
+            if m.id in p.cooldowns:                     # your turn starts by ticking cooldowns down, so judge it as it will be then
+                p.cooldowns[m.id] = max(0, left - 1)
+            problem = combat.can_use(p, m, f)
+            if m.id in p.cooldowns:
+                p.cooldowns[m.id] = left
+            cooling = left > 1                      # at 1 the move is ready by the time you act
+            if problem and not cooling:
+                reason = problem
+            elif cooling:
+                reason = f"ready in {left - 1} turn{'s' if left - 1 != 1 else ''}"
+            else:
+                reason = ""
+            moves.append({"id": m.id, "name": m.name, "resource": m.resource, "cost": combat.cost_of(p, m, f), "effect": m.effect,
+                          "tier": m.tier, "cooldown": m.cooldown, "left": max(0, left - 1), "ready": not reason, "reason": reason})
+        you = fighter(p)
+        you["buffs"] = [[b.get("name", k), b.get("rounds", 0)] for k, b in p.buffs.items()]
+        return {"round": f.round, "danger": danger, "enemies": [fighter(e) for e in f.enemies()],
+                "reserves": len(f.reserves), "allies": [fighter(a) for a in f.allies()], "you": you,
+                "moves": moves, "hits": f.hits}
+
     def show(self, danger: str = "") -> None:
+        if console.combat_state(self.pane_data(danger)):
+            return
         p = self.fight.player
         lines = []
         if danger:
@@ -174,7 +231,7 @@ class CombatScene:
         p = f.player
         intent = self.interpret(text)
         console.debug(f"combat intent: {intent.model_dump(exclude_defaults=True)}")
-        f.log, f.story = [], []
+        f.log, f.story, f.hits = [], [], []
         target = f.get(intent.target) if intent.target else None
         if not target or not target.alive or target.side != "enemy":
             target = min(f.enemies(), key=lambda e: combat.BANDS.index(e.band))
@@ -184,7 +241,12 @@ class CombatScene:
             combat.tell(f, "you try to act, but your body will not answer")
         elif intent.kind == "ability":
             move = next((m for m in p.moves if m.id == intent.ability), None)
-            problem = combat.act_ability(f, p, move, target, self.rng) if move else "You don't know that ability."
+            binder = self.binding_ability(move)
+            problem = None
+            if binder:
+                self.try_bind(move, binder, target)
+            else:
+                problem = combat.act_ability(f, p, move, target, self.rng) if move else "You don't know that ability."
             if problem:
                 console.note(problem + " You attack instead.")
                 combat.act_attack(f, p, target, self.rng)
@@ -200,7 +262,13 @@ class CombatScene:
         elif intent.kind == "flee":
             combat.act_flee(f, self.rng)
         elif intent.kind == "tame":
-            self.try_tame(target)
+            c = self.ws.player.character
+            binder = taming.binder(c) if not c.uses_companions else None
+            move = next((m for m in p.moves if binder and m.id == binder.id), None)
+            if move:
+                self.try_bind(move, binder, target)
+            else:
+                self.try_tame(target)
         elif intent.kind == "other":
             f.log.append(f"{p.name} tries something unusual ({intent.summary or text}) but it has no clear effect")
             combat.tell(f, f"you try something unexpected ({intent.summary or text}), but it changes nothing")
@@ -221,6 +289,41 @@ class CombatScene:
         else:
             self.show()
             self.ws.store.save_combat(self.to_json())
+
+    def binding_ability(self, move):
+        """The character's Bind a Beast ability if this move is it."""
+        if not move:
+            return None
+        return next((a for a in self.ws.player.character.actives if a.id == move.id and a.field_use == "bind_beast"), None)
+
+    def try_bind(self, move, ability, target) -> None:
+        """Bind a Beast: a taught ability, once a day, odds set by the creature and the ability's tier; the bond is permanent."""
+        f, c = self.fight, self.ws.player.character
+        p = f.player
+        creature = self.ws.world.bestiary.get(target.creature)
+        wait = self.ws.field_ready_in(ability)
+        problem = taming.bind_check(c, target, creature) or combat.can_use(p, move, f) or \
+            (f"{ability.name} needs {clock.describe_duration(wait)} more before you can do it again." if wait else "")
+        if problem:
+            console.note(problem + " You attack instead.")
+            combat.act_attack(f, p, target, self.rng)
+            return
+        cost = combat.cost_of(p, move, f)
+        if move.resource == "stamina":
+            p.stamina -= cost
+        else:
+            p.mana -= cost
+        self.ws.field_cooldown_start(ability)
+        if self.rng.random() < taming.bind_chance(c, target, creature, ability.tier):
+            comp = taming.bind(c, creature, target.name)
+            f.fighters.remove(target)
+            self.tamed.append(comp.name)
+            f.log.append(f"{f.player.name} binds {target.name} with {ability.name}; it is now a companion")
+            combat.tell(f, f"{target.name} stops fighting and settles beside you - it is yours now ({comp.name}, a new companion)")
+            console.note(f"{comp.name} is bound to you as a companion.")
+        else:
+            f.log.append(f"{f.player.name} tries to bind {target.name} with {ability.name}, but it will not yield")
+            combat.tell(f, f"you reach for {target.name} with {ability.name}, but it breaks free and snaps at you")
 
     def try_tame(self, target) -> None:
         f, c = self.fight, self.ws.player.character
@@ -251,9 +354,10 @@ class CombatScene:
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration),
                        Narration, self.ws.recent_narration, max_tokens=600)
-        console.narrate(result.text)
-        self.ws.remember_narration(result.text)
-        if config.COMBAT_NUMBERS:
+        text_out = place_figures(result.text, f.hits, console.damage_tags)
+        console.narrate(text_out)
+        self.ws.remember_narration(TAG.sub("", result.text))
+        if config.COMBAT_NUMBERS and not console.damage_tags:
             console.combat_numbers(f.log)
 
     def use_item(self, name: str) -> str | None:
@@ -277,6 +381,10 @@ class CombatScene:
     def sync_player(self) -> None:
         c, p = self.ws.player.character, self.fight.player
         c.health, c.stamina, c.mana = float(p.hp), float(p.stamina), float(p.mana)
+        if c.orenna_breath and not p.breath:
+            c.orenna_breath = False
+            from engine import orenna
+            console.note(orenna.O["blessing"]["spent"])
 
     # ---------- endings ----------
 
@@ -306,6 +414,9 @@ class CombatScene:
         f, ws = self.fight, self.ws
         ws.store.save_combat(None)
         ws.combat = None
+        if f.hits:
+            console.combat_state(self.pane_data())
+        console.combat_state(None)
         rounds = f.round
         ws.advance_quiet(max(1, math.ceil(rounds * combat.RULES["round_seconds"] / 60)))
         dead = [e for e in f.fighters if e.side == "enemy" and not e.alive]
@@ -318,21 +429,25 @@ class CombatScene:
             ws.dungeon_fight_over("victory")
             ws.road_fight_over("victory")
             ws.camp_fight_over("victory", dead)
+            ws.orenna_fight_over("victory")
         elif f.over == "fled":
             console.note("You got away.")
             ws.dungeon_fight_over("fled")
             ws.road_fight_over("fled")
             ws.camp_fight_over("fled", dead)
+            ws.orenna_fight_over("fled")
             ws.recently_fled = True
         elif self.phoenix():
             ws.dungeon_fight_over("fled")
             ws.road_fight_over("fled")
             ws.camp_fight_over("fled", dead)
+            ws.orenna_fight_over("fled")
             ws.recently_fled = True
         else:
             ws.dungeon_fight_over("defeat")
             ws.road_fight_over("defeat")
             ws.camp_fight_over("defeat", dead)
+            ws.orenna_fight_over("defeat")
             self.defeat()
         events.release_allies(ws)
         ws.store.save_player(ws.player)
@@ -365,7 +480,8 @@ class CombatScene:
             self.sync_player()
             return
         if not dead:
-            console.note("They got away - nothing to show for it this time.")
+            if getattr(self.ws, "orenna_fight", None) != "executioner":
+                console.note("They got away - nothing to show for it this time.")
             self.sync_player()
             return
         self.ws.record_kills(dead)
@@ -381,6 +497,8 @@ class CombatScene:
         scavenger = pools.mechanic(c, "scavenger") or 0
         state = self.ws.store.load_place(self.ws.player.location)
         skinnable = 0
+        bodies = {e.id: {"creature": e.creature, "name": e.name, "level": e.level, "category": e.category, "rank": e.rank,
+                         "minute": self.ws.minutes, "asked": False} for e in dead}
         for e in dead:
             if e.rank == "boss":
                 gained, prizes = loot.boss_drops(e, self.rng, loot.keeps_companions(c))
@@ -389,6 +507,8 @@ class CombatScene:
                     if prize.rarity in ("rare", "epic", "legendary"):
                         self.name_item(prize, e.name)
                     found.append(prize)
+                if prizes:
+                    bodies[e.id]["carried"] = inventory.label(prizes[0])
                 kit = (e.boss or {}).get("kit") or bosses.kit_for(e.category)
                 tier = (e.boss or {}).get("tier") or "dungeon"
                 if self.rng.random() < bosses.B["relic_chance"].get(tier, 0):
@@ -412,8 +532,9 @@ class CombatScene:
                 if item.rarity in ("rare", "epic", "legendary"):
                     self.name_item(item, e.name)
                 found.append(item)
-        if skinnable:
-            self.ws.store.save_place(state)
+                bodies[e.id]["carried"] = inventory.label(item)
+        state.bodies = self.ws.keep_bodies(state.bodies + list(bodies.values()))
+        self.ws.store.save_place(state)
         c.coins += coins
         for item in found:
             self.ws.to_pack(item)
@@ -556,7 +677,7 @@ class CombatScene:
         summary = death.die(c)
         lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
         console.note("You have died.")
-        console.wait("Darkness. Then the sourceless light of the Threshold, colder than you remember.")
+        console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
         line = generate("goddess_line", gp.goddess_system(ws.goddess_knowledge()),
                         gp.narration_request("death", cp.THRESHOLD_EVENT.format(deaths=c.deaths, losses="; ".join(lost)), []),
                         GoddessLine, temperature=0.9)
@@ -570,5 +691,5 @@ class CombatScene:
         wake = c.last_rest if c.last_rest in ws.world.places else ws.world.start_location
         ws.enter(wake)
         ws.narrate(f"{days} days have passed in the world. The player wakes here, alive again, a lighter purse and nothing else lost. "
-                   "Describe waking, brief and stark.")
+                   "They are thrown back by the goddess's failing light and wake with a sharp, ragged gasp. Describe waking, brief and stark.")
         ws.show_exits()

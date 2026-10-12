@@ -24,3 +24,12 @@ cap: {base: 1, per_levels: 30}
 
 # How many companions can fight at once: base, plus one for every this-many levels. The strongest answer the call.
 active: {base: 1, per_levels: 50}
+
+# BINDING - a character who is not a companion class learns Bind a Beast (a taught-only ability). It works in a fight, once a day
+# (field.yaml min_cooldown), and the bond is permanent. It counts against the same companion cap as taming.
+bind:
+  ceiling: {light: 0.50, moderate: 0.70, heavy: 0.85}   # the best odds the ability's tier can ever give
+  healthy_share: 0.50              # at or below this share of its health there is no penalty
+  unhurt_penalty: 0.30             # the penalty at full health, shrinking in a straight line down to healthy_share
+  level_margin: 0                  # levels above you a creature may be (companion classes keep level_margin above)
+  refuse_rarity: [legendary]       # a character who is not a companion class cannot bind these

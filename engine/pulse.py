@@ -297,14 +297,6 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     add_news(state, line, th["place"], t, th["groups"])
 
 
-def resolve_by_player(store, thread_id: str, now: int) -> None:
-    state = store.load_world_state()
-    th = next((x for x in state.get("threads", []) if x["id"] == thread_id and x["status"] == "active"), None)
-    if th:
-        end_thread(store, state, th, "resolved", f"{th['title']} - settled by a newcomer to these parts.", now)
-        store.save_world_state(state)
-
-
 def post_contract(store, world, offer, thread, t) -> bool:
     from engine import quests
     halls = [p.id for p in world.places.values() if p.type == "guild"]

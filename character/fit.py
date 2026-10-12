@@ -78,6 +78,3 @@ def mechanic_scores(interp: ClassInterpretation) -> dict[str, int]:
         scores[m.id] = score
     return scores
 
-
-def available_mechanics(interp: ClassInterpretation) -> list[str]:
-    return [m for m, score in mechanic_scores(interp).items() if score > EXCLUDED + 5]

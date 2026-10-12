@@ -297,7 +297,40 @@ class InventoryActions:
         intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They offer you {sum_}.]"
         self.on_talk(intent, text)
 
+    TITHE_WORDS = ("tithe", "offering", "alms", "donat", "collection", "box", "plate")
+
+    def tithe_box(self, intent, text: str) -> bool:
+        """Coins into a temple's box. True if that is what this was (and it has been dealt with)."""
+        from engine import standing
+        named = (intent.item or "").lower()
+        if self.place.type != "temple" or not any(w in named for w in self.COIN_WORDS) or inv.find(self.pack, named):
+            return False
+        low = f"{text} {intent.summary}".lower()
+        if intent.target and any(n.id == intent.target for n in self.present) and not any(w in low for w in self.TITHE_WORDS):
+            return False
+        c = self.player.character
+        amount = self.coin_amount(intent.item or "") or self.coin_amount(text)
+        if not amount:
+            console.note("How much? Say an amount.")
+            self.halted = True
+            return True
+        if c.coins < amount:
+            console.note(f"You only have {money.words(c.coins)}.")
+            self.halted = True
+            return True
+        c.coins -= amount
+        weight = standing.tithe_weight(amount)
+        if weight:
+            self.standing_report("tithe", None, self.place.name, weight)
+        self.store.save_player(self.player)
+        console.note(f"You leave {money.fmt(amount)} in the tithe box. Purse: {money.fmt(c.coins)}")
+        self.narrate(f"The player drops {money.words(amount)} into the tithe box at {self.place.name}. Two sentences, quiet and unhurried; "
+                     f"nobody makes a fuss.", text)
+        return True
+
     def on_give(self, intent, text: str) -> None:
+        if self.tithe_box(intent, text):
+            return
         npc = next((n for n in self.present if n.id == intent.target), None) or \
             (self.partner if self.partner in self.present else None)
         if not npc:
@@ -610,34 +643,36 @@ class InventoryActions:
                 out += [(n, i, round(p * haggle)) for i, p in property_rules.relics_in(self.world, self.store.meta.seed, town, self.player.relics_bought)]
         return out
 
+    BUSINESS_PLACES = ("shop", "smithy", "workshop", "inn", "yard", "town", "village", "square")     # small settlements and market squares are where their sellers work
+
     def show_shop(self) -> None:
-        sellers = [n for n in self.present if self.world.roles[n.role].sells or self.world.roles[n.role].stock or self.world.roles[n.role].relics]
-        if not sellers:
+        """What is for sale, but only inside a place of business and only from people you have met."""
+        if self.place.type not in self.BUSINESS_PLACES:
+            console.note("Nothing is sold here. Wares are shown at a shop, smithy, workshop, inn, caravan yard, market square or village.")
+            return
+        data = self.shop_data()
+        if not data["sellers"]:
             if self.stable_stock():
                 self.show_stable()
             else:
-                console.note("No one here is selling anything.")
+                console.note("No one here is selling anything you know of. Speak to the people here first.")
             return
-        haggle = 1 - (crafting.mechanic(self.player.character, "haggler") + self.barter_pct()) / 100
-        for n in sellers:
-            role = self.world.roles[n.role]
-            console.note(f"{n.label()}:")
-            for w in role.sells:
-                console.note(f"  {w.name} - {money.fmt(round(w.price * haggle))}")
-            if role.stock:
-                self.ensure_stock(n)
-                for i in crafting.stock_items(n):
-                    need = equipment.level_needed(i)
-                    console.note(f"  {quality_name(i)} (lv {i.item_level}{f', needs you at level {need}' if self.player.character.level < need else ''}) - "
-                                 f"{items.summary(i)[:60]} - {money.fmt(round(items.price(i) * haggle))}")
-            if role.relics:
-                for i, p in property_rules.relics_in(self.world, self.store.meta.seed, property_rules.town_of(self.world, self.player.location), self.player.relics_bought):
-                    console.note(f"  {i.name}, {i.title} (lv {i.item_level}) - {money.fmt(p)}")
-                    console.note(f"    {i.description}")
-            if role.buys:
-                console.note(f"  buys: {', '.join(role.buys)}")
+        if console.panel("shop", data):                    # the window draws this one with Buy and Sell buttons
+            self.show_stable()
+            return
+        for sl in data["sellers"]:
+            console.note(f"{sl['name']}:")
+            for w in sl["wares"]:
+                more = " - ".join(x for x in (w["detail"], w["note"]) if x)
+                console.note(f"  {w['name']}" + (f" ({more})" if more else "") + f" - {w['price_text']}")
+            if sl["buys"]:
+                console.note(f"  buys: {', '.join(sl['buys'])}")
+        if data["sell"]:
+            console.note("Your pack would fetch:")
+            for x in data["sell"]:
+                console.note(f"  {x['name']} - {x['total_text']} (from {x['buyer_name']})")
         self.show_stable()
-        console.note(f"Your purse: {money.fmt(self.player.character.coins)}")
+        console.note(f"Your purse: {data['purse']}")
 
     def buy_from_stock(self, intent, text: str) -> bool:
         """Buy a piece of gear from a merchant's stock. Returns False if nothing in stock matches."""
@@ -648,28 +683,7 @@ class InventoryActions:
         if not named:
             return False
         npc, item, price = next(o for o in offers if o[1].uid == named.uid)
-        c = self.player.character
-        if c.coins < price:
-            self.narrate(f"The player wants {item.name} from {npc.label()}, which costs {money.words(price)}, but they "
-                         f"only have {money.words(c.coins)}. Show the moment briefly.", text)
-            self.halted = True
-            return True
-        c.coins -= price
-        self.use_barter()
-        if item.uid.startswith("relic_"):
-            self.player.relics_bought.append(item.uid[len("relic_"):])
-        else:
-            crafting.remove_from_stock(npc, item.uid)
-        npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                   text=f"Sold the stranger {item.name} for {money.words(price)}."))
-        self.store.save_npc(npc)
-        self.to_pack(item)
-        self.store.save_player(self.player)
-        console.note(f"Bought {quality_name(item)} (lv {item.item_level}) for {money.fmt(price)}. "
-                     f"Purse: {money.fmt(c.coins)}")
-        if item.uid.startswith("relic_"):
-            self.weight_hint = "major"
-        self.narrate(f"The player buys {item.name} from {npc.label()} for {money.words(price)}.", text)
+        self.buy_stock_item(npc, item, price, text)
         return True
 
     def on_sell(self, intent, text: str) -> None:
@@ -689,19 +703,4 @@ class InventoryActions:
             self.halted = True
             return
         sold = inv.take(self.pack, intent.item or text, max(1, intent.count))
-        rate = (self.world.roles[buyer.role].buy_rate or R["sell_rate"]) * \
-            (1 + (crafting.mechanic(self.player.character, "haggler") + self.barter_pct()) / 100)
-        if sold.base != "raw_material" and not sold.good and self.has("veterans_eye"):
-            rate *= 1 + self.has("veterans_eye") / 100
-        rate *= self.sell_multiplier(sold)
-        paid = max(1, round(inv.unit_value(sold) * sold.quantity * rate))
-        self.salvage(sold)
-        self.known_work_sold(sold)
-        self.player.character.coins += paid
-        self.use_barter()
-        buyer.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                     text=f"Bought {inv.label(sold)} from the stranger for {money.words(paid)}."))
-        self.store.save_npc(buyer)
-        self.store.save_player(self.player)
-        console.note(f"Sold {inv.label(sold)} to {buyer.label()} for {money.fmt(paid)}. Purse: {money.fmt(self.player.character.coins)}")
-        self.narrate(f"The player sells {inv.label(sold)} to {buyer.label()}, who pays {money.words(paid)}.", text)
+        self.finish_sale(sold, buyer, text)

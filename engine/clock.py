@@ -69,7 +69,7 @@ def in_hours(minutes: int, hours: tuple[int, int]) -> bool:
 
 
 def header(minutes: int, place_name: str) -> str:
-    return f"Day {day(minutes)} · {period(minutes).capitalize()} · {place_name}"
+    return f"{ordinal(day(minutes))} Day · {period(minutes).capitalize()} · {place_name}"
 
 
 def describe_duration(m: int) -> str:

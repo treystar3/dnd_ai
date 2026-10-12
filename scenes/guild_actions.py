@@ -5,7 +5,7 @@ import random
 import re
 
 from core.models import KeyItem
-from engine import clock, combat, encounters, inventory as inv, items, leveling, money, quests
+from engine import clock, combat, inventory as inv, leveling, money, quests
 from npc.models import Memory
 from ui import console
 
@@ -301,6 +301,7 @@ class GuildActions:
             if q["guild"]:
                 self.player.guild_done[q["letter"]] = self.player.guild_done.get(q["letter"], 0) + q.get("rank_credit", 1)
                 self.reputation_change("contract_done")
+                self.standing_report("contract_done", None, q["title"])
             else:
                 payer.trust = min(100, payer.trust + 3)
                 self.reputation_change("request_done")

@@ -1,11 +1,14 @@
 """Odd jobs for NPCs, and skinning or butchering what you kill."""
 
 import random
+import re
 from pathlib import Path
 
 import yaml
 
 from engine import clock, crafting, inventory as inv, items, loot, money, pools
+from llm.contracts import WorkOffer
+from llm.gateway import generate
 from npc.models import Memory
 from ui import console
 
@@ -13,7 +16,29 @@ ROOT = Path(__file__).resolve().parent.parent
 W = yaml.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
 
 
+PAY_WORDS = re.compile(r"\b(pay|paid|wage|wages|coin|coins|copper|coppers|silver|gold|penny|pennies|reward|earn)\b", re.I)
+TASK_WORDS = re.compile(r"\b(work|job|task|chore|chores|haul|carry|labou?r|help|clear|load|dig|chop|tend|mend|fetch|move)\b", re.I)
+
+
 class WorkActions:
+
+    def promises_pay(self, speech: str) -> bool:
+        """Does an NPC's line promise pay for a task, whether or not the reply carried a structured offer?"""
+        return bool(PAY_WORDS.search(speech) and TASK_WORDS.search(speech))
+
+    def inferred_offer(self, npc, speech: str) -> WorkOffer:
+        """The NPC promised pay without making a formal offer: read the task off what they said, at honest wages."""
+        try:
+            got = generate("work_offer_read",
+                           "Read the villager's line. If they are offering the stranger paid work, give the task as a short phrase "
+                           "(like 'load the grain onto the wagon'), how many minutes it should take, and the pay in copper "
+                           "(0 if no amount was named). Respond only with JSON.",
+                           f"{npc.label()} says: {speech}", WorkOffer, temperature=0.1, max_tokens=120)
+            if got.task.strip():
+                return got
+        except Exception:
+            pass
+        return WorkOffer(task=f"help {npc.label()} with the work described", pay=0, minutes=60)
 
     def record_work_offer(self, offer, npc) -> None:
         """Keep an NPC's job offer, held to honest wages."""

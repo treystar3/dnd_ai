@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Protocol
 
-TARGETED = ("talk", "give", "show", "buy", "sell", "commission", "attack", "train", "work", "board", "steal")
+TARGETED = ("talk", "give", "show", "buy", "sell", "commission", "attack", "train", "work", "board", "steal", "unlock")
 MONEY = re.compile(r"\b(gold|silver|copper|coins?|fee|pay|paid|price|cost|costs|owe|bribe|tip)\b|\d+\s*(g|s|c)\b")
 
 # common verbs we know the interpreter handles: a verb in the text should show up as one of these kinds in the plan
@@ -34,6 +34,8 @@ VERB_KINDS: dict[str, tuple[str, ...]] = {
 from engine import law as _law
 for _w in _law.L["words"]["steal"]:
     VERB_KINDS.setdefault(_w, ("steal",))
+for _w in _law.L["words"]["unlock"]:
+    VERB_KINDS.setdefault(_w, ("unlock", "steal"))
 FORCE_WORDS = set(_law.L["words"]["force"])
 
 

@@ -1,0 +1,87 @@
+# Who each place worships, and how believers talk. Lore only: the gods have no gameplay effect.
+# These are tone notes for the model, never lines to repeat. `cares` = what the god stands for; `imagery` = what the faithful reach for
+# when they speak; `habits` = how belief shows in ordinary speech; `swears` = what they swear by, loosely.
+gods:
+  valecourt:
+    name: Aurelan the Sun Warden
+    cares: oaths kept, the crown's mandate, light against dark
+    imagery: sunrise, flame, gold, the warden at the gate
+    habits: people mark promises with a hand over the heart; a broken oath is called "dimming the sun"
+    swears: by the Warden's flame, by the sun
+  eldervale:
+    name: Nhaelis the Green Huntress
+    cares: taking only what is needed, wind and wood, the hunt done cleanly
+    imagery: leaves, wind in branches, the arrow's flight, roots
+    habits: the first of a kill is left for the trees; hunters speak of "asking the wood"
+    swears: by the Huntress, by root and branch
+  ironvein:
+    name: Kharun the Mountain Smith
+    cares: honest work, craft, things made to last
+    imagery: anvil, stone, forge-fire, hammer-blows
+    habits: work is blessed with a first strike; shoddy work is "cold iron"
+    swears: by the Smith's anvil, by stone and steel
+  dunmarrow:
+    name: Nythra the Deep Watcher
+    cares: silence kept, secrets guarded, what lies in the dark
+    imagery: the deep, lightless water, a watching eye below, hush
+    habits: they lower their voices for holy matters; keeping a secret is a kind of prayer
+    swears: by the Watcher, by the dark below
+  frostholm:
+    name: Isrenna the Frost Marshal
+    cares: endurance, standing together, hardship borne without complaint
+    imagery: ice, long nights, the shield-wall, a banked fire
+    habits: complaining about cold is shameful; hospitality to wintered-out travelers is a duty
+    swears: by the Marshal, by frost and fire
+  hrimgard:
+    name: Throndar the Storm Judge
+    cares: fair verdicts, spoken truth, justice done under open sky
+    imagery: thunder, lightning, the open sky, the gavel of the storm
+    habits: disputes are settled in the open "so the storm may hear"; a liar fears thunder
+    swears: by the Judge, by thunder
+  riverhaven:
+    name: Teluun the River Steward
+    cares: honest scales, fair trade, the river's flow
+    imagery: water, currents, barges, weights and measures
+    habits: a drop of water poured before a deal; a cheat is "muddying the river"
+    swears: by the Steward, by the river
+  brinewatch:
+    name: Maerith the Tide Caller
+    cares: those at sea, the drowned remembered, the tide's patience
+    imagery: tide, salt, lanterns, gulls, the deep sea
+    habits: the drowned are named aloud; a lantern is lit for those at sea. The coast also calls her the Mother of Tides
+    swears: by the Tide, by salt and sea
+  sunspire:
+    name: Dahlira the Hearth Tender
+    cares: home, hospitality, a door never shut on a guest
+    imagery: hearth, bread, a cup of water, warm walls
+    habits: guests are offered water and bread first; turning a guest away is shameful
+    swears: by the Hearth, by bread and water
+  cinderhold:
+    name: Ashkar the Pyre Herald
+    cares: rebirth from ruin, the dead given to fire, what returns changed
+    imagery: ash, embers, the pyre, the phoenix of cinders
+    habits: the dead are burned and said to be "waiting in the ash"; loss is met with a vow to rise again
+    swears: by the Herald, by ash and ember
+  amaranth:
+    name: Ixmara the Cycle Keeper
+    cares: growth, decay, renewal; nothing wasted
+    imagery: roots, rot, seed, ripening, vines
+    habits: death and rot are not mourned as ending; things are returned to the soil
+    swears: by the Keeper, by seed and root
+  morrowen:
+    name: Morrowen the Ferryman
+    cares: the dead carried across, the passage paid
+    imagery: a black river, a boat, a coin
+    habits: a coin laid on the tongue of the dead; seen as an old burial cult, not a temple faith
+    swears: by the coin, by the far shore
+
+# how belief sounds by who is speaking
+voices:
+  clergy: devout and fluent; knows the rites and the gentle teaching that the gods shaped the peoples out of love; can speak at length but is not preachy unless asked
+  soldier: brief and practical; faith is an oath or a habit before a fight, not a sermon
+  folk: ordinary talk; belief shows as a saying, a custom or a mild oath, mentioned in passing and only when natural; they do not explain doctrine
+  scholar: curious and precise; knows the temple accounts and notices where they agree too neatly, but does not know why
+  roles:
+    clergy: [priest, acolyte, water_priest]
+    soldier: [guard, watch_captain, royal_guard, scout, quartermaster]
+    scholar: [loremaster, elder]

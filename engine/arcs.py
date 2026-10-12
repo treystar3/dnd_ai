@@ -3,7 +3,6 @@
 The ENGINE decides whether a contract is a short job, a chain or an arc (roll_scale), picks every place the story will
 visit (plan), and holds the state (advance). The model dresses the skeleton once; nothing it says can add a step."""
 
-import math
 import random
 import uuid
 from pathlib import Path
@@ -25,10 +24,6 @@ def _full(t: dict) -> dict:
 
 TEMPLATES = {t["id"]: _full(t) for t in yaml.safe_load((ROOT / "world" / "arcs.yaml").read_text(encoding="utf-8"))}
 SIZES = ["simple", "chain", "arc"]
-
-
-def empty() -> dict:
-    return {"arcs": [], "last_end": -10 ** 9}
 
 
 def active(data: dict) -> dict | None:
@@ -173,6 +168,11 @@ def build(world, store, quest: dict, hall: str, level: int, size: str, why: str,
             "started": now, "deadline": None, "quest": quest["id"], "hall": hall,
             "level": level, "victim_phrase": quest.get("victim") or rng.choice(tpl["victims"]), "revealed": False, "nodes": nodes, "story": None,
             "log": [], "paid": 0, "effects": []}
+
+
+def site_body(seed, arc: dict, n: dict) -> bool:
+    """Whether this site holds a body someone could question. Fixed for the campaign, so it never changes between visits."""
+    return n["kind"] == "site" and random.Random(f"{seed}:body:{arc['id']}:{n['id']}").random() < A["body"]["site_chance"]
 
 
 def finish(data: dict, arc: dict, state: str, now: int) -> None:

@@ -10,7 +10,6 @@ The goddess never decides anything. All mechanics are shown by ui.console.
 
 import json
 from enum import Enum
-from pathlib import Path
 
 from character import creation
 from core.models import Attributes, Character
@@ -23,6 +22,7 @@ from ui import console
 from core.paths import BUNDLE
 KNOWLEDGE_PATH = BUNDLE / "data" / "goddess_knowledge.json"
 OPENING_PATH = BUNDLE / "data" / "opening.json"
+SEND_OFF_PATH = BUNDLE / "data" / "send_off.json"
 SPEAKER = "The Goddess"
 
 
@@ -70,7 +70,7 @@ class ThresholdScene:
         while self.step != Step.DONE:
             text = console.ask()
             if text.lower() in {"quit", "exit", "/quit", "/exit"}:
-                print("\nYou leave the Threshold. No character was saved - run main.py to begin again.")
+                console.out("\nYou leave the Threshold. No character was saved - run main.py to begin again.")
                 raise SystemExit(0)
             if not text:
                 continue
@@ -89,12 +89,16 @@ class ThresholdScene:
 
     def opening(self) -> None:
         """The fixed opening: what happened and what comes next, the same every time. The goddess then answers whatever the player says."""
-        for beat in json.loads(OPENING_PATH.read_text(encoding="utf-8")):
+        self.play(OPENING_PATH)
+
+    def play(self, path, **fill) -> None:
+        for beat in json.loads(path.read_text(encoding="utf-8")):
+            text = beat["text"].format(**fill) if fill else beat["text"]
             if beat["who"] == "goddess":
-                console.say(beat["text"], SPEAKER)
-                self.transcript.append(("Goddess", beat["text"]))
+                console.say(text, SPEAKER)
+                self.transcript.append(("Goddess", text))
             else:
-                console.narrate(beat["text"])
+                console.narrate(text)
 
     def speak(self, event: str) -> None:
         line = generate(
@@ -144,8 +148,8 @@ class ThresholdScene:
         self.name = name
         self.step = Step.CONCEPT
         self.speak(
-            f"The player's name is {name}. Acknowledge it. Tell them you can give them a "
-            "beginning but not a destiny, and ask who they wish to become."
+            f"The player's name is {name}. Say it back once, softly, as if holding it. Then, hurriedly, ask who they wish to "
+            "become, so that you can give their life a shape to carry back."
         )
 
     def on_concept(self, turn: PlayerTurn) -> None:
@@ -168,7 +172,7 @@ class ThresholdScene:
         self.step = Step.CONFIRM_CLASS
         self.speak(
             f"You perceive the player's nature as: {self.interp.custom_class}. {self.interp.summary} "
-            "Tell them what you see in them in your own words, without game terms, "
+            "Tell them what you see in them in your own words, without game terms, as the shape their life already has, "
             "and ask whether you have seen them truly."
         )
 
@@ -186,7 +190,7 @@ class ThresholdScene:
             console.show_actives(self.active_options)
             self.speak(
                 "The player accepted your reading. The game now shows them fifteen techniques "
-                "they might carry back. Invite them to choose two."
+                "they might carry back: what is already in them, drawn out. Invite them, quickly, to choose two."
             )
             self.passives_job = creation.PassivesInBackground(self.interp, self.active_options)   # written while they read
         elif turn.kind in ("decline", "answer") and turn.text.strip():
@@ -267,8 +271,5 @@ class ThresholdScene:
         )
         path = creation.save_character(self.character)
         self.step = Step.DONE
-        self.speak(
-            "Creation is complete. Bid them farewell as they are sent back to the living world. Their memory of this place, "
-            "and of who they were, begins to fade; what comes next is theirs to find. Do not say where they will wake."
-        )
         console.note(f"Character saved to {path}")
+        self.play(SEND_OFF_PATH, name=self.name)

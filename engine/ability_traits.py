@@ -116,13 +116,14 @@ def _draw(table: dict, n: int, interp, rng: random.Random, skip=(), max_multi: i
 
 
 def draw_offers(interp, rng: random.Random | None = None, sizes: dict | None = None, skip=(), min_functions: int = 0,
-                owned_functions=()) -> dict:
+                owned_functions=(), level: int = 1, lesson: bool = False) -> dict:
     """A fresh selection for one new character (or one lesson). Weighted toward what suits the class, but always varied."""
     from engine import field
     rng = rng or random.SystemRandom()
     n = sizes or T["offer"]
     return {
-        "functions": field.draw(interp, rng, minimum=min_functions, count=(sizes or {}).get("functions"), skip=owned_functions),
+        "functions": field.draw(interp, rng, minimum=min_functions, count=(sizes or {}).get("functions"), skip=owned_functions,
+                               level=level, lesson=lesson),
         "commands": list(COMMANDS) if getattr(interp, "uses_companions", False) else [],
         "riders": _draw(RIDERS, n["riders"], interp, rng, skip),
         "shapes": _draw(SHAPES, n["shapes"], interp, rng, skip, max_multi=T["max_multi"]),

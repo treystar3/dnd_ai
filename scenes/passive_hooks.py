@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from engine import clock, items, money, pools
+from engine import clock, items, pools
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent

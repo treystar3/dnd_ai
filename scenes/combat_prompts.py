@@ -57,6 +57,8 @@ Rules:
   fight starting over: the boss was dead on its feet and is not. A fall is an ending - slow down for it, let it land.
   Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
+- Some events end with a marker such as [h2]. It stands for that blow's damage figure, which the game fills in. Copy each marker
+  exactly once, right after the sentence that tells that event, in the same form ([h2]). Never explain it and write no numbers yourself.
 - No numbers, no game words (damage, health, round, critical, status, ability, legendary, phase). No lists or markdown.
 For a boss fight you may write up to eight sentences.
 Respond only with JSON matching the schema, with the prose in "text"."""
@@ -90,6 +92,7 @@ if it says what the boss says, quote that speech as spoken aloud. Add no new thr
 No numbers, no outcome. Respond only with JSON matching the schema, with the prose in "text"."""
 
 THRESHOLD_EVENT = """The player has died again and stands once more at the Threshold. This is death number {deaths}.
-The goddess is colder and more distant with every return: the first time stern, later weary, eventually
-almost contemptuous. She has sent them back again, but it has cost them: {losses}. Their strength and gear were left to them.
-She does not comfort them. In two to four sentences, have her speak to them before they are sent back."""
+You are Orenna, and sending them back costs you: you are weaker every time. Never colder, never angry, never blaming them.
+The first time you are tired but steady and glad they came back, and worried it was so soon. By the fourth or fifth your voice is thin, your sentences short, and you sometimes trail off. After that you must rest between words, and the light around you is dim.
+It has cost them: {losses}. Their strength and gear were left to them.
+In two to four sentences, have her speak to them before they are sent back. Her last words may be "my child"; on later returns the words can catch or crack."""

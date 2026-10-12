@@ -68,11 +68,16 @@ kind:
                        desk or person, slip something away unseen, or look through someone's things to take what they find.
                        Item = what they take, in their words. Target = the person they take it from or whose it is, if any.
                        Paying for something is buy, never steal. Asking for something is talk.
+  unlock             - they open a lock that is not theirs to open: pick it, jimmy it, break into a locked room, chest or door, or open
+                       one with a key they hold. Item = what is locked, in their words ("the back room", "the strongbox").
+                       Target = the person it belongs to, if any. Opening an ordinary unlocked door is move or look, never unlock.
   other              - anything else they attempt
 destination: for move, the id of the place they mean. If they want to go to a person elsewhere, use that person's place id.
 target: for talk, the id of the person they address. If they talk to "someone", "anyone" or "the first person",
   pick a fitting person from PEOPLE HERE. For attack, the id they attack. If they speak without naming anyone, use the current partner,
   or if there is none, the person they last spoke to (if that person is here).
+  Someone listed in PEOPLE ELSEWHERE as just walked away from here is still who "him", "her" or "they" means right after they left: target them,
+  never swap in a bystander.
 speech: for talk, EVERY word they say aloud, copied exactly as they wrote it. Only words they actually say - never
   turn a description of what they do ("I watch him", "I try to work out what's wrong") into speech - every question and sentence, never
   shortened or summarized. If they only describe greeting someone, write a short natural greeting.

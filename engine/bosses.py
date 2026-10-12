@@ -9,7 +9,6 @@ A boss is a Fighter with `boss` set (see make()). The combat engine calls the ho
 All numbers are in data/rules/bosses.yaml.
 """
 
-import random
 from pathlib import Path
 
 import yaml
@@ -115,6 +114,9 @@ def after_damage(combat, f) -> None:
         f.boss["sig_ready"] = True
         combat.log.append(f"{f.name} is bloodied")
         _say(combat, f, "bloodied")
+        if f.boss.get("seal"):
+            from engine import orenna
+            orenna.seal_prompt(combat, f)
 
 
 def _strike(combat, e, target, mult: float, rng, label: str = "strikes") -> bool:

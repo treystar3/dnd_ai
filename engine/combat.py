@@ -103,6 +103,10 @@ class Fighter(BaseModel):
     hardening_stacks: int = 0
     windwalker_ready: bool = False
     deathward_used: bool = False
+    breath: bool = False                 # Orenna's Last Breath, unspent: one killing blow restores health and mana in full
+    yields_at: float = 0.0               # a foe that gives up the fight, unhurt past this, at this share of its health (never dies)
+    yield_text: str = ""
+    bound: bool = False                  # held to its master by a sworn seal (the Bound Executioner)
     second_wind_used: bool = False
     conditional: list[dict] = []         # passive mechanics active only when a trigger is true
     shield: float = 0                    # barrier that absorbs damage before health
@@ -144,6 +148,9 @@ class Combat(BaseModel):
     thrall_used: bool = False      # the first foe slain has already risen to fight for the player
     ally_reserves: list[Fighter] = []   # a party told to hold back: they reach the fight on ally_arrive
     ally_arrive: int = 3
+    record: bool = False           # keep a breakdown of every blow (the window's combat log); off while the odds are simulated
+    serial: str = ""               # tells this fight's blows apart from another fight's
+    hits: list[dict] = []          # this turn's blows: who, how the roll and the damage were worked out, what was dealt
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
@@ -216,8 +223,42 @@ def weapon_phrase(f: Fighter) -> str:
     return f"with {'your' if f.side == 'player' else 'its'} {f.weapon_name}"
 
 
-def tell(combat: Combat, text: str) -> None:
+def tell(combat: Combat, text: str, rec: dict | None = None) -> None:
+    """Add an event to this round's story. A blow's event carries its tag ([h2]) so the narrator can place the figure."""
+    if rec is not None:
+        text += f" [{rec['tag']}]"
     combat.story.append(text[0].upper() + text[1:])
+
+
+def new_hit(combat: Combat, att: Fighter, dfn: Fighter, label: str) -> dict | None:
+    """Start the record of one blow, or None when blows are not being recorded."""
+    if not combat.record:
+        return None
+    if not combat.serial:
+        combat.serial = f"{random.randrange(16 ** 4):04x}"
+    n = len(combat.hits) + 1
+    rec = {"id": f"{combat.serial}-{combat.round}-{n}", "tag": f"h{n}", "round": combat.round, "att": att.name, "dfn": dfn.name,
+           "att_side": att.side, "dfn_side": dfn.side, "label": label, "outcome": "", "chance": 0.0, "roll": 0.0,
+           "note": "", "base": {}, "steps": [], "defence": {}, "extras": [], "final": 0, "figure": ""}
+    combat.hits.append(rec)
+    return rec
+
+
+def hit_step(rec: dict | None, mult: float, label: str, factor: float) -> float:
+    """One multiplier in the damage chain, written into the record as it is applied."""
+    if rec is not None and label and abs(factor - 1) > 1e-9:
+        rec["steps"].append([label, round(factor, 3)])
+    return mult * factor
+
+
+def figure(rec: dict) -> str:
+    out = rec["outcome"]
+    if out == "miss":
+        return "(miss)"
+    if out == "phase":
+        return "(passes through)"
+    word = {"crit": "critical, ", "graze": "graze, "}.get(out, "")
+    return f"({word}{rec['final']} damage)"
 
 
 # ---------- building fighters ----------
@@ -314,7 +355,7 @@ def fighter_from_character(c: Character) -> Fighter:
         evasion_penalty=penalty, bonuses=bonuses, moves=moves,
         armor_pierce=min(90, flags["armor_pierce"]), crit_resist=min(90, flags["crit_resist"]),
         magic_power=flags["magic_power"], adaptive=flags["adaptive"],
-        legendary=legendary, slays=slays, wards=wards, conditional=conditional,
+        legendary=legendary, slays=slays, wards=wards, conditional=conditional, breath=bool(getattr(c, 'orenna_breath', False)),
     )
 
 
@@ -541,10 +582,12 @@ def hit_chance(att: Fighter, dfn: Fighter, combat: Combat) -> float:
     return max(h["min"], min(h["max"], chance))
 
 
-def roll_attack(att: Fighter, dfn: Fighter, combat: Combat, rng: random.Random) -> tuple[str, float]:
+def roll_attack(att: Fighter, dfn: Fighter, combat: Combat, rng: random.Random, trace: dict | None = None) -> tuple[str, float]:
     """Returns (outcome, chance). outcome: miss | graze | hit | crit."""
     chance = hit_chance(att, dfn, combat)
     r = rng.uniform(0, 100)
+    if trace is not None:
+        trace["chance"], trace["roll"] = round(chance, 1), round(r, 1)
     if r >= chance:
         return "miss", chance
     c = RULES["crit"]
@@ -566,16 +609,23 @@ def crit_multiplier(att: Fighter) -> float:
     return RULES["crit"]["multiplier"] + bonus(att, "crit_damage", {"always"}) / 100
 
 
-def raw_damage(att: Fighter, multiplier: float, triggers: set[str], rng: random.Random, steady: bool = False) -> float:
+def raw_damage(att: Fighter, multiplier: float, triggers: set[str], rng: random.Random, steady: bool = False,
+               trace: dict | None = None) -> float:
     d = RULES["damage"]
-    base = att.weapon_damage + att.best_attr(att.weapon_attrs) * d["attribute_bonus"] + flat_bonus(att, "damage", triggers)
+    flat = flat_bonus(att, "damage", triggers)
+    base = att.weapon_damage + att.best_attr(att.weapon_attrs) * d["attribute_bonus"] + flat
     variance = 1.0 if steady else rng.uniform(1 - d["variance"], 1 + d["variance"])
     magic = 1 + att.magic_power / 100 if att.damage_type == "magical" or att.adaptive else 1
-    return base * multiplier * (1 + bonus(att, "damage", triggers) / 100) * variance * magic
+    pct = bonus(att, "damage", triggers)
+    if trace is not None:
+        trace.update(weapon=round(att.weapon_damage, 1), attr=att.best_attr(att.weapon_attrs), attr_bonus=round(att.best_attr(att.weapon_attrs) * d["attribute_bonus"], 1),
+                     flat=round(flat, 1), base=round(base, 1), pct=round(pct, 1), variance=round(variance, 3), magic=round(magic, 3),
+                     multiplier=round(multiplier, 3), total=round(base * multiplier * (1 + pct / 100) * variance * magic, 1))
+    return base * multiplier * (1 + pct / 100) * variance * magic
 
 
 def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int, combat: Combat,
-             attacker: Fighter | None = None) -> tuple[float, float]:
+             attacker: Fighter | None = None, trace: dict | None = None) -> tuple[float, float]:
     """Returns (damage taken, damage absorbed)."""
     m = RULES["mitigation"]
     if attacker and attacker.adaptive:
@@ -597,10 +647,21 @@ def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int,
     after = amount * (1 - reduction / 100)
     triggers = active_triggers(dfn, combat, incoming_magic=damage_type == "magical")
     before = after
-    after *= max(0.05, 1 - bonus(dfn, "defense", triggers) / 100)
-    after = max(before * 0.1, after - flat_bonus(dfn, "defense", triggers))
+    cuts = [["armour" if damage_type != "magical" else "ward", amount - after]]
+    def_pct, def_flat = bonus(dfn, "defense", triggers), flat_bonus(dfn, "defense", triggers)
+    after *= max(0.05, 1 - def_pct / 100)
+    cuts.append(["gear defence", before - after])
+    step = after
+    after = max(before * 0.1, after - def_flat)
+    cuts.append(["flat defence", step - after])
+    step = after
     if dfn.defending:
         after *= 1 - dfn.defending / 100
+    cuts.append(["guarding", step - after])
+    if trace is not None:
+        trace.update(kind=damage_type, protection=round(protection, 1), reduction=round(reduction, 1), defense_pct=round(def_pct, 1),
+                     defense_flat=round(def_flat, 1), defending=round(dfn.defending, 1), before=round(amount, 1), after=round(after, 1),
+                     cuts=[[n, round(v, 1)] for n, v in cuts if v >= 0.05])
     return after, amount - after
 
 
@@ -702,6 +763,12 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
         from engine import bosses
         if bosses.last_stand(combat, dfn):
             return dealt
+    if dealt >= dfn.hp and dfn.breath:
+        dfn.breath = False
+        dfn.hp, dfn.mana = dfn.max_hp, dfn.max_mana
+        combat.log.append(f"{dfn.name} should have fallen - Orenna's Last Breath restores them in full")
+        tell(combat, f"the blow should have killed {who(dfn)} - but a thin, tired warmth catches them, and {vb(dfn, 'you rise', 'they rise')} whole, health and strength restored (Orenna's Last Breath, now spent)")
+        return dealt
     if dealt >= dfn.hp and "deathless" in L:
         dfn.hp = 1
         tell(combat, f"the blow should have ended {who(dfn)}, but {vb(dfn, 'you are', 'it is')} held on the threshold and will not fall")
@@ -712,7 +779,12 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
         combat.log.append(f"{dfn.name} should have fallen - Deathward holds them to life")
         tell(combat, f"the blow should have killed {who(dfn)} - but a power older than death refuses to let go (Deathward)")
         return dealt
+    if dfn.yields_at and dealt >= dfn.hp:
+        dealt = max(0, round(dfn.hp) - 1)
     dfn.hp = max(0, dfn.hp - dealt)
+    if dfn.yields_at and dfn.alive and not dfn.fled and dfn.hp <= dfn.max_hp * dfn.yields_at:
+        dfn.fled = True
+        tell(combat, dfn.yield_text or f"{who(dfn)} breaks off and is gone")
     if dfn.boss:
         from engine import bosses
         bosses.after_damage(combat, dfn)
@@ -739,6 +811,7 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
                  reliable: bool = False) -> bool:
     """Attack roll, damage and mitigation. Returns True if it landed."""
     how = how or weapon_phrase(att)
+    rec = new_hit(combat, att, dfn, label)
     A, D = mechanics(att, combat, dfn), mechanics(dfn, combat, att)
     if is_companion(att):
         multiplier *= 1 + max(0, companion_boost(combat, "companion_damage")) / 100
@@ -747,77 +820,108 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     dfn.attacked_since_turn = True
     if "phantom" in D and rng.uniform(0, 100) < D["phantom"]:
         combat.log.append(f"{att.name} {label} {dfn.name}: passes through them like smoke (Phantom)")
-        tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} at {who(dfn)} {how}, but the blow passes through {vb(dfn, 'you', 'them')} like smoke (Phantom)")
+        if rec is not None:
+            rec.update(outcome="phase", note="Phantom: the blow passes through")
+            rec["figure"] = figure(rec)
+        tell(combat, f"{who(att)} {vb(att, 'strike', 'strikes')} at {who(dfn)} {how}, but the blow passes through {vb(dfn, 'you', 'them')} like smoke (Phantom)", rec)
         dfn.windwalker_ready = "windwalker" in D
         if "flowing_step" in D:
             dfn.counters["flow"] = min(3, dfn.counters.get("flow", 0) + 1)
         return False
-    outcome, chance = roll_attack(att, dfn, combat, rng)
+    roll_info: dict = {}
+    outcome, chance = roll_attack(att, dfn, combat, rng, trace=roll_info)
+    if rec is not None:
+        rec.update(chance=roll_info.get("chance", round(chance, 1)), roll=roll_info.get("roll", 0.0))
     if "first_blood" in A and not att.first_blood_used:
         att.first_blood_used = True
         outcome = "crit"
+        if rec is not None:
+            rec["note"] = "First Blood: the first strike is always critical"
     if reliable:
         outcome = "hit"                            # Reliable: never misses, never crits
+        if rec is not None:
+            rec["note"] = "Reliable: never misses, never crits"
+    if rec is not None:
+        rec["outcome"] = outcome
     if outcome == "miss":
         att.relentless = 0
         combat.log.append(f"{att.name} {label} {dfn.name}: miss")
-        tell(combat, f"{who(att)} {vb(att, 'go', 'goes')} for {who(dfn)} {how} - and {vb(att, 'miss', 'misses')}")
+        if rec is not None:
+            rec["figure"] = figure(rec)
+        tell(combat, f"{who(att)} {vb(att, 'go', 'goes')} for {who(dfn)} {how} - and {vb(att, 'miss', 'misses')}", rec)
         if "windwalker" in D:
             dfn.windwalker_ready = True
         if "flowing_step" in D:
             dfn.counters["flow"] = min(3, dfn.counters.get("flow", 0) + 1)
         return False
-    mult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
-    mult *= max(0.2, 1 + status_mod(att, "power") / 100)                  # poisoned or weakened attackers hit softer
+    mult = hit_step(rec, 1.0, "Move power", multiplier)
+    mult = hit_step(rec, mult, {"graze": "Glancing blow", "hit": "", "crit": "Critical hit"}[outcome], {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome])
+    mult = hit_step(rec, mult, "Weakened or strengthened", max(0.2, 1 + status_mod(att, "power") / 100))                  # poisoned or weakened attackers hit softer
     if att.side != dfn.side:
-        mult *= 1 + status_mod(dfn, "taken") / 100                       # a marked target takes more
+        mult = hit_step(rec, mult, "Target marked", 1 + status_mod(dfn, "taken") / 100)                       # a marked target takes more
     if "empowered" in A:
-        mult *= 1 + A["empowered"] / 100
+        mult = hit_step(rec, mult, "Empowered", 1 + A["empowered"] / 100)
     if "executioner" in A and dfn.hp < dfn.max_hp * 0.3:
-        mult *= 1 + A["executioner"] / 100
+        mult = hit_step(rec, mult, "Executioner", 1 + A["executioner"] / 100)
     if "relentless" in A:
-        mult *= 1 + A["relentless"] * min(5, att.relentless) / 100
+        mult = hit_step(rec, mult, "Relentless", 1 + A["relentless"] * min(5, att.relentless) / 100)
         att.relentless += 1
     if "last_stand" in A and att.hp < att.max_hp / 4:
-        mult *= 1 + A["last_stand"] / 100
+        mult = hit_step(rec, mult, "Last Stand", 1 + A["last_stand"] / 100)
     slay = category_bonus(att, A, dfn, "slay")
     if slay:
-        mult *= 1 + slay / 100
+        mult = hit_step(rec, mult, "Slayer", 1 + slay / 100)
     if "opportunist" in A and set(dfn.statuses) & {"slowed", "prone", "stunned", "bleeding", "frightened"}:
-        mult *= 1 + A["opportunist"] / 100
+        mult = hit_step(rec, mult, "Opportunist", 1 + A["opportunist"] / 100)
     if "hex" in A and "hexed" in dfn.statuses:
-        mult *= 1 + A["hex"] / 100
+        mult = hit_step(rec, mult, "Hex", 1 + A["hex"] / 100)
     if "blood_pact" in A:
-        mult *= 1 + A["blood_pact"] / 100
+        mult = hit_step(rec, mult, "Blood Pact", 1 + A["blood_pact"] / 100)
     if "attunement" in A and att.counters.get("attune"):
-        mult *= 1 + A["attunement"] * att.counters["attune"] / 100
+        mult = hit_step(rec, mult, "Attunement", 1 + A["attunement"] * att.counters["attune"] / 100)
     if "iron_will" in A and att.counters.get("shrugged"):
-        mult *= 1 + 0.10 * att.counters["shrugged"]
+        mult = hit_step(rec, mult, "Iron Will", 1 + 0.10 * att.counters["shrugged"])
     if "unaware" in dfn.statuses:                  # a sneak attack on someone who never saw it coming
-        mult *= RULES["unaware_damage"]
+        mult = hit_step(rec, mult, "Unaware target", RULES["unaware_damage"])
     if att.windwalker_ready:
         att.windwalker_ready = False
-        mult *= 1 + A.get("windwalker", 0) / 100
+        mult = hit_step(rec, mult, "Windwalker", 1 + A.get("windwalker", 0) / 100)
     if "flowing_step" in A and att.counters.get("flow"):
-        mult *= 1 + A["flowing_step"] * att.counters["flow"] / 100
+        mult = hit_step(rec, mult, "Flowing Step", 1 + A["flowing_step"] * att.counters["flow"] / 100)
         tell(combat, f"{who(att)} {vb(att, 'flow', 'flows')} out of the dodge and into the blow (Flowing Step)")
         att.counters["flow"] = 0
-    dmg = raw_damage(att, mult, active_triggers(att, combat, dfn), rng, steady=reliable)
-    taken, absorbed = mitigate(dfn, dmg, att.damage_type, att.level, combat, att)
+    base_info: dict = {}
+    dmg = raw_damage(att, mult, active_triggers(att, combat, dfn), rng, steady=reliable, trace=base_info)
+    def_info: dict = {}
+    taken, absorbed = mitigate(dfn, dmg, att.damage_type, att.level, combat, att, trace=def_info)
+    if rec is not None:
+        rec["base"], rec["defence"] = base_info, def_info
     if "spellblade" in A:
         extra, _ = mitigate(dfn, dmg * A["spellblade"] / 100, "magical", att.level, combat, att)
         taken += extra
+        if rec is not None:
+            rec["extras"].append(["Spellblade (magic, after defence)", f"+{round(extra)}"])
     if "deflect" in D and rng.uniform(0, 100) < D["deflect"]:
         taken *= 0.5
+        if rec is not None:
+            rec["extras"].append(["Deflect: half turned aside", "×0.5"])
         tell(combat, f"{who(dfn)} {vb(dfn, 'turn', 'turns')} the worst of it aside (Deflect)")
     if "guarded" in D and dfn.side == "player":
         guard = next((a for a in combat.allies() if is_companion(a)), None)
         if guard:
             moved = taken * min(90, D["guarded"]) / 100
             taken -= moved
+            if rec is not None:
+                rec["extras"].append(["Guardian takes a share", f"-{round(moved)}"])
             take_damage(combat, guard, moved, att, rng, att.damage_type)
             tell(combat, f"{who(guard)} throws itself in the way and takes {round(moved)} of it")
+    pre_shield = taken
     taken = take_damage(combat, dfn, taken, att, rng, att.damage_type)
+    if rec is not None:
+        rec["final"] = round(taken)
+        if round(pre_shield) != round(taken):
+            rec["extras"].append(["Shield, ward or last-moment effects", f"{round(taken) - round(pre_shield):+d}"])
+        rec["figure"] = figure(rec)
     if att.side == "ally" and dfn.side == "enemy":
         dfn.counters["flanked"] = combat.round                             # an ally has struck it (Flanking)
     if "thorns" in D and att.reach == "melee" and att.alive and att.side != dfn.side:
@@ -832,7 +936,7 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     quality = {"graze": "only a glancing blow", "crit": "a perfect strike, " + severity(taken, dfn.max_hp)}.get(outcome, severity(taken, dfn.max_hp))
     turned = f"; {whose(dfn)} {'armor' if dfn.side == 'player' else 'hide or armor'} turns part of it" if absorbed > taken * 0.4 else ""
     after = f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""
-    tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}")
+    tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec)
     emult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
     for el in elements.ELEMENTS:
         flat = flat_bonus(att, f"{el}_damage", {"always"})
@@ -843,6 +947,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
             att.hit_element = held
             taken += dealt
             combat.log.append(f"{att.name}'s {el} damage burns {dfn.name}: {dealt}")
+            if rec is not None:
+                rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
             tell(combat, f"{el} damage follows the blow into {who(dfn)}" + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
     if "elemental_weapon" in A and dfn.alive and taken > 0:
         buff = next((b for b in att.buffs.values() if b.get("kind") == "elemental"), {})
@@ -852,6 +958,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
         extra = take_damage(combat, dfn, part, att, rng, "magical")
         att.hit_element = held
         combat.log.append(f"{att.name}'s {el} weapon burns {dfn.name}: {extra}")
+        if rec is not None:
+            rec["extras"].append([f"{el.capitalize()} weapon", f"+{round(extra)}"])
         tell(combat, f"{el} flares along the blow and bites into {who(dfn)} (Elemental Weapon)")
     if "stormcaller" in A and dfn.alive and rng.uniform(0, 100) < A["stormcaller"]:
         bolt, _ = mitigate(dfn, dmg * 0.5, "magical", att.level, combat, att)
@@ -1687,6 +1795,3 @@ def opening(combat: Combat, rng: random.Random) -> None:
                 combat.log.append(f"{e.name} is shaken by your war cry")
                 tell(combat, f"your war cry rolls over {who(e)}, and it falters (Battle Cry)")
 
-
-def fearsome_opening(combat: Combat, rng: random.Random) -> None:
-    opening(combat, rng)

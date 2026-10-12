@@ -27,9 +27,9 @@ def test_player(level: int, gear: str = "starter") -> Character:
     c = Character(name="you", archetype=Archetype.WARRIOR, custom_class="Dragoon", level=level, attributes=a)
     c.actives = [
         Ability(id="plunge", name="Plunging Strike", description="", effect="damage", tier="moderate", reach="melee",
-                resource="stamina", context="combat", potency=7, cost=10, cooldown=1),
+                resource="stamina", context="combat", cost=10, cooldown=1),
         Ability(id="thrust", name="Lunging Thrust", description="", effect="damage", tier="light", reach="extended",
-                resource="stamina", context="combat", potency=4, cost=5, cooldown=0),
+                resource="stamina", context="combat", cost=5, cooldown=0),
     ]
     if gear == "starter":
         c.equipment = {"main_hand": items.make("spear", "crude")}

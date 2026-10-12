@@ -54,8 +54,8 @@
            {id: ale, name: a mug of ale, price: 5, kind: drink}]}
 - {id: cook, hours: [6, 22],          description: Cooks in the inn's kitchen.,                         knowledge_groups: [],
    sells: [{id: meal, name: a hot meal, price: 15, kind: meal}]}
-- {id: priest, hours: [5, 20],        description: Keeps the temple and its rites.,                     knowledge_groups: [temple, scholars]}
-- {id: acolyte, hours: [5, 20],       description: Assists the priest and tends the temple.,            knowledge_groups: [temple]}
+- {id: priest, hours: [5, 20],        description: Keeps the temple and its rites in the name of the god the local faith serves.,                     knowledge_groups: [temple, scholars]}
+- {id: acolyte, hours: [5, 20],       description: Assists the priest and tends the temple and its tithe box.,            knowledge_groups: [temple]}
 - {id: enchanter, hours: [9, 19],     description: Binds magic into arms and armor for a fee. Rare outside places that accept magic., knowledge_groups: [mages, scholars]}
 - {id: guild_master, hours: [9, 19],  description: Leads the adventurers' guild - its reputation, its bounties and its members' promotions., knowledge_groups: [guild, merchants]}
 - {id: guild_instructor, hours: [7, 18], description: A retired adventurer who drills members and teaches skills and techniques for coin., knowledge_groups: [guild]}
@@ -96,7 +96,7 @@
    stock: {families: [metal, hide, cloth, wood], count: 8, restock_days: 4}}
 - {id: caravan_master, hours: [6, 20], description: Leads caravans along the long roads east.,            knowledge_groups: [merchants]}
 - {id: scout, hours: [0, 24],         description: Rides ahead of caravans and watches the frontier for trouble., knowledge_groups: [hunters, guards]}
-- {id: water_priest, hours: [5, 20],  description: Keeps the waters of the city and the rites bound up with them., knowledge_groups: [temple, mages]}
+- {id: water_priest, hours: [5, 20],  description: Keeps the waters of the city, the hearth and the rites of Dahlira bound up with them., knowledge_groups: [temple, mages]}
 - {id: noble, hours: [10, 23],        description: A member of a noble house, at home in the court.,      knowledge_groups: [nobility]}
 - {id: courtier, hours: [9, 22],      description: Serves and schemes within the royal court.,            knowledge_groups: [nobility]}
 - {id: royal_guard, hours: [0, 24],   description: Guards the capital and its great houses in the crown's colors., knowledge_groups: [guards, nobility]}

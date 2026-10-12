@@ -81,7 +81,7 @@ def skill_gain(c: Character, gear: bool, material_id: str = "") -> float:
 
 def raise_skill(c: Character, gain: float) -> tuple[float, float]:
     before = c.crafting_skill
-    c.crafting_skill = min(100.0, before + gain)
+    c.crafting_skill = before + gain
     return before, c.crafting_skill
 
 

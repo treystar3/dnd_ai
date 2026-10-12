@@ -11,10 +11,8 @@ from core.models import (
     Ability,
     CompanionRole,
     CompanionTemplate,
-    Effect,
     Passive,
     PowerTier,
-    Reach,
     Resource,
     UseContext,
     Trigger,
@@ -22,31 +20,8 @@ from core.models import (
 from engine import field
 from llm.contracts import ActiveProposal, CompanionProposal, PassiveProposal
 
-TIER_POTENCY = {PowerTier.LIGHT: 4, PowerTier.MODERATE: 7, PowerTier.HEAVY: 10}
 TIER_COST = {PowerTier.LIGHT: 5, PowerTier.MODERATE: 10, PowerTier.HEAVY: 18}
 TIER_COOLDOWN = {PowerTier.LIGHT: 0, PowerTier.MODERATE: 1, PowerTier.HEAVY: 3}
-
-EFFECT_SCALE = {
-    Effect.DAMAGE: 1.0,
-    Effect.HEALING: 0.8,
-    Effect.DEFENSE: 0.75,
-    Effect.CONTROL: 0.5,
-    Effect.MOBILITY: 0.5,
-    Effect.UTILITY: 0.4,
-    Effect.INFLUENCE: 0.6,
-    Effect.SUMMON: 1.0,
-    Effect.COMMAND: 0.6,
-    Effect.CRAFTING: 0.4,
-    Effect.BUFF: 0.5,
-}
-
-REACH_SCALE = {
-    Reach.SELF: 1.0,
-    Reach.MELEE: 1.0,
-    Reach.EXTENDED: 0.9,
-    Reach.RANGED: 0.85,
-    Reach.AREA: 0.6,
-}
 
 ROLE_STATS = {
     CompanionRole.STRIKER: {"health": 10, "damage": 6},
@@ -80,7 +55,6 @@ def materialize_companion(p: CompanionProposal, tier: PowerTier) -> CompanionTem
 
 
 def materialize_active(p: ActiveProposal) -> Ability:
-    potency = round(TIER_POTENCY[p.tier] * EFFECT_SCALE[p.effect] * REACH_SCALE[p.reach])
     companion = materialize_companion(p.summons, p.tier) if p.summons else None
     use = field.function_for(p)
     context = p.context
@@ -96,7 +70,6 @@ def materialize_active(p: ActiveProposal) -> Ability:
         resource=Resource(p.resource),
         context=context,
         tags=p.tags,
-        potency=max(1, potency),
         cost=TIER_COST[p.tier],
         cooldown=TIER_COOLDOWN[p.tier],
         companion=companion,
@@ -108,7 +81,7 @@ def materialize_active(p: ActiveProposal) -> Ability:
 def materialize_passive(p: PassiveProposal, offered: dict | None = None) -> Passive:
     tier = PowerTier(p.tier)
     if p.kind == "mechanic":
-        from core.rules import MECHANICS, FamilyOption
+        from core.rules import FamilyOption
         option = (offered or {}).get(p.mechanic) or FamilyOption(mechanic=p.mechanic)
         index = 0 if tier == PowerTier.LIGHT else 1
         return Passive(id=slugify(p.name), name=p.name.strip(), description=p.description.strip(), tier=tier,

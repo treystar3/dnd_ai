@@ -53,6 +53,9 @@ class NPC(BaseModel):
     hidden: list[dict] = []       # story objects the player went looking for on this person: {"name", "description", "worth", "taken"}
     stock: list = []              # gear for sale (Item data), replaced on restock
     stock_day: int = -1           # day the current stock was laid out
+    journal_note: str = ""        # one sentence about them for the player's journal, written by them in a normal reply
+    note_trust: int = -1          # their trust in the player when the note was written
+    note_mem: int = 0             # how many memories they had then; the note is rewritten after big changes
     work_offer: dict | None = None  # paid work offered to the player: {task, pay, minutes}
     quest_offer: dict | None = None # a personal request offered to the player, waiting for a yes          # game minute until which they've stepped away (after ending a conversation)
     memories: list[Memory] = []

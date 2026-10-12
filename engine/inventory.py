@@ -3,7 +3,6 @@
 Goods (herbs, food, consumables) and raw materials stack; gear takes a slot per piece.
 """
 
-import math
 import uuid
 from pathlib import Path
 

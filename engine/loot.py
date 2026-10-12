@@ -191,15 +191,6 @@ def boss_drops(enemy: combat.Fighter, rng: random.Random, companions: bool = Fal
     return coins, loot
 
 
-def material_drops(enemy: combat.Fighter, rng: random.Random) -> list:
-    """Raw materials from the creature itself: a wolf's hide, a drake's scales."""
-    found = []
-    for m in items.MATERIALS.values():
-        if enemy.creature in m.drops_from and rng.random() < L.get("material_chance", 0.6):
-            found.append(items.make_raw(m.id))
-    return found
-
-
 def found_materials(category: str, level: int, rng: random.Random, bonus: float = 0.0) -> list:
     """Ore, silver and rare timber carried by the right kind of creature once its level reaches the material's."""
     F = L.get("material_finds")
@@ -213,13 +204,6 @@ def found_materials(category: str, level: int, rng: random.Random, bonus: float 
     raw = items.make_raw(rng.choices(fits, weights=weights)[0].id)
     raw.quantity = rng.randint(*F["quantity"])
     return [raw]
-
-
-def food_drops(enemy, rng: random.Random) -> list:
-    """Meat from game animals."""
-    from engine import inventory
-    return [inventory.make_good(g.id, rng.randint(1, 2)) for g in inventory.GOODS.values()
-            if enemy.creature in g.drops_from and rng.random() < 0.8]
 
 
 def has_remains(enemy) -> bool:

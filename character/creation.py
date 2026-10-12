@@ -11,7 +11,7 @@ from character import fit
 from core.rules import FAMILIES, MECHANICS, TRIGGERS
 from engine.abilities import materialize_active, materialize_passive
 from llm import prompts
-from llm.contracts import ActiveSet, ClassInterpretation, PassiveSet
+from llm.contracts import ActiveSet, ClassInterpretation
 from llm.gateway import LLMError, generate
 
 MIN_NONCOMBAT_ACTIVES = {"combat": 3, "balanced": 5, "social": 8}
@@ -285,6 +285,7 @@ def build_character(
         actives=actives,
         passives=passives,
         aspirations=[aspiration] if aspiration else [],
+        knowledge=["orenna_name"],        # the goddess at the Threshold gave her name; nobody living has heard it
     )
 
 

@@ -1,5 +1,6 @@
 """Plain-text console output. The game shows mechanics here; characters speak through say()."""
 
+import contextlib
 import textwrap
 
 import config
@@ -10,53 +11,112 @@ CONTEXT_LABEL = {"combat": "C", "out_of_combat": "O", "both": "B"}
 
 
 def say(text: str, speaker: str = "") -> None:
-    print()
-    if speaker:
-        print(f"  {speaker}:")
-    for para in text.strip().split("\n"):
-        if para.strip():
-            print(textwrap.fill(para.strip(), WIDTH, initial_indent="    ", subsequent_indent="    "))
-    print()
+    with kind("speech"):
+        print()
+        if speaker:
+            print(f"  {speaker}:")
+        for para in text.strip().split("\n"):
+            if para.strip():
+                print(textwrap.fill(para.strip(), WIDTH, initial_indent="    ", subsequent_indent="    "))
+        print()
 
 
 def narrate(text: str) -> None:
-    print()
-    for para in text.strip().split("\n"):
-        if para.strip():
-            print(textwrap.fill(para.strip(), WIDTH))
+    with kind("narration"):
+        print()
+        for para in text.strip().split("\n"):
+            if para.strip():
+                print(textwrap.fill(para.strip(), WIDTH))
 
 
 def npc_says(label: str, speech: str, gesture: str = "") -> None:
-    print()
-    if gesture:
-        print(textwrap.fill(f"({label} {gesture.strip().rstrip('.')}.)", WIDTH))
-    print(textwrap.fill(f'{label}: "{speech.strip()}"', WIDTH, subsequent_indent="    "))
+    with kind("speech"):
+        print()
+        if gesture:
+            print(textwrap.fill(f"({label} {gesture.strip().rstrip('.')}.)", WIDTH))
+        print(textwrap.fill(f'{label}: "{speech.strip()}"', WIDTH, subsequent_indent="    "))
 
 
 def dialogue(before: str, speaker: str, speech: str, after: str) -> None:
     if before.strip():
         narrate(before)
-    print()
-    print(textwrap.fill(f'{speaker}: "{speech.strip()}"', WIDTH, initial_indent="    ", subsequent_indent="      "))
+    with kind("speech"):
+        print()
+        print(textwrap.fill(f'{speaker}: "{speech.strip()}"', WIDTH, initial_indent="    ", subsequent_indent="      "))
     if after.strip():
         narrate(after)
 
 
 def debug(message: str) -> None:
     if config.DEBUG:
-        print(f"  [debug] {message}")
+        with kind("debug"):
+            print(f"  [debug] {message}")
 
 
-def ask() -> str:
+def ask(main: bool = False) -> str:
+    """The player's next line. main=True marks the top-level game loop (the GUI uses that to refresh its pinned view)."""
     return input("> ").strip()
 
 
+def out(text: str = "") -> None:
+    """A plain line that is not part of the game (start-up and shutdown messages)."""
+    print(text)
+
+
+damage_tags = False        # the window sets this: it draws blow figures as hoverable tokens and keeps its own combat log
+
+
+def combat_state(data: dict | None) -> bool:
+    """The fight as data for a window's combat pane (None when it ends). The terminal returns False and prints text."""
+    return False
+
+
+def panel(name: str, data: dict) -> bool:
+    """Hands structured data to a window that can draw it better than text. The terminal returns False and the caller prints text."""
+    return False
+
+
+def setup(data: dict) -> None:
+    """A start-up screen (install Ollama, download the model). The window draws it as a page with buttons; here it is text."""
+    print("\n" + "═" * 60)
+    print("  " + data["title"])
+    print("═" * 60)
+    for line in data["lines"]:
+        print(textwrap.fill(line, 70, initial_indent="  ", subsequent_indent="  "))
+    if data["buttons"]:
+        print("\n  Type one of: " + ", ".join(key for _, key in data["buttons"]))
+
+
+def setup_progress(frac: float, text: str) -> None:
+    print(f"\r  {text}  {int(frac * 100):>3}%   ", end="", flush=True)
+    if frac >= 1:
+        print()
+
+
+def setup_done() -> None:
+    """The start-up screen is finished."""
+
+
+@contextlib.contextmanager
+def kind(name: str):
+    """Marks what the text printed inside is (narration, speech, note, wait, combat, debug). The terminal ignores it; the GUI colours by it."""
+    yield
+
+
+@contextlib.contextmanager
+def scope(command: str):
+    """Wraps the running of a # command. The terminal does nothing with it; the GUI sends view commands to its side pane."""
+    yield
+
+
 def wait(message: str) -> None:
-    print(f"\n  ({message})")
+    with kind("wait"):
+        print(f"\n  ({message})")
 
 
 def note(message: str) -> None:
-    print(f"\n[{message}]")
+    with kind("note"):
+        print(f"\n[{message}]")
 
 
 def show_class(interp) -> None:
@@ -94,6 +154,9 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
     lines += textwrap.wrap(a.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)
     for label, text in at.parts(a):
         lines += textwrap.wrap(f"✦ {label}: {text}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
+    fight = field.fight_text(a)
+    if fight:
+        lines += textwrap.wrap(f"⚔ In a fight: {fight}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
     out = field.outside_text(a)
     if out:
         lines += textwrap.wrap(f"☼ Outside combat: {out}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
@@ -166,6 +229,9 @@ def _bar(now: int, top: int, width: int = 20) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
+ATTR_MARK = "@@ATTRIBUTES@@"
+
+
 def show_player_block(character, location_name: str, time_label: str, vitals: list[tuple[str, int, int]]) -> None:
     c = character
     print("\n" + "═" * WIDTH)
@@ -179,19 +245,18 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
 
     _section("ATTRIBUTES")
     gear = stats.gear_attributes(c)
-    print("  " + "   ".join(f"{k[:3].upper()} {stats.effective(c, k, gear)}" + (f" (+{gear[k]})" if gear.get(k) else "") for k in stats.STAT_NAMES))
-    print(f"  crafting skill {getattr(c, 'crafting_skill', 0):.0f}/100")
-    _section("SKILLS  (base chance in a check, before the other person and the situation)")
-    from engine import checks
-    for name in ("perception", "stealth", "insight", "persuasion", "intimidation", "deception", "performance", "lore"):
-        pct, _ = checks.chance(c, name, {"always"})
-        tutored = getattr(c, "trained", {}).get(name, 0)
-        note = f"   (+{tutored} tutoring)" if tutored else ""
-        print(f"  {name.capitalize():<13} {pct:>3.0f}%{note}")
+    extra = [f"crafting skill {getattr(c, 'crafting_skill', 0):.0f}"]
     if getattr(c, "primary_attributes", None):
-        print(f"  main attributes for your class: {', '.join(a[:3].upper() for a in c.primary_attributes)}")
-    if c.unspent_points:
-        print(f"  {c.unspent_points} points to spend - use #allocate, e.g. #allocate str 3 dex 2")
+        extra.append(f"main attributes for your class: {', '.join(a[:3].upper() for a in c.primary_attributes)}")
+    attrs = [{"key": k, "label": k[:3].upper(), "value": stats.effective(c, k, gear), "bonus": gear.get(k) or 0} for k in stats.STAT_NAMES]
+    if panel("character", {"attrs": attrs, "points": c.unspent_points, "extra": extra}):
+        print(ATTR_MARK)
+    else:
+        print("  " + "   ".join(f"{k[:3].upper()} {stats.effective(c, k, gear)}" + (f" (+{gear[k]})" if gear.get(k) else "") for k in stats.STAT_NAMES))
+        for line in extra:
+            print("  " + line)
+        if c.unspent_points:
+            print(f"  {c.unspent_points} points to spend - use #allocate, e.g. #allocate str 3 dex 2")
 
     _section("WEALTH")
     print(f"  {money.fmt(c.coins)}")
@@ -225,8 +290,8 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
 
     _section("PASSIVES")
     for p in c.passives:
-        print(f"  {'◆ ' if p.mechanic else ''}{p.name} - {p.effect_text()}")
-        print(textwrap.fill(p.description, WIDTH, initial_indent="      ", subsequent_indent="      "))
+        print(f"  ◆ {p.name} - {p.effect_text()}")
+        print(textwrap.fill(p.description, WIDTH, initial_indent="    ", subsequent_indent="    "))
 
     print("═" * WIDTH)
 
@@ -235,15 +300,17 @@ def show_inventory(c) -> None:
     print("\n" + "═" * WIDTH)
     print(f"  INVENTORY · {money.fmt(c.coins)}")
     print("═" * WIDTH)
-    _section("EQUIPPED")
-    for slot, item in c.equipment.items() or []:
-        star = "★ " if item.rarity == "legendary" else ""
-        print(f"  {slot.replace('_', ' '):<10} {star}{items.display_name(item)} - {items.summary(item)}")
-    if not c.equipment:
-        print("  nothing")
-    from engine import sets
-    for line in sets.summary(c.equipment):
-        print(("  " if not line.startswith(" ") else "") + line)
+    windowed = panel("inventory", {})                 # the window has a Gear pane for what is worn
+    if not windowed:
+        _section("EQUIPPED")
+        for slot, item in c.equipment.items() or []:
+            star = "★ " if item.rarity == "legendary" else ""
+            print(f"  {slot.replace('_', ' '):<10} {star}{items.display_name(item)} - {items.summary(item)}")
+        if not c.equipment:
+            print("  nothing")
+        from engine import sets
+        for line in sets.summary(c.equipment):
+            print(("  " if not line.startswith(" ") else "") + line)
     from engine import inventory as inv
     _section(f"PACK  {len(c.inventory)}/{inv.RULES['pack_slots']} slots")
     for n, item in enumerate(c.inventory, 1):
@@ -261,7 +328,7 @@ def show_inventory(c) -> None:
             src = f" · from {k.source}, day {k.day}" if k.source else ""
             src += f" · for {k.for_whom}" if k.for_whom else ""
             print(textwrap.fill(f"  {tag}  {k.name} - {k.description}{src}", WIDTH, subsequent_indent="           "))
-    print("\n  #equip <number or name>   #unequip <slot or name>   #stash to see your item box")
+    print("\n  #stash to see your item box" if windowed else "\n  #equip <number or name>   #unequip <slot or name>   #stash to see your item box")
     print("  Or just say it: drink a draught, drop the hides, sell the pelts to the hunter, brew a tonic...")
     print("═" * WIDTH)
 
@@ -295,7 +362,7 @@ def show_journal(facts: list[str], people: list[str], history: list[str] = ()) -
 
 def show_help() -> None:
     print("\nCOMMANDS (these don't take any game time)")
-    print("  #system   your character: attributes, wealth, equipment, abilities, passives")
+    print("  #character your character: attributes, wealth, equipment, abilities, passives")
     print("  #journal  people you've met and things you've learned")
     print("  #inventory  what you carry and wear (#equip / #unequip to change it)")
     print("  #allocate spend attribute points from leveling, e.g. #allocate str 3 dex 2")
@@ -310,9 +377,11 @@ def show_help() -> None:
     print("  #board    the adventurers' guild contract board (at the guild house)")
     print("  #quests   your contracts and requests, progress, deadlines and guild rank")
     print("  #party    the adventurers travelling with you")
+    print("  #standing how the groups of this town regard you; #rumors what is said of you; #correct <n> sets a false tale straight")
     print("  #dungeon  the floors of the dungeon here, what you've cleared, and when it will be remade")
     print("  #dialogue switch conversations between narrated and plain dialogue")
     print("  #numbers  show or hide the numbers under each round of combat")
+    print("  #newgame  start a new character (this game is kept as a backup)")
     print("  #debug    toggle debug mode (shows what the engine decides)")
     if config.DEBUG:
         print("  #levelup [n]  (debug) gain n levels")
@@ -337,19 +406,17 @@ def stamina_word(fraction: float) -> str:
 
 
 def combat_panel(lines: list[str]) -> None:
-    print()
-    for line in lines:
-        print(f"  {line}")
-
-
-def combat_log(line: str) -> None:
-    print(f"  · {line}")
+    with kind("combat"):
+        print()
+        for line in lines:
+            print(f"  {line}")
 
 
 def combat_numbers(lines: list[str]) -> None:
     if lines:
-        print()
-        print(textwrap.fill("⚔ " + " · ".join(lines), WIDTH, initial_indent="  ", subsequent_indent="    "))
+        with kind("combat"):
+            print()
+            print(textwrap.fill("⚔ " + " · ".join(lines), WIDTH, initial_indent="  ", subsequent_indent="    "))
 
 
 def status_block(when: str, weather: str, place_line: str, spot_line: str,

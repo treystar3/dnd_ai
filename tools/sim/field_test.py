@@ -48,9 +48,9 @@ check("no non-combat ability lacks a function", all(a.field_use or a.effect.valu
 old = abilities.materialize_active(ActiveProposal(name="Silver Tongue", description="you charm a listener", effect="influence", tier="light", reach="self", resource="mana", context="both"))
 old.field_use = ""
 legacy = Ability(id="x", name="Quiet Step", description="you move without a sound", effect="utility", tier="light", reach="self",
-                 resource="stamina", context="out_of_combat", potency=1, cost=1, cooldown=0)
+                 resource="stamina", context="out_of_combat", cost=1, cooldown=0)
 legacy2 = Ability(id="y", name="Hearth Spell", description="a warm hearth shelters your camp", effect="utility", tier="light", reach="self",
-                  resource="mana", context="out_of_combat", potency=1, cost=1, cooldown=0)
+                  resource="mana", context="out_of_combat", cost=1, cooldown=0)
 class C: pass
 cc = C(); cc.actives = [legacy, legacy2, old]
 field.classify(cc)

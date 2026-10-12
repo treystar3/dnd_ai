@@ -7248,3 +7248,80 @@
   attacks: [Shard Touch, Thunder Wail]
   profile: {strength: 8, dexterity: 16, constitution: 12, intelligence: 14, wisdom: 14, charisma: 18}
   source: Far Lands
+- id: hall_servant
+  name: Hollow Servant
+  category: construct
+  size: Medium
+  challenge: 10.0
+  levels: [45, 70]
+  biomes: [ruins]
+  rarity: rare
+  temperament: aggressive
+  attacks: [Slam]
+  profile: {strength: 16, dexterity: 8, constitution: 18, intelligence: 4, wisdom: 6, charisma: 2}
+  unique: true
+  source: Rivia
+  notes:
+  - 'unique: placed only in the First Hall (data/world/orenna.yaml)'
+- id: hall_guardian
+  name: Hall Guardian
+  category: construct
+  size: Large
+  challenge: 14.0
+  levels: [45, 75]
+  biomes: [ruins]
+  rarity: rare
+  temperament: aggressive
+  attacks: [Stone Fist, Crushing Blow]
+  profile: {strength: 20, dexterity: 8, constitution: 20, intelligence: 6, wisdom: 10, charisma: 2}
+  unique: true
+  source: Rivia
+  notes:
+  - 'unique: placed only in the First Hall (data/world/orenna.yaml)'
+- id: forgetting_warden
+  name: Warden of the Forgetting
+  category: construct
+  size: Huge
+  challenge: 20.0
+  levels: [50, 80]
+  biomes: [ruins]
+  rarity: rare
+  temperament: aggressive
+  attacks: [Erasing Touch, Crushing Blow]
+  profile: {strength: 20, dexterity: 10, constitution: 22, intelligence: 12, wisdom: 14, charisma: 2}
+  unique: true
+  source: Rivia
+  notes:
+  - 'unique: placed only in the First Hall (data/world/orenna.yaml)'
+- id: bound_executioner
+  name: Bound Executioner
+  category: hostile people
+  size: Medium
+  challenge: 16.0
+  levels: [45, 75]
+  biomes: [urban]
+  rarity: rare
+  temperament: aggressive
+  attacks: [Long Knife, Oath-Strike]
+  profile: {strength: 16, dexterity: 18, constitution: 14, intelligence: 12, wisdom: 14, charisma: 10}
+  unique: true
+  roster: false
+  source: Rivia
+  notes:
+  - 'unique: the quest killer of data/world/orenna.yaml'
+- id: high_keeper
+  name: High Keeper of the Sun Warden
+  category: hostile people
+  size: Medium
+  challenge: 18.0
+  levels: [50, 80]
+  biomes: [urban]
+  rarity: rare
+  temperament: aggressive
+  attacks: [Sunfire, Oath-Strike]
+  profile: {strength: 10, dexterity: 10, constitution: 14, intelligence: 16, wisdom: 20, charisma: 18}
+  unique: true
+  roster: false
+  source: Rivia
+  notes:
+  - 'unique: the quest finale of data/world/orenna.yaml'

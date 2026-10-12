@@ -2,7 +2,7 @@
 
 import random
 
-from engine import clock, combat, dungeons, items, loot, money, quests
+from engine import combat, dungeons, items, loot, money
 from engine import field as _field
 from ui import console
 
@@ -18,7 +18,7 @@ class DungeonActions:
         known = {d["place"]: d for d in self.store.load_dungeons()}
         changed = False
         for place in [p for p in self.world.places.values() if p.danger and p.type != "dungeon"]:
-            if place.danger[1] < D["min_zone_level"]:
+            if place.danger[1] < D["min_zone_level"] or place.id in dungeons.FIXED_PLACES:
                 continue
             d = known.get(place.id)
             if d is not None and dungeons.due_for_respawn(d, self.minutes) and \
@@ -108,7 +108,7 @@ class DungeonActions:
             rank = "boss" if chamber.get("boss") else "normal"
             foes = []
             for i in range(chamber["count"]):
-                name = d["boss_name"] if rank == "boss" else creature.name.lower() + (f" {i + 1}" if chamber["count"] > 1 else "")
+                name = chamber.get("name") or (d["boss_name"] if rank == "boss" else creature.name.lower() + (f" {i + 1}" if chamber["count"] > 1 else ""))
                 foes.append(combat.fighter_from_creature(creature, chamber["level"], rank, f"e{i + 1}", name, "near"))
             self.dungeon_fight = (d["id"], f, c, d["made"])
             from scenes.combat_scene import CombatScene
@@ -178,6 +178,10 @@ class DungeonActions:
             d["cleared"] = [f, c]
             self.save_dungeon(d)
         floor = d["floors"][f]
+        if c == len(floor["chambers"]) - 1 and d.get("fixed") == "orenna":
+            self.orenna_floor_done(d, f)
+            self.store.save_player(self.player)
+            return
         if c == len(floor["chambers"]) - 1:
             last = f == len(d["floors"]) - 1
             console.note(f"Floor {f + 1} cleared." + ("" if last else

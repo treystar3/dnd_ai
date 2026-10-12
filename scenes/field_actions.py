@@ -46,6 +46,10 @@ class FieldActionsBase:
             return "There's no one here to work on - say who you mean."
         if fn == "pickpocket" and self.fld.get("picked", {}).get(self.influence_target(intent).id) == clock.day(self.minutes):
             return "You've already tried them today. Their guard is up."
+        if fn == "bind_beast":
+            return f"{ability.name} is used in a fight, on a creature you face - wound one first, or hit it with all you have."
+        if fn == "speak_corpse" and not self.bodies_here():
+            return "There is no body here that can still answer you."
         if fn == "shelter" and not (self.place.danger or self.player.delve):
             return "There is no need to make camp here - this place already has shelter."
         if fn == "influence" and not self.influence_target(intent):
@@ -69,9 +73,6 @@ class FieldActionsBase:
 
     # ---------- scout ----------
 
-    def dungeon_theme(self) -> dict | None:
-        d = self.dungeon_here()
-        return d
 
     def field_scout(self, ability, intent, text: str) -> str | None:
         self.advance(5)
@@ -457,6 +458,45 @@ class FieldFunctions:
                 "and the cold look that follows. They get nothing.")
 
     # ---------- commune ----------
+
+    # ---------- speak with a corpse ----------
+
+    def keep_bodies(self, bodies: list[dict]) -> list[dict]:
+        """The fallen a place still remembers: recent ones, the newest few."""
+        S = F["speak_corpse"]
+        limit = S["keep_days"] * 1440
+        live = [b for b in bodies if self.minutes - b["minute"] < limit]
+        return live[-S["max_bodies"]:]
+
+    def bodies_here(self) -> list[dict]:
+        state = self.store.load_place(self.player.location)
+        return [b for b in self.keep_bodies(state.bodies) if not b.get("asked")]
+
+    def field_speak_corpse(self, ability, intent, text: str) -> str | None:
+        S = F["speak_corpse"]
+        state = self.store.load_place(self.player.location)
+        state.bodies = self.keep_bodies(state.bodies)
+        fresh = [b for b in state.bodies if not b.get("asked")]
+        if not fresh:
+            console.note("There is no body here that can still answer you.")
+            return None
+        low = f"{intent.target} {intent.item} {text}".lower()
+        body = next((b for b in fresh if b["creature"].replace("_", " ") in low or b["name"].lower() in low), None) or fresh[-1]
+        body["asked"] = True
+        self.store.save_place(state)
+        self.advance(S["minutes"])
+        age = (self.minutes - body["minute"]) / 1440
+        who = body["name"].lower()
+        facts = [f"it was {who}, of about level {body['level']}"]
+        if age < S["stale_days"]:
+            facts.append(f"it fell {clock.describe_duration(self.minutes - body['minute'])} ago, to the player's own hand")
+        if age < S["fresh_days"]:
+            facts.append(f"it carried {body['carried']}" if body.get("carried") else "it carried nothing of worth")
+        line = "; ".join(facts)
+        console.note(f"The dead answer: {line}.")
+        vague = " The memory is faint; describe only fragments." if age >= S["stale_days"] else ""
+        return (f"They kneel by the body of {who} and ask it to speak. All they learn: {line}.{vague} "
+                "Describe the whispering of the dead, adding no facts beyond these.")
 
     def field_commune(self, ability, intent, text: str) -> str | None:
         st = self.store.load_world_state() or {}

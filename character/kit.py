@@ -5,7 +5,6 @@ The model only chooses from lists. The engine builds the items, the companion an
 
 import re
 
-import yaml
 
 from core.models import Character, Companion, Effect
 from engine import items, money

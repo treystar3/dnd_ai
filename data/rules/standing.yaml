@@ -1,0 +1,99 @@
+# STANDING
+#
+# How the groups of a town regard the player, apart from the town's general reputation (pulse.yaml "reputation").
+# Each town keeps its own number per group, -100..100, hidden from the player: they see only the word.
+# A deed someone saw changes standing in that town at once. The deed also becomes news carried by the groups of the people
+# who saw it; when the news reaches another town (the usual travel delay), standing there moves too, weaker the further it came.
+# Deeds nobody saw change nothing.
+
+groups: [guards, guild, merchants, outlaws, temple, nobility, mages]
+
+# Standing never drifts back on its own: what is lost is won back by deeds.
+
+# Words for a standing, highest threshold first. A value at or above the number gets the word.
+words:
+  - [60, honored]
+  - [30, trusted]
+  - [10, regarded]
+  - [-9, unknown]
+  - [-29, wary]
+  - [-59, distrusted]
+  - [-100, hostile]
+
+# News that travels to other towns.
+spread:
+  far_factor: 0.5             # share of the change that lands in another town the news has reached, before distance
+  half_distance_days: 6       # every this many days of news travel halves it again
+  minimum: 1                  # changes smaller than this (after weakening) are dropped
+  twist_chance: 20            # percent of deeds whose retelling is exaggerated
+  twist_factor: 1.5           # an exaggerated tale lands harder in far towns
+  correct_minutes: 30         # time spent setting a tale straight (#correct)
+
+# What a deed does. deltas: standing change by group. carriers: groups that pass the tale on whoever saw it.
+# "public" deeds are known to all when done; the others are known to whoever saw them.
+deeds:
+  theft:
+    deltas: {merchants: -5, guards: -3, outlaws: 3}
+    carriers: [outlaws, merchants]
+    text: "{who} was seen stealing {item} in {place}."
+    twisted: "They say {who} has been robbing {place} blind."
+  break_in:
+    deltas: {merchants: -4, guards: -4, outlaws: 4}
+    carriers: [outlaws]
+    text: "{who} was seen breaking into {item} in {place}."
+    twisted: "They say {who} broke into half the doors in {place}."
+  assault:
+    deltas: {guards: -5, merchants: -2, outlaws: 1}
+    carriers: []
+    text: "{who} was seen laying hands on {item} in {place}."
+    twisted: "They say {who} beat {item} half to death in {place}."
+  bribe_guard:
+    deltas: {guards: -4, outlaws: 2}
+    carriers: [outlaws]
+    text: "{who} was seen slipping coin to the watch in {place}."
+    twisted: "They say the watch in {place} can be bought, and {who} has the purse."
+  fine_paid:
+    deltas: {guards: 3}
+    carriers: []
+    text: "{who} paid the watch's fine in {place}."
+    twisted: "They say {who} bought the watch's forgiveness in {place}."
+  tithe:
+    public: true
+    deltas: {temple: 1}
+    carriers: [temple]
+    text: "{who} left a tithe at the temple in {place}."
+    twisted: "They say {who} gave the temple in {place} a small fortune."
+  contract_done:
+    public: true
+    deltas: {guild: 4, merchants: 1, guards: 1}
+    carriers: [guild]
+    text: "{who} finished a job for the guild in {place}."
+    twisted: "They say {who} did the work of three adventurers in {place}."
+  arc_won:
+    public: true
+    deltas: {guards: 8, merchants: 5, nobility: 3, guild: 4, outlaws: -6}
+    carriers: [guards, guild, merchants]
+    text: "{who} put an end to {item} near {place}."
+    twisted: "They say {who} single-handedly broke {item} near {place}."
+  camp_cleared:
+    public: true
+    deltas: {outlaws: -6, guards: 4, merchants: 3, guild: 2}
+    carriers: [guards, outlaws]
+    text: "{who} drove off the outlaws at {item} near {place}."
+    twisted: "They say {who} slaughtered every last outlaw at {item} near {place}."
+
+# A tithe left in a temple's box counts for more the more is given: its weight is
+# base + per_doubling for each doubling of min_gold, up to cap. Less than min_gold buys nothing but a blessing.
+tithe: {min_gold: 1, base: 1, per_doubling: 1, cap: 6}
+
+# What standing does.
+effects:
+  # merchants: a share off (or on) what the merchants of the town charge. Strongest threshold first.
+  price: [[60, -0.10], [30, -0.05], [-60, 0.12], [-30, 0.05]]
+  # guards: the watch weighs your heat as if it were this much higher or lower when deciding whether to stop you.
+  heat_shift: [[60, -15], [30, -8], [-60, 15], [-30, 8]]
+  # how much a person's group standing moves their trust at a first meeting, per point (the average of their groups)
+  trust_per_point: 0.1
+  # arriving in a town, the groups that feel strongly about you say so (this many at most, strongest first)
+  arrival_notes: 2
+  arrival_threshold: 30

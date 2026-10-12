@@ -92,18 +92,20 @@ def classify(character) -> bool:
     return True
 
 
-def outside_label(a) -> str:
-    """What the ability does outside combat, in a word - empty for combat-only abilities."""
-    if a.context.value == "combat":
-        return ""
-    if a.field_use in F["functions"]:
-        return F["functions"][a.field_use]["label"]
-    return {"healing": "heal", "crafting": "craft", "summon": "summon"}.get(a.effect.value, "")
+def in_combat_function(fn: str) -> bool:
+    return bool(F["functions"].get(fn, {}).get("in_combat"))
+
+
+def fight_text(a) -> str:
+    """What an ability does in a fight beyond its tier, when its function is one of those (bind a beast) - else empty."""
+    if a.field_use in F["functions"] and in_combat_function(a.field_use):
+        return f"{F['functions'][a.field_use]['label'].capitalize()} - {F['functions'][a.field_use]['blurb']}"
+    return ""
 
 
 def outside_text(a) -> str:
     """What the ability does outside combat, as a short sentence - empty for combat-only abilities."""
-    if a.context.value == "combat":
+    if a.context.value == "combat" or in_combat_function(a.field_use):
         return ""
     if a.field_use in F["functions"]:
         return f"{F['functions'][a.field_use]['label'].capitalize()} - {F['functions'][a.field_use]['blurb']}"
@@ -113,7 +115,15 @@ def outside_text(a) -> str:
 
 # ---------- the per-character draw ----------
 
-def draw(interp, rng=None, minimum: int = 0, count: int | None = None, skip=()) -> list[str]:
+def allowed(spec: dict, level: int, lesson: bool) -> bool:
+    """Whether an instructor (lesson) or character creation may offer this function at this level. A taught-only function is never part
+    of a new character; one with a minimum level waits for it."""
+    if spec.get("taught_only") and not lesson:
+        return False
+    return level >= spec.get("min_level", 1)
+
+
+def draw(interp, rng=None, minimum: int = 0, count: int | None = None, skip=(), level: int = 1, lesson: bool = False) -> list[str]:
     """The functions one new character (or one lesson) is offered: a handful, weighted toward what suits the class but
     always varied. A character must have at least `minimum` of them, so a social class is offered more."""
     import random
@@ -122,7 +132,8 @@ def draw(interp, rng=None, minimum: int = 0, count: int | None = None, skip=()) 
     lo, hi = F["offer"]["size"]
     n = count if count is not None else max(rng.randint(lo, hi), minimum)
     keep_companions = bool(getattr(interp, "uses_companions", False))
-    table = {fn: spec for fn, spec in F["functions"].items() if keep_companions or spec.get("needs") != "companions"}
+    table = {fn: spec for fn, spec in F["functions"].items()
+             if (keep_companions or spec.get("needs") != "companions") and allowed(spec, level, lesson)}
     return AT._draw(table, n, interp, rng, skip)
 
 

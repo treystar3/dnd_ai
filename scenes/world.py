@@ -13,16 +13,19 @@ import re
 import config
 import json
 import random
-from pathlib import Path
 
 from character.kit import give_starting_kit
 from core.models import Companion
+from engine import faith as faith_mod
+from scenes.orenna_actions import OrennaActions
 from engine import encounters
 from engine.combat import RULES as COMBAT_RULES
 from scenes import combat_prompts as cp
 from scenes.combat_scene import CombatScene
 from scenes.voice import fresh
 from scenes.inventory_actions import InventoryActions
+from scenes.shop_actions import ShopActions
+from scenes.gear_actions import GearActions
 from scenes.check_actions import CheckActions
 from scenes.work_actions import WorkActions
 from scenes.guild_actions import GuildActions
@@ -38,6 +41,7 @@ from scenes.party_actions import PartyActions
 from scenes.passive_hooks import PassiveHooks
 from scenes.field_actions import FieldActions
 from scenes.audit_actions import AuditActions
+from scenes.standing_actions import StandingActions
 from scenes.law_actions import LawActions
 from scenes import markup
 from engine import pulse, quests
@@ -46,7 +50,7 @@ from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
 from llm.contracts import ActionIntent, ActionPlan, DialogueFrame, Narration
 from llm.gateway import LLMError, generate
-from npc.life import converse, manner, populate_place, promote
+from npc.life import converse, has_parting, manner, populate_place, promote
 from npc.models import Memory, NPC
 from npc.traits import TraitCatalog
 from scenes import world_prompts as wp
@@ -60,8 +64,8 @@ TIME_COST = {"look": clock.LOOK_MINUTES, "talk": clock.TALK_MINUTES, "other": cl
 SEARCH = encounters.E
 
 
-class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
-                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, PassiveHooks, FieldActions, AuditActions, LawActions):
+class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
+                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -72,6 +76,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.partner: NPC | None = None
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
+        self.restart = False          # #newgame: the run loop ends and main.py starts character creation again
         self.recent_narration: list[str] = []
         self.last_text = ""
         self.buffering = False        # several actions in one message: narrate them together
@@ -132,9 +137,11 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         parts.append(f"carrying {held.name}" if held else "empty-handed")
         return "; ".join(parts)
 
-    def remember_narration(self, text: str) -> None:
+    def remember_narration(self, text: str, shown: dict | None = None) -> None:
+        """Keep what the model should remember, and what the player saw (as pieces, so a reload draws it the same way)."""
         if text.strip():
             self.recent_narration = (self.recent_narration + [text])[-6:]
+            self.store.save_story(self.recent_narration, shown or {"type": "narration", "text": text})
 
     def narrate_with(self, system: str, event: str) -> None:
         self.flush(self.last_text)
@@ -270,6 +277,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
         self.note_town(place_id)
+        self.standing_arrive()
         self.first_arrival = place_id not in self.player.visited
         if self.first_arrival:
             self.player.visited.append(place_id)
@@ -309,11 +317,22 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if first_time:
             self.narrate(
                 "The player has just woken here, lying on the ground, returned from death. "
-                f"They remember the Threshold only faintly. {kit_text} Describe waking and what they see."
+                f"They remember the Threshold only faintly. {kit_text} They wake with a sharp, ragged gasp, the first breath tearing in. "
+                "Open on that, then describe what they see."
             )
         else:
-            self.narrate("The player is here, picking up where they left off. Describe the scene in two or three "
-                         "sentences, mentioning at most two of the people present.")
+            saved, shown = self.store.load_story()
+            if shown:
+                self.recent_narration = saved[-6:]
+                if shown.get("type") == "dialogue":
+                    console.dialogue(shown.get("before", ""), shown.get("speaker", ""), shown.get("speech", ""), shown.get("after", ""))
+                elif shown.get("type") == "says":
+                    console.npc_says(shown.get("speaker", ""), shown.get("speech", ""), shown.get("gesture", ""))
+                else:
+                    console.narrate(shown.get("text", ""))
+            else:
+                self.narrate("The player is here, picking up where they left off. Describe the scene in two or three "
+                             "sentences, mentioning at most two of the people present.")
             if kit_text:
                 c = self.player.character
                 held = [i.name for i in c.equipment.values()] + [f"{m.name} ({m.description})" for m in c.companions]
@@ -327,7 +346,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.show_header()
 
         while True:
-            text = console.ask()
+            text = console.ask(main=True)
             if not text:
                 continue
             if text.lower() in QUIT_WORDS:
@@ -335,10 +354,15 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                 console.note("Saved. Run main.py again to continue.")
                 return
             if text.startswith("#"):
-                self.command(text)
+                with console.scope(text):
+                    self.command(text)
+                if self.restart:
+                    self.store.save_player(self.player)
+                    return
                 continue
             try:
                 self.handle(text)
+                self.orenna_tick()
             except LLMError as e:
                 console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
                              "Nothing has been lost; try again, perhaps worded differently.")
@@ -426,6 +450,70 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         console.note(equipment.unequip(c, slot))
         self.store.save_player(self.player)
 
+    def attribute_click(self, attr: str) -> None:
+        """The Character pane's + button: one point into one attribute, then the pane is drawn again."""
+        c = self.player.character
+        spend = {attr: 1}
+        error = None if attr in leveling.ATTRIBUTES else "That is not an attribute."
+        error = error or leveling.check_allocation(c, spend)
+        if error:
+            console.note(error)
+        else:
+            leveling.allocate(c, spend)
+            self.store.save_player(self.player)
+            self.show_header()
+        with console.scope("#character"):
+            self.command("#character")
+
+    NOTE_TRUST_SHIFT = 15           # a note is rewritten after trust moves this far, or after two or more new memories
+    NOTE_NEW_MEMORIES = 2
+
+    def note_due(self, npc) -> bool:
+        if not npc.name_known_to_player:
+            return False
+        if not npc.journal_note:
+            return True
+        return abs(npc.trust - npc.note_trust) >= self.NOTE_TRUST_SHIFT or len(npc.memories) - npc.note_mem >= self.NOTE_NEW_MEMORIES
+
+    def journal_line(self, n, town: str) -> str:
+        """One sentence about a person you know by name: their own note when they have written one, a plain line from what is known until then."""
+        if n.journal_note:
+            return n.journal_note
+        role = n.role.replace("_", " ")
+        first = (n.description or "").split(". ")[0].strip().rstrip(".")
+        return f"{role.capitalize()} of {town or 'the road'}" + (f" - {first[0].lower() + first[1:]}." if len(first) > 12 else ".")
+
+    def journal_data(self) -> dict:
+        """People you know by name, by town (this town first, then the last one you stood in), what you have learned, what you have let go."""
+        here = pulse.town_of(self.world, self.player.location)
+        last = next((t for t in reversed(self.fld.get("towns", [])) if t != here), "")
+        groups: dict[str, list] = {}
+        for n in (self.store.load_npc(i) for i in self.store.list_npcs()):
+            if not n.met_player or not n.name_known_to_player:
+                continue
+            town = pulse.town_of(self.world, n.location) if n.location in self.world.places else ""
+            groups.setdefault(town, []).append(n)
+        def rank(t):
+            return (0 if t == here else 1 if t == last else 3 if not t else 2, self.where_name(t).lower())
+        out = []
+        for t in sorted(groups, key=rank):
+            tag = "here" if t == here else "last visited" if t == last else ""
+            people = []
+            for n in sorted(groups[t], key=lambda x: x.name.lower()):
+                people.append({"name": n.name, "role": n.role.replace("_", " "), "place": self.where_name(n.location),
+                               "line": self.journal_line(n, self.where_name(t) if t else "")})
+            out.append({"town": self.where_name(t) if t else "On the road", "tag": tag, "people": people})
+        known = self.player.character.knowledge
+        return {"groups": out, "facts": [self.world.lore[f].text for f in known if f in self.world.lore],
+                "history": list(self.player.character.item_history)}
+
+    def show_journal(self) -> None:
+        data = self.journal_data()
+        if console.panel("journal", data):
+            return
+        people = [f"{x['name']} - {x['line']}" for g in data["groups"] for x in g["people"]]
+        console.show_journal(data["facts"], people, data["history"])
+
     def allocate(self, args: str) -> None:
         c = self.player.character
         if not args:
@@ -455,7 +543,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
     def show_header(self) -> None:
         c = self.player.character
         m = self.minutes
-        when = f"Day {clock.ordinal(clock.day(m))} {clock.clock_time(m)} ({clock.period(m).capitalize()})"
+        when = f"{clock.ordinal(clock.day(m))} Day {clock.clock_time(m)} ({clock.period(m).capitalize()})"
         emoji, sky = weather.describe(self.store.meta.seed, m)
         place_line, spot_line = self.place_lines()
         vitals = {p: (pools.current(c, p), pools.maximum(c, p)) for p in pools.POOLS}
@@ -581,13 +669,15 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         elif name == "party":
             self.party_status("", "", [])
         elif name in ("journal", "j"):
-            known = self.player.character.knowledge
-            facts = [self.world.lore[f].text for f in known if f in self.world.lore]
-            people = []
-            for n in (self.store.load_npc(i) for i in self.store.list_npcs()):
-                if n.met_player:
-                    people.append(f"{n.label()} - {n.role.replace('_', ' ')}, {self.where_name(n.location)}")
-            console.show_journal(facts, people, self.player.character.item_history)
+            self.show_journal()
+        elif name == "newgame":
+            console.note("Start a new character? Your current game is not deleted: it is set aside as a backup in the saves folder. (y/n)")
+            if console.ask().lower() in ("y", "yes"):
+                self.restart = True
+            else:
+                console.note("Cancelled.")
+        elif name.split()[0] == "attradd":
+            self.attribute_click(name.split()[1] if len(name.split()) > 1 else "")
         elif name.split()[0] in ("allocate", "alloc", "assign"):
             self.allocate(name.split(maxsplit=1)[1] if " " in name else "")
         elif name.split()[0] in ("inventory", "inv", "i"):
@@ -604,6 +694,12 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                 self.show_board()
             else:
                 console.note("The contract board is at the guild house.")
+        elif name == "standing":
+            self.show_standing()
+        elif name == "rumors":
+            self.show_rumors()
+        elif name.split()[0] == "correct":
+            self.correct_rumor(name.split(maxsplit=1)[1] if " " in name else "")
         elif name == "world":
             if not config.DEBUG:
                 console.note("#world is a debug command (run with --debug).")
@@ -619,6 +715,12 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             self.show_home()
         elif name.split()[0] in ("mount", "mounts", "ride", "stable", "stables"):
             self.mount_command(name.split(maxsplit=1)[1] if " " in name else "")
+        elif name.split()[0] in ("shopbuy", "shopsell"):
+            self.shop_click(text)
+        elif name.split()[0] in ("gearequip", "gearunequip"):
+            self.gear_click(text)
+        elif name in ("gear", "equipment", "worn"):
+            self.show_gear()
         elif name in ("shop", "store", "wares", "buy"):
             self.show_shop()
         elif name in ("stash", "box", "itembox"):
@@ -706,10 +808,16 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
 
     def interpret(self, text: str, hint: str = "") -> list[ActionIntent]:
         places = [(p.id, p.name) for p in self.world.places.values() if p.id != self.player.location]
-        people = [(n.id, n.label(), f"{n.role.replace('_', ' ')}. {n.description} {n.activity}") for n in self.present]
-        elsewhere = [(n.id, f"{n.label()} ({n.role.replace('_', ' ')})", self.where_name(n.location))
+        people = [(n.id, n.label(), f"{n.role.replace('_', ' ')}. {n.description} {n.activity}"
+                   + (f" Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
+                      "and 'taking the pay' once it is done is part of that work." if n.work_offer else "")) for n in self.present]
+        elsewhere = [(n.id, f"{n.label()} ({n.role.replace('_', ' ')})",
+                      "just walked away from here and can't be spoken to for a short while"
+                      if n.location == self.player.location and n.away_until > self.minutes else self.where_name(n.location))
                      for n in self.people_elsewhere()]
-        last = self.last_spoken if any(n.id == self.last_spoken for n in self.present) else None
+        left = next((n for n in self.people_elsewhere() if n.id == self.last_spoken and n.location == self.player.location
+                     and n.away_until > self.minutes), None)
+        last = self.last_spoken if left or any(n.id == self.last_spoken for n in self.present) else None
         if self.wildlife:
             people = people + [("wildlife", ", ".join(e.name for e in self.wildlife[1]), "a creature, keeping its distance")]
         return generate(
@@ -844,7 +952,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if first_time:
             rep = self.player.reputation.get(pulse.town_of(self.world, npc.location), 0)
             npc.trust = max(0, min(100, npc.trust + round(rep * pulse.P["reputation"]["trust_per_point"])
-                                   + self.first_meeting_trust(npc) + self.heat_trust()))
+                                   + self.first_meeting_trust(npc) + self.heat_trust() + self.standing_trust(npc)))
         else:
             self.easy_company(npc)
         if first_time and self.has("oathbound") and set(self.world.roles[npc.role].knowledge_groups) & {"guards", "temple"}:
@@ -855,6 +963,10 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         check_note = getattr(self, "pending_check", "")
         self.pending_check = ""
         ctx = self.npc_context(npc)
+        note_due = self.note_due(npc)
+        if note_due:
+            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now." + (f" The old note was: {npc.journal_note} - bring it up to date with what has happened since."
+                                                                         if npc.journal_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ctx + secret_lines
         if npc.id in self.player.prisoners:
@@ -863,11 +975,19 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         self.npc_level = level
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, level)
+        if reply.intent == "leave" and not has_parting(reply.speech):
+            reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]
+        if note_due and reply.journal_note.strip():
+            npc.journal_note = " ".join(reply.journal_note.split())[:240]
+            npc.note_trust, npc.note_mem = npc.trust, len(npc.memories)
+        self.orenna_named(speech)
         if reply.offers_work and reply.offers_work.task.strip():
             self.record_work_offer(reply.offers_work, npc)
         elif reply.offers_quest and reply.offers_quest.what.strip() and not npc.quest_offer:
             self.record_quest_offer(reply.offers_quest, npc)
+        elif not npc.work_offer and not (reply.offers_quest and reply.offers_quest.what.strip()) and self.promises_pay(reply.speech):
+            self.record_work_offer(self.inferred_offer(npc, reply.speech), npc)      # pay was promised in words: make it a real, payable offer
         if reply.gives and reply.gives.name.strip() and reply.intent != "bargain" and self.story_object(reply.gives.name):
             self.receive_key_item(reply.gives, npc)
         elif reply.gives:
@@ -877,7 +997,9 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         if config.NARRATED_DIALOGUE:
             self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time)
         else:
-            console.npc_says(speaker, reply.speech, self.unnamed(reply.gesture, npc))
+            gesture = self.unnamed(reply.gesture, npc)
+            console.npc_says(speaker, reply.speech, gesture)
+            self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
 
         if reply.intent == "lie" and self.has("lie_sense") is not None:
             gift = next((i for i in self.player.character.equipment.values() if "lie_sense" in (i.trait or {}).get("world", {})), None)
@@ -918,11 +1040,14 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
             )
         except LLMError:
-            console.npc_says(speaker, reply.speech, self.unnamed(reply.gesture, npc))
+            gesture = self.unnamed(reply.gesture, npc)
+            console.npc_says(speaker, reply.speech, gesture)
+            self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
             return
         before, after = self.unnamed(frame.before, npc), self.unnamed(frame.after, npc)
         console.dialogue(before, speaker, reply.speech, after)
-        self.remember_narration(" ".join(t for t in (before, after) if t.strip()))
+        self.remember_narration(" ".join(t for t in (before, after) if t.strip()),
+                                {"type": "dialogue", "before": before, "speaker": speaker, "speech": reply.speech, "after": after})
 
     def on_leave_conversation(self, intent: ActionIntent, text: str) -> None:
         if self.partner and intent.speech.strip():
@@ -965,52 +1090,7 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
             console.note(f"{seller.label()} sells: " + ", ".join(f"{w.name} ({money.words(w.price)})" for w in wares))
             self.halted = True
             return
-        c = self.player.character
-        off = crafting.mechanic(c, "haggler") + self.guild_perks()["shop_discount"]
-        if ware.kind == "room":
-            off = crafting.mechanic(c, "haggler") + self.guild_perks()["room_discount"]
-        if ware.kind in ("room", "meal"):
-            off += crafting.mechanic(c, "ascetic")
-        if seller.role == "quartermaster":
-            off += self.mech("quartermasters_friend")
-        ware = ware.model_copy(update={"price": round(ware.price * max(0, 1 - off / 100)
-                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price())})
-        if ware.kind == "room" and ((self.owns("shelter_earned") and self.town_rep() >= 30)
-                                    or self.player.free_room_day == clock.day(self.minutes)):
-            ware = ware.model_copy(update={"price": 0})
-            console.note("The room is yours tonight, free - " + ("you're well thought of here."
-                         if self.player.free_room_day != clock.day(self.minutes) else "paid for with a song."))
-        if c.coins < ware.price:
-            self.narrate(f"The player tries to pay {seller.label()} for {ware.name}, which costs {money.words(ware.price)}, "
-                         f"but they only have {money.words(c.coins)}. Show the awkward moment briefly.", text)
-            self.halted = True
-            return
-        c.coins -= ware.price
-        effect = ""
-        if ware.kind == "room":
-            now = clock.absolute(self.minutes)
-            nights_end = (now // 1440 + 1) * 1440 + 10 * 60 - clock.absolute(0)
-            self.player.room, self.player.room_until = self.player.location, nights_end
-            effect = "They are shown a small room upstairs that is theirs until mid-morning tomorrow."
-        elif ware.kind == "material" and ware.item:
-            self.to_pack(items.make_raw(ware.item))
-            effect = f"They take {ware.name}."
-        elif ware.kind == "item" and ware.item:
-            self.to_pack(inv.make_good(ware.item, 1))
-            effect = f"They put {inv.GOODS[ware.item].name} in their pack."
-        elif ware.kind in ("meal", "drink"):
-            share = 0.25 if ware.kind == "meal" else 0.08
-            for pool in ("stamina", "health"):
-                top = pools.maximum(c, pool)
-                setattr(c, pool, min(top, pools.current(c, pool) + top * share))
-            effect = "They eat and feel restored." if ware.kind == "meal" else "They drink."
-        seller.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                      text=f"The stranger paid {money.words(ware.price)} for {ware.name}."))
-        self.store.save_npc(seller)
-        self.store.save_player(self.player)
-        console.note(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
-        self.narrate(f"The player pays {seller.label()} {money.words(ware.price)} for {ware.name}, and the coins change "
-                     f"hands. {effect} Describe the exchange in two or three sentences.", text)
+        self.buy_ware(seller, ware, text)
 
     def on_ability(self, intent: ActionIntent, text: str) -> None:
         c = self.player.character
@@ -1126,6 +1206,15 @@ class WorldScene(InventoryActions, CheckActions, WorkActions, GuildActions, Trai
         town = pulse.town_of(self.world, npc.location)
         if not self.world.places[town].danger:
             lines.append(f"How people around here regard the stranger: {self.reputation_words(town)}.")
+            group_line = self.standing_line(npc)
+            if group_line:
+                lines.append(group_line)
+        faith = faith_mod.line(self.world, npc)
+        if faith:
+            lines.append(faith)
+        if "orenna_name" in self.player.character.knowledge:
+            lines.append("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
+                         "recognise it, and you do not pretend to.")
         lines.append(f"The season is {clock.season(self.minutes)}.")
         return lines
 

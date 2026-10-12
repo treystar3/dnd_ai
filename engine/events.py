@@ -470,7 +470,7 @@ def _pick_kind(th: dict, rng, exclude: set[str] | None = None) -> str:
 
 def grand_reward(ws, state, th: dict) -> list[str]:
     """Pay what the survivors owe. Gold always; a keepsake of one kind (two for a cataclysm); a title; reputation."""
-    from engine import loot, money, quests
+    from engine import money, quests
     tier = th["tier"]
     cfg = E["grand"][tier]
     c = ws.player.character

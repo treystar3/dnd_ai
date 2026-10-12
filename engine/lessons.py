@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import yaml
 
-from core.rules import MECHANICS, STATS, TRIGGERS
+from core.rules import STATS, TRIGGERS
 from engine import ability_slots as AS
 from engine import ability_traits as AT
 from engine import field
@@ -124,16 +124,16 @@ def _pick(rng, ids: list[str], table: dict, view_) -> str:
     return rng.choices(ids, weights=[AT._score(table[i], view_) for i in ids])[0]
 
 
-def _function_slot(s: dict, effect: str, offers: dict, want: Want, biased: bool, view_, rng) -> bool:
+def _function_slot(s: dict, effect: str, offers: dict, want: Want, biased: bool, view_, rng, only=None) -> bool:
     fns = offers["functions"]
-    if not fns:
+    if not fns or (only is not None and not only):
         return False
 
     def spec_of(fn):
         spec = dict(AS.P["function_defaults"])
         spec.update(AS.P["functions"].get(fn) or {})
         return spec
-    ids = [fn for fn in fns if spec_of(fn)["effect"] == effect] or list(fns)
+    ids = list(only) if only is not None else ([fn for fn in fns if spec_of(fn)["effect"] == effect] or list(fns))
     words = want.words() if biased else set()
 
     def weight(fn):
@@ -156,7 +156,15 @@ def active_slot(c, view_, effect: str, offers: dict, want: Want, biased: bool, s
             effect = "control"
     if effect == "summon" and not c.uses_companions:
         effect = "damage"
-    if effect in ("damage", "control"):
+    if effect == "control":
+        fight_fns = [fn for fn in offers["functions"] if field.in_combat_function(fn)]
+        named = want.words() & {w for fn in fight_fns for w in re.findall(r"[a-z]+", field.F["functions"][fn]["blurb"].lower())}
+        if fight_fns and (named or rng.random() < L["fight_function_chance"]) and \
+                _function_slot(s, "control", offers, want, biased, view_, rng, only=fight_fns):
+            effect = "function"
+    if effect == "function":
+        pass
+    elif effect in ("damage", "control"):
         s.update(effect=effect, context="combat")
         roll = rng.random()
         if effect == "damage":
@@ -287,7 +295,8 @@ def plan(c, want: Want, rng: random.Random | None = None, n: int | None = None, 
     have = {x for x in ([a.rider for a in c.actives] + [a.shape for a in c.actives]) if x}
     owned_fn = {a.field_use for a in c.actives if a.field_use}
     owned_buffs = {a.buff for a in c.actives if a.buff}
-    offers = AT.draw_offers(view_, rng, sizes={"riders": 3, "shapes": 2, "buffs": 2, "functions": 3}, skip=have, owned_functions=owned_fn)
+    offers = AT.draw_offers(view_, rng, sizes={"riders": 3, "shapes": 2, "buffs": 2, "functions": 3}, skip=have, owned_functions=owned_fn,
+                            level=c.level, lesson=True)
     offers["buffs"] = [b for b in offers["buffs"] if b not in owned_buffs]
     mechs = {}
     if any(t == "passive" for t, _ in types):

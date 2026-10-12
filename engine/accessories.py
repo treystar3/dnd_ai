@@ -92,7 +92,6 @@ def roll(item: Item, rng: random.Random, signature_kit: str = "") -> None:
 
 def boss_relic(kit: str, level: int, rng: random.Random) -> Item:
     """The relic a boss of this kit leaves behind: a legendary ring or amulet."""
-    from engine import loot
     bases = [b for b in items.CATALOG.values() if b.slot in JEWELRY_SLOTS and b.min_level <= level]
     item = items.make(rng.choice(bases).id, "legendary", level, rng=rng)
     roll(item, rng, signature_kit=kit)

@@ -10,7 +10,6 @@ import yaml
 
 from core.models import Character
 from core.rules import STATS
-from engine import pools
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = yaml.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))

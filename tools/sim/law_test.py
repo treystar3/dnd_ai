@@ -103,6 +103,7 @@ def reset():
     mer.memories.clear(); frm.memories.clear(); grd.memories.clear()
     mer.trust = frm.trust = grd.trust = 50; mer.hidden = []; mer.looks_away_until = -1; frm.looks_away_until = -1; grd.looks_away_until = -1
     ws.player.heat.clear(); ws.player.confronted.clear(); ws.player.character.key_items.clear(); ws.player.character.coins = 100000
+    ws.player.standing.clear(); ws.player.standing_seen.clear()
     ws.present = [mer, frm]; EVENTS.clear(); NOTES.clear(); ANSWERS.clear()
     state = store.load_place("parth"); state.hidden = []; store.save_place(state)
     law.attempt, law.notices = real_attempt, real_notices

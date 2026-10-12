@@ -12,7 +12,7 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel
 
-from core.models import Item, ItemProperty
+from core.models import Item
 from core.rules import ATTRIBUTES, STATS, TRIGGERS
 
 ROOT = Path(__file__).resolve().parent.parent / "data"

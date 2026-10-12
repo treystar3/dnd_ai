@@ -7,7 +7,7 @@ from core.models import (
     CompanionKind,
     CompanionRole,
 )
-from core.rules import FAMILIES, MECHANICS, STATS, TRIGGERS
+from core.rules import FAMILIES, STATS, TRIGGERS
 from llm.contracts import ClassInterpretation
 
 
@@ -170,29 +170,6 @@ def actives_user(interp: ClassInterpretation, min_noncombat: int, offers: str = 
         + (f"\n\n{offers}" if offers else "")
         + f"\n\nRequired: at least {min_noncombat} abilities usable outside combat."
         + "\nGenerate 15 active abilities."
-    )
-
-
-def passives_user(
-    interp: ClassInterpretation,
-    taken_names: list[str],
-    min_noncombat: int,
-    fit_stats: list[str],
-    fit_triggers: list[str],
-    unavailable: list[str],
-    offered_lines: list[str] = (),
-    min_mechanics: int = 0,
-) -> str:
-    return (
-        class_context(interp)
-        + "\nOFFERED MECHANICS:\n" + "\n".join(f"  {line}" for line in offered_lines)
-        + f"\nRequired: at least {min_mechanics} passives of kind mechanic."
-        + f"\nNames already taken: {', '.join(taken_names)}"
-        + f"\n\nBest-fit modifies for this class: {', '.join(fit_stats) or 'no strong preference'}"
-        + f"\nBest-fit triggers for this class: {', '.join(fit_triggers) or 'no strong preference'}"
-        + (f"\nNot available for this class: {', '.join(unavailable)}" if unavailable else "")
-        + f"\n\nRequired: at least {min_noncombat} passives that matter outside combat."
-        + "\nGenerate 15 passive traits."
     )
 
 

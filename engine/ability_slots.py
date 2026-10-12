@@ -301,7 +301,7 @@ def mechanic_text(s: dict) -> str:
         parts.append(E["damage_area"] if s["reach"] == "area" else E["damage_single"])
     elif eff == "summon" or eff == "command":
         parts.append(E[eff])
-    elif eff != "buff" and not (s["field_use"] and eff == "utility"):
+    elif eff != "buff" and not (s["field_use"] and eff == "utility") and not field.in_combat_function(s["field_use"]):
         parts.append(E.get(eff, eff))
     if s["buff"]:
         b = s["buff"]
@@ -316,7 +316,8 @@ def mechanic_text(s: dict) -> str:
         r = s["rider"]
         parts.append(f"{AT.RIDERS[r]['label']}: {AT.rider_text(r, s['tier'])}")
     if s["field_use"]:
-        parts.append(f"outside combat - {field.label(s['field_use'])}: {field.blurb(s['field_use'])}")
+        where = "in a fight" if field.in_combat_function(s["field_use"]) else "outside combat"
+        parts.append(f"{where} - {field.label(s['field_use'])}: {field.blurb(s['field_use'])}")
     return "; ".join(parts)
 
 

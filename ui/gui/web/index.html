@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dnd_ai</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<!-- status strip: a self-contained block (this div + the Strip section in app.js + .strip rules in style.css); delete all three to remove it -->
+<header id="strip" class="strip" aria-label="Status"></header>
+<button id="updatebtn" hidden>⬆ Update available</button>
+
+<div id="app">
+  <main id="main">
+    <div id="log" aria-live="polite"></div>
+    <div id="busy" hidden>The world is thinking…</div>
+    <form id="form" autocomplete="off">
+      <span class="caret">&gt;</span>
+      <input id="input" type="text" spellcheck="false" autofocus placeholder="What do you do?">
+      <button id="send" type="submit">Send</button>
+    </form>
+  </main>
+
+  <div id="grip" title="Drag to resize"></div>
+  <aside id="side">
+    <div id="sidehead">
+      <div id="buttons"></div>
+      <div id="sidetools">
+        <button id="pin" title="Pin this view: it refreshes after every turn">📌 Pin</button>
+        <button id="theme" title="Colour theme: auto follows Windows">◐ Auto</button>
+        <button id="hide" title="Hide this pane">Hide ▸</button>
+      </div>
+    </div>
+    <div id="sidetitle"></div>
+    <pre id="sidebody"></pre>
+  </aside>
+  <button id="show" hidden title="Show the info pane">◂ Info</button>
+</div>
+<div id="update" hidden><div class="card"><h2 id="updtitle"></h2><div id="updnotes"></div><div id="updbar" hidden><div id="updfill"></div></div><div id="updtext"></div><div id="updbtns"></div></div></div>
+<div id="setup" hidden><div class="card"><h2 id="setuptitle"></h2><div id="setuplines"></div><div id="setupbar" hidden><div id="setupfill"></div></div><div id="setuptext"></div><div id="setupbtns"></div></div></div>
+<script>window.TOKEN = "__TOKEN__";</script>
+<script src="/app.js"></script>
+</body>
+</html>
