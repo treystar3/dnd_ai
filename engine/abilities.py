@@ -26,8 +26,9 @@ TIER_COOLDOWN = {PowerTier.LIGHT: 0, PowerTier.MODERATE: 1, PowerTier.HEAVY: 3}
 ROLE_STATS = {
     CompanionRole.STRIKER: {"health": 10, "damage": 6},
     CompanionRole.GUARDIAN: {"health": 20, "damage": 3},
-    CompanionRole.SCOUT: {"health": 8, "damage": 2},
-    CompanionRole.SUPPORT: {"health": 12, "damage": 2},
+    CompanionRole.ROGUE: {"health": 11, "damage": 5},
+    CompanionRole.HEALER: {"health": 14, "damage": 3},
+    CompanionRole.SUPPORT: {"health": 14, "damage": 4},
 }
 COMPANION_TIER_SCALE = {PowerTier.LIGHT: 1.0, PowerTier.MODERATE: 1.5, PowerTier.HEAVY: 2.0}
 

@@ -499,6 +499,7 @@ class CombatIntent(BaseModel):
     ability: str = ""
     item: str = ""
     move: Literal["", "closer", "back", "high_ground"] = ""
+    buff_for: str = ""        # a buff ability's recipient: "" or "self" (the player), an id from ALLIES, or "all" (the player and every ally)
     summary: str = ""
 
 

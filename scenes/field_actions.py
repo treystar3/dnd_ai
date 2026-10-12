@@ -4,8 +4,9 @@ Each use is one deliberate act with an immediate result. The engine decides the 
 State lives in player.field: cd (ability id -> game minute it is ready), camp, haste, edge, shadow, scouted, lit, shows."""
 
 import random
+import re
 
-from engine import clock, dungeons, encounters, field, inventory as inv, money, pools, pulse
+from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse
 from engine.field import F, tier_value
 from npc.models import Memory
 from ui import console
@@ -702,6 +703,120 @@ class FieldFunctions:
         self.advance(F["revivify"]["minutes"])
         console.note(f"{m.name} draws breath and rises, whole.")
         return f"They call {m.name} back, and it rises at their side as if nothing had happened. Describe the moment."
+
+    # ---------- reforge, salvage, soul tether ----------
+
+    STOP = {"the", "my", "a", "an", "of", "on", "to", "with", "use", "using", "cast", "and", "this", "that", "your", "i", "it", "in", "at", "from"}
+
+    def pick_gear(self, text: str, pool: list, ability) -> object | None:
+        """The piece the player named in what they typed (ignoring the ability's own name), or None when it is unclear."""
+        skip = set(re.findall(r"[a-z']+", ability.name.lower()))
+        words = [w for w in re.findall(r"[a-z]+", text.lower()) if w not in self.STOP and w not in skip and len(w) > 2]
+        scored = []
+        for it in pool:
+            have = set(re.findall(r"[a-z]+", f"{items.display_name(it)} {it.material} {items.base_of(it).name} {items.base_of(it).label}".lower()))
+            scored.append((sum(1 for w in words if w in have or w.rstrip("s") in have), it))
+        scored.sort(key=lambda t: -t[0])
+        if not scored or scored[0][0] == 0:
+            return None
+        top = [it for sc, it in scored if sc == scored[0][0]]
+        if len({items.display_name(it) for it in top}) > 1:
+            return None
+        return scored[0][1]
+
+    def field_reforge(self, ability, intent, text: str) -> str | None:
+        c = self.player.character
+        pool = [i for i in list(c.equipment.values()) + self.pack if forge.reforge_problem(i) is None]
+        if not pool:
+            console.note("You have nothing that can be reforged - a piece of weapon or armor with at least two rolls, not yet reforged, and not legendary.")
+            return None
+        item = self.pick_gear(text, pool, ability)
+        if item is None:
+            console.note("Say which piece to reforge: " + ", ".join(items.display_name(i) for i in pool) + ".")
+            return None
+        console.note(f"{items.display_name(item)} - its rolls:")
+        for n, p in enumerate(item.properties, 1):
+            console.note(f"  {n}. {forge.prop_text(item, p)}")
+        keep = None
+        for _ in range(3):
+            console.note(f"Which roll do you keep? (1-{len(item.properties)}, or 'cancel')")
+            said = console.ask().lower()
+            if "cancel" in said or said in ("no", "stop"):
+                console.note("You leave it as it is.")
+                return None
+            m = re.search(r"\d+", said)
+            if m and 1 <= int(m.group()) <= len(item.properties):
+                keep = int(m.group()) - 1
+                break
+        if keep is None:
+            console.note("You leave it as it is.")
+            return None
+        fresh = forge.reroll(item, keep, random.Random())
+        old = list(item.properties)
+        console.note("New rolls:")
+        for n, p in enumerate(fresh, 1):
+            console.note(f"  {n}. {forge.prop_text(item, p)}")
+        console.note("Take the new rolls, or keep the old ones? (new / old)")
+        said = console.ask().lower()
+        took = "new" in said and "old" not in said or said.strip() in ("n", "yes", "y", "new")
+        item.properties = fresh if took else old
+        item.reforged = True
+        self.advance(F["reforge"]["minutes"])
+        self.store.save_player(self.player)
+        console.note(f"You {'take the new rolls' if took else 'keep the old rolls'}. The {items.display_name(item)} cannot be reforged again.")
+        return f"They reforge {items.display_name(item)} at length, hammering and tempering it. Describe the work, without saying what the result is."
+
+    def field_salvage(self, ability, intent, text: str) -> str | None:
+        c = self.player.character
+        pool = [i for i in self.pack if forge.salvage_problem(i) is None]
+        if not pool:
+            console.note("Nothing in your pack can be broken down - only unequipped weapons and armor, and nothing legendary.")
+            return None
+        item = self.pick_gear(text, pool, ability)
+        if item is None:
+            console.note("Say which piece to break down: " + ", ".join(items.display_name(i) for i in pool) + ".")
+            return None
+        yields = forge.salvage_yield(item)
+        if not yields:
+            console.note("There is nothing worth saving in it.")
+            return None
+        self.pack.remove(item)
+        got = []
+        for mid, n in yields:
+            raw = items.make_raw(mid)
+            raw.quantity = n
+            self.to_pack(raw)
+            got.append(f"{n} raw {items.MATERIALS[mid].name}")
+        self.advance(F["salvage"]["minutes"])
+        self.store.save_player(self.player)
+        console.note(f"You break down the {items.display_name(item)}: {', '.join(got)}.")
+        return f"They take {items.display_name(item)} apart piece by piece and keep the {', '.join(got)}. Describe the work briefly."
+
+    def field_soul_tether(self, ability, intent, text: str) -> str | None:
+        c = self.player.character
+        if not [m for m in c.companions if m.active]:
+            console.note("You have no companion to bind.")
+            return None
+        self.fld["tether"] = {"until": self.minutes + F["soul_tether"]["lasts_minutes"], "heal": F["soul_tether"]["heal_percent"]}
+        self.advance(F["soul_tether"]["minutes"])
+        console.note("Your will runs out along the bond. In the next fight, each companion that would fall stands again once.")
+        return "They close their eyes and send their will out along the bond to their companions. Describe the quiet binding."
+
+    def tether_for(self, allies: list) -> list[str]:
+        """Called as a fight begins: a Soul Tether holds the companions among these allies, once."""
+        t = self.fld.get("tether")
+        if not t:
+            return []
+        if t["until"] <= self.minutes:
+            self.fld.pop("tether", None)
+            return []
+        pets = [a for a in allies if a.id.startswith("ally_")]
+        if not pets:
+            return []
+        self.fld.pop("tether", None)
+        for a in pets:
+            a.tether = t["heal"]
+        return ["Your Soul Tether holds: a companion that would fall will stand once more."]
 
     # ---------- word of recall ----------
 

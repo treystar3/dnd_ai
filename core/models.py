@@ -65,8 +65,15 @@ class CompanionKind(str, Enum):
 class CompanionRole(str, Enum):
     STRIKER = "striker"
     GUARDIAN = "guardian"
-    SCOUT = "scout"
+    ROGUE = "rogue"
+    HEALER = "healer"
     SUPPORT = "support"
+
+    @classmethod
+    def _missing_(cls, value):
+        if value == "scout":
+            return cls.ROGUE
+        return None
 
 
 from core.rules import (  # noqa: E402  - stats and triggers are defined in data/rules/*.yaml
@@ -181,6 +188,7 @@ class Item(BaseModel):
     enchantments: list[Enchantment] = []
     good: str = ""          # for goods (herbs, food, consumables): the id in goods.yaml
     quantity: int = 1       # stack size for goods and raw materials
+    reforged: bool = False  # its rolls have been reforged once; never again
 
 
 class KeyItem(BaseModel):

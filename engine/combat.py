@@ -99,6 +99,9 @@ class Fighter(BaseModel):
     legendary: dict[str, float] = {}     # legendary effect id -> value
     slays: dict[str, float] = {}         # creature category -> bonus % (dragonslayer etc.)
     ally_role: str = ""                   # a hired party member's role (priests heal)
+    tether: int = 0                       # Soul Tether: a killing blow is survived once, at this percent of max health
+    spirit_role: str = ""                 # a summoned spirit's role: rogue, healer, support (striker and guardian just fight)
+    spirit_tier: str = ""
     wards: dict[str, float] = {}         # creature category -> damage reduction % (dragonward etc.)
     hardening_stacks: int = 0
     windwalker_ready: bool = False
@@ -469,6 +472,10 @@ def companion_fighter(shape, level: int, fid: str, name: str, spirit: tuple[str,
         r = sp["role"].get(role, {"health": 1, "damage": 1})
         f.max_hp = f.hp = round(f.max_hp * r["health"])
         f.weapon_damage *= r["damage"]
+        role = getattr(role, "value", role)
+        f.spirit_role, f.spirit_tier = role, getattr(tier, "value", tier)
+        if role == "rogue":
+            f.legendary = {**f.legendary, "rending": sp["rogue_bleed"][f.spirit_tier]}
     g = RULES["creatures"].get("companion_gift")
     c = RULES["creatures"].get("companion")
     if gift and g:                          # an animal given as a reward: a helper, not a partner
@@ -758,6 +765,12 @@ def take_damage(combat: Combat, dfn: Fighter, amount: float, source: Fighter | N
         dfn.hp = 1
         combat.log.append(f"{dfn.name} should have fallen - the bond holds it to life (Lifeline)")
         tell(combat, f"the blow should have ended {who(dfn)}, but the bond with its master will not let it fall (Lifeline)")
+        return dealt
+    if dealt >= dfn.hp and dfn.tether:
+        dfn.hp = max(1, round(dfn.max_hp * dfn.tether / 100))
+        dfn.tether = 0
+        combat.log.append(f"{dfn.name} should have fallen - the Soul Tether holds it to life")
+        tell(combat, f"the blow should have ended {who(dfn)}, but a thread of the master's will draws it back from the brink (Soul Tether)")
         return dealt
     if dfn.boss and dealt >= dfn.hp:
         from engine import bosses
@@ -1291,16 +1304,24 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
         tell(combat, f"{who(t)} {vb(t, 'are', 'is')} hauled a step closer ({r['label']})")
 
 
-def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random) -> str | None:
+def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None, rng: random.Random,
+                give: list[Fighter] | None = None) -> str | None:
     problem = can_use(att, move, combat)
     if problem:
         return problem
+    if move.effect != "buff" or move.buff == "manashield":
+        give = None                                    # only a buff can go on someone else, and a mana shield is paid from your own mana
+    wide = bool(give) and len(give) > 1                # a buff on everyone costs double
+    if wide:
+        need = cost_of(att, move, combat) * RULES["buff_all_cost"]
+        if (att.mana if move.resource == "mana" else att.stamina) < need:
+            return f"Not enough {move.resource} to cast {move.name} on everyone ({need:.0f} needed)."
     if att.side == "player" and target and target.side == "enemy":
         combat.focus = target.id
     if move.effect == "relic":
         from engine import relics
         return relics.use(combat, att, move, target, rng)
-    cost = cost_of(att, move, combat)
+    cost = cost_of(att, move, combat) * (RULES["buff_all_cost"] if wide else 1)
     am = mechanics(att, combat)
     free_cast = move.resource == "mana" and not att.archmage_used and "archmage" in am
     if move.resource == "stamina":
@@ -1410,14 +1431,22 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
     elif move.effect == "buff":
         mech = AT.buff_mech(move.buff, move.tier, move.buff_stat, magical=move.resource == "mana")
         rounds = AT.value(AT.BUFFS[move.buff]["rounds"], move.tier)
-        for k, b in list(att.buffs.items()):
-            if b.get("kind") == move.buff:
-                att.buffs.pop(k)                      # one of each kind: a new casting replaces the old
-        att.buffs[move.id] = {"rounds": rounds, "mech": mech, "drain": 0, "collapse": "", "name": move.name, "kind": move.buff,
-                              "element": move.element or "fire"}
-        combat.log.append(f"{att.name} uses {move.name}: {AT.buff_text(move.buff, move.tier, move.buff_stat)}")
-        tell(combat, f"{who(att)} {vb(att, 'wrap', 'wraps')} {'yourself' if att.side == 'player' else 'itself'} in {move.name}: "
-                     f"{AT.buff_text(move.buff, move.tier, move.buff_stat)}")
+        for r in (give or [att]):
+            for k, b in list(r.buffs.items()):
+                if b.get("kind") == move.buff:
+                    r.buffs.pop(k)                    # one of each kind: a new casting replaces the old
+            r.buffs[move.id] = {"rounds": rounds + (1 if r is not att else 0), "mech": dict(mech), "drain": 0, "collapse": "",
+                                "name": move.name, "kind": move.buff, "element": move.element or "fire"}
+        text = AT.buff_text(move.buff, move.tier, move.buff_stat)
+        others = [r for r in (give or []) if r is not att]
+        if not others:
+            combat.log.append(f"{att.name} uses {move.name}: {text}")
+            tell(combat, f"{who(att)} {vb(att, 'wrap', 'wraps')} {'yourself' if att.side == 'player' else 'itself'} in {move.name}: {text}")
+        else:
+            names = " and ".join(who(r) for r in others) if len(others) <= 2 else f"{who(others[0])} and {len(others) - 1} more"
+            combat.log.append(f"{att.name} uses {move.name} on {', '.join(r.name for r in (give or []))}: {text}")
+            tell(combat, f"{who(att)} {vb(att, 'wrap', 'wraps')} {names}{' and yourself' if att in (give or []) and att.side == 'player' else ''} in "
+                         f"{move.name}: {text}")
     elif move.effect == "defense":
         att.defending = RULES["defend_percent"][move.tier]
         combat.log.append(f"{att.name} uses {move.name}: braced ({att.defending:.0f}% less damage)")
@@ -1676,6 +1705,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
 def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
     if not start_turn(a, combat):
         return
+    sp = RULES["creatures"]["spirit"]
     if a.ally_role == "priest" and "heal" not in a.cooldowns:
         hurt = [f for f in [combat.player] + combat.allies() if f.alive and f.hp < f.max_hp * RULES["ally_heal"]["below"]]
         if hurt:
@@ -1686,6 +1716,27 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{a.name} heals {t.name} for {round(amount)}")
             tell(combat, f"{who(a)} {vb(a, 'lay', 'lays')} hands on {who(t)}, and the wounds close a little")
             return
+    if a.spirit_role == "healer" and "heal" not in a.cooldowns:
+        h = sp["healer"]
+        hurt = [f for f in [combat.player] + combat.allies() if f.alive and f.hp < f.max_hp * h["below"]]
+        if hurt:
+            t = min(hurt, key=lambda f: f.hp / f.max_hp)
+            amount = t.max_hp * h["pct"][a.spirit_tier] / 100
+            t.hp = min(t.max_hp, t.hp + amount)
+            a.cooldowns["heal"] = h["cooldown"] + 1
+            combat.log.append(f"{a.name} heals {t.name} for {round(amount)}")
+            tell(combat, f"{who(a)} {vb(a, 'mend', 'mends')} {who(t)} with a soft light, and the wounds close")
+            return
+    if a.spirit_role == "support" and "bolster" not in a.cooldowns:
+        s = sp["support"]
+        for f in [combat.player] + combat.allies():
+            if f is not a and f.alive:
+                f.buffs["bolster"] = {"rounds": s["rounds"] + 1, "mech": {"empowered": s["pct"][a.spirit_tier]}, "drain": 0,
+                                      "collapse": "", "name": f"{a.name}'s urging", "kind": "bolster"}
+        a.cooldowns["bolster"] = s["cooldown"] + 1
+        combat.log.append(f"{a.name} bolsters its allies: +{s['pct'][a.spirit_tier]}% damage")
+        tell(combat, f"{who(a)} {vb(a, 'rally', 'rallies')} the fighters at your side - {s['pct'][a.spirit_tier]}% more damage for {s['rounds']} rounds")
+        return
     enemies = combat.enemies()
     if enemies:
         target = next((e for e in enemies if e.id == combat.focus), None) or min(enemies, key=lambda e: e.hp)

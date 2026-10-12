@@ -61,7 +61,7 @@ def chance(character, enemy, creature) -> float:
 def role_of(creature) -> str:
     prof = creature.profile or {}
     top = max(("strength", "dexterity", "constitution"), key=lambda a: prof.get(a, 10))
-    return {"strength": "striker", "dexterity": "scout", "constitution": "guardian"}[top]
+    return {"strength": "striker", "dexterity": "rogue", "constitution": "guardian"}[top]
 
 
 def bind(character, creature, enemy_name: str) -> Companion:

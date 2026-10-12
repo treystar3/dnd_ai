@@ -17,6 +17,8 @@ target: the id of the enemy they mean, from ENEMIES. If unclear, the nearest one
 ability: for ability, the id from YOUR ABILITIES.
 item: for item, the item as they named it.
 move: for move, closer / back / high_ground.
+buff_for: only for a buff ability. "self" (the default) when they cast it on themselves; the id from ALLIES when they cast it on one
+  companion or ally; "all" when they cast it on all their allies / everyone / the whole party.
 summary: one short line describing what they do.
 Companions fight on their own and follow the player's lead. If the player tells a companion to attack something
 and has no command ability, that is kind attack on that target. Never choose a summon ability just because a
@@ -24,11 +26,12 @@ companion is mentioned - only when the player clearly calls or summons one.
 Respond only with JSON matching the schema."""
 
 
-def interpret_request(abilities: list[str], enemies: list[str], text: str, usable: list[str] = ()) -> str:
+def interpret_request(abilities: list[str], enemies: list[str], text: str, usable: list[str] = (), allies: list[str] = ()) -> str:
     return (
         "YOUR ABILITIES:\n" + ("\n".join(f"  {a}" for a in abilities) or "  (none)") + "\n"
         "YOUR ITEMS: " + (", ".join(usable) or "none") + "\n"
-        "ENEMIES:\n" + "\n".join(f"  {e}" for e in enemies) + "\n\n"
+        "ENEMIES:\n" + "\n".join(f"  {e}" for e in enemies) + "\n"
+        "ALLIES:\n" + ("\n".join(f"  {a}" for a in allies) or "  (none)") + "\n\n"
         f'PLAYER TYPED: "{text}"'
     )
 

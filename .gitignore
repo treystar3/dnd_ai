@@ -9,3 +9,16 @@ build/
 installer/Output/
 *.log
 .venv/
+
+# development-only: test suite, simulator, balance tools and scratch files
+tools/
+/bestiary_check.py
+/world_check.py
+/smoke_test.py
+/simbot.py
+/simlib.py
+/simreport.py
+/sim_report*
+/runbal.sh
+/runfull*.sh
+/play.bat

@@ -23,8 +23,9 @@ from ui import console
 ROLE_PROFILES = {
     "striker": {"strength": 14, "dexterity": 15, "constitution": 11, "intelligence": 6, "wisdom": 10, "charisma": 6},
     "guardian": {"strength": 15, "dexterity": 9, "constitution": 16, "intelligence": 6, "wisdom": 10, "charisma": 6},
-    "scout": {"strength": 8, "dexterity": 16, "constitution": 10, "intelligence": 8, "wisdom": 14, "charisma": 6},
-    "support": {"strength": 8, "dexterity": 12, "constitution": 11, "intelligence": 10, "wisdom": 15, "charisma": 10},
+    "rogue": {"strength": 10, "dexterity": 16, "constitution": 10, "intelligence": 8, "wisdom": 12, "charisma": 6},
+    "healer": {"strength": 8, "dexterity": 11, "constitution": 12, "intelligence": 10, "wisdom": 16, "charisma": 10},
+    "support": {"strength": 8, "dexterity": 12, "constitution": 11, "intelligence": 12, "wisdom": 14, "charisma": 12},
 }
 
 
@@ -100,6 +101,7 @@ class CombatScene:
         fighters = [combat.fighter_from_character(c)]
         near, later = cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
         fighters += near
+        tether_notes = ws.tether_for(near)
         fight = combat.Combat(fighters=fighters + enemies, place=ws.place.name, conditions=sorted(ws.conditions()))
         fight.record = True                 # keep a breakdown of every blow for the window's combat log
         fight.ally_reserves = later
@@ -129,7 +131,7 @@ class CombatScene:
         if opening_events:
             event += " As the fight begins: " + "; ".join(opening_events)
         ws.narrate_with(cp.START_SYSTEM, event)
-        for line in prep:
+        for line in prep + tether_notes:
             console.note(line)
         if pools.mechanic(c, "keen_judge") is not None:
             label = f"{label} - you judge your odds at {rate:.0%}"
@@ -218,12 +220,13 @@ class CombatScene:
             abilities.append(f"{m.id}: {m.name} ({m.tier} {m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource})"
                              f"{' [' + extra + ']' if extra else ''} - {note}")
         enemies = [f"{e.id}: {e.name}, {e.band}" for e in self.fight.enemies()]
+        allies = [f"{a.id}: {a.name}" for a in self.fight.allies()]
         usable = [inventory.label(i) for i in self.ws.player.character.inventory
                   if i.good and inventory.GOODS[i.good].combat]
         from scenes import markup
         if markup.has_markup(text):
             text = f"{text}\nMARKUP (asterisks are actions, quotes are speech):\n{markup.describe(text)}"
-        return generate("combat_interpret", cp.INTERPRET_SYSTEM, cp.interpret_request(abilities, enemies, text, usable),
+        return generate("combat_interpret", cp.INTERPRET_SYSTEM, cp.interpret_request(abilities, enemies, text, usable, allies),
                         CombatIntent, temperature=0.2, max_tokens=200)
 
     def turn(self, text: str) -> None:
@@ -246,7 +249,8 @@ class CombatScene:
             if binder:
                 self.try_bind(move, binder, target)
             else:
-                problem = combat.act_ability(f, p, move, target, self.rng) if move else "You don't know that ability."
+                give = self.buff_recipients(move, intent.buff_for) if move else None
+                problem = combat.act_ability(f, p, move, target, self.rng, give=give) if move else "You don't know that ability."
             if problem:
                 console.note(problem + " You attack instead.")
                 combat.act_attack(f, p, target, self.rng)
@@ -289,6 +293,17 @@ class CombatScene:
         else:
             self.show()
             self.ws.store.save_combat(self.to_json())
+
+    def buff_recipients(self, move, wish: str) -> list | None:
+        """Who a buff ability goes on: the player (default), one ally, or the player and every ally."""
+        if move.effect != "buff" or not wish or wish == "self":
+            return None
+        f = self.fight
+        allies = f.allies()
+        if wish == "all":
+            return [f.player] + allies if allies else None
+        one = next((a for a in allies if a.id == wish or a.name.lower() == wish.lower()), None)
+        return [one] if one else None
 
     def binding_ability(self, move):
         """The character's Bind a Beast ability if this move is it."""

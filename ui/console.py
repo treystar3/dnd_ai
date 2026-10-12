@@ -144,7 +144,7 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
         price = round(price * at.SHAPES["overcharge"]["cost"])
     head = f"{pad}{index:>2}.  " if index is not None else f"{pad}◆ "
     lines = [f"{head}{a.name}"]
-    facts = [f"{a.tier.value} {a.effect.value}", "on yourself" if a.reach.value == "self" else f"{a.reach.value} reach", f"{price} {a.resource.value}"]
+    facts = [f"{a.tier.value} {a.effect.value}", ("on you or allies" if a.effect.value == "buff" else "on yourself") if a.reach.value == "self" else f"{a.reach.value} reach", f"{price} {a.resource.value}"]
     if a.resource.value == "mana":
         facts[-1] += f" ({(a.attribute or 'casting')[:3].upper()})" if a.attribute else ""
     if a.cooldown:
@@ -165,7 +165,7 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
         sp = COMBAT["creatures"]["spirit"]
         r = sp["role"].get(c.role.value, {"health": 1, "damage": 1})
         article = "an" if c.kind.value[:1] in "aeiou" else "a"
-        feel = {"striker": "hits hard", "guardian": "sturdy, hits softly", "scout": "quick but frail", "support": "fragile, weak in a fight"}.get(c.role.value, "")
+        feel = {"striker": "hits hard", "guardian": "sturdy, hits softly", "rogue": "quick, bleeds what it hits", "healer": "mends you and your allies", "support": "bolsters your allies' strikes"}.get(c.role.value, "")
         lines += textwrap.wrap(f"⚑ Calls {c.name}, {article} {c.kind.value} {c.role.value} - {c.description}", WIDTH - len(body),
                                initial_indent=body, subsequent_indent=body + "  ")
         lines += textwrap.wrap(f"  {sp['size'][a.tier.value]} size ({a.tier.value} tier) · {c.role.value}: {feel} "

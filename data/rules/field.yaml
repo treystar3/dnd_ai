@@ -134,6 +134,22 @@ functions:
     blurb: lay a trap - the next creature you fight here starts the fight already hurt
     fits: [ranger, rogue, druid, artisan]
     words: [trap, snare, hunter, trapper, ambush, wire, pit, poacher, woodsman, bait]
+  reforge:
+    label: reforge
+    blurb: reforge a piece of gear - keep one of its rolls and re-roll the rest, then choose the better set; each piece can be reforged once
+    fits: [artisan, mage, warlock, rogue]
+    words: [reforge, remake, rework, rekindle, anvil, forge, recast, refine, temper, smith]
+  salvage:
+    label: salvage
+    blurb: break a piece of gear down into the raw material it was made of, ready for the forge or the enchanter
+    fits: [artisan, warrior, guardian, rogue]
+    words: [salvage, scrap, dismantle, unmake, break, disassemble, reclaim, strip, deconstruct, melt]
+  soul_tether:
+    label: soul tether
+    blurb: bind your companions to life - for the next fight, each one that would fall to a killing blow stands again at a quarter of its health
+    needs: companions
+    fits: [summoner, necromancer, druid, ranger, paladin]
+    words: [tether, bond, soul, thread, link, anchor, bind, ward, lifeline, chain]
   word_of_recall:
     label: word of recall
     taught_only: true
@@ -192,7 +208,7 @@ showmanship:
 
 # ---- the newer functions: every number by tier ----
 # A function can also set a floor on its cooldown (min_cooldown, game minutes) so a light ability cannot repeat it too fast.
-min_cooldown: {word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60, bind_beast: 1440, speak_corpse: 30}
+min_cooldown: {word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60, bind_beast: 1440, speak_corpse: 30, reforge: 1440, salvage: 1440, soul_tether: 1440}
 
 trapfinder:
   minutes: 5
@@ -288,3 +304,17 @@ keywords:
   showmanship: [perform, song, sing, music, melody, dance, play, jest, story, tale, juggl, fanfare, showman, flourish, entertain, spectacle, ballad, recite, act, theat]
 
 default_by_effect: {mobility: haste, defense: shelter, influence: influence, utility: scout}
+
+# Reforge, salvage and soul tether are one strength each, whatever the tier of the ability that carries them.
+reforge:
+  minutes: 30
+  locks: 1                  # rolls you keep while the rest are re-rolled
+
+salvage:
+  minutes: 20
+  share: 0.75               # of the raw material it takes to make the piece (round, at least 1)
+
+soul_tether:
+  minutes: 5
+  lasts_minutes: 360        # until the next fight with companions, or this long
+  heal_percent: 25          # a companion saved from a killing blow stands at this share of its health

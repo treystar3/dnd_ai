@@ -114,7 +114,10 @@ creatures:
   # A summoned spirit is as big as the ability that calls it (light: Medium, moderate: Large, heavy: Huge) and is built for its role.
   spirit:
     size: {light: Medium, moderate: Large, heavy: Huge}
-    role: {striker: {health: 1.0, damage: 1.3}, guardian: {health: 1.4, damage: 0.8}, scout: {health: 0.8, damage: 0.8}, support: {health: 0.9, damage: 0.7}}
+    role: {striker: {health: 1.0, damage: 1.3}, guardian: {health: 1.4, damage: 0.8}, rogue: {health: 0.9, damage: 1.1}, healer: {health: 1.0, damage: 0.6}, support: {health: 1.0, damage: 0.8}}
+    rogue_bleed: {light: 50, moderate: 70, heavy: 90}
+    healer: {pct: {light: 8, moderate: 12, heavy: 16}, below: 0.7, cooldown: 1}
+    support: {pct: {light: 12, moderate: 18, heavy: 25}, rounds: 2, cooldown: 1}
   rank: {normal: {health: 1, damage: 1}, elite: {health: 1.35, damage: 1.05}, boss: {health: 2.6, damage: 1.2}}
   # Pack creatures (those whose smallest group is 2 or more) are individually weaker - the threat is in numbers.
   pack: {health: 0.45, damage: 0.45}
@@ -181,6 +184,8 @@ unaware_damage: 3.0
 
 # A hired priest heals the most hurt friend below this share of health, by this percent of their maximum, then rests a few rounds. (A full party of three roughly triples the odds against a full camp; one or two hirelings barely move them.)
 ally_heal: {below: 0.60, pct: 8, cooldown: 3}
+# A buff cast on the player and every ally at once costs this many times its price.
+buff_all_cost: 2
 
 death:
   days_pass: 3

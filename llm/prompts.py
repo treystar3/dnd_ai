@@ -81,6 +81,7 @@ A world function such as phantom_steed (a spectral mount) or summon_labor (a ser
   field_use - never effect summon. Effect summon is only for a companion that fights beside the character, and it needs summons.
 summons: only for summon abilities, and required for them. Describe the companion:
   name, one-sentence description, kind ({_list(CompanionKind)}), role ({_list(CompanionRole)}).
+  Roles: striker hits hard; guardian is sturdy; rogue bleeds what it hits; healer mends you and allies; support bolsters allies' damage.
 
 If the class uses companions: include 2 to 4 summon abilities and 2 to 3 command abilities, and keep the character's own direct attacks few and light.
 Name command abilities as evocative techniques, calls or signals, never in the form "Command: X".
@@ -103,6 +104,7 @@ For every numbered ability:
 - slot: the ability's number, exactly as given.
 - summons: only for a summon ability. Describe the companion: name, one-sentence description, kind ({_list(CompanionKind)}),
   role ({_list(CompanionRole)}).
+  Roles: striker hits hard; guardian is sturdy; rogue bleeds what it hits; healer mends you and allies; support bolsters allies' damage.
 Make the 15 sound varied, and keep them grounded for a beginner. Respect the class constraints (if the character avoids melee, never
 depict melee fighting). If the class uses companions, name command abilities as evocative calls or signals.
 Respond only with JSON matching the schema."""
@@ -248,6 +250,7 @@ For every numbered lesson:
 - slot: the lesson's number, exactly as given.
 - summons: only for a summon ability. Describe its companion: name, one-sentence description, kind ({_list(CompanionKind)}),
   role ({_list(CompanionRole)}).
+  Roles: striker hits hard; guardian is sturdy; rogue bleeds what it hits; healer mends you and allies; support bolsters allies' damage.
 Respect the class and its habits (if the character avoids melee, never depict melee fighting). Grounded and practical for their level.
 Respond only with JSON matching the schema."""
 
