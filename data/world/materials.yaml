@@ -15,7 +15,7 @@
 #                    Each effect is a stat from stats.yaml, a trigger from triggers.yaml, and a percentage.
 # weapon_flags / armor_flags: special mechanics -
 #                    armor_pierce: % of the target's armor ignored     crit_resist: % less chance to be critically hit
-#                    ward_fraction: % of armor also counts as ward      magic_power: % more spell damage
+#                    ward_fraction: % of armor also counts as ward
 #                    adaptive: strikes as physical or spell, whichever the target resists less
 # drops_from:        creatures (bestiary ids) that can drop this raw material when killed
 # source:            where it comes from in the world
@@ -437,9 +437,9 @@ materials:
   levels: [300, 550]
   rarity: rare
   source: Salamanders
-  armor_flags: {magic_power: 15}
   drops_from: [salamander]
   any:
+  - {modifies: spell_power, trigger: always, magnitude: 20}
   - {modifies: charisma, trigger: always, magnitude: 8}
 - id: seraph_silk
   name: seraph silk
@@ -551,8 +551,9 @@ materials:
   levels: [150, 350]
   rarity: rare
   source: Treants
-  weapon_flags: {magic_power: 20}
   drops_from: [treant]
+  weapon:
+  - {modifies: spell_power, trigger: always, magnitude: 27}
 - id: dragonbone
   name: dragonbone
   family: wood
@@ -771,8 +772,9 @@ materials:
   levels: [95, 240]
   rarity: uncommon
   source: Fungal wood grown in the Deep Roads
-  weapon_flags: {magic_power: 15}
   drops_from: [glowcap_myconid, spore_tyrant]
+  weapon:
+  - {modifies: spell_power, trigger: always, magnitude: 20}
   any:
   - {modifies: max_mana, trigger: always, magnitude: 8}
 - id: wreckwood

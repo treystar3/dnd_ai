@@ -24,6 +24,7 @@ class Good(BaseModel):
     price: int
     stack: int = 10
     restores: dict[str, float] = {}
+    feeds: float = 0                # hunger cleared when eaten (engine/needs.py)
     cures: list[str] = []
     combat: bool = False
     grows_in: dict[str, float] = {}

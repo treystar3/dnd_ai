@@ -48,7 +48,7 @@ class RoadActions:
         log = list((self.player.road or {}).get("log", []))
         done = events = 0
         for k, leg in enumerate(legs):
-            self.advance(leg)
+            self.advance(leg, exert=True)
             done += leg
             if k == len(legs) - 1 or events >= R["max_per_trip"]:
                 continue
@@ -234,7 +234,7 @@ class RoadActions:
             if degree in ("failure", "partial"):
                 lo, hi = R["hazard"]["delay_minutes"][tier]
                 delay = rng.randint(lo, hi) // (2 if degree == "partial" else 1)
-                self.advance(delay)
+                self.advance(delay, exert=True)
                 lost = ""
                 if degree == "failure":
                     top = pools.maximum(c, "health")

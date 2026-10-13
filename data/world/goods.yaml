@@ -4,6 +4,7 @@
 # price:      value in copper (100 copper = 1 silver). Merchants buy at a fraction of this.
 # stack:      how many fit in one pack slot
 # restores:   for consumables and food - percent of each pool restored when used
+# feeds:      for food - how much hunger eating it clears (0-100)
 # cures:      statuses a consumable removes (bleeding, slowed, frightened...)
 # combat:     true if it can be used mid-fight (it takes your turn)
 # grows_in:   for herbs - biomes where foraging can find it, with a chance per forage
@@ -19,9 +20,9 @@
    description: "Pungent and plentiful; it keeps travel food edible."}
 
 - {id: venison,      name: venison,      kind: food, price: 20, stack: 10, drops_from: [deer, elk],
-   description: "Lean deer meat."}
+   feeds: 40, restores: {health: 8, stamina: 10}, description: "Lean deer meat."}
 - {id: boar_meat,    name: boar meat,    kind: food, price: 20, stack: 10, drops_from: [boar, giant_boar],
-   description: "Dark, fatty boar meat."}
+   feeds: 40, restores: {health: 8, stamina: 10}, description: "Dark, fatty boar meat."}
 
 - {id: healing_draught, name: healing draught, kind: consumable, price: 150, stack: 5, combat: true,
    restores: {health: 30}, description: "A bitter green draught that knits wounds closed."}
@@ -32,4 +33,4 @@
 - {id: torch,          name: torch,           kind: consumable, price: 8,   stack: 10, combat: false,
    description: "A pitch-soaked brand; burns for a long delve."}
 - {id: trail_ration,    name: trail ration,    kind: consumable, price: 15,  stack: 10, combat: false,
-   restores: {stamina: 30, health: 5}, description: "Dried meat and hard bread, seasoned to keep."}
+   feeds: 35, restores: {stamina: 30, health: 5}, description: "Dried meat and hard bread, seasoned to keep."}

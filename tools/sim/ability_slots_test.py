@@ -24,6 +24,7 @@ CLASSES = [("warrior", ["warrior"], "combat", False, []), ("warrior", ["warrior"
            ("mage", ["mage"], "balanced", False, ["avoids melee combat"]), ("rogue", ["ranger"], "combat", False, ["never uses ranged attacks"])]
 
 problems = collections.Counter()
+chan = collections.Counter(); chan_runs = collections.Counter()
 runs = 0
 for arch, fams, focus, pack, cons in CLASSES:
     ic = interp(arch, fams, focus, pack, cons)
@@ -68,7 +69,9 @@ for arch, fams, focus, pack, cons in CLASSES:
         if arch == "support" and not any(s["effect"] == "healing" for s in slots): bad_("healer without healing")
         if sum(s["effect"] == "damage" for s in slots) < 1: bad_("no damage at all")
         if any(s["effect"] == "damage" for s in slots) and not pack and sum(s["effect"] == "damage" for s in slots) < 2: bad_("one damage")
-        if arch == "warrior" and not [f for f in fams if f in ("paladin", "druid", "ranger")] and any(s["resource"] == "mana" for s in slots): bad_("warrior with mana")
+        if arch == "warrior" and not [f for f in fams if f in ("paladin", "druid", "ranger")] and any(s["resource"] == "mana" and not s["channel"] for s in slots): bad_("warrior with mana")
+        if any(s["channel"] and not (s["effect"] == "damage" and s["resource"] == "mana" and s["reach"] in ("melee", "extended")) for s in slots): bad_("a channeled slot that is not a melee mana strike")
+        chan[(arch, tuple(fams))] += sum(1 for s in slots if s["channel"]); chan_runs[(arch, tuple(fams))] += 1
         if arch == "mage" and any(s["resource"] == "stamina" for s in slots) and not pack: bad_("mage with stamina")
         # the whole thing builds through the existing validator
         props = []
@@ -89,6 +92,12 @@ for arch, fams, focus, pack, cons in CLASSES:
                         if g != w: print("       got", g, "want", w)
         except Exception as e:
             bad_("validator rejected the plan: " + str(e)[:150])
+for k in sorted(chan):
+    print("   channeled per character", k, round(chan[k] / chan_runs[k], 2))
+hy = [chan[k] / chan_runs[k] for k in chan if set(k[1]) & set(AS.P["hybrid_families"])]
+ot = [chan[k] / chan_runs[k] for k in chan if not set(k[1]) & set(AS.P["hybrid_families"])]
+check("every hybrid class gets a channeled attack on average", all(v >= 1 for v in hy), hy)
+check("other classes get one rarely", all(v < 0.5 for v in ot), ot)
 check(f"{runs} plans across {len(CLASSES)} class types are all valid", not problems, dict(problems))
 
 # ---- the whole pipeline with a faked model ----

@@ -852,7 +852,9 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
     state["campaign"] = thread_id
     state["cataclysms"] = state.get("cataclysms", 0) + 1
     pulse.add_news(state, proposal.news, origin.id, t, ["everyone"])
-    pulse.apply_effects(store, world, catalog, state, stage_rows[0]["effects"], "cataclysm", t, thread["title"], raw=True, thread_id=thread_id)
+    from engine import pulselog
+    row = pulselog.note("thread", f"[cataclysm:{kid}] {proposal.title} from {origin.name} - begins")
+    pulse.apply_effects(store, world, catalog, state, stage_rows[0]["effects"], "cataclysm", t, thread["title"], raw=True, thread_id=thread_id, row=row)
     console.debug(f"cataclysm: [{kid}] {proposal.title} from {origin.id}, boss {boss_c.id + ' L' + str(boss_level) if boss_c else 'none'}")
     return True
 

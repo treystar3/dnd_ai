@@ -39,7 +39,12 @@ mitigation:
 
 elevated_accuracy: 10
 
-spell_base_damage: 6         # a damaging spell's base power when the caster holds no stronger magical focus
+# A channeled ability (a mana strike through your weapon): your weapon's damage plus this share of a spell's base power, struck as
+# physical or magic whichever the target resists less. It costs this much more mana. Without a melee weapon in hand it is an ordinary spell.
+channel: {bonus: 0.5, cost: 1.25}
+
+spell_base_damage: 6         # a damaging spell's base power; spell power (a focus's damage, an off-hand focus, spell power on gear) adds on top
+spell_attribute: 50          # a spell's damage is multiplied by 1 + its casting attribute / this (INT 40 -> x1.8)
 
 flee:
   first_action: 90           # running as your very first action of a fight
@@ -178,6 +183,22 @@ loot:
   property_magnitude: {uncommon: [5, 8], rare: [8, 12], epic: [12, 16], legendary: [16, 20]}
   # Bosses (a dungeon's master) drop their own reward, whatever kind of creature they are.
   boss: {items: 2, rarity_weights: {rare: 55, epic: 33, legendary: 12}, coins_per_level: [15, 30]}
+
+# Speaking to an enemy in a fight (engine/parley.py): a free action, one try per enemy per fight. A failure shuts that enemy to further words.
+# chance = the usual check (50 + (attribute - 15) x 1.5 + passives + gear) plus these, kept to 5..95.
+talk:
+  categories: [hostile people, person template, monstrous race, giant, fey, fiend, celestial, dragon, lycanthrope, aberration]
+  checks: {intimidate: intimidation, persuade: persuasion, deceive: deception}
+  hurt: {half: 20, quarter: 35}          # the target is below half / a quarter of its health
+  unhurt_intimidate: -15                 # a foe above half health is hard to frighten
+  numbers: 10                            # points for each... once: you and your allies outnumber them (the other way round, the same penalty)
+  level_gap: -3                          # per level the target stands above you
+  elite: -15
+  temperament: {territorial: 10, aggressive: 0, passive: 15}
+  persuade_aggressive: -10               # a hunter that is hungry for you is hard to talk down
+  fearless_persuade: -20
+  hesitate_rounds: 1                     # a lie that lands: it loses this many turns
+  surrender_reward: 0.8                  # share of a kill's XP for a foe that yields
 
 # Damage multiplier against a target that is unaware (a sneak attack)
 unaware_damage: 3.0

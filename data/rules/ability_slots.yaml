@@ -4,6 +4,9 @@ total: 15
 
 # share of a class's abilities that cost mana (the rest stamina), by archetype
 mana_share: {warrior: 0.0, rogue: 0.0, mage: 1.0, support: 0.7}
+# Channeled abilities: a mana ability delivered through the wielded weapon (see engine/combat.py, act_ability).
+# A hybrid class makes about half of its mana attacks channeled (at least one); any other class has a small chance of one channeled attack.
+channel: {hybrid_chance: 0.5, other_chance: 0.15}
 hybrid_families: {paladin: 0.4, druid: 0.4, warlock: 0.7, necromancer: 0.8, summoner: 0.7, bard: 0.3}
 
 # how the combat-only remainder (after buffs, functions, healing, summons...) is split

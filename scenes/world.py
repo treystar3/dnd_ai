@@ -44,7 +44,7 @@ from scenes.audit_actions import AuditActions
 from scenes.standing_actions import StandingActions
 from scenes.law_actions import LawActions
 from scenes import markup
-from engine import pulse, quests
+from engine import mapview, needs, pulse, pulselog, quests
 from engine import inventory as inv
 from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
@@ -205,10 +205,20 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         self.combat = CombatScene.begin(self, creature, enemies, how)
         return True
 
-    def advance(self, minutes: int) -> None:
+    def safe_to_rest(self) -> bool:
+        return bool(self.camp_active() or not self.place.danger)
+
+    def advance(self, minutes: int, exert: bool = False, wait: str = "") -> None:
+        """Time passes. exert: travelling, working or fighting. wait: 'rest' or 'sleep' - health comes back, and a sleep clears fatigue."""
         before = clock.period(self.minutes)
         self.store.meta.minutes += minutes
-        pools.recover(self.player.character, minutes, conditions=self.conditions())
+        c = self.player.character
+        was = needs.marks(c)
+        needs.tick(c, minutes, exertion=exert, sleeping=wait == "sleep", resting=wait == "rest")
+        for line in needs.voice(was, needs.marks(c)):
+            console.note(line)
+        rest = needs.N["rest_heal_per_hour"]["safe" if self.safe_to_rest() else "rough"] if wait else 0.0
+        pools.recover(c, minutes, conditions=self.conditions(), rest=rest)
         self.store.meta.day = clock.day(self.minutes)
         self.refresh_present()
         if self.partner and self.partner not in self.present:
@@ -235,6 +245,40 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         if here.populated:
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
+
+    def pulse_data(self) -> dict:
+        """The debug pane: the pulse log of this session, newest first, and what is live now."""
+        st = self.store.load_world_state() or {}
+        last = st.get("last", 0)
+        rows = []
+        for r in reversed(pulselog.LOG):
+            when = lambda t: f"day {clock.day(t)} {clock.clock_time(t)}"
+            if r["kind"] == "quiet":
+                text = f"{r['count']} quiet pulse{'s' if r['count'] != 1 else ''}, nothing happened"
+                rows.append({"when": when(r["t"]) + ("" if r["count"] == 1 else f" - {when(r['to'])}"), "kind": "quiet", "text": text, "effects": []})
+            else:
+                rows.append({"when": when(r["t"]), "kind": r["kind"], "text": r["text"], "effects": list(r["effects"])})
+        threads = [f"[{t['tier']}] {t['title']} - stage {t['stage'] + 1}/{len(t['stages'])} at {self.where_name(t['place'])}, ends day {clock.day(t['times'][-1])}"
+                   for t in st.get("threads", []) if t["status"] == "active"]
+        live = [f"{e['kind']} {e.get('value', '')} at {self.where_name(e['place'])} until day {clock.day(e['until'])}"
+                for e in st.get("effects", []) if e["until"] > self.minutes]
+        return {"rows": rows, "now": f"day {clock.day(self.minutes)} {clock.clock_time(self.minutes)}",
+                "last": f"day {clock.day(last)} {clock.clock_time(last)}" if last else "never",
+                "next_in": max(0, last + pulse.INTERVAL - self.minutes) if last else 0, "interval": pulse.INTERVAL,
+                "threads": threads, "effects": live}
+
+    def show_pulse(self) -> None:
+        if not config.DEBUG:
+            console.note("#pulse is a debug pane (run the game with --debug).")
+            return
+        data = self.pulse_data()
+        if console.panel("pulse", data):
+            return
+        console.note(f"PULSE - now {data['now']}, last {data['last']}, next in {data['next_in']} min")
+        for r in data["rows"][:25]:
+            console.note(f"  {r['when']}  {r['kind']}: {r['text']}")
+            for e in r["effects"]:
+                console.note(f"      {e['result']}: {e['text']}")
 
     def show_world_state(self) -> None:
         st = self.store.load_world_state()
@@ -286,6 +330,7 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         self.refresh_present()
         self.home_arrival()
         self.arc_enter(place_id)
+        self.bring_prisoners(place_id)
         self.party_notice()
 
     def brevity(self) -> str:
@@ -317,8 +362,9 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         if first_time:
             self.narrate(
                 "The player has just woken here, lying on the ground, returned from death. "
-                f"They remember the Threshold only faintly. {kit_text} They wake with a sharp, ragged gasp, the first breath tearing in. "
-                "Open on that, then describe what they see."
+                f"They remember the Threshold only faintly. {kit_text} Their first breath tears in. "
+                "Open with that single breath, described once in one sentence (mention the gasp only once in the whole passage), "
+                "then describe what they see."
             )
         else:
             saved, shown = self.store.load_story()
@@ -363,12 +409,23 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             try:
                 self.handle(text)
                 self.orenna_tick()
+                self.collapse_check()
             except LLMError as e:
                 console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
                              "Nothing has been lost; try again, perhaps worded differently.")
                 console.debug(str(e))
             self.store.save_player(self.player)
             self.show_header()
+
+    def collapse_check(self) -> None:
+        """Past the limit of fatigue you fall asleep where you stand: eight hours, with the dangers of the place."""
+        c = self.player.character
+        if not needs.collapsing(c) or self.combat:
+            return
+        console.note("You can't stay on your feet. Your legs give out and you sleep where you fall.")
+        self.on_wait(ActionIntent(kind="wait", wait_minutes=needs.N["collapse_hours"] * 60), "I collapse from exhaustion")
+        if needs.collapsing(c):                       # nowhere safe to fall: you wake at once, barely upright
+            c.fatigue = needs.N["collapse_unslept"]
 
     def enchant_command(self, args: str) -> None:
         from engine import enchanting
@@ -460,6 +517,8 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             console.note(error)
         else:
             leveling.allocate(c, spend)
+            if self.combat:
+                self.combat.refresh_player()
             self.store.save_player(self.player)
             self.show_header()
         with console.scope("#character"):
@@ -503,8 +562,11 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
                 people.append({"name": n.name, "role": n.role.replace("_", " "), "place": self.where_name(n.location),
                                "line": self.journal_line(n, self.where_name(t) if t else "")})
             out.append({"town": self.where_name(t) if t else "On the road", "tag": tag, "people": people})
+        heard = [{"name": n.name, "by": n.heard_of["by"], "line": n.heard_of["line"]}
+                 for n in sorted((self.store.load_npc(i) for i in self.store.list_npcs()), key=lambda x: x.name.lower())
+                 if n.heard_of and not (n.met_player and n.name_known_to_player)]
         known = self.player.character.knowledge
-        return {"groups": out, "facts": [self.world.lore[f].text for f in known if f in self.world.lore],
+        return {"groups": out, "heard": heard, "facts": [self.world.lore[f].text for f in known if f in self.world.lore],
                 "history": list(self.player.character.item_history)}
 
     def show_journal(self) -> None:
@@ -512,6 +574,7 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         if console.panel("journal", data):
             return
         people = [f"{x['name']} - {x['line']}" for g in data["groups"] for x in g["people"]]
+        people += [f"{x['name']} (heard of) - {x['by']}: \"{x['line']}\"" for x in data["heard"]]
         console.show_journal(data["facts"], people, data["history"])
 
     def allocate(self, args: str) -> None:
@@ -536,6 +599,8 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             console.note("Cancelled.")
             return
         leveling.allocate(c, spend)
+        if self.combat:
+            self.combat.refresh_player()
         self.store.save_player(self.player)
         console.note(f"Done. {c.unspent_points} points left.")
         self.show_header()
@@ -664,10 +729,14 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             vitals = [(p, round(pools.current(c, p)), pools.maximum(c, p)) for p in pools.POOLS]
             console.show_player_block(c, self.place.name,
                                       clock.header(self.minutes, self.place.name).rsplit(" · ", 1)[0], vitals)
-        elif name in ("exits", "where", "map"):
+        elif name in ("exits", "where"):
             self.show_exits(asked=True)
+        elif name == "map":
+            self.show_map()
         elif name == "party":
-            self.party_status("", "", [])
+            self.show_party()
+        elif name.split()[0] in ("compname", "name"):
+            self.rename_companion(text)
         elif name in ("journal", "j"):
             self.show_journal()
         elif name == "newgame":
@@ -700,6 +769,8 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             self.show_rumors()
         elif name.split()[0] == "correct":
             self.correct_rumor(name.split(maxsplit=1)[1] if " " in name else "")
+        elif name == "pulse":
+            self.show_pulse()
         elif name == "world":
             if not config.DEBUG:
                 console.note("#world is a debug command (run with --debug).")
@@ -796,6 +867,17 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             return
         names = [self.world.places[p].name for p in self.world.neighbors(self.player.location)]
         console.note(f"From here: {', '.join(names)}")
+
+    def show_map(self) -> None:
+        """The map pane: the places you have been and the ones they lead to, and how far each is from here."""
+        data = mapview.view(self.world, self.player.visited, self.player.location, clock.describe_duration)
+        if console.panel("map", data):
+            return
+        here = self.world.places[data["here"]]
+        console.note(f"You are {'on the road, last in' if data.get('on_road') else 'in'} {here.name} ({self.world.regions[here.region].name if here.region in self.world.regions else here.region}).")
+        for n in sorted(data["nodes"], key=lambda n: n["away"] == "", reverse=True):
+            if n["state"] != "here":
+                console.note(f"  {n['name']}{'' if n['state'] == 'visited' else ' (heard of)'} - {n['away']} away")
 
     def where_name(self, place_id: str) -> str:
         p = self.world.places.get(place_id)
@@ -1215,6 +1297,7 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         if "orenna_name" in self.player.character.knowledge:
             lines.append("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
                          "recognise it, and you do not pretend to.")
+        lines += self.guild_knowledge(npc)
         lines.append(f"The season is {clock.season(self.minutes)}.")
         return lines
 
@@ -1299,10 +1382,12 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             minutes = max(180, minutes // 2)
         self.end_conversation()
         before = {n.id for n in self.present}
+        c0 = self.player.character
+        hp0, hp_top0, fat0 = pools.current(c0, "health"), pools.maximum(c0, "health"), c0.fatigue
         waited, hit = 0, None
         while waited < minutes:
             step = min(60, minutes - waited)
-            self.advance(step)
+            self.advance(step, wait="sleep" if sleeping else "rest")
             waited += step
             if self.place.danger and not self.owns("night_watch") and not camped:
                 hit = encounters.roll(self.store, self.world, self.player.location,
@@ -1340,9 +1425,25 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             changes += f" Gone home meanwhile: {', '.join(left)}."
         console.debug(f"waited {minutes} minutes")
         interrupted = " Their rest is cut short by danger." if hit else ""
-        self.narrate(f"The player waits for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
-                     f"{changes}{interrupted} Describe the passing of time and the scene now. Keep it to two or three "
-                     "sentences and mention at most two of the people present.", text)
+        c1 = self.player.character
+        healed = (pools.current(c1, "health") - hp0) / max(1.0, hp_top0)
+        eased = fat0 - c1.fatigue
+        how = "sleeps" if sleeping else "rests"
+        body = []
+        if healed >= 0.6:
+            body.append("their wounds close and their strength returns almost completely")
+        elif healed >= 0.15:
+            body.append("their hurts ease and some of their strength returns")
+        elif healed >= 0.03:
+            body.append("they recover a little")
+        if sleeping and eased >= 20:
+            body.append("they wake rested, their head clear")
+        elif eased >= 5:
+            body.append("their tiredness lifts a little")
+        feel = f" While they rest, {' and '.join(body)} (say so in the story; no numbers)." if body and not hit else ""
+        self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
+                     f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now. Keep it to "
+                     "three or four sentences and mention at most two of the people present.", text)
         if not hit and sleeping:
             self.after_sleep()
         if hit:

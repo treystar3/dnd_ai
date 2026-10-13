@@ -264,7 +264,8 @@ class ArcActions:
                     n["clue_given"] = True
                     self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
             return
-        if not outlaws:
+        if not outlaws or getattr(self, "surrender_took", False):
+            self.surrender_took = False
             return
         chance = max(PR["min_chance"], min(PR["max_chance"], PR["chance"] + self.player.outlaw_rep * PR["rep_chance_per_point"]))
         rng = random.Random(f"{self.store.meta.seed}:yield:{self.minutes}")
@@ -563,10 +564,66 @@ class ArcActions:
             if not self.store.npc_exists(nid):
                 self.player.prisoners.pop(nid, None)
                 continue
+            if pr.get("escort"):
+                continue
             npc = self.store.load_npc(nid)
             if npc.location == self.player.location or today - pr["day"] < 2:
                 continue
             self.drop_prisoner(npc, "slipped their bonds in the night", partial_node=True)
+
+    def bring_prisoners(self, place_id: str) -> None:
+        """Bound prisoners you are escorting come with you to the next place."""
+        for nid, pr in list(self.player.prisoners.items()):
+            if not pr.get("escort") or not self.store.npc_exists(nid):
+                continue
+            npc = self.store.load_npc(nid)
+            if npc.location == place_id:
+                continue
+            old = self.store.load_place(npc.location)
+            if nid in old.residents:
+                old.residents.remove(nid)
+                self.store.save_place(old)
+            npc.location = place_id
+            npc.activity = "walking bound at your side"
+            self.store.save_npc(npc)
+            new = self.store.load_place(place_id)
+            if nid not in new.residents:
+                new.residents.append(nid)
+                self.store.save_place(new)
+            if all(r.id != nid for r in self.residents):
+                self.residents = self.residents + [npc]
+        self.refresh_present()
+
+    def on_hand_over(self, intent, text: str) -> None:
+        """Hand a prisoner to the watch: a guard has to be here. Pays by the prisoner's level; a posted bounty on that kind of creature counts."""
+        from engine import law
+        npc = self.prisoner_here(intent)
+        if not npc:
+            console.note("There is no prisoner here to hand over.")
+            self.halted = True
+            return
+        guard = next((n for n in self.present if n.role in law.L["heat"]["guard_roles"] and n.id not in self.player.prisoners), None)
+        if not guard:
+            console.note("There is no one from the watch here to hand them to. Find a guard or a watch captain.")
+            self.halted = True
+            return
+        pr = self.player.prisoners.get(npc.id, {})
+        coins = max(1, pr.get("level", 1)) * PR["turn_in"]["coin_per_level"]
+        bounty = next((q for q in self.player.quests if q["kind"] in ("hunt", "bounty") and q.get("creature") == pr.get("creature")
+                       and q["progress"] < q["count"]), None) if pr.get("creature") else None
+        if bounty:
+            bounty["progress"] += 1
+        self.player.character.coins += coins
+        node_pending = pr.get("node")
+        self.end_conversation()
+        self.drop_prisoner(npc, "handed over to the watch", partial_node=bool(node_pending))
+        self.standing_report("prisoner_handed_over", [guard], npc.label())
+        console.note(f"{guard.label().capitalize()} takes {npc.label()} into custody. Paid: {money.fmt(coins)}"
+                     + (" - and it counts toward your bounty." if bounty else "."))
+        self.weight_hint = "brief"
+        self.narrate(f"The player hands the bound captive {npc.name} over to {guard.name}, {guard.label()}. "
+                     "Describe the handover in two sentences.", text)
+        self.store.save_player(self.player)
 
     def drop_prisoner(self, npc, how: str, partial_node: bool = False) -> None:
         pr = self.player.prisoners.pop(npc.id, None)

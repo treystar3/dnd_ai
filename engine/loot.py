@@ -104,6 +104,8 @@ def gear_kind(base) -> str:
         if base.reach == "ranged":
             return "weapon.ranged"
         return "weapon.finesse" if base.attributes[:1] == ["dexterity"] else "weapon.melee"
+    if base.is_offhand_focus:
+        return "weapon.offfocus"
     if base.slot == "off_hand":
         return "armor.shield"
     return "armor.cloth" if base.ward else f"armor.{base.weight or 'light'}"
@@ -115,7 +117,7 @@ def gear_stats(item: Item) -> list[str]:
     base = items.base_of(item)
     group, kind = gear_kind(base).split(".")
     stats = list(R[group][kind]) + [s for s in R["slot_extra"].get(base.slot, []) if s not in R[group][kind]]
-    own = [a for a in base.attributes if a in ("intelligence", "wisdom", "charisma")] if base.is_weapon else []
+    own = [a for a in base.attributes if a in ("intelligence", "wisdom", "charisma")] if base.weaponlike else []
     stats = [x for s in stats for x in (own if s == "own_attribute" else [s])]
     return [s for s in stats if s not in L.get("not_on_gear", [])]
 
@@ -134,6 +136,11 @@ def roll_gear(item: Item, rng: random.Random) -> None:
     else:
         material = items.material_of(item)
         item.properties = roll_properties(item.rarity, rng, material.extra_properties if material else 0, only=gear_stats(item))
+        if not items.base_of(item).tags or "focus" not in items.base_of(item).tags:
+            share = items.RULES["spell_power_gear_share"]
+            for p in item.properties:
+                if p.modifies == "spell_power":
+                    p.magnitude = max(1, round(p.magnitude * share))
 
 
 def drops(enemy: combat.Fighter, rng: random.Random, companions: bool = False) -> tuple[int, Item | None]:

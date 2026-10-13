@@ -58,7 +58,7 @@ def _largest_remainder(total: int, weights: dict) -> dict:
 
 def _base() -> dict:
     return {"effect": "", "tier": "light", "reach": "self", "resource": "stamina", "context": "combat", "rider": "", "shape": "",
-            "buff": "", "buff_stat": "", "command": "", "field_use": ""}
+            "buff": "", "buff_stat": "", "command": "", "field_use": "", "channel": False}
 
 
 def _counts(interp, offers, minimum, buffs, commands, summons, healing, crafting) -> dict:
@@ -180,6 +180,7 @@ def plan(interp, offers: dict, minimum: int, rng: random.Random | None = None) -
             s["tier"] = "moderate"
 
     _assign_resources(slots, interp, arch, fams, rng)
+    _assign_channel(slots, interp, fams, rng)
     rng.shuffle(slots)
     for n, s in enumerate(slots, 1):
         s["n"] = n
@@ -290,6 +291,33 @@ def _assign_resources(slots, interp, arch, fams, rng):
         s["resource"] = "mana" if i < n_mana else "stamina"
 
 
+def _channel_reach(s, forbidden=()) -> list[str]:
+    """The melee reaches this attack could take, given what its shape and rider allow."""
+    allowed = _trait_reach(AT.SHAPES.get(s["shape"]) if s["shape"] else None, AT.RIDERS.get(s["rider"]) if s["rider"] else None)
+    return [r for r in ("melee", "extended") if (allowed is None or r in allowed) and r not in forbidden]
+
+
+def _assign_channel(slots, interp, fams, rng):
+    """Some single-target attacks become channeled: mana struck through the weapon, at melee or extended reach."""
+    C = P["channel"]
+    banned = forbidden_reach(interp)
+    able = [s for s in slots if s["effect"] == "damage" and s["reach"] != "area" and _channel_reach(s, banned)]
+    hybrid = bool(fams & set(P["hybrid_families"]))
+    if hybrid:
+        pool = [s for s in able if s["resource"] == "mana"]
+        chosen = [s for s in pool if rng.random() < C["hybrid_chance"]]
+        if not chosen and able:
+            chosen = [rng.choice(pool or able)]
+    else:
+        chosen = [rng.choice(able)] if able and rng.random() < C["other_chance"] else []
+    for s in chosen:
+        reaches = _channel_reach(s, banned)
+        if s["reach"] not in reaches:
+            s["reach"] = rng.choice(reaches)
+        s["resource"] = "mana"
+        s["channel"] = True
+
+
 # ---------- what the model is told ----------
 
 def mechanic_text(s: dict) -> str:
@@ -315,6 +343,8 @@ def mechanic_text(s: dict) -> str:
     if s["rider"]:
         r = s["rider"]
         parts.append(f"{AT.RIDERS[r]['label']}: {AT.rider_text(r, s['tier'])}")
+    if s.get("channel"):
+        parts.append("Channeled: magic struck through the wielded weapon - it hits with the weapon's power and the spell's, and gets past armor or ward, whichever is weaker")
     if s["field_use"]:
         where = "in a fight" if field.in_combat_function(s["field_use"]) else "outside combat"
         parts.append(f"{where} - {field.label(s['field_use'])}: {field.blurb(s['field_use'])}")
@@ -337,6 +367,8 @@ def writing_note(s: dict) -> str:
         notes.append(P["depict"][s["buff"]])
     if s["buff"] == "bulwark":
         notes.append("armor-like for a physical class, ward-like for a magical one")
+    if s.get("channel"):
+        notes.append("a blow with the character's own weapon, charged with magic that suits the class (fire, holy, shadow, force...) - not a thrown spell")
     if s["effect"] == "damage" and s["reach"] == "area":
         notes.append("hits an area, not a single target")
     if s["reach"] == "self":

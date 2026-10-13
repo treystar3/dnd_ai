@@ -12,7 +12,11 @@ kind:
   defend  - they guard, brace, block or take cover
   flee    - they try to run away or escape the fight
   tame    - they try to tame, bind, calm, befriend or take in a wounded wild creature as a companion (target = that creature)
+  talk    - the player's main act is to SPEAK to an enemy: threaten it, demand its surrender, plead, reason, bargain, or lie to it.
+            If they speak while also swinging or casting, choose the attack or ability instead; talk is for when words are the act.
   other   - anything else
+approach: only for talk - intimidate (threaten, demand surrender, show strength), persuade (plead, reason, offer terms, call it off),
+  or deceive (lie, bluff, trick, distract).
 target: the id of the enemy they mean, from ENEMIES. If unclear, the nearest one.
 ability: for ability, the id from YOUR ABILITIES.
 item: for item, the item as they named it.

@@ -35,6 +35,10 @@
 - {id: arcane_staff, family: wood, label: staff,  name: arcane staff,    slot: main_hand, hands: 2, reach: ranged, attribute: intelligence,     damage: magical,  base: 7,  price: 3000, tags: [focus, staff]}
 - {id: warding_charm, family: wood, label: charm, name: warding charm,   slot: main_hand, reach: ranged,   attribute: wisdom,                   damage: magical,  base: 4,  price: 1000, tags: [focus, charm]}
 - {id: lute, family: wood, label: lute,          name: lute,            slot: main_hand, hands: 2, reach: ranged, attribute: charisma,         damage: magical,  base: 4,  price: 1500, tags: [focus, instrument]}
+- {id: scrying_orb, family: metal, label: orb, name: scrying orb, slot: off_hand, attribute: intelligence, base: 3, price: 1200, tags: [focus, orb]}
+- {id: spell_tome, family: cloth, label: tome, name: spell tome, slot: off_hand, attribute: intelligence, base: 3, price: 1200, tags: [focus, tome]}
+- {id: prayer_censer, family: metal, label: censer, name: prayer censer, slot: off_hand, attribute: wisdom, base: 3, price: 1200, tags: [focus, censer]}
+- {id: tuning_fork, family: metal, label: tuning fork, name: tuning fork, slot: off_hand, attribute: charisma, base: 3, price: 1200, tags: [focus, resonator]}
 
 # --- body armor ---
 - {id: clothes,        name: traveler's clothes, slot: body, weight: light,  base: 0, price: 50,    tags: [clothing]}
@@ -77,6 +81,10 @@
 - {id: runestaff, family: wood, label: runestaff, name: runestaff, slot: main_hand, hands: 2, reach: ranged, attribute: intelligence, requires: {intelligence: 80}, damage: magical, base: 11, price: 32000, min_level: 80, tags: [focus, staff]}
 - {id: spirit_totem, family: wood, label: totem, name: spirit totem, slot: main_hand, reach: ranged, attribute: wisdom, requires: {wisdom: 70}, damage: magical, base: 7, price: 24000, min_level: 80, tags: [focus, charm]}
 - {id: war_harp, family: wood, label: war harp, name: war harp, slot: main_hand, hands: 2, reach: ranged, attribute: charisma, requires: {charisma: 70}, damage: magical, base: 7, price: 24000, min_level: 80, tags: [focus, instrument]}
+- {id: oracle_orb, family: metal, label: oracle orb, name: oracle orb, slot: off_hand, attribute: intelligence, requires: {intelligence: 70}, base: 6, price: 22000, min_level: 80, tags: [focus, orb]}
+- {id: grand_grimoire, family: cloth, label: grimoire, name: grand grimoire, slot: off_hand, attribute: intelligence, requires: {intelligence: 70}, base: 6, price: 22000, min_level: 80, tags: [focus, tome]}
+- {id: reliquary, family: metal, label: reliquary, name: reliquary, slot: off_hand, attribute: wisdom, requires: {wisdom: 70}, base: 6, price: 22000, min_level: 80, tags: [focus, censer]}
+- {id: resonant_bell, family: metal, label: bell, name: resonant bell, slot: off_hand, attribute: charisma, requires: {charisma: 70}, base: 6, price: 22000, min_level: 80, tags: [focus, resonator]}
 - {id: warplate, family: metal, label: warplate, name: warplate, slot: body, weight: heavy, base: 11, requires: {strength: 65}, price: 60000, min_level: 80, tags: [armor]}
 - {id: dragonhide, family: hide, label: dragonhide coat, name: dragonhide coat, slot: body, weight: medium, base: 8, requires: {strength: 45}, price: 45000, min_level: 80, tags: [armor]}
 - {id: shadowleathers, family: hide, label: shadowleathers, name: shadowleathers, slot: body, weight: light, base: 6, requires: {dexterity: 55}, price: 38000, min_level: 80, tags: [armor]}

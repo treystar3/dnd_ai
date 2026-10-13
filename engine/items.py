@@ -23,7 +23,7 @@ MATERIAL_RARITY_WEIGHT = {"common": 10, "uncommon": 4, "rare": 1, "legendary": 0
 MATERIAL_PRICE = {"common": 1.0, "uncommon": 1.5, "rare": 3.0, "legendary": 10.0}
 GEM_MAGNITUDE = {"crude": 2, "common": 4, "uncommon": 6, "rare": 8, "epic": 11, "legendary": 14}
 DIAMOND_SPREAD = ["max_health", "max_stamina", "damage", "defense", "resolve"]
-FLAGS = {"armor_pierce", "crit_resist", "ward_fraction", "magic_power", "adaptive"}
+FLAGS = {"armor_pierce", "crit_resist", "ward_fraction", "adaptive"}
 
 
 class BaseItem(BaseModel):
@@ -47,6 +47,15 @@ class BaseItem(BaseModel):
     @property
     def is_weapon(self) -> bool:
         return self.damage is not None
+
+    @property
+    def is_offhand_focus(self) -> bool:
+        """An orb, tome or censer: held in the off hand, adds spell power, makes no attack of its own."""
+        return self.slot == "off_hand" and "focus" in self.tags
+
+    @property
+    def weaponlike(self) -> bool:
+        return self.is_weapon or self.is_offhand_focus
 
     @property
     def attributes(self) -> list[str]:
@@ -242,7 +251,7 @@ def value(item: Item) -> int:
     if not b.base:
         return 0
     m = material_of(item)
-    mult = (m.weapon_multiplier if b.is_weapon else m.armor_multiplier) if m else 1.0
+    mult = (m.weapon_multiplier if b.weaponlike else m.armor_multiplier) if m else 1.0
     return round(b.base * scale(item) * mult * (material_grade(m) if m else 1.0))
 
 
@@ -284,7 +293,7 @@ def material_effects(item: Item) -> list[Effect]:
         return []
     grow = min(RULES["material_chance_cap"], 1 + RULES["material_chance_growth"] * max(0, item.item_level - 1))
     out = []
-    for e in m.any + (m.weapon if b.is_weapon else m.armor):
+    for e in m.any + (m.weapon if b.weaponlike else m.armor):
         chance = e.modifies not in RULES["flat_gear"]["stats"] and e.modifies not in ("recovery", "crit_chance", "crit_damage") \
             and not e.modifies.endswith("_resistance")
         out.append(Effect(modifies=e.modifies, trigger=e.trigger, magnitude=max(1, round(e.magnitude * grow)) if chance else e.magnitude))
@@ -378,7 +387,7 @@ def _describe_effect(e: Effect) -> str:
 
 
 FLAG_TEXT = {"armor_pierce": "ignores {v:g}% of armor", "crit_resist": "{v:g}% less likely to be critically hit",
-             "ward_fraction": "{v:g}% of its armor also wards against magic", "magic_power": "+{v:g}% spell damage",
+             "ward_fraction": "{v:g}% of its armor also wards against magic",
              "adaptive": "strikes as physical or spell, whichever the target resists less"}
 
 
@@ -395,6 +404,9 @@ def summary(item: Item) -> str:
         hands = ", two-handed" if b.hands == 2 else ""
         attrs = "/".join(a[:3].upper() for a in b.attributes)
         core = f"{value(item)} {DAMAGE_LABEL.get(b.damage, b.damage)} damage, {b.reach} reach, {attrs}{hands}"
+    elif b.is_offhand_focus:
+        attrs = "/".join(a[:3].upper() for a in b.attributes)
+        core = f"{value(item)} spell power, {attrs}, off hand"
     elif b.base:
         w = weight(item)
         core = f"{value(item)} {'ward' if b.ward else 'armor'}" + (f", {w}" if w else "")

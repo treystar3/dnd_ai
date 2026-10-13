@@ -3,7 +3,7 @@ both end here, so prices, haggling, merchant memory and saving are the same eith
 
 Mixed into WorldScene. A button click runs quietly: one line in the log, no narrated scene and no model call."""
 
-from engine import clock, crafting, inventory as inv, items, money, pools, pulse
+from engine import clock, crafting, inventory as inv, items, money, needs, pools, pulse
 from npc.models import Memory
 from scenes.inventory_actions import quality_name
 from ui import console
@@ -80,10 +80,12 @@ class ShopActions:
             self.to_pack(inv.make_good(ware.item, 1))
             effect = f"They put {inv.GOODS[ware.item].name} in their pack."
         elif ware.kind in ("meal", "drink"):
-            share = 0.25 if ware.kind == "meal" else 0.08
-            for pool in ("stamina", "health"):
+            meal = needs.N["meal"]
+            share = {"stamina": 0.25, "health": meal["health"] / 100} if ware.kind == "meal" else {"stamina": 0.08, "health": 0.0}
+            for pool, part in share.items():
                 top = pools.maximum(c, pool)
-                setattr(c, pool, min(top, pools.current(c, pool) + top * share))
+                setattr(c, pool, min(top, pools.current(c, pool) + top * part))
+            needs.eat(c, meal["feeds"] if ware.kind == "meal" else 5)
             effect = "They eat and feel restored." if ware.kind == "meal" else "They drink."
         seller.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
                                       text=f"The stranger paid {money.words(ware.price)} for {ware.name}."))

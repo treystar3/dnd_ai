@@ -91,7 +91,7 @@ class DungeonActions:
             console.note(f"You descend into {d['name']} and make your way to {where}.")
         self.player.delve = {"dungeon": d["id"], "floor": f, "chamber": c, "rest": False}
         self.ensure_light(d)
-        self.advance(10)
+        self.advance(10, exert=True)
         label = f"Floor {f + 1} [{floor['letter']}], chamber {c + 1} of {len(floor['chambers'])}"
         kind = chamber["kind"]
         if kind == "fight" and not chamber.get("boss") and self.shadow_active():
@@ -225,7 +225,7 @@ class DungeonActions:
             console.note("You're not down in a dungeon.")
             return
         self.player.delve = None
-        self.advance(15)
+        self.advance(15, exert=True)
         self.store.save_player(self.player)
         console.note(f"You climb back out of {d['name']}. Your progress is kept until it is remade.")
         self.narrate(f"The player climbs back up out of {d['name']} into the open air.", text)

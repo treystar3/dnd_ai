@@ -19,9 +19,9 @@ LOG_CAP = 6000
 VIEWS = {"system", "sys", "stats", "character", "exits", "where", "map", "party", "journal", "j", "inventory", "inv", "i",
          "board", "contracts", "standing", "rumors", "dungeon", "floors", "quests", "quest", "jobs", "arc", "story",
          "trail", "clues", "home", "house", "property", "homes", "shop", "store", "wares", "buy", "stash", "box",
-         "itembox", "gear", "equipment", "worn", "help", "h", "?", "world"}
+         "itembox", "gear", "equipment", "worn", "help", "h", "?", "world", "pulse"}
 DEFAULT_PIN = "#character"
-HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd")      # the shop pane's buttons: run like commands, never echoed
+HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname")      # the shop pane's buttons: run like commands, never echoed
 WRAP_WIDTH = 2000
 
 
@@ -163,11 +163,12 @@ class Bridge:
             self.route = "main"
             self.emit(k="side_end")
 
-    def status_block(self, when, weather, place_line, spot_line, vitals, level, points, coins, xp=(0, 0)) -> None:
+    def status_block(self, when, weather, place_line, spot_line, vitals, level, points, coins, xp=(0, 0), needs=None) -> None:
         from engine import money
-        self.emit(k="status", when=when, weather=weather, place=place_line, spot=spot_line,
+        import config
+        self.emit(k="status", debug=bool(config.DEBUG), when=when, weather=weather, place=place_line, spot=spot_line,
                   vitals={k: [round(v[0]), v[1]] for k, v in vitals.items()}, level=level, points=points,
-                  coins=money.fmt(coins), xp=list(xp))
+                  coins=money.fmt(coins), xp=list(xp), needs=needs or {})
 
     # ---------- input ----------
     def ask(self, main: bool = False) -> str:

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from engine import clock, events
+from engine import clock, events, pulselog
 from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
@@ -122,6 +122,7 @@ def catch_up(store, world, catalog, now: int) -> None:
     while state["last"] + INTERVAL <= now:
         state["last"] += INTERVAL
         t = state["last"]
+        pulselog.begin(t)
         changed |= tick_threads(store, world, catalog, state, t, rng)
         if state.get("camps"):
             events.expire_camps(store, world, state, t)
@@ -149,6 +150,7 @@ def catch_up(store, world, catalog, now: int) -> None:
         if done:
             budget -= 1
             changed = True
+    pulselog.close()
     store.save_world_state(state)
 
 
@@ -197,6 +199,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         )
     except LLMError as e:
         console.debug(f"pulse: no situation this time ({e})")
+        pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: the model gave nothing usable ({e})")
         return False
     if not known(world, proposal.place):
         proposal.place = place.id
@@ -217,7 +220,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if tier == "campaign":
         state["campaign"] = thread["id"]
     add_news(state, proposal.news, proposal.place, t, thread["groups"])
-    apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id)
+    row = pulselog.note("thread", f"[{tier}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages")
+    apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)
     posted = False
     if proposal.contract and proposal.contract.what:
         posted = post_contract(store, world, proposal.contract, thread, t)
@@ -243,7 +247,8 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
         while th["status"] == "active" and th["stage"] + 1 < len(th["stages"]) and t >= th["times"][th["stage"] + 1]:
             th["stage"] += 1
             stage = th["stages"][th["stage"]]
-            apply_effects(store, world, catalog, state, stage["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"])
+            row = pulselog.note("stage", f"{th['title']} - stage {th['stage'] + 1}/{len(th['stages'])}: {stage['description'][:140]}")
+            apply_effects(store, world, catalog, state, stage["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
             add_news(state, stage["description"], th["place"], t, th["groups"])
             if th["tier"] == "cataclysm":
                 events.on_stage(store, world, catalog, state, th, t, rng)
@@ -253,11 +258,13 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
                 who = resolver(store, world, th, rng)
+                pulselog.note("end", f"{th['title']} - settled by {who}")
                 end_thread(store, state, th, "resolved", f"{th['title']} - settled by {who}.", t)
                 th["result"] = "others"
             else:
                 fall = th["fallout"]
-                apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"])
+                row = pulselog.note("end", f"{th['title']} - left alone, so the fallout lands: {fall['description'][:140]}")
+                apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
                 end_thread(store, state, th, "ended", f"{th['title']} - {fall['description']}", t)
                 th["result"] = "ignored"
                 if th["tier"] == "cataclysm":
@@ -340,7 +347,8 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
         console.debug(f"pulse: {npc.name}'s life holds still ({e})")
         return False
     last[npc.id] = t
-    apply_effects(store, world, catalog, state, step.effects, "normal", t, f"{npc.name}'s doings")
+    row = pulselog.note("motive", f"{npc.name}: {step.happened} [{step.status}]")
+    apply_effects(store, world, catalog, state, step.effects, "normal", t, f"{npc.name}'s doings", row=row)
     npc = store.load_npc(npc.id)
     npc.motive = (step.next_motive.strip() or npc.motive) if step.status == "continuing" else ""
     from npc.models import Memory
@@ -364,24 +372,32 @@ def relations_text(store, npc) -> str:
 # ---------- effects ----------
 
 def apply_effects(store, world, catalog, state, effects, tier: str, t: int, cause: str, raw: bool = False,
-                  thread_id: str = "") -> None:
+                  thread_id: str = "", row: dict | None = None) -> None:
     for e in effects:
         e = e if raw else e.model_dump()
+        result = "applied"
         try:
             if e["kind"] in ("spawn", "camp", "seal"):
                 events.apply_big(store, world, catalog, state, e, tier, t, cause, thread_id)
-                continue
-            apply_one(store, world, catalog, state, e, tier, t, cause)
+            else:
+                result = apply_one(store, world, catalog, state, e, tier, t, cause) or "applied"
         except Exception as err:  # an effect the world can't honor is simply dropped
             console.debug(f"pulse: dropped effect {e.get('kind')} ({err})")
+            result = f"dropped: {err}"
+        if row is not None:
+            try:
+                pulselog.effect(row, pulselog.describe(e, store, world), result)
+            except Exception:
+                pass
 
 
-def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str) -> None:
+def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str) -> str:
+    """Apply one effect. Returns what happened, in words, for the debug log."""
     kind, lim = e["kind"], P["effects"]
     days = max(1, min(lim["max_days"], e.get("days") or 3))
     npc = store.load_npc(e["npc"]) if e.get("npc") and store.npc_exists(e["npc"]) else None
     if npc and npc.gone:
-        return
+        return "skipped: they are already gone"
     if kind == "relation" and npc and e.get("other") and store.npc_exists(e["other"]):
         r = npc.relations.get(e["other"], {"score": 0, "feeling": ""})
         r["score"] = max(-100, min(100, r["score"] + max(lim["relation"]["min"], min(lim["relation"]["max"], e["value"]))))
@@ -393,16 +409,16 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         store.save_npc(npc)
     elif kind == "move" and npc and known(world, e.get("place")):
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
-            return
+            return "skipped: a dangerous or empty place"
         move_npc(store, npc, e["place"])
     elif kind == "leave" and npc:
         met = npc.tier != "background"
         if npc.protected or npc.role in P["protected_roles"] or (met and tier not in P["may_remove_met"]):
-            return
+            return "skipped: they are protected"
         remove_npc(store, world, npc, e.get("text") or "gone away", t)
     elif kind == "arrive" and known(world, e.get("place")) and e.get("role") in world.roles:
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
-            return
+            return "skipped: a dangerous or empty place"
         ps = store.load_place(e["place"])
         ps.extra_roles[e["role"]] = ps.extra_roles.get(e["role"], 0) + 1
         store.save_place(ps)
@@ -440,7 +456,10 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
     elif kind == "fact" and e.get("text"):
         add_news(state, e["text"], e.get("place") or "", t,
                  [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"])
+    else:
+        return "ignored: the person or place it names is unknown, or the change is not allowed here"
     state["effects"] = [x for x in state["effects"] if x["until"] > t - 1440]
+    return "applied"
 
 
 def move_npc(store, npc, place_id: str) -> None:

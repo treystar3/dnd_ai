@@ -61,6 +61,8 @@ What you know:
 - You may share opinions, guesses or feelings, but never present invented information about the wider world as true.
   If you don't know, say so, deflect, or guess openly as a guess.
 - For directions, only mention places listed under PLACES NEARBY. Do not invent lanes, landmarks or buildings.
+- Where herbs grow and where game is hunted: say only what THE LAND AROUND YOU lists, with its places and distances, exactly as listed.
+  If what they ask about is not there, you do not know where it is found - say so. Never say a herb grows somewhere the list does not give.
 - You know the person in front of you only as described. You do not know their name unless your memories say so.
   Never assume anything about them - their past, deeds, papers, reputation or plans - beyond what they have said
   or done in this conversation and what your memories record.
@@ -119,7 +121,7 @@ def trust_words(trust: int) -> str:
 def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                          player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
-                         length: str = "one to three sentences") -> str:
+                         length: str = "one to three sentences", land: list[str] = ()) -> str:
     if not npc.met_player:
         who = "A stranger you have never met."
     elif npc.knows_player_as:
@@ -139,7 +141,9 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
         f"YOUR PLACE: {place.name}\n" + "\n".join(f"  - {v}" for v in place.visible) + "\n"
         f"HERE WITH YOU: {'; '.join(here_with) or 'no one'}\n"
         f"PEOPLE YOU KNOW: {'; '.join(people_known) or 'no one in particular'}\n"
-        f"PLACES NEARBY: {', '.join(nearby) or 'none'}\n\n"
+        f"PLACES NEARBY: {', '.join(nearby) or 'none'}\n"
+        + (("THE LAND AROUND YOU (what everyone here knows of where things grow and are hunted):\n" + "\n".join(f"  - {x}" for x in land) + "\n") if land else "")
+        + "\n"
         f"THE PERSON IN FRONT OF YOU: {who} {trust_words(npc.trust).capitalize()}.\n\n"
         f"WHAT YOU KNOW:\n{known}\n\n"
         + (("WHAT YOU SELL (fixed prices - quote them exactly; the player pays through the game when they agree, so "

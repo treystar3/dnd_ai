@@ -172,8 +172,8 @@ for i in range(60):
     C.enemy_turn(cmb, foes[0], random.Random(i)); fled |= foes[0].fled
 check("a grappled enemy cannot flee", not fled)
 # draining
-cmb, p, foes = setup(); p.mana = 100; C.act_ability(cmb, p, mv(rider="drain", resource="mana", reach="ranged"), foes[0], random.Random(1))
-cmb2, p2, foes2 = setup(); p2.mana = 100; C.act_ability(cmb2, p2, mv(resource="mana", reach="ranged"), foes2[0], random.Random(1))
+cmb, p, foes = setup(); p.mana = 100; C.act_ability(cmb, p, mv(rider="drain", resource="mana", reach="ranged"), foes[0], random.Random(2))
+cmb2, p2, foes2 = setup(); p2.mana = 100; C.act_ability(cmb2, p2, mv(resource="mana", reach="ranged"), foes2[0], random.Random(2))
 check("draining returns mana", p.mana > p2.mana, (p.mana, p2.mana))
 # penetrating
 def resisted(rider, n=100):

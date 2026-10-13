@@ -7,7 +7,7 @@ import random
 import re
 
 from core.models import Item, KeyItem
-from engine import clock, crafting, encounters, equipment, inventory as inv, items, money, pools, property as property_rules
+from engine import clock, crafting, encounters, equipment, inventory as inv, items, money, needs, pools, property as property_rules
 from npc.models import Memory
 from ui import console
 
@@ -64,6 +64,9 @@ class InventoryActions:
             top = pools.maximum(c, pool)
             setattr(c, pool, min(top, pools.current(c, pool) + top * pct / 100))
             felt.append(pool)
+        if g.feeds:
+            needs.eat(c, g.feeds)
+            felt.append("hunger")
         return f"restoring {', '.join(felt)}" if felt else "to no real effect"
 
     def find_key(self, name: str) -> KeyItem | None:

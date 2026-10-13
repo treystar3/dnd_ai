@@ -76,7 +76,7 @@ for _ in range(6000):
             seen[(pr.modifies, loot.gear_kind(b_) if b_.slot not in ("neck", "ring") else "jewelry")] += 1; sizes[r].append(pr.magnitude)
 check("companion damage rolls on focus weapons and mystic jewelry", seen[("companion_damage", "weapon.focus")] and seen[("companion_damage", "jewelry")], dict(seen))
 check("companion durability rolls on cloth and jewelry", seen[("companion_durability", "armor.cloth")] and seen[("companion_durability", "jewelry")])
-check("nothing else rolls them", all(k[1] in ("weapon.focus", "armor.cloth", "jewelry") for k in seen))
+check("nothing else rolls them", all(k[1] in ("weapon.focus", "weapon.offfocus", "armor.cloth", "jewelry") for k in seen))
 check("sizes follow rarity", all(min(v) >= lo and max(v) <= hi for r, (lo, hi) in {"uncommon": (4, 7), "rare": (7, 11), "epic": (11, 16), "legendary": (16, 24)}.items() for v in [sizes[r]] if v), {r: (min(v), max(v)) for r, v in sizes.items()})
 it = items.make("runestaff", "rare", 50, rng=rng); it.properties = [loot.ItemProperty(modifies="companion_damage", trigger="always", magnitude=9)]
 check("shown as a percentage", "+9% companion damage" in items.summary(it), items.summary(it))

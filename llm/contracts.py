@@ -96,6 +96,7 @@ class ActiveProposal(BaseModel):
     buff_stat: Literal["", "armor", "ward", "both"] = ""
     command: Literal["", "focus", "guard", "press", "hold", "distract"] = ""
     field_use: FieldUse = ""
+    channel: bool = False
 
     @model_validator(mode="after")
     def summon_shape(self):
@@ -279,7 +280,7 @@ class SlotNames(BaseModel):
                 name=x.name, description=x.description, effect=s["effect"], tier=s["tier"], reach=s["reach"],
                 resource=s["resource"], context=s["context"], summons=x.summons if s["effect"] == "summon" else None,
                 rider=s["rider"], shape=s["shape"], buff=s["buff"], buff_stat=s["buff_stat"], command=s["command"],
-                field_use=s["field_use"]))
+                field_use=s["field_use"], channel=bool(s.get("channel"))))
         return out
 
 
@@ -335,7 +336,7 @@ class ActionIntent(BaseModel):
     kind: Literal["move", "look", "search", "explore", "talk", "leave_conversation", "buy", "sell", "ability", "use", "drop",
                   "pick_up", "give", "show", "discard", "store", "retrieve", "equip", "forage", "craft", "commission",
                   "work", "harvest", "join_guild", "board", "accept_quest", "abandon_quest", "train", "learn_ability",
-                  "delve", "leave_dungeon", "wait", "attack", "release", "steal", "unlock", "other"]
+                  "delve", "leave_dungeon", "wait", "attack", "release", "hand_over", "steal", "unlock", "other"]
     destination: str = ""
     target: str = ""
     speech: str = ""
@@ -494,7 +495,8 @@ class StartingKit(BaseModel):
 
 
 class CombatIntent(BaseModel):
-    kind: Literal["attack", "ability", "item", "move", "defend", "flee", "tame", "other"]
+    kind: Literal["attack", "ability", "item", "move", "defend", "flee", "tame", "talk", "other"]
+    approach: Literal["", "intimidate", "persuade", "deceive"] = ""      # for talk
     target: str = ""
     ability: str = ""
     item: str = ""

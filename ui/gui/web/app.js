@@ -2,7 +2,7 @@
 const TOKEN = window.TOKEN;
 const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
-const COMMANDS = [["Character", "#character"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"],
+const COMMANDS = [["Character", "#character"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
   ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["New game", "#newgame"]];
 
@@ -192,6 +192,115 @@ document.addEventListener("mouseover", (e) => {
   if (t && tipMap[t.dataset.tip]) showLines(tipMap[t.dataset.tip], e.clientX, e.clientY);
 });
 
+// ---------- map pane: the places you know as a diagram of walking times; drag to pan, wheel to zoom ----------
+let mapView = null;
+function renderMap(d) {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+  const here = d.nodes.find((n) => n.id === d.here);
+  const pad = 70;
+  const xs = d.nodes.map((n) => n.x), ys = d.nodes.map((n) => n.y);
+  const box = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad, w: Math.max(...xs) - Math.min(...xs) + 2 * pad, h: Math.max(...ys) - Math.min(...ys) + 2 * pad };
+  const keep = mapView && mapView.here === d.here ? mapView.box : null;
+  const vb = keep || { x: box.x, y: box.y, w: Math.max(box.w, 240), h: Math.max(box.h, 240) };
+  const svg = mk("svg", { class: "mapsvg", viewBox: `${vb.x} ${vb.y} ${vb.w} ${vb.h}` });
+  const byId = Object.fromEntries(d.nodes.map((n) => [n.id, n]));
+  for (const e of d.edges) {
+    const a = byId[e.a], b = byId[e.b];
+    const ln = mk("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "mapedge" + (a.state === "heard" || b.state === "heard" ? " dim" : "") }, svg);
+    mk("title", {}, ln).textContent = `${a.name} - ${b.name}: ${e.label}`;
+  }
+  const big = { city: 9, town: 7, village: 6 };
+  for (const n of d.nodes) {
+    const g = mk("g", { class: "mapnode " + n.state }, svg);
+    const r = big[n.type] || 5;
+    mk("circle", { cx: n.x, cy: n.y, r: n.state === "here" ? r + 3 : r, class: "dot " + n.type }, g);
+    if (n.state === "here") mk("circle", { cx: n.x, cy: n.y, r: r + 9, class: "pulse" }, g);
+    const t = mk("text", { x: n.x, y: n.y - r - 5, "text-anchor": "middle", class: "lbl" }, g);
+    t.textContent = n.name;
+    mk("title", {}, g).textContent = n.state === "here" ? `${n.name} - you are here (${n.region})` : `${n.name} (${n.region}) - ${n.away} from here` + (n.state === "heard" ? " - heard of, not yet visited" : "");
+  }
+  let drag = null;
+  svg.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, vb: { ...vb } }; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const k = drag.vb.w / svg.clientWidth;
+    vb.x = drag.vb.x - (e.clientX - drag.x) * k; vb.y = drag.vb.y - (e.clientY - drag.y) * k;
+    svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  });
+  svg.addEventListener("pointerup", () => { drag = null; mapView = { here: d.here, box: { ...vb } }; });
+  svg.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const f = e.deltaY > 0 ? 1.15 : 1 / 1.15, r = svg.getBoundingClientRect();
+    const px = vb.x + ((e.clientX - r.left) / r.width) * vb.w, py = vb.y + ((e.clientY - r.top) / r.height) * vb.h;
+    vb.x = px - (px - vb.x) * f; vb.y = py - (py - vb.y) * f; vb.w *= f; vb.h *= f;
+    svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+    mapView = { here: d.here, box: { ...vb } };
+  }, { passive: false });
+  side.appendChild(el("div", "dimrow", here ? (d.on_road ? `You are on the road, last in ${here.name}.` : `You are in ${here.name}.`) + ` Places you have only heard of are faint. Drag to move, scroll to zoom, hover for distances.` : ""));
+  side.appendChild(svg);
+}
+
+// ---------- pulse pane (debug only): what the world pulse did this session ----------
+let pulseFilter = "";
+function renderPulse(d) {
+  side.appendChild(el("div", "dimrow", `Now ${d.now}. Last pulse ${d.last}; next in ${d.next_in} min (every ${d.interval} min).`));
+  const bar = el("div", "pulsebar");
+  for (const k of ["", "thread", "stage", "end", "motive", "miss"]) {
+    const b = el("button", pulseFilter === k ? "on" : "", k || "all");
+    b.onclick = () => { pulseFilter = k; paintSide(); };
+    bar.appendChild(b);
+  }
+  side.appendChild(bar);
+  if (d.threads.length) { side.appendChild(el("div", "h2", "LIVE SITUATIONS")); for (const t of d.threads) side.appendChild(el("div", "fact", t)); }
+  if (d.effects.length) { side.appendChild(el("div", "h2", "LIVE EFFECTS")); for (const t of d.effects) side.appendChild(el("div", "fact", t)); }
+  side.appendChild(el("div", "h2", "LOG (newest first)"));
+  const rows = d.rows.filter((r) => !pulseFilter || r.kind === pulseFilter);
+  if (!rows.length) side.appendChild(el("div", "dimrow", "Nothing yet this session."));
+  for (const r of rows) {
+    const row = el("div", "prow pulse " + r.kind);
+    row.appendChild(el("div", "pn", `${r.when} · ${r.kind}`));
+    row.appendChild(el("div", "pr2", r.text));
+    for (const e of r.effects) row.appendChild(el("div", "peff " + (e.result === "applied" ? "ok" : "no"), `${e.result === "applied" ? "✓" : "✗"} ${e.text}` + (e.result === "applied" ? "" : ` (${e.result})`)));
+    side.appendChild(row);
+  }
+}
+
+// ---------- party pane: companions (with a rename field) and hired adventurers ----------
+function renderParty(d) {
+  side.appendChild(el("div", "h2", "COMPANIONS"));
+  if (!d.companions.length) side.appendChild(el("div", "dimrow", "You have no companions."));
+  for (const m of d.companions) {
+    const row = el("div", "shoprow party"), info = el("div", "info");
+    const nm = el("div", "nm");
+    nm.appendChild(el("span", m.ok ? "gname" : "gname empty", m.name));
+    nm.appendChild(el("span", "slotname", `${m.role} · lv ${m.level}`));
+    info.appendChild(nm);
+    if (m.note) info.appendChild(el("div", "dt", m.note));
+    info.appendChild(el("div", "dt", `${m.hp} health · ${m.damage} damage · ${m.armor} armor · ${m.ward} ward`));
+    info.appendChild(el("div", m.ok ? "dt" : "warn", m.state));
+    const edit = el("div", "renamebox");
+    const input = el("input", "jsearch");
+    input.type = "text"; input.maxLength = 24; input.placeholder = "New name…";
+    const go = () => { const v = input.value.trim(); if (v) runCommand(`#compname ${m.id} ${v}`); };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+    const b = shopButton("Rename", "", true);
+    b.onclick = go;
+    edit.append(input, b);
+    info.appendChild(edit);
+    row.appendChild(info); side.appendChild(row);
+  }
+  side.appendChild(el("div", "h2", "ADVENTURERS"));
+  if (!d.adventurers.length) side.appendChild(el("div", "dimrow", "No hired adventurers."));
+  for (const a of d.adventurers) {
+    const row = el("div", "shoprow"), info = el("div", "info");
+    info.appendChild(el("div", "nm", a.name));
+    info.appendChild(el("div", "dt", `${a.role} · level ${a.level}`));
+    row.appendChild(info); side.appendChild(row);
+  }
+  if (d.mode) side.appendChild(el("div", "dimrow", "They are " + d.mode + "."));
+}
+
 // ---------- character pane: a + beside each attribute while there are points to spend ----------
 function renderAttrs(d) {
   const box = el("div", "attrs");
@@ -233,6 +342,16 @@ function renderJournal(d) {
       }
     }
     if (!shown) body.appendChild(el("div", "dimrow", q ? "No one matches." : "No one yet."));
+    const heard = (d.heard || []).filter((p) => !q || `${p.name} ${p.by} ${p.line}`.toLowerCase().includes(q));
+    if (heard.length) {
+      body.appendChild(el("div", "h2", "PEOPLE YOU'VE HEARD OF"));
+      for (const p of heard) {
+        const row = el("div", "prow heard");
+        row.appendChild(el("div", "pn", p.name));
+        row.appendChild(el("div", "pr2", `Mentioned by ${p.by}: "${p.line}"`));
+        body.appendChild(row);
+      }
+    }
     body.appendChild(el("div", "h2", "THINGS YOU'VE LEARNED"));
     const facts = d.facts.filter((f) => !q || f.toLowerCase().includes(q));
     if (!facts.length) body.appendChild(el("div", "dimrow", q ? "Nothing matches." : "Nothing yet."));
@@ -253,7 +372,7 @@ const combat = { active: false, data: null, rows: [], seen: new Set(), mode: "vi
 const hitsMap = {};
 function renderButtons() {
   const box = $("buttons"); box.textContent = "";
-  for (const [label, cmd] of COMMANDS) {
+  for (const [label, cmd] of (state.debug ? [...COMMANDS, ["Pulse", "#pulse"]] : COMMANDS)) {
     const b = document.createElement("button");
     b.textContent = label + (state.prefs.pinned === cmd ? " 📌" : "");
     b.dataset.cmd = cmd;
@@ -367,18 +486,24 @@ function hitLines(h) {
   const L = [], b = h.base || {}, d = h.defence || {};
   const outcome = { miss: "miss", graze: "glancing blow", hit: "hit", crit: "critical hit", phase: "passes through" }[h.outcome] || h.outcome;
   L.push(["h", `${h.att} ${h.label} ${h.dfn}`]);
-  if (h.chance) L.push(["", `To hit: ${h.chance}% chance, rolled ${h.roll} → ${outcome}`]);
+  if (h.chance) L.push(["", `To hit: needed ${h.need} or more (${h.chance}% chance), rolled ${h.roll} → ${outcome}`]);
+  if (h.chance && h.crit_need < 100 && h.outcome !== "phase") L.push(["dim", `Critical on ${h.crit_need} or more (${h.crit}%)`]);
   else L.push(["", `Result: ${outcome}`]);
   if (h.note) L.push(["dim", h.note]);
   if (h.outcome === "miss" || h.outcome === "phase") return L;
   if (b.base !== undefined) {
-    let s = `Base: weapon ${b.weapon} + attribute ${b.attr}×${(b.attr_bonus / (b.attr || 1)).toFixed(2)} = ${b.attr_bonus}`;
+    const spell = b.kind === "spell", chan = b.kind === "channel";
+    const parts = (b.parts || []).map(([n, v]) => `${n} ${v}`).join(" + ");
+    let s;
+    if (spell) s = `Base: ${parts}`;
+    else s = `Base: ${chan && parts ? parts : `weapon ${b.weapon}`} + attribute ${b.attr}×${(b.attr_bonus / (b.attr || 1)).toFixed(2)} = ${b.attr_bonus}`;
     if (b.flat) s += ` + gear ${b.flat}`;
     L.push(["", s + `  =  ${b.base}`]);
     for (const [name, f] of h.steps || []) L.push(["", `  × ${f}  ${name}`]);
     if (b.pct) L.push(["", `  × ${(1 + b.pct / 100).toFixed(2)}  damage bonuses (+${b.pct}%)`]);
-    if (b.magic && b.magic !== 1) L.push(["", `  × ${b.magic}  magic power`]);
-    L.push(["", `  × ${b.variance}  the swing's variance`]);
+    if (spell) L.push(["", `  × ${b.magic}  spell attribute ${b.attr} (+${Math.round((b.magic - 1) * 100)}%)`]);
+    else if (chan) L.push(["dim", `  (the spell part already includes × ${b.spell_mult} from your spell attribute)`]);
+    L.push(["", `  × ${b.variance}  ${spell ? "the spell's variance" : chan ? "the strike's variance" : "the swing's variance"}`]);
     L.push(["", `Raw damage: ${b.total}`]);
   }
   if (d.reduction !== undefined) {
@@ -430,13 +555,14 @@ function fighterBlock(x, isYou) {
   const box = el("div", "cf" + (isYou ? " you" : ""));
   const head = el("div", "cfh");
   head.appendChild(el("span", "cn", isYou ? "You" : `${x.name} (lv ${x.level})`));
-  if (!isYou) head.appendChild(el("span", "band", x.band));
-  head.appendChild(el("span", "chp", `${x.hp}/${x.max_hp}`));
-  box.appendChild(head); box.appendChild(bar(x.hp, x.max_hp, "--hp"));
+  if (!isYou) { head.appendChild(el("span", "band", x.band)); head.appendChild(el("span", "chp", `${x.hp}/${x.max_hp}`)); }
+  box.appendChild(head);
+  const row = (lbl, now, top, color) => { const r = el("div", "crow"); r.append(el("span", "lbl", lbl), bar(now, top, color), el("span", "num", `${now}/${top}`)); box.appendChild(r); };
   if (isYou) {
-    if (x.max_stamina) { const r = el("div", "crow"); r.append(el("span", "lbl", "ST"), bar(x.stamina, x.max_stamina, "--sp"), el("span", "num", `${x.stamina}/${x.max_stamina}`)); box.appendChild(r); }
-    if (x.max_mana) { const r = el("div", "crow"); r.append(el("span", "lbl", "MP"), bar(x.mana, x.max_mana, "--mp"), el("span", "num", `${x.mana}/${x.max_mana}`)); box.appendChild(r); }
-  }
+    row("HP", x.hp, x.max_hp, "--hp");
+    if (x.max_stamina) row("ST", x.stamina, x.max_stamina, "--sp");
+    if (x.max_mana) row("MP", x.mana, x.max_mana, "--mp");
+  } else box.appendChild(bar(x.hp, x.max_hp, "--hp"));
   const chips = el("div", "chips");
   for (const [n, r] of x.statuses || []) chips.appendChild(el("span", "chip", r >= 99 ? n : `${n} ${r}`));
   for (const [n, r] of x.buffs || []) chips.appendChild(el("span", "chip good", `${n} ${r}`));
@@ -485,6 +611,9 @@ function paintSide() {
     if (lastView.panel && lastView.panel.name === "gear") renderGear(lastView.panel.data);
     const pn = lastView.panel && lastView.panel.name;
     if (pn === "journal") renderJournal(lastView.panel.data);
+    else if (pn === "party") renderParty(lastView.panel.data);
+    else if (pn === "map") renderMap(lastView.panel.data);
+    else if (pn === "pulse") renderPulse(lastView.panel.data);
     else if (pn === "character" && lastView.raw.includes(ATTR_MARK)) {
       const [before, after] = lastView.raw.split(ATTR_MARK + "\n");
       renderInto(side, before, "pane", false);
@@ -554,7 +683,7 @@ function handle(ev) {
     case "side_end": lastView = { raw: sideRaw, panel: sidePanel, cmd: state.current }; paintSide(); break;
     case "combat": onCombat(ev.data); break;
     case "combat_end": combat.active = false; combat.mode = "view"; paintSide(); break;
-    case "status": Strip.update(ev); break;
+    case "status": Strip.update(ev); if (!!ev.debug !== !!state.debug) { state.debug = !!ev.debug; renderButtons(); } break;
     case "prompt": state.prompt = true; state.atMain = !!ev.main; updateInput(); break;
     case "busy": $("busy").hidden = !ev.on; if (ev.on && nearBottom()) log.scrollTop = log.scrollHeight; break;
     case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); break;

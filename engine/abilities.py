@@ -74,7 +74,7 @@ def materialize_active(p: ActiveProposal) -> Ability:
         cost=TIER_COST[p.tier],
         cooldown=TIER_COOLDOWN[p.tier],
         companion=companion,
-        rider=p.rider, shape=p.shape, buff=p.buff, buff_stat=p.buff_stat, command=p.command,
+        rider=p.rider, shape=p.shape, buff=p.buff, buff_stat=p.buff_stat, command=p.command, channel=p.channel,
         field_use=use if context != UseContext.COMBAT else "",
     )
 

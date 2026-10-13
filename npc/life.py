@@ -8,7 +8,7 @@ import re
 
 from llm.contracts import NPCProfile, NPCReply, ResidentSet
 from llm.gateway import generate
-from npc import prompts
+from npc import land, prompts
 from npc.models import NPC, Memory
 from npc.traits import TraitCatalog, assign_traits, npc_rng
 from storage.campaign import CampaignStore
@@ -137,6 +137,36 @@ def social_circle(npc: NPC, store: CampaignStore, world: World) -> tuple[list[st
     return here, known
 
 
+def note_mentions(speaker: NPC, speech: str, store: CampaignStore) -> list[str]:
+    """People the speaker named aloud who the player has not met (or does not know by name) are noted as heard of, with what was said.
+    Matches a full name, or a first name of 5+ letters that only one person has. Returns the names newly noted."""
+    import re
+    text = " ".join(speech.split())
+    if not text:
+        return []
+    others = [o for o in (store.load_npc(i) for i in store.list_npcs()) if o.id != speaker.id and o.name]
+    firsts: dict[str, int] = {}
+    for o in others:
+        f = o.name.split()[0].lower()
+        firsts[f] = firsts.get(f, 0) + 1
+    added = []
+    for o in others:
+        if o.heard_of or (o.met_player and o.name_known_to_player):
+            continue
+        first = o.name.split()[0]
+        pats = [re.escape(o.name)] + ([re.escape(first)] if len(first) >= 5 and firsts[first.lower()] == 1 else [])
+        m = re.search(r"\b(?:" + "|".join(pats) + r")\b", text, re.I)
+        if not m:
+            continue
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        line = next((s for s in sentences if m.group(0).lower() in s.lower()), text)
+        o.heard_of = {"by": speaker.name if speaker.name_known_to_player else speaker.label(), "day": clock.day(store.meta.minutes),
+                      "line": line[:200].strip()}
+        store.save_npc(o)
+        added.append(o.name)
+    return added
+
+
 def converse(
     npc: NPC,
     store: CampaignStore,
@@ -162,7 +192,7 @@ def converse(
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
                if world.roles[npc.role].commissions else []),
-            extra, voice_rules.npc(level)["length"],
+            extra, voice_rules.npc(level)["length"], land.land_lines(world, npc.location),
         ),
         NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"],
     )
@@ -195,6 +225,8 @@ def converse(
 
     if not npc.met_player:
         npc.met_player = True
+    for name in note_mentions(npc, reply.speech, store):
+        console.debug(f"{npc.name} named {name}: noted as heard of")
     if reply.remember.strip():
         npc.memories.append(Memory(day=clock.day(store.meta.minutes), turn=store.meta.turn, text=reply.remember.strip()))
     store.save_npc(npc)

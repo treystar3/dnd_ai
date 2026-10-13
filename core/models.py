@@ -125,6 +125,7 @@ class Ability(BaseModel):
     buff: str = ""        # for the buff effect: bulwark, thorns or mend
     command: str = ""     # for the command effect: focus, guard, press or hold
     buff_stat: str = ""   # for bulwark: armor, ward or both
+    channel: bool = False  # a mana strike delivered through the wielded weapon (engine/combat.py)
     field_use: str = ""   # what it does outside combat: scout, shelter, haste, influence, shadow, recall or showmanship (engine/field.py)
 
 
@@ -248,6 +249,8 @@ class Character(BaseModel):
     xp: int = 0
     deaths: int = 0
     last_rest: str = ""
+    hunger: float = 0.0                        # 0 fed .. 100 famished (engine/needs.py)
+    fatigue: float = 0.0                       # 0 rested .. 100 collapsing
     health: float | None = None
     stamina: float | None = None
     mana: float | None = None

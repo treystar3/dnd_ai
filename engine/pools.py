@@ -111,7 +111,11 @@ def maximum(c: Character, pool: str) -> int:
         others = max(at(a) for a in MENTAL if a != cast)
         raw += m["cast_weight"] * at(cast) + m["other_weight"] * others
     pct, flat = _bonus_parts(c, rule.modifier, {Trigger.ALWAYS.value})
-    return max(1, round(raw * (1 + pct) + flat))
+    total = raw * (1 + pct) + flat
+    if pool in ("health", "stamina") and (getattr(c, "hunger", 0) or getattr(c, "fatigue", 0)):
+        from engine import needs
+        total *= 1 + needs.penalties(c)[pool] / 100
+    return max(1, round(total))
 
 
 def snapshot(c: Character) -> dict[str, int]:
@@ -137,7 +141,7 @@ def fill_missing(c: Character) -> None:
             setattr(c, pool, float(maximum(c, pool)))
 
 
-def recover(c: Character, minutes: int, in_combat: bool = False, conditions: set[str] | None = None) -> None:
+def recover(c: Character, minutes: int, in_combat: bool = False, conditions: set[str] | None = None, rest: float = 0.0) -> None:
     """Restore pools for time passing. Recovery bonuses apply when their trigger is true right now."""
     if in_combat or minutes <= 0:
         return
@@ -152,6 +156,9 @@ def recover(c: Character, minutes: int, in_combat: bool = False, conditions: set
             if "at_night" in triggers and mechanic(c, "night_bound") is not None:
                 pool_speed *= 2
         gained = top * RULES.regen_per_hour[pool] * pool_speed * minutes / 60
+        if pool == "health" and rest:
+            from engine import needs
+            gained += top * rest * needs.penalties(c)["rest_heal"] * pool_speed * minutes / 60
         setattr(c, pool, min(float(top), current(c, pool) + gained))
 
 

@@ -47,7 +47,7 @@ class WorkActions:
         pay = round(max(fair * (1 - W["wage_spread"]), min(fair * (1 + W["wage_spread"]), offer.pay or fair)))
         npc.work_offer = {"task": offer.task.strip(), "pay": max(1, pay), "minutes": minutes}
         self.store.save_npc(npc)
-        console.note(f"Work offered: {offer.task.strip()} - {money.words(pay)}, about "
+        console.debug(f"Work offered: {offer.task.strip()} - {money.words(pay)}, about "
                      f"{clock.describe_duration(minutes)}.")
 
     def worker_for(self, intent):
@@ -63,7 +63,7 @@ class WorkActions:
         if npc and npc.work_offer:
             job = npc.work_offer
             tending = self.owns("tireless_tending")
-            self.advance(job["minutes"] // 2 if tending else job["minutes"])
+            self.advance(job["minutes"] // 2 if tending else job["minutes"], exert=True)
             spend = 0 if tending else pools.maximum(c, "stamina") * W["stamina_per_hour"] / 100 * job["minutes"] / 60
             c.stamina = max(0, pools.current(c, "stamina") - spend)
             job["pay"] = round(job["pay"] * (1 + (pools.mechanic(c, "good_employer") or 0) / 100))
@@ -84,7 +84,7 @@ class WorkActions:
             return
         tending = self.owns("tireless_tending")
         minutes = 30 if tending else 60
-        self.advance(minutes)
+        self.advance(minutes, exert=True)
         if not tending:
             c.stamina = max(0, pools.current(c, "stamina") - pools.maximum(c, "stamina") * W["stamina_per_hour"] / 100)
         if npc:
@@ -130,7 +130,7 @@ class WorkActions:
                 found.append(items.make_raw("bone"))
         state.carcasses = []
         self.store.save_place(state)
-        self.advance(W["skin_minutes"] * bodies)
+        self.advance(W["skin_minutes"] * bodies, exert=True)
         crafting.raise_skill(c, 0.3 * bodies)
         for item in found:
             self.to_pack(item)

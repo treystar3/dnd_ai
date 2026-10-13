@@ -49,6 +49,7 @@ class Move(BaseModel):
     buff: str = ""                 # bulwark, thorns or mend (effect buff)
     buff_stat: str = ""
     command: str = ""
+    channel: bool = False          # a mana strike through the wielded weapon
     uses: int = 0                  # a relic power: how many times a fight (0 = no limit)
     text: str = ""                 # a relic power: what it does, in words (for the ability list)
     relic: dict = {}               # a relic power: its kind and numbers (engine/relics.py)
@@ -94,11 +95,15 @@ class Fighter(BaseModel):
     temperament: str = "aggressive"
     armor_pierce: float = 0
     crit_resist: float = 0
-    magic_power: float = 0
+    offhand_spell: float = 0              # an off-hand focus's spell power
+    spell_mult: float = 1.0               # while a spell is cast: 1 + its casting attribute / spell_attribute
     adaptive: bool = False
     legendary: dict[str, float] = {}     # legendary effect id -> value
     slays: dict[str, float] = {}         # creature category -> bonus % (dragonslayer etc.)
     ally_role: str = ""                   # a hired party member's role (priests heal)
+    spell_parts: list = []                # while a spell is cast: [[label, value]] making up its weapon_damage, for the hit breakdown
+    spell_kind: str = ""                  # "spell" or "channel" while one is cast
+    weary: float = 0                      # hunger and fatigue: percent change to all damage dealt (negative)
     tether: int = 0                       # Soul Tether: a killing blow is survived once, at this percent of max health
     spirit_role: str = ""                 # a summoned spirit's role: rogue, healer, support (striker and guardian just fight)
     spirit_tier: str = ""
@@ -123,6 +128,10 @@ class Fighter(BaseModel):
     buffs: dict[str, dict] = {}          # timed effects from relic powers: {id: {rounds, mech, drain, collapse}}
     relic_uses: dict[str, int] = {}      # how many times each relic power has been used this fight
     boss: dict = {}                      # set-piece boss state: legendary actions and resistance, phases (engine/bosses.py)
+    family: str = ""                      # a creature's family (data/world/families.yaml): how it fights
+    behaviors: dict[str, float] = {}     # that family's behaviours (engine/behaviors.py)
+    surrendered: bool = False            # yielded rather than fled: it can be taken prisoner
+    talked: bool = False                 # spoken to once this fight, for good or ill (engine/parley.py)
 
     @property
     def alive(self) -> bool:
@@ -273,14 +282,17 @@ def fighter_from_character(c: Character) -> Fighter:
     armor = ward = 0.0
     penalty = 0
     weights = items.RULES["weight_classes"]
-    flags = {"armor_pierce": 0.0, "crit_resist": 0.0, "magic_power": 0.0, "adaptive": False}
+    flags = {"armor_pierce": 0.0, "crit_resist": 0.0, "adaptive": False}
+    offhand_spell = 0.0
     for item in c.equipment.values():
         b = items.base_of(item)
         f = items.flags(item)
         flags["armor_pierce"] += f.get("armor_pierce", 0)
         flags["crit_resist"] += f.get("crit_resist", 0)
-        flags["magic_power"] += f.get("magic_power", 0)
         flags["adaptive"] = flags["adaptive"] or bool(f.get("adaptive"))
+        if b.is_offhand_focus:
+            offhand_spell += items.value(item)
+            continue
         if b.is_weapon:
             continue
         v = items.value(item)
@@ -338,7 +350,7 @@ def fighter_from_character(c: Character) -> Fighter:
                                          "intelligence")
     moves = [Move(id=a.id, name=a.name, effect=a.effect.value, tier=a.tier.value, reach=a.reach.value,
                   resource=a.resource.value, cooldown=a.cooldown,
-                  rider=a.rider, shape=a.shape, buff=a.buff, buff_stat=a.buff_stat, command=a.command,
+                  rider=a.rider, shape=a.shape, buff=a.buff, buff_stat=a.buff_stat, command=a.command, channel=a.channel,
                   attribute=a.attribute or (legacy if a.resource.value == "mana" else ""),
                   element=elements.of_text(f"{a.name} {a.description}")) for a in c.actives] + relics
     if weapon:
@@ -348,6 +360,7 @@ def fighter_from_character(c: Character) -> Fighter:
             reach = "extended"
     else:
         wname, wdmg, wattrs, reach, dtype = "fists", RULES["damage"]["unarmed"], ["strength"], "melee", "physical"
+    from engine import needs
     return Fighter(
         id="player", name=c.name, side="player", level=c.level, attrs=attrs,
         hp=pools.current(c, "health"), max_hp=pools.maximum(c, "health"),
@@ -357,8 +370,9 @@ def fighter_from_character(c: Character) -> Fighter:
         armor=armor, ward=ward + attrs["wisdom"] * RULES["mitigation"]["wisdom_ward"],
         evasion_penalty=penalty, bonuses=bonuses, moves=moves,
         armor_pierce=min(90, flags["armor_pierce"]), crit_resist=min(90, flags["crit_resist"]),
-        magic_power=flags["magic_power"], adaptive=flags["adaptive"],
+        offhand_spell=offhand_spell, adaptive=flags["adaptive"],
         legendary=legendary, slays=slays, wards=wards, conditional=conditional, breath=bool(getattr(c, 'orenna_breath', False)),
+        weary=needs.penalties(c)["damage"],
     )
 
 
@@ -450,7 +464,7 @@ def fighter_from_creature(creature, level: int, rank: str, fid: str, name: str =
             (soft["full_by_level"] - level) / (soft["full_by_level"] - soft["soft_until_level"])
         dmg *= 1 - (1 - soft["factor"]) * eased
     attack = next((a for a in creature.attacks), "strike")
-    return Fighter(
+    fighter = Fighter(
         id=fid, name=name or creature.name.lower(), side="enemy", level=level, size=creature.size,
         category=creature.category, creature=creature.id, rank=rank, attrs=attrs, hp=max_hp, max_hp=max_hp,
         weapon_name=attack.lower(), weapon_damage=dmg, element=elements.of_creature(creature),
@@ -460,6 +474,10 @@ def fighter_from_creature(creature, level: int, rank: str, fid: str, name: str =
         ward=(2 if magical else 0) * growth(level) + attrs["wisdom"] * RULES["mitigation"]["wisdom_ward"],
         band=band, temperament=creature.temperament,
     )
+    if late_flag:
+        from engine import behaviors
+        behaviors.apply(fighter, creature)
+    return fighter
 
 
 def companion_fighter(shape, level: int, fid: str, name: str, spirit: tuple[str, str] | None = None, gift: bool = False) -> Fighter:
@@ -592,11 +610,7 @@ def hit_chance(att: Fighter, dfn: Fighter, combat: Combat) -> float:
 def roll_attack(att: Fighter, dfn: Fighter, combat: Combat, rng: random.Random, trace: dict | None = None) -> tuple[str, float]:
     """Returns (outcome, chance). outcome: miss | graze | hit | crit."""
     chance = hit_chance(att, dfn, combat)
-    r = rng.uniform(0, 100)
-    if trace is not None:
-        trace["chance"], trace["roll"] = round(chance, 1), round(r, 1)
-    if r >= chance:
-        return "miss", chance
+    r = rng.uniform(0, 100)                         # high is good: a hit needs a roll of (100 - chance) or more, a crit lands in the top of the range
     c = RULES["crit"]
     dex_a, dex_d = att.attrs.get("dexterity", 10), dfn.attrs.get("dexterity", 10)
     crit = c["base"] + c["dexterity_spread"] * max(0, dex_a - dex_d) / max(1, dex_a + dex_d)
@@ -604,11 +618,23 @@ def roll_attack(att: Fighter, dfn: Fighter, combat: Combat, rng: random.Random, 
     crit += bonus(att, "crit_chance", {"always"})
     crit = min(c.get("max", 50), crit)
     crit *= 1 - dfn.crit_resist / 100
-    if r < crit:
+    if trace is not None:
+        trace.update(chance=round(chance, 1), roll=round(r, 1), need=round(100 - chance, 1), crit=round(crit, 1), crit_need=round(100 - crit, 1))
+    if r < 100 - chance:
+        return "miss", chance
+    if r >= 100 - crit:
         return "crit", chance
-    if r >= chance - RULES["hit"]["graze_band"]:
+    if r < 100 - chance + RULES["hit"]["graze_band"]:
         return "graze", chance
     return "hit", chance
+
+
+def crit_profile(f: Fighter) -> dict:
+    """The fighter's crit numbers for display: chance against an equal-Dexterity target, the most Dexterity can add, and the damage multiplier."""
+    c = RULES["crit"]
+    plain = c["base"] + mechanics(f, None, None).get("killer_instinct", 0) + bonus(f, "crit_chance", {"always"})
+    top = c.get("max", 50)
+    return {"chance": min(top, plain), "most": min(top, plain + c["dexterity_spread"]), "multiplier": crit_multiplier(f), "cap": top}
 
 
 def crit_multiplier(att: Fighter) -> float:
@@ -619,13 +645,17 @@ def crit_multiplier(att: Fighter) -> float:
 def raw_damage(att: Fighter, multiplier: float, triggers: set[str], rng: random.Random, steady: bool = False,
                trace: dict | None = None) -> float:
     d = RULES["damage"]
-    flat = flat_bonus(att, "damage", triggers)
-    base = att.weapon_damage + att.best_attr(att.weapon_attrs) * d["attribute_bonus"] + flat
+    spell = att.spell_kind == "spell"                    # a spell: (spell base + spell power) x its casting attribute, no flat attribute bonus
+    flat = 0.0 if spell else flat_bonus(att, "damage", triggers)
+    attr_bonus = 0.0 if spell else att.best_attr(att.weapon_attrs) * d["attribute_bonus"]
+    base = att.weapon_damage + attr_bonus + flat
     variance = 1.0 if steady else rng.uniform(1 - d["variance"], 1 + d["variance"])
-    magic = 1 + att.magic_power / 100 if att.damage_type == "magical" or att.adaptive else 1
+    magic = att.spell_mult if spell else 1.0
     pct = bonus(att, "damage", triggers)
     if trace is not None:
-        trace.update(weapon=round(att.weapon_damage, 1), attr=att.best_attr(att.weapon_attrs), attr_bonus=round(att.best_attr(att.weapon_attrs) * d["attribute_bonus"], 1),
+        if att.spell_kind:
+            trace.update(kind=att.spell_kind, parts=[[n, round(v, 1)] for n, v in att.spell_parts])
+        trace.update(weapon=round(att.weapon_damage, 1), attr=att.best_attr(att.weapon_attrs), attr_bonus=round(attr_bonus, 1), spell_mult=round(att.spell_mult, 3),
                      flat=round(flat, 1), base=round(base, 1), pct=round(pct, 1), variance=round(variance, 3), magic=round(magic, 3),
                      multiplier=round(multiplier, 3), total=round(base * multiplier * (1 + pct / 100) * variance * magic, 1))
     return base * multiplier * (1 + pct / 100) * variance * magic
@@ -831,6 +861,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
         if "press" in A:
             multiplier *= 1 + A["press"] / 100
     dfn.attacked_since_turn = True
+    if att.weary:
+        multiplier *= 1 + att.weary / 100
     if "phantom" in D and rng.uniform(0, 100) < D["phantom"]:
         combat.log.append(f"{att.name} {label} {dfn.name}: passes through them like smoke (Phantom)")
         if rec is not None:
@@ -844,7 +876,8 @@ def apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float, 
     roll_info: dict = {}
     outcome, chance = roll_attack(att, dfn, combat, rng, trace=roll_info)
     if rec is not None:
-        rec.update(chance=roll_info.get("chance", round(chance, 1)), roll=roll_info.get("roll", 0.0))
+        rec.update(chance=roll_info.get("chance", round(chance, 1)), roll=roll_info.get("roll", 0.0), need=roll_info.get("need", 0.0),
+                   crit=roll_info.get("crit", 0.0), crit_need=roll_info.get("crit_need", 100.0))
     if "first_blood" in A and not att.first_blood_used:
         att.first_blood_used = True
         outcome = "crit"
@@ -1152,6 +1185,8 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         cost *= 1 - min(90, unburdened) / 100
     if move.shape == "overcharge":
         cost *= AT.SHAPES["overcharge"]["cost"]
+    if move.channel:
+        cost *= RULES["channel"]["cost"]
     if move.effect == "buff":
         cost *= AT.T["buff_cost"]
     return max(1, math.ceil(cost))
@@ -1360,13 +1395,24 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
 
     if move.effect == "damage":
         spell = move.resource == "mana"
-        saved = (att.weapon_attrs, att.damage_type, att.weapon_damage)
+        saved = (att.weapon_attrs, att.damage_type, att.weapon_damage, att.adaptive)
         att.hit_element = move.element
         if spell:
-            att.weapon_attrs = [move.attribute or "intelligence"]
-            focus = att.weapon_damage if att.damage_type == "magical" else 0
+            cast_attr = move.attribute or "intelligence"
+            att.spell_mult = 1 + att.attrs.get(cast_attr, 10) / RULES["spell_attribute"]
+            gear_power = att.offhand_spell + flat_bonus(att, "spell_power", {"always"})
+        if spell and move.channel and att.damage_type == "physical" and att.reach in ("melee", "extended"):
+            bonus_part = RULES["channel"]["bonus"] * (RULES["spell_base_damage"] * growth(att.level) + gear_power) * att.spell_mult
+            att.spell_kind, att.spell_parts = "channel", [["weapon", att.weapon_damage], ["spell", bonus_part]]
+            att.weapon_damage += bonus_part
+            att.adaptive = True                              # struck as physical or magic, whichever the target resists less
+        elif spell:
+            att.weapon_attrs = [cast_attr]
+            focus = (att.weapon_damage if att.damage_type == "magical" else 0) + gear_power
             att.damage_type = "magical"
-            att.weapon_damage = max(focus, RULES["spell_base_damage"] * growth(att.level))
+            base_part = RULES["spell_base_damage"] * growth(att.level)
+            att.spell_kind, att.spell_parts = "spell", [["spell base", base_part]] + ([["spell power", focus]] if focus else [])
+            att.weapon_damage = focus + base_part
         targets = enemies if move.reach == "area" else [target] if target else enemies[:1]
         if move.rider == "seeker" and move.reach != "area" and enemies:
             targets = [min(enemies, key=lambda e: e.hp / max(1, e.max_hp))]
@@ -1409,7 +1455,8 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
                 att.legendary["wardbreaker"] = held_wb
             else:
                 att.legendary.pop("wardbreaker", None)
-        att.weapon_attrs, att.damage_type, att.weapon_damage = saved
+        att.weapon_attrs, att.damage_type, att.weapon_damage, att.adaptive = saved
+        att.spell_kind, att.spell_parts, att.spell_mult = "", [], 1.0
         att.hit_element = ""
     elif move.effect in ("control", "influence"):
         t = target or (enemies[0] if enemies else None)
@@ -1691,12 +1738,26 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         combat.log.append(f"{e.name} hangs back, afraid")
         tell(combat, f"{who(e)} hangs back, afraid to come closer")
         return
+    from engine import behaviors
+    if behaviors.pre_turn(combat, e, target, rng):
+        behaviors.after_turn(combat, e, rng)
+        return
+    mult, why = behaviors.attack_mult(combat, e, target)
     if not in_reach(e, target):
         step_closer(e)
         combat.log.append(f"{e.name} closes in")
         tell(combat, f"{who(e)} closes in")
+        if not (behaviors.closes_and_strikes(e) and in_reach(e, target)):
+            return
+        mult *= behaviors.charge_bonus(e)
+        tell(combat, f"{who(e)} does not slow, and strikes as it arrives")
+    if behaviors.sweeps(combat, e, rng):
         return
-    apply_damage(combat, e, target, 1.0, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+    if why:
+        tell(combat, f"{who(e)} " + ", ".join(why))
+    landed = apply_damage(combat, e, target, mult, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+    behaviors.after_hit(combat, e, target, landed, rng)
+    behaviors.after_turn(combat, e, rng)
     if e.boss and e.alive and combat.player.alive:
         from engine import bosses
         bosses.own_turn(combat, e, target if target.alive else combat.player, rng)

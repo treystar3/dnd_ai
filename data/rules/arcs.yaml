@@ -73,6 +73,8 @@ prisoner:
   trust_start: 35
   gate_trust: 65                        # trust at which they talk without being pressed
   gate_checks: [persuasion, intimidation, deception]
+  turn_in: {coin_per_level: 12}         # copper per level of the prisoner, paid by the watch when you hand one over (a posted bounty on that creature counts too)
+  escort_slip_hours: 0                  # (reserved)
   deal_words: ["spare you", "let you go", "let you live", "won't kill", "wont kill", "will not kill", "you'll live", "you will live",
                "set you free", "free you", "release you", "walk away", "no harm"]
   names: [Dorn, Kell, Marek, Sorin, Vask, Tobren, Hale, Garrick, Brannoc, Ferrow, Jessk, Orlen, Ruddick, Skarn, Teague, Wynn]

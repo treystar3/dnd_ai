@@ -8,6 +8,8 @@ import ui.console as uc
 NOTES = []
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
 from core.models import Companion
+from engine import needs
+needs.N.update(hunger_per_hour=0, fatigue_per_hour=0, fight={'hunger': 0, 'fatigue': 0})     # this test jumps days at a time; hunger is tested in needs_test
 from engine import field, dungeons, inventory as inv, checks, combat, abilities
 from engine import ability_traits as AT
 from llm.contracts import ActionIntent, ActiveProposal
@@ -119,6 +121,7 @@ def use(fn, target="", text=None):
     ab = next(a for a in ws.player.character.actives if a.field_use == fn)
     ws.fld.get("cd", {}).pop(ab.id, None)
     ws.player.character.stamina = ws.player.character.mana = 10**6
+    ws.player.character.hunger = ws.player.character.fatigue = 0.0
     ws.halted = False
     ws.on_ability(ActionIntent(kind="ability", ability=ab.id, target=target), text or f"I use {ab.name}")
     return list(NOTES)

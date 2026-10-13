@@ -172,3 +172,23 @@ button.locked:disabled { opacity: .25; }
 #updtext { color: var(--dim); font-size: 13px; min-height: 18px; }
 #updbtns { display: flex; gap: 10px; margin-top: 16px; }
 #updbtns button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+.renamebox { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.renamebox .jsearch { margin: 0; flex: 1; }
+.party .slotname { margin-left: 10px; }
+.mapsvg { width: 100%; height: 520px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; touch-action: none; cursor: grab; }
+.mapsvg .mapedge { stroke: var(--dim, #8a7f6e); stroke-width: 1.4; opacity: 0.8; }
+.mapsvg .mapedge.dim { stroke-dasharray: 4 4; opacity: 0.45; }
+.mapsvg .dot { fill: var(--accent, #8a5a14); stroke: var(--bg, #fff); stroke-width: 1.5; }
+.mapsvg .mapnode.heard .dot { fill: var(--dim, #8a7f6e); opacity: 0.55; }
+.mapsvg .mapnode.here .dot { fill: #b3261e; }
+.mapsvg .pulse { fill: none; stroke: #b3261e; stroke-width: 2; opacity: 0.6; }
+.mapsvg .lbl { font-size: 11px; fill: var(--ink, #222); paint-order: stroke; stroke: var(--panel2, #fff); stroke-width: 3px; pointer-events: none; }
+.mapsvg .mapnode.heard .lbl { opacity: 0.6; font-style: italic; }
+.prow.heard .pn { opacity: 0.8; font-style: italic; }
+.pulsebar { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+.pulsebar button { font-size: 11px; padding: 2px 8px; }
+.pulsebar button.on { background: var(--accent); color: var(--bg); }
+.prow.pulse.quiet { opacity: 0.5; }
+.peff { font-size: 12px; margin-left: 8px; }
+.peff.ok { color: var(--dim); }
+.peff.no { color: #b3261e; }

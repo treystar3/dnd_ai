@@ -81,6 +81,12 @@ deeds:
     carriers: [guards, outlaws]
     text: "{who} drove off the outlaws at {item} near {place}."
     twisted: "They say {who} slaughtered every last outlaw at {item} near {place}."
+  prisoner_handed_over:
+    public: true
+    deltas: {guards: 3, merchants: 1, outlaws: -3}
+    carriers: [guards]
+    text: "{who} brought {item} to the watch in {place}."
+    twisted: "They say {who} dragged {item} to the watch in {place} in chains."
 
 # A tithe left in a temple's box counts for more the more is given: its weight is
 # base + per_doubling for each doubling of min_gold, up to cap. Less than min_gold buys nothing but a blessing.

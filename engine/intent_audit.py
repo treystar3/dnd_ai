@@ -28,7 +28,7 @@ VERB_KINDS: dict[str, tuple[str, ...]] = {
     "discard": ("discard", "drop"), "cast": ("ability",), "join": ("join_guild", "accept_quest", "board"),
     "register": ("join_guild",), "train": ("train", "learn_ability"), "learn": ("learn_ability", "train"),
     "sleep": ("wait", "buy"), "rest": ("wait", "buy"), "wait": ("wait",), "board": ("board", "move"),
-    "abandon": ("abandon_quest",), "release": ("release",),
+    "abandon": ("abandon_quest",), "release": ("release",), "arrest": ("hand_over",), "surrender": ("hand_over",),
 }
 # thefts and acts of force the plan might not show (words come from data/rules/law.yaml)
 from engine import law as _law

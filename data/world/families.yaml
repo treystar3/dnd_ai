@@ -1,0 +1,247 @@
+# CREATURE FAMILIES - how a kind of creature fights. Every creature in bestiary.yaml names one (family:).
+# The engine owns the numbers; the narrator only describes what happened (engine/behaviors.py).
+#
+# text:       one line the narrator is told about how this family fights
+# power:      damage multiplier tuned so the family's tricks leave its fights about as hard as before (tools/calibrate_families.py)
+# talk:       false - cannot be reasoned with at all, whatever its category (default: the category decides, combat.yaml talk.categories)
+# legendary:  mechanics from the gear system, used here as natural weapons and traits
+#             rending: % chance a hit makes it bleed    frostbite: slows    thunderous: stuns    terrify: frightens    blinding: blinds
+#             regeneration: % of max health back each turn    sanctified: immune to bleeding and fear    unyielding: immune to stun and knockdown
+#             second_wind: heals this % once when low    earthshaker: knocks the target prone
+# behaviors:  (all values are percentages unless noted)
+#   flank N         +N% damage while another enemy is also fighting
+#   pounce N        its first blow of the fight does +N%
+#   charge N        closing the distance, it strikes in the same turn with +N%
+#   dive N          swoops: its first blow, and the first after each withdrawal, does +N%
+#   hover R         ...and every R rounds pulls back out of melee reach after striking (with dive)
+#   breath M E      every E rounds, a blast at everyone against it at M times a normal blow
+#   slam M E        every E rounds, one crushing blow at M times, which may stun
+#   sweep M         every turn it strikes everyone against it at M times a normal blow
+#   surge M E       every E rounds, an empowered strike at M times
+#   venom N         N% chance a hit poisons
+#   grapple N       N% chance a hit seizes
+#   befuddle N      N% chance a hit scatters the target's thoughts
+#   frenzy N        +N% damage against a target below half health
+#   rage N          +N% damage once it is below half health
+#   corrode N       each hit wears N% off the target's armor (to a limit)
+#   drain N         each hit drains N% of the target's stamina
+#   keep_range 1    steps back after striking if you are on top of it
+#   defend_low S    below S of its health it sometimes guards instead of striking
+#   use_item S      below S of its health it sometimes drinks a healing draught (once)
+#   flee_low S      below S of its health it sometimes bolts
+#   surrender S     below S of its health it sometimes yields (people can then be taken prisoner)
+#   fearless 1      never flees, yields or breaks, whatever happens to its friends
+
+families:
+  pack_hunter:
+    text: hunts in a pack - they circle, close together on one target, and break off once badly hurt
+    power: 0.939
+    legendary: {rending: 12}
+    behaviors: {flank: 15, flee_low: 0.25}
+  predator:
+    text: an ambush hunter - the first strike comes hard and fast, then it mauls
+    power: 0.794
+    legendary: {rending: 10}
+    behaviors: {pounce: 40}
+  brute_beast:
+    text: a heavy charger - it crashes into you the moment it closes
+    power: 0.951
+    behaviors: {charge: 40}
+  prey_animal:
+    text: skittish - it fights only when cornered and bolts as soon as it is hurt
+    power: 1.15
+    behaviors: {flee_low: 0.45}
+  venomous:
+    text: bites and stings to poison; the toxin works while the fight goes on
+    power: 0.84
+    behaviors: {venom: 22}
+  serpent:
+    text: coils and strikes - it seizes its prey and poisons it
+    power: 1.041
+    behaviors: {venom: 20, grapple: 20}
+  raptor:
+    text: strikes from the air in dives, then wheels back out of reach
+    power: 0.821
+    behaviors: {dive: 25, hover: 5}
+  stinging_flyer:
+    text: darts in with a venomous sting and darts away again
+    power: 0.7
+    behaviors: {dive: 15, hover: 5, venom: 15}
+  winged_drake:
+    text: dives from above with a poisoned tail, then climbs out of reach to dive again
+    power: 0.836
+    behaviors: {dive: 30, hover: 5, venom: 15}
+  aquatic_predator:
+    text: a hunter of blood and weakness - it presses harder the more hurt you are
+    power: 0.915
+    legendary: {rending: 5}
+    behaviors: {frenzy: 20}
+  sea_horror:
+    text: huge and grasping - tentacles and coils seize and crush
+    power: 1.041
+    behaviors: {grapple: 35, frenzy: 25}
+  hydra:
+    text: many heads, relentless - it heals as it fights and strikes harder when hurt
+    power: 0.867
+    legendary: {regeneration: 1.5}
+    behaviors: {rage: 15}
+  gazer:
+    text: its gaze and bite slow and lock the limbs
+    power: 0.761
+    legendary: {frostbite: 15, thunderous: 8}
+  burrower:
+    text: erupts from the ground - the first strike is a surprise, the rest a grinding crush
+    power: 0.93
+    behaviors: {pounce: 60, grapple: 20}
+  dragon:
+    text: a true dragon - terror precedes it and every few rounds it unleashes its breath on everyone
+    power: 0.985
+    legendary: {terrify: 15}
+    behaviors: {breath: 1.3, breath_every: 3}
+  drake:
+    text: a lesser dragon-kin - it breathes now and then, weaker than a true dragon
+    power: 0.98
+    behaviors: {breath: 1.1, breath_every: 4}
+  giant:
+    text: a towering brute - slow, heavy blows, and every few rounds a crushing blow that can stun
+    power: 0.885
+    legendary: {thunderous: 8}
+    behaviors: {slam: 1.4, slam_every: 4}
+  troll:
+    text: regenerates relentlessly and grows savage as it is wounded
+    power: 0.8
+    legendary: {regeneration: 1.5}
+    behaviors: {rage: 10}
+  undead_shambler:
+    text: mindless and relentless - it never flees and shrugs off fear and bleeding
+    power: 0.985
+    legendary: {sanctified: 1}
+    behaviors: {fearless: 1}
+  undead_spectral:
+    text: a drifting horror - chills the blood, saps strength with every touch, and cannot be frightened
+    power: 0.812
+    legendary: {sanctified: 1, terrify: 20}
+    behaviors: {fearless: 1, drain: 6}
+  undead_lord:
+    text: a dread ruler of the dead - terrible to face, it drains the strength from you, and it rises once more when struck down
+    power: 0.7
+    legendary: {sanctified: 1, terrify: 10, second_wind: 10}
+    behaviors: {fearless: 1, drain: 5}
+  construct:
+    text: tireless and unfeeling - nothing stuns it, it feels no fear, and it brings its weight down every few rounds
+    power: 0.863
+    legendary: {unyielding: 1, sanctified: 1}
+    behaviors: {fearless: 1, slam: 1.2, slam_every: 4}
+  construct_light:
+    text: a small animated thing - unfeeling and untiring
+    power: 0.981
+    legendary: {unyielding: 1, sanctified: 1}
+    behaviors: {fearless: 1}
+  ooze:
+    text: a creeping mass - it eats away at armor with every touch
+    power: 0.928
+    legendary: {sanctified: 1}
+    behaviors: {fearless: 1, corrode: 8}
+  plant:
+    text: rooted and grasping - vines seize anything within reach
+    power: 0.93
+    behaviors: {grapple: 30, fearless: 1}
+  plant_titan:
+    text: an ancient, enormous growth - it mends itself and brings down heavy blows
+    power: 0.808
+    legendary: {regeneration: 1}
+    behaviors: {slam: 1.3, slam_every: 4, fearless: 1}
+  fungus:
+    text: a bloom of spores - its touch poisons and it does not flee
+    power: 0.836
+    behaviors: {venom: 25, fearless: 1}
+  elemental:
+    text: a raw force given shape - every few rounds it surges, and it does not flinch
+    power: 0.935
+    behaviors: {surge: 1.3, surge_every: 4, fearless: 1}
+  genie:
+    text: a proud spirit of the elements - it fights from a distance and unleashes surges of power
+    power: 0.831
+    behaviors: {surge: 1.3, surge_every: 4, keep_range: 1}
+  imp:
+    text: a nasty little pest - it stings with poison and darts away when hurt
+    power: 1.088
+    behaviors: {venom: 30, flee_low: 0.3}
+  devil:
+    text: a cold, disciplined tormentor of the lower planes - it instils fear and grows savage as it is wounded
+    power: 0.788
+    legendary: {terrify: 20}
+    behaviors: {rage: 20}
+  demon:
+    text: pure savagery - claws that open wounds, a fury that grows as it is hurt
+    power: 0.824
+    legendary: {rending: 10, terrify: 8}
+    behaviors: {rage: 20}
+  fey_trickster:
+    text: a trickster of the wild - it scatters your thoughts with its charms and slips away when hurt
+    power: 1.15
+    behaviors: {befuddle: 20, flee_low: 0.3}
+  hag:
+    text: a cunning, cruel witch - she curses, confuses and keeps her distance
+    power: 0.7
+    legendary: {terrify: 15}
+    behaviors: {befuddle: 15, keep_range: 1}
+  celestial:
+    text: a being of light - it mends itself once when hard pressed
+    power: 0.725
+    legendary: {second_wind: 25}
+  aberration:
+    text: wrong in ways the eye refuses - its strikes can leave you reeling
+    power: 0.836
+    legendary: {thunderous: 10}
+  mind_flayer:
+    text: a mind-eater - psychic blows stun and terrify, and it fights from a distance
+    power: 0.7
+    legendary: {thunderous: 8, terrify: 5}
+    behaviors: {keep_range: 1}
+  swarm:
+    text: a seething mass - it swarms over everyone at once and never breaks
+    power: 1.137
+    behaviors: {sweep: 0.9, fearless: 1}
+  raider:
+    text: a raider - fights in numbers, wears you down together, and yields when badly beaten
+    power: 1.12
+    behaviors: {flank: 15, surrender: 0.3}
+  outlaw:
+    text: a hard, practical fighter - guards when hurt, drinks a draught if it has one, and gives up when it is losing
+    power: 1.15
+    behaviors: {surrender: 0.3, use_item: 0.4, defend_low: 0.35}
+  brawler:
+    text: a savage brawler - the more it bleeds the harder it hits
+    power: 1.026
+    behaviors: {rage: 35, surrender: 0.2}
+  zealot:
+    text: a fanatic - it fights harder when hurt and will not yield
+    power: 0.919
+    behaviors: {rage: 30, fearless: 1}
+  warband:
+    text: a trained fighter in a warband - fights together, guards when hurt, yields only when it must
+    power: 1.15
+    behaviors: {flank: 20, defend_low: 0.3, surrender: 0.2}
+  civilian:
+    text: no fighter - frightened, it yields at the first real hurt
+    power: 1.15
+    behaviors: {surrender: 0.6}
+  soldier:
+    text: a trained soldier - holds a guard, drinks a draught if it has one, and yields only when beaten
+    power: 1.105
+    behaviors: {defend_low: 0.4, use_item: 0.35, surrender: 0.15}
+  duelist:
+    text: a quick, cruel fighter - the opening blow is lethal, then it cuts at you
+    power: 0.775
+    legendary: {rending: 20}
+    behaviors: {pounce: 60, surrender: 0.25}
+  caster:
+    text: a spellcaster - stays back, heals itself, and yields if it is cornered
+    power: 0.994
+    behaviors: {keep_range: 1, use_item: 0.4, surrender: 0.25}
+  lycanthrope:
+    text: a savage shapeshifter - it tears at the wounded and does not stop
+    power: 0.751
+    legendary: {rending: 20}
+    behaviors: {frenzy: 30, fearless: 1}

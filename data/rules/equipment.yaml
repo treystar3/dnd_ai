@@ -15,7 +15,7 @@ equip_level_margin: 10
 # own level, so a higher-level piece gives more: max health/stamina/mana take the pool of a typical character of that level, damage takes
 # a typical weapon's damage, and defense takes a typical blow (damage_ref x defense_hit) and takes that much off every hit.
 flat_gear:
-  stats: [damage, defense, max_health, max_stamina, max_mana, strength, dexterity, constitution, intelligence, wisdom, charisma,
+  stats: [damage, spell_power, defense, max_health, max_stamina, max_mana, strength, dexterity, constitution, intelligence, wisdom, charisma,
           fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
   attribute: {start: 15, per_level: 3}
   damage_ref: 8
@@ -31,12 +31,13 @@ roll_lists:
     melee:   [damage, accuracy, max_stamina, max_health, resolve, recovery, strength, crit_chance, crit_damage, elemental_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]
     finesse: [damage, accuracy, evasion, stealth, movement, max_stamina, dexterity, crit_chance, crit_damage, elemental_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]
     ranged:  [damage, accuracy, stealth, movement, max_stamina, evasion, dexterity, crit_chance, crit_damage, elemental_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]
-    focus:   [max_mana, damage, accuracy, resolve, recovery, own_attribute, crit_chance, crit_damage, elemental_damage, companion_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]        # own_attribute: the attribute the weapon casts with
+    focus:   [spell_power, max_mana, damage, accuracy, resolve, recovery, own_attribute, crit_chance, crit_damage, elemental_damage, companion_damage, vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]        # own_attribute: the attribute the weapon casts with
+    offfocus: [spell_power, max_mana, resolve, recovery, own_attribute, crit_chance, crit_damage, elemental_damage, companion_damage]
   armor:
     heavy:   [defense, max_health, resolve, max_stamina, recovery, strength, constitution, physical_resistance, elemental_resistance, all_elemental_resistance]
     medium:  [defense, max_health, max_stamina, evasion, resolve, recovery, movement, constitution, dexterity, physical_resistance, elemental_resistance]
     light:   [evasion, stealth, movement, max_stamina, defense, recovery, dexterity, wisdom, elemental_resistance]
-    cloth:   [max_mana, resolve, recovery, evasion, defense, stealth, intelligence, wisdom, charisma, magical_resistance, elemental_resistance, companion_durability]
+    cloth:   [spell_power, max_mana, resolve, recovery, evasion, defense, stealth, intelligence, wisdom, charisma, magical_resistance, elemental_resistance, companion_durability]
     shield:  [defense, resolve, max_health, max_stamina, recovery, strength, constitution, physical_resistance, magical_resistance,
               elemental_resistance, all_elemental_resistance]
   slot_extra:
@@ -55,6 +56,7 @@ gear_only_stats:
                acid_resistance, necrotic_resistance, radiant_resistance, all_elemental_resistance]
   elemental_damage: [fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
   crit: [crit_chance, crit_damage]
+  spell: [spell_power]
   onhit: [vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]    # weapons only: what a hit does besides damage
 random_element: {elemental_resistance: resistance, elemental_damage: elemental_damage}
 
@@ -87,3 +89,6 @@ weight_classes:
 # What a new character wakes with.
 starting_coins: {silver: 10}
 starting_rarity: crude
+
+# Spell power rolled on anything but a focus is scaled down to this share (a wand, staff, orb or tome is where it mainly comes from).
+spell_power_gear_share: 0.5

@@ -64,6 +64,8 @@ def parts(a) -> list[tuple[str, str]]:
         out.append((SHAPES[a.shape]["label"], shape_text(a.shape)))
     if getattr(a, "rider", ""):
         out.append((RIDERS[a.rider]["label"], rider_text(a.rider, a.tier)))
+    if getattr(a, "channel", False):
+        out.append(("Channeled", "a mana strike through your weapon: its damage plus a spell's, against whichever of armor or ward is weaker (an ordinary spell without a melee weapon in hand); costs 25% more"))
     return out
 
 

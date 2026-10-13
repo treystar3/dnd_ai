@@ -142,6 +142,8 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
         price = max(1, round(price * at.T["buff_cost"]))
     if a.shape == "overcharge":
         price = round(price * at.SHAPES["overcharge"]["cost"])
+    if a.channel:
+        price = round(price * COMBAT["channel"]["cost"])
     head = f"{pad}{index:>2}.  " if index is not None else f"{pad}◆ "
     lines = [f"{head}{a.name}"]
     facts = [f"{a.tier.value} {a.effect.value}", ("on you or allies" if a.effect.value == "buff" else "on yourself") if a.reach.value == "self" else f"{a.reach.value} reach", f"{price} {a.resource.value}"]
@@ -242,6 +244,15 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
     _section("CONDITION")
     for name, now, top in vitals:
         print(f"  {name.capitalize():<8} {_bar(now, top)} {now}/{top}")
+
+    from engine import combat as _combat
+    prof = _combat.crit_profile(_combat.fighter_from_character(c))
+    spread = f"{prof['chance']:g}%" if prof["most"] == prof["chance"] else f"{prof['chance']:g}% (up to {prof['most']:g}% with more Dexterity than your target)"
+    print(f"  Crit     {spread} chance · {prof['multiplier']:g}× damage")
+    from engine import needs as _needs
+    cost = _needs.penalties(c)
+    if cost["checks"] or cost["stamina"] or cost["health"] or cost["damage"]:
+        print(f"  Worn down: {cost['checks']:+.0f} to checks, {cost['stamina']:+.0f}% stamina, {cost['health']:+.0f}% health, {cost['damage']:+.0f}% damage")
 
     _section("ATTRIBUTES")
     gear = stats.gear_attributes(c)
@@ -376,7 +387,7 @@ def show_help() -> None:
     print("  #mount    your mounts and the stable here; #mount <name> to ride one, #mount none to walk")
     print("  #board    the adventurers' guild contract board (at the guild house)")
     print("  #quests   your contracts and requests, progress, deadlines and guild rank")
-    print("  #party    the adventurers travelling with you")
+    print("  #party    your companions and the adventurers travelling with you (#name <companion> = <new name> renames one)")
     print("  #standing how the groups of this town regard you; #rumors what is said of you; #correct <n> sets a false tale straight")
     print("  #dungeon  the floors of the dungeon here, what you've cleared, and when it will be remade")
     print("  #dialogue switch conversations between narrated and plain dialogue")
@@ -421,7 +432,7 @@ def combat_numbers(lines: list[str]) -> None:
 
 def status_block(when: str, weather: str, place_line: str, spot_line: str,
                  vitals: dict[str, tuple[float, int]], level: int, points: int, coins: int,
-                 xp: tuple[int, int] = (0, 0)) -> None:
+                 xp: tuple[int, int] = (0, 0), needs: dict | None = None) -> None:
     hp, mp, sp = vitals["health"], vitals["mana"], vitals["stamina"]
     lines = [
         f"[{when} | {weather} — {place_line}]",

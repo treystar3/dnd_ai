@@ -11,7 +11,7 @@ from engine.party import P
 from llm.contracts import PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import money
+from engine import clock, money
 from ui import console
 
 G = quests.G
@@ -105,11 +105,78 @@ class PartyActions:
     def party_lines(self) -> list[str]:
         return [f"{m['name']} - {m['role']}, level {m['level']}" for m in self.player.party]
 
-    def party_status(self, target: str, text: str, offered: list[dict]) -> None:
-        if not self.player.party:
+    ROLE_NOTE = {"striker": "hits hard", "guardian": "sturdy, hits softly", "rogue": "quick, bleeds what it hits",
+                 "healer": "mends you and your allies", "support": "bolsters your allies' strikes"}
+    NAME_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 '.,!-]{0,23}$")
+
+    def companion_row(self, comp) -> dict:
+        from engine import combat
+        from scenes.combat_scene import CombatScene, _Shape
+        c = self.player.character
+        shape = self.world.bestiary.get(comp.creature) or _Shape(comp)
+        spirit = None if comp.creature in self.world.bestiary else (comp.tier, comp.role)
+        f = combat.companion_fighter(shape, c.level, f"ally_{comp.id}", comp.name, spirit, gift=comp.source == "gift")
+        if comp.dead:
+            state = "Dead - only a revival brings it back"
+        elif comp.fallen:
+            wait = max(0, comp.recover_at - self.minutes)
+            state = "Fallen - back on its feet in " + clock.describe_duration(wait) if wait else "Fallen - ready to rise"
+        else:
+            state = "Ready"
+        role = getattr(comp.role, "value", comp.role) or "striker"
+        return {"id": comp.id, "name": comp.name, "role": role, "note": self.ROLE_NOTE.get(role, ""), "kind": comp.kind or "beast",
+                "level": c.level, "state": state, "ok": comp.active, "hp": round(f.max_hp), "damage": round(f.weapon_damage),
+                "armor": round(f.armor), "ward": round(f.ward), "description": comp.description}
+
+    def party_data(self) -> dict:
+        return {"companions": [self.companion_row(m) for m in self.player.character.companions],
+                "adventurers": [{"name": m["name"], "role": m["role"], "level": m["level"]} for m in self.player.party],
+                "mode": ("moving beside you" if self.player.party_mode == "with" else "holding back, ready to come if there is trouble")
+                        if self.player.party else ""}
+
+    def show_party(self) -> None:
+        data = self.party_data()
+        if console.panel("party", data):
+            return
+        if not data["companions"] and not data["adventurers"]:
             console.note("You have no party.")
             return
-        console.note("Your party: " + "; ".join(self.party_lines()) + f". They are {'moving beside you' if self.player.party_mode == 'with' else 'holding back, ready to come if there is trouble'}.")
+        for m in data["companions"]:
+            console.note(f"  {m['name']} - {m['role']} ({m['kind']}), level {m['level']}: {m['hp']} health, {m['damage']} damage, "
+                         f"{m['armor']} armor, {m['ward']} ward. {m['state']}.")
+        if data["adventurers"]:
+            console.note("Your party: " + "; ".join(self.party_lines()) + f". They are {data['mode']}.")
+        if data["companions"]:
+            console.note("  #name <companion> = <new name>   to rename one")
+
+    def party_status(self, target: str, text: str, offered: list[dict]) -> None:
+        self.show_party()
+
+    def rename_companion(self, text: str) -> None:
+        """#compname <id> <new name> from the pane, or #name <companion> = <new name> from the keyboard."""
+        c = self.player.character
+        raw = text.split(maxsplit=1)[1] if " " in text.strip() else ""
+        if "=" in raw:
+            who, new = (x.strip() for x in raw.split("=", 1))
+            comp = next((m for m in c.companions if m.name.lower() == who.lower() or m.id == who), None) or \
+                next((m for m in c.companions if who and who.lower() in m.name.lower()), None)
+        else:
+            parts = raw.split(maxsplit=1)
+            comp = next((m for m in c.companions if parts and m.id == parts[0]), None)
+            new = parts[1].strip() if len(parts) > 1 else ""
+        if not comp:
+            console.note("You have no such companion. (#name <companion> = <new name>)")
+        elif not self.NAME_OK.match(new):
+            console.note("A name is 1 to 24 letters, numbers, spaces and simple punctuation.")
+        elif any(o is not comp and o.name.lower() == new.lower() for o in c.companions) or \
+                any(m["name"].lower() == new.lower() for m in self.player.party):
+            console.note(f"Someone in your party is already called {new}.")
+        else:
+            old, comp.name = comp.name, new
+            self.store.save_player(self.player)
+            console.note(f"{old} is now called {new}.")
+        with console.scope("#party"):
+            self.show_party()
 
     def party_list(self, target: str, text: str, offered: list[dict]) -> None:
         if not self.party_wanted():

@@ -76,6 +76,8 @@ class Place(BaseModel):
     storage: bool = False
     trade_level: tuple[int, int] = (1, 5)
     stations: dict[str, dict] = {}
+    x: float | None = None    # optional position on the map, 0-1000 (engine/mapview.py draws a true map once places have them)
+    y: float | None = None
     origin: str = ""          # for made-up places: the story of why someone is here, given to the resident generator
 
     @field_validator("connects", mode="before")
@@ -84,6 +86,10 @@ class Place(BaseModel):
         if isinstance(v, list):
             return {place: DEFAULT_CONNECT_MINUTES for place in v}
         return v or {}
+
+
+def _family_ids() -> set[str]:
+    return set(yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
 
 
 class Creature(BaseModel):
@@ -100,6 +106,7 @@ class Creature(BaseModel):
     colonies: bool = False
     unique: bool = False
     roster: bool = True
+    family: str = ""
     attacks: list[str] = []
     profile: dict[str, int] = {}
     source: str = ""
@@ -341,6 +348,8 @@ def _check_references(w: dict, problems: list[str]) -> None:
             problems.append(f"bestiary.yaml {c.id}: levels must be [min, max] with 1 <= min <= max")
         if not 1 <= c.group[0] <= c.group[1]:
             problems.append(f"bestiary.yaml {c.id}: group must be [min, max] with 1 <= min <= max")
+        if c.family not in _family_ids():
+            problems.append(f"bestiary.yaml {c.id}: family '{c.family}' is not in families.yaml")
         if c.roster and not c.unique and not c.biomes:
             problems.append(f"bestiary.yaml {c.id}: no biomes, so it can never appear (set roster: false if intended)")
 

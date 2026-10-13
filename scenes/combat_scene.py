@@ -236,8 +236,11 @@ class CombatScene:
         console.debug(f"combat intent: {intent.model_dump(exclude_defaults=True)}")
         f.log, f.story, f.hits = [], [], []
         target = f.get(intent.target) if intent.target else None
-        if not target or not target.alive or target.side != "enemy":
+        if not target or not target.alive or target.side != "enemy" or target.fled:
             target = min(f.enemies(), key=lambda e: combat.BANDS.index(e.band))
+        if intent.kind == "talk":
+            self.talk(intent, target, text)
+            return
 
         if not combat.start_turn(p, f):
             f.log.append(f"{p.name} is unable to act")
@@ -286,6 +289,24 @@ class CombatScene:
         if not f.over:
             combat.finish_round(f, self.rng)
 
+        self.narrate_round(text)
+        self.sync_player()
+        if f.over:
+            self.finish()
+        else:
+            self.show()
+            self.ws.store.save_combat(self.to_json())
+
+    def talk(self, intent, target, text: str) -> None:
+        """Words are a free action: the fight waits for the player's real move afterwards."""
+        from engine import parley
+        f = self.fight
+        problem = parley.attempt(f, target, intent.approach, self.ws.player.character, self.rng)
+        if problem:
+            console.note(problem)
+            return
+        if not f.enemies() and not combat.muster(f):
+            f.over = "victory"
         self.narrate_round(text)
         self.sync_player()
         if f.over:
@@ -393,6 +414,20 @@ class CombatScene:
         combat.tell(f, f"you use {g.name} ({g.description.lower().rstrip('.')})")
         return None
 
+    def refresh_player(self) -> None:
+        """Attribute points spent in the middle of a fight: bring the fighter's maximums, attributes and defences in line with the character,
+        and add what each maximum gained to the current value (the same rule as outside a fight), so the bars and spell costs agree."""
+        c, p = self.ws.player.character, self.fight.player
+        fresh = combat.fighter_from_character(c)
+        for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
+            gained = getattr(fresh, top) - getattr(p, top)
+            setattr(p, top, getattr(fresh, top))
+            if gained > 0:
+                setattr(p, cur, min(getattr(p, top), getattr(p, cur) + gained))
+        p.attrs = fresh.attrs
+        p.ward, p.armor = fresh.ward, fresh.armor
+        self.sync_player()
+
     def sync_player(self) -> None:
         c, p = self.ws.player.character, self.fight.player
         c.health, c.stamina, c.mana = float(p.hp), float(p.stamina), float(p.mana)
@@ -427,6 +462,8 @@ class CombatScene:
 
     def finish(self) -> None:
         f, ws = self.fight, self.ws
+        from engine import needs
+        needs.fight(ws.player.character)
         ws.store.save_combat(None)
         ws.combat = None
         if f.hits:
@@ -490,11 +527,12 @@ class CombatScene:
     def victory(self) -> None:
         c = self.ws.player.character
         dead = [e for e in self.fight.fighters if e.side == "enemy" and not e.alive]
-        if not dead and self.tamed:
+        yielded = [e for e in self.fight.fighters if e.side == "enemy" and e.alive and e.surrendered]
+        if not dead and not yielded and self.tamed:
             console.note(f"The fight is over. {', '.join(self.tamed)} follows you now.")
             self.sync_player()
             return
-        if not dead:
+        if not dead and not yielded:
             if getattr(self.ws, "orenna_fight", None) != "executioner":
                 console.note("They got away - nothing to show for it this time.")
             self.sync_player()
@@ -508,6 +546,7 @@ class CombatScene:
         total_xp = round(sum(leveling.kill_xp(c.level, e.level, e.rank)
                              * (pack_xp if self.ws.world.bestiary[e.creature].group[0] >= 2 else 1)
                              * (ledger if e.category == "undead" else 1) for e in dead))
+        total_xp += round(sum(leveling.kill_xp(c.level, e.level, e.rank) for e in yielded) * combat.RULES["talk"]["surrender_reward"])
         coins, found = 0, []
         scavenger = pools.mechanic(c, "scavenger") or 0
         state = self.ws.store.load_place(self.ws.player.location)
@@ -557,7 +596,9 @@ class CombatScene:
         noticed = [items.display_name(i) if i.rarity == "legendary" else inventory.label(i) for i in found]
         if coins:
             noticed.append("a few coins")
-        fallen = ", ".join(combat.who(e) for e in dead)
+        fallen = ", ".join(combat.who(e) for e in dead) or "no one - the rest yielded"
+        if yielded:
+            fallen += f". THOSE WHO YIELDED: {', '.join(combat.who(e) for e in yielded)}"
         aftermath = fresh(
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
             f"PLACE: {self.ws.place.name}\nTIME AND WEATHER: {self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
@@ -567,6 +608,7 @@ class CombatScene:
             Narration, self.ws.recent_narration, max_tokens=400)
         console.narrate(aftermath.text)
         self.ws.remember_narration(aftermath.text)
+        self.take_prisoners(yielded)
         console.note(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
         for item in found:
             if item.rarity == "legendary":
@@ -578,6 +620,25 @@ class CombatScene:
         if skinnable:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")
+
+    def take_prisoners(self, yielded: list) -> None:
+        """Foes who yielded: people can be bound and kept (questioned, let go, handed to the watch); the rest simply leave."""
+        from engine.arcs import A as R
+        ppl = sorted([e for e in yielded if e.category in R["people_categories"]], key=lambda e: -e.level)[:3]
+        if not ppl:
+            return
+        self.ws.surrender_took = True
+        rng = random.Random(f"{self.ws.store.meta.seed}:surrender:{self.ws.minutes}")
+        for e in ppl:
+            name = rng.choice(R["prisoner"]["names"])
+            kind = re.sub(r" ?\d+$", "", e.name)
+            npc = self.ws.make_prisoner(name, "", tip=rng.random() < R["prisoner"]["tip_chance"], named=False, kind=kind)
+            npc.activity = "walking bound at your side"
+            self.ws.store.save_npc(npc)
+            self.ws.player.prisoners[npc.id]["escort"] = True
+            self.ws.player.prisoners[npc.id]["level"] = e.level
+            self.ws.player.prisoners[npc.id]["creature"] = e.creature
+        self.ws.store.save_player(self.ws.player)
 
     FALLBACK_FIRST = ["Ashen", "Hollow", "Ember", "Gloam", "Thorn", "Dusk", "Varr", "Kestrel", "Wraith", "Sable", "Oath", "Rime"]
     FALLBACK_SECOND = ["fang", "bane", "ward", "song", "reach", "brand", "mourn", "keep", "bite", "light", "fall", "shard"]

@@ -60,6 +60,12 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
     for label, amount in extra:
         value += amount
         why.append(f"{label} {amount:+.0f}")
+    if getattr(c, "hunger", 0) or getattr(c, "fatigue", 0):
+        from engine import needs
+        worn_down = needs.penalties(c)["checks"]
+        if worn_down:
+            value += worn_down
+            why.append(f"hunger and fatigue {worn_down:+.0f}")
     tutored = getattr(c, "trained", {}).get(check, 0)
     if tutored:
         value += tutored

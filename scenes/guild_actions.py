@@ -23,6 +23,41 @@ class GuildActions:
     def guild_perks(self) -> dict:
         return quests.perks(self.rank)
 
+    GUILD_ROLES = ("guild_clerk", "guild_master", "guild_contractor", "guild_instructor", "quartermaster")
+
+    def guild_knowledge(self, npc) -> list[str]:
+        """What a guild person knows for certain about how the guild works, from its real rules, and (for the clerk and master, who keep the
+        register) where this stranger stands. Without it the model has the clerk shrug at a question every clerk could answer."""
+        if npc.role not in self.GUILD_ROLES:
+            return []
+        out = [f"THE GUILD'S RULES (you know them well; answer questions about them plainly and exactly, with these numbers): joining costs "
+               f"{money.words(G['joining_fee'])} at the clerk's desk and starts you at rank F. Ranks run F, E, D, C, B, A, S. "
+               f"A member holds {G['base_active']} contracts at once. Only the guild's own contracts count toward promotion; "
+               "personal requests from townsfolk pay less and do not count."]
+        for letter in quests.LETTERS[1:]:
+            need = G["ranks"][letter]["requires"]
+            below = quests.LETTERS[quests.LETTERS.index(letter) - 1]
+            out.append(f"Rank {letter}: you must be level {need['level']} and have finished {need['completed']} guild contracts at rank {below} or higher. "
+                       f"It brings: {quests.describe_perks(letter)}.")
+        if npc.role in ("guild_clerk", "guild_master"):
+            if not self.rank:
+                out.append("The stranger has not joined the guild.")
+            else:
+                nxt = quests.next_rank(self.rank)
+                if nxt:
+                    need = G["ranks"][nxt]["requires"]
+                    counted = sum(n for l, n in self.player.guild_done.items() if quests.LETTERS.index(l) >= quests.LETTERS.index(self.rank))
+                    lvl = self.player.character.level
+                    lvl_need, done_need = need["level"], need["completed"]
+                    lvl_text = "met" if lvl >= lvl_need else f"{lvl_need - lvl} levels to go"
+                    done_text = "met" if counted >= done_need else f"{done_need - counted} more to go"
+                    out.append(f"The stranger is a rank {self.rank} member, level {lvl}, with {counted} qualifying contracts finished. "
+                               f"For rank {nxt} they need level {lvl_need} ({lvl_text}) and {done_need} contracts ({done_text}). "
+                               "Your register shows this; tell them.")
+                else:
+                    out.append(f"The stranger holds the highest rank, {self.rank}.")
+        return out
+
     def clerk_here(self):
         return next((n for n in self.present if n.role == "guild_clerk"), None)
 

@@ -64,6 +64,7 @@ kind:
                        finishing off a captive prisoner in PEOPLE HERE is attack, with that prisoner's id as target.
   release            - they let a captive prisoner in PEOPLE HERE go free, spare them, or send them away unharmed - or
                        release a tamed companion back into the wild
+  hand_over          - they hand a captive prisoner over to the watch / a guard / the authorities (target = the prisoner)
   steal              - they secretly take something that is not theirs: pick a pocket, lift or swipe an item from a stall, shelf,
                        desk or person, slip something away unseen, or look through someone's things to take what they find.
                        Item = what they take, in their words. Target = the person they take it from or whose it is, if any.
