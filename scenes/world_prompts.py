@@ -49,7 +49,8 @@ kind:
   join_guild         - they join, sign up for or pay to enter the adventurers' guild, or say they want or hope to join it
                        or its register (not a question about how)
   board              - they read or look over the guild's contract board
-  accept_quest       - they take a contract from the board (item = its number or name), or say yes to a request
+  accept_quest       - they take a contract from the board (item = its number or name; "the delivery one", "I'll do this" and
+                       "I want to take this job" all count, with the CONTRACT BOARD below to pick from), or say yes to a request
                        a person here just asked of them
   abandon_quest      - they give up a contract or request they hold (item = which)
   train              - they ask for or pay for training: drills, lessons in a skill, or to be taught a new ability
@@ -116,7 +117,8 @@ def interpret_request(time_label: str, place_name: str, places: list[tuple[str, 
                       elsewhere: list[tuple[str, str, str]], partner: str | None, last_spoken: str | None,
                       text: str, wares: list[str] = (), abilities: list[str] = (), pack: list[str] = (),
                       ground: list[str] = (), box: list[str] | None = None, buyers: list[str] = (),
-                      recipes: list[str] = (), keys: list[str] = (), markup: str = "", hint: str = "") -> str:
+                      recipes: list[str] = (), keys: list[str] = (), markup: str = "", hint: str = "", board: list[str] = (),
+                      contracts: list[str] = ()) -> str:
     place_lines = "\n".join(f"  {pid}: {name}" for pid, name in places) or "  (none)"
     present = "\n".join(f"  {nid}: {label} - {desc}" for nid, label, desc in people) or "  (no one)"
     away = "\n".join(f"  {nid}: {label} - at {where}" for nid, label, where in elsewhere) or "  (no one)"
@@ -135,7 +137,11 @@ def interpret_request(time_label: str, place_name: str, places: list[tuple[str, 
         f"ON THE GROUND HERE: {', '.join(ground) or 'nothing'}\n"
         f"ITEM BOX: {('here - ' + (', '.join(box) or 'empty')) if box is not None else 'not here'}\n"
         f"WHO BUYS WHAT: {'; '.join(buyers) or 'no one here buys anything'}\n"
-        f"RECIPES: {', '.join(recipes)}\n\n"
+        f"RECIPES: {', '.join(recipes)}\n"
+        + (("CONTRACT BOARD (the clerk is here; the player taking one of these is accept_quest with item = its number):\n"
+            + "\n".join(f"  {b}" for b in board) + "\n") if board else "")
+        + (f"CONTRACTS THE PLAYER HOLDS: {'; '.join(contracts)}\n" if contracts else "")
+        + "\n"
         f'PLAYER TYPED: "{text}"'
         + (f"\nMARKUP:\n{markup}" if markup else "")
         + (f"\nREVIEW NOTE (your first reading was questioned - read the player's words again and fix it):\n{hint}" if hint else "")

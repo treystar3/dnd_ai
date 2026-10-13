@@ -7,11 +7,18 @@ ROOT = Path(__file__).resolve().parent.parent
 N = yaml.safe_load((ROOT / "data" / "rules" / "needs.yaml").read_text(encoding="utf-8"))
 
 
+def on() -> bool:
+    """False while the whole system is switched off in needs.yaml: nothing builds, nothing is penalised, nothing is shown."""
+    return bool(N.get("enabled", True))
+
+
 def stage_of(value: float) -> dict:
     return next(s for s in N["stages"] if value >= s["from"])
 
 
 def levels(c) -> tuple[dict, dict]:
+    if not on():
+        return N["stages"][-1], N["stages"][-1]
     return stage_of(getattr(c, "hunger", 0.0)), stage_of(getattr(c, "fatigue", 0.0))
 
 
@@ -28,7 +35,7 @@ def penalties(c) -> dict[str, float]:
 
 def tick(c, minutes: float, exertion: bool = False, sleeping: bool = False, resting: bool = False) -> None:
     """Time passes. Hunger always builds; fatigue builds awake and falls asleep (or a little at rest)."""
-    if minutes <= 0:
+    if minutes <= 0 or not on():
         return
     hours = minutes / 60
     hx = N["exertion"]["hunger"] if exertion else 1.0
@@ -45,6 +52,8 @@ def tick(c, minutes: float, exertion: bool = False, sleeping: bool = False, rest
 
 
 def fight(c) -> None:
+    if not on():
+        return
     c.hunger = min(100.0, getattr(c, "hunger", 0.0) + N["fight"]["hunger"])
     c.fatigue = min(100.0, getattr(c, "fatigue", 0.0) + N["fight"]["fatigue"])
 
@@ -54,6 +63,8 @@ def eat(c, feeds: float) -> None:
 
 
 def collapsing(c) -> bool:
+    if not on():
+        return False
     return getattr(c, "fatigue", 0.0) >= N["collapse_at"]
 
 

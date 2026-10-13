@@ -4,6 +4,10 @@
 # Working, travelling and fighting add to both (exertion).
 # Health no longer returns by itself: it comes back from resting or sleeping (rest_heal), from food, and from healing of any kind.
 
+# Master switch. false = hunger and fatigue are off: nothing builds, there are no penalties, no collapse and nothing shown.
+# Meals and rooms still sell and still restore some health and stamina; resting and sleeping still heal at the normal rate. Saved values are ignored.
+enabled: false
+
 hunger_per_hour: 2.1              # empty after about 48 hours without eating
 fatigue_per_hour: 2.5             # at its worst after about 40 hours awake
 exertion: {hunger: 1.25, fatigue: 1.5}     # times the rate while travelling, working or fighting

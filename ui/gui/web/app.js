@@ -2,7 +2,7 @@
 const TOKEN = window.TOKEN;
 const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
-const COMMANDS = [["Character", "#character"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"],
+const COMMANDS = [["Character", "#character"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"], ["Places", "#exits"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
   ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["New game", "#newgame"]];
 
@@ -264,6 +264,72 @@ function renderPulse(d) {
     for (const e of r.effects) row.appendChild(el("div", "peff " + (e.result === "applied" ? "ok" : "no"), `${e.result === "applied" ? "✓" : "✗"} ${e.text}` + (e.result === "applied" ? "" : ` (${e.result})`)));
     side.appendChild(row);
   }
+}
+
+// ---------- board pane: contracts to take (Accept runs the same code as typing it), the ones you hold, and requests from people here ----------
+function renderBoard(d) {
+  side.appendChild(el("div", "purse", d.member ? `Guild rank ${d.rank}` : "Not a guild member"));
+  if (!d.member) {
+    const row = el("div", "shoprow"), info = el("div", "info");
+    info.appendChild(el("div", "nm", "Join the adventurers' guild"));
+    info.appendChild(el("div", "dt", `Joining fee ${d.fee}. Contracts can only be taken by members.`));
+    if (!d.clerk) info.appendChild(el("div", "warn", "The clerk must be here to sign you in."));
+    else if (!d.fee_ok) info.appendChild(el("div", "warn", `You cannot afford the fee (purse ${d.purse}).`));
+    const act = el("div", "act");
+    act.appendChild(shopButton("Join", "#boardjoin", d.clerk && d.fee_ok));
+    row.append(info, act); side.appendChild(row);
+  }
+  side.appendChild(el("div", "h2", "CONTRACT BOARD"));
+  if (!d.postings.length) side.appendChild(el("div", "dimrow", "Nothing posted."));
+  for (const q of d.postings) {
+    const row = el("div", "shoprow"), info = el("div", "info");
+    info.appendChild(el("div", "nm", `[${q.letter}] ${q.title}`));
+    info.appendChild(el("div", "dt", `${q.reward} · ${q.xp} XP · ${q.limit}`));
+    if (q.why) info.appendChild(el("div", "warn", q.why));
+    const act = el("div", "act");
+    const b = shopButton("Accept", `#boardaccept ${q.id}`, q.ok);
+    if (q.why) b.title = q.why;
+    act.appendChild(b);
+    row.append(info, act); side.appendChild(row);
+  }
+  if (d.requests.length) side.appendChild(el("div", "h2", "REQUESTS FROM PEOPLE HERE"));
+  for (const r of d.requests) {
+    const row = el("div", "shoprow"), info = el("div", "info");
+    info.appendChild(el("div", "nm", `[${r.letter}] ${r.title}`));
+    info.appendChild(el("div", "dt", `asked by ${r.name}`));
+    const act = el("div", "act");
+    act.appendChild(shopButton("Accept", `#boardrequest ${r.npc}`, true));
+    row.append(info, act); side.appendChild(row);
+  }
+  side.appendChild(el("div", "h2", "YOUR CONTRACTS"));
+  if (!d.held.length) side.appendChild(el("div", "dimrow", "You hold no contracts or requests."));
+  for (const q of d.held) {
+    const row = el("div", "shoprow"), info = el("div", "info");
+    info.appendChild(el("div", "dt", q.line));
+    const act = el("div", "act");
+    act.appendChild(shopButton("Abandon", `#boardabandon ${q.id}`, true, true));
+    row.append(info, act); side.appendChild(row);
+  }
+}
+
+// ---------- places pane: where you can go from here, with walking times and Go buttons (same travel code as typing it) ----------
+function renderPlaces(d) {
+  if (!d.here) { side.appendChild(el("div", "dimrow", "You are not anywhere you know the way from.")); return; }
+  side.appendChild(el("div", "purse", `${d.here_name} · ${d.town}`));
+  const block = (title, rows) => {
+    side.appendChild(el("div", "h2", title));
+    if (!rows.length) side.appendChild(el("div", "dimrow", "Nowhere else."));
+    for (const r of rows) {
+      const row = el("div", "shoprow"), info = el("div", "info");
+      info.appendChild(el("div", "nm", r.name));
+      info.appendChild(el("div", "dt", (r.state === "heard" ? "heard of · " : "") + r.away));
+      const act = el("div", "act");
+      act.appendChild(shopButton("Go", `#goto ${r.id}`, true, r.minutes >= 240));
+      row.append(info, act); side.appendChild(row);
+    }
+  };
+  block("IN " + d.town.toUpperCase(), d.local);
+  block("FURTHER AFIELD", d.far);
 }
 
 // ---------- party pane: companions (with a rename field) and hired adventurers ----------
@@ -612,6 +678,8 @@ function paintSide() {
     const pn = lastView.panel && lastView.panel.name;
     if (pn === "journal") renderJournal(lastView.panel.data);
     else if (pn === "party") renderParty(lastView.panel.data);
+    else if (pn === "board") renderBoard(lastView.panel.data);
+    else if (pn === "places") renderPlaces(lastView.panel.data);
     else if (pn === "map") renderMap(lastView.panel.data);
     else if (pn === "pulse") renderPulse(lastView.panel.data);
     else if (pn === "character" && lastView.raw.includes(ATTR_MARK)) {

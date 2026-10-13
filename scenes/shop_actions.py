@@ -66,6 +66,10 @@ class ShopActions:
                              f"but they only have {money.words(c.coins)}. Show the awkward moment briefly.", text)
                 self.halted = True
             return False
+        if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
+            console.note("You already have a room here until mid-morning tomorrow. No charge.")
+            self.halted = True
+            return False
         c.coins -= ware.price
         effect = ""
         if ware.kind == "room":

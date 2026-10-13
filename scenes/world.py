@@ -729,7 +729,7 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             vitals = [(p, round(pools.current(c, p)), pools.maximum(c, p)) for p in pools.POOLS]
             console.show_player_block(c, self.place.name,
                                       clock.header(self.minutes, self.place.name).rsplit(" · ", 1)[0], vitals)
-        elif name in ("exits", "where"):
+        elif name in ("exits", "where", "places"):
             self.show_exits(asked=True)
         elif name == "map":
             self.show_map()
@@ -788,6 +788,10 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             self.mount_command(name.split(maxsplit=1)[1] if " " in name else "")
         elif name.split()[0] in ("shopbuy", "shopsell"):
             self.shop_click(text)
+        elif name.split()[0] == "goto":
+            self.places_click(text)
+        elif name.split()[0] in ("boardaccept", "boardabandon", "boardrequest", "boardjoin"):
+            self.board_click(text)
         elif name.split()[0] in ("gearequip", "gearunequip"):
             self.gear_click(text)
         elif name in ("gear", "equipment", "worn"):
@@ -865,8 +869,65 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         self.exits_due = False
         if not asked:
             return
-        names = [self.world.places[p].name for p in self.world.neighbors(self.player.location)]
-        console.note(f"From here: {', '.join(names)}")
+        self.show_places()
+
+    def places_data(self) -> dict:
+        """Where the player can go from here, as plain data: the places in this town with their walking times, then the
+        towns and roads they know of, nearest first."""
+        from engine import mapview
+        w = self.world
+        here = self.player.location if self.player.location in w.places else next(
+            (v for v in reversed(self.player.visited) if v in w.places), "")
+        if not here:
+            return {"here": "", "town": "", "local": [], "far": []}
+        top = mapview.top_of(w, here)
+
+        def row(pid: str, state: str) -> dict | None:
+            found = w.path(here, pid)
+            if not found:
+                return None
+            pl = w.places[pid]
+            return {"id": pid, "name": pl.name, "type": pl.type, "minutes": found[1], "away": clock.describe_duration(found[1]), "state": state}
+        local = [r for pid, pl in w.places.items() if pid != here and mapview.top_of(w, pid) == top and pl.id != top
+                 for r in [row(pid, "here")] if r]
+        if here != top and top != here:
+            r = row(top, "here")
+            if r:
+                local.append(r)
+        been, heard = mapview.known(w, self.player.visited, here)
+        far = [r for pid in (been | heard) if pid != top for r in [row(pid, "visited" if pid in been else "heard")] if r]
+        key = lambda r: (r["minutes"], r["name"])
+        return {"here": here, "town": w.places[top].name, "here_name": w.places[here].name,
+                "local": sorted(local, key=key), "far": sorted(far, key=key)}
+
+    def show_places(self) -> None:
+        data = self.places_data()
+        if console.panel("places", data):                  # the window draws this one with Go buttons
+            return
+        if not data["here"]:
+            console.note("You are not anywhere you know the way from.")
+            return
+        console.note(f"From {data['here_name']} in {data['town']}:")
+        for r in data["local"]:
+            console.note(f"  {r['name']} - {r['away']}")
+        for r in data["far"]:
+            console.note(f"  {r['name']}{'' if r['state'] == 'visited' else ' (heard of)'} - {r['away']}")
+
+    def places_click(self, text: str) -> None:
+        """The pane's hidden command:  #goto <place id>."""
+        from llm.contracts import ActionIntent
+        parts = text.split()
+        dest = parts[1] if len(parts) > 1 else ""
+        if dest not in self.world.places:
+            console.note("You don't know a way there.")
+        elif not any(r["id"] == dest for r in self.places_data()["local"] + self.places_data()["far"]):
+            console.note("You don't know a way there from here.")
+        else:
+            self.on_move(ActionIntent(kind="move", destination=dest, summary=f"I go to {self.world.places[dest].name}."), "")
+            self.halted = False
+        if not self.combat:
+            with console.scope("#exits"):
+                self.show_places()
 
     def show_map(self) -> None:
         """The map pane: the places you have been and the ones they lead to, and how far each is from here."""
@@ -917,7 +978,10 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
                                   for n in self.present if self.world.roles[n.role].buys],
                                  [inv.GOODS[next(iter(r.makes))].name for r in inv.RECIPES.values()],
                                  [k.name for k in self.player.character.key_items],
-                                 markup.describe(text) if markup.has_markup(text) else "", hint),
+                                 markup.describe(text) if markup.has_markup(text) else "", hint,
+                                 [f"{b['n']}. [{b['letter']}] {b['title']}" for b in self.board_data()["postings"]]
+                                 if self.clerk_here() else (),
+                                 [f"[{q['letter']}] {q['title']}" for q in self.player.quests]),
             ActionPlan, temperature=0.2, max_tokens=700,
         ).actions
 
@@ -930,6 +994,42 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         t = f"{dest} {text}".lower()
         return any(w in t for w in ("follow", "shortcut", "short cut", "trail", "track", "path", "explore", "find a way",
                                     "see where", "wander", "look for a way", "cut through", "hidden"))
+
+    GENERIC_WORDS = {"the", "of", "and", "hall", "house", "guild", "guildhall", "inn", "shop", "temple", "forge", "smithy", "market",
+                     "square", "tavern", "workshop", "yard", "trading", "village", "town"}
+
+    BUILDING_TYPES = ("shop", "inn", "temple", "guild", "workshop", "smithy", "yard", "guardpost")
+
+    def nearest_alike(self, dest: str, text: str) -> str:
+        """A bare "the guildhall" means the nearest one. The place the interpreter picked stands only if the player's words name it
+        (its own name or its town); otherwise the nearest place of the same kind, in this town first, is used instead."""
+        from engine import mapview
+        w = self.world
+        target = w.places[dest]
+        if not text.strip():                                    # a pane button names its place exactly
+            return dest
+        said = set(re.findall(r"[a-z]+", text.lower()))
+        own = {t for t in re.findall(r"[a-z]+", target.name.lower()) if len(t) > 3 and t not in self.GENERIC_WORDS}
+        if target.type not in self.BUILDING_TYPES:
+            return dest
+        town = w.places.get(mapview.top_of(w, dest))
+        own |= {t for t in re.findall(r"[a-z]+", town.name.lower()) if town and len(t) > 3 and t not in self.GENERIC_WORDS}
+        if own & said or dest == self.player.location:
+            return dest
+        here_top = mapview.top_of(w, self.player.location)
+        best, cost = dest, None
+        for pid, pl in w.places.items():
+            if pl.type != target.type or pid == self.player.location:
+                continue
+            found = w.path(self.player.location, pid)
+            if not found:
+                continue
+            walk = found[1] - (1 if mapview.top_of(w, pid) == here_top else 0) * 100000    # this town's own place beats anything on the road
+            if cost is None or walk < cost:
+                best, cost = pid, walk
+        if best != dest:
+            console.debug(f"'{target.name}' read as the nearest {target.type}: {w.places[best].name}")
+        return best
 
     def on_move(self, intent: ActionIntent, text: str) -> None:
         dest = intent.destination.strip()
@@ -948,6 +1048,8 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
                     return
                 console.debug(f"'{dest}' is not a place - treating it as moving within {self.place.name}")
                 return
+        if dest in self.world.places:
+            dest = self.nearest_alike(dest, text)
         found = self.world.path(self.player.location, dest) if dest in self.world.places else None
         if not found:
             console.note("You don't know a way there from here.")
@@ -1436,7 +1538,7 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             body.append("their hurts ease and some of their strength returns")
         elif healed >= 0.03:
             body.append("they recover a little")
-        if sleeping and eased >= 20:
+        if sleeping and (eased >= 20 or not needs.on()):
             body.append("they wake rested, their head clear")
         elif eased >= 5:
             body.append("their tiredness lifts a little")

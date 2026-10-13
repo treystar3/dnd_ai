@@ -94,7 +94,50 @@ class GuildActions:
 
     # ---------- display ----------
 
+    def board_data(self) -> dict:
+        """Everything the board pane shows, as plain data: each posting with whether it can be taken now and why not,
+        the contracts held, and any personal request someone here has for the player."""
+        c = self.player.character
+        board = self.ensure_board()
+        bonus = self.guild_perks()["reward_bonus"]
+        rank = self.rank or "F"
+        clerk = self.clerk_here()
+        limit = G["base_active"] + self.guild_perks()["active"]
+        held_guild = sum(1 for x in self.player.quests if x["guild"])
+        looking = any(x["kind"] == "missing" for x in self.player.quests)
+        postings = []
+        for n, q in enumerate(board, 1):
+            coins, xp = quests.reward(q["letter"], True, bonus)
+            mult = q.get("multiplier", 1)
+            why = ""
+            if not self.rank:
+                why = "Join the guild first."
+            elif not clerk:
+                why = "The clerk must be here to record it."
+            elif not quests.at_or_below(q["letter"], rank):
+                why = f"Rank {q['letter']} - you are rank {self.rank}."
+            elif held_guild >= limit:
+                why = f"You hold {limit} guild contracts already."
+            elif q["kind"] == "missing" and looking:
+                why = "You are already looking for someone."
+            postings.append({"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"],
+                             "reward": money.fmt(round(coins * mult)), "xp": round(xp * mult),
+                             "limit": "no time limit" if q.get("deadline", 1) is None
+                             else f"{G['ranks'][q['letter']]['deadline_days'] + q.get('extra_days', 0)} days",
+                             "ok": not why, "why": why})
+        held = [{"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"], "guild": bool(q["guild"]),
+                 "line": quests.progress_line(q, self.pack, self.minutes)}
+                for n, q in enumerate(self.player.quests, 1)]
+        requests = [{"npc": n.id, "name": n.label(), "letter": n.quest_offer["letter"], "title": n.quest_offer["title"]}
+                    for n in self.present if n.quest_offer]
+        return {"member": bool(self.rank), "rank": self.rank, "fee": money.fmt(G["joining_fee"]),
+                "fee_ok": c.coins >= G["joining_fee"], "clerk": bool(clerk), "postings": postings, "held": held,
+                "requests": requests, "purse": money.fmt(c.coins)}
+
     def show_board(self) -> None:
+        data = self.board_data()
+        if console.panel("board", data):                   # the window draws this one with Accept buttons
+            return
         board = self.ensure_board()
         bonus = self.guild_perks()["reward_bonus"]
         rank = self.rank or "F"
@@ -107,6 +150,36 @@ class GuildActions:
                          f"{'no time limit' if q.get('deadline', 1) is None else str(G['ranks'][q['letter']]['deadline_days'] + q.get('extra_days', 0)) + ' days'}{lock}")
         if not board:
             console.note("  (nothing posted)")
+
+    def board_click(self, text: str) -> None:
+        """The pane's hidden commands:  #boardaccept <posting id>   #boardabandon <contract id>   #boardrequest <npc id>   #boardjoin."""
+        from llm.contracts import ActionIntent
+        parts = text.split()
+        cmd = parts[0].lower()
+        if cmd == "#boardaccept" and len(parts) >= 2:
+            board = self.ensure_board()
+            n = next((i for i, q in enumerate(board, 1) if q["id"] == parts[1]), 0)
+            if n:
+                self.on_accept_quest(ActionIntent(kind="accept_quest", item=str(n)), "")
+            else:
+                console.note("That contract is no longer on the board.")
+        elif cmd == "#boardabandon" and len(parts) >= 2:
+            n = next((i for i, q in enumerate(self.player.quests, 1) if q["id"] == parts[1]), 0)
+            if n:
+                self.on_abandon_quest(ActionIntent(kind="abandon_quest", item=str(n)), "")
+            else:
+                console.note("You no longer hold that.")
+        elif cmd == "#boardrequest" and len(parts) >= 2:
+            npc = next((x for x in self.present if x.id == parts[1] and x.quest_offer), None)
+            if npc:
+                self.take_personal(npc)
+            else:
+                console.note("That request is no longer open.")
+        elif cmd == "#boardjoin":
+            self.on_join_guild(ActionIntent(kind="join_guild"), "")
+        self.halted = False
+        with console.scope("#board"):
+            self.show_board()
 
     def show_quests(self) -> None:
         if not self.player.quests:
@@ -164,7 +237,7 @@ class GuildActions:
             return board[int(m.group(1)) - 1]
         best, score = None, 0
         for q in board:
-            hit = sum(1 for w in re.findall(r"[a-z]+", words.lower()) if len(w) > 3 and w in q["title"].lower())
+            hit = sum(1 for w in re.findall(r"[a-z]+", words.lower()) if len(w) > 3 and w[:5] in q["title"].lower())
             if hit > score:
                 best, score = q, hit
         return best

@@ -94,5 +94,20 @@ ws.command("#shopsell nobody nothing"); ws.command("#shopbuy ware nobody nothing
 check("bad ids change nothing", c.coins == coins0 and any("no longer on offer" in l for l in lines))
 # equipped gear and key items are never offered
 check("equipped gear is not sellable", all(i.uid not in {e.uid for e in c.equipment.values()} for i in [type("x", (), {"uid": s["uid"]}) for s in ws.shop_data()["sell"]]))
+# a room you already hold is not sold to you twice
+inn = next(p.id for p in world.places.values() if p.type == "inn")
+ws.enter(inn)
+for n in ws.present:
+    n.met_player = True
+sl = next((x for x in ws.shop_data()["sellers"] if any(w["key"] == "room" for w in x["wares"])), None)
+check("an innkeeper sells rooms", sl is not None)
+if sl:
+    c.coins = money.to_smallest(gold=50)
+    ws.command(f"#shopbuy ware {sl['id']} room")
+    check("the first room is sold", ws.has_room() and c.coins < money.to_smallest(gold=50), lines[-2:])
+    again = c.coins
+    lines.clear()
+    ws.command(f"#shopbuy ware {sl['id']} room")
+    check("a second room here is refused and costs nothing", c.coins == again and any("already have a room" in l for l in lines), lines[-2:])
 print("\nFAILED: " + ", ".join(bad) if bad else "\nall ok")
 sys.exit(1 if bad else 0)

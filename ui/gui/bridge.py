@@ -16,12 +16,12 @@ import threading
 from ui import console
 
 LOG_CAP = 6000
-VIEWS = {"system", "sys", "stats", "character", "exits", "where", "map", "party", "journal", "j", "inventory", "inv", "i",
+VIEWS = {"system", "sys", "stats", "character", "exits", "where", "places", "map", "party", "journal", "j", "inventory", "inv", "i",
          "board", "contracts", "standing", "rumors", "dungeon", "floors", "quests", "quest", "jobs", "arc", "story",
          "trail", "clues", "home", "house", "property", "homes", "shop", "store", "wares", "buy", "stash", "box",
          "itembox", "gear", "equipment", "worn", "help", "h", "?", "world", "pulse"}
 DEFAULT_PIN = "#character"
-HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname")      # the shop pane's buttons: run like commands, never echoed
+HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname", "#boardaccept", "#boardabandon", "#boardrequest", "#boardjoin", "#goto")      # the shop pane's buttons: run like commands, never echoed
 WRAP_WIDTH = 2000
 
 
