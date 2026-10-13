@@ -67,8 +67,18 @@ class GuildActions:
             return self.place.id
         return next((p.id for p in self.world.places.values() if p.type == "guild"), None)
 
+    def hall_here(self) -> str | None:
+        """The guild hall whose board is in reach: the one you stand in, or the one in this town. None on the road or in a town without one."""
+        from engine import mapview
+        if self.place.type == "guild":
+            return self.place.id
+        if self.player.location not in self.world.places:
+            return None
+        top = mapview.top_of(self.world, self.player.location)
+        return next((p.id for p in self.world.places.values() if p.type == "guild" and mapview.top_of(self.world, p.id) == top), None)
+
     def ensure_board(self) -> list[dict]:
-        gid = self.guild_place_id()
+        gid = self.hall_here()
         if not gid:
             return []
         state = self.store.load_place(gid)
@@ -130,7 +140,8 @@ class GuildActions:
                 for n, q in enumerate(self.player.quests, 1)]
         requests = [{"npc": n.id, "name": n.label(), "letter": n.quest_offer["letter"], "title": n.quest_offer["title"]}
                     for n in self.present if n.quest_offer]
-        return {"member": bool(self.rank), "rank": self.rank, "fee": money.fmt(G["joining_fee"]),
+        hall = self.hall_here()
+        return {"hall": self.world.places[hall].name if hall else "", "member": bool(self.rank), "rank": self.rank, "fee": money.fmt(G["joining_fee"]),
                 "fee_ok": c.coins >= G["joining_fee"], "clerk": bool(clerk), "postings": postings, "held": held,
                 "requests": requests, "purse": money.fmt(c.coins)}
 
@@ -138,10 +149,13 @@ class GuildActions:
         data = self.board_data()
         if console.panel("board", data):                   # the window draws this one with Accept buttons
             return
+        if not data["hall"]:
+            console.note("There is no guild hall here. Each hall keeps its own contract board.")
+            return
         board = self.ensure_board()
         bonus = self.guild_perks()["reward_bonus"]
         rank = self.rank or "F"
-        console.note(f"THE CONTRACT BOARD - your rank: {self.rank or 'not a member (joining fee ' + money.words(G['joining_fee']) + ')'}")
+        console.note(f"THE CONTRACT BOARD at {data['hall']} - your rank: {self.rank or 'not a member (joining fee ' + money.words(G['joining_fee']) + ')'}")
         for n, q in enumerate(board, 1):
             coins, xp = quests.reward(q["letter"], True, bonus)
             coins, xp = round(coins * q.get("multiplier", 1)), round(xp * q.get("multiplier", 1))
@@ -284,7 +298,7 @@ class GuildActions:
             self.halted = True
             return
         board.remove(q)
-        gid = self.guild_place_id()
+        gid = self.hall_here()
         state = self.store.load_place(gid)
         state.board = board
         self.store.save_place(state)
@@ -316,9 +330,6 @@ class GuildActions:
         self.arc_quest_gone(q, "you walked away from it")
 
     def on_board(self, intent, text: str) -> None:
-        if self.place.type != "guild":
-            console.note("The contract board is at the guild house.")
-            return
         self.show_board()
 
     # ---------- progress ----------

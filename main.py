@@ -81,6 +81,7 @@ def play(args):
             shutil.move(str(folder), str(backup))
             console.note(f"Previous game moved to {backup}")
         new_game = False
+        console.combat_state(None)                 # a fight from the game just left must not linger in the window
 
         store = CampaignStore.open_or_create(CAMPAIGN)
         if store.player_exists():

@@ -7,6 +7,8 @@ shows everything that needs fixing.
 from pathlib import Path
 from typing import Literal
 
+import functools
+
 import yaml
 from pydantic import Field, BaseModel, ValidationError, field_validator
 
@@ -88,8 +90,9 @@ class Place(BaseModel):
         return v or {}
 
 
-def _family_ids() -> set[str]:
-    return set(yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
+@functools.lru_cache(maxsize=1)
+def _family_ids() -> frozenset[str]:
+    return frozenset(yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "families.yaml").read_text(encoding="utf-8"))["families"])
 
 
 class Creature(BaseModel):

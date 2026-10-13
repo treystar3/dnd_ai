@@ -722,8 +722,13 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
             self.store.save_place(state)
             console.note(f"Remembered here: {mark}")
 
+    FIGHT_LOCKED = ("goto", "shopbuy", "shopsell", "boardaccept", "boardabandon", "boardrequest", "boardjoin")
+
     def command(self, text: str) -> None:
         name = text[1:].strip().lower()
+        if self.combat and name.split()[0] in self.FIGHT_LOCKED:      # a pane button cannot walk, shop or sign up in the middle of a fight
+            console.note("Not in the middle of a fight.")
+            return
         if name in ("system", "sys", "stats", "character"):
             c = self.player.character
             vitals = [(p, round(pools.current(c, p)), pools.maximum(c, p)) for p in pools.POOLS]
@@ -759,10 +764,7 @@ class WorldScene(InventoryActions, ShopActions, GearActions, CheckActions, WorkA
         elif name.split()[0] == "enchant":
             self.enchant_command(name.split(maxsplit=1)[1] if " " in name else "")
         elif name in ("board", "contracts"):
-            if self.place.type == "guild" or self.rank:
-                self.show_board()
-            else:
-                console.note("The contract board is at the guild house.")
+            self.show_board()
         elif name == "standing":
             self.show_standing()
         elif name == "rumors":

@@ -279,8 +279,9 @@ function renderBoard(d) {
     act.appendChild(shopButton("Join", "#boardjoin", d.clerk && d.fee_ok));
     row.append(info, act); side.appendChild(row);
   }
-  side.appendChild(el("div", "h2", "CONTRACT BOARD"));
-  if (!d.postings.length) side.appendChild(el("div", "dimrow", "Nothing posted."));
+  side.appendChild(el("div", "h2", d.hall ? "CONTRACT BOARD · " + d.hall.toUpperCase() : "CONTRACT BOARD"));
+  if (!d.hall) side.appendChild(el("div", "dimrow", "There is no guild hall here. Each hall keeps its own board."));
+  else if (!d.postings.length) side.appendChild(el("div", "dimrow", "Nothing posted."));
   for (const q of d.postings) {
     const row = el("div", "shoprow"), info = el("div", "info");
     info.appendChild(el("div", "nm", `[${q.letter}] ${q.title}`));
