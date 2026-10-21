@@ -774,51 +774,58 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.status_block(when, f"{emoji} {sky}", place_line, spot_line, vitals,
                              c.level, c.unspent_points, c.coins, (c.xp, leveling.xp_to_next(c.level)))
 
+    def handled(self, text: str, by: str, **fields) -> None:
+        """The typed line went to `by` (an intercept's name, 'combat', or 'interpret'): one row in the turn log (engine/turnlog.py)."""
+        from engine import turnlog
+        turnlog.record(self.store.meta.turn, text, by, place=self.player.location, **fields)
+
+    def took(self, text: str, by: str) -> None:
+        """An intercept took the line before the model saw it: logged under its name, and the turn passes."""
+        self.handled(text, by)
+        self.store.meta.turn += 1
+
     def handle(self, text: str) -> None:
         self.last_text = text
+        self.interpret_calls = []                           # every interpreter call made for this line, kept for the turn log
         from llm import audit
         audit.note_turn(self.store.meta.turn, text)         # the model calls that follow are filed under this turn (f314)
         if self.combat:
             self.combat.turn(text)
-            self.store.meta.turn += 1
+            self.took(text, "combat")
             if not self.combat and self.resume_pending:
                 self.resume_road()
             return
-        if self.errand_intercept(text) or self.mentor_intercept(text):
-            self.store.meta.turn += 1
-            return
-        if self.trial_turn(text) or self.party_turn(text):
-            self.store.meta.turn += 1
-            return
+        if self.errand_intercept(text):
+            return self.took(text, "errand")
+        if self.mentor_intercept(text):
+            return self.took(text, "mentor_intercept")
+        if self.trial_turn(text):
+            return self.took(text, "trial")
+        if self.party_turn(text):
+            return self.took(text, "party")
         if self.camp_turn(text):
             self.ensure_dungeons()
             self.run_pulse()
-            self.store.meta.turn += 1
-            return
+            return self.took(text, "camp")
         said = text.strip()
         if self.mentor_with_you() and not self.partner and len(said) > 2 and said[0] in "\"\u201c" and said[-1] in "\"\u201d" and said.count(chr(34)) + said.count("\u201c") + said.count("\u201d") == 2:
             self.advance(clock.TALK_MINUTES)                 # a line wholly in quotes, with her beside them, is said to her
             self.mentor_talk(said[1:-1].strip())
-            self.store.meta.turn += 1
-            return
+            return self.took(text, "mentor_quoted")
         if self.mentor_with_you() and mentor.named(text) and ("?" in text or text.strip().lower().startswith(("maren", "ask maren", "tell maren"))
                                                                or not re.search(r"\b(hire|recruit|dismiss|disband|attack|kill|hit|fight|steal|rob|search|skin|butcher|loot|walk|go|head|travel)\b", text.lower())):
             self.advance(clock.TALK_MINUTES)
             self.mentor_talk(text)
-            self.store.meta.turn += 1
-            return
+            return self.took(text, "mentor_named")
         hire = self.hire_wants_talk(text)
         if hire:
             self.advance(clock.TALK_MINUTES)
             self.hire_talk(hire, text)
-            self.store.meta.turn += 1
-            return
+            return self.took(text, "hire")
         if self.mentor_go_hunt(text):
-            self.store.meta.turn += 1
-            return
+            return self.took(text, "mentor_hunt")
         if self.exit_request(text):
-            self.store.meta.turn += 1
-            return
+            return self.took(text, "exit")
         asked = getattr(self, "pending_clarify", None)
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
@@ -1280,7 +1287,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    [f"[{q['letter']}] {q['title']}" for q in self.player.quests], left_out=left_out)
         self.last_interpret = {"chars": len(wp.INTERPRET_SYSTEM) + len(req), "places": len(places), "people_away": len(elsewhere),
                                "of_places": len(self.world.places) - 1, "of_people_away": len(away_rows), "left_out": left_out}
-        return generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700).actions
+        actions = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700).actions
+        self.__dict__.setdefault("interpret_calls", []).append({          # the call in full, for the turn log and a lossless replay case
+            "hint": hint, "place": self.player.location, "place_name": self.place.name,
+            "partner": self.partner.id if self.partner else "", "last_spoken": last or "",
+            "places": [pid for pid, _ in places], "people": [p[0] for p in people], "elsewhere": [e[0] for e in elsewhere],
+            "shown": {k: v for k, v in shown.items() if v}, "left_out": left_out, "chars": self.last_interpret["chars"],
+            "request": req, "plan": [a.model_dump(exclude_defaults=True) for a in actions]})
+        return actions
 
     def end_conversation(self) -> None:
         self.partner = None

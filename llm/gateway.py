@@ -54,7 +54,17 @@ def unload() -> None:
 
 
 FALLBACKS: list[str] = []          # every task that gave up and left its caller to written lines, in order (the live check reads this)
-OUTCOMES: list[tuple[str, bool, int]] = []      # (task, succeeded, attempts used), for anyone measuring
+OUTCOMES: list[tuple[str, bool, int]] = []      # (task, succeeded, attempts used), the most recent few hundred, for anyone measuring
+TALLY: dict[str, dict[str, int]] = {}           # task -> {calls, failed, attempts} for the whole session (engine/turnlog.py writes it out)
+
+
+def _tally(task: str, ok: bool, attempts: int) -> None:
+    OUTCOMES.append((task, ok, attempts))
+    del OUTCOMES[:-500]
+    t = TALLY.setdefault(task, {"calls": 0, "failed": 0, "attempts": 0})
+    t["calls"] += 1
+    t["failed"] += not ok
+    t["attempts"] += attempts
 
 
 def generate(
@@ -152,8 +162,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if not reason:
                 _log(task, attempt, elapsed, messages, raw, None)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)
-                OUTCOMES.append((task, True, attempt + 1))
-                del OUTCOMES[:-500]
+                _tally(task, True, attempt + 1)
                 return result
             last_error = LLMError(reason)
         except ValidationError as e:
@@ -167,7 +176,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             {"role": "user", "content": f"That answer was rejected: {reason}\nFix this and respond again with the complete JSON."},
         ]
 
-    OUTCOMES.append((task, False, retries + 1))
+    _tally(task, False, retries + 1)
     raise LLMError(f"{task}: no valid response after {retries + 1} attempts") from last_error
 
 
@@ -226,8 +235,10 @@ def _log(task, attempt, elapsed, messages, raw, error):
     global _writes
     path = Path(config.LOG_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
+    from llm import audit
     entry = {
         "time": datetime.now(timezone.utc).isoformat(),
+        "turn": audit.current_turn(),                   # joins this call to its row in the turn log (engine/turnlog.py)
         "task": task,
         "model": config.MODEL,
         "attempt": attempt,
