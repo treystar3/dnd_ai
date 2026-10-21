@@ -67,6 +67,12 @@ class InventoryActions:
         if g.feeds:
             needs.eat(c, g.feeds)
             felt.append("hunger")
+        if item.origin and g.kind == "food" and not inv.GOODS[item.good].drops_from and self.owns("symbiosis"):
+            from engine import world_perks
+            c.gift = {"family": item.origin, "mechanics": world_perks.gift_for(item.origin)}
+            gift = ", ".join(k.replace("_", " ") for k in c.gift["mechanics"])
+            console.note(f"The {item.origin.replace('_', ' ')}'s strength is in you until you sleep: {gift} (Symbiosis).")
+            felt.append(f"and the {item.origin.replace('_', ' ')}'s gift ({gift})")
         return f"restoring {', '.join(felt)}" if felt else "to no real effect"
 
     def find_key(self, name: str) -> KeyItem | None:
@@ -107,7 +113,7 @@ class InventoryActions:
                       description=gift.description.strip(), kind=gift.kind, source=npc.name,
                       day=clock.day(self.minutes), for_whom=gift.for_whom.strip() if gift.kind == "quest" else "")
         c.key_items.append(key)
-        npc.memories.append(Memory(day=key.day, turn=self.store.meta.turn, text=f"I gave the stranger {key.name}."))
+        npc.memories.append(Memory(importance=2, day=key.day, turn=self.store.meta.turn, text=f"I gave the stranger {key.name}."))
         self.store.save_npc(npc)
         self.store.save_player(self.player)
         meant = f" (meant for {key.for_whom})" if key.for_whom else ""
@@ -141,7 +147,7 @@ class InventoryActions:
         unfinished = f" - it never reached {key.for_whom}" if key.for_whom else ""
         c.item_history.append(f"Got rid of {key.name}{unfinished} (day {clock.day(self.minutes)}).")
         self.store.save_player(self.player)
-        console.note(f"Discarded: {key.name}.")
+        console.ledger(f"Discarded: {key.name}.")
         self.narrate(f"The player gets rid of {key.name} for good.", text)
 
     def on_show(self, intent, text: str) -> None:
@@ -170,8 +176,15 @@ class InventoryActions:
             return
         used = inv.take(self.pack, inv.GOODS[item.good].name, 1)
         effect = self.consume(used)
+        if self.frugal_save():
+            self.to_pack(inv.make_good(used.good, 1) if not used.origin else used.model_copy(update={"quantity": 1}))
+            effect += " - and somehow there is still one left (Frugal Hands)"
         self.store.save_player(self.player)
         self.narrate(f"The player uses {inv.GOODS[used.good].name} ({inv.GOODS[used.good].description}), {effect}.", text)
+
+    def frugal_save(self) -> bool:
+        """Frugal Hands: a consumable that is not used up, some of the time (the mechanic's value is the percent)."""
+        return self.owns("frugal_hands") and random.random() * 100 < self.mech("frugal_hands")
 
     def on_drop(self, intent, text: str) -> None:
         if self.refuse_key(intent.item or text, "drop"):
@@ -186,15 +199,15 @@ class InventoryActions:
         self.salvage(item)
         self.store.save_place(state)
         self.store.save_player(self.player)
-        console.note(f"Left here: {inv.label(item)}. Items left behind vanish after {R['ground_days']} days.")
+        console.ledger(f"Left here: {inv.label(item)}. Items left behind vanish after {R['ground_days']} days.")
         self.narrate(f"The player sets down {inv.label(item)} and leaves it here.", text)
 
     def on_pick_up(self, intent, text: str) -> None:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
-        if not item:
-            console.note("There's nothing like that here.")
-            self.halted = True
+        if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
+            from scenes import world_prompts as wp
+            self.narrate(wp.SCENERY_PICKUP.format(thing=(intent.item or "it").strip()), text)
             return
         self.store.save_place(state)
         self.to_pack(item)
@@ -237,15 +250,9 @@ class InventoryActions:
         if self.is_bribe(intent, text):
             self.offer_bribe(intent, text, npc, amount)
             return
-        c.coins -= amount
-        npc.trust = min(100, npc.trust + R["gift_trust"])
-        self.reputation_change("gift")
-        self.mercy_spreads()
-        npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                   text=f"The stranger gave me {money.words(amount)}."))
-        self.store.save_npc(npc)
-        self.store.save_player(self.player)
-        console.note(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
+        console.note(f"{npc.label().capitalize()} won't take your coin for nothing. Buy something, or say what the money is for.")
+        self.halted = True
+        return
         intent.target = npc.id
         intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + \
             f"[They hand you {money.words(amount)}.]"
@@ -259,6 +266,7 @@ class InventoryActions:
         return "persuasion" in intent.checks or any(w in low for w in self.BRIBE_WORDS)
 
     def offer_bribe(self, intent, text: str, npc, amount: int) -> None:
+        self.deed("bribe")
         """Coin offered for a favor: a persuasion roll, helped by how big the offer is next to what the person has. Success takes the coins
         (the favor only happens in the story); otherwise the coins stay, and a failure costs trust. The person remembers it either way."""
         from engine import checks as ck
@@ -279,17 +287,16 @@ class InventoryActions:
         sum_ = money.words(amount)
         if paid:
             c.coins -= amount
-            npc.memories.append(Memory(day=day, turn=turn, text=f"Took {sum_} from the stranger as a bribe ({favor}). I was persuaded."))
+            npc.memories.append(Memory(importance=3, day=day, turn=turn, text=f"Took {sum_} from the stranger as a bribe ({favor}). I was persuaded."))
             from engine import law
             npc.looks_away_until = self.minutes + law.N["look_away_minutes"]
-            self.reputation_change("gift")
-            console.note(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
+            console.ledger(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
             effect = f"You are persuaded and take the {sum_}. You will do what they ask in the story, quietly."
         elif degree == "partial":
-            npc.memories.append(Memory(day=day, turn=turn, text=f"The stranger offered {sum_} to {favor}. It was not enough; I held out for more."))
+            npc.memories.append(Memory(importance=3, day=day, turn=turn, text=f"The stranger offered {sum_} to {favor}. It was not enough; I held out for more."))
             effect = f"You are tempted by the {sum_} but it is not enough; you do NOT take it yet, and you want more or something else."
         else:
-            npc.memories.append(Memory(day=day, turn=turn, text=f"The stranger tried to bribe me with {sum_} ({favor}). I refused, and I trust them less for it."))
+            npc.memories.append(Memory(importance=3, day=day, turn=turn, text=f"The stranger tried to bribe me with {sum_} ({favor}). I refused, and I trust them less for it."))
             effect = f"You refuse the {sum_} and think less of them for offering. You do NOT take it."
         console.debug(f"bribe: {sum_} is {pct:.1f}% of {npc.role} wealth {wealth}; bonus {bonus:+.0f}, traits/duty {mods:+d}; {degree}")
         self.store.save_npc(npc)
@@ -334,6 +341,11 @@ class InventoryActions:
     def on_give(self, intent, text: str) -> None:
         if self.tithe_box(intent, text):
             return
+        from engine import mentor as _mt
+        if not self.rank and self.clerk_here() and _mt.stage(self.player) == "sign" and not intent.target:
+            from llm.contracts import ActionIntent                 # at the clerk's desk with Maren, coin held out is the joining fee (f283)
+            self.on_join_guild(ActionIntent(kind="join_guild"), text)
+            return
         npc = next((n for n in self.present if n.id == intent.target), None) or \
             (self.partner if self.partner in self.present else None)
         if not npc:
@@ -360,12 +372,12 @@ class InventoryActions:
                 npc.memories.append(Memory(day=day, turn=self.store.meta.turn,
                                            text=f"The stranger delivered {key.name} to me, as {key.source} asked."))
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
-                console.note(f"Delivered: {key.name}.")
+                console.ledger(f"Delivered: {key.name}.")
             else:
-                npc.memories.append(Memory(day=day, turn=self.store.meta.turn, text=f"The stranger handed me {key.name}."))
+                npc.memories.append(Memory(importance=2, day=day, turn=self.store.meta.turn, text=f"The stranger handed me {key.name}."))
                 meant = f" - it was meant for {key.for_whom}" if key.for_whom else ""
                 c.item_history.append(f"Gave {key.name} to {npc.name}{meant} (day {day}).")
-                console.note(f"Handed over: {key.name}{meant}.")
+                console.ledger(f"Handed over: {key.name}{meant}.")
             self.store.save_npc(npc)
             self.store.save_player(self.player)
             intent.target = npc.id
@@ -373,21 +385,12 @@ class InventoryActions:
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
-        item = inv.take(self.pack, intent.item or text, max(1, intent.count))
+        item = inv.find(self.pack, intent.item or text)
         if not item:
             console.note("You aren't carrying that.")
-            self.halted = True
-            return
-        npc.trust = min(100, npc.trust + R["gift_trust"])
-        npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                   text=f"The stranger gave me {inv.label(item)}."))
-        self.store.save_npc(npc)
-        self.store.save_player(self.player)
-        console.note(f"Gave {inv.label(item)} to {npc.label()}.")
-        intent.target = npc.id
-        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + \
-            f"[They hand you {inv.label(item)} as a gift.]"
-        self.on_talk(intent, text)
+        else:
+            console.note(f"{npc.label().capitalize()} waves it off - people here don't take handouts. Sell it, or keep it.")
+        self.halted = True
 
     def on_store(self, intent, text: str) -> None:
         if self.refuse_key(intent.item or text, "store"):
@@ -406,7 +409,7 @@ class InventoryActions:
             inv.add(self.pack, leftover, self.pack_slots() + 1)
             console.note(f"The item box is full - kept {inv.label(leftover)}.")
         self.store.save_player(self.player)
-        console.note(f"Stored: {inv.label(item)}. Item box {len(self.player.stash)}/{self.stash_cap()}.")
+        console.ledger(f"Stored: {inv.label(item)}. Item box {len(self.player.stash)}/{self.stash_cap()}.")
 
     def on_retrieve(self, intent, text: str) -> None:
         if not self.can_store():
@@ -420,14 +423,15 @@ class InventoryActions:
             return
         self.to_pack(item)
         self.store.save_player(self.player)
-        console.note(f"Took from the item box: {inv.label(item)}.")
+        console.ledger(f"Took from the item box: {inv.label(item)}.")
 
     def on_equip(self, intent, text: str) -> None:
         self.equip_command(intent.item or text)
 
     def companion_alive(self) -> bool:
         """A bound companion travels with the player (companions recover between fights)."""
-        return any(m.active for m in self.player.character.companions)
+        c = self.player.character
+        return any(m.active for m in c.companions) or bool(c.bound_summon and not c.bound_broken)   # a companion, or the Bound summon
 
     def on_forage(self, intent, text: str) -> None:
         biome = self.place.biome
@@ -469,12 +473,12 @@ class InventoryActions:
         for extra in extras:
             self.to_pack(extra)
             found_note = items.MATERIALS[extra.material].name
-            console.note(f"Among the stones: raw {found_note}.")
+            console.ledger(f"Among the stones: raw {found_note}.")
         for gid, n in found.items():
             self.to_pack(inv.make_good(gid, n))
         self.store.save_player(self.player)
         got = ", ".join(f"{n} {inv.GOODS[g].name}" for g, n in found.items())
-        console.note(f"Gathered: {got}.")
+        console.ledger(f"Gathered: {got}.")
         self.narrate(f"The player spends half an hour foraging and gathers {got}.", text)
 
     def on_craft(self, intent, text: str) -> None:
@@ -493,23 +497,29 @@ class InventoryActions:
             self.halted = True
             return
         c = self.player.character
+        origin = ""
         for ing in recipe.ingredients:
             saved = 1 if random.random() < crafting.mechanic(c, "thrifty") / 100 else 0
             herb = ing.good in inv.GOODS and inv.GOODS[ing.good].kind == "herb"
             if not saved and herb and random.random() < crafting.mechanic(c, "herb_wise") / 100:
                 saved = 1
-            inv.remove_goods(self.pack, ing.good, ing.kind, max(0, ing.count - saved))
+            taken = inv.remove_goods(self.pack, ing.good, ing.kind, max(0, ing.count - saved), ing.meat)
+            if ing.meat:
+                origin = next((t.origin for t in taken if t.origin), "")      # a meal keeps the beast it was made from
         extra = 1 if random.random() < (self.has("brewer") or 0) / 100 else 0
         for gid, n in recipe.makes.items():
-            self.to_pack(inv.make_good(gid, n + extra))
+            made = inv.make_good(gid, n + extra)
+            made.origin = origin
+            self.to_pack(made)
             if extra:
-                console.note(f"A little extra: one more {inv.GOODS[gid].name}.")
+                console.ledger(f"A little extra: one more {inv.GOODS[gid].name}.")
+        self.campfire_cook(recipe.makes)
         crafting.raise_skill(c, crafting.skill_gain(c, False))
         self.craft_boost = 0
         self.advance(round(R["craft_minutes"] * (1 - crafting.mechanic(c, "quick_hands") / 100)))
         self.store.save_player(self.player)
         made = ", ".join(f"{n} {inv.GOODS[g].name}" for g, n in recipe.makes.items())
-        console.note(f"Made: {made}.")
+        console.ledger(f"Made: {made}.")
         self.narrate(f"The player spends half an hour working and makes {made}.", text)
 
     def craft_gear(self, intent, text: str) -> None:
@@ -518,8 +528,9 @@ class InventoryActions:
         base = crafting.find_base(words)
         station = crafting.station_for(base)
         spot = self.place.stations.get(station)
-        field = spot is None and self.owns("field_kit")
-        if field:
+        practiced = spot is None and self.owns("practiced_hands") and base.id in c.recipes_made
+        field = spot is None and not practiced and self.owns("field_kit")
+        if field or practiced:
             spot = {"owner": "", "fee": 0}
         if spot is None:
             where = [p.name for p in self.world.places.values() if station in p.stations]
@@ -551,19 +562,24 @@ class InventoryActions:
         crafting.use_material(self.pack, material, need - min(saved, need - 1))
         boost = getattr(self, "craft_boost", 0)
         skill = crafting.effective_skill(c) - (self.mech("field_kit") if field else 0)
-        item = crafting.make_gear(base, material, skill, random.Random(), boost,
-                                  floor="common" if self.owns("never_shoddy") else "crude")
+        floor = "common" if self.owns("never_shoddy") else "crude"
+        studied = c.studied.get(base.id) if self.owns("reverse_engineer") else None
+        if studied and crafting.RARITY_ORDER.index(studied) > crafting.RARITY_ORDER.index(floor):
+            floor = studied                               # Reverse Engineer: at least as fine as the piece you studied
+        item = crafting.make_gear(base, material, skill, random.Random(), boost, floor=floor)
         item.source = "your own work"
+        if not (field or practiced) and base.id not in c.recipes_made:
+            c.recipes_made.append(base.id)                # Practiced Hands remembers what was made at a proper workshop
         self.craft_boost = 0
         before, after = crafting.raise_skill(c, crafting.skill_gain(c, True, material))
         self.to_pack(item)
         self.advance(round(crafting.RULES["gear_minutes"] * (1 - crafting.mechanic(c, "quick_hands") / 100)))
         self.store.save_player(self.player)
-        paid = f" Paid {money.fmt(fee)} to use the {station.replace('_', ' ')}." if fee else ""
+        paid = f" Paid {money.fmt(fee)} to use the {station.replace('_', ' ')}." if fee else (" No workshop needed - you have made this before (Practiced Hands)." if practiced else "")
         thrift = f" Saved {saved} material." if saved else ""
-        console.note(f"Crafted: {quality_name(item)} (lv {item.item_level}).{paid}{thrift} "
+        console.ledger(f"Crafted: {quality_name(item)} (lv {item.item_level}).{paid}{thrift} "
                      f"Crafting skill {before:.0f} -> {after:.0f}.")
-        self.narrate(f"The player spends a couple of hours at the {station.replace('_', ' ')} and makes "
+        self.narrate(f"The player spends a couple of hours {'with their tools, no workshop needed,' if practiced else 'at the ' + station.replace('_', ' ')} and makes "
                      f"{item.name} from {items.MATERIALS[material].name} - {item.rarity} work.", text)
 
     def on_commission(self, intent, text: str) -> None:
@@ -607,7 +623,7 @@ class InventoryActions:
                                        text=f"The stranger paid {money.words(price)} for me to make {base.name}."))
         self.store.save_npc(crafter)
         self.store.save_player(self.player)
-        console.note(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label()} "
+        console.ledger(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label()} "
                      f"for {money.fmt(price)}" + (" (your materials)" if use_own else "")
                      + ". Ready in about a day - collect it while they're at work.")
         self.narrate(f"The player pays {crafter.label()} {money.words(price)} to make {base.name} from "
@@ -658,7 +674,9 @@ class InventoryActions:
             if self.stable_stock():
                 self.show_stable()
             else:
-                console.note("No one here is selling anything you know of. Speak to the people here first.")
+                who = self.trades_here()
+                console.note(f"No one you have spoken to sells here yet. Trading here: {who}. Speak to them first." if who
+                             else "No one is selling anything here right now.")
             return
         if console.panel("shop", data):                    # the window draws this one with Buy and Sell buttons
             self.show_stable()
@@ -694,7 +712,8 @@ class InventoryActions:
             return
         item = inv.find(self.pack, intent.item or text)
         if not item:
-            console.note("You aren't carrying that.")
+            worn = equipment.find(self.player.character, intent.item or text, "equipped")
+            console.note(f"{items.display_name(worn).capitalize()} is equipped. Unequip it first." if worn else "You aren't carrying that.")
             self.halted = True
             return
         cat = inv.category(item)

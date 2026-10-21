@@ -68,7 +68,7 @@ def attempt(combat, target, approach: str, character, rng: random.Random) -> str
         combat.log.append(f"{target.name} cannot be frightened")
         return None
     chance, why = odds(character, combat, target, approach)
-    degree, roll = checks.roll(chance, rng)
+    degree, roll = checks.roll(chance, rng, c=character)
     target.talked = True
     ok = degree in ("success", "strong success")
     combat.log.append(f"talk ({approach}) {chance:.0f}% rolled {roll}: {degree} [{', '.join(why)}]")
@@ -77,6 +77,9 @@ def attempt(combat, target, approach: str, character, rng: random.Random) -> str
         C.tell(combat, {"intimidate": f"{C.who(target)} laughs it off and does not back down",
                         "persuade": f"{C.who(target)} will not listen",
                         "deceive": f"{C.who(target)} sees through it"}[approach])
+        if approach == "intimidate":
+            from engine import combat_perks
+            combat_perks.failed_threat(combat, target)
         return None
     if approach == "intimidate":
         yields = behaviors.can_surrender(target) or target.category in ("hostile people", "person template", "monstrous race")

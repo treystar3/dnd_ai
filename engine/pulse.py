@@ -176,13 +176,10 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         here = [p for p in pressures if p.place == place_id]
         pressure = rng.choices(here, weights=[p.weight for p in here])[0] if here else None
         place = world.places.get(place_id)
-    elif pressures and (tier == "campaign" or rng.random() < 0.75):
-        pressure = rng.choices(pressures, weights=[p.weight for p in pressures])[0]
-        place = world.places.get(pressure.place) or region_town(world, pressure.place, rng)
+    elif tier == "campaign" and pressures:
+        pressure, place = place_by_band(store, world, pressures, rng, must_pressure=True)      # (f324) a campaign near the player, falling outward
     else:
-        pressure = None
-        towns = [p for p in world.places.values() if not p.parent and p.type not in ("dungeon", "road") and known(world, p.id)]
-        place = rng.choice(towns)
+        pressure, place = place_by_band(store, world, pressures, rng)            # (f323) mostly where the player is, sometimes anywhere
     if not place:
         return False
     big = tier in events.BIG
@@ -191,11 +188,13 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     extra = ""
     if big:
         extra = f"\nPLAYER LEVEL: {events.player_level(store)}"
+    from engine import truth
     try:
         proposal = generate(
             "pulse_thread", system,
             f"TIER: {tier}\nSTAGES: {rule['stages']}\n" + context_for_place(store, world, catalog, state, place, t, big=big) + extra,
-            ThreadProposal, temperature=0.95, max_tokens=2400 if big else 1800, validation_context={"stages": rule["stages"]},
+            ThreadProposal, temperature=0.95, max_tokens=2400 if big else 1800,
+            validation_context={"stages": rule["stages"], "known": truth.world_words(world)},      # (f323) nothing named that the world does not have
         )
     except LLMError as e:
         console.debug(f"pulse: no situation this time ({e})")
@@ -206,7 +205,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     days = rng.randint(*rule["days"])
     span = days * 1440
     times = [t + round(span * i / rule["stages"]) for i in range(rule["stages"])] + [t + span]
-    thread = {"id": thread_id, "title": proposal.title, "tier": tier, "place": proposal.place,
+    thread = {"id": thread_id, "title": proposal.title, "tier": tier, "place": proposal.place, "kind": proposal.kind,
               "pressure": pressure.id if pressure else "", "stage": 0, "times": times, "status": "active",
               "stages": [s.model_dump() for s in proposal.stages], "fallout": proposal.fallout.model_dump(),
               "resolution": proposal.resolution, "made": t,
@@ -214,6 +213,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
               "reward_hint": list(pressure.reward) if pressure else [], "paths": [], "scope_places": [],
               "triumph": proposal.triumph.model_dump() if proposal.triumph else None,
               "boss_lines": proposal.boss_lines.model_dump(exclude={"captain_intro"}) if proposal.boss_lines and tier == "campaign" else None}
+    thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
     state["threads"].append(thread)
     if pressure:
         state["cooldowns"][pressure.id] = t
@@ -222,14 +222,60 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     add_news(state, proposal.news, proposal.place, t, thread["groups"])
     row = pulselog.note("thread", f"[{tier}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages")
     apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)
+    from engine import matters                                      # (f317) the door the player meets it through, and what it carries
+    reputation = store.load_player().reputation.get(town_of(world, proposal.place), 0) if store.player_exists() else 0
+    matters.attach(store, world, state, thread, proposal, reputation, rng, t)
     posted = False
-    if proposal.contract and proposal.contract.what:
-        posted = post_contract(store, world, proposal.contract, thread, t)
+    if thread["contract"] and thread["door"] in ("board", "board_more"):
+        posted = post_contract(store, world, proposal.contract, thread, t, plain=thread["hidden"])
+    thread["posted"] = posted
+    thread["paths"] = events.build_paths(store, world, state, proposal.paths, thread, posted and not thread["hidden"])
     if big:
-        thread["paths"] = events.build_paths(store, world, state, proposal.paths, thread, posted)
         thread["scope_places"] = sorted({e.place for st in proposal.stages for e in st.effects if e.place in world.places})
     console.debug(f"pulse: [{tier}] {proposal.title} at {proposal.place}")
     return True
+
+
+def place_by_band(store, world, pressures: list, rng: random.Random, must_pressure: bool = False):
+    """(f323) Where a new situation goes: a band drawn by pulse.yaml placement - the player's own town, its neighbours, its region, or
+    anywhere - then a pressure in that band when there is one (most of the time), else one of its towns. The world keeps moving where
+    nobody watches, but the calls the player waits through are mostly ones they will meet. must_pressure (a campaign, f324): the band
+    must hold a pressure, else the next band out is tried, so the biggest events are the likeliest to be met."""
+    PL = P.get("placement", {})
+    towns = [p for p in world.places.values() if not p.parent and p.type not in ("dungeon", "road") and known(world, p.id) and not p.danger]
+    here = town_of(world, store.load_player().location) if store.player_exists() else ""
+    if here not in world.places or not PL:
+        pressure = rng.choices(pressures, weights=[p.weight for p in pressures])[0] if pressures and rng.random() < 0.75 else None
+        return pressure, (world.places.get(pressure.place) or region_town(world, pressure.place, rng)) if pressure else rng.choice(towns)
+    dist = events.distances(world, here)
+    region = world.places[here].region
+    bands = {"here": [here],
+             "near": [p.id for p in towns if p.id != here and dist.get(p.id, 10 ** 9) <= PL.get("near_minutes", 600)],
+             "region": [p.id for p in towns if p.id != here and p.region == region and dist.get(p.id, 10 ** 9) > PL.get("near_minutes", 600)],
+             "far": [p.id for p in towns if p.id != here and p.region != region and dist.get(p.id, 10 ** 9) > PL.get("near_minutes", 600)]}
+    weights = {b: PL["bands"].get(b, 0) for b in bands if bands[b]}
+    band = rng.choices(list(weights), weights=list(weights.values()))[0]
+    order = ["here", "near", "region", "far"]
+    ids = set(bands[band])
+    regions = {world.places[i].region for i in ids}
+    in_band = lambda ids_, regs_: [pr for pr in pressures if pr.place in ids_ or town_of(world, pr.place) in ids_ or (pr.place in world.regions and pr.place in regs_)]
+    mine = in_band(ids, regions)
+    if must_pressure:
+        for b in order[order.index(band):] + order[:order.index(band)]:
+            ids_b = set(bands[b])
+            mine = in_band(ids_b, {world.places[i].region for i in ids_b})
+            if mine:
+                ids, regions = ids_b, {world.places[i].region for i in ids_b}
+                break
+        if not mine:
+            mine = list(pressures)
+    if mine and (must_pressure or rng.random() < PL.get("pressure_share", 0.75)):
+        pressure = rng.choices(mine, weights=[pr.weight for pr in mine])[0]
+        place = world.places.get(pressure.place) or region_town(world, pressure.place, rng)
+        if place is not None and town_of(world, place.id) not in ids and place.id not in ids:
+            place = world.places[rng.choice(sorted(ids))]
+        return pressure, place
+    return None, world.places[rng.choice(sorted(ids))]
 
 
 def region_town(world, region_id: str, rng):
@@ -243,7 +289,10 @@ def region_town(world, region_id: str, rng):
 
 def tick_threads(store, world, catalog, state, t, rng) -> bool:
     changed = False
+    from engine import matters
     for th in [x for x in state["threads"] if x["status"] == "active"]:
+        if th.get("door") and matters.reopen(store, world, state, th, t):
+            changed = True
         while th["status"] == "active" and th["stage"] + 1 < len(th["stages"]) and t >= th["times"][th["stage"] + 1]:
             th["stage"] += 1
             stage = th["stages"][th["stage"]]
@@ -261,12 +310,16 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
                 pulselog.note("end", f"{th['title']} - settled by {who}")
                 end_thread(store, state, th, "resolved", f"{th['title']} - settled by {who}.", t)
                 th["result"] = "others"
+                matters.town_note(store, world, th["place"], f"{th['title']}: settled by {who}", t)       # (f323) the town's own history
             else:
                 fall = th["fallout"]
                 row = pulselog.note("end", f"{th['title']} - left alone, so the fallout lands: {fall['description'][:140]}")
                 apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
                 end_thread(store, state, th, "ended", f"{th['title']} - {fall['description']}", t)
                 th["result"] = "ignored"
+                if (th.get("summons") == "met" or th.get("answered")) and store.player_exists():      # (f317) they were asked, and let it be
+                    pl = store.load_player()
+                    matters.remember(store, world, th, "ignored", pl.character.name, t, store.meta.turn)
                 if th["tier"] == "cataclysm":
                     events.after_ignored(store, world, state, th, t)
             if th["tier"] == "cataclysm":
@@ -276,16 +329,24 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
 
 
 def resolver(store, world, th, rng) -> str:
-    """Who dealt with it, off-screen. Guild contractors sometimes, and it marks them."""
+    """Who dealt with it, off-screen: one of the town's anchors when one fits (f323), a guild contractor sometimes, else the watch or
+    the people. Whoever it was remembers it, and so does the town."""
+    from engine import retrieval
+    from npc.models import Memory
+    town = town_of(world, th["place"])
+    anchors = [n for n in store.load_npcs([r.id for r in retrieval.people_in_town(store, world, town)]) if n.anchor]
+    if anchors and rng.random() < P.get("anchor_settles", 0.5):
+        n = rng.choice(anchors)
+        n.memories.append(Memory(day=clock.day(th["times"][-1]), turn=-1, text=f"I dealt with {th['title'].lower()} myself, in the end.", importance=2))
+        store.save_npc(n)
+        return f"{n.name}, the {n.role.replace('_', ' ')}"
     if rng.random() < 0.4:
-        for nid in store.list_npcs():
-            n = store.load_npc(nid)
-            if n.role == "guild_contractor" and not n.gone:
-                n.mood = rng.choice([f"proud, after settling {th['title'].lower()}",
-                                     f"nursing a fresh wound from {th['title'].lower()}",
-                                     f"flush with coin from {th['title'].lower()}"])
-                store.save_npc(n)
-                return f"{n.name}, a guild contractor"
+        for n in store.load_npcs([r.id for r in store.npc_rows(role="guild_contractor", gone=False)][:1]):     # the first, as before
+            n.mood = rng.choice([f"proud, after settling {th['title'].lower()}",
+                                 f"nursing a fresh wound from {th['title'].lower()}",
+                                 f"flush with coin from {th['title'].lower()}"])
+            store.save_npc(n)
+            return f"{n.name}, a guild contractor"
     place = world.places[th["place"]]
     return "the watch" if place.residents.get("guard") or place.residents.get("watch_captain") else \
         f"the people of {place.name}"
@@ -304,7 +365,8 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     add_news(state, line, th["place"], t, th["groups"])
 
 
-def post_contract(store, world, offer, thread, t) -> bool:
+def post_contract(store, world, offer, thread, t, plain: bool = False) -> bool:
+    """plain (f317): the posting reads as an ordinary job, with nothing in the title to say what is behind it."""
     from engine import quests
     halls = [p.id for p in world.places.values() if p.type == "guild"]
     if not halls:
@@ -316,7 +378,8 @@ def post_contract(store, world, offer, thread, t) -> bool:
     if not q:
         return False
     q["thread"] = thread["id"]
-    q["title"] = f"{q['title']} ({thread['title']})"
+    if not plain:
+        q["title"] = f"{q['title']} ({thread['title']})"
     q["multiplier"] = q.get("multiplier", 1) * events.pulse_mult(thread["tier"])
     gs = store.load_place(gid)
     gs.board.append(q)
@@ -329,9 +392,8 @@ def post_contract(store, world, offer, thread, t) -> bool:
 def move_motive(store, world, catalog, state, t, rng) -> bool:
     gap = P["motives"]["step_days"] * 1440
     last = state.setdefault("motive_last", {})
-    movers = [n for n in (store.load_npc(i) for i in store.list_npcs())
-              if n.tier != "background" and n.motive and not n.gone and known(world, n.location)
-              and t - last.get(n.id, -10 ** 9) >= gap]
+    movers = store.load_npcs([r.id for r in store.npc_rows(not_tier="background", motive=True, gone=False)
+                              if known(world, r.location) and t - last.get(r.id, -10 ** 9) >= gap])
     if not movers:
         return False
     npc = rng.choice(movers)
@@ -479,6 +541,7 @@ def remove_npc(store, world, npc, how: str, t: int) -> None:
     npc.gone = how
     npc.work_offer = npc.quest_offer = None
     store.save_npc(npc)
+    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location})
     ps = store.load_place(npc.location)
     ps.residents = [r for r in ps.residents if r != npc.id]
     store.save_place(ps)
@@ -512,15 +575,26 @@ def context_for_place(store, world, catalog, state, place, t, big: bool = False)
     threads = [f"{x['title']} ({x['place']})" for x in state["threads"] if x["status"] == "active"][-8:]
     history = [h["text"] for h in state["history"][-6:]]
     pressures = [p.description for p in world.pressures.values() if p.place in (place.id, town)]
+    from engine import towns, matters, deeds
+    town_lines = towns.thread_lines(world, place.id, big)                  # (f316) the town's character, trouble and (for a big one) secret
+    cond = towns.condition(store, world, place.id, t)                      # (f323) the state the town is in, what is settled, what the stranger did
+    if cond.name != "calm":
+        town_lines.append(f"THE TOWN IS {cond.name.upper()} ({cond.why}): what you write must fit that.")
+    settled = matters.town_memory(store, world, place.id, t)
+    if settled:
+        town_lines.append("SETTLED LATELY (it stays settled; do not start the same trouble again): " + "; ".join(settled))
+    region = world.places[town].region if town in world.places else place.region
+    mine = [deeds.describe(d) for d in deeds.since(state, t - P.get("deeds_days", 30) * 1440)
+            if d.get("kind") != "offense" and world.places.get(d.get("place") or "") and world.places[d["place"]].region == region][-6:]
+    if mine:
+        town_lines.append("WHAT THE STRANGER HAS DONE IN THESE PARTS (the world reacts to it; the stranger is never a character in what you write): "
+                          + "; ".join(mine))
     group = world.locals_group(place.id)
     facts = [f.text for f in world.lore.values() if group in f.known_by][:4]
-    people = []
-    for nid in store.list_npcs():
-        n = store.load_npc(nid)
-        if not n.gone and town_of(world, n.location) == town:
-            people.append(f"{n.id}: {n.name}, {n.role.replace('_', ' ')}{' (' + n.mood + ')' if n.mood else ''}")
+    from engine import retrieval
+    people = [f"{n.id}: {n.name}, {n.role.replace('_', ' ')}{' (' + n.mood + ')' if n.mood else ''}" for n in retrieval.people_in_town(store, world, town)]
     roads = "; ".join(f"{r.id}: {r.from_} - {r.to}" for r in world.roads.values())
     return pp.place_context(world, store, place, t, clock.season(t), threads, history, pressures, facts,
                             people[:20], list(world.knowledge_groups), sorted(catalog.traits) if catalog else [], roads,
-                            creatures=events.creature_menu(world, place.id) if big else "",
-                            roles=events.role_menu(world) if big else "")
+                            creatures=events.creature_menu(world, place.id),
+                            roles=events.role_menu(world) if big else "", town_lines=town_lines)

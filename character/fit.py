@@ -35,7 +35,7 @@ def stat_scores(interp: ClassInterpretation) -> dict[str, int]:
     for s in STATS.values():
         score = _base_score(s.suits, interp, text)
         if s.category == "companion":
-            score += 4 if interp.uses_companions else EXCLUDED
+            score += 4 if (interp.uses_companions or getattr(interp, "summoner", False)) else EXCLUDED
         if interp.focus == "social" and s.category in ("social", "knowledge"):
             score += 2
         if interp.focus == "combat" and s.category == "combat":
@@ -50,7 +50,7 @@ def trigger_scores(interp: ClassInterpretation) -> dict[str, int]:
     for t in TRIGGERS.values():
         score = _base_score(t.suits, interp, text)
         if t.id == "with_companion_present":
-            score += 4 if interp.uses_companions else EXCLUDED
+            score += 4 if (interp.uses_companions or getattr(interp, "summoner", False)) else EXCLUDED
         if interp.focus == "social" and t.noncombat:
             score += 2
         scores[t.id] = score
@@ -72,7 +72,7 @@ def mechanic_scores(interp: ClassInterpretation) -> dict[str, int]:
     for m in MECHANICS.values():
         score = _base_score(m.suits, interp, text)
         if m.companion_only:
-            score += 4 if interp.uses_companions else EXCLUDED
+            score += 4 if (interp.uses_companions or getattr(interp, "summoner", False)) else EXCLUDED
         if interp.focus == "social" and m.kind == "world":
             score += 2
         scores[m.id] = score

@@ -16,7 +16,7 @@ equip_level_margin: 10
 # a typical weapon's damage, and defense takes a typical blow (damage_ref x defense_hit) and takes that much off every hit.
 flat_gear:
   stats: [damage, spell_power, defense, max_health, max_stamina, max_mana, strength, dexterity, constitution, intelligence, wisdom, charisma,
-          fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
+          fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage, nature_damage]
   attribute: {start: 15, per_level: 3}
   damage_ref: 8
   defense_hit: 2.0
@@ -47,14 +47,14 @@ roll_lists:
 
 # Stats that exist only on gear. Attributes and elemental damage are flat (shares of a typical attribute / weapon at the item's level);
 # a resistance is a percent cut to damage of that kind (combat.yaml loot.resist_magnitude); crit_chance and crit_damage are flat percentage points: chance added to the crit roll, damage added to the crit multiplier.
-# elemental_resistance and elemental_damage in a list mean "one of the seven elements, picked when the item is rolled", so a list is not
+# elemental_resistance and elemental_damage in a list mean "one of the eight elements, picked when the item is rolled", so a list is not
 # swamped by seven near-identical entries. all_elemental_resistance cuts every element at once, for a smaller amount (loot.all_resist_share),
 # and only heavy armor and shields can roll it. Every armor can roll any single element.
 gear_only_stats:
   attribute: [strength, dexterity, constitution, intelligence, wisdom, charisma]
   resistance: [physical_resistance, magical_resistance, fire_resistance, cold_resistance, lightning_resistance, poison_resistance,
-               acid_resistance, necrotic_resistance, radiant_resistance, all_elemental_resistance]
-  elemental_damage: [fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage]
+               acid_resistance, necrotic_resistance, radiant_resistance, nature_resistance, all_elemental_resistance]
+  elemental_damage: [fire_damage, cold_damage, lightning_damage, poison_damage, acid_damage, necrotic_damage, radiant_damage, nature_damage]
   crit: [crit_chance, crit_damage]
   spell: [spell_power]
   onhit: [vampiric, envenom_chance, ignite_chance, jolt_chance, siphon_mana, siphon_stamina]    # weapons only: what a hit does besides damage

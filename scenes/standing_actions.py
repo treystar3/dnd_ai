@@ -48,7 +48,22 @@ class StandingActions:
 
     # ---------- commands ----------
 
+    def standing_data(self) -> dict:
+        """(f327) The window's Standing pane: this town's regard and its groups, what is said of you here, the other towns, your titles."""
+        town, day = self.standing_town(), clock.day(self.minutes)
+        wild = bool(self.world.places[town].danger)
+        groups = [] if wild else [{"name": GROUP_NAMES[g].capitalize(), "value": standing.value(self.player, town, g, day), "word": w}
+                                  for g, w in standing.standings(self.player, town, day)]
+        rumors = [] if wild else [{"n": n, "text": e["text"], "twisted": bool(e.get("deed", {}).get("twisted"))} for n, e in enumerate(self.rumor_items(), 1)]
+        elsewhere = [{"name": self.world.places[t].name, "value": r, "word": self.reputation_words(t)}
+                     for t, r in sorted(self.player.reputation.items(), key=lambda x: -abs(x[1]))
+                     if t != town and t in self.world.places and self.world.places[t].type in ("town", "city", "village") and abs(r) >= 5]
+        return {"wild": wild, "town": self.world.places[town].name, "value": self.player.reputation.get(town, 0), "word": self.reputation_words(town),
+                "groups": groups, "rumors": rumors, "elsewhere": elsewhere, "titles": list(self.player.titles)}
+
     def show_standing(self) -> None:
+        if console.panel("standing", self.standing_data()):
+            return
         town, day = self.standing_town(), clock.day(self.minutes)
         name = self.world.places[town].name
         if self.world.places[town].danger:
@@ -83,6 +98,12 @@ class StandingActions:
                 console.note(f"  - {t}")
 
     def correct_rumor(self, args: str) -> None:
+        self._correct_rumor(args)
+        if console.windowed():
+            with console.scope("#standing"):                     # (f327) the pane's Correct button: the pane is drawn again
+                self.show_standing()
+
+    def _correct_rumor(self, args: str) -> None:
         mine = self.rumor_items()
         if not args.strip().isdigit() or not 1 <= int(args) <= len(mine):
             console.note("Which tale? Type #rumors for the list, then #correct <number>.")
@@ -95,7 +116,7 @@ class StandingActions:
             return
         self.advance(standing.S["spread"]["correct_minutes"])
         odds = checks.chance(self.player.character, "persuasion", self.conditions(), npc=listeners[0])[0]
-        degree, _ = checks.roll(odds)
+        degree, _ = checks.roll(odds, c=self.player.character)
         if not deed["twisted"]:
             console.note("Those who tell it have it right. There is nothing to correct.")
             return

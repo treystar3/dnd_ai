@@ -6,6 +6,7 @@ Per-request rules (reserved names, companion classes) arrive through the
 validation context passed to llm.gateway.generate.
 """
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, model_validator
@@ -16,8 +17,6 @@ from core.models import (
     NONCOMBAT_TRIGGERS,
     POOL_TARGETS,
     Archetype,
-    CompanionKind,
-    CompanionRole,
     Effect,
     ModifierTarget,
     PowerTier,
@@ -50,14 +49,20 @@ class ClassInterpretation(BaseModel):
     summary: str
     focus: Literal["combat", "balanced", "social"] = "balanced"
     constraints: list[str] = []
-    uses_companions: bool = False
+    uses_companions: bool = False      # relies on tamed, living creatures (companions)
+    summoner: bool = False             # makes summons with magic - never companions
     families: list[str] = []
     primary_attributes: list[Literal["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]] = []
     casting_attribute: Literal["", "intelligence", "wisdom", "charisma"] = ""
+    elements: list[Literal["fire", "cold", "lightning", "poison", "acid", "necrotic", "radiant", "nature"]] = []   # the concept's named magic, if any
+    adapted: str = ""          # set when the concept needed something this world lacks: what was asked and what it was made into
 
     @model_validator(mode="after")
     def known_families(self):
         self.primary_attributes = list(dict.fromkeys(self.primary_attributes))[:3]
+        import re as _re
+        if _re.fullmatch(r"\W*(none|n/?a|nothing|no|null|nil|not applicable|not adapted|no adaptation|unchanged)?\W*", self.adapted.strip().lower()):
+            self.adapted = ""                       # "none", 'none",  ', "n/a" or only stray punctuation: nothing was adapted, and it stays hidden
         from core.rules import FAMILIES
         unknown = [f for f in self.families if f not in FAMILIES]
         if unknown:
@@ -67,11 +72,20 @@ class ClassInterpretation(BaseModel):
         return self
 
 
-class CompanionProposal(BaseModel):
+class AskedInterpretation(ClassInterpretation):
+    """The classification as the model is asked for it: families and primary attributes are required, so a structured answer cannot
+    leave them out (a Paladin left unclassified gets no paladin magic, no healing and the wrong casting attribute)."""
+    families: list[str] = Field(min_length=1, max_length=3)
+    primary_attributes: list[Literal["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]] = Field(min_length=1, max_length=3)
+    uses_companions: bool          # (f260) answered every time: a Lich King that commands the dead makes summons
+    summoner: bool
+    elements: list[Literal["fire", "cold", "lightning", "poison", "acid", "necrotic", "radiant", "nature"]]
+
+
+class SummonProposal(BaseModel):
+    """The model's part of a summon: what the summoned being is called and looks like. Its form, size and element are the engine's."""
     name: str
-    description: str
-    kind: CompanionKind
-    role: CompanionRole
+    description: str = ""
 
 
 from engine.field import FUNCTIONS as _FIELD_FUNCTIONS  # noqa: E402
@@ -88,11 +102,23 @@ class ActiveProposal(BaseModel):
     reach: Reach
     resource: Literal["stamina", "mana"]
     context: UseContext
-    summons: CompanionProposal | None = None
+    summons: SummonProposal | None = None
+    summon_form: str = ""      # for a summon: the engine-planned form (data/rules/summons.yaml); the model never chooses it
     tags: list[str] = []
     rider: Literal[tuple([""] + list(_AT.RIDERS))] = ""
     shape: Literal[tuple([""] + list(_AT.SHAPES))] = ""
     buff: Literal[tuple([""] + list(_AT.BUFFS))] = ""
+    movement: str = ""
+    heal_form: str = ""        # for healing: the engine-planned form (data/rules/healing.yaml); the model never chooses it
+    expressions: list[str] = []  # what its element does (data/rules/spellcraft.yaml), engine-planned; the model never chooses it
+    power: float = 0           # engine-set numbers of its own (0 = its tier's); the model never chooses them
+    cost_percent: float = 0
+    cast_turns: int = 0
+    martial_form: str = ""     # a technique's form, its flurry hits and its maneuver - engine-planned (data/rules/martial.yaml)
+    hits: int = 0
+    maneuver: str = ""
+    spell_form: str = ""       # a mana damage spell's form (bolt, blast, burst, curse, charged), engine-planned
+    element: str = ""          # the engine-planned element (data/rules/elements.yaml); the model never chooses it
     buff_stat: Literal["", "armor", "ward", "both"] = ""
     command: Literal["", "focus", "guard", "press", "hold", "distract"] = ""
     field_use: FieldUse = ""
@@ -105,12 +131,10 @@ class ActiveProposal(BaseModel):
             self.effect = Effect.UTILITY               # a buff with a world function and no combat buff is that world function (a blessing, a mount)
             self.context = UseContext.OUT_OF_COMBAT
         if self.effect == Effect.BUFF:
-            if not self.buff and self.buff_stat:
-                self.buff = "bulwark"                  # a stat means a bulwark; any other missing buff is settled against the offer (ActiveSet)
+            self.buff_stat = ""                        # (f235) no buff has a stat; a missing buff is settled against the offer (ActiveSet)
+            self.resource = type(self.resource)("mana")   # (f238) every buff is magic: it costs mana
             self.context = UseContext.COMBAT
             self.reach = Reach.SELF
-            if self.buff == "bulwark" and not self.buff_stat:
-                self.buff_stat = "ward" if self.resource == "mana" else "armor"
         else:
             self.buff = self.buff_stat = ""
         if self.effect == Effect.COMMAND:
@@ -120,8 +144,6 @@ class ActiveProposal(BaseModel):
         if self.effect == Effect.SUMMON and self.summons is None and self.field_use:
             self.effect = Effect.UTILITY               # "call a phantom steed" is a world function, not a companion that fights
             self.context = UseContext.OUT_OF_COMBAT
-        if self.buff and self.buff != "bulwark":
-            self.buff_stat = ""
         if self.effect not in (Effect.DAMAGE, Effect.CONTROL) or (self.rider and self.effect.value not in AT.RIDERS[self.rider]["applies"]):
             self.rider = ""
         if self.effect != Effect.DAMAGE or self.reach == Reach.AREA:
@@ -135,7 +157,7 @@ class ActiveProposal(BaseModel):
         if self.context == UseContext.COMBAT:
             self.field_use = ""
         if self.effect == Effect.SUMMON and self.summons is None:
-            raise ValueError(f"'{self.name}' is a summon ability and must include summons describing the companion")
+            raise ValueError(f"'{self.name}' is a summon ability and must include summons naming and describing what it makes")
         if self.effect != Effect.SUMMON:
             self.summons = None
         return self
@@ -160,12 +182,11 @@ class ActiveSet(BaseModel):
         from engine import ability_traits as _T
         _T.repair_buffs(self.skills, (ctx.get("offers") or {}).get("buffs"))
         effects = [s.effect for s in self.skills]
-        if Effect.COMMAND in effects and Effect.SUMMON not in effects:
-            raise ValueError("command abilities need at least one summon ability so there is something to command")
-        if ctx.get("uses_companions") and effects.count(Effect.SUMMON) < 2:
-            raise ValueError("this class relies on companions: include at least 2 summon abilities")
+        if ctx.get("summoner") and effects.count(Effect.SUMMON) < 1:
+            raise ValueError("this class makes summons: include at least 1 summon ability")
         offered = ctx.get("offers")
-        if offered:
+        planned = bool(ctx.get("planned"))         # slot-based creation (f249): the engine's plan decided every trait - nothing is added or demanded
+        if offered and not planned:
             from engine import ability_traits as AT
             for x in self.skills:                                  # a trait that was not on offer goes (the fill below replaces it)
                 if x.rider and x.rider not in offered["riders"]:
@@ -184,6 +205,8 @@ class ActiveSet(BaseModel):
                 if len(set(used)) < need:
                     raise ValueError(f"use at least {need} different {key} from those on offer ({', '.join(offered[key])}), "
                                      f"one per ability, on abilities they suit")
+        if offered:
+            from engine import ability_traits as AT
             cmds = [x.command for x in self.skills if x.effect == Effect.COMMAND]
             if len(set(cmds)) < len(cmds):
                 raise ValueError("every command ability must use a different command from those on offer: " + ", ".join(offered.get("commands", [])))
@@ -196,7 +219,7 @@ class ActiveSet(BaseModel):
                 raise ValueError(f"include at least {min(AT.T['need']['buffs'], len(offered['buffs']))} buff ability (effect buff) from those on offer")
             if len(buffs) > AT.T["max_buffs"]:
                 raise ValueError(f"no more than {AT.T['max_buffs']} buff abilities")
-            if sum(1 for x in self.skills if x.rider or x.shape) > AT.T["max_decorated"]:
+            if not planned and sum(1 for x in self.skills if x.rider or x.shape) > AT.T["max_decorated"]:
                 raise ValueError(f"at most {AT.T['max_decorated']} abilities may carry a rider or a shape - leave several plain")
         functions = (offered or {}).get("functions") if offered else None
         if functions:
@@ -219,7 +242,7 @@ class SlotText(BaseModel):
     slot: int
     name: str
     description: str
-    summons: CompanionProposal | None = None
+    summons: SummonProposal | None = None
 
 
 def _slot_text_problems(skills, ctx) -> list[str]:
@@ -248,7 +271,7 @@ def _slot_text_problems(skills, ctx) -> list[str]:
         if passive:
             continue
         if s["effect"] == "summon" and x.summons is None:
-            problems.append(f"ability {x.slot} is a summon: describe its companion in summons")
+            problems.append(f"ability {x.slot} is a summon: name and describe what it makes in summons")
         if ctx.get("strict", True):
             why = AS.text_problem(s, x.name, x.description)
             if why:
@@ -280,7 +303,11 @@ class SlotNames(BaseModel):
                 name=x.name, description=x.description, effect=s["effect"], tier=s["tier"], reach=s["reach"],
                 resource=s["resource"], context=s["context"], summons=x.summons if s["effect"] == "summon" else None,
                 rider=s["rider"], shape=s["shape"], buff=s["buff"], buff_stat=s["buff_stat"], command=s["command"],
-                field_use=s["field_use"], channel=bool(s.get("channel"))))
+                field_use=s["field_use"], channel=bool(s.get("channel")), movement=s.get("movement", ""),
+                heal_form=s.get("heal_form", ""), element=s.get("element", ""), summon_form=s.get("summon_form", ""),
+                expressions=list(s.get("expressions") or []), spell_form=s.get("spell_form", ""),
+                power=s.get("power", 0), cost_percent=s.get("cost_percent", 0), cast_turns=s.get("cast_turns", 0),
+                martial_form=s.get("martial_form", ""), hits=s.get("hits", 0), maneuver=s.get("maneuver", "")))
         return out
 
 
@@ -331,12 +358,44 @@ class GoddessLine(BaseModel):
     speech: str
 
 
+PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody"}
+
+
+def blank_placeholders(*fields: str):
+    """A before-validator: a model that fills an optional text field with 'none', 'n/a' or 'null' means it left it empty."""
+    def clean(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            for f in fields:
+                v = data.get(f)
+                if isinstance(v, str) and v.strip().strip(".\"'").lower() in PLACEHOLDERS:
+                    data[f] = ""
+        return data
+    return model_validator(mode="before")(classmethod(clean))
+
+
+def as_lists(*fields: str):
+    """A before-validator: a list field given as one string, or as null, is read as a list of that string, or an empty list."""
+    def clean(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            for f in fields:
+                v = data.get(f)
+                if v is None and f in data:
+                    data[f] = []
+                elif isinstance(v, str):
+                    data[f] = [] if v.strip().strip(".\"'").lower() in PLACEHOLDERS or not v.strip() else [v]
+                elif isinstance(v, list):
+                    data[f] = [str(x) for x in v if x is not None]
+        return data
+    return model_validator(mode="before")(classmethod(clean))
+
+
+from engine.actions import KINDS as _ACTION_KINDS  # noqa: E402
+
 class ActionIntent(BaseModel):
     """How the interpreter reads one free-form player input in the world."""
-    kind: Literal["move", "look", "search", "explore", "talk", "leave_conversation", "buy", "sell", "ability", "use", "drop",
-                  "pick_up", "give", "show", "discard", "store", "retrieve", "equip", "forage", "craft", "commission",
-                  "work", "harvest", "join_guild", "board", "accept_quest", "abandon_quest", "train", "learn_ability",
-                  "delve", "leave_dungeon", "wait", "attack", "release", "hand_over", "steal", "unlock", "other"]
+    kind: Literal[_ACTION_KINDS]                        # every kind the game has (engine/actions.py), declared once there
     destination: str = ""
     target: str = ""
     speech: str = ""
@@ -356,6 +415,8 @@ class ActionIntent(BaseModel):
     wait_until: Literal["", "before dawn", "dawn", "morning", "midday", "afternoon", "evening", "night", "deep night"] = ""
     summary: str = ""
 
+    _blank = blank_placeholders("destination", "target", "seek", "ware", "ability", "item", "mark")
+
 
 
 class ObjectVerdict(BaseModel):
@@ -368,6 +429,15 @@ class ObjectVerdict(BaseModel):
     locked: bool = False       # the thing is kept behind a lock (a strongbox, a back room)
     behind: str = ""           # what is locked: "the back room", "a strongbox" (also set for a key: what it opens)
     is_key: bool = False       # the thing the player wants is the key to `behind`
+
+
+class Clarify(BaseModel):
+    """(f321) When a line cannot be read, the world asks one short question in character instead of a system note. speaker is the id of
+    someone present (the one being spoken to, when there is one), or 'narrator' for a beat with nobody addressing the player."""
+    speaker: str = "narrator"
+    line: str = ""
+
+    _blank = blank_placeholders("line")
 
 
 class AuditMeaning(BaseModel):
@@ -391,7 +461,7 @@ class CampIntent(BaseModel):
 
 class PartyIntent(BaseModel):
     """What the player means to do about hiring or directing adventurers who travel with them."""
-    kind: Literal["list", "hire", "dismiss", "hold", "with", "status", "none"]
+    kind: Literal["list", "hire", "promote", "dismiss", "hold", "with", "status", "none"]
     target: str = ""
     summary: str = ""
 
@@ -428,6 +498,169 @@ class ResidentSet(BaseModel):
         return self
 
 
+class MentorReply(BaseModel):
+    speech: str
+    gesture: str = ""
+    moves_on: bool = False          # the player was saying they are ready to go on or get moving, not asking or telling her something
+
+    _blank = blank_placeholders("gesture")
+
+    def spoken(self):
+        return [("", self.speech)]
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        from engine import banter, quirks
+        self.speech = " ".join(self.speech.split())
+        if not self.speech or len(self.speech) > 900:
+            raise ValueError("answer in one to four short sentences")
+        hit = banter.repeats(self.speech, _ctx(info).get("recent", []))
+        if hit:
+            raise ValueError(f"you have said something very like '{hit}' lately: say it differently, or say something else")
+        self.gesture = quirks.keep_gesture(self.gesture, _ctx(info).get("gesture_state", {}), "Maren Holt")
+        return self
+
+
+class CompanionReply(BaseModel):
+    """A hired adventurer answering the player: what they say, what they do, and anything from this exchange worth keeping."""
+    speech: str = ""
+    gesture: str = ""
+    remember: str = ""
+    impression: str = ""
+
+    _blank = blank_placeholders("speech", "gesture", "remember", "impression")
+
+    def spoken(self):
+        return [("", self.speech)] if self.speech else []
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        from engine import banter
+        self.speech = " ".join(self.speech.split()).strip('"\u201c\u201d')
+        self.gesture = " ".join(self.gesture.split())
+        quiet = bool(_ctx(info).get("silent_ok"))           # hit hard enough that silence is an answer (engine/severity.py)
+        if re.fullmatch(r"[(\[]?\s*(silence|silent|says nothing|nothing|no (verbal )?(response|reply|answer))\s*[)\]]?\.?", self.speech, re.I) or \
+                (self.speech and not re.search(r"[A-Za-z]", self.speech)):
+            self.speech = ""
+        if not self.speech and not self.gesture and not quiet:
+            raise ValueError("give speech, or a gesture if they say nothing")
+        if len(self.speech) > 900:
+            raise ValueError("answer in one to four short sentences, or two short paragraphs")
+        if "*" in self.speech or '"' in self.speech:
+            raise ValueError("speech is plain words: no asterisks or quotation marks")
+        from engine import quirks
+        member = _ctx(info).get("member") or {}
+        st = _ctx(info).get("gesture_state", {})
+        kept = quirks.keep_gesture(self.gesture, dict(st, gesture_now=True) if (quiet and not self.speech) else st, member.get("name", ""))
+        if self.gesture and not kept and not self.speech and not quiet:
+            raise ValueError("say something: that gesture was just made, or cannot be shown now")
+        self.gesture = kept
+        if len(self.remember.split()) > 30:
+            raise ValueError("remember is one short sentence")
+        if len(self.impression.split()) > 25:
+            raise ValueError("impression is one short line")
+        ctx = _ctx(info)
+        hit = banter.repeats(self.speech, ctx.get("recent", []))
+        if hit:
+            raise ValueError(f"you have said something very like '{hit}' lately: say it differently, or say something else")
+        if ctx.get("member"):
+            from engine import quirks
+            why = quirks.voice_check(ctx["member"], self.speech, ctx.get("player", ""), ctx.get("recent", []))
+            if why:
+                raise ValueError(why)
+        why = answers_first(self.speech, ctx.get("answer_to"))
+        if why:
+            raise ValueError(why)
+        retell = ctx.get("retell")
+        if retell:
+            why = retells(self.speech, retell)
+            if why:
+                raise ValueError(why)
+        else:
+            for w in ctx.get("must", []):
+                if w.lower() not in self.speech.lower():
+                    raise ValueError(f"keep the word '{w}': it is the same thing being told")
+        return self
+
+
+def _first_sentence(text: str) -> str:
+    import re
+    parts = re.split(r"(?<=[.!?])\s+", " ".join(text.split()))
+    return parts[0] if parts else text
+
+
+def answers_first(speech: str, answer_to: dict | None) -> str:
+    """When the player has told them something that matters: the reply's opening must be about that, closer in meaning to what the player
+    said than to anything else in the scene (the weather, the place, the fight). Judged by the helper model; without it, not judged."""
+    if not answer_to or not speech:
+        return ""
+    from llm import embed
+    import config
+    scene = [s for s in answer_to.get("scene", []) if s]
+    near = embed.whole(answer_to["said"], scene) if scene else []
+    if near is None:
+        return ""
+    scene = [s for s, v in zip(scene, near) if v < config.SIM_RELEVANT]      # a scene line about the same thing the player said is not 'elsewhere'
+    sims = embed.whole(_first_sentence(speech), [answer_to["said"]] + scene)
+    if not sims or not scene:
+        return ""
+    if max(sims[1:]) - sims[0] > config.SIM_ANSWER_MARGIN:
+        return "the player just told you something that matters to them: your first words answer that, before anything about where you are"
+    return ""
+
+
+def retells(speech: str, retell: dict) -> str:
+    """A secret retold must be that secret, in their own words: closer in meaning to it than to anything else of theirs (their other secret,
+    their details). Judged by the helper model; without it, by its rarest words (must, in the context)."""
+    from llm import embed
+    others = [o for o in retell.get("others", []) if o and o != retell["text"]]
+    sims = embed.whole(speech, [retell["text"]] + others)
+    if sims is None:
+        from engine import quirks
+        for w in quirks.must_words(retell["text"]):
+            if w.lower() not in speech.lower():
+                return f"keep the word '{w}': it is the same thing being told"
+        return ""
+    import config
+    if (others and sims[0] < max(sims[1:])) or (not others and sims[0] < config.SIM_RELEVANT):
+        return "tell the thing you decided to tell, in your own words: " + retell["text"]
+    return ""
+
+
+class MentorLines(BaseModel):
+    lines: list[str]
+    reply: str = ""
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        from engine import mentor
+        self.lines = [" ".join(x.split()) for x in self.lines]
+        self.reply = " ".join(self.reply.split())
+        ctx = _ctx(info)
+        if ctx.get("source") is not None:
+            why = mentor.check_voice(ctx["source"], self.lines)
+            if why:
+                raise ValueError(why)
+        if ctx.get("want_reply"):
+            why = mentor.check_reply(self.reply)
+            if why:
+                raise ValueError(why)
+        return self
+
+
+class MentorSpeech(BaseModel):
+    paragraphs: list[str]
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        from engine import mentor
+        self.paragraphs = [" ".join(x.split()) for x in self.paragraphs if x and x.strip()]
+        why = mentor.check_speech(self.paragraphs, _ctx(info))
+        if why:
+            raise ValueError(why)
+        return self
+
+
 class NPCProfile(BaseModel):
     personality: str
     voice: str
@@ -441,11 +674,15 @@ class GiftProposal(BaseModel):
     kind: Literal["key", "quest"] = "key"
     for_whom: str = ""
 
+    _blank = blank_placeholders("name", "description", "for_whom")
+
 
 class WorkOffer(BaseModel):
     task: str
     pay: int = 0            # copper
     minutes: int = 60
+
+    _blank = blank_placeholders("task")
 
 
 class QuestOffer(BaseModel):
@@ -454,6 +691,8 @@ class QuestOffer(BaseModel):
     count: int = 1
     to: str = ""              # for deliver: who it goes to (a name or role)
     item: str = ""            # for deliver: what is carried
+
+    _blank = blank_placeholders("what", "to", "item")
 
 
 class NPCReply(BaseModel):
@@ -470,6 +709,22 @@ class NPCReply(BaseModel):
     offers_quest: QuestOffer | None = None
     journal_note: str = ""
 
+    _blank = blank_placeholders("gesture", "remember", "learned_player_name", "journal_note")
+
+    def spoken(self):
+        return [("", self.speech)]
+
+    @model_validator(mode="after")
+    def clean_note(self):
+        """(f299) A journal note is the player's line about this person. One written in the speaker's own voice ("I must...") or carrying
+        stray instructions ("[THE GAME HAS DECIDED...]") is dropped: the plain line from what is known stands until a good one comes."""
+        import re as _re
+        n = " ".join((self.journal_note or "").split())
+        if "[" in n or "]" in n or _re.search(r"\b(I|I'm|I've|I'll|my|me|myself)\b", n):
+            n = ""
+        self.journal_note = n
+        return self
+
 
 class Narration(BaseModel):
     text: str
@@ -484,24 +739,29 @@ class StartingKit(BaseModel):
     @model_validator(mode="after")
     def from_lists(self, info: ValidationInfo):
         ctx = _ctx(info)
+        if ctx.get("weapons") and self.weapon not in ctx["weapons"]:
+            raise ValueError("weapon must be one of the ids listed under WEAPON OPTIONS")
         if ctx.get("needs_companion"):
             if self.companion not in ctx.get("companions", []):
                 raise ValueError("companion must be one of the ids listed under COMPANION OPTIONS")
             if not self.companion_name.strip():
                 raise ValueError("give the companion a name")
+            self.weapon = ""                                       # a companion takes the weapon's place
         elif self.weapon not in ctx.get("weapons", []):
             raise ValueError("weapon must be one of the ids listed under WEAPON OPTIONS")
         return self
 
 
 class CombatIntent(BaseModel):
-    kind: Literal["attack", "ability", "item", "move", "defend", "flee", "tame", "talk", "other"]
+    kind: Literal["attack", "ability", "item", "move", "defend", "interpose", "flee", "tame", "talk", "other"]
     approach: Literal["", "intimidate", "persuade", "deceive"] = ""      # for talk
     target: str = ""
     ability: str = ""
     item: str = ""
     move: Literal["", "closer", "back", "high_ground"] = ""
-    buff_for: str = ""        # a buff ability's recipient: "" or "self" (the player), an id from ALLIES, or "all" (the player and every ally)
+    step: Literal["", "advance", "withdraw"] = ""     # movement that rides along with another action ("fall back and shoot")
+    movement: str = ""        # a movement ability (its id) used on the way, alongside the action (engine/movement.py)
+    buff_for: str = ""        # a buff or heal ability's recipient: "" or "self" (the player), or one id from ALLIES (single-target)
     summary: str = ""
 
 
@@ -650,6 +910,7 @@ class LessonWant(BaseModel):
     kind: Literal["active", "passive", "either"] = "either"
     effect: str = ""            # damage, control, defense, mobility, healing, buff, utility, influence, summon or crafting
     stat: str = ""              # a passive stat the request names (stealth, perception, ...)
+    element: Literal["", "fire", "cold", "lightning", "poison", "acid", "necrotic", "radiant", "nature"] = ""   # the element the request names
 
 
 class LessonNames(BaseModel):
@@ -693,9 +954,51 @@ class PathProposal(BaseModel):
     """One way the adventurers could end a situation. The engine checks `kind` and `target` against the real world."""
     name: str                       # a short name for the way ("Slay the horror")
     how: str = ""                   # one sentence on what it takes
-    kind: Literal["kill", "persuade", "clear", "contract"] = "kill"
+    kind: Literal["kill", "persuade", "clear", "contract", "find"] = "kill"
     target: str = ""                # kill: a creature id from CREATURES. persuade: a person id from PEOPLE.
-                                    # clear: a dungeon place id. contract: empty
+                                    # clear: a dungeon place id. contract: empty. find: a place id from PLACES (f317)
+
+
+class ClueProposal(BaseModel):
+    """(f317) One thing someone of the place knows about the situation, in their own words - what they would say if asked, or let slip.
+    holder is a person id from PEOPLE, or a role (innkeeper, shepherd) when the right person is not yet made."""
+    text: str
+    holder: str = ""
+
+    _blank = blank_placeholders("holder")
+
+
+class MoreBehind(BaseModel):
+    """(f322) What a plain-looking job turns out to be the edge of."""
+    truth: str = ""
+    reveal: str = ""
+    clue: str = ""
+    path: PathProposal | None = None
+
+    _blank = blank_placeholders("truth", "reveal", "clue")
+
+
+class PostingStakes(BaseModel):
+    id: str
+    reason: str
+    result: str = ""
+    more: MoreBehind | None = None
+
+    _blank = blank_placeholders("result")
+
+
+class BoardStakes(BaseModel):
+    """(f322) The reasons and results for a board's new postings, one entry per posting id given."""
+    postings: list[PostingStakes]
+
+    @model_validator(mode="after")
+    def known_ids(self, info: ValidationInfo):
+        ids = set(_ctx(info).get("ids", []))
+        if ids:
+            self.postings = [p for p in self.postings if p.id in ids]
+            if not self.postings:
+                raise ValueError("write one entry per posting, with the posting's id as given")
+        return self
 
 
 class BossLines(BaseModel):
@@ -710,22 +1013,36 @@ class BossLines(BaseModel):
 class ThreadProposal(BaseModel):
     title: str
     place: str
+    kind: Literal["threat", "social", "economic", "natural", "nature", "trade", "work", "politics", "mystery", "fortune"] = "social"   # (f323) what sort of thing it is
     news: str              # what people are saying about it
     groups: list[str] = []  # who hears first (knowledge groups)
     stages: list[StageProposal]
     fallout: StageProposal  # what it leaves behind if no one deals with it (or how it simply ends)
     resolution: str = ""   # what would resolve it
     contract: QuestOffer | None = None   # a job the guild would post about it, if any
-    paths: list[PathProposal] = []       # rare and campaign events: real ways to end it (the engine drops any that cannot work)
+    paths: list[PathProposal] = []       # real ways to end it (the engine drops any that cannot work); every tier (f317)
     triumph: StageProposal | None = None  # rare and campaign events: how the place is left if the adventurers end it
     boss_lines: BossLines | None = None   # campaign events with a boss spawn: what that boss says in the final fight
+    truth: str = ""                       # (f317) what is really going on, which the people may not know in full
+    clues: list[ClueProposal] = []        # (f317) what one to three people know, in their words
+    reveal: str = ""                      # (f317) with a contract: what the one who finishes it finds that the job did not say
 
     @model_validator(mode="after")
     def staged(self, info: ValidationInfo):
         need = _ctx(info).get("stages")
         if need and len(self.stages) != need:
             raise ValueError(f"write exactly {need} stages, not {len(self.stages)}")
+        self.clues = [c for c in self.clues if c.text.strip()][:3]
         return self
+
+    def spoken(self):
+        """(f323) Everything the writer says that the world will repeat, checked like speech: nothing named that was not given."""
+        out = [("news", self.news), ("truth", self.truth), ("reveal", self.reveal), ("fallout", self.fallout.description)]      # the title is a name, written in capitals
+        out += [(f"stage {i + 1}", st.description) for i, st in enumerate(self.stages)]
+        out += [(f"clue {i + 1}", c.text) for i, c in enumerate(self.clues)]
+        if self.triumph:
+            out.append(("triumph", self.triumph.description))
+        return [(k, t) for k, t in out if t]
 
 
 class CataclysmStage(BaseModel):
@@ -752,6 +1069,12 @@ class CataclysmProposal(BaseModel):
     keepsake: str = ""     # a name for the thing survivors give the hero (an heirloom's name)
     boss_lines: BossLines | None = None          # the BOSS, if there is one
     side_lines: list[BossLines] = []             # one per war leader, in the order LEADERS were listed
+
+    def spoken(self):
+        """(f324) Everything the telling says that the world will repeat, checked like speech."""
+        out = [("news", self.news), ("triumph", self.triumph), ("ignored", self.ignored)]
+        out += [(f"stage {i + 1}", st.description) for i, st in enumerate(self.stages)] + [(f"signs {i + 1}", st.signs) for i, st in enumerate(self.stages)]
+        return [(k, t) for k, t in out if t]
 
     @model_validator(mode="after")
     def staged(self, info: ValidationInfo):
@@ -862,4 +1185,239 @@ class ArcStory(BaseModel):
             taken = {t.lower() for t in ctx.get("taken", [])}
             if any(n in taken for n in names):
                 raise ValueError("a name is already taken: pick different names")
+        return self
+
+
+class ExchangeLine(BaseModel):
+    speaker: str
+    text: str = ""                # empty: they say nothing (allowed only for those the moment hit hard enough: engine/severity.py)
+    gesture: str = ""
+
+    _blank = blank_placeholders("text", "gesture")
+
+
+class Exchange(BaseModel):
+    """People of the world talking to each other: who may speak, how many lines, and no facts that were not given."""
+    lines: list[ExchangeLine]
+
+    def spoken(self):
+        return [(l.speaker, l.text) for l in self.lines]
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        from engine import banter
+        why = banter.check_exchange(self, _ctx(info))
+        if why:
+            raise ValueError(why)
+        return self
+
+
+class PairDynamic(BaseModel):
+    """One line on how two hired adventurers are with each other, what each tends to want from the other, and what each privately thinks of
+    the other (their view, in their own head: it may not be fair, and the two need not agree)."""
+    dynamic: str
+    first_wants: str = ""
+    second_wants: str = ""
+    first_thinks: str = ""
+    second_thinks: str = ""
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        import re as _re
+        from engine import mentor
+        self.dynamic = " ".join(self.dynamic.split()).strip('"\u201c\u201d')
+        self.first_wants = " ".join(self.first_wants.split())[:100]
+        self.second_wants = " ".join(self.second_wants.split())[:100]
+        self.first_thinks = " ".join(self.first_thinks.split()).strip('"\u201c\u201d')
+        self.second_thinks = " ".join(self.second_thinks.split()).strip('"\u201c\u201d')
+        if not self.first_thinks or not self.second_thinks:
+            raise ValueError("for each of them, one short line on what they privately think of the other")
+        for t in (self.first_thinks, self.second_thinks):
+            if len(t.split()) > 25 or _re.search(r"\d", t) or "*" in t:
+                raise ValueError("each view is one short line, at most twenty-five words, with no numbers")
+            if set(_re.findall(r"[a-z]+", t.lower())) & mentor.BANNED_WORDS:
+                raise ValueError("do not talk about a game or its parts")
+        n = len(self.dynamic.split())
+        if not 8 <= n <= 45:
+            raise ValueError("one or two sentences, 8 to 45 words")
+        if _re.search(r"\d", self.dynamic) or "*" in self.dynamic or '"' in self.dynamic:
+            raise ValueError("plain words: no numbers, asterisks or quotation marks")
+        if set(_re.findall(r"[a-z]+", self.dynamic.lower())) & mentor.BANNED_WORDS:
+            raise ValueError("do not talk about a game or its parts")
+        for name in _ctx(info).get("names", []):
+            if name.split()[0].lower() not in self.dynamic.lower():
+                raise ValueError(f"name both of them: {', '.join(_ctx(info).get('names', []))}")
+        return self
+
+
+class Overheard(BaseModel):
+    """What the player's words to one companion mean for the others listening: whom of them they are about, whether they concern the whole
+    party, how heavy they are."""
+    about: list[str] = []
+    party: bool = False
+    weight: Literal["light", "personal", "heavy"] = "light"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _loose(cls, data):
+        if isinstance(data, dict):
+            g = str(data.get("weight", "") or "").lower().strip()
+            data["weight"] = g if g in ("light", "personal", "heavy") else "light"
+            a = data.get("about") or []
+            data["about"] = [a] if isinstance(a, str) else [str(x) for x in a if x]
+            p = data.get("party")
+            data["party"] = p if isinstance(p, bool) else str(p).lower().strip() in ("true", "yes", "1")
+        return data
+
+    @model_validator(mode="after")
+    def _known(self, info: ValidationInfo):
+        names = (info.context or {}).get("names") or []
+        out = []
+        for a in self.about:                               # a first name, or the full one: only those listening count
+            hit = [n for n in names if a.strip().lower() in (n.lower(), n.split()[0].lower())]
+            if hit and hit[0] not in out:
+                out.append(hit[0])
+        self.about = out
+        return self
+
+
+class ExtractedFact(BaseModel):
+    """One claim from what was said: who said it, whom it is about (subject), what kind of fact, the claim, how heavy it is to talk about,
+    how long it stays true (lasts: years - their past, family, a lasting trait or conviction; while - weeks: a plan, a debt, an ongoing
+    situation; now - only here and today: where they are, what they are doing) and whether it is common knowledge anyone would know.
+    subject is 'self' (the speaker), 'player', 'world', or the name of someone else."""
+    speaker: str
+    subject: str = "self"
+    kind: Literal["backstory", "trait", "possession", "intention", "commitment", "moment", "world"] = "backstory"
+    text: str
+    weight: Literal["light", "personal", "heavy"] = "personal"
+    lasts: Literal["years", "while", "now"] = "years"
+    common: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def older_kinds(cls, data):
+        if isinstance(data, dict):
+            data = dict(data)
+            k = str(data.get("kind", "") or "").lower().strip()
+            k = {"life": "backstory", "now": "moment", "self": "backstory", "past": "backstory", "history": "backstory", "possessions": "possession",
+                 "intentions": "intention", "plan": "intention", "promise": "commitment", "debt": "commitment", "state": "moment"}.get(k, k)
+            if data.get("about") == "world":
+                k = "world"
+            data["kind"] = k if k in ("backstory", "trait", "possession", "intention", "commitment", "moment", "world") else "backstory"
+            g = str(data.get("weight", "") or "").lower().strip()
+            data["weight"] = g if g in ("light", "personal", "heavy") else "personal"
+            if "text" not in data and "claim" in data:          # the schema calls it claim
+                data["text"] = data["claim"]
+            subj = " ".join(str(data.get("subject", "self") or "self").split())
+            low = subj.lower()
+            if low in ("self", "me", "myself", "speaker", "themselves", "themself") or low == str(data.get("speaker", "")).lower():
+                subj = "self"
+            elif low in ("player", "you", "the player"):
+                subj = "player"
+            elif low in ("world", "the world", "place", "people", "general"):
+                subj = "world"
+            data["subject"] = subj
+            if subj == "world":
+                data["kind"] = "world"
+            l = str(data.get("lasts", "") or "").lower().strip()
+            l = {"lasting": "years", "forever": "years", "always": "years", "long": "years", "weeks": "while", "days": "while", "season": "while",
+                 "today": "now", "moment": "now", "current": "now", "temporary": "while"}.get(l, l)
+            data["lasts"] = l if l in ("years", "while", "now") else ("now" if data["kind"] == "moment" else "years")
+            cm = data.get("common")
+            data["common"] = cm if isinstance(cm, bool) else str(cm).lower().strip() in ("true", "yes", "1")
+        return data
+
+
+class Extracted(BaseModel):
+    """New, specific facts someone just stated, by speaker; usually none."""
+    facts: list[ExtractedFact] = []
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        names = _ctx(info).get("speakers", [])
+        if names:
+            by_first = {n.split()[0].lower(): n for n in names}
+            for f in self.facts:
+                f.speaker = by_first.get(f.speaker.split()[0].lower() if f.speaker.split() else "", f.speaker)
+            self.facts = [f for f in self.facts if f.speaker in names]
+        self.facts = self.facts[:4]
+        return self
+
+
+class CanonCheck(BaseModel):
+    """A new statement against what is already true of a person: the same fact again, a contradiction, or something new; which listed fact
+    (1-based) it repeats or contradicts, 0 if none."""
+    verdict: Literal["same", "contradicts", "new"] = "new"
+    which: int = 0
+
+
+class StrangerRead(BaseModel):
+    """Maren's read of what an armed stranger just said to her: does it settle her, or is it hostile."""
+    settled: bool                   # a plain, believable answer: they are a traveller or newcomer, not a bandit
+    hostile: bool = False           # a threat, an admission of banditry, or telling her to mind her own business
+
+
+def _one_off(a: str, b: str) -> bool:
+    """One letter added, dropped or changed, or two side by side swapped (a misspelling, not another word)."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        diff = [i for i, (x, y) in enumerate(zip(a, b)) if x != y]
+        return len(diff) == 1 or (len(diff) == 2 and diff[1] == diff[0] + 1 and a[diff[0]] == b[diff[1]] and a[diff[1]] == b[diff[0]])
+    s, l = (a, b) if len(a) < len(b) else (b, a)
+    return any(l[:i] + l[i + 1:] == s for i in range(len(l)))
+
+
+def mend_names(text: str, names: list[str]) -> str:
+    """A capitalised word one letter off a name they were given ('Rimlands' for 'Rimelands') is that name, misspelt: put right, not refused.
+    Only words of five letters or more, so a short real word is never turned into a name."""
+    import re as _re
+    given = [n for n in names if len(n) >= 5]
+    def fix(m):
+        w = m.group(0)
+        hit = next((n for n in given if _one_off(w.lower(), n.lower())), None)
+        return hit or w
+    return _re.sub(r"\b[A-Z][a-z]{4,}\b", fix, text)
+
+
+class PersonaDetails(BaseModel):
+    """Five small personal details for a hire, and their two secrets, written once together: no names of people, no numbers."""
+    details: list[str]
+    secrets: list[str] = []
+    weights: list[str] = []          # how heavy each detail is to talk about, as written (engine/gravity.py); the subject's weight if missing
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        import re as _re
+        from engine import mentor
+        w = [str(x or "").lower().strip() for x in (self.weights or [])]
+        self.weights = w if len(w) == len(self.details) and all(x in ("light", "personal", "heavy") for x in w) else []
+        allowed = set(_ctx(info).get("names", [])) | {"I", "He", "She", "They", "His", "Her", "Their", "It", "A", "An", "The", "When", "As", "On",
+                                                      "In", "At", "Every", "Once", "After", "Before", "If"}
+        names = list(_ctx(info).get("names", []))
+        self.details = [mend_names(" ".join(d.split()).strip('"'), names) for d in self.details if d and d.strip()]
+        if len(self.details) != 5:
+            raise ValueError("write exactly five details, one sentence each, one for each subject")
+        for d in self.details:
+            if len(d.split()) > 30:
+                raise ValueError("each detail is one short sentence")
+            if _re.search(r"\d", d):
+                raise ValueError("no numbers")
+            caps = [w for w in _re.findall(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-z]+", d) if w not in allowed]
+            if caps:
+                raise ValueError(f"no names of people or places ('{caps[0]}'): describe them instead")
+            meta = set(_re.findall(r"[a-z]+", d.lower())) & (mentor.BANNED_WORDS - {"game", "model", "engine", "player"})
+            if meta:                                       # a game of dice, a carved model, a lute player are all of the world
+                raise ValueError(f"no words about the game itself ('{sorted(meta)[0]}')")
+        want = _ctx(info).get("secrets", 0)
+        self.secrets = [mend_names(" ".join(x.split()).strip('"'), names) for x in self.secrets if x and x.strip()][:want]
+        if want and len(self.secrets) != want:
+            raise ValueError(f"write {want} secrets, one for each secret theme, in the first person")
+        for x in self.secrets:
+            if len(x.split()) > 45 or _re.search(r"\d", x):
+                raise ValueError("each secret is one or two sentences, with no numbers")
+            caps = [w for w in _re.findall(r"(?<![.!?]\s)(?<!^)\b[A-Z][a-z]+", x) if w not in allowed]
+            if caps:
+                raise ValueError(f"no names of people in a secret ('{caps[0]}')")
         return self

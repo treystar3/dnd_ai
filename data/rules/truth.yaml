@@ -1,0 +1,72 @@
+# THE TRUTH LAYER (f313, engine/truth.py): what is true at this moment, assembled once a turn, read by every speaker and checker.
+#
+# A fact is a line with a tag saying who can know it. A viewer (a townsperson, a hire, Maren, the narrator, the interpreter, the audit)
+# gets a view: the facts they may know, rendered under fixed headers in a fixed order. Prompts refer to these headers by name, so the
+# wording of a header is changed here and nowhere else.
+#
+# Knowledge tags on a fact:
+#   all                 anyone standing here can see or know it
+#   player              only the player (their own pack, their own plans)
+#   party               the people travelling with the player
+#   groups:<name>       anyone whose knowledge groups hold <name> (the groups in world.yaml: everyone, parth_locals, guild...)
+#   npc:<id>            one person
+#   narrator            the narrator and the engine's readers (the interpreter, the audit), never a person of the world
+
+# What a line of speech may call a building when the town has none (engine/truth.py absent_here, f315): the words that name each kind.
+building_words:
+  smithy:   [smithy, forge, blacksmith's, smith's]
+  shop:     [shop, store, general store, chandler's]
+  inn:      [inn, tavern, alehouse, taproom, public house]
+  temple:   [temple, shrine, chapel, church]
+  guild:    [guild hall, guild house, guildhall, guild office]
+  workshop: [workshop, tinker's, engineer's]
+
+headers:                                   # header text per facet; the order they are rendered in is the order here
+  here:        "WHERE"
+  present:     "WHO IS HERE"
+  town:        "WHAT THIS TOWN HAS (every one there is; there are no others)"
+  board:       "ON THE GUILD BOARD (all of it; speak only of these)"
+  happenings:  "HAPPENING HERE"
+  news:        "NEWS THAT HAS REACHED HERE"
+  player:      "THE ONE IN FRONT OF YOU"
+
+profiles:                                  # which facets each kind of reader is given
+  townsfolk:   [here, present, town, board, happenings, news, player]
+  hire:        [here, present, town, board, happenings, news]
+  maren:       [here, present, town, board, happenings]
+  banter:      [here, present, town, happenings, news]
+  narrator:    [here, present, happenings]
+  interpreter: [here, present, town]
+  audit:       [present]
+
+# How busy a place is: a crowd line in WHERE, by the place's scale and the time of day. A place may name its own scale in places.yaml
+# (scale: hamlet | village | town | city | capital) and its own crowd lines (crowd: {market: "...", quiet: "..."}); otherwise its type
+# decides. Infrastructure for cities that bustle and villages that do not (f313); passers-by drawn from the crowd come later.
+scale_by_type: {village: village, town: town, city: city, square: town, inn: town, guild: town, temple: village, shop: town,
+                workshop: village, smithy: village, yard: village, guardpost: village}
+periods:                                   # which crowd line a time of day uses
+  dawn: quiet
+  morning: market
+  midday: market
+  afternoon: market
+  evening: easing
+  night: quiet
+  deep night: empty
+  before dawn: empty
+crowd:
+  hamlet:  {market: "a few people about their work", easing: "a few people about", quiet: "almost no one about", empty: "no one about"}
+  village: {market: "people about their work, everyone known to everyone", easing: "a few people still about", quiet: "the odd person about", empty: "no one about"}
+  town:    {market: "busy: the streets and the square full of people about their business", easing: "the crowd thinning as the day ends", quiet: "a few people about, most doors shut", empty: "empty streets; a watchman, a drunk, no one else"}
+  city:    {market: "crowded: streets packed with people from everywhere, carts, criers, nobody looking twice at a stranger", easing: "still busy, the crowds drifting toward the inns", quiet: "quieter, but never empty; lamps lit, people still about", empty: "the streets nearly empty; the watch about, and whoever has no bed"}
+  capital: {market: "thronged: the widest streets in the kingdom and still crowded, a hundred faces a minute, guards at every corner", easing: "the great streets still full, the crowds turning toward the taverns and the lamplit squares", quiet: "quieter, the guard patrols more visible than the people", empty: "empty but for the guard, who are everywhere"}
+guard:                                     # how much of the watch is about, by scale: a line in WHERE. A place may name its own (guard: heavy)
+  hamlet: none
+  village: light
+  town: some
+  city: heavy
+  capital: heavy
+guard_lines:
+  none:  ""
+  light: "a watchman or two, no more"
+  some:  "the watch about in pairs"
+  heavy: "the guard everywhere, armed and bored"

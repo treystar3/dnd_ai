@@ -35,6 +35,7 @@ class Good(BaseModel):
 class Ingredient(BaseModel):
     good: str = ""
     kind: str = ""
+    meat: bool = False      # any food that comes from a creature (goods with drops_from): what a cooked meal is made of
     count: int = 1
 
 
@@ -139,28 +140,39 @@ def take(bag: list[Item], name: str, count: int = 1) -> Item | None:
     return first.model_copy(update={"quantity": got}) if got else None
 
 
-def count_of(bag: list[Item], good: str = "", kind: str = "") -> int:
-    return sum(i.quantity for i in bag if i.good and (i.good == good or (kind and GOODS[i.good].kind == kind)))
+def matches(item: Item, good: str = "", kind: str = "", meat: bool = False) -> bool:
+    if not item.good:
+        return False
+    g = GOODS[item.good]
+    return item.good == good or bool(kind and g.kind == kind) or bool(meat and g.kind == "food" and g.drops_from)
 
 
-def remove_goods(bag: list[Item], good: str = "", kind: str = "", count: int = 1) -> None:
-    for have in [i for i in bag if i.good and (i.good == good or (kind and GOODS[i.good].kind == kind))]:
+def count_of(bag: list[Item], good: str = "", kind: str = "", meat: bool = False) -> int:
+    return sum(i.quantity for i in bag if matches(i, good, kind, meat))
+
+
+def remove_goods(bag: list[Item], good: str = "", kind: str = "", count: int = 1, meat: bool = False) -> list[Item]:
+    """Take the ingredients out of the bag. Returns the stacks they came from, for whatever the product inherits from them (an origin)."""
+    taken = []
+    for have in [i for i in bag if matches(i, good, kind, meat)]:
         moved = min(have.quantity, count)
         have.quantity -= moved
         count -= moved
+        taken.append(have)
         if have.quantity <= 0:
             bag.remove(have)
         if count <= 0:
-            return
+            break
+    return taken
 
 
 def can_craft(bag: list[Item], recipe: Recipe) -> list[str]:
     """Missing ingredients, as words. Empty when the recipe can be made."""
     missing = []
     for ing in recipe.ingredients:
-        have = count_of(bag, ing.good, ing.kind)
+        have = count_of(bag, ing.good, ing.kind, ing.meat)
         if have < ing.count:
-            what = GOODS[ing.good].name if ing.good else f"any {ing.kind}"
+            what = GOODS[ing.good].name if ing.good else ("any meat" if ing.meat else f"any {ing.kind}")
             missing.append(f"{ing.count - have} more {what}")
     return missing
 

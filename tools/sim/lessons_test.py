@@ -59,7 +59,7 @@ for key, c in chars.items():
                 if len(set(riders)) != len(riders) or len(set(shapes)) != len(shapes) or len(set(fns)) != len(fns): bad_("a trait repeated in one offer")
                 if any(s["rider"] and s["shape"] for s in acts): bad_("rider and shape together")
                 if any(s["tier"] == "heavy" for s in slots) and level < lessons.L["heavy_level"]: bad_("heavy before its level")
-                if level < lessons.L["moderate_level"] and any(s["tier"] != "light" for s in slots): bad_("moderate before its level")
+                if level < lessons.L["moderate_level"] and any(s["tier"] != "light" and s.get("effect") != "buff" for s in slots): bad_("moderate before its level")
                 if any(s["context"] != "combat" and s["effect"] not in ("healing", "summon", "crafting") and not s["field_use"] for s in acts): bad_("outside-combat with no function")
                 if any(s["effect"] == "summon" and not c.uses_companions for s in acts): bad_("summon without companions")
                 keys = [(s["modifies"], s["trigger"]) for s in pas if s["kind"] == "stat"] + [s["mechanic"] for s in pas if s["kind"] == "mechanic"]

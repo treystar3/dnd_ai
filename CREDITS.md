@@ -8,3 +8,7 @@ https://creativecommons.org/licenses/by/4.0/legalcode.
 Creature data was read from the 5e-database project (https://github.com/5e-bits/5e-database, MIT License)
 and reclassified for Rivia in data/world/bestiary.yaml. Only creature names, types, sizes, challenge
 ratings, attack names and ability-score proportions are used; game statistics are computed by this engine.
+
+The window's reading face is Literata (https://github.com/googlefonts/literata), copyright 2017 The Literata Project
+Authors, licensed under the SIL Open Font License 1.1 (ui/gui/web/fonts/OFL.txt). The four files there are the latin
+subsets packaged by Fontsource (https://fontsource.org).

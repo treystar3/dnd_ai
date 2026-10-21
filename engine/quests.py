@@ -178,6 +178,8 @@ def post_board(world, store, now: int, size: int, rng: random.Random, rank: str 
             if glimpse or rng.random() > 0.15:
                 continue
             glimpse += 1
+        elif li > reach - 1 and sum(reach - 1 < LETTERS.index(b["letter"]) <= reach for b in board) >= G.get("above_max", size):
+            continue                                          # (f292) work a rank above yours is a couple of postings, not half the board
         elif li < LETTERS.index(rank or "F") - G["rank_focus"]["below"] and rng.random() > G["rank_focus"]["keep"]:
             continue
         spot = q.get("place") or (d["place"] if kind in ("delve", "dungeon_boss") and d else None)

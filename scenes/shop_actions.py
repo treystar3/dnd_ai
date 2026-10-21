@@ -1,3 +1,4 @@
+import re
 """Buying and selling as plain actions: the typed commands ("buy the sword", "sell the pelts") and the shop pane's buttons
 both end here, so prices, haggling, merchant memory and saving are the same either way.
 
@@ -91,11 +92,14 @@ class ShopActions:
                 setattr(c, pool, min(top, pools.current(c, pool) + top * part))
             needs.eat(c, meal["feeds"] if ware.kind == "meal" else 5)
             effect = "They eat and feel restored." if ware.kind == "meal" else "They drink."
+            from engine import world_perks
+            if ware.kind in world_perks.P["tavern_ear"]["wares"]:
+                self.tavern_ear(seller)
         seller.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
                                       text=f"The stranger paid {money.words(ware.price)} for {ware.name}."))
         self.store.save_npc(seller)
         self.store.save_player(self.player)
-        console.note(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
+        console.ledger(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
         if quiet:
             if ware.kind == "room":
                 console.note("A room upstairs is yours until mid-morning tomorrow.")
@@ -169,6 +173,19 @@ class ShopActions:
         roles = self.world.roles
         return [n for n in self.present if n.met_player and (roles[n.role].sells or roles[n.role].stock or roles[n.role].relics)]
 
+    def trades_here(self) -> str:
+        """(f328) Who sells here that you have not spoken to yet, and what they deal in: 'the smith (gear), Pell the carter (trail ration, torch)'."""
+        roles = self.world.roles
+        out = []
+        for n in self.present:
+            r = roles[n.role]
+            if n.met_player or not (r.sells or r.stock or r.relics):
+                continue
+            deals = [re.sub(r"^(a|an) ", "", w.name) for w in r.sells][:3] + (["gear"] if r.stock else []) + (["relics"] if r.relics else [])
+            more = "…" if len(r.sells) > 3 else ""
+            out.append(f"{n.label()} ({', '.join(deals)}{more})")
+        return ", ".join(out)
+
     def shop_data(self) -> dict:
         """Everything the shop pane shows, as plain data: who sells what at what price, and what each pack item would fetch."""
         c = self.player.character
@@ -181,16 +198,16 @@ class ShopActions:
             for w in role.sells:
                 q = self.quote_ware(n, w)
                 lines.append({"kind": "ware", "key": w.id, "name": w.name, "detail": w.kind if w.kind not in ("item", "material") else "",
-                              "price": q.price, "price_text": money.fmt(q.price), "afford": c.coins >= q.price, "note": ""})
+                              "price": q.price, "price_text": money.fmt(q.price), "price_short": money.short(q.price), "afford": c.coins >= q.price, "note": ""})
             for o_npc, i, price in offers:
                 if o_npc.id != n.id:
                     continue
                 need = equipment.level_needed(i)
                 note = f"needs you at level {need} to equip" if c.level < need else ""
                 relic = i.uid.startswith("relic_")
-                lines.append({"kind": "stock", "key": i.uid, "name": f"{i.name}, {i.title}" if relic else quality_name(i),
+                lines.append({"kind": "stock", "key": i.uid, "name": f"{i.name}, {i.title}" if relic else quality_name(i), "rarity": i.rarity,
                               "detail": f"lv {i.item_level} · {i.description if relic else items.summary(i)[:90]}",
-                              "price": price, "price_text": money.fmt(price), "afford": c.coins >= price, "note": note})
+                              "price": price, "price_text": money.fmt(price), "price_short": money.short(price), "afford": c.coins >= price, "note": note})
             sellers.append({"id": n.id, "name": n.label(), "wares": lines,
                             "buys": [b for b in role.buys if b != "any"] or (["anything"] if "any" in role.buys else [])})
         sell = []
@@ -200,8 +217,8 @@ class ShopActions:
             if not buyer:
                 continue
             total = self.sell_total(it, buyer)
-            sell.append({"uid": it.uid, "name": inv.label(it), "detail": items.summary(it)[:90], "qty": it.quantity,
-                         "total": total, "total_text": money.fmt(total), "buyer": buyer.id, "buyer_name": buyer.label(),
+            sell.append({"uid": it.uid, "name": inv.label(it), "detail": items.summary(it)[:90], "qty": it.quantity, "rarity": it.rarity,
+                         "total": total, "total_text": money.fmt(total), "total_short": money.short(total), "buyer": buyer.id, "buyer_name": buyer.label(),
                          "legendary": it.rarity == "legendary"})
         return {"purse": money.fmt(c.coins), "sellers": sellers, "sell": sell}
 

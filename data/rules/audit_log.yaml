@@ -1,0 +1,57 @@
+# THE AUDIT LOG (f314, llm/audit.py): a readable record of every call the game makes to the model, one file per session under logs/audit/.
+# llm_calls.jsonl is the machine log, trimmed to the last few hundred calls with the system prompts shortened; this one is for a person
+# reading afterwards: every prompt in full, every answer, what was wrong with the ones that were rejected, and why the call was made.
+
+enabled: true
+folder: logs/audit
+max_mb: 200                # a session's file stops growing past this (a line says so); the next session starts a new file
+
+# why each kind of call is made, in plain words. A kind not listed here is shown by its name alone.
+tasks:
+  interpret_action:      "reading what the player typed into actions the engine can run"
+  combat_interpret:      "reading what the player typed in a fight into a combat action"
+  audit_meaning:         "the audit's reading of what the player meant, before acting"
+  audit_compare:         "the audit comparing the plan to what the player meant"
+  narrate:               "the narrator describing what just happened"
+  combat_narrate:        "the narrator describing a round of a fight"
+  dialogue_frame:        "the narrator framing a spoken line with what the speaker does"
+  npc_conversation:      "a person of the world answering the player"
+  npc_profile:           "writing a person's personality the first time they are spoken to"
+  populate_place:        "making the people of a place the first time it is entered"
+  hire_chat:             "a hired companion answering the player"
+  mentor_chat:           "Maren answering the player"
+  mentor_speech:         "Maren saying a scripted beat in her own words"
+  mentor_voice:          "Maren putting fixed lines in her own words"
+  stranger_read:         "Maren judging whether the stranger's answer settles her"
+  exchange:              "people of the world talking among themselves (Maren and the clerk; the party)"
+  pair_dynamic:          "how two hired companions get on, written once"
+  persona_details:       "a hired companion's personal details, written once at hire"
+  overheard:             "a passing remark the party makes"
+  party_intent:          "reading what the player wants done about the party"
+  camp_intent:           "reading what the player means to do near an enemy camp"
+  work_offer_read:       "reading whether the player took up offered work"
+  lesson_want:           "reading what the player asks an instructor to teach"
+  generate_lessons:      "naming and describing the lessons the engine planned"
+  generate_actives:      "naming and describing the abilities the engine planned at creation"
+  generate_passive_mechanics: "describing creation passives"
+  interpret_creation_input: "reading the player's answer during character creation"
+  goddess_line:          "the goddess speaking at the Threshold"
+  starting_kit:          "the goddess choosing a starting weapon or companion from the lists"
+  classify_field:        "deciding what an out-of-combat ability does"
+  classify_concept:      "reading a class concept into families and elements"
+  canon_extract:         "listing what a speaker just claimed about themselves"
+  canon_check:           "judging whether a claim contradicts what is already true of them"
+  plausible_object:      "judging whether a story object the player asked for could exist here"
+  event_judge:           "judging how the player's action bears on a big event"
+  arc_story:             "dressing a quest chain's fixed skeleton in names and colour"
+  pulse_thread:          "the world starting a situation somewhere, off-screen"
+  pulse_motive:          "a person's private goal moving a step, off-screen"
+  pulse_cataclysm:       "the world starting a cataclysm"
+  road_event:            "inventing what the traveller comes across on the road"
+  discovery:             "inventing a place that is not on the map yet"
+  loot_name:             "naming a rare item"
+  legendary_name:        "naming a legendary item"
+  accessory_name:        "naming a ring or amulet"
+  town_profile:          "drafting a town's profile from the world's data (tools/draft_towns.py)"
+  clarify:               "the world asking, in character, what the player meant by a line it could not act on"
+  board_stakes:          "writing who asked for each new guild posting, why, and what will change when it is done"

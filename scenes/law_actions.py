@@ -6,6 +6,7 @@ and describes that object; the engine owns whether it exists, what it is worth, 
 import re
 
 from core.models import KeyItem
+from engine import voice_rules
 from engine import checks, clock, deeds, inventory as inv, items, law, locks, money, pools, pulse, standing
 from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
@@ -130,9 +131,13 @@ class LawActions:
         value = loot["value"]
         res = law.attempt(zone, c.attributes.dexterity, bonus, value, owner is not None, len(watchers), target_pct,
                           checks.gear_points(c, "stealth", triggers))
-        degree = "failure" if nothing else res["degree"]
+        from engine import world_perks
+        degree = "failure" if nothing else world_perks.gamble(c, res["degree"])
+        if world_perks.bad(c, degree) and not nothing:
+            law.add_heat(self.player, town, world_perks.P["all_or_nothing"]["bad_heat"], clock.day(self.minutes))
+            console.note("A bad failure: the fumble is loud, and the town's heat rises (All or Nothing).")
         console.debug(f"steal: zone {zone}, window {res['window']}, score {res['score']:.0f}, bar {res['bar']:.0f}, "
-                      f"x{res['mult']:.2f}, roll {res['roll']} -> {degree}{' (hopeless)' if res['hopeless'] else ''}")
+                      f"x{res['mult']:.2f}, roll {res['roll']} -> {degree}{' (hopeless: the roll is skipped)' if res['hopeless'] else ''}")
         console.note(checks.label("Theft", degree))
         # who sees
         noticed = []
@@ -169,20 +174,20 @@ class LawActions:
             self.player.character.key_items.append(KeyItem(
                 id=re.sub(r"[^a-z0-9]+", "_", rec["name"].lower()).strip("_"), name=rec["name"], description=rec["description"],
                 kind="key", source=owner.name if owner else self.place.name, day=clock.day(self.minutes), opens=rec.get("opens", "")))
-            console.note(f"Key item taken: {rec['name']} - {rec['description']}")
+            console.ledger(f"Key item taken: {rec['name']} - {rec['description']}")
         console.note(f"You take {loot['label']}.")
 
     def record_theft(self, loot, owner, noticed, took, degree, nothing, day, turn) -> None:
         what = loot["label"]
         for n in noticed:
             seen = "tried to take" if not took else "took"
-            n.memories.append(Memory(day=day, turn=turn, text=f"Saw the stranger {seen} {what}" +
+            n.memories.append(Memory(importance=3, day=day, turn=turn, text=f"Saw the stranger {seen} {what}" +
                                      (f" from {owner.label()}." if owner and n.id != owner.id else ".") if n.id != (owner.id if owner else None)
                                      else f"Caught the stranger {'taking' if took else 'trying to take'} {what} from me."))
             n.trust = max(0, n.trust - (15 if owner and n.id == owner.id else 5))
             self.store.save_npc(n)
         if owner and took and owner not in noticed:
-            owner.memories.append(Memory(day=day, turn=turn, text=f"{what.capitalize()} has gone missing. I have no idea who took it."))
+            owner.memories.append(Memory(importance=3, day=day, turn=turn, text=f"{what.capitalize()} has gone missing. I have no idea who took it."))
             self.store.save_npc(owner)
         if not noticed:
             return
@@ -202,14 +207,15 @@ class LawActions:
         who = ", ".join(n.label() for n in noticed)
         if nothing:
             base = (f"The player quietly goes through {holder} looking for {what}, but {nothing}. Describe the search coming up "
-                    f"empty. Do not invent anything they find.")
+                    f"empty. Do not invent anything they find. " + voice_rules.NOTHING)
         elif took:
             how = {"strong success": "smoothly and without a flicker of notice", "success": "cleanly",
                    "partial": "with a clumsy moment that could have given them away"}[degree]
             base = f"The player takes {what} from {holder}, {how}. Describe the lifting in two or three sentences."
         else:
             base = (f"The player tries to take {what} from {holder} and cannot manage it"
-                    + (" - it is far beyond their skill" if hopeless else "") + ". They come away empty-handed.")
+                    + (" - it is far beyond their skill" if hopeless else "") + ". They come away empty-handed. "
+                    f"Name only {what}: do not mention any other object, and not the player's own gear. " + voice_rules.NOTHING)
         if noticed:
             base += (f" {who} notice{'s' if len(noticed) == 1 else ''} what the player is doing and react: sharp words, alarm or"
                      f" a hard stare. Nobody draws a weapon or attacks; the game handles what comes next.")
@@ -317,7 +323,8 @@ class LawActions:
     def pay_field_ability(self, fn: str):
         """The character's ability with this field function, if it is ready and they can pay for it - paid for. Else None."""
         c = self.player.character
-        ab = next((a for a in c.actives if a.field_use == fn), None)
+        from engine import loadout
+        ab = next((a for a in loadout.prepared(c) if a.field_use == fn), None)      # only what is brought
         if not ab or self.field_ready_in(ab):
             return None
         pool = ab.resource.value
@@ -333,7 +340,8 @@ class LawActions:
         """A picklock ability helps if the character has one and can pay for it. Returns (bonus percent of the window, its name)."""
         ab = self.pay_field_ability("picklock")
         if not ab:
-            if any(a.field_use == "picklock" for a in self.player.character.actives):
+            from engine import loadout
+            if any(a.field_use == "picklock" for a in loadout.prepared(self.player.character)):
                 console.note("You try it by hand.")
             return 0.0, ""
         return float(law.L["lock"]["picklock_bonus"][ab.tier.value]), ab.name
@@ -369,11 +377,17 @@ class LawActions:
         boost, tool = self.pay_picklock()
         bonus = checks.passive_points(c, "stealth", triggers) + getattr(c, "trained", {}).get("stealth", 0) + extras + boost
         watchers = self.watchers(lock_owner)
-        res = law.attempt(zone, c.attributes.dexterity, bonus, 0, lock_owner is not None, len(watchers), locks.difficulty(lock),
-                          checks.gear_points(c, "stealth", triggers))
-        degree = res["degree"]
+        force = self.owns("siege_breaker") and c.attributes.strength > c.attributes.dexterity
+        if self.owns("siege_breaker") and tool:
+            boost, tool = 0.0, ""                         # Siege Breaker needs no tools: force is the tool
+        res = law.attempt(zone, c.attributes.strength if force else c.attributes.dexterity, bonus, 0, lock_owner is not None,
+                          len(watchers), locks.difficulty(lock), checks.gear_points(c, "stealth", triggers))
+        if self.owns("siege_breaker"):
+            console.note("You put your strength to it instead of your skill (Siege Breaker).")
+        from engine import world_perks
+        degree = world_perks.gamble(c, res["degree"])
         console.debug(f"unlock: zone {zone}, window {res['window']}, score {res['score']:.0f}, bar {res['bar']:.0f}, "
-                      f"x{res['mult']:.2f}, roll {res['roll']} -> {degree}{' (hopeless)' if res['hopeless'] else ''}")
+                      f"x{res['mult']:.2f}, roll {res['roll']} -> {degree}{' (hopeless: the roll is skipped)' if res['hopeless'] else ''}")
         console.note(checks.label("Lock", degree))
         noticed = []
         if lock_owner and law.notices(degree, lock_owner.role, is_target=True):
@@ -404,7 +418,7 @@ class LawActions:
     def record_break_in(self, lock, owner, noticed, opened, day, turn) -> None:
         what = lock["name"]
         for n in noticed:
-            n.memories.append(Memory(day=day, turn=turn, text=(f"Caught the stranger {'breaking into' if opened else 'trying to break into'} {what}."
+            n.memories.append(Memory(importance=3, day=day, turn=turn, text=(f"Caught the stranger {'breaking into' if opened else 'trying to break into'} {what}."
                                                               if owner and n.id == owner.id else
                                                               f"Saw the stranger {'break into' if opened else 'try to break into'} {what}.")))
             n.trust = max(0, n.trust - (15 if owner and n.id == owner.id else 5))
@@ -449,7 +463,7 @@ class LawActions:
         seen = [w for w in self.watchers(npc) if law.notices("success", w.role, assault=True)]
         noticed = [npc] + seen
         for n in noticed:
-            n.memories.append(Memory(day=day, turn=turn, text=("The stranger laid hands on me." if n.id == npc.id
+            n.memories.append(Memory(importance=3, day=day, turn=turn, text=("The stranger laid hands on me." if n.id == npc.id
                                                               else f"Saw the stranger lay hands on {npc.label()}.")))
             n.trust = max(0, n.trust - (10 if n.id == npc.id else 5))
             self.store.save_npc(n)
@@ -516,14 +530,19 @@ class LawActions:
         fine = law.fine(heat)
         self.narrate(f"{guard.label()} and the watch take hold of the player: they are wanted here. Describe the arrest in two "
                      f"sentences. Do not resolve anything; the game will.", "")
-        menu = (f"You are under arrest. Pay the fine ({money.fmt(fine)}), serve time in jail, offer a bribe, or run.")
-        pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "jail", "bribe", "run")}, menu)
+        if self.owns("above_the_law"):
+            menu = (f"You are under arrest - but your kind are not jailed. Pay the fine ({money.fmt(fine)}); what your purse cannot cover, "
+                    f"your name will. Or offer a bribe, or run.")
+            pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "bribe", "run")}, menu)
+        else:
+            menu = (f"You are under arrest. Pay the fine ({money.fmt(fine)}), serve time in jail, offer a bribe, or run.")
+            pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "jail", "bribe", "run")}, menu)
         self.settle(guard, town, pick, fine)
 
     def settle(self, guard, town: str, pick: str, fine: int) -> None:
         c, day, turn = self.player.character, clock.day(self.minutes), self.store.meta.turn
         heat = law.current_heat(self.player, town, day)
-        remember = lambda t: guard.memories.append(Memory(day=day, turn=turn, text=t))
+        remember = lambda t: guard.memories.append(Memory(importance=3, day=day, turn=turn, text=t))
         if pick == "pay":
             if c.coins >= fine:
                 c.coins -= fine
@@ -574,22 +593,42 @@ class LawActions:
             law.set_heat(self.player, town, law.current_heat(self.player, town, day) - H["bribe_relief"], day)
             guard.looks_away_until = self.minutes + law.N["look_away_minutes"]
             self.standing_report("bribe_guard", [guard])
-            guard.memories.append(Memory(day=day, turn=turn, text=f"Took {money.words(fine)} from the stranger to forget what I knew."))
-            console.note(f"The coins vanish. Purse: {money.fmt(c.coins)}")
+            guard.memories.append(Memory(importance=3, day=day, turn=turn, text=f"Took {money.words(fine)} from the stranger to forget what I knew."))
+            console.ledger(f"The coins vanish. Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away. Keep it brief.", "")
         else:
             guard.trust = max(0, guard.trust + B["trust"][degree])
-            guard.memories.append(Memory(day=day, turn=turn, text="The stranger tried to bribe me. I did not take it."))
+            guard.memories.append(Memory(importance=3, day=day, turn=turn, text="The stranger tried to bribe me. I did not take it."))
             console.note("The guard refuses. You are arrested.")
             self.arrest(guard, town, forced=True)
 
     def serve_time(self, guard, town: str, fine: int) -> None:
         c, day = self.player.character, clock.day(self.minutes)
+        if self.owns("above_the_law"):
+            return self.pay_in_standing(guard, town, fine)
         price = min(c.coins, round(fine * H["jail_fine_share"]))
         c.coins -= price
         self.advance(H["jail_days"] * 1440)
         law.set_heat(self.player, town, H["after_paid"], clock.day(self.minutes))
-        guard.memories.append(Memory(day=day, turn=self.store.meta.turn, text="The stranger spent time in the cells."))
+        guard.memories.append(Memory(importance=3, day=day, turn=self.store.meta.turn, text="The stranger spent time in the cells."))
         console.note(f"You serve {H['jail_days']} days and pay {money.fmt(price)}. Purse: {money.fmt(c.coins)}")
         self.narrate(f"The player spends {H['jail_days']} days in the town cells and is released with a stern warning. "
                      f"Describe the stay in two or three sentences.", "")
+
+    def pay_in_standing(self, guard, town: str, fine: int) -> None:
+        """Above the Law: no cell, ever. The purse pays what it can; the rest comes off the player's name in this town."""
+        from engine import pulse, world_perks
+        c, day = self.player.character, clock.day(self.minutes)
+        paid = min(c.coins, fine)
+        c.coins -= paid
+        owed = fine - paid
+        lost = round(owed / 10000 * world_perks.P["above_the_law"]["standing_per_gold"]) if owed else 0
+        if lost:
+            self.reputation_add(pulse.town_of(self.world, town), -lost, spread=False)
+        law.set_heat(self.player, town, H["after_paid"], day)
+        guard.memories.append(Memory(importance=3, day=day, turn=self.store.meta.turn,
+                                     text="The stranger's kind do not see the inside of a cell. They paid what they could and walked."))
+        console.note(f"No cell for you. You pay {money.fmt(paid)}" + (f"; the rest ({money.fmt(owed)}) is paid in standing here ({-lost})" if owed else "")
+                     + f". Purse: {money.fmt(c.coins)} (Above the Law)")
+        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes {money.words(paid)}"
+                     + (" and makes sure the whole street knows the rest went unpaid" if owed else "") + ". Keep it to two sentences.", "")

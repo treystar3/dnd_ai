@@ -36,7 +36,7 @@ def scene(passive_delay=0.0, fail_first=False):
             raise LLMError("bad")
         return [types.SimpleNamespace(name=f"P{i}", description="d") for i in range(15)]
     creation.generate_passives = gp
-    creation.check_active_picks = lambda options, picks: None
+    creation.check_active_picks = lambda options, picks, **k: None
     creation.check_passive_picks = lambda options, picks: None
     return s, calls
 

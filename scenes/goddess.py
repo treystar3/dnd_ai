@@ -41,8 +41,8 @@ EXPECTS = {
     Step.NAME: "the player's name",
     Step.CONCEPT: "who they want to become: their fighting style, calling, or the kind of person they will be",
     Step.CONFIRM_CLASS: "whether the goddess's reading of their nature is right (confirm), or what should change (decline, with text)",
-    Step.ACTIVES: "choosing exactly two of the numbered abilities",
-    Step.PASSIVES: "choosing exactly two of the numbered traits",
+    Step.ACTIVES: "choosing exactly three of the numbered abilities",
+    Step.PASSIVES: "choosing exactly three of the numbered traits",
     Step.STATS: "how to shape their body and mind: exact attribute numbers, or what matters most to them",
     Step.CONFIRM_STATS: "whether the attributes shown are right (confirm) or should change (decline)",
 }
@@ -69,6 +69,8 @@ class ThresholdScene:
         self.opening()
         while self.step != Step.DONE:
             text = console.ask()
+            from llm import audit
+            audit.note_turn(-1, f"(creation) {text}")      # the Threshold's calls, filed under what the player answered (f314)
             if text.lower() in {"quit", "exit", "/quit", "/exit"}:
                 console.out("\nYou leave the Threshold. No character was saved - run main.py to begin again.")
                 raise SystemExit(0)
@@ -135,6 +137,8 @@ class ThresholdScene:
         )
 
     def redirect(self) -> None:
+        if self.step == Step.STATS:
+            console.show_stat_rules(getattr(self, "guidance", []))
         self.speak(
             "What the player said does not answer the current step. Respond briefly, "
             f"in character, and return them to it: {EXPECTS[self.step]}."
@@ -174,6 +178,8 @@ class ThresholdScene:
             f"You perceive the player's nature as: {self.interp.custom_class}. {self.interp.summary} "
             "Tell them what you see in them in your own words, without game terms, as the shape their life already has, "
             "and ask whether you have seen them truly."
+            + (f" The player asked for something this world does not have. {self.interp.adapted} Say, gently and in your own words, that the "
+               "thing they named has no place in Rivia and what you see in them instead." if self.interp.adapted else "")
         )
 
     def on_confirm_class(self, turn: PlayerTurn) -> None:
@@ -190,7 +196,7 @@ class ThresholdScene:
             console.show_actives(self.active_options)
             self.speak(
                 "The player accepted your reading. The game now shows them fifteen techniques "
-                "they might carry back: what is already in them, drawn out. Invite them, quickly, to choose two."
+                "they might carry back: what is already in them, drawn out. Invite them, quickly, to choose three."
             )
             self.passives_job = creation.PassivesInBackground(self.interp, self.active_options)   # written while they read
         elif turn.kind in ("decline", "answer") and turn.text.strip():
@@ -200,7 +206,8 @@ class ThresholdScene:
             self.speak("Ask the player whether you have seen them truly, or what you have misjudged.")
 
     def on_actives(self, turn: PlayerTurn) -> None:
-        error = creation.check_active_picks(self.active_options, turn.picks)
+        error = creation.check_active_picks(self.active_options, turn.picks,
+                                            keeps_companions=bool(getattr(self.interp, "uses_companions", False)))
         if error:
             self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.")
             return
@@ -211,7 +218,7 @@ class ThresholdScene:
             self.passive_options = job.result() if job is not None else creation.generate_passives(self.interp, self.active_options)
         except LLMError as e:
             console.debug(str(e))
-            console.note("The model couldn't shape your innate traits this time. Nothing is lost - choose your two techniques again to retry.")
+            console.note("The model couldn't shape your innate traits this time. Nothing is lost - choose your three techniques again to retry.")
             self.passives_job = None
             return
         self.passives_job = None
@@ -220,7 +227,7 @@ class ThresholdScene:
         console.show_passives(self.passive_options)
         self.speak(
             f"The player chose {' and '.join(a.name for a in self.actives)}. Acknowledge it briefly. "
-            "The game now shows fifteen innate traits. Invite them to choose two."
+            "The game now shows fifteen innate traits. Invite them to choose three."
         )
 
     def on_passives(self, turn: PlayerTurn) -> None:
@@ -241,20 +248,26 @@ class ThresholdScene:
         if turn.stats:
             values = turn.stats.model_dump()
         elif turn.priorities:
-            values = stats.from_priorities(turn.priorities + list(self.interp.primary_attributes))
+            values = stats.from_priorities(turn.priorities + list(self.interp.primary_attributes), extreme=stats.wants_extreme(turn.text))
         else:
             self.redirect()
             return
         console.show_sheet(values)
         error = stats.check_allocation(values)
         if error:
-            self.speak(f"That shaping is not possible: {error} Explain gently and ask them to try again.")
+            console.note(f"That can't be done: {error}")
+            console.show_stat_rules(getattr(self, "guidance", []))
+            self.speak(f"That shaping is not possible: {error} Say plainly, in a sentence or two, what the limit is ({stats.rules_text()}) and ask them to try again.")
             return
         self.values = values
         self.step = Step.CONFIRM_STATS
         self.speak("The game has shown the shape of their body and mind. Ask whether this is how they wish to be made.")
 
     def on_confirm_stats(self, turn: PlayerTurn) -> None:
+        if turn.kind != "confirm" and (turn.stats or turn.priorities):      # 'No. strength 10, ...' already says what they want instead
+            self.step = Step.STATS
+            self.on_stats(turn)
+            return
         if turn.kind == "confirm":
             self.finish()
         elif turn.kind == "decline":

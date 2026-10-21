@@ -84,13 +84,19 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
     return max(RULES["min"], min(RULES["max"], value)), why
 
 
-def roll(odds: float, rng: random.Random | None = None) -> tuple[str, int]:
+def roll(odds: float, rng: random.Random | None = None, c: Character | None = None) -> tuple[str, int]:
+    """The die. With the character given, the perks that change what a roll means act here (All or Nothing: no partials)."""
     r = (rng or random).randint(1, 100)
     margin = odds - r
-    for degree, need in RULES["degrees"].items():
+    degree = "failure"
+    for name, need in RULES["degrees"].items():
         if margin >= need:
-            return degree, r
-    return "failure", r
+            degree = name
+            break
+    if c is not None:
+        from engine import world_perks
+        degree = world_perks.gamble(c, degree)
+    return degree, r
 
 
 def label(check: str, degree: str) -> str:

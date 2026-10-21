@@ -2,7 +2,7 @@
 a dungeon cleared, a contract finished. Big events read it to see whether their resolution paths are met, and the judge reads it
 to decide whether the player ended an event in a way nobody planned. It lives in world_state.json under "deeds".
 
-A deed is {"kind", "minute", "place", ...data}. Kinds: kill, persuade, deliver, dungeon_cleared, quest_done.
+A deed is {"kind", "minute", "place", ...data}. Kinds: kill, persuade, deliver, dungeon_cleared, quest_done, found, defend.
 """
 
 import yaml
@@ -47,6 +47,8 @@ def describe(d: dict) -> str:
         return f"cleared the dungeon{where} and killed its master"
     if k == "quest_done":
         return f"finished the job '{d.get('title', 'a job')}'{where}"
+    if k == "defend":
+        return f"held the gate{where} against the host"
     if k == "offense":
         return f"{d.get('offense', 'broke the law')}{(' (' + d['item'] + ')') if d.get('item') else ''}{where}, seen by {len(d.get('witnesses', []))}"
     return f"{k}{where}"

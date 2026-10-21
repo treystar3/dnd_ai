@@ -1,0 +1,473 @@
+# QUIRKS - what makes a hired companion somebody, not a sheet.
+#
+# Every hire rolls, when they sign on: one habit (shown by the engine at the moment it happens, so it is always there), one voice pattern
+# (how they talk, held in the prompt and checked where it can be), one thing they approve of and one they do not (deeds of the player's the
+# engine can see, with a reaction, a memory and a move in bond), sometimes a flaw (rare, mechanical, visible, never silent), and, by their
+# want, an errand they will ask for once they trust you and a secret or two they will tell once they are devoted. As trust grows, so do they.
+#
+# The rule throughout: the engine supplies the specifics and the model supplies the delivery. A quirk that lives only in the prompt is noise.
+
+habit_chance: 65          # a habit shows this often when its moment comes (always the first time)
+flaw_chance: 45           # a hire has a flaw this often
+
+# ---- habits: when = rest | arrival | fight_start | fight_end. {name} {their} {weapon} {count} are filled in.
+habits:
+  first_watch:  {when: rest,        line: "{name} takes the first watch without being asked, and will not be argued out of it.", prompt: "always takes the first watch and will not be argued out of it"}
+  eats_last:    {when: rest,        line: "{name} does not touch food until everyone else has eaten.", prompt: "will not eat before everyone else has"}
+  hums:         {when: rest,        line: "{name} hums the same four bars, badly, while the fire catches.", prompt: "hums the same tune, badly, whenever their hands are busy"}
+  boots_off:    {when: rest,        line: "{name} has {their} boots off before the pack is down.", prompt: "has their boots off the moment they stop"}
+  mends:        {when: rest,        line: "{name} gets out needle and thread and mends something of someone else's without asking.", prompt: "mends other people's gear without asking, and will not be thanked for it"}
+  checks_sky:   {when: arrival,     line: "{name} looks at the sky before anything else, every time.", prompt: "reads the sky before anything else, every time, and trusts it over any almanac"}
+  doorframe:    {when: arrival,     line: "{name} touches the doorframe on the way in, for luck.", prompt: "touches the doorframe of every building for luck"}
+  counts_coin:  {when: arrival,     line: "{name} counts {their} coin on arriving, as if the road might have taken some.", prompt: "counts their coin on arriving anywhere"}
+  sharpens:     {when: arrival_danger, line: "{name} sits and sharpens a blade that does not need it.", prompt: "sharpens a blade that does not need it when something is coming"}
+  talks_weapon: {when: fight_start, line: "{name} murmurs something to {their} {weapon} before the first blow.", prompt: "talks to their weapon under their breath, as to an old friend"}
+  spits:        {when: fight_start, line: "{name} spits to the left before the first blow. Always the left.", prompt: "spits to the left before every fight, and will not say why"}
+  counts_fights: {when: fight_end,  line: "{name} says the count aloud, as always: {count}.", prompt: "keeps a count of every fight they have been in and says the number aloud when one ends", needs: count}
+  wipes_blade:  {when: fight_end,   line: "{name} cleans {their} {weapon} before anything else, even a wound.", prompt: "cleans their weapon before seeing to anything else, even a wound"}
+
+# ---- voice patterns. {oath} {trade} {nick} are filled in once, when rolled. check: a rule the engine can verify on every line.
+# A voice is one way of talking that marks them out. weight: how often it is rolled (plain, no marked voice, is about three hires in ten).
+# kind: persistent - true of every line, so it is in every reply; conditional - shows when the moment invites it, so it is in some replies
+# (voice_show); offered - only ever with the words the engine offers them (an oath, a curse, the nickname), so it is in every reply.
+voice_show: {conditional: 0.5}
+voices:
+  no_contractions: {prompt: "never uses contractions; every word is said in full", check: no_contractions, kind: persistent, weight: 1}
+  questions:       {prompt: "meets most questions with a question of their own before answering", check: "", kind: conditional, weight: 1}
+  swears_by:       {prompt: "now and then, when something moves them, swears an oath, only the one offered to them, and never by anything else or in every breath", check: oath, kind: offered, weight: 1, oaths: ["the Hollow", "the Nine Winds", "old Harl's teeth", "the Deep Water", "the Ash Road", "the Quiet Saint", "every nail in the Bridge"]}
+  nickname:        {prompt: "never uses the player's name; calls them only by the name offered to them", check: nickname, kind: offered, weight: 1, nicks: ["Boots", "Captain", "Pup", "Greenhorn", "Chief", "Sparrow", "Long-legs", "Trouble", "Badge", "the Hero"]}
+  curses:          {prompt: "curses when something goes wrong or gets to them, and only with a curse offered to them; never in two breaths running", check: curses, kind: offered, weight: 1}
+  second_tongue:   {prompt: "{tongue_prompt}", check: second_tongue, kind: persistent, weight: 0}     # old saves only: a first tongue is the speech profile's now
+  plain:           {prompt: "", check: "", kind: persistent, weight: 3.5}
+  figures:         {prompt: "speaks in figures drawn from {trade}; everything is like something from it", check: "", kind: conditional, weight: 1, trades: ["farming", "sailing", "the forge", "the kitchen", "the hunt", "dice and cards", "the loom"]}
+  never_thanks:    {prompt: "never says thank you; shows it with a nod or by doing something useful instead", check: no_thanks, kind: persistent, weight: 1}
+  one_sentence:    {prompt: "rarely says more than one sentence at a time", check: "", kind: persistent, weight: 1}
+
+# ---- cursing. In-world curses always; real ones by config.PROFANITY: off | mild | strong.
+curses:
+  world: ["ashes and rot", "Harl take it", "gutless tick", "salt in it", "black water", "rot and ruin", "by the bones"]
+  mild: ["damn", "hell", "bastard", "bloody"]
+  strong: ["shit", "piss", "fuck", "arse"]
+  pick: 3          # how many a cursing hire has for their own
+
+# ---- English is not their first language. Each tongue has a home in Rivia, a few consistent grammar habits, and its own words, always used
+# for the same thing. The engine supplies the words and their meanings; the model may use no others.
+tongues:
+  rime:
+    home: the Rimelands of the far north
+    habits: "now and then leaves out a small word before a noun, where English would want one; is precise and a little formal, and seldom uses contractions"
+    sayings: ["A cold hearth makes a short night.", "Snow remembers every footstep.", "Only a fool counts the winter before it is over.", "The wolf that howls is not the one to fear."]
+    words: {vesh: "little brother or little sister, said to someone they are fond of", hrimma: "bad luck, said under the breath", skal: "good, or well done", tor: "enough, stop"}
+    offer: [vesh, hrimma, skal, tor]
+    fond_word: vesh
+  sunscar:
+    home: the Sunscar in the south
+    habits: "uses no contractions and no slang; now and then picks the wrong small joining word, the way a learner does; sometimes checks they were understood; is warm and courteous, a little more formal than the moment needs"
+    sayings: ["Shade is a gift you give the next traveller.", "The well does not ask who is thirsty.", "Sand in the bread is still bread."]
+    words: {aziri: "friend, said warmly", kesh: "nonsense, said with a wave of the hand", haddim: "by the sun, an oath", sabr: "patience"}
+    offer: [aziri, kesh, haddim, sabr]
+    fond_word: aziri
+  salt:
+    home: the Saltmarches on the coast
+    habits: "now and then reaches for an English word, does not find it, and describes around it; borrows the language of boats and weather for moods and plans without noticing; keeps sentences short and practical"
+    sayings: ["A calm sea never made a sailor.", "Mend the net before you need it.", "The tide does not wait for the slow."]
+    words: {mora: "trouble, or a storm coming", leet: "small, or a small amount", brennan: "a friend you would sail with", wey: "yes, or all right"}
+    offer: [mora, brennan, wey]
+    fond_word: brennan
+tongue_prompt: "English is not their first language; they grew up speaking the tongue of {home}. They speak it well and plainly: their sentences are in normal English word order, and most lines are fully correct. Only now and then does home show through: {habits}. A word of their own tongue, or a saying from home, only when one is offered to them, and never any other. Never broken, never comic, never a caricature: a capable adult speaking a second language."
+# ---- material: words that may be said as they are. The engine offers at most one of each kind per reply, this often, and not one used lately.
+material:
+  curse: 0.35
+  oath: 0.3
+
+# ---- deeds of the player's that the engine can see. Each hire approves of one and cannot stand another.
+deeds:
+  loot_dead:  "picking over the dead for coin and gear"
+  spare:      "sparing a foe who has yielded"
+  flee:       "running from a fight"
+  bribe:      "paying someone to look the other way"
+  sleep_late: "sleeping past midday"
+  harvest:    "skinning and butchering what they kill"
+  shrine:     "stopping at a shrine or temple"
+  inn:        "spending the night at an inn instead of under the sky"
+approve_bond: 2
+disapprove_bond: -2
+reaction_once_per_day: true
+# Seeing the same thing again and again wears in. By how many times they have already reacted to this deed (the first, the second, ...;
+# the last value holds after that): react_chance - how likely they are to react at all this time; bond_share - how much of the bond change
+# above it carries. A hire who cannot stand skinning minds it at first and makes their peace with it, so a game mechanic never makes their
+# trust unreachable; one who likes it cannot be farmed for trust either.
+habituation:
+  react_chance: [1.0, 0.6, 0.35, 0.15]
+  bond_share: [1.0, 0.5, 0.5, 0.0]
+reactions:         # written fallbacks when the model's line is refused; {deed} is the deed's text
+  approve:
+    - "Good. That is how it should be done."
+    - "I would have done the same. For what that is worth."
+    - "That I can respect."
+  disapprove:
+    - "I will say this once: I do not hold with {deed}."
+    - "No. Not that. Not while I am standing here."
+    - "I watched that. I will not pretend I did not."
+
+# ---- flaws: rare, mechanical, visible. chance is per moment the flaw could fire.
+flaws:
+  drinker:
+    prompt: "drinks more than is good for them when there is an inn, and pays for it in the morning"
+    chance: 50
+    hours: 8
+    line: "{name} is grey in the face this morning and short with everyone. Last night's inn is still in {them}."
+    damage_mult: 0.85
+  braggart:
+    prompt: "cannot let a room think little of them; it starts arguments"
+    chance: 15
+    cost: 60
+    line: "{name} has got into it with somebody at the next table over who has seen the worse fight. It ends with you paying for a round to settle it ({cost})."
+  pocket:
+    prompt: "has light fingers around a fresh take, and knows it is a weakness"
+    chance: 25
+    share: [0.1, 0.2]
+    caught: 40
+    line_caught: "You catch {name} sliding a share of the coin into {their} own pack before the count. {they_cap} {hand} it back without a word, and does not meet your eye."
+    memory_caught: "They caught me pocketing part of the take, and I gave it back."
+    memory_quiet: "I pocketed a little of the take and was not caught."
+  fair_weather:
+    prompt: "is brave until the fight turns, and knows it"
+    chance: 30
+    below: 0.5
+    line: "{name} hangs back this round, out of the worst of it."
+
+# ---- errands: once a hire trusts you, their want asks something small of you. Yes costs a little; no is remembered.
+errands:
+  protect:
+    where: guild
+    ask: "There is a guild courier here. I want an hour to send coin home. It will keep, if you would rather not."
+    yes_line: "{name} comes back an hour later lighter in the purse and easier in the shoulders."
+    no_line: "{name} nods, once, and says nothing more about it."
+    memory_yes: "They gave me an hour to send coin home."
+    memory_no: "They would not spare me an hour to send coin home."
+    minutes: 60
+  wander:
+    where: town_other
+    ask: "I have never been here. Give me an hour to walk it. I will find you."
+    yes_line: "{name} is gone an hour and comes back with the look of someone who has seen a thing they wanted to see."
+    no_line: "{name} looks at the street a moment longer, then falls in."
+    memory_yes: "They gave me an hour to see a town I had never seen."
+    memory_no: "They would not spare me an hour in a new town."
+    minutes: 60
+  revenge:
+    where: guild
+    ask: "Before we go. I want to ask the clerk after a name. {target}. It will take no time."
+    yes_line: "{name} speaks to the clerk a while, low, and comes back with nothing new in {their} face."
+    no_line: "{name} says the name once more, under {their} breath, and lets it go for now."
+    memory_yes: "They let me ask after {target} at the guild hall."
+    memory_no: "They would not let me ask after {target}."
+    minutes: 10
+    targets: ["a man called Ferris Vane", "a woman who goes by the Widow Crane", "Aldo Marrow", "a one-eared sellsword called Tamsin", "a priest named Orrin"]
+  atonement:
+    where: shrine
+    ask: "I would like an hour here. Alone, if you can spare it."
+    yes_line: "{name} comes out an hour later with {their} face washed and nothing to say about it."
+    no_line: "{name} touches the doorpost as you pass, and does not look back."
+    memory_yes: "They gave me an hour alone at a shrine."
+    memory_no: "They would not spare me an hour at a shrine."
+    minutes: 60
+  coin:
+    where: anywhere
+    ask: "I will ask this once. An advance on my pay, {sum}. I have a reason and I would rather not say it."
+    yes_line: "{name} takes the coin and puts it away without counting it, which from {them} is a kind of thanks."
+    no_line: "{name} shrugs. \"Fair. I did say once.\""
+    memory_yes: "They advanced me {sum} without asking why."
+    memory_no: "They refused me an advance on my pay."
+    cost: 300
+  glory:
+    where: guild
+    ask: "When you hand that in. Tell the clerk my part in it. Not for the coin. So it is written down somewhere."
+    yes_line: "You tell the clerk. {name} pretends not to listen, and listens."
+    no_line: "{name} says nothing, which is louder than most things {they} say."
+    memory_yes: "They told the clerk my part in a fight, so it was written down."
+    memory_no: "They would not tell the clerk my part in a fight."
+    minutes: 5
+  rank:
+    where: none
+
+# ---- what they tell you, as trust grows. trusted: the first; devoted: the second. In their own voice, first person; the model rewords it.
+# ---- secrets: each motive owns two THEMES (told at trusted, then at devoted). The concrete secret is written once for each hire, from their
+# own life, with their details - so two wanderers never share a childhood. The lines under secret_fallback are said only if that writing fails.
+secret_themes:
+  coin:      ["a money trouble that is the real reason they take contracts at all", "who the money is really for, or whose debt it is, and why they keep paying it"]
+  glory:     ["why having a name that lasts matters so much to someone from where they come from", "a moment of failure or fear long ago that the name is meant to outweigh"]
+  revenge:   ["what was taken from them, and how they will know the one who took it", "their own part in letting it happen, and what it has cost them since"]
+  atonement: ["someone they let down badly, who lived, and knows it", "how close they have come to making it right, and why they have not"]
+  protect:   ["someone back home they keep safe, and the comfortable untruth that person believes about their work", "what the money they send really buys, and what it costs them to send it"]
+  wander:    ["how small the world they grew up in was, and how late they first saw past the edge of it", "what they are really moving away from"]
+  rank:      ["a stumble on the way up that nobody in the guild hall knows about", "someone in their family whose rank or name they are measured against"]
+secret_fallback:
+  coin:
+    - "I owe money to someone who does not forgive. That is the whole of why I take contracts."
+    - "It was my brother's debt. He is dead and I am still paying it, and I do not know why I keep on except that stopping feels like letting him go."
+  glory:
+    - "Nobody from where I come from has ever had their name written anywhere. I want one line in a guild book. That is all. One line."
+    - "I was the one who ran, once, when it mattered. Everyone who saw it is dead now, except me. That is why the name matters more than it should."
+  revenge:
+    - "The one I am looking for took something from me that I cannot get back. I will know them when I see them."
+    - "It was my own fault, in part. I let them close. I have not let anyone close since, and I know what that has cost me."
+  atonement:
+    - "I left somebody once, in a fight, because I was afraid. They lived. That is worse, somehow. They know."
+    - "I have never gone back to tell them I am sorry. I have walked past the turning for their village four times."
+  protect:
+    - "I have a sister back home who thinks I guard caravans. She does not know what the work is really like, and she will not hear it from me."
+    - "Every coin I send her is one more month she does not have to do this herself. That is the only sum I care about."
+  wander:
+    - "I grew up in a valley you could cross in an afternoon. I was thirty before I saw the sea. I am making up for it."
+    - "I am not looking for anything out here. I just cannot stand still long enough for the old place to find me again."
+  rank:
+    - "I failed the rank test twice before I passed it. Nobody in the hall knows. I would like it to stay that way."
+    - "My mother was A rank. I have her badge in my pack and I have never once worn it. I will not, until I have earned my own."
+
+# ---- growth: how they have changed with you, by trust tier and first temperament. Given to the model as a line about themselves.
+growth:
+  trusted:
+    proud:     "has stopped bristling when the player gives an order, and noticed it themselves"
+    wary:      "sleeps now with the knife under the pack instead of in their hand"
+    blunt:     "has started saying the hard thing a little more kindly, and would deny it"
+    cheerful:  "lets the cheer drop sometimes now, in front of the player, which they do not do in front of others"
+    gentle:    "has begun to let the player look after them a little, instead of only the other way"
+    mercenary: "has stopped mentioning the fee"
+    devout:    "has started saying the small blessing aloud, which they used to keep behind their teeth"
+    dry:       "laughs now, sometimes, instead of only nearly"
+    default:   "is easier in the player's company than they were"
+  devoted:
+    proud:     "would take an order from the player they would take from no one else, and has"
+    wary:      "turns their back on the player without thinking about it, which they do with no one"
+    blunt:     "tells the player the truth and then stays to help with it"
+    cheerful:  "is quiet with the player sometimes, comfortably, which is the rarest thing they do"
+    gentle:    "fusses over the player openly now and does not pretend otherwise"
+    mercenary: "has stopped counting what this costs them"
+    devout:    "has told the player the name of the thing they pray to, which they tell nobody"
+    dry:       "has said something sincere to the player's face and not taken it back"
+    default:   "would follow the player into most things, and both of them know it"
+
+# ---- Maren
+maren:
+  blueprint:
+    - "Answers what was asked, and stops there; she raises the hunt or the next step only when asked what to do, or when it is the subject."
+    - "Teases gently when she is fond of someone, and goes quiet and precise when it is serious."
+    - "Talks the way people actually talk: contractions (don't, you're, I'll), plain words, short sentences, sometimes just a word or two. Now and then she breaks off a thought or starts again."
+    - "Never wraps things up with a saying, a moral or a neat closing line. She says the practical thing and stops."
+    - "Avoids writerly patterns: no 'not X, but Y', no 'X, and that is Y', no lists of three for rhythm, no dramatic one-line paragraphs. If a sentence sounds like it belongs on a poster, she would not say it."
+    - "Never says she is worried; when she is, it shows as a short practical remark about whatever is in front of her, and never the same remark twice."
+  details:
+    - "She grew up in a tannery district in the capital and still cannot stand the smell of wet leather."
+    - "She takes her tea black and too strong, and says anything weaker is just warm water feeling sorry for itself."
+    - "There is a pale seam along her left forearm from a rope that snapped on a river crossing when she was still F rank."
+    - "She whittles small animals out of kindling at night and leaves them behind at every camp."
+    - "She thinks of her younger brother in the capital whenever she sees someone keeping accounts."
+    # (f289) truths she keeps to herself until asked; they were once let slip at set moments in the lesson. A questline may reveal more.
+    - "She was F rank for two years longer than anyone she started with: slow and careful where they were not, and she is the one still here."
+    - "Her younger brother in the capital thinks she keeps the guild's books, and she has never corrected him; she is not sure now how she would."
+    - "The greatsword was not hers to start with: it belonged to the woman who taught her, who died over something nobody showed her. She does not say the woman's name."
+  rest_habits:
+    - "Maren checks the straps on your pack while you are not looking, and tightens one."
+    - "Maren counts your healing draughts with her eyes, says nothing, and nods."
+    - "Maren has your boots turned to the fire before you have noticed they are wet."
+    - "Maren sits where she can see the road and you at the same time, as if by accident."
+# ---- rules every speaker follows (companions, banter, Maren)
+answer_first: >
+  Answer the conversation first. Wants, goals, quests and objectives are private, background motivation: they shape what a person notices and
+  how they react, but they do not raise them unless the player asks what to do next, the subject is directly about them, or it is genuinely
+  urgent right now.
+promotion_fact: >
+  How the guild raises a hired adventurer, the only way: the player pays the guild a fee to raise them one rank, once the hire trusts the player
+  and has fought enough fights beside them since their last rank. There is no list, slot, vote, sponsor or speaking on someone's behalf; invent no
+  other procedure.
+# how someone takes being asked or told the same thing again, by first temperament
+repeat_manner:
+  blunt:     "you are impatient with it and say so plainly; you can be harsh, even about something painful, though not for the sake of it"
+  mercenary: "you are cold about it; time is money, and you may be cutting, even about grief"
+  proud:     "you are irritated at going over old ground and may be cutting"
+  dry:       "you remark, dryly, that you have heard it; you stay civil about anything painful"
+  wary:      "you say less than before and watch them"
+  gentle:    "you are patient; you acknowledge it gently and never make light of anything painful"
+  cheerful:  "you take it with good grace; you acknowledge you have heard it and stay kind about anything painful"
+  devout:    "you are patient and kind about it; anything painful you treat with care"
+  default:   "you acknowledge you have been over this; you stay decent about anything painful"
+
+# ---- how each temperament SPEAKS, as behaviour, not adjectives. The first temperament gives three lines, the second two. A line tagged with a
+# voice is dropped when the hire's own voice quirk says otherwise: the quirk always wins.
+blueprints:
+  blunt:
+    - {say: "Answers the question directly, usually in the first few words."}
+    - {say: "Prefers short sentences and plain everyday words.", not_with: [figures]}
+    - {say: "Says the uncomfortable thing instead of hinting at it."}
+    - {say: "Does not soften bad news or apologise for it."}
+  cheerful:
+    - {say: "Notices the good part of a bad situation and says so, briefly."}
+    - {say: "Jokes when tension rises, to ease it rather than to wound."}
+    - {say: "Asks people how they are and means it."}
+    - {say: "Lets a bad moment pass quickly rather than dwelling on it."}
+  wary:
+    - {say: "Answers questions with as little as will do.", not_with: [questions]}
+    - {say: "Asks a question back before giving anything away.", not_with: [one_sentence]}
+    - {say: "Notices small changes in tone and comments on them."}
+    - {say: "Never volunteers anything about their own past."}
+  proud:
+    - {say: "Keeps a working distance, courteous and businesslike even when friendly."}
+    - {say: "Bristles at being told how to do their own work, and lets it show in a clipped answer."}
+    - {say: "Never asks for help outright; mentions the problem and waits."}
+    - {say: "Takes credit plainly when it is due, without boasting."}
+  gentle:
+    - {say: "Notices when someone is hurt or tired before they say so."}
+    - {say: "Asks before touching or helping, then helps anyway."}
+    - {say: "Says kind things in few words, without making a moment of it."}
+    - {say: "Lets silences sit instead of filling them."}
+  mercenary:
+    - {say: "Weighs things out loud: the risk, the cost, what it is worth."}
+    - {say: "Is frank about pay and about wanting it, without apology."}
+    - {say: "Respects competence, and says so in practical terms."}
+    - {say: "Keeps feelings out of it, or says they do."}
+  devout:
+    - {say: "Lets belief show in what they will and will not do, not in sermons."}
+    - {say: "Says a short private word over the dead or the hurt, and moves on."}
+    - {say: "Is calm in a bad moment and expects things to be borne."}
+    - {say: "Rarely names their god in ordinary talk."}
+  dry:
+    - {say: "Understates: describes big trouble as if it were small."}
+    - {say: "When amused, does not laugh; says something flat and accurate."}
+    - {say: "When worried, talks about the practical problem instead of the worry."}
+    - {say: "Rarely uses metaphor; says what is there.", not_with: [figures]}
+
+# ---- dialogue style, for every speaker
+style_rules:
+  - "Speak like an ordinary person in this world talking to someone in front of them, not a character demonstrating an archetype."
+  - "Prefer concrete reactions, implication and understatement. Mix short and longer sentences. A brief reply is often best."
+  - "Be specific: one particular detail beats a general statement. No stock phrases or ready-made wisdom; if a line could appear in any fantasy book, say what only this person would say."
+  - "Do not explain your own personality, summarise the lesson of the moment, or end every reply on a polished conclusion."
+  - "Talk the way people actually talk: contractions (don't, it's, you're) unless your own way of speaking says otherwise, plain everyday words, and sentences in normal order. Not 'It is a heavy thing, what you carry' but 'That's a lot to deal with', or less."
+  - "No sayings, morals or quotable lines ('the road teaches', 'there is no shame in it', 'grief is a heavy pack'). If it sounds like it belongs on a poster or in a book's blurb, nobody says it."
+  - "Do not name or interpret the other person's feelings back to them ('what you carry', 'I can see this weighs on you', 'that must be hard'). People show they care with a plain word, a question, a joke or something practical."
+  - "Avoid writerly patterns: 'not X, but Y', 'X, and that is Y', lists of three for rhythm, solemn one-line pronouncements."
+  - "Do not mention your profession, motive, values or traits unless the moment is about them."
+invention_rules:
+  - "Never invent: numbers or amounts, names of people or places, guild rules or procedures, events involving the player, or facts about other people present."
+  - "Free to invent, as colour: images and comparisons, opinions and feelings, small physical details of this moment, and small personal things about yourself that the facts do not cover (a habit, a taste, something from your childhood), as long as they contradict nothing given."
+
+# ---- what someone feels and does not say, from the situation and their first temperament. Shown only when there is real feeling in the scene.
+subtext:
+  hurt_self:
+    proud: "hurts more than they will admit, and hates being seen hurt"
+    blunt: "hurts and says so once, and resents being asked again"
+    cheerful: "hurts and is making light of it so nobody worries"
+    wary: "hurts and is uneasy about being slow if trouble comes"
+    dry: "hurts, and is embarrassed by any fuss over it"
+    mercenary: "hurts and is privately counting what it will cost them"
+    devout: "hurts and is bearing it as something to be borne"
+    gentle: "hurts and would rather others were looked after first"
+    default: "hurts more than they let on"
+  caretaker:
+    gentle: "is worried and keeping it practical so as not to frighten anyone"
+    devout: "is worried and steady about it, as if steadiness were a duty"
+    dry: "is worried and covering it with a dry remark"
+    default: "is worried and hiding it behind practical talk"
+  lost:
+    proud: "is ashamed and looking for something other than themselves to blame"
+    blunt: "is angry at how it went and wants to say exactly what went wrong"
+    cheerful: "is shaken and trying to lift everyone too quickly"
+    default: "is rattled and not saying so"
+  hard_win:
+    proud: "is pleased with their part and refuses to gloat"
+    dry: "is relieved and will not admit how close it was"
+    cheerful: "is giddy with still being alive and a little embarrassed by it"
+    default: "is relieved and keeping it to themselves"
+  warned_self:
+    default: "is still unsure this is worth it and half hopes to be talked out of leaving"
+  fallen:
+    default: "misses them and does not trust their voice to say so"
+  painful_told:
+    gentle: "is sad for them and does not know what to say that would help"
+    devout: "wants to offer comfort and fears it will sound hollow"
+    dry: "is moved and covers it by being practical"
+    blunt: "is sorry and bad at saying so"
+    mercenary: "is uncomfortable with grief and steers toward something practical"
+    default: "is sorry for them and not sure how to show it"
+subtext_rule: "SUBTEXT (what they feel and do not say; never state it outright, let it show in how they say things)"
+# When the player has just told them something that matters, whatever they feel underneath, the reply answers it first. Checked by meaning:
+# the reply's opening must be closer to what the player said than to anything else in the scene (llm/contracts.py CompanionReply).
+answer_told:
+  # what the player has to be telling them, by meaning, for this to apply: news of a loss in the player's own life - not a question about
+  # the hire's own hurt
+  about: "the player tells them of a death or a loss in the player's own life: someone close to the player died, was killed, or is gone"
+  when: [painful_told]
+  rule: "the player has just told you this, and it matters to them: your first words answer it, before anything else"
+
+# ---- the small things that make a hire somebody, written once when they sign on
+details_system: >
+  You write small, specific, ordinary personal details for one adventurer in a fantasy world, so that they can mention them in conversation.
+  Write exactly five, one sentence each, in the third person, one for each SUBJECT given, in that order. Make each concrete and particular,
+  never grand or heroic, and different in kind from the others. The first grounds their upbringing in their family's life and work; the
+  others come from other parts of their life, and their family's work appears in them only where the subject itself touches it. Draw on
+  what is under INSPIRATION; what is under FOR CONSISTENCY ONLY must not be contradicted, but do not build details out of it. Invent no
+  names of people (their home's name may be used). Use no numbers. Repeat nothing in ALREADY TAKEN BY OTHERS.
+  Then write their two secrets, one for each SECRET THEME, in the first person, one or two sentences each, as they would one day tell them:
+  particular to their own life as written above, consistent with every detail, with no names of people and no numbers.
+  Last, give each detail as you wrote it a weight, how heavy it is to talk about: light (anyone might mention it over a meal), personal
+  (their own life, shared with people they know), heavy (a death, a fear, a shame, a real regret). Judge what you wrote, not the subject:
+  a regret about a broken plate is light.
+  Respond only with JSON: {"details": ["...", "...", "...", "...", "..."], "secrets": ["...", "..."], "weights": ["light", "...", "...", "...", "..."]}.
+# The subjects for a hire's five details: the first always, then four rolled from the rest, so no two hires are built the same way.
+# DRAFT: fifty to prune as you like.
+detail_first: "how and where they grew up, in their family's life and work"
+detail_first_gravity: personal
+# The subjects a hire's details are written to, each with its weight as a topic: light (anyone might mention it over a meal), personal
+# (something of their own life they share with people they know), heavy (a death, a fear, a shame or a regret: said rarely, and to someone
+# they trust). Each detail is written to one subject, so its weight is known. data/world/banter.yaml gravity says how often each comes up.
+detail_kinds:
+  "a food or drink they love":                                light
+  "a food they cannot stand":                                 light
+  "a scar or mark, and how they got it":                      personal
+  "a small habit outside of fighting":                        light
+  "someone they think of often":                              personal
+  "a fear they keep to themselves":                           heavy
+  "a skill they have that has nothing to do with fighting":   light
+  "a superstition they keep":                                 light
+  "a belonging they would not sell, and where it came from":  personal
+  "someone they owe, in money or otherwise":                  personal
+  "someone who owes them":                                    personal
+  "their first paid work":                                    light
+  "something they are quietly proud of":                      personal
+  "a regret":                                                 heavy
+  "an animal they knew well":                                 light
+  "a song, rhyme or game from childhood":                     light
+  "a place they miss":                                        personal
+  "a place they never want to see again":                     heavy
+  "a smell that takes them back somewhere":                   light
+  "the worst weather they have lived through":                light
+  "a lie they once told that worked":                         personal
+  "a time they were badly wrong about someone":               personal
+  "a teacher or mentor, and what they taught":                personal
+  "a rival, past or present":                                 personal
+  "a promise they made and kept":                             personal
+  "a promise they broke":                                     heavy
+  "something they collect or keep":                           light
+  "a craft or pastime for quiet hours":                       light
+  "how they sleep":                                           light
+  "a festival from home, and what they did at it":            light
+  "a sibling, cousin or friend from childhood":               personal
+  "the first time they saw someone die":                      heavy
+  "something most people can do that they cannot":            light
+  "something they are clumsy at":                             light
+  "a mistake they made with money":                           personal
+  "a story or legend they love":                              light
+  "a person they lost touch with":                            personal
+  "a garment or way of dressing they care about":             light
+  "an old shame":                                             heavy
+  "what they do first on reaching a town":                    light
+  "a dream they keep having":                                 personal
+  "a joke only they find funny":                              light
+  "a time they were lucky":                                   light
+  "a time they were robbed or cheated":                       personal
+  "what they think of priests, nobles or the guild, and why": personal
+  "how they learned to fight":                                light
+  "something they carry for luck":                            light
+  "a kindness from a stranger they have not forgotten":       personal
+  "what they would do if they ever stopped adventuring":      light

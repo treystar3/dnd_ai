@@ -1,0 +1,101 @@
+# TOWNS WITH IDENTITY (f316, engine/towns.py): a town is a place with a character, named things, trouble underneath and a condition.
+#
+# The profile of a town lives in data/world/towns/<id>.yaml (see parth.yaml for the shape). The condition is not written anywhere: it is
+# read off the world's state each time it is asked for - the situations (threads) running at the town, the effects they left (danger,
+# prices, closures), the people lately lost, the festivals on the town's own calendar - so the town changes as the world does, and
+# every reader (the narrator, the people, the party, the interpreter) sees the same one through the truth layer.
+#
+# Each condition names: how the streets look (crowd: replaces the time-of-day crowd line while it holds; empty keeps the usual one),
+# what shows (hint: the narrator's cue, and the line every speaker is given), and the one-word label.
+
+conditions:
+  calm:
+    hint: ""
+    crowd: ""
+  uneasy:
+    hint: "People are on edge: talk in doorways stops when a stranger passes, and the road gets looked at more than it used to."
+    crowd: ""
+  mourning:
+    hint: "The town has lost someone lately. Voices are low, there is black cloth on a door or two, and nobody is in a hurry."
+    crowd: "quieter than the hour would be; people keep to their own"
+  hungry:
+    hint: "Prices have climbed and it shows: thinner stalls, careful buying, and the sort of arguments money starts."
+    crowd: ""
+  festive:
+    hint: "The town is keeping a holiday: bunting, more drink than usual, music somewhere, and strangers made welcome."
+    crowd: "thronged for the holiday, the square and the inn both full"
+  prospering:
+    hint: "Trade is good lately: full carts on the road, new paint on a door or two, and people with coin to spend."
+    crowd: ""
+  besieged:
+    hint: "Nobody is out who need not be. Doors are barred, the watch is doubled, and every traveller is looked over twice."
+    crowd: "nearly empty; shutters closed, the watch at the gates"
+  ruined:
+    hint: "The town fell, and it shows: burnt roofs, rubble in the lanes, people picking through what is left, and too few of them."
+    crowd: "a handful of people in the lanes, clearing and salvaging; the rest gone or dead"
+  rebuilding:
+    hint: "The town is putting itself back up: new timber on old walls, carts of stone, the sound of hammers from first light, and the gaps where people were."
+    crowd: "builders and carters about, fewer faces than there were, and all of them busy"
+
+# How the condition is read, in order: the first rule that holds wins (a siege outranks a holiday).
+# danger / prices: the total of the active effects of that kind at the town and its places, in percent.
+# threads: an active situation at the town whose pressure is of one of these kinds (pressures.yaml), of one of these tiers.
+# lost: someone of the town taken out of the story within this many days, where the manner of it reads as a death.
+# fell: the town fell to a cataclysm within this many days (engine/events.py town_outcome): ruined first, then rebuilding.
+# festival: a holiday on the town's own calendar is on today.
+rules:
+  - {condition: ruined, fell_within_days: 30}
+  - {condition: besieged, danger_at_least: 60}
+  - {condition: besieged, thread_kinds: [threat], thread_tiers: [campaign, cataclysm]}
+  - {condition: mourning, lost_within_days: 4}
+  - {condition: rebuilding, fell_within_days: 90}
+  - {condition: hungry, prices_at_least: 25}
+  - {condition: uneasy, danger_at_least: 25}
+  - {condition: uneasy, thread_kinds: [threat, natural, nature, mystery], thread_tiers: [normal, uncommon, rare]}
+  - {condition: festive, festival: true}
+  - {condition: prospering, prices_at_most: -10}
+  - {condition: prospering, thread_kinds: [fortune, trade], thread_tiers: [uncommon, rare, campaign]}
+
+# How many quarters a town has to give directions by, by scale (the drafting tool asks for this many; a profile may have what it likes).
+districts_by_scale:
+  hamlet:  [0, 1]
+  village: [1, 2]
+  town:    [2, 3]
+  city:    [4, 6]
+  capital: [6, 9]
+
+# How many anchors - the people who make the town what it is - a profile names, by scale. Never fewer than three; the capital's include
+# the one who rules it and whoever keeps the palace door.
+anchors_by_scale:
+  hamlet:  [3, 3]
+  village: [3, 3]
+  town:    [3, 4]
+  city:    [4, 6]
+  capital: [6, 8]
+
+# A town's state includes the wild places on its doorstep: those connected to it within this many minutes' walk (the Greywood is
+# Parth's trouble too). Danger effects and situations there count for the town.
+nearby_minutes: 60
+
+# Reading whether someone's leaving was a death (engine/relevance: by meaning when the helper model is there, else by shared words).
+death_reads_as: "they died; they were killed; found dead; drowned; murdered; buried"
+
+# The town's calendar: a festival is {name, season, day, days} in the profile. A day past the last of the season rolls over.
+seasons_from: pulse                      # the seasons are the pulse's (data/rules/pulse.yaml: seasons)
+
+# What the people of a town are told about it when they are made (npc/prompts.residents_request) and deepened (profile_request).
+resident_lines:
+  character: "THE TOWN: {character}"
+  condition: "RIGHT NOW IN TOWN: {hint} (the town is {name})"
+  trouble: "WHAT IS WRONG UNDERNEATH (it may colour a concern; never state it as news): {trouble}"
+
+# AUDIENCES (f320, engine/court.py): a place whose places.yaml entry has `audience: {keeper, sees}` keeps those people behind a door.
+# The keeper voices what the game decides here: the door opens when the town knows the player's name (reputation), or the great houses
+# speak well of them (standing with the nobility), or they were sent for (a summons, matters door six). It stays shut to a stranger.
+audience:
+  reputation: 25                 # the town's regard needed (a place may name its own under audience.reputation)
+  standing_nobility: 10          # or this much standing with the nobility of that town
+  refuse_below: 10               # a town that thinks this ill of the player is told so at the door
+  minutes: 120                   # how long an audience lasts once granted
+  summons_minutes: 1440          # how long the door stays open when the player was sent for
+  asks: "I ask to see the king; an audience with the queen; let me through to the throne room; I want to speak to the crown; I have come to see the monarch"

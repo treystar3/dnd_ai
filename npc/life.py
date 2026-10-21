@@ -8,7 +8,7 @@ import re
 
 from llm.contracts import NPCProfile, NPCReply, ResidentSet
 from llm.gateway import generate
-from npc import land, prompts
+from npc import land, names, prompts
 from npc.models import NPC, Memory
 from npc.traits import TraitCatalog, assign_traits, npc_rng
 from storage.campaign import CampaignStore
@@ -28,8 +28,11 @@ def _unique_id(store: CampaignStore, name: str) -> str:
     return candidate
 
 
-def populate_place(store: CampaignStore, world: World, place_id: str, catalog: TraitCatalog | None = None) -> list[NPC]:
-    """Generate a place's residents the first time it is entered - and later, anyone the world files add to it."""
+FIRST_BATCH = 4          # how many residents the blocking call on arrival creates; the rest are made while the player reads
+
+
+def _plan(store: CampaignStore, world: World, place_id: str):
+    """Who this place still needs: (state, the residents it has, the slots to fill)."""
     state = store.load_place(place_id)
     existing = [store.load_npc(i) for i in state.residents]
     existing = [n for n in existing if not n.gone]
@@ -44,44 +47,125 @@ def populate_place(store: CampaignStore, world: World, place_id: str, catalog: T
     for role in events.vacant_roles(store, place_id, store.meta.minutes):
         wanted.pop(role, None)          # a post emptied by a disaster stays empty for a while before someone takes it up
     missing = {role: count - have.get(role, 0) for role, count in wanted.items() if count > have.get(role, 0)}
-    if state.populated and not missing:
-        return existing
-
     peoples = world.peoples_at(place_id)
     rng = random.Random(f"{store.meta.seed}:place:{place_id}:{len(existing)}")
     slots = []
+    taken = store.npc_names()
+    anchors = _anchors_wanted(store, world, place_id)
     for role, count in missing.items():
         for _ in range(count if peoples else 0):
             people = rng.choices(list(peoples), weights=list(peoples.values()))[0]
-            slots.append((role, world.roles[role].description, people, world.peoples[people].naming_style))
+            anchor = anchors.pop(role, None)
+            name, gender = names.pick(people, taken, rng)
+            if anchor and anchor.name and anchor.name not in taken:
+                name = anchor.name
+            taken.append(name)
+            desc = world.roles[role].description + (f" In this town: {anchor.note}" if anchor and anchor.note else "")
+            slots.append((role, desc, people, name, gender))
+            if anchor:
+                _ANCHOR_SLOTS[(place_id, name)] = anchor.note or anchor.role
+    return state, existing, missing, slots
 
+
+_ANCHOR_SLOTS: dict[tuple[str, str], str] = {}      # (place, name) -> the anchor's note, between planning and making
+
+
+def _anchors_wanted(store: CampaignStore, world: World, place_id: str) -> dict:
+    """(f317) The town's anchors (data/world/towns/<id>.yaml) whose role this place fills and who are not yet made: role -> Anchor."""
+    t = world.town(place_id)
+    if not t or not t.anchors:
+        return {}
+    from engine import retrieval
+    made = {store.load_npc(r.id).anchor for r in retrieval.people_in_town(store, world, t.id)}      # the living only: a lost anchor is made again
+    roles_here = set(world.places[place_id].residents)
+    out = {}
+    for a in t.anchors:
+        if a.role in roles_here and (a.note or a.role) not in made and a.role not in out:
+            out[a.role] = a
+    return out
+
+
+def _first_slots(store: CampaignStore, world: World, slots: list, count: int) -> list:
+    """The few worth making before the scene is described: people on shift now, those who serve the player (a clerk, an innkeeper, a smith) first."""
+    def rank(slot):
+        role = world.roles[slot[0]]
+        serves = bool(role.sells or role.stock or role.buys or role.commissions or role.relics or slot[0].startswith("guild_"))
+        anchor = any(n == slot[3] for _, n in _ANCHOR_SLOTS)                     # (f317) the town's anchors are made first
+        return (not anchor, not clock.in_hours(store.meta.minutes, role.hours), not serves)
+    return sorted(slots, key=rank)[:count] if len(slots) > count else slots
+
+
+def town_lines(store: CampaignStore, world: World, place_id: str) -> list[str]:
+    """What the people of this town are told about it (engine/towns.py, f316). Read on the main thread; the model call may run elsewhere."""
+    from engine import towns
+    return towns.resident_lines(world, place_id, towns.condition(store, world, place_id, store.meta.minutes))
+
+
+def _ask(place, world: World, slots: list, town: list[str] = ()) -> ResidentSet:
+    """The model call for a set of residents. Touches no game state, so it can run on a background thread."""
+    return generate(
+        "populate_place", prompts.RESIDENTS_SYSTEM,
+        prompts.residents_request(place, world.summary, slots, town), ResidentSet, max_tokens=3000,
+        validation_context={"slots": len(slots)},
+    )
+
+
+def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, place_id: str, slots: list, result: ResidentSet) -> list[NPC]:
+    """Turn the model's answer into saved people and add them to the place."""
+    state = store.load_place(place_id)
+    existing = [n for n in (store.load_npc(i) for i in state.residents) if not n.gone]
     npcs = []
-    if slots:
-        console.wait("People go about their day.")
-        result = generate(
-            "populate_place", prompts.RESIDENTS_SYSTEM,
-            prompts.residents_request(place, world.summary, slots), ResidentSet, max_tokens=3000,
-            validation_context={"slots": len(slots), "taken_names": store.npc_names()},
+    for r in sorted(result.residents, key=lambda r: r.slot):
+        role, _, people, name, gender = slots[r.slot - 1]
+        if name in store.npc_names():
+            continue
+        npc = NPC(
+            id=_unique_id(store, name), name=name, gender=gender, people=people, role=role,
+            location=place_id, epithet=r.epithet.strip(), description=r.description.strip(),
+            activity=r.activity.strip(),
         )
-        for r in sorted(result.residents, key=lambda r: r.slot):
-            role, _, people, _ = slots[r.slot - 1]
-            npc = NPC(
-                id=_unique_id(store, r.name), name=r.name.strip(), people=people, role=role,
-                location=place_id, epithet=r.epithet.strip(), description=r.description.strip(),
-                activity=r.activity.strip(),
-            )
-            if catalog:
-                assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
-            store.save_npc(npc)
-            npcs.append(npc)
-        console.debug(f"populated {place_id}: {', '.join(f'{n.name} ({n.role})' for n in npcs)}")
-
+        anchor = _ANCHOR_SLOTS.pop((place_id, name), "")
+        if anchor:                                           # (f317) one of the town's anchors: named for what they are, never removed by the world
+            npc.anchor, npc.protected = anchor, True
+        if catalog:
+            assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
+        store.save_npc(npc)
+        npcs.append(npc)
+    console.debug(f"populated {place_id}: {', '.join(f'{n.name} ({n.role})' for n in npcs)}")
     if not state.populated:
         state.first_visit_day = clock.day(store.meta.minutes)
     state.populated = True
-    state.residents = [n.id for n in existing + npcs]
+    state.residents = [n.id for n in existing] + [n.id for n in npcs]
     store.save_place(state)
     return existing + npcs
+
+
+def populate_place(store: CampaignStore, world: World, place_id: str, catalog: TraitCatalog | None = None,
+                   first_batch: int | None = None) -> list[NPC]:
+    """Generate a place's residents the first time it is entered - and later, anyone the world files add to it.
+    With first_batch, only that many are made now (see _first_slots); start_backfill makes the rest."""
+    from npc import backfill
+    backfill.settle(store, world, catalog, place_id)
+    state, existing, missing, slots = _plan(store, world, place_id)
+    if state.populated and not missing:
+        return existing
+    if slots:
+        console.wait("People go about their day.")
+        if first_batch:
+            slots = _first_slots(store, world, slots, first_batch)
+        return _apply(store, world, catalog, place_id, slots, _ask(world.places[place_id], world, slots, town_lines(store, world, place_id)))
+    if not state.populated:
+        state.first_visit_day = clock.day(store.meta.minutes)
+    state.populated = True
+    state.residents = [n.id for n in existing]
+    store.save_place(state)
+    return existing
+
+
+def unfinished(store: CampaignStore, world: World, place_id: str) -> bool:
+    """Whether people are still missing from a place that has been entered."""
+    state, _, _, slots = _plan(store, world, place_id)
+    return state.populated and bool(slots)
 
 
 def motive_roll(npc: NPC, store: CampaignStore) -> bool:
@@ -102,10 +186,13 @@ def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog)
     has_motive = motive_roll(npc, store)
     profile = generate(
         "npc_profile", prompts.PROFILE_SYSTEM,
-        prompts.profile_request(npc, world.places[npc.location].name, catalog.describe(npc.traits), has_motive),
+        prompts.profile_request(npc, world.places[npc.location].name, catalog.describe(npc.traits), has_motive,
+                                town_lines(store, world, npc.location) + ([f"WHO THEY ARE IN THIS TOWN: {npc.anchor}"] if npc.anchor else [])),
         NPCProfile, temperature=0.8,
     )
-    npc.personality, npc.voice, npc.concern = profile.personality, profile.voice, profile.concern
+    npc.personality, npc.voice = profile.personality, profile.voice
+    if not npc.concern_from:                                 # (f317) a concern a matter gave them stays
+        npc.concern = profile.concern
     npc.motive = profile.motive.strip() if has_motive else ""
     npc.tier = "known"
     store.save_npc(npc)
@@ -115,12 +202,13 @@ def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog)
 
 def social_circle(npc: NPC, store: CampaignStore, world: World) -> tuple[list[str], list[str]]:
     """Who this NPC works alongside, and who else in their community they know by name."""
+    from engine import retrieval
     community = world.locals_group(npc.location)
     here, known = [], []
-    for other_id in store.list_npcs():
-        if other_id == npc.id:
-            continue
-        other = store.load_npc(other_id)
+    rows = {r.id: r for r in retrieval.people_at(store, npc.location, gone=None, exclude=(npc.id,))}      # those here, and the community
+    for r in retrieval.community(store, world, community, exclude=(npc.id,)):
+        rows.setdefault(r.id, r)
+    for other in rows.values():
         line = f"{other.name}, the {other.role.replace('_', ' ')}"
         if other.gone:
             if community and world.locals_group(other.location) == community:
@@ -144,20 +232,16 @@ def note_mentions(speaker: NPC, speech: str, store: CampaignStore) -> list[str]:
     text = " ".join(speech.split())
     if not text:
         return []
-    others = [o for o in (store.load_npc(i) for i in store.list_npcs()) if o.id != speaker.id and o.name]
-    firsts: dict[str, int] = {}
-    for o in others:
-        f = o.name.split()[0].lower()
-        firsts[f] = firsts.get(f, 0) + 1
+    from engine import retrieval
     added = []
-    for o in others:
-        if o.heard_of or (o.met_player and o.name_known_to_player):
+    for row in retrieval.named_in(store, text, exclude=(speaker.id,)):            # the index's names against the words; nothing parsed
+        if row.heard_of or (row.met_player and row.name_known_to_player):
             continue
-        first = o.name.split()[0]
-        pats = [re.escape(o.name)] + ([re.escape(first)] if len(first) >= 5 and firsts[first.lower()] == 1 else [])
-        m = re.search(r"\b(?:" + "|".join(pats) + r")\b", text, re.I)
+        first = row.name.split()[0]
+        m = re.search(r"\b(?:" + "|".join([re.escape(row.name), re.escape(first)]) + r")\b", text, re.I)
         if not m:
             continue
+        o = store.load_npc(row.id)                        # only the one named is read in full
         sentences = re.split(r"(?<=[.!?])\s+", text)
         line = next((s for s in sentences if m.group(0).lower() in s.lower()), text)
         o.heard_of = {"by": speaker.name if speaker.name_known_to_player else speaker.label(), "day": clock.day(store.meta.minutes),
@@ -176,10 +260,16 @@ def converse(
     player_text: str,
     extra: list[str] = (),
     level: str = "short",
+    truth_text: str = "",
+    known=frozenset(),
 ) -> tuple[NPCReply, list[str]]:
-    """One conversation turn. Returns the reply and the ids of facts the player learned."""
-    facts = world.facts_known_by(set(npc.knowledge_groups))
-    here_with, people_known = social_circle(npc, store, world)
+    """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
+    from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
+    names the scene allows (f315) - the gateway sends back a reply that names anyone or anywhere else."""
+    from engine import matters
+    facts = world.facts_known_by(set(npc.knowledge_groups)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
+    _, people_known = social_circle(npc, store, world)
+    here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
     reply = generate(
         "npc_conversation", prompts.CONVERSATION_SYSTEM,
         prompts.conversation_request(
@@ -192,9 +282,9 @@ def converse(
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
                if world.roles[npc.role].commissions else []),
-            extra, voice_rules.npc(level)["length"], land.land_lines(world, npc.location),
+            extra, voice_rules.npc(level)["length"], land.land_lines(world, npc.location), truth_text=truth_text,
         ),
-        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"],
+        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"], validation_context={"known": known},
     )
 
     known_ids = {f.id for f in facts}
@@ -214,6 +304,9 @@ def converse(
 
     step = max(-TRUST_STEP_LIMIT, min(TRUST_STEP_LIMIT, reply.trust_change))
     npc.trust = max(0, min(100, npc.trust + step))
+    if step:
+        from engine import canon
+        canon.journal("trust", "player", npc.id, f"{npc.name}'s trust moved {step:+d} to {npc.trust}", step=step, trust=npc.trust)
 
     if reply.told_own_name:
         npc.name_known_to_player = True

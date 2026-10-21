@@ -1,0 +1,39 @@
+# IMPROVISED ACTIONS OUTSIDE A FIGHT (f321, engine/world_improv.py): "I prop the door with the barrel", "I climb onto the roof", "I bar
+# the gate", "I tap the wall for a hollow". The interpreter marks what it cannot name as `other`; instead of narrating an attempt that
+# changes nothing, the engine reads what the player is after (by meaning, against the `about` lines below), rolls it on the attribute
+# that would do it, and makes something true either way: a success leaves a lasting mark on the place that every speaker and the
+# narrator see; a partial is done roughly, at a cost; a failure is a real event - noise, a hurt, time lost - never "nothing happens".
+#
+# The law, the same as in a fight (engine/combat_improv.py): an ability is a promise; an improvisation is a gamble.
+
+base_odds: 50                    # with attribute_center and attribute_weight from checks.yaml: chance = base + (attr - 15) * 1.5 + odds
+min: 10
+max: 90
+
+effects:
+  block:   {about: "blocking, barring, propping or wedging a door or a way shut; building a barricade across it",
+            attr: [strength, intelligence], odds: 5,  mark: "the way is blocked: {what}", fail: noise}
+  force:   {about: "forcing, breaking, prying, smashing or kicking something open or apart",
+            attr: [strength], odds: -5, mark: "broken: {what}", fail: noise}
+  climb:   {about: "climbing, getting up onto or over something, reaching a high place or a ledge, dropping down from one",
+            attr: [dexterity, strength], odds: 0, mark: "", fail: hurt}
+  rig:     {about: "rigging, tying, knotting, building or setting something up: a rope, a trap, a snare, a shelter, a lever",
+            attr: [intelligence, dexterity], odds: -5, mark: "rigged: {what}", fail: time}
+  move:    {about: "dragging, carrying, heaving, overturning, pouring out or shifting a heavy or awkward thing",
+            attr: [strength], odds: 0, mark: "moved: {what}", fail: hurt}
+  hide:    {about: "hiding, stowing, burying or covering a thing, or covering your own tracks",
+            attr: [dexterity, wisdom], odds: 0, mark: "hidden here: {what}", fail: noticed}
+  signal:  {about: "shouting, ringing a bell, lighting a fire or a lamp, waving, making a signal or a noise on purpose",
+            attr: [charisma, strength], odds: 10, mark: "", fail: noise}
+  examine: {about: "testing, tasting, listening at, tapping, measuring, taking apart, working something out by hand",
+            attr: [wisdom, intelligence], odds: 10, mark: "", fail: time}
+  attempt: {about: "", attr: [dexterity, intelligence, strength], odds: -5, mark: "", fail: time}      # what none of the above fits
+
+# What a failure costs. Every failure is told to the narrator as a thing that happened.
+fails:
+  noise:   {minutes: 10, health_pct: 0, text: "it goes wrong, and loudly: whoever is near looks over, and it will be talked of", heat: 1}
+  hurt:    {minutes: 15, health_pct: 6, text: "it goes wrong and they come away hurt - a wrench, a fall, a bad knock"}
+  time:    {minutes: 30, health_pct: 0, text: "it does not work, and a good while is lost finding that out"}
+  noticed: {minutes: 5,  health_pct: 0, text: "it is done badly enough that anyone looking would see it at once", mark: "badly {mark}"}
+
+partial: {minutes: 10, text: "it works, roughly, and not for long or not well"}

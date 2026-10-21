@@ -17,6 +17,16 @@ tiers:
   campaign: {stages: 4, days: [30, 90], resolved_by_others: 0.05}
   cataclysm: {stages: 6, days: [84, 144], resolved_by_others: 0.0}   # built by engine/events.py; nobody else ends one
 
+# Where a new situation goes (f323): a band drawn by these weights, measured from the player's town - the town itself, its neighbours
+# within near_minutes' walk, the rest of its region, or anywhere else - then a pressure in that band (pressure_share of the time) or one
+# of its towns. The world keeps moving where nobody watches; most of what is written is where the player will meet it.
+placement:
+  bands: {here: 45, near: 30, region: 15, far: 10}
+  near_minutes: 600
+  pressure_share: 0.75
+anchor_settles: 0.5             # when a situation is settled by others, this often it is one of the town's anchors who did it
+deeds_days: 30                  # the writer is told what the stranger has done in the region this far back
+
 # How often a campaign (or, at high level, a cataclysm) starts: see data/rules/events.yaml (campaign.every_days, cataclysm).
 pressure_cooldown_days: 4       # a pressure can't start a new situation again this soon
 
@@ -24,7 +34,7 @@ pressure_cooldown_days: 4       # a pressure can't start a new situation again t
 # personality. Lower tiers can't. Roles listed under protected_roles are never removed.
 may_remove_met: [rare, campaign, cataclysm]
 may_change_traits: [uncommon, rare, campaign, cataclysm]
-protected_roles: [guild_clerk, guild_master]
+protected_roles: [guild_clerk, guild_master, monarch]
 
 # Motives: some people the player has met have an active goal that moves forward off-screen. Most are content.
 motives:
@@ -56,7 +66,6 @@ reputation:
   contract_done: 4
   request_done: 3
   work_done: 2
-  gift: 1
   lie_caught: -4
   threat: -2
   caught_spying: -2

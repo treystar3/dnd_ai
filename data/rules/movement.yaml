@@ -1,0 +1,105 @@
+# MOVEMENT ABILITIES (engine/movement.py, f223).
+#
+# THE MOVEMENT LAW
+#   Ordinary movement is baseline positioning, and it is limited on purpose: a full action (move closer, fall back, take high
+#   ground, interpose), or a restricted step that rides along with an action (one step toward the fight; a fall-back that is free
+#   only behind your own line).
+#   Movement abilities are how a character OVERCOMES those limits. They are used alongside your action - at most one movement
+#   ability a turn - and are priced by cooldown, setup or risk. The rare extreme relocation takes the whole turn.
+#   A movement ability only moves: you, your allies, or who is fighting whom. It deals no damage and adds no effect; anything
+#   that knocks down, exposes, slows or redirects blows is a control ability, not movement.
+#
+# Each kind:
+#   group       everyday (offered by family lean) | signature (one per class whose family has one)
+#   cooldown    rounds before it can be used again (Shadowmark's starts only when you return to your shadow)
+#   whole_turn  true: using it is your whole turn; otherwise it rides alongside your action
+#   does        what the player reads on the ability card: what it does, plainly
+#   when        ...and when to use it
+#   depict      what the narrator is told the ability looks like (the model names and describes it from this)
+#   fits        families it leans toward (everyday) or belongs to (signature)
+#   needs       a signature that only makes sense for a class that has this (summoner)
+kinds:
+  breach:
+    group: everyday
+    cooldown: 4
+    does: "Get past the enemies guarding the back and reach whoever they're protecting, then attack."
+    when: "Their archer or caster is hiding behind their fighters."
+    depict: "slipping past the enemy's guarding fighters to reach someone they protect"
+    fits: [rogue, berserker, warrior, monk]
+  shift:
+    group: everyday
+    cooldown: 3
+    does: "Pull free of every enemy in melee with you without taking a hit, then either attack a different enemy in reach or step back to safety."
+    when: "You're fighting the wrong enemy, you're surrounded, or a big hit is coming your way."
+    depict: "pulling cleanly free of the press to fight someone else or fall back"
+    fits: [rogue, monk, mage, ranger, bard, warlock]
+  shield_ally:
+    group: everyday
+    cooldown: 3
+    whole_turn: true
+    does: "Rush to a nearby ally and take their place: the enemies on them fight you instead (as many as you can hold), and attacks meant for them hit you until your next turn. Uses your whole turn."
+    when: "A friend is surrounded or about to go down."
+    depict: "rushing to an ally's side and drawing their attackers onto yourself"
+    fits: [guardian, paladin, healer, leader, warrior]
+  relentless_advance:
+    group: everyday
+    cooldown: 3
+    does: "Close on a target up to two areas away and still attack this turn - even in heavy armor, over rough ground, or while slowed. It cannot break a grapple or get past a guarding line."
+    when: "Your armor, the ground or a slowing effect is keeping you from reaching the fight."
+    depict: "advancing through everything that should slow you down"
+    fits: [warrior, guardian, paladin, berserker]
+  shadowmark:
+    group: signature
+    cooldown: 6
+    does: "Vanish: you slip free of every enemy in melee with you without being hit. While you stay hidden, enemies attack someone else if anyone else is standing; if you are alone, no one can find you until your next turn. Your first attack reveals you. You leave a shadow where you stood: use this again within three turns to snap back to it from anywhere, or at the start of your fourth turn it pulls you back on its own. The cooldown starts once you are back."
+    when: "You want to strike deep in enemy territory and get back out before they catch you."
+    depict: "melting into shadow and leaving your own shadow behind, then stepping back into it"
+    fits: [rogue]
+  malefic_step:
+    group: signature
+    cooldown: 5
+    does: "Teleport next to any enemy suffering from one of your curses, wherever it is, even behind its guards."
+    when: "A cursed enemy is out of reach, or hiding behind others."
+    depict: "following your own curse to its victim's side"
+    fits: [warlock]
+  grave_step:
+    group: signature
+    cooldown: 5
+    does: "Step out of any body that has fallen in this fight, friend or foe, appearing at the one nearest your target."
+    when: "You need to be where a corpse already lies."
+    depict: "sinking into death and stepping out of a fallen body elsewhere"
+    fits: [necromancer]
+  soul_swap:
+    group: signature
+    cooldown: 5
+    does: "Trade places with your summon: it takes over the enemies you were fighting, and you take over its."
+    when: "You're in trouble and your summon isn't, or your summon is where you need to be."
+    depict: "trading places with your own summoned creation"
+    fits: [summoner, necromancer]
+    needs: summoner
+  bloodscent:
+    group: signature
+    cooldown: 6
+    does: "Leap to the most wounded enemy on the field, past anything guarding it - but only if it is below half health. If no enemy is that hurt, nothing happens."
+    when: "A hurt enemy is trying to escape or hiding behind its friends."
+    depict: "scenting blood and leaping across the field to the weakest prey"
+    fits: [warrior, berserker]
+  vengeance_leap:
+    group: signature
+    cooldown: 5
+    does: "Leap to whoever last damaged you, wherever it is and whatever guards it."
+    when: "An archer or caster keeps hitting you from afar."
+    depict: "a furious leap straight at whoever just hurt you"
+    fits: [berserker]
+  rally_to_me:
+    group: signature
+    cooldown: 6
+    whole_turn: true
+    does: "Call every ally to your side: they come free of whatever they were fighting without being hit. Uses your whole turn."
+    when: "Your allies are scattered or surrounded."
+    depict: "a commanding call that draws every ally back to your side"
+    fits: [leader]
+
+tier: light                 # movement abilities are all light: their price is the cooldown, not the cost
+shadow_turns: 3             # Shadowmark: turns before the shadow pulls you back
+reach_zones: 2              # Relentless Advance: how far it carries you

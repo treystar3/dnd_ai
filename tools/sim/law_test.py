@@ -207,28 +207,28 @@ ws.law_check()
 check("they only stop you once a day", len(ANSWERS) == 0 and ws.player.character.coins == c0 - law.fine(45))
 check("the guard remembers", any("paid" in m.text for m in grd.memories))
 
-make_wanted(45); checks.roll = lambda odds: ("success", 50)
+make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("success", 50)
 ANSWERS[:] = ["I try to talk my way out"]
 ws.law_check()
 check("talking a guard down with a success takes 20 heat off", ws.heat_here() == 25, ws.heat_here())
-make_wanted(45); checks.roll = lambda odds: ("strong success", 50)
+make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("strong success", 50)
 ANSWERS[:] = ["talk"]
 ws.law_check()
 check("a strong success takes 30 off", ws.heat_here() == 15)
-make_wanted(45); checks.roll = lambda odds: ("partial", 50)
+make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("partial", 50)
 ANSWERS[:] = ["talk"]; c0 = ws.player.character.coins
 ws.law_check()
 check("a partial means the guard wants the fine", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 39)
-make_wanted(45); checks.roll = lambda odds: ("failure", 50)
+make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("failure", 50)
 ANSWERS[:] = ["talk", "pay"]; c0 = ws.player.character.coins
 ws.law_check()
 check("a failed talk is an arrest, and you can still pay", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 39, ws.heat_here())
 
-make_wanted(45); checks.roll = lambda odds: ("success", 50)
+make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("success", 50)
 ANSWERS[:] = ["bribe"]; c0 = ws.player.character.coins
 ws.law_check()
 check("a bribe that works costs the fine, takes 20 off, and the guard looks away", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 25 and grd.looks_away_until > ws.minutes, (ws.heat_here(),))
-make_wanted(45); checks.roll = lambda odds: ("failure", 50)
+make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("failure", 50)
 ANSWERS[:] = ["bribe", "jail"]; c0 = ws.player.character.coins; m0 = ws.minutes
 ws.law_check()
 check("a bribe that fails is an arrest", ws.minutes - m0 >= 2 * 1440 and ws.heat_here() == 39, (ws.minutes - m0, ws.heat_here()))

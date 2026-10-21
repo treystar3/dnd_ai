@@ -96,6 +96,7 @@ char, _ = simlib.make_character("warrior", random.Random(1))
 place = next(p for p in world.places.values() if p.type != "dungeon")
 store.save_player(PlayerState(character=char, location=place.id))
 ws = WorldScene(store, world, load_traits(), store.load_player())
+ws.player.mentor["never"] = True                 # the mentor is not what this test is about
 config.TURN_LOG_PATH = "saves/audit_test/turns.jsonl"
 guard = NPC(id="g1", name="Garran", people="human", role="guard", location=place.id, traits=[], trust=50); store.save_npc(guard)
 ws.present = [guard]

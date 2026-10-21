@@ -28,7 +28,7 @@ from scenes.goddess import ThresholdScene
 from scenes.world import WorldScene
 from storage.campaign import SAVES_DIR, CampaignStore, PlayerState
 from ui import console
-from llm.gateway import LLMError
+from llm.gateway import LLMError, unload, warm
 from world.loader import WorldError, load_world
 
 CAMPAIGN = "main"
@@ -45,11 +45,16 @@ def main():
     for name in ("stdout", "stderr"):          # a windowed build has no console: keep stray prints from crashing it
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, "w"))
-    if args.gui or (paths.FROZEN and not args.terminal):
-        from ui import gui
-        gui.launch(lambda bridge: guarded(lambda: play(args), bridge))
-    else:
-        guarded(lambda: play(args), None)
+    import atexit
+    atexit.register(unload)                        # however the game ends, the model does not stay in memory
+    try:
+        if args.gui or (paths.FROZEN and not args.terminal):
+            from ui import gui
+            gui.launch(lambda bridge: guarded(lambda: play(args), bridge))
+        else:
+            guarded(lambda: play(args), None)
+    finally:
+        unload()
 
 
 def play(args):
@@ -59,7 +64,15 @@ def play(args):
     from llm import setup_check
     if not setup_check.ensure_ready():
         return
+    from llm import embed
+    embed.pull_in_background()                     # the small helper model, fetched quietly the first time; the game does not wait for it
+    warm()                                         # load the model while the player is at the title and typing their name
 
+    from engine import data_check                  # the character data, checked as one system before anything uses it
+    problems = data_check.check()
+    if problems:
+        console.out("The character data has problems (fix these in data/):\n" + "\n".join(f"  - {p}" for p in problems))
+        sys.exit(1)
     try:
         world = load_world()
     except WorldError as e:
@@ -93,7 +106,10 @@ def play(args):
             store.save_player(player)
 
         scene = WorldScene(store, world, catalog, player)
-        scene.run()
+        try:
+            scene.run()
+        finally:
+            store.close()                              # the database is written through as it goes; closing folds the write-ahead log in
         if not getattr(scene, "restart", False):
             return
         new_game = True
@@ -105,13 +121,13 @@ def guarded(run, bridge):
         run()
     except LLMError as e:
         console.out("\nThe model couldn't produce a usable answer and the game can't continue from this point.")
-        console.out("If you were already playing, everything up to your last completed action is saved.")
+        console.out("If you were already playing, everything up to the start of your last action is saved; that action is not.")
         console.out("If you were still creating your character, nothing was saved - run main.py to start creation again.")
         console.out(f"(details: {e} - see logs/llm_calls.jsonl)")
         if bridge:
             bridge.failed = True
     except KeyboardInterrupt:
-        console.out("\nInterrupted. Progress up to the last completed action is saved.")
+        console.out("\nInterrupted. Progress up to the start of the last action is saved; an action cut off partway is not.")
     except SystemExit:
         raise
     except Exception as e:
@@ -122,7 +138,7 @@ def guarded(run, bridge):
             console.out(f"    ollama pull {config.MODEL}")
         elif bridge:
             import traceback
-            console.out("\nSomething went wrong and the game has to stop. Progress up to your last completed action is saved.")
+            console.out("\nSomething went wrong and the game has to stop. Progress up to the start of your last action is saved; that action is not.")
             console.out(traceback.format_exc())
         else:
             raise

@@ -16,7 +16,7 @@
 - id: seeker_arrives
   place: parth
   kind: social
-  description: A Seeker arrives to test the village's children for the gift.
+  description: A Seeker from Riverhaven arrives to test the village's children for the gift.
   weight: 1
   severity: [2, 4]
   scope: local

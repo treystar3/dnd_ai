@@ -149,10 +149,10 @@ store.save_world_state(st)
 ws.player.location = "parth"; ws.present = [mer, frm]; NOTES.clear()
 idx = [e["deed"]["id"] for e in ws.rumor_items()].index(tw2["deed"]["id"]) + 1
 real_roll = _checks.roll
-_checks.roll = lambda odds, rng=None: ("failure", 99)
+_checks.roll = lambda odds, rng=None, c=None: ("failure", 99)
 ws.correct_rumor(str(idx))
 check("a failed argument leaves the tale as it was", any("Nobody is convinced" in n for n in NOTES) and [e for e in store.load_world_state()["news"] if e["deed"]["id"] == tw2["deed"]["id"]][0]["deed"]["twisted"], NOTES)
-_checks.roll = lambda odds, rng=None: ("success", 1)
+_checks.roll = lambda odds, rng=None, c=None: ("success", 1)
 t0 = ws.minutes; ws.present = [mer, frm]
 ws.correct_rumor(str(idx))
 check("a successful one sets it straight and takes time", not [e for e in store.load_world_state()["news"] if e["deed"]["id"] == tw2["deed"]["id"]][0]["deed"]["twisted"] and ws.minutes >= t0 + 30, NOTES)

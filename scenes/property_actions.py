@@ -28,6 +28,18 @@ class PropertyActions:
     def show_home(self) -> None:
         town = prop.town_of(self.world, self.player.location)
         c = self.player.character
+        here = self.home_here() if self.place.type == "home" else None
+        ups = []
+        if here:
+            for uid, u in P["upgrades"].items():
+                here_ok = not u.get("towns") or town in u["towns"]
+                ups.append({"id": uid, "name": u["name"], "text": u["text"], "state": "built" if uid in here["upgrades"] else "far" if not here_ok else "price",
+                            "price": money.short(u["price"])})
+        if console.panel("home", {"owned": [{"town": self.world.places[t].name, "name": P["homes"][t]["name"], "day": hh["day"], "upgrades": [P["upgrades"][u]["name"] for u in hh["upgrades"] if u in P["upgrades"]], "ruined": bool(hh.get("ruined"))}
+                                            for t, hh in self.player.homes.items()],
+                                  "for_sale": {"name": P["homes"][town]["name"], "price": money.short(P["homes"][town]["price"])} if prop.for_sale(town) and town not in self.player.homes else None,
+                                  "here": bool(here), "upgrades": ups, "purse": money.fmt(c.coins)}):
+            return
         if self.player.homes:
             for t, h in self.player.homes.items():
                 console.note(f"You own {P['homes'][t]['name']} in {self.world.places[t].name}"

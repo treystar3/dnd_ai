@@ -91,6 +91,8 @@ def arena(items_worn, n=2, cid="knight", lvl=100, seed=0):
     ch.equipment.update(items_worn)
     p = combat.fighter_from_character(ch); p.side = "player"
     es = [combat.fighter_from_creature(world.bestiary[cid], lvl, "normal", f"e{i}", f"foe {i}", "engaged") for i in range(n)]
+    for e in es:
+        e.behaviors["fearless"] = 1           # no one yields mid-test: the test is about the item, not morale
     return combat.Combat(fighters=[p] + es), r
 
 def forced(kind_id, rarity="legendary", base="ring"):
@@ -237,8 +239,8 @@ for e in c.enemies(): e.max_hp = e.hp = 10**6
 hp0 = {e.id: e.hp for e in c.enemies()}
 for _ in range(30):
     if combat.apply_damage(c, p, c.enemies()[0], 1.0, "attacks", r): break
-hit = [e.id for e in c.enemies() if e.hp < hp0[e.id]]
-check("many heads strikes a second enemy once a round", len(hit) == 2, str(hit))
+heads = [l for l in c.log if "another head against" in l]
+check("many heads strikes a second enemy once a round", len(heads) == 1 and "foe 0" not in heads[0], str(heads))
 c.story.clear()
 for _ in range(30):
     if combat.apply_damage(c, p, c.enemies()[0], 1.0, "attacks", r): break

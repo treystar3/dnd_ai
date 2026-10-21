@@ -6,7 +6,7 @@
 # restores:   for consumables and food - percent of each pool restored when used
 # feeds:      for food - how much hunger eating it clears (0-100)
 # cures:      statuses a consumable removes (bleeding, slowed, frightened...)
-# combat:     true if it can be used mid-fight (it takes your turn)
+# combat:     true if it can be used mid-fight (one a turn; it does not use up your action)
 # grows_in:   for herbs - biomes where foraging can find it, with a chance per forage
 # drops_from: for food - creatures that can yield it when killed
 
@@ -23,6 +23,10 @@
    feeds: 40, restores: {health: 8, stamina: 10}, description: "Lean deer meat."}
 - {id: boar_meat,    name: boar meat,    kind: food, price: 20, stack: 10, drops_from: [boar, giant_boar],
    feeds: 40, restores: {health: 8, stamina: 10}, description: "Dark, fatty boar meat."}
+- {id: wolf_meat,    name: wolf meat,    kind: food, price: 12, stack: 10, drops_from: [wolf, dire_wolf, worg, winter_wolf],
+   feeds: 35, restores: {health: 6, stamina: 8}, description: "Tough, gamey meat; better stewed than roasted."}
+- {id: hearty_meal,  name: hearty meal,  kind: food, price: 30, stack: 5, feeds: 60, restores: {stamina: 20, health: 10},
+   description: "Meat seared over a fire with whatever the pack had to spare - a proper meal, hot and filling."}
 
 - {id: healing_draught, name: healing draught, kind: consumable, price: 150, stack: 5, combat: true,
    restores: {health: 30}, description: "A bitter green draught that knits wounds closed."}

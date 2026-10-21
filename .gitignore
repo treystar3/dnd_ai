@@ -1,24 +1,37 @@
-__pycache__/
-*.pyc
+# The repo carries the game and its dev tools (tests in tools/, simbot.py, simlib.py, simreport.py and the check scripts),
+# so a fresh clone can run the suite. What stays out: anything your play writes, anything a build or a tool regenerates,
+# and local environments.
+
+# --- What the game writes while you play: your campaigns and session logs (audit, turns, refusals, model calls) ---
 saves/
 logs/
-dist/
+*.log
+
+# --- Build output: build_exe.bat and build_installer.bat recreate these ---
 build/
-.buildenv/
+dist/
 *.spec
 installer/Output/
-*.log
-.venv/
 
-# development-only: test suite, simulator, balance tools and scratch files
-tools/
-/bestiary_check.py
-/world_check.py
-/smoke_test.py
-/simbot.py
-/simlib.py
-/simreport.py
+# --- Local Python environments and caches (play.bat makes .venv on first run) ---
+.venv/
+.buildenv/
+__pycache__/
+*.pyc
+
+# --- What the dev tools write: the tools themselves are tracked, their output is not ---
+/sim_out*/
 /sim_report*
+/sim_*.txt
+/boss_transcript.md
+
+# --- Sandbox scratch: run scripts with a hard-coded Linux path, no use on another machine ---
 /runbal.sh
 /runfull*.sh
-/play.bat
+
+# --- OS and editor clutter ---
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

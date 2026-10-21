@@ -1,0 +1,249 @@
+rules:
+  - "Write a short natural exchange between the people named, as spoken lines in turn. Each person sounds like themselves: use the PERSON notes for how they talk."
+  - "Each person reacts to how the other speaks to them. Warmth is met with warmth and teasing; coldness or rudeness is met with a cooler, drier, pointed reply, and never with grovelling."
+  - "Plain spoken English, one to three short sentences per line, under 45 words. No stage directions, no asterisks, no quotation marks, no emojis."
+  - "Use only the facts given. Add no new figures, prices, places, names, rules or history. Never speak of a game, a program, stats or a system."
+  - "Say nothing about the place beyond what is given in WHERE: no rumours, crimes, weather, history or inhabitants of your own invention."
+  - "The player is present and may be spoken about or to, but is never spoken for."
+
+clerk:
+  lines: [5, 7]
+  vouch_trust: 10          # Maren speaking for the newcomer counts for this much with the clerk
+  situation: >
+    Maren Holt, an A-rank adventurer, has walked a newcomer into the guild hall to be signed into the register. She is talking to the clerk
+    about signing them up, with the newcomer standing there. The joining fee is {fee}. Everyone who joins starts at rank F, by rule: it is never offered, asked about or agreed to. The clerk and Maren open
+    with a few lines about the newcomer, then agree to sign them in. What each of them knows: Maren met the newcomer in the street only a short while ago, stopped them as an armed stranger, and talked them through the guild on the way here. The clerk has never seen or heard of the newcomer, and knows nothing of how Maren met them or what they have talked about: the clerk may ask, but never speaks as if they already know (no "the one you've been teaching", no "the one you told me about"). The newcomer pays their own fee, in their own time: Maren hands over no coin and nothing else, and no one pays or signs during this exchange. The clerk speaks first to greet Maren, and the exchange ends on the clerk setting the register out and waiting on the newcomer, or Maren stepping back to let it happen.
+  manner:
+    warm: "The clerk is warm and kind towards Maren and the newcomer. Maren answers in kind: relaxed and fond of the clerk. Her humour is about herself, the weather or the newcomer's nerves, never about the clerk, their work, their ink, their desk or their hands."
+    cold: "The clerk is cold and rude, curt with Maren and dismissive of the newcomer. Maren does not take it lying down: she goes drier and sharper, politely firm, protective of the newcomer, and makes the clerk do the job properly without quite losing her temper."
+    neutral: "The clerk is businesslike and polite. Maren is easy, courteous and wry with them, as with someone she has known a long while and respects. Her dryness is never aimed at the clerk or their work: no jabs at the paperwork, the quill, the ink, stains, the desk or how they do their job, and nothing that makes the clerk look small in front of the newcomer. Any warmth she shows is for the newcomer, and shown lightly."
+  fallback:
+    warm:
+      - ["clerk", "Maren Holt, as I live. And you have brought someone. Come in, come in, there is a stool if you want it."]
+      - ["maren", "Fresh as a daisy, this one, and not a scratch on them. Sign them in before the stool gets all the credit."]
+      - ["clerk", "Of course. Welcome to the guild. The fee is {fee} and then your name goes in the book."]
+      - ["maren", "See? Nobody bites. Mostly."]
+    cold:
+      - ["clerk", "Maren. Another stray, I see. The register is not a charity."]
+      - ["maren", "No, it is a book, and you are the person paid to write in it. Pen up, please. They are paying {fee} like everybody else."]
+      - ["clerk", "Fine. Name, then. Quickly."]
+      - ["maren", "Politely, if you do not mind. It costs nothing, and I will remember who bothered."]
+    neutral:
+      - ["clerk", "Maren. Is this one of yours?"]
+      - ["maren", "For today. They need signing into the register, and I would take it as a kindness if you did it properly."]
+      - ["clerk", "Always do. The fee is {fee}. Name in the book, and the badge is theirs."]
+      - ["maren", "There. Not so terrible."]
+
+banter:
+  cooldown: 240
+  chance: 35
+  fight_death_chance: 100     # after a fight in which one of them was killed: always talked over once it is done
+  fight_chance: 70            # after a fight that mattered: hard, lost, someone hurt, carried out or fallen
+  fight_easy_chance: 20       # after an easy win
+  fight_easy_cooldown: 120    # and not within this many minutes of the last talk
+  rest_chance: 50             # when the player rests or sleeps with the party beside them
+  lines: [2, 4]               # only the most is used: the fewest is one line from each chosen speaker
+  rules:
+    - "People talk past each other, deflect, tease and change the subject. Not every line answers the last one, and a line may be a fragment."
+    - "What brought the talk up is given; start from that, not from who you are. Your temperament shows in how you take it, never as the subject."
+    - "Each person wants something from the moment; let it steer what they say without announcing it."
+  # How two speakers usually are with each other. In idle talk it may show freely; when something has happened (the player spoke, a deed,
+  # a wound, a death) it is background only: it may colour a line, never take the exchange away from the moment.
+  between_label:
+    idle: "HOW THEY ARE WITH EACH OTHER (let it show in how they speak to each other)"
+    moment: "HOW THEY USUALLY ARE WITH EACH OTHER (background only: it may colour a line, but every line answers what is happening, never this habit instead)"
+  situation:
+    travel: "The party has just arrived at {place}. It is a quiet moment between one place and the next."
+    rest: "The party has stopped to rest at {place}. Nothing presses."
+    fight: "A fight has just ended at {place}."
+    deed: "At {place}, the player has just been {deed}, in front of the companions."
+    said: "At {place}, the player has just been talking with {addressee}, and the others, who were listening, join in, each with something of their own, never repeating {addressee}'s words or turns of phrase."
+    witnessed: "At {place}, it has just happened, in front of all of them: {what}"
+    fight_now: "At {place}, in the middle of the fight, it has just happened in front of them: {what}"
+  alone: "Only one hired companion is with the player, so they say something to the player, one or two short lines, in their own manner."
+  pair: "Two companions talk to each other while the player is nearby; they may mention the player briefly but do not speak for them."
+  # Everyone travelling along is there for every exchange; who of them speaks is the director's (engine/party_director.py): each is scored
+  # on reasons the engine knows, and only those with reason enough speak. Those who do not are named as present and listening. Every
+  # speaker brings what they think of each other one present, and of the player.
+  group: "Three companions talk among themselves while the player is nearby; each answers whoever spoke, the talk can pass from one pair to another, and they may mention the player briefly but do not speak for them."
+  one_of_several: "One companion says something, to the player or to the others; the others are there and say nothing this time."
+  most_speakers: 3
+  group_lines: [3, 6]         # for these line counts only the most is used: the fewest is one line from each chosen speaker (some people
+  one_lines: [1, 2]           # do not talk much)
+  # The party conversation director: who gets the floor, and whom they answer. A score is the sum of the reasons that apply; the first
+  # speaker needs `first`, a second `second`, a third `third` (higher: two people already have the subject covered). Scores within
+  # `tie_band` of each other are as good as equal, so the same state does not always give the same speakers.
+  director:
+    first: 35
+    second: 35
+    third: 50
+    tie_band: 10
+    score:
+      subject: 60            # the moment is about them (hurt, carried out, their own topic)
+      stance: 45             # they approve or disapprove of what the player just did
+      caretaker: 40          # someone else is hurt, and looking after people is who they are
+      shared: 40             # something pressing that happened to all of them (a lost or hard fight): they were in it too
+      relevant: 15           # the moment is close in meaning to their own life (their details, what they have said, what they remember)
+      relevant_said: 40      # what the player said to someone else is close to their own life: reason enough to join in
+      party: 45              # what the player said concerns everyone travelling together (a plan, a question to all of them)
+      heavy: 60              # a heavy moment that happened to all of them (a death, someone carried out): everyone present has a say
+      opened_up: {close: 60, known: 40, distant: 0}   # the player says something heavy (their brother's death): those who know them answer,
+                                                      # by their trust in the player (severity.yaml closeness bond); a near stranger lets it be
+      small_talk: 75         # in idle talk, how much anyone may feel like joining in, at most (each time, a random share of it). Anyone with
+                             # a real reason to speak goes ahead of anyone who only feels like talking, however the numbers fall
+      spoke_last: -15        # in idle talk: they spoke in the last exchange
+      started_last: -10      # in idle talk: they opened the last exchange
+    caretaker:
+      tempers: [gentle]
+      roles: [priest, healer, cleric, druid]
+    most: {idle: 3, pressing: 3, grave: 2, deed: 3, said: 3}     # the most who speak, by kind of moment (a heavy one: everyone)
+    # How heavy each kind of moment is. Heavy: everyone present has a say. Anything not listed is light. What the player says is weighed
+    # by the model (read_words below).
+    hook_weight: {fallen: heavy, carried: heavy, hurt: personal, lost_fight: personal, hard_fight: personal, warned: personal}
+    read_words: >-
+      The player has just said something to one companion, with others travelling along and listening. Judge from its meaning alone.
+      about: the names of those ALSO PRESENT whom the words are about or speak to (not the one addressed); usually none.
+      party: true only when it concerns everyone travelling together - a plan or decision for all of them, a question put to the group,
+      something that happened to all of them; false when it is between the player and the one they spoke to.
+      weight: light (small talk, a passing remark, a question about someone's day, plans and preparations), personal (something that
+      matters to someone: their past, their work, a risk they are taking, a dangerous job), heavy (only a death, a loss, a betrayal, or a
+      confession of something terrible; a dangerous job or a hard plan is personal at most).
+      Respond only with JSON: {"about": [], "party": false, "weight": "light"}.
+    # How the plan is put to the writer of the lines. {a} the speaker, {b} whom they answer.
+    say:
+      first_player: "{a} speaks first, to the player"
+      first_party: "{a} speaks first"
+      approve: "approving of what the player just did"
+      disapprove: "not approving of what the player just did"
+      agree: "{a} answers {b}, on the same side"
+      disagree: "{a} answers {b}, seeing it the other way"
+      look_after: "{a} answers {b}, worried about them"
+      answer: "{a} answers {b}"
+      join: "{a} joins in, answering {b}"
+      know_player: {close: "are close to them", known: "know them well enough", distant: "barely know them"}
+  # What brought it up. The engine picks one from the real state; the first kinds are preferred when they apply.
+  hooks:
+    hurt:        "{name} is still {health} from the last fight."
+    carried:     "{name} was carried out of the last fight, and is only now back on their feet."
+    hard_fight:  "The last fight was a hard one, against something at the player's level or above, and everyone felt it."
+    lost_fight:  "The party came off worse in the last fight."
+    fallen:      "{name} was killed in the last fight. {name} is dead, and the rest of them are still taking it in."
+    promotion:   "{name} has gone as far as their rank allows; whether the player will pay to have them raised is a sore point, or a hope, depending on the day."
+    warned:      "{name} has told the player plainly that this might not be worth it, and the air has not cleared."
+    relationship: "Between {a} and {b}: {dynamic} They are {words}."
+    player:      "Something {name} remembers about the player: {memory}"
+    mood:        "{name} is {mood}."
+    news:        "Talk on the road: {news}"
+    arrival:     "Something in view here: {thing}."
+    weather:     "It is {period}, {weather}; the season is {season}."
+    mundane:     "Nothing in particular has happened: small talk between people who travel together."
+    personal:    "Something of {name}'s own is on their mind, and they may bring it up in their own way, or let it show: {thing}"
+    motive:      "What {name} wants underneath it all is on their mind today, and may surface in what they say, or not: {thing}"
+    shared:      "Something {a} and {b} went through together is on their minds: {thing}"
+  # How heavy a topic is decides when it comes up unasked. Every personal topic has a weight: light, personal or heavy (data/rules/quirks.yaml
+  # detail_kinds for a hire's details; the extractor's judgement for what they say about themselves in play; the event itself for what a
+  # pair went through together). unasked: how likely a topic of each weight is to be raised, by the moment (0 never).
+  gravity:
+    unasked:
+      arrival:    {light: 3, personal: 1, heavy: 0}       # walking into a place
+      ease:       {light: 3, personal: 1, heavy: 0}       # nothing in particular
+      rest:       {light: 2, personal: 2, heavy: 0.5}     # stopped, fed, the day is done
+      after_loss: {light: 1, personal: 2, heavy: 1}       # after a lost fight or a death
+    heavy_needs: trusted     # nobody raises a heavy thing unasked with someone they trust less than this
+    heavy_gap_days: 3        # and not more often than this, each of them
+    # When they are talked to, a topic comes in only if it is close in meaning to what was said; a heavier one needs to be closer.
+    asked_margin: {light: 0.0, personal: 0.0, heavy: 0.08}
+  # What each wants out of the moment, by temperament: an outcome they are after from the other or the moment, never a way of talking (how
+  # they talk is the voice profile's). The engine picks the table for the hook, then the speaker's first temperament, else default.
+  wants:
+    personal_self:
+      proud: "wants the other to be impressed, without having asked them to be"
+      blunt: "wants an honest reaction, good or bad"
+      cheerful: "wants the other laughing along with it"
+      wary: "wants to learn whether the other can be trusted with more"
+      gentle: "wants the other to know them a little better"
+      mercenary: "wants the other to see what it was worth"
+      devout: "wants the other to see the meaning they found in it"
+      dry: "wants it to land without having to explain it"
+      default: "wants the other to understand them a little"
+    personal_other:
+      default: "wants the rest of the story, or a share of the other's trust"
+    shared:
+      proud: "wants their part in it remembered rightly"
+      blunt: "wants to settle what really happened"
+      cheerful: "wants them both laughing about it now"
+      wary: "wants to know the other learned the same lesson"
+      gentle: "wants to know the other is all right about it"
+      mercenary: "wants agreement on whether it was worth it"
+      devout: "wants them both to make sense of it"
+      dry: "wants the other to admit how close it was"
+      default: "wants the other to remember it the way they do"
+    hurt_self:
+      proud: "wants nobody fussing over them"
+      blunt: "wants it acknowledged and then dropped"
+      cheerful: "wants the others to stop worrying"
+      wary: "wants someone watching their side while they are slow"
+      default: "wants a chance to rest it"
+    hurt_other:
+      gentle: "wants to see the wound and be allowed to help"
+      mercenary: "wants to know if the hurt one can still pull their weight"
+      dry: "wants the hurt one to admit it hurts"
+      default: "wants to know they are all right, without making a thing of it"
+    hard_fight:
+      proud: "wants their part in it noticed"
+      cheerful: "wants someone to share the relief with"
+      wary: "wants to know whether more are coming"
+      mercenary: "wants to know the pay matched the risk"
+      default: "wants a moment of quiet before moving on"
+    lost_fight:
+      blunt: "wants the mistake named so it is not made again"
+      proud: "wants it understood the fault was not theirs"
+      gentle: "wants the others steady again"
+      default: "wants to be moving on"
+    fallen:
+      devout: "wants the dead honoured before they go on"
+      blunt: "wants the truth of it said out loud"
+      default: "wants it not to be talked about, and cannot have that"
+    promotion_self:
+      proud: "wants the promotion, without having to beg for it"
+      blunt: "wants a straight answer about it"
+      mercenary: "wants their worth recognised in coin and rank"
+      default: "wants the player to notice they are ready"
+    promotion_other:
+      dry: "wants the other to admit they are waiting on it"
+      gentle: "wants the other to get what they have earned"
+      default: "wants to know whether the other will raise it"
+    warned_self:
+      default: "wants the player to show they heard"
+    warned_other:
+      default: "wants it settled without being drawn in"
+    arrival:
+      wary: "wants to know the place is safe"
+      cheerful: "wants a fire and something hot"
+      mercenary: "wants to know what things cost here"
+      devout: "wants a place to pray"
+      proud: "wants to be taken for a professional here"
+      default: "wants the pack off and somewhere to sit"
+    rest:
+      gentle: "wants everyone fed before they sit"
+      dry: "wants quiet, and will not get it"
+      cheerful: "wants company"
+      wary: "wants the first watch"
+      default: "wants to be off their feet"
+    deed_approve:
+      default: "wants the player to know it was rightly done"
+    deed_disapprove:
+      default: "wants the player to know it sits badly with them"
+    default:
+      default: "wants the moment to pass easily"
+  # When two hires have travelled together a while, how they are with each other. A model writes the line once; these are the fallbacks.
+  relations:
+    seed_words: "They have only just started travelling together and are taking each other's measure."
+    pairs:
+      blunt|gentle: "{a} says the hard thing and {b} softens it after; neither would admit the arrangement works."
+      dry|devout: "{a} needles {b} about the praying and {b} lets it pass, which annoys {a} more than any answer would."
+      proud|mercenary: "{a} thinks {b} cheapens the work; {b} thinks {a} is paid in the same coin and should say so."
+      cheerful|wary: "{a} talks and {b} watches the road, and each privately thinks the other is doing the easy job."
+      blunt|proud: "{a} and {b} have argued once already and neither has forgotten who was right."
+      gentle|wary: "{b} does not like being looked after and {a} does it anyway, quietly."
+      default: "{a} and {b} have the ease of people who have shared a few bad nights and do not need to talk about them."

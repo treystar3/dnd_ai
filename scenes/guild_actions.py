@@ -12,6 +12,11 @@ from ui import console
 G = quests.G
 
 
+def M_LEVEL() -> int:
+    from engine import mentor
+    return int(mentor.M["troll_sheet"]["level_mentor"])
+
+
 class GuildActions:
 
     # ---------- state ----------
@@ -37,7 +42,9 @@ class GuildActions:
         for letter in quests.LETTERS[1:]:
             need = G["ranks"][letter]["requires"]
             below = quests.LETTERS[quests.LETTERS.index(letter) - 1]
-            out.append(f"Rank {letter}: you must be level {need['level']} and have finished {need['completed']} guild contracts at rank {below} or higher. "
+            out.append(f"Rank {letter}: you must be level {need['level']} and have finished {need['completed']} guild contracts at rank {below} or higher, "
+                       "then win a trial: a duel at the guild hall against an examiner of that rank, where nobody can die (the blow that would kill decides it) "
+                       f"and no potions are allowed; if you lose you wait {G['trial']['retry_days']} days to try again. "
                        f"It brings: {quests.describe_perks(letter)}.")
         if npc.role in ("guild_clerk", "guild_master"):
             if not self.rank:
@@ -81,6 +88,9 @@ class GuildActions:
         gid = self.hall_here()
         if not gid:
             return []
+        from engine import mentor
+        if mentor.tutorial_on(self.player):
+            return mentor.tutorial_board(self.player, self.minutes)       # during the lesson the board holds one posting: her hunt
         state = self.store.load_place(gid)
         day = clock.day(self.minutes)
         if state.board_day < 0 or day >= state.board_day + G["board_refresh_days"]:
@@ -98,6 +108,9 @@ class GuildActions:
                         kept.append(q)
             state.board = quests.post_board(self.world, self.store, self.minutes, size, rng, self.rank or "F", gid,
                                             existing=kept[:size])
+            kept_ids = {q["id"] for q in kept}
+            from engine import stakes
+            stakes.plan(self, gid, [q for q in state.board if q["id"] not in kept_ids])       # (f322) who asked, and why
             state.board_day = day
             self.store.save_place(state)
         return state.board
@@ -131,6 +144,8 @@ class GuildActions:
             elif q["kind"] == "missing" and looking:
                 why = "You are already looking for someone."
             postings.append({"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"],
+                             "for": (f"Posted for {q['issuer_name']}, {q.get('issuer_role', '')}".rstrip(", ") + (f": {q['reason']}" if q.get("reason") else ""))
+                             if q.get("issuer") not in (None, "guild") else "",
                              "reward": money.fmt(round(coins * mult)), "xp": round(xp * mult),
                              "limit": "no time limit" if q.get("deadline", 1) is None
                              else f"{G['ranks'][q['letter']]['deadline_days'] + q.get('extra_days', 0)} days",
@@ -143,7 +158,29 @@ class GuildActions:
         hall = self.hall_here()
         return {"hall": self.world.places[hall].name if hall else "", "member": bool(self.rank), "rank": self.rank, "fee": money.fmt(G["joining_fee"]),
                 "fee_ok": c.coins >= G["joining_fee"], "clerk": bool(clerk), "postings": postings, "held": held,
-                "requests": requests, "purse": money.fmt(c.coins)}
+                "requests": requests, "purse": money.fmt(c.coins), "hires": self.board_hires() if hall else [],
+                "lesson": bool(__import__("engine.mentor", fromlist=["tutorial_on"]).tutorial_on(self.player))}
+
+    def board_hires(self) -> list[dict]:
+        """Adventurers looking for work at this hall, for the board pane (f281): the week's roster with a Hire button each, and Maren
+        first, free, while her lesson is at the point of hiring her."""
+        from engine import mentor, party as rules
+        from engine.party import P
+        c = self.player.character
+        full = len(self.player.party) >= P["max_party"]
+        inside = self.place.type == "guild"                  # (f298) hiring is done in the hall, as typing it is; the pane shows the town's hall from anywhere
+        away = "" if inside else "Hire them in person, at the guild hall."
+        out = []
+        if mentor.stage(self.player) in ("board", "hunt") and not self.combat and not self.mentor_in_party() and self.mentor_in_town():
+            out.append({"id": "maren", "name": mentor.NAME, "who": "human fighter", "rank": "A", "level": M_LEVEL(), "blurb": "an A-rank adventurer, showing you how hiring works",
+                        "temper": "warm and wry", "fee": "free", "ok": not full and inside, "why": "Your party is full." if full else away})
+        if not self.rank or mentor.tutorial_on(self.player):
+            return out                                        # her lesson: Maren or no one (f283)
+        for m in self.party_roster():
+            why = "Your party is full." if full else ("Join the guild first." if not self.rank else "") or away or (f"Wants {money.fmt(m['fee'])}; your purse holds {money.fmt(c.coins)}." if c.coins < m["fee"] else "")
+            out.append({"id": m["id"], "name": m["name"], "who": f"{(m.get('people') or 'human').replace('_', '-')} {m['role']}", "rank": m["rank"], "level": m["level"],
+                        "blurb": m["blurb"], "temper": self.temper_text(m), "fee": money.fmt(m["fee"]), "ok": not why, "why": why})
+        return out
 
     def show_board(self) -> None:
         data = self.board_data()
@@ -164,12 +201,31 @@ class GuildActions:
                          f"{'no time limit' if q.get('deadline', 1) is None else str(G['ranks'][q['letter']]['deadline_days'] + q.get('extra_days', 0)) + ' days'}{lock}")
         if not board:
             console.note("  (nothing posted)")
+        hires = data.get("hires") or []
+        if hires:
+            console.note("ADVENTURERS LOOKING FOR WORK (say 'hire <name>'):")
+            for h in hires:
+                console.note(f"  {h['name']} - {h['who']}, rank {h['rank']}, level {h['level']}: {h['blurb']}; {h['temper']}. {h['fee']}" + (f"  ({h['why']})" if h["why"] else ""))
 
     def board_click(self, text: str) -> None:
-        """The pane's hidden commands:  #boardaccept <posting id>   #boardabandon <contract id>   #boardrequest <npc id>   #boardjoin."""
+        """The pane's hidden commands:  #boardaccept <posting id>   #boardabandon <contract id>   #boardrequest <npc id>   #boardjoin
+        #boardhire <roster id | maren> (f281)."""
         from llm.contracts import ActionIntent
         parts = text.split()
         cmd = parts[0].lower()
+        if cmd == "#boardhire" and len(parts) >= 2 and self.place.type != "guild":
+            console.note("Hire them in person, at the guild hall.")
+        elif cmd == "#boardhire" and len(parts) >= 2:
+            if parts[1] == "maren":
+                if not self.mentor_hire("hire Maren"):
+                    console.note("Maren is not here to hire right now.")
+            else:
+                offered = self.party_roster()
+                m = next((x for x in offered if x["id"] == parts[1]), None)
+                if m is None:
+                    console.note("They have moved on; the roster has changed.")
+                else:
+                    self.party_hire(m["name"], f"hire {m['name']}", offered, exact=m)
         if cmd == "#boardaccept" and len(parts) >= 2:
             board = self.ensure_board()
             n = next((i for i, q in enumerate(board, 1) if q["id"] == parts[1]), 0)
@@ -177,7 +233,7 @@ class GuildActions:
                 self.on_accept_quest(ActionIntent(kind="accept_quest", item=str(n)), "")
             else:
                 console.note("That contract is no longer on the board.")
-        elif cmd == "#boardabandon" and len(parts) >= 2:
+        elif cmd in ("#boardabandon", "#questabandon") and len(parts) >= 2:
             n = next((i for i, q in enumerate(self.player.quests, 1) if q["id"] == parts[1]), 0)
             if n:
                 self.on_abandon_quest(ActionIntent(kind="abandon_quest", item=str(n)), "")
@@ -192,14 +248,62 @@ class GuildActions:
         elif cmd == "#boardjoin":
             self.on_join_guild(ActionIntent(kind="join_guild"), "")
         self.halted = False
+        if cmd == "#questabandon":                               # (f327) the Quests pane's own button: that pane is drawn again
+            with console.scope("#quests"):
+                self.show_quests()
+            return
         with console.scope("#board"):
             self.show_board()
 
+    def quest_rows(self) -> list[dict]:
+        """(f327) The contracts in hand as rows for the window: what, for whom and why, how far along, how long is left."""
+        rows = []
+        for q in self.player.quests:
+            arc = self.arc_lines(q)
+            if q.get("deadline") is None:
+                left, urgent = "no time limit", False
+            elif q["deadline"] <= self.minutes:
+                left, urgent = "expired", True
+            else:
+                days, hours = (q["deadline"] - self.minutes) // 1440, (q["deadline"] - self.minutes) % 1440 // 60
+                left, urgent = f"{days}d {hours}h left", days < 1
+            ready = quests.done(q, self.pack)
+            if arc:
+                status = arc.split(" - ", 1)[1].rsplit(" · ", 1)[0]
+            elif ready:
+                status = "ready to turn in"
+            elif q["kind"] == "deliver":
+                status = "to deliver"
+            elif q["kind"] in ("delve", "dungeon_boss", "missing"):
+                status = "not yet"
+            else:
+                status = f"{quests.held(q, self.pack)}/{q['count']}"
+            who = (f"for {q['issuer_name']}" if q.get("issuer_name") else "") + (f": {q['reason']}" if q.get("reason") else "")
+            rows.append({"id": q["id"], "letter": q["letter"], "title": q["title"], "for": who.strip(), "guild": bool(q["guild"]),
+                         "status": status, "ready": ready, "left": left, "urgent": urgent})
+        return rows
+
+    def rank_data(self) -> dict | None:
+        """(f327) What the next guild rank asks for, as the pane's three bars."""
+        if not self.rank:
+            return None
+        nxt = quests.next_rank(self.rank)
+        if not nxt:
+            return {"rank": self.rank, "next": "", "needs": []}
+        need = G["ranks"][nxt]["requires"]
+        counted = sum(n for l, n in self.player.guild_done.items() if quests.LETTERS.index(l) >= quests.LETTERS.index(self.rank))
+        return {"rank": self.rank, "next": nxt, "trial": self.trial_due(),
+                "needs": [{"label": f"level {need['level']}", "now": self.player.character.level, "top": need["level"]},
+                          {"label": f"{need['completed']} contracts at {self.rank}+", "now": counted, "top": need["completed"]}]}
+
     def show_quests(self) -> None:
+        if console.panel("quests", {"rows": self.quest_rows(), "rank": self.rank_data()}):
+            return
         if not self.player.quests:
             console.note("You have no contracts or requests in hand.")
         for q in self.player.quests:
-            console.note(self.arc_lines(q) or quests.progress_line(q, self.pack, self.minutes))
+            console.note(self.arc_lines(q) or quests.progress_line(q, self.pack, self.minutes)
+                         + (f"  (for {q['issuer_name']}: {q['reason']})" if q.get("reason") else ""))
         if self.rank:
             nxt = quests.next_rank(self.rank)
             if nxt:
@@ -208,7 +312,8 @@ class GuildActions:
                               if quests.LETTERS.index(l) >= quests.LETTERS.index(self.rank))
                 console.note(f"Guild rank {self.rank}. To reach {nxt}: level {need['level']} (you are "
                              f"{self.player.character.level}), {need['completed']} contracts at {self.rank} or higher "
-                             f"(you have {counted}).")
+                             f"(you have {counted}), and a trial against an examiner of that rank"
+                             + (" - you qualify: ask for the trial at a guild hall." if self.trial_due() else "."))
 
     # ---------- joining and contracts ----------
 
@@ -297,11 +402,12 @@ class GuildActions:
             console.note("You are already looking for someone. Finish or drop that contract first.")
             self.halted = True
             return
-        board.remove(q)
         gid = self.hall_here()
-        state = self.store.load_place(gid)
-        state.board = board
-        self.store.save_place(state)
+        if not q.get("mentor"):
+            board.remove(q)
+            state = self.store.load_place(gid)
+            state.board = board
+            self.store.save_place(state)
         days = G["ranks"][q["letter"]]["deadline_days"] + q.get("extra_days", 0)
         q["deadline"] = None if q.get("deadline", 1) is None else self.minutes + days * 1440
         if q["kind"] == "deliver":
@@ -310,8 +416,8 @@ class GuildActions:
                 source="the adventurers' guild", day=clock.day(self.minutes), for_whom=q["to_role"].replace("_", " ")))
         self.player.quests.append(q)
         self.store.save_player(self.player)
-        console.note(f"Contract taken: [{q['letter']}] {q['title']}. "
-                     + ("No time limit." if q["deadline"] is None else f"Due in {days} days."))
+        from engine import stakes                                           # (f326) no ledger line: the board pane and the clerk's own words carry it
+        stakes.taken(self, q)                                               # (f322) the issuer hears who took it
         if q["kind"] == "missing":
             q["hall"] = gid
             self.start_arc(q)
@@ -323,10 +429,15 @@ class GuildActions:
             console.note("You have no contract like that.")
             self.halted = True
             return
+        if q.get("mentor"):
+            from engine import mentor
+            self.mentor_say(mentor.line_from(self.player, mentor.M["board_step"]["no_abandon"]))
+            self.halted = True
+            return
         self.player.quests.remove(q)
         self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
         self.store.save_player(self.player)
-        console.note(f"Abandoned: {q['title']}.")
+        console.ledger(f"Abandoned: {q['title']}.")
         self.arc_quest_gone(q, "you walked away from it")
 
     def on_board(self, intent, text: str) -> None:
@@ -375,7 +486,7 @@ class GuildActions:
                 level = q.get("scale") or min(self.place.danger[1], creature.levels[1])
                 foe = combat.fighter_from_creature(creature, level, "elite", "e1", f"{creature.name.lower()} (bounty)", "near")
                 from scenes.combat_scene import CombatScene
-                self.combat = CombatScene.begin(self, creature, [foe], "Your search draws out your quarry:")
+                self.combat = CombatScene.begin(self, creature, [foe], "Your search draws out your quarry:", initiated=True)
                 return True
         return False
 
@@ -384,7 +495,7 @@ class GuildActions:
             if q.get("deadline") is not None and q["deadline"] <= self.minutes and not quests.done(q, self.pack):
                 self.player.quests.remove(q)
                 self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
-                console.note(f"Contract expired: {q['title']}. The reward is forfeit.")
+                console.ledger(f"Contract expired: {q['title']}. The reward is forfeit.")
                 self.arc_quest_gone(q, "time ran out")
                 self.store.save_player(self.player)
 
@@ -427,8 +538,10 @@ class GuildActions:
             payer.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
                                          text=f"The stranger finished {q['title'].lower()}; I paid {money.words(coins)}."))
             self.store.save_npc(payer)
-            console.note(f"Completed: [{q['letter']}] {q['title']}. {payer.label().capitalize()} pays "
+            console.ledger(f"Completed: [{q['letter']}] {q['title']}. {payer.label().capitalize()} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
+            from engine import stakes
+            stakes.done(self, q)                                            # (f322) the result lands; the issuer and the town remember
             if levels:
                 console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
             self.promote_if_due()
@@ -440,9 +553,7 @@ class GuildActions:
         nxt = quests.promotion_due(self.rank, self.player.character.level, self.player.guild_done,
                                    1 if self.owns("born_to_rank") else 0)
         if nxt:
-            self.player.guild_rank = nxt
-            self.give_badge(nxt)
-            console.note(f"PROMOTED to guild rank {nxt}! New perks: {quests.describe_perks(nxt)}.")
+            self.trial_notice()
 
     # ---------- personal requests ----------
 
@@ -471,5 +582,5 @@ class GuildActions:
                 source=npc.name, day=clock.day(self.minutes), for_whom=q.get("to_role", "")))
         self.player.quests.append(q)
         self.store.save_player(self.player)
-        console.note(f"Request taken: [{q['letter']}] {q['title']} (for {npc.name}). "
+        console.ledger(f"Request taken: [{q['letter']}] {q['title']} (for {npc.name}). "
                      + ("No time limit." if q.get("deadline") is None else f"Due in {G['ranks'][q['letter']]['deadline_days']} days."))

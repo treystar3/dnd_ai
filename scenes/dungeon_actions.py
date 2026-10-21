@@ -56,15 +56,30 @@ class DungeonActions:
             console.note("There's no dungeon here.")
             return
         days = max(0, (d["made"] + D["respawn_days"] * 1440 - self.minutes) // 1440)
+        cf, cc = d["cleared"]
+        sense = self.owns("arcane_echoes") or (self.owns("spirit_guide") and self.companion_here())
+        floors = []
+        for i, fl in enumerate(d["floors"]):
+            n = len(fl["chambers"])
+            done = n if i < cf else (cc + 1 if i == cf else 0)
+            row = {"n": i + 1, "letter": fl["letter"], "done": done, "total": n, "boss": i == len(d["floors"]) - 1}
+            if sense:
+                kinds = sorted({self.world.bestiary[ch["creature"]].name.lower() for ch in fl["chambers"] if ch["kind"] == "fight"})
+                traps = sum(ch["kind"] == "trap" for ch in fl["chambers"])
+                row["sense"] = (", ".join(kinds) or "nothing living") + (f"; {traps} trap(s)" if traps else "")
+            floors.append(row)
+        delve = self.player.delve if self.player.delve and self.player.delve.get("dungeon") == d["id"] else None
+        if console.panel("dungeon", {"name": d["name"], "theme": d["theme"], "beneath": self.world.places[d["place"]].name, "remade_days": days,
+                                     "floors": floors, "on_floor": (delve["floor"] + 1) if delve else 0}):
+            return
         console.note(f"{d['name'].upper()} - a {d['theme']} beneath {self.world.places[d['place']].name}. "
                      f"Remade in {days} days.")
-        cf, cc = d["cleared"]
         for i, fl in enumerate(d["floors"]):
             n = len(fl["chambers"])
             done = n if i < cf else (cc + 1 if i == cf else 0)
             boss = " · boss" if i == len(d["floors"]) - 1 else ""
             console.note(f"  floor {i + 1} [{fl['letter']}] - {done}/{n} chambers cleared{boss}")
-            if self.owns("arcane_echoes"):
+            if self.owns("arcane_echoes") or (self.owns("spirit_guide") and self.companion_here()):
                 kinds = sorted({self.world.bestiary[ch["creature"]].name.lower() for ch in fl["chambers"] if ch["kind"] == "fight"})
                 traps = sum(ch["kind"] == "trap" for ch in fl["chambers"])
                 console.note(f"      you sense: {', '.join(kinds) or 'nothing living'}" + (f"; {traps} trap(s)" if traps else ""))
@@ -113,7 +128,8 @@ class DungeonActions:
             self.dungeon_fight = (d["id"], f, c, d["made"])
             from scenes.combat_scene import CombatScene
             console.note(label + (" - the master of this place waits here." if rank == "boss" else ""))
-            self.combat = CombatScene.begin(self, creature, foes, f"In the {d['theme']}'s depths ({label.lower()}),")
+            self.combat = CombatScene.begin(self, creature, foes, f"In the {d['theme']}'s depths ({label.lower()}),",
+                                            big="lair" if rank == "boss" else "")
             return
         console.note(label)
         if kind == "trap":
@@ -138,7 +154,7 @@ class DungeonActions:
                 item = self.cache_item(floor["level"])
                 self.to_pack(item)
                 found.append(item.name)
-            console.note(f"Found: {', '.join(found)}.")
+            console.ledger(f"Found: {', '.join(found)}.")
             self.narrate(f"The player finds a cache in a chamber of {d['name']}: {', '.join(found)}. Describe where it was "
                          f"hidden, fitting a {d['theme']}.", text)
         elif kind == "rest":
@@ -184,7 +200,7 @@ class DungeonActions:
             return
         if c == len(floor["chambers"]) - 1:
             last = f == len(d["floors"]) - 1
-            console.note(f"Floor {f + 1} cleared." + ("" if last else
+            console.ledger(f"Floor {f + 1} cleared." + ("" if last else
                          f" Stairs lead down to floor {f + 2} [{d['floors'][f + 1]['letter']}]."))
             for q in self.player.quests:
                 if q["kind"] == "delve" and q.get("dungeon") == d["id"] and q.get("floor") == f:
@@ -240,7 +256,7 @@ class DungeonActions:
             coins = random.randint(1, 4) * max(1, d["floors"][self.player.delve["floor"]]["level"])
             self.player.character.coins += coins
             self.store.save_player(self.player)
-            console.note(f"Found: {money.words(coins)}.")
+            console.ledger(f"Found: {money.words(coins)}.")
             self.narrate(f"The player searches the chamber carefully and turns up {money.words(coins)} that others missed.", text)
         else:
             self.narrate(f"The player searches the chamber in {d['name']} but finds nothing more of use.", text)

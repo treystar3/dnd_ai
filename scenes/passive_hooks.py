@@ -31,7 +31,8 @@ class PassiveHooks:
         return self.has(mid) is not None
 
     def companion_here(self) -> bool:
-        return any(m.active for m in self.player.character.companions)
+        c = self.player.character
+        return any(m.active for m in c.companions) or bool(c.bound_summon and not c.bound_broken)   # a companion, or the Bound summon
 
     # ---------- checks ----------
 
@@ -42,10 +43,17 @@ class PassiveHooks:
         def add(mid, label=None, when=True, sign=1):
             if when and self.owns(mid):
                 out.append((label or mid.replace("_", " "), sign * self.mech(mid)))
+        from engine import world_perks
+        who, lent = world_perks.best_hands(self.player.character, check, self.player.party)
+        if lent > 0:
+            out.append((f"borrowed hands ({who})", lent))
         shadow = self.fld.get("shadow")
         if check == "stealth" and shadow and shadow["until"] > self.minutes:
             from engine.field import F as FIELD, tier_value
             out.append(("shadowing", tier_value(FIELD["shadow"]["stealth_bonus"], shadow["tier"])))
+        if check == "stealth" and hasattr(self, "traceless") and self.traceless():
+            from engine.field import F as FIELD
+            out.append(("passing without trace", FIELD["pass_without_trace"]["stealth_bonus"]))
         if self.blessed_bonus():
             out.append(("blessed", self.blessed_bonus()))
         edge = self.fld.get("edge")
@@ -59,7 +67,9 @@ class PassiveHooks:
             add("soldiers_bearing", when=bool(npc and npc.role in ARMED_ROLES))
             add("unsettling_presence", when=night)
         elif check == "stealth":
-            worn = [items.weight(i) for i in self.player.character.equipment.values() if not items.base_of(i).is_weapon]
+            from engine import world_perks
+            worn = [items.weight(i) for i in self.player.character.equipment.values()
+                    if not items.base_of(i).is_weapon and not world_perks.fitted(self.player.character, i)]
             heavy = min((items.RULES["weight_classes"].get(w, {}).get("stealth", 0) for w in worn if w), default=0)
             if heavy:
                 out.append(("armor", heavy))
@@ -116,9 +126,19 @@ class PassiveHooks:
         from engine import pulse
         return self.player.reputation.get(pulse.town_of(self.world, place_id or self.player.location), 0)
 
-    def reputation_add(self, town: str, amount: int) -> None:
-        if town and not self.world.places[town].danger:
-            self.player.reputation[town] = max(-100, min(100, self.player.reputation.get(town, 0) + amount))
+    def reputation_add(self, town: str, amount: int, spread: bool = True) -> None:
+        if not town or self.world.places[town].danger:
+            return
+        if amount < 0 and self.owns("nobody"):
+            return                                       # Nobody: infamy never sticks to a face no one can place
+        self.player.reputation[town] = max(-100, min(100, self.player.reputation.get(town, 0) + amount))
+        if spread and amount and self.owns("famous") and not self.owns("nobody"):
+            for other in self.neighbor_towns(town):     # Famous: every town a road connects hears it at once, in full
+                self.reputation_add(other, amount, spread=False)
+
+    def sees_far(self) -> bool:
+        """Hostiles are always spotted at a distance: Danger Sense, or a spirit walking ahead (Spirit Guide)."""
+        return self.has("danger_sense") is not None or (self.owns("spirit_guide") and self.companion_here())
 
     def neighbor_towns(self, place_id: str) -> list[str]:
         """Settlements one step along the map from this place's town."""
@@ -139,7 +159,7 @@ class PassiveHooks:
 
     def mercy_spreads(self) -> None:
         """Mercy Remembered: kindness is talked about in the next town down the road."""
-        if self.owns("mercy_remembered"):
+        if self.owns("mercy_remembered") and not self.owns("nobody"):
             for town in self.neighbor_towns(self.player.location)[:1]:
                 self.reputation_add(town, 1)
 
@@ -167,12 +187,24 @@ class PassiveHooks:
         if self.owns("pilgrims_pace"):
             on_roads = sum(self.edge_minutes(a, b) for a, b in zip(route, route[1:]) if self.world.road_between(a, b))
             walk -= round(on_roads * self.mech("pilgrims_pace") / 100)
-        stormy = weather.condition(self.store.meta.seed, self.minutes)["id"] in ("rain", "storm")
-        if stormy and not (self.owns("weather_wise") or self.owns("blood_warm")):
+        sky = weather.condition(self.store.meta.seed, self.minutes)["id"]
+        stormy = sky in ("rain", "storm")
+        if stormy and not (self.owns("weather_wise") or self.owns("blood_warm") or (sky == "storm" and self.owns("storm_chosen"))):
             walk = round(walk * (1 + TRAVEL["bad_weather_slow"] / 100))
         if any(self.world.places[p].biome == "arctic" for p in route[1:]) and not self.owns("blood_warm"):
             walk = round(walk * (1 + TRAVEL["arctic_slow"] / 100))
+        if self.owns("well_trodden"):
+            from engine import world_perks
+            total = sum(self.edge_minutes(a, b) for a, b in zip(route, route[1:])) or 1
+            known = sum(self.edge_minutes(a, b) for a, b in zip(route, route[1:]) if self.walked_before(a, b))
+            if known:
+                walk = round(walk * (1 - (1 - world_perks.P["well_trodden"]["share"]) * known / total))
         return max(1, walk)
+
+    def walked_before(self, a: str, b: str) -> bool:
+        """Well-Trodden: a way is known when the player has been at both ends of it before this trip."""
+        seen = self.player.visited
+        return a in seen and b in seen
 
     def edge_minutes(self, a: str, b: str) -> int:
         return self.world.places[a].connects.get(b) or self.world.places[b].connects.get(a) or 0
@@ -250,7 +282,7 @@ class PassiveHooks:
             return
         from engine import items
         self.to_pack(items.make_raw(item.material))
-        console.note(f"Salvaged: 1 {items.MATERIALS[item.material].name}.")
+        console.ledger(f"Salvaged: 1 {items.MATERIALS[item.material].name}.")
 
     def known_work_sold(self, item) -> None:
         if self.owns("known_craftsman") and item.source == "your own work":
@@ -263,6 +295,13 @@ class PassiveHooks:
         """Things that come to you in the night."""
         c = self.player.character
         day = clock.day(self.minutes)
+        if c.gift:
+            console.note(f"The {c.gift.get('family', 'beast').replace('_', ' ')}'s gift leaves you in your sleep.")
+            c.gift = {}
+        if self.owns("visions"):
+            self.vision()
+        if self.owns("reverse_engineer"):
+            self.study_overnight()
         if self.owns("patrons_gift") and day - c.patron_gift_day >= 7:
             from engine import loot
             rng = random.Random()
@@ -278,3 +317,134 @@ class PassiveHooks:
                 self.narrate(f"In the night, the player's patron shows them a dream - a glimpse of something vast "
                              f"unfolding far away: {stage} Tell it as a fragment of dream, vivid but unclear, "
                              f"without naming places outright.")
+
+    # ---------- the world's news, as the perks hear it ----------
+
+    def live_threads(self, exclude_here: bool = False) -> list[dict]:
+        """The world's active situations (engine/pulse.py threads), each with the name of the place it unfolds in."""
+        from engine import pulse
+        st = self.store.load_world_state() or {}
+        here = pulse.town_of(self.world, self.player.location)
+        out = []
+        for t in st.get("threads", []):
+            if t.get("status") != "active" or t["place"] not in self.world.places:
+                continue
+            town = pulse.town_of(self.world, t["place"])
+            if exclude_here and town == here:
+                continue
+            out.append({"title": t["title"], "place": t["place"], "town": town, "place_name": self.world.places[t["place"]].name,
+                        "now": t["stages"][t["stage"]]["description"]})
+        return out
+
+    def vision(self) -> None:
+        """Visions: sleep shows one situation unfolding somewhere else, and names the place."""
+        far = self.live_threads(exclude_here=True)
+        if not far:
+            return
+        t = random.Random(f"{self.store.meta.seed}:vision:{clock.day(self.minutes)}").choice(far)
+        console.note(f"A vision in your sleep: something is unfolding at {t['place_name']}.")
+        self.narrate(f"In sleep the player sees, clearly, something happening far away at {t['place_name']}: {t['now']} "
+                     f"Tell it as a vision - vivid, certain of the place, uncertain of the meaning. Name the place.")
+
+    def tavern_ear(self, npc) -> None:
+        """Tavern Ear: a drink at an inn, and the town talks - its troubles, and who is hiring."""
+        from engine import pulse
+        if not self.owns("tavern_ear") or getattr(npc, "role", "") not in ("innkeeper", "server", "cook"):
+            return
+        here = pulse.town_of(self.world, self.player.location)
+        troubles = [t["now"] for t in self.live_threads() if t["town"] == here]
+        hiring = []
+        try:
+            for q in self.ensure_board():
+                hiring.append(q.get("title") or q.get("kind", "work"))
+        except Exception:
+            pass
+        asks = [n.name for n in self.present if getattr(n, "request", None)]
+        if not (troubles or hiring or asks):
+            console.note("The talk at the bar is only weather and old grudges tonight.")
+            return
+        lines = []
+        if troubles:
+            lines.append("the town's troubles: " + " ".join(troubles[:3]))
+        if hiring:
+            lines.append("who is hiring: the guild board has " + ", ".join(hiring[:4]))
+        if asks:
+            lines.append("people with something to ask: " + ", ".join(asks[:4]))
+        console.note("Over the drink, the room talks (Tavern Ear): " + "; ".join(lines) + ".")
+        self.narrate("Over a drink the player picks up the talk of the room - " + "; ".join(lines) + ". Give it as overheard "
+                     "scraps from different voices, true to these facts.")
+
+    def troubadour(self, degree: str) -> None:
+        """Troubadour: a performance is news from everywhere - and the towns sung about remember the singer."""
+        if not self.owns("troubadour"):
+            return
+        from engine import world_perks
+        threads = self.live_threads()
+        if not threads:
+            console.note("Your songs are all old ones tonight - the realm is quiet.")
+            return
+        sung = threads[:4]
+        towns = []
+        for t in sung:
+            if t["town"] not in towns:
+                towns.append(t["town"])
+        if degree in ("strong success", "success"):
+            for town in towns:
+                self.reputation_add(town, world_perks.P["troubadour"]["standing"])
+        console.note("What the songs carry (Troubadour): " + "; ".join(f"at {t['place_name']}, {t['now']}" for t in sung))
+        self.narrate("Between verses the player weaves in the news of the realm, true in every particular: "
+                     + "; ".join(f"at {t['place_name']}: {t['now']}" for t in sung) + ". The room hears it as song.")
+
+    def campfire_cook(self, made: dict[str, int]) -> None:
+        """Campfire Cook: a meal cooked at camp feeds the party, and every companion who shares it trusts you a little more."""
+        from engine import inventory as inv, needs, party as party_rules
+        from engine import world_perks
+        if not self.owns("campfire_cook") or not self.place.danger:
+            return
+        if not any(inv.GOODS[g].kind == "food" for g in made):
+            return
+        R = world_perks.P["campfire_cook"]
+        c = self.player.character
+        needs.eat(c, R["feeds"])
+        fed = [m for m in self.player.party if m.get("active", True) and not m.get("fallen")]
+        for m in fed:
+            m["bond"] = m.get("bond", 0) + R["trust"]
+            party_rules.set_mood(m, "warmed by a hot meal", self.minutes)
+        who = ", ".join(m["name"].split()[0] for m in fed)
+        console.note("Everyone eats" + (f" - {who} think{'s' if len(fed) == 1 else ''} a little better of you for it (Campfire Cook)." if fed else " (Campfire Cook)."))
+
+    def pious_hospitality(self) -> None:
+        """Pious Path: the temple feeds you and yours, and asks nothing."""
+        from engine import needs, party as party_rules, world_perks
+        c = self.player.character
+        needs.eat(c, world_perks.P["pious_path"]["feeds"])
+        for m in self.player.party:
+            if m.get("active", True) and not m.get("fallen"):
+                party_rules.set_mood(m, "fed and rested under a temple roof", self.minutes)
+        console.note("The temple gives bread and a bed to you and yours, and asks nothing (Pious Path).")
+
+    def study_overnight(self) -> None:
+        """Reverse Engineer: a night spent with the finest piece of gear you carry that you could learn from. What you craft of that
+        kind afterwards comes out at least as fine as it was."""
+        from engine import crafting, items
+        c = self.player.character
+        order = crafting.RARITY_ORDER
+        best = None
+        for it in list(c.equipment.values()) + list(c.inventory):
+            b = items.CATALOG.get(it.base)
+            if b is None or it.good or getattr(b, "family", None) not in crafting.RULES["stations"]:
+                continue
+            known = c.studied.get(it.base)
+            if known is not None and order.index(known) >= order.index(it.rarity if it.rarity in order else "common"):
+                continue
+            if it.rarity not in order:
+                continue
+            if best is None or order.index(it.rarity) > order.index(best.rarity):
+                best = it
+        if best is None:
+            return
+        c.studied[best.base] = best.rarity
+        if best.base not in c.recipes_made:
+            c.recipes_made.append(best.base)
+        console.note(f"You spent the night taking {items.display_name(best)} apart in your head. You could make its like now - "
+                     f"{best.rarity} work at the least (Reverse Engineer).")

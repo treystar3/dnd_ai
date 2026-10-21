@@ -1,0 +1,68 @@
+# How hard a moment hits each companion who sees it (engine/severity.py). Nothing here names an event: a death, a betrayal, something
+# grim found in a cellar and the player's own grief all go through the same table. Two things decide it:
+#   how grave the moment is   - its weight: light, personal or heavy (banter.yaml director.hook_weight for the game's own events; the
+#                               read of the player's words for what they say; whoever raises an event says how grave it is)
+#   how close they are to it  - whom it concerns, and what that one is to them:
+#       self      it is about them (their own wound)
+#       a companion          their pair relation score with that one (party_relations)
+#       the player           their trust in the player (bond)
+#       nobody in particular close when it stands out against their own life (the director's own-life check), else known
+
+closeness:
+  pair: {close: 25, known: 5}        # relation score with the one it concerns: at least close -> close; at least known -> known; else distant
+  bond: {close: 30, known: 10}       # their trust in the player, when it concerns the player
+  nobody: known                      # a moment about nobody in particular, unless it stands out against their own life
+
+# Being told of something is not seeing it: a level read from what the player says (their loss, their confession) is this many steps
+# lower than the table gives.
+told_step_down: 1
+
+# The level, by weight and closeness. composed: as they always are, with no light chatter; sobered: saddened, steady; shaken: it has
+# rattled them; devastated: it has broken something in them.
+level:
+  heavy:    {self: shaken,   close: devastated, known: shaken,  distant: sobered}
+  personal: {self: sobered,  close: shaken,     known: sobered, distant: composed}
+  light:    {self: composed, close: composed,   known: composed, distant: composed}
+
+# How each level changes the way they speak. Given to each speaker on their own, so one can be devastated beside another only sobered.
+# Their own way of breaking (speech.yaml tells: devastated) says which way it goes; this says how far. Every level above composed also
+# says what it may not become: a hard or blunt person shows it in their own way, but never shrugs it off - a level is how much it got to
+# them, and a line that dismisses it says the opposite.
+register:
+  composed: ""
+  sobered: "This has sobered them: they speak quietly and plainly, without jokes or idle remarks, and they take it seriously; still themselves."
+  shaken: >-
+    This has shaken them, and it shows: what they say is about this and plainly marked by it. Shorter sentences, some unfinished; no jokes,
+    no small talk, no remarks about the weather, the scenery or what comes next; their usual manner shows through cracks - even a hard,
+    blunt or mercenary person is rattled, in their own way, and never dismisses it, makes light of it or treats it as ordinary. A gesture
+    may be bigger than usual: a hand that will not stay still, turning away, sitting down hard.
+  devastated: >-
+    This has devastated them. Their usual manner cracks: raw, short, broken lines - a name, a curse, a plea, a sentence that stops halfway;
+    they may weep, shout, go silent, sink to the ground or walk away; nothing practical, nothing wry, nothing about anything else, and
+    never anything that shrugs it off. A gesture may be large and open: it is the body that says most of it.
+
+# From this level up, the repetition guard stands down for that speaker in that moment: someone who has just been shaken or devastated
+# says the same name, the same few words, again and again, and that is the grief, not a stale line.
+repeat_free_from: shaken
+
+# From this level up, a companion the director gives the floor MAY react without words: a single word, or nothing at all but what their
+# body does. The director decides who may react; this decides who has to speak. Below it, everyone chosen says something. An exchange in
+# which everyone chosen is at or above it may be wholly silent. silent_rule is added to how that speaker speaks; silent_shown is what is
+# shown for someone who says nothing and makes no gesture that can be shown.
+may_be_silent_from: shaken
+# At a moment this grave, EVERYONE the director picks may react without words, whatever their own level: a sobered onlooker watching
+# someone else's grief can answer with nothing, and forcing a line out of them is how "we should check the supplies" follows "Tamsin."
+all_may_be_silent_at: heavy
+silent_rule: >-
+  This may be beyond words for them right now: they may say a single word, or nothing at all - then leave what they say empty and give
+  only what their body does. Silence is as true an answer as speech; never fill it with something practical.
+silent_shown: "({first} says nothing.)"
+
+# In the middle of a fight there is no time for talk: what they say is one outburst each.
+in_fight: "This is in the middle of the fight, the moment it happens: each says one short outburst - a cry, a name, a curse, an order - and no conversation."
+
+# What it leaves behind, for those it shook or devastated: a mood that lasts (hours) and a memory.
+after:
+  shaken: {mood: "shaken by {short}", hours: 24}
+  devastated: {mood: "devastated by {short}, and not hiding it well", hours: 96}
+memory: "I was there for {short}."

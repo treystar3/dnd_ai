@@ -67,7 +67,7 @@ def survey(world, rank="normal", count=1, runs=12, per_level=18, mix=RARITY_MIX,
         for cr in picks:
             for _ in range(runs):
                 p = combat.fighter_from_character(geared(lv, rng, mix))
-                foes = [combat.fighter_from_creature(cr, lv, rank, f"e{i}", band="near") for i in range(count if not pack else pack_size(cr, lv, rng))]
+                foes = [combat.fighter_from_creature(cr, lv, rank, f"e{i}", start="near") for i in range(count if not pack else pack_size(cr, lv, rng))]
                 out = combat.simulate(combat.Combat(fighters=[p] + foes), rng)
                 n += 1; rounds += out.round - 1
                 lost += 1 - (out.player.hp / out.player.max_hp if out.over == "victory" else 0)

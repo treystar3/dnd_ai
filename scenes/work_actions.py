@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 W = yaml.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
 
 
+PLACEHOLDER_TASKS = {"task", "the task", "a task", "work", "a job", "the job", "job", "string", "short phrase"}
 PAY_WORDS = re.compile(r"\b(pay|paid|wage|wages|coin|coins|copper|coppers|silver|gold|penny|pennies|reward|earn)\b", re.I)
 TASK_WORDS = re.compile(r"\b(work|job|task|chore|chores|haul|carry|labou?r|help|clear|load|dig|chop|tend|mend|fetch|move)\b", re.I)
 
@@ -38,10 +39,14 @@ class WorkActions:
                 return got
         except Exception:
             pass
-        return WorkOffer(task=f"help {npc.label()} with the work described", pay=0, minutes=60)
+        return WorkOffer(task=f"do some odd jobs for {npc.label()}", pay=0, minutes=60)
 
     def record_work_offer(self, offer, npc) -> None:
-        """Keep an NPC's job offer, held to honest wages."""
+        """Keep an NPC's job offer, held to honest wages. An offer with no real task (empty, 'none', a template echo) is not an offer."""
+        task = offer.task.strip()
+        if not task or task.lower() in PLACEHOLDER_TASKS or "with the work described" in task.lower():
+            console.debug(f"work offer thrown out: task '{task}' is not a real job")
+            return
         minutes = max(15, min(W["max_minutes"], offer.minutes or 60))
         fair = W["wage_per_hour"] * minutes / 60
         pay = round(max(fair * (1 - W["wage_spread"]), min(fair * (1 + W["wage_spread"]), offer.pay or fair)))
@@ -80,7 +85,8 @@ class WorkActions:
                          f"Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player spends {clock.describe_duration(job['minutes'])} working: {job['task']}. When "
                          f"it's done, {npc.label()} pays them {money.words(job['pay'])} as agreed. Tell it as a short "
-                         "passage of honest work and its end.", text)
+                         "passage of honest work and its end. Exactly ONE job was done, over that time: do not describe it as instant, "
+                         "and do not mention any other jobs or any further payment.", text)
             return
         tending = self.owns("tireless_tending")
         minutes = 30 if tending else 60
@@ -114,16 +120,27 @@ class WorkActions:
         chance = W["skin_chance"] + min(0.3, c.crafting_skill / 333)
         bonus = ((pools.mechanic(c, "scavenger") or 0) + (pools.mechanic(c, "butcher") or 0)) / 100
         found, bodies = [], len(state.carcasses)
+        tries = {}                                           # (f288) what each kind of part came to: name -> [clean, tried], told plainly
         for k in state.carcasses:
             creature = self.world.bestiary.get(k["creature"])
             rounds = 2 if (self.owns("trophy_hunter") and creature and creature.size in ("Large", "Huge", "Gargantuan")) else 1
             for _ in range(rounds):
                 for m in items.MATERIALS.values():
-                    if k["creature"] in m.drops_from and random.random() < chance + bonus:
-                        found.append(items.make_raw(m.id))
+                    if k["creature"] in m.drops_from:
+                        t = tries.setdefault(m.name, [0, 0, chance + bonus])
+                        t[1] += 1
+                        if random.random() < chance + bonus:
+                            t[0] += 1
+                            found.append(items.make_raw(m.id))
                 for g in inv.GOODS.values():
+                    if k["creature"] in g.drops_from:
+                        t = tries.setdefault(g.name, [0, 0, chance + 0.2])
+                        t[1] += 1
                     if k["creature"] in g.drops_from and random.random() < chance + 0.2:
-                        found.append(inv.make_good(g.id, random.randint(1, 2)))
+                        t[0] += 1
+                        meat = inv.make_good(g.id, 1)                                    # one cut per animal (f305)
+                        meat.origin = creature.family if creature else ""        # your own hunt: a meal of it carries the beast's gift (Symbiosis)
+                        found.append(meat)
             if creature:
                 found += loot.found_materials(creature.category, k.get("level", 1), random, bonus)
             if self.owns("bone_collector") and random.random() < 0.6:
@@ -135,7 +152,16 @@ class WorkActions:
         for item in found:
             self.to_pack(item)
         self.store.save_player(self.player)
-        got = ", ".join(inv.label(i) for i in found) or "nothing usable - the hides were too torn"
-        console.note(f"Harvested: {got}.")
+        tally: dict[str, int] = {}
+        for i in found:                                      # one line per kind: "wolf meat x4", not "wolf meat x2, wolf meat x2"
+            tally[items.display_name(i)] = tally.get(items.display_name(i), 0) + max(1, i.quantity)
+        got = ", ".join(f"{n} x{q}" if q > 1 else n for n, q in tally.items()) or "nothing usable"
+        rolls = ", ".join(f"{name} {ok}/{n}" for name, (ok, n, p) in tries.items())
+        console.ledger(f"Harvested: {got}." + (f" (Clean: {rolls}.)" if rolls else ""))
+        spoiled = [f"{name} from {n - ok} of them" for name, (ok, n, p) in tries.items() if n - ok > 0]
         self.narrate(f"The player spends {clock.describe_duration(W['skin_minutes'] * bodies)} skinning and butchering "
-                     f"the fallen ({bodies}), and takes {got}.", text)
+                     f"the fallen ({bodies}), and takes {got}."
+                     + (f" Through their own clumsiness with the knife they ruin the {' and the '.join(spoiled)}: torn, scored or spoiled "
+                        "past use. Show how it goes wrong." if spoiled else ""), text)
+        self.deed("harvest")
+        self.mentor_skinned()

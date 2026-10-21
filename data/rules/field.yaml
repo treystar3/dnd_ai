@@ -21,6 +21,7 @@ functions:
     words: [camp, shelter, hearth, ward, refuge, haven, fortress, home, tent]
   haste:
     label: haste
+    taught_only: true          # f249: too slight to spend a new character's ability on; an instructor can still teach it
     blurb: quicken your step - your next journey takes less time and costs less strength
     fits: [ranger, monk, rogue, mage]
     words: [swift, wind, run, speed, dash, fleet, flight, blink, stride, gallop]
@@ -32,9 +33,15 @@ functions:
   shadow:
     label: shadow
     taught_only: true
-    blurb: slip past - avoid the next fight in a dungeon or the next wild encounter, and move unseen in town
+    blurb: slip past - skip the next fight in a dungeon or the next wild encounter, and move through town unseen
     fits: [rogue, ranger, warlock, necromancer, monk]
     words: [shadow, stealth, sneak, veil, night, ghost, hidden, silent, cloak, assassin]
+  pass_without_trace:
+    label: pass without trace
+    taught_only: true
+    blurb: the whole party moves unseen - every stealth check is much easier for an hour
+    fits: [rogue, ranger, druid, monk]
+    words: [trace, shadow, silent, unseen, mist, hush, ghost, pass, cloak, leaf]
   recall:
     label: recall
     blurb: draw on what you know - bring up knowledge about the place or people before you
@@ -95,7 +102,7 @@ functions:
     words: [tinker, gadget, smith, craft, invent, mechanic, alchemist, engineer, gear, build, forge]
   treat:
     label: treat
-    blurb: tend wounds - mend some of your hurt, and bring a fallen companion back to its feet
+    blurb: tend wounds for a few minutes - heal some of your health and stamina, and get any companion that fell in a fight back on its feet
     fits: [healer, druid, ranger, guardian, paladin]
     words: [medic, heal, bandage, herb, surgeon, nurse, field, remedy, cure, mend]
   bless:
@@ -113,7 +120,7 @@ functions:
   picklock:
     label: picklock
     taught_only: true
-    blurb: work a lock - the next locked cache below opens, and holds more than an ordinary one; it also gives you a strong edge on any lock you pick
+    blurb: work a lock - opens the next locked cache below (which holds more than an ordinary one), and gives you a strong edge on any lock you pick
     fits: [rogue, artisan, bard]
     words: [lock, pick, thief, burglar, key, safe, vault, rogue, scoundrel, tumbler]
   size_up:
@@ -146,7 +153,7 @@ functions:
     words: [salvage, scrap, dismantle, unmake, break, disassemble, reclaim, strip, deconstruct, melt]
   soul_tether:
     label: soul tether
-    blurb: bind your companions to life - for the next fight, each one that would fall to a killing blow stands again at a quarter of its health
+    blurb: bind your companions to life - in the next fight, any companion that would be killed stands back up at a quarter health instead
     needs: companions
     fits: [summoner, necromancer, druid, ranger, paladin]
     words: [tether, bond, soul, thread, link, anchor, bind, ward, lifeline, chain]
@@ -196,6 +203,10 @@ shadow:
   stealth_bonus: {light: 15, moderate: 25, heavy: 35}        # on the next stealth check
   expires_minutes: 120
 
+pass_without_trace:              # (f247) an exploration buff: a lasting state for the party, not a one-use primer
+  stealth_bonus: 25              # on EVERY stealth check (sneaking, ambushing, slipping past) while it lasts
+  lasts_minutes: 60
+
 shelter:
   lasts_minutes: 720             # the camp holds this long, while you stay in the same spot
 
@@ -208,7 +219,7 @@ showmanship:
 
 # ---- the newer functions: every number by tier ----
 # A function can also set a floor on its cooldown (min_cooldown, game minutes) so a light ability cannot repeat it too fast.
-min_cooldown: {word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60, bind_beast: 1440, speak_corpse: 30, reforge: 1440, salvage: 1440, soul_tether: 1440}
+min_cooldown: {pass_without_trace: 240, word_of_recall: 240, revivify: 240, phantom_steed: 120, summon_labor: 60, bind_beast: 1440, speak_corpse: 30, reforge: 1440, salvage: 1440, soul_tether: 1440}
 
 trapfinder:
   minutes: 5

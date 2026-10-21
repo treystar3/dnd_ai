@@ -35,7 +35,7 @@ judge:
   max_calls: 8                   # and this many in all
   partial_delay: 0.30            # a partial result pushes the next stage back by this share of the time left
   partial_pay: 0.25              # and pays this share of a grand reward's gold
-  relevant_deeds: [kill, persuade, dungeon_cleared, quest_done, deliver]
+  relevant_deeds: [kill, persuade, dungeon_cleared, quest_done, deliver, defend]
   keep_deeds: 300
 
 # ---------- the grand reward for ending a campaign or cataclysm yourself ----------
@@ -89,7 +89,8 @@ cataclysm:
   chance: {start: 0.20, end: 0.50, end_level: 120}    # chance a big-event slot becomes a cataclysm, by player level
   min_gap_days: 100              # days between one cataclysm ending and the next beginning
   guaranteed_by_level: 100       # a run with none yet gets one at the next slot once the player is this high
-  leader_roles: [noble, guild_master, courtier, watch_captain, royal_guard, priest, water_priest]
+  leader_roles: [monarch, noble, guild_master, courtier, watch_captain, royal_guard, priest, water_priest]   # (f324) the crown leads its own side
+  held_reputation: 15            # (f324) what a town thinks of the player who held its gate
   treaty_fall_halving: 0.5       # each leader won over multiplies later falls by this
   stages: 6
   stage_days: [14, 24]           # length of each stage

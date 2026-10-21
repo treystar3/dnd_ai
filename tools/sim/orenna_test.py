@@ -11,7 +11,7 @@ check("first goddess beat says my child", "my child" in g[0]["text"].lower() if 
 check("last beat names Orenna and my child", all(w in json.dumps(op[-1]).lower() for w in ("i am orenna", "my child")))
 check("no hurry line", "hurry" not in json.dumps(op).lower())
 so = json.dumps(json.load(open("data/send_off.json")))
-check("send-off has name and gasp", "{name}" in so and "gasp" in so)
+check("send-off has the name, and leaves the first breath to the opening narration", "{name}" in so and "gasp" not in so)
 gk = json.dumps(json.load(open("data/goddess_knowledge.json")))
 check("her own name no longer withheld", "Her own name" not in gk)
 import character.creation as cr, inspect

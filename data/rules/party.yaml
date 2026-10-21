@@ -1,7 +1,8 @@
 # THE PARTY - adventurers the guild will send with you against a fortified camp.
 #
-# A hireling is paid up front, joins every fight until the job ends (the story is finished, failed or abandoned), and can be
-# killed. They are recreated at full health for each fight, like companions. Rules for how they act in a camp:
+# A hire is paid once, stays until you part ways (or they die or quit), joins every fight, and grows with you at half your pace, up
+# to the top of their guild rank; a promotion lifts the ceiling. They carry their wounds between fights and mend with time. They
+# roll a manner, a want and a line they will not cross, and trust you more or less as you treat them. Rules for how they act in a camp:
 #   - Moving as a group is loud: each member who is not a scout costs the party's sneak and ambush checks (members told to hold
 #     back cost nothing, and come running when the alarm goes up).
 #   - A group of armed people helps a threat and hurts a bluff.
@@ -12,8 +13,11 @@ roster_days: 7                # the guild's list of free adventurers changes eve
 level_share: [0.42, 0.58]     # a hireling's level, of the player's
 veteran_chance: 0.2           # each free adventurer may be a veteran, much closer to your level
 veteran_share: [0.70, 0.90]   # a veteran's level, of the player's
-fee_share: 0.60               # of one contract's coin reward at the player's rank, before the role and level factors
-fee_power: 2.0                # fee grows with (hireling level / your level) to this power, so stronger hirelings cost much more
+hire_base: 500                # what an F-rank fighter costs to hire, in copper (5 silver); every rank above costs rank_step times the one below
+rank_step: 4
+level_pace: 0.5               # a hire gains this many levels for each level you gain, until the top of their rank band
+heal_minutes: 480             # a hurt hire is fully mended after this long
+death_when_down: 0.5          # a hire who goes down in a fight dies this often; otherwise they are carried out alive and hurt
 hold_arrival_round: 3         # a party told to hold back reaches the fight on this round
 
 stealth:
@@ -39,3 +43,60 @@ profiles:
 names:
   first: [Marta, Joren, Kessa, Doran, Ilsa, Bram, Tavi, Hollis, Rue, Garrick, Sable, Odo, Wren, Corvin, Maelis, Thane, Perrin, Yara, Brannoch, Nessa]
   last: [Voss, Ashgrove, Thornwick, Harl, Dunmere, Fell, Quill, Stonebrook, Marrow, Greaves, Holloway, Crane, Venn, Ironside, Latch]
+
+# Bond: how much a hire has come to trust you. It starts from their temperament, rises as you fight side by side, and falls when you
+# leave them hurt. Low bond brings a warning, then they go.
+bond:
+  start: 15
+  tiers: [[-999, cold], [0, hired hand], [30, trusted], [60, devoted]]
+  # How each tier is with the player, in every reply. A hire never walks out over trust; one the player has let down goes cold instead,
+  # and warms again as trust is earned back.
+  regard:
+    cold: "they have let you down, and you have stopped expecting better: you do the work you are paid for, answer short, offer nothing of your own, and warm to them again only if they earn it"
+    hired hand: "they are the one paying; you owe them your sword and nothing more yet"
+    trusted: "you have come to trust them, and would say so if asked"
+    devoted: "you would follow them into most things, and they know it"
+  win: 1                      # each fight won together
+  hard_win: 1                 # extra when the foe was at your level or above
+  battered: -2                # a fight that leaves them under battered_below of their health
+  battered_below: 0.25
+  promote: 5
+  warn_at: 0                  # at or below this: a warning
+  promote_needs: trusted      # tier a hire must reach before they ask to be promoted
+  promote_fights: 6           # and the fights won together since their last rank
+
+# A temperament says how a person decides and reacts. It is never a subject they keep returning to: the scene supplies what is talked about.
+temperaments:
+  blunt:      {say: "answers plainly and does not soften bad news; finds hints and hedging a waste of breath", start: 0, quip: "Say it straight, then."}
+  cheerful:   {say: "takes setbacks lightly and would rather lift a mood than dwell on a problem", start: 8, quip: "Could be worse. Could be raining."}
+  wary:       {say: "slow to trust, quick to notice a change in tone, and keeps their own counsel until sure", start: -6, quip: "Keep your voice down."}
+  proud:      {say: "expects to be treated as a professional and bristles at being ordered about or pitied", start: -3, quip: "I have been asked worse by worse people."}
+  gentle:     {say: "patient with people, and the first to notice when someone is hurt or uncomfortable", start: 6, quip: "Mind yourself out there."}
+  mercenary:  {say: "practical about pay and risk, expects agreements kept, and does not pretend otherwise", start: -4, quip: "Does this come out of my fee?"}
+  devout:     {say: "quietly faithful; their beliefs shape what they will and will not do, but they rarely preach", start: 3, quip: "The road keeps those who keep faith."}
+  dry:        {say: "understates everything and finds the humour in inconvenience", start: 2, quip: "Of course."}
+
+motives:
+  coin:       "wants coin enough to stop living by the contract"
+  glory:      "wants a name that bards will remember"
+  revenge:    "is looking for the one who wronged them and has not found them yet"
+  atonement:  "left something undone once and wants to make up for it"
+  protect:    "keeps someone safe back home, and works to keep them so"
+  wander:     "wants to see the far places on the map before they are too old"
+  rank:       "wants to earn the next guild rank and be taken seriously"
+
+lines:
+  - "will not strike a foe who has yielded"
+  - "will not take from the poor"
+  - "will not leave anyone behind in a fight"
+  - "will not lie to someone who has been honest with them"
+  - "will not fight against a priest's temple"
+  - "will not kill what has not first attacked them"
+
+# (f325) How the narrator frames a companion's words with what they do as they speak (scenes/party_actions.companion_show), as it does
+# Maren's and the townsfolk's; and how an exchange among the party is opened and closed (scenes/banter_actions.show_exchange).
+frame:
+  talk: "one or two short sentences before, at most one after: only small things they do as they speak (a look, a shift of weight, a hand on a strap, a glance at the road). They do not touch the player or anything of theirs, hand anything over, go anywhere, or do anything that changes the scene; never their words or their meaning"
+  fight: "one short sentence before, nothing after: what they are doing in the press of the fight as they say it - a parry, a step, a look thrown over a shoulder. Nothing that changes the fight"
+  exchange: "one or two sentences before: how they fall into talking, where they are, what they are doing with their hands; one sentence after: how the talk ends or trails off. Nothing that changes the scene, and never any of their words"
+  exchange_fight: "one short sentence before, nothing after: the press of the fight around the words"

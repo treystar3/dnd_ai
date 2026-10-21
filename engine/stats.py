@@ -49,10 +49,26 @@ def check_allocation(values: dict[str, int]) -> str | None:
     return None
 
 
-def from_priorities(priorities: list[str]) -> dict[str, int]:
+EXTREME = ("everything", "all of it", "all in", "max", "limit", "as high as", "as far", "as much as")
+
+
+def wants_extreme(text: str) -> bool:
+    low = (text or "").lower()
+    return any(w in low for w in EXTREME)
+
+
+def from_priorities(priorities: list[str], extreme: bool = False) -> dict[str, int]:
     order = list(dict.fromkeys(p for p in priorities if p in STAT_NAMES))
     order += [s for s in STAT_NAMES if s not in order]
-    return dict(zip(order, PRIORITY_TEMPLATE))
+    values = list(PRIORITY_TEMPLATE)
+    if extreme and values[0] < CAP:           # 'as far past the limit as possible' means the cap, taking the points from the others
+        extra = CAP - values[0]
+        values[0] = CAP
+        for i in range(len(values) - 1, 0, -1):
+            take = min(extra, values[i] - BASE)
+            values[i] -= take
+            extra -= take
+    return dict(zip(order, values))
 
 
 def gear_attributes(c) -> dict[str, int]:

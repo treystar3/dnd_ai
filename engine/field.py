@@ -107,9 +107,16 @@ def outside_text(a) -> str:
     """What the ability does outside combat, as a short sentence - empty for combat-only abilities."""
     if a.context.value == "combat" or in_combat_function(a.field_use):
         return ""
+    if a.field_use == "treat":                          # with its own numbers (f250)
+        T, t = F["treat"], a.tier.value
+        return (f"Treat - spend {T['minutes']} minutes tending wounds: you heal {T['heal_percent'][t]}% of your health and recover "
+                f"{T['stamina_percent'][t]}% of your stamina, and any companion that fell in a fight is back on its feet")
     if a.field_use in F["functions"]:
         return f"{F['functions'][a.field_use]['label'].capitalize()} - {F['functions'][a.field_use]['blurb']}"
-    return {"healing": "Heal - closes your wounds between fights", "crafting": "Craft - improves the next thing you make",
+    if a.effect.value == "healing":
+        from engine import healing
+        return healing.outside_text(a).capitalize()
+    return {"crafting": "Craft - improves the next thing you make",
             "summon": "Summon - calls your companion to your side"}.get(a.effect.value, "")
 
 

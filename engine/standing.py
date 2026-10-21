@@ -138,17 +138,23 @@ def arrivals(store, world, player, town: str, now: int, day: int) -> list[tuple[
     state = store.load_world_state() or {}
     changes: dict[str, float] = {}
     live = set()
+    from engine import world_perks
+    c = getattr(player, "character", None)
+    if world_perks.unseen(c):
+        return []                                        # Nobody: the news is told, but never of the face in front of them
     for entry in state.get("news", []):
         deed = entry.get("deed")
         if not deed:
             continue
         live.add(deed["id"])
         seen = player.standing_seen.setdefault(deed["id"], {})
-        if town in seen or not reached(world, entry, town, now):
+        famous = world_perks.famous_here(c, world, entry["origin"], town)
+        if town in seen or not (famous or reached(world, entry, town, now)):
             continue
         heard = set(entry["groups"])
-        mult = far_factor(world, entry, town) * deed["weight"] * (SP["twist_factor"] if deed["twisted"] else 1)
-        exact = far_factor(world, entry, town) * deed["weight"]
+        near = 1.0 if famous else far_factor(world, entry, town)
+        mult = near * deed["weight"] * (SP["twist_factor"] if deed["twisted"] else 1)
+        exact = near * deed["weight"]
         applied = {}
         for group, delta in DEEDS[deed["kind"]]["deltas"].items():
             if "everyone" not in heard and group not in heard:

@@ -80,7 +80,13 @@ class Place(BaseModel):
     stations: dict[str, dict] = {}
     x: float | None = None    # optional position on the map, 0-1000 (engine/mapview.py draws a true map once places have them)
     y: float | None = None
+    hide_max: bool = False    # the map shows only the lower level bound ("60 - ?"): the upper bound stays a mystery
     origin: str = ""          # for made-up places: the story of why someone is here, given to the resident generator
+    scale: str = ""           # (f313) how big and busy: hamlet | village | town | city | capital; by type when empty (data/rules/truth.yaml)
+    crowd: dict[str, str] = {}    # (f313) this place's own crowd lines by time: {market, easing, quiet, empty}; the scale's when empty
+    guard: str = ""           # (f313) how much of the watch is about: none | light | some | heavy; by scale when empty
+    districts: list[str] = []     # (f313) named quarters people can direct you to ("the river market"); the town profiles fill these
+    audience: dict = {}           # (f320) {keeper: role, sees: [roles], reputation?}: the people of those roles are met here only when admitted (engine/court.py)
 
     @field_validator("connects", mode="before")
     @classmethod
@@ -135,6 +141,41 @@ class Pressure(BaseModel):
     reward: list[str] = []                       # grand reward hints: any of item, deed, mount, title
 
 
+class Landmark(BaseModel):
+    name: str
+    where: str                                   # the place it stands at (one of the town's)
+    note: str = ""
+
+
+class Anchor(BaseModel):
+    role: str                                    # a resident role of one of the town's places
+    name: str = ""                               # given, or left for the maker (build 4)
+    note: str = ""
+
+
+class Festival(BaseModel):
+    name: str
+    season: str
+    day: int
+    days: int = 1
+
+
+class Town(BaseModel):
+    """A town's profile (f316, data/world/towns/<id>.yaml): its character, its named things, what is wrong underneath, its calendar, and
+    how big and busy it is. id is the id of its top place. engine/towns.py reads it; the truth layer hands out the parts."""
+    id: str
+    character: str = ""
+    landmarks: list[Landmark] = []
+    districts: list[str] = []
+    anchors: list[Anchor] = []
+    trouble: list[str] = []
+    secret: str = ""
+    festivals: list[Festival] = []
+    scale: str = ""
+    crowd: dict[str, str] = {}
+    guard: str = ""
+
+
 class Road(BaseModel):
     id: str
     name: str
@@ -159,6 +200,14 @@ class World(BaseModel):
     pressures: dict[str, Pressure]
     bestiary: dict[str, Creature]
     roads: dict[str, Road] = {}
+    towns: dict[str, Town] = {}                 # (f316) profiles, by the id of the town's top place; not every town has one
+
+    def town(self, place_id: str) -> Town | None:
+        """The profile of the town this place belongs to, if it has one."""
+        p = self.places.get(place_id)
+        while p and p.parent and p.parent in self.places:
+            p = self.places[p.parent]
+        return self.towns.get(p.id) if p else None
 
     def road_between(self, a: str, b: str) -> Road | None:
         return next((r for r in self.roads.values() if {r.from_, r.to} == {a, b}), None)
@@ -320,6 +369,13 @@ def _check_references(w: dict, problems: list[str]) -> None:
         for role in p.residents:
             if role not in w["roles"]:
                 problems.append(f"places.yaml {p.id}: resident role '{role}' is not in roles.yaml")
+        if p.audience:
+            keeper = p.audience.get("keeper", "")
+            if keeper not in p.residents:
+                problems.append(f"places.yaml {p.id}: audience keeper '{keeper}' is not a resident here")
+            for role in p.audience.get("sees", []):
+                if role not in p.residents:
+                    problems.append(f"places.yaml {p.id}: audience sees '{role}', who is not a resident here")
         if p.residents and not any(q.peoples for q in _chain(places, p)):
             problems.append(f"places.yaml {p.id}: has residents but no peoples mix (here or in a parent)")
         seen, current = set(), p
@@ -399,6 +455,7 @@ def load_world(world_dir: Path = WORLD_DIR) -> World:
         "pressures": _load_list(world_dir / "pressures.yaml", Pressure, problems),
         "bestiary": _load_list(world_dir / "bestiary.yaml", Creature, problems),
         "roads": _load_list(world_dir / "roads.yaml", Road, problems) if (world_dir / "roads.yaml").exists() else {},
+        "towns": _load_towns(world_dir / "towns", problems),
     }
     for key in ("name", "start_location"):
         if not w[key]:
@@ -409,6 +466,80 @@ def load_world(world_dir: Path = WORLD_DIR) -> World:
             for end in (r.from_, r.to):
                 if end not in w["places"]:
                     problems.append(f"roads.yaml {r.id}: '{end}' is not a place")
+        _check_towns(w, problems)
     if problems:
         raise WorldError(problems)
     return World(**w)
+
+
+def _load_towns(folder: Path, problems: list[str]) -> dict:
+    """One profile per file under data/world/towns/."""
+    out = {}
+    if not folder.exists():
+        return out
+    for path in sorted(folder.glob("*.yaml")):
+        raw = _read_yaml(path, problems)
+        if raw is None:
+            continue
+        if not isinstance(raw, dict):
+            problems.append(f"towns/{path.name}: should be one town's profile (a mapping starting with 'id:')")
+            continue
+        try:
+            t = Town(**raw)
+        except (ValidationError, TypeError) as e:
+            details = e.errors() if isinstance(e, ValidationError) else [{"loc": (), "msg": str(e)}]
+            for err in details:
+                problems.append(f"towns/{path.name}: {'.'.join(str(x) for x in err['loc']) or 'entry'}: {err['msg']}")
+            continue
+        if t.id != path.stem:
+            problems.append(f"towns/{path.name}: id '{t.id}' should match the file name")
+        out[t.id] = t
+    return out
+
+
+def _check_towns(w: dict, problems: list[str]) -> None:
+    """A profile must fit the map: its id a top place, its landmarks at the town's places, its anchors roles the town has, its scale and
+    guard words the truth layer knows, its festivals on the calendar. What it says about crowd and scale is then written onto the place,
+    which stays the one thing the engine reads."""
+    import yaml as _y
+    truth = _y.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+    pulse = _y.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
+    scales, guards, slots = set(truth["crowd"]), set(truth["guard_lines"]), set(truth["periods"].values())
+    seasons, days_each = pulse["seasons"]["order"], pulse["seasons"]["days_each"]
+    places = w["places"]
+    for t in w["towns"].values():
+        tag = f"towns/{t.id}.yaml"
+        top = places.get(t.id)
+        if top is None or top.parent:
+            problems.append(f"{tag}: '{t.id}' is not a town (a place with no parent) in places.yaml")
+            continue
+        mine = {pid for pid, p in places.items() if _chain(places, p)[-1].id == t.id}
+        roles_here = {r for pid in mine for r in places[pid].residents}
+        for l in t.landmarks:
+            if l.where not in mine:
+                problems.append(f"{tag}: landmark '{l.name}' is at '{l.where}', which is not a place of {top.name}")
+        for a in t.anchors:
+            if a.role not in w["roles"]:
+                problems.append(f"{tag}: anchor role '{a.role}' is not in roles.yaml")
+            elif a.role not in roles_here:
+                problems.append(f"{tag}: anchor role '{a.role}' is not a resident of any place of {top.name}")
+        if t.scale and t.scale not in scales:
+            problems.append(f"{tag}: scale '{t.scale}' is not one of {', '.join(sorted(scales))}")
+        if t.guard and t.guard not in guards:
+            problems.append(f"{tag}: guard '{t.guard}' is not one of {', '.join(sorted(guards))}")
+        for k in t.crowd:
+            if k not in slots:
+                problems.append(f"{tag}: crowd line '{k}' is not a time of day ({', '.join(sorted(slots))})")
+        for f in t.festivals:
+            if f.season not in seasons:
+                problems.append(f"{tag}: festival '{f.name}' is in '{f.season}', not a season ({', '.join(seasons)})")
+            if not 1 <= f.day <= days_each:
+                problems.append(f"{tag}: festival '{f.name}' is on day {f.day}; a season has {days_each} days")
+            if f.days < 1:
+                problems.append(f"{tag}: festival '{f.name}' lasts {f.days} days")
+        if problems:
+            continue
+        top.scale = t.scale or top.scale
+        top.guard = t.guard or top.guard
+        top.crowd = dict(t.crowd) or top.crowd
+        top.districts = list(t.districts) or top.districts

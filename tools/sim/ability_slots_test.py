@@ -14,7 +14,8 @@ def check(n, ok, x=""):
 
 def interp(arch, fams, focus="balanced", pack=False, constraints=()):
     return ClassInterpretation(archetype=Archetype(arch), custom_class="X", combat_identity="x", themes=["spear", "sky"], summary="x",
-                               families=list(fams), focus=focus, uses_companions=pack, constraints=list(constraints))
+                               families=list(fams), focus=focus, uses_companions=pack, constraints=list(constraints),
+                               summoner=pack and bool(set(fams) & {"summoner", "necromancer"}))    # a conjurer makes summons; a tamer keeps companions
 CLASSES = [("warrior", ["warrior"], "combat", False, []), ("warrior", ["warrior", "paladin"], "balanced", False, []),
            ("mage", ["mage"], "combat", False, []), ("mage", ["mage", "warlock"], "social", False, []),
            ("rogue", ["rogue"], "balanced", False, []), ("rogue", ["rogue", "bard"], "social", False, []),
@@ -39,8 +40,16 @@ for arch, fams, focus, pack, cons in CLASSES:
         if len(slots) != 15 or sorted(s["n"] for s in slots) != list(range(1, 16)): bad_("15 numbered slots"); continue
         riders = [s["rider"] for s in slots if s["rider"]]; shapes = [s["shape"] for s in slots if s["shape"]]
         if len(set(riders)) != len(riders) or len(set(shapes)) != len(shapes): bad_("a rider or shape repeated")
-        if len(set(riders)) < min(3, len(offers["riders"])): bad_("fewer than 3 riders")
-        if len(set(shapes)) < min(2, len(offers["shapes"])): bad_("fewer than 2 shapes")
+        n_expr = sum(1 for s in slots if (s.get("expressions") or s.get("maneuver")) and s["effect"] in ("damage", "control"))
+        if len(set(riders)) + n_expr < min(3, len(offers["riders"])): bad_("fewer than 3 riders or expressions")
+        if any(s["rider"] and s.get("expressions") and s["effect"] in ("damage", "control") for s in slots): bad_("rider beside an expression")
+        _SC, _EL = __import__("engine.spellcraft", fromlist=["x"]), __import__("engine.elements", fromlist=["x"])
+        if any(e and _SC.EXPR[e]["element"] not in [s.get("element")] + _EL.neighbors(s.get("element")) for s in slots for e in s.get("expressions") or []):
+            bad_("expression from beyond the element's neighbors (f266)")
+        n_forms = sum(1 for s in slots if s.get("martial_form") in ("flurry", "sweep"))       # an old multi-hit or sweeping shape became a form (f233)
+        if len(set(shapes)) + n_forms < min(2, len(offers["shapes"])): bad_("fewer than 2 shapes")
+        if any(s.get("martial_form") == "flurry" and not (2 <= s["hits"] <= 6) for s in slots): bad_("flurry hits out of range")
+        if any(s.get("resource") == "stamina" and not s.get("channel") and s["effect"] in ("damage", "control") and s["rider"] for s in slots): bad_("a technique with a chance rider")
         if sum(1 for s in slots if s["rider"] or s["shape"]) > AT.T["max_decorated"]: bad_("over decorated")
         if any(s["rider"] and s["shape"] for s in slots): bad_("rider and shape together")
         buffs = [s for s in slots if s["effect"] == "buff"]
@@ -60,8 +69,10 @@ for arch, fams, focus, pack, cons in CLASSES:
             if s["effect"] == "damage" and not s["field_use"] and s["context"] != "combat": bad_("damage out of combat")
         forb = AS.forbidden_reach(ic)
         if any(s["reach"] in forb for s in slots if s["effect"] in ("damage", "control")): bad_("constraint reach broken")
+        if ic.summoner and sum(s.get("summon_form") == "bound" for s in slots) != 1: bad_("summoner without exactly one Bound summon")
+        if not ic.summoner and any(s["effect"] == "summon" for s in slots): bad_("summons for a class that does not make them")
         if pack:
-            if sum(s["effect"] == "summon" for s in slots) < 2: bad_("companion class without 2 summons")
+            if sum(s["effect"] == "command" for s in slots) < 1: bad_("companion class without commands")
             cm = [s["command"] for s in slots if s["effect"] == "command"]
             if len(cm) != len(set(cm)) or not cm: bad_("commands")
         else:
@@ -69,9 +80,9 @@ for arch, fams, focus, pack, cons in CLASSES:
         if arch == "support" and not any(s["effect"] == "healing" for s in slots): bad_("healer without healing")
         if sum(s["effect"] == "damage" for s in slots) < 1: bad_("no damage at all")
         if any(s["effect"] == "damage" for s in slots) and not pack and sum(s["effect"] == "damage" for s in slots) < 2: bad_("one damage")
-        if arch == "warrior" and not [f for f in fams if f in ("paladin", "druid", "ranger")] and any(s["resource"] == "mana" and not s["channel"] for s in slots): bad_("warrior with mana")
+        if arch == "warrior" and not [f for f in fams if f in ("paladin", "druid", "ranger")] and any(s["resource"] == "mana" and not s["channel"] and s["effect"] != "buff" for s in slots): bad_("warrior with mana")
         if any(s["channel"] and not (s["effect"] == "damage" and s["resource"] == "mana" and s["reach"] in ("melee", "extended")) for s in slots): bad_("a channeled slot that is not a melee mana strike")
-        chan[(arch, tuple(fams))] += sum(1 for s in slots if s["channel"]); chan_runs[(arch, tuple(fams))] += 1
+        chan[(arch, tuple(fams), pack)] += sum(1 for s in slots if s["channel"]); chan_runs[(arch, tuple(fams), pack)] += 1
         if arch == "mage" and any(s["resource"] == "stamina" for s in slots) and not pack: bad_("mage with stamina")
         # the whole thing builds through the existing validator
         props = []
@@ -82,9 +93,10 @@ for arch, fams, focus, pack, cons in CLASSES:
             if s["effect"] == "summon": kw["summons"] = dict(name="C", description="d", kind="beast", role="striker")
             props.append(kw)
         try:
-            res = ActiveSet.model_validate({"skills": props}, context={"uses_companions": pack, "min_noncombat": minimum, "offers": offers})
+            res = ActiveSet.model_validate({"skills": props}, context={"uses_companions": pack, "summoner": ic.summoner, "min_noncombat": minimum, "offers": offers, "planned": True})
             got = [(p.effect.value, p.rider, p.shape, p.buff, p.field_use, p.reach.value, p.context.value) for p in res.skills]
             want = [(s["effect"], s["rider"], s["shape"], s["buff"], s["field_use"], s["reach"], s["context"]) for s in slots]
+            # a planned set goes through untouched (f249): the old validator no longer adds riders or shapes of its own
             if got != want:
                 bad_("validator changed the plan")
                 if problems["validator changed the plan"] <= 3:
@@ -94,10 +106,48 @@ for arch, fams, focus, pack, cons in CLASSES:
             bad_("validator rejected the plan: " + str(e)[:150])
 for k in sorted(chan):
     print("   channeled per character", k, round(chan[k] / chan_runs[k], 2))
-hy = [chan[k] / chan_runs[k] for k in chan if set(k[1]) & set(AS.P["hybrid_families"])]
-ot = [chan[k] / chan_runs[k] for k in chan if not set(k[1]) & set(AS.P["hybrid_families"])]
-check("every hybrid class gets a channeled attack on average", all(v >= 1 for v in hy), hy)
-check("other classes get one rarely", all(v < 0.5 for v in ot), ot)
+fighter_k = lambda k: k[0] in ("warrior", "rogue") and not k[2]
+hy = [chan[k] / chan_runs[k] for k in chan if fighter_k(k) and set(k[1]) & set(AS.P["hybrid_families"])]
+ot = [chan[k] / chan_runs[k] for k in chan if not (fighter_k(k) and set(k[1]) & set(AS.P["hybrid_families"]))]
+check("every hybrid fighter gets a channeled attack on average", all(v >= 1 for v in hy), hy)
+check("casters, tamers and plain fighters never get one (f249, f260: a channeled strike needs a melee weapon)", all(v == 0 for v in ot), ot)
+odd = collections.Counter()
+for arch, fams, focus, pack, cons in CLASSES:
+    ic = interp(arch, fams, focus, pack, cons)
+    for seed in range(40):
+        rng = random.Random(seed)
+        plan_ = AS.plan(ic, AT.draw_offers(ic, rng, min_functions=creation.MIN_NONCOMBAT_ACTIVES[focus]), creation.MIN_NONCOMBAT_ACTIVES[focus], rng)
+        ctl_ex = [e for s in plan_ if s["effect"] == "control" for e in s.get("expressions") or []]
+        if len(ctl_ex) != len(set(ctl_ex)): odd["two control spells that do the same thing"] += 1
+        for s in plan_:
+            if s.get("shape") == "chain" and s["resource"] == "stamina" and not s.get("channel"): odd["a technique that chains"] += 1
+            if s.get("shape") == "ricochet" and s["reach"] != "ranged": odd["ricochet not ranged"] += 1
+            if s.get("shape") == "cleave" and s["reach"] not in ("melee", "extended"): odd["cleave not melee"] += 1
+            if s.get("martial_form") == "counter" and s["reach"] not in ("melee", "extended"): odd["a counter at range"] += 1
+            from engine import martial as _MA
+            mr = (_MA.MANEUVERS.get(s.get("maneuver", "")) or {}).get("reach")
+            if mr and s["reach"] not in mr: odd[f"{s['maneuver']} at {s['reach']} reach"] += 1
+            if s.get("buff") == "bladeward" and arch in ("warrior", "rogue"): odd["Bladeward on a fighter"] += 1
+            if s.get("buff") in ("imbue", "envenom", "acidcoat") and arch not in ("warrior", "rogue"): odd["a weapon buff on a caster (f267)"] += 1
+check("techniques cleave or ricochet, never chain; counters and grabs are close; no Bladeward for fighters (f251)", not odd, dict(odd))
+# ---- a fighter with an element carries it in the weapon; a fighter with a casting family is a mixed class (f252)
+def _el(arch, fams, el):
+    return ClassInterpretation(archetype=Archetype(arch), custom_class="X", combat_identity="x", themes=["x"], summary="x",
+                               families=list(fams), focus="balanced", elements=list(el))
+short = collections.Counter()
+for name, ic in (("fire swordsman", _el("warrior", ["warrior"], ["fire"])), ("lightning samurai", _el("warrior", ["warrior", "mage"], ["lightning"])),
+                 ("venom rogue", _el("rogue", ["rogue"], ["poison"]))):
+    for seed in range(30):
+        rng = random.Random(seed)
+        offers = AT.draw_offers(ic, rng, min_functions=5)
+        sl = AS.plan(ic, offers, 5, rng)
+        if not any((s.get("buff") == "imbue" and s.get("element") in ic.elements) or AS.COATINGS.get(ic.elements[0]) == s.get("buff") for s in sl): short[f"{name}: no weapon buff of its element"] += 1
+        if not any(s.get("channel") and s.get("element") in ic.elements for s in sl): short[f"{name}: no channeled strike of its element"] += 1
+        if any(s.get("buff") == "frostarmor" for s in sl) and "cold" not in ic.elements: short[f"{name}: Frost Armor off its element"] += 1
+        if name == "lightning samurai" and not any(s["resource"] == "mana" and s["effect"] in ("damage", "control") and not s.get("channel") for s in sl):
+            short["lightning samurai: no spells of its own"] += 1
+        if any(b not in offers["buffs"] for b in (s.get("buff") for s in sl) if b): short[f"{name}: a buff not on offer"] += 1
+check("an elemental fighter gets its element through the weapon; a fighter with a casting family casts too", not short, dict(short))
 check(f"{runs} plans across {len(CLASSES)} class types are all valid", not problems, dict(problems))
 
 # ---- the whole pipeline with a faked model ----
@@ -145,7 +195,7 @@ for mode in ("good", "bad"):
         ok = len(set(names)) == 15
         mins = creation.MIN_NONCOMBAT_ACTIVES[focus]
         outside = sum(1 for a in abilities if a.context != UseContext.COMBAT)
-        ok = ok and outside >= mins and len({a.rider for a in abilities if a.rider}) >= 3 and len({a.shape for a in abilities if a.shape}) >= 2
+        ok = ok and outside >= mins and not any(a.rider and (a.maneuver or a.expressions) for a in abilities)   # nothing added on top of the plan (f249)
         if mode == "bad":
             ok = ok and ((len(calls) == 2 and calls[1][2] == 1) or len(calls) == 1)
         check(f"pipeline {mode} {arch}/{'+'.join(fams)}/{focus}", ok, str([(c[1], c[2]) for c in calls]))
@@ -160,7 +210,7 @@ def build(descs, strict=True):
     for o, s in zip(out, slots):
         if s["effect"] == "summon": o["summons"] = {"name": "P", "description": "d", "kind": "beast", "role": "striker"}
     return SlotNames.model_validate({"skills": out}, context={"slots": slots, "strict": strict})
-single = next(s for s in slots if s["effect"] == "damage" and not s["shape"] and s["reach"] != "area")
+single = next(s for s in slots if s["effect"] == "damage" and not s["shape"] and s["reach"] != "area" and s.get("martial_form") not in ("flurry", "sweep"))
 try:
     build({single["n"]: "A flurry of rapid blows."}); check("a flurry on a single-blow slot is refused", False)
 except ValueError as e:

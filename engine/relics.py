@@ -11,7 +11,8 @@ from engine import combat as C
 
 def _foes(combat, target):
     en = combat.enemies()
-    t = target if target and target.alive and target.side == "enemy" else (min(en, key=lambda e: C.BANDS.index(e.band)) if en else None)
+    from engine import battlefield as bf
+    t = target if target and target.alive and target.side == "enemy" else (bf.closest(combat, combat.player, en) if en else None)
     return t, en
 
 
@@ -31,7 +32,7 @@ def use(combat, att, move, target, rng: random.Random) -> str | None:
         C.apply_damage(combat, att, t, P["mult"] / 100, f"unleashes {name} on", rng, how=f"with {name}", can_cleave=False)
     elif kind == "mend":
         amount = round(att.max_hp * P["pct"] / 100)
-        att.hp = min(att.max_hp, att.hp + amount)
+        C.restore(combat, att, amount)
         att.statuses.pop("bleeding", None)
         C.tell(combat, f"wounds close on their own and the bleeding stops (+{amount} health)")
     elif kind == "barrier":
@@ -73,7 +74,7 @@ def use(combat, att, move, target, rng: random.Random) -> str | None:
         C.tell(combat, "it rolls out over the field and strikes every enemy: " + ", ".join(f"{C.who(e)} is {C.condition(e)}" for e in enemies))
     elif kind == "rally":
         for a in combat.allies():
-            a.hp = min(a.max_hp, a.hp + a.max_hp * P["pct"] / 100)
+            C.restore(combat, a, a.max_hp * P["pct"] / 100)
             if combat.enemies():
                 C.apply_damage(combat, a, min(combat.enemies(), key=lambda e: e.hp), 1.0, "strikes at the rally", rng, how="at the rallying cry")
         att.shield += att.max_hp * P["pct"] / 100

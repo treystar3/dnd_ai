@@ -80,7 +80,7 @@ check("opening events lose their tags", cs.TAG.sub("", "A wolf bites you. [h1]")
 # ---- pane data ----
 scene = cs.CombatScene(ws, fight, "wolf")
 d = scene.pane_data("even")
-check("pane lists the enemies with hp and band", all({"name", "hp", "max_hp", "band", "statuses"} <= set(e) for e in d["enemies"]) or not d["enemies"])
+check("pane lists the enemies with hp and where they stand", all({"name", "hp", "max_hp", "where", "statuses"} <= set(e) for e in d["enemies"]) or not d["enemies"])
 check("pane lists you with resources", {"hp", "max_hp", "stamina", "mana"} <= set(d["you"]))
 check("pane lists your abilities", len(d["moves"]) == len(fight.player.moves) and all({"name", "cost", "ready", "reason", "left"} <= set(m) for m in d["moves"]))
 if fight.player.moves:

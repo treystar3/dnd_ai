@@ -1,0 +1,25 @@
+# What the action interpreter is shown (engine/candidates.py): only what the player's words could be about, instead of the whole world.
+# A place or person the words name always goes in; the rest comes in by meaning, and only when it is close.
+most_places: 32              # the most places the interpreter is ever shown (this town, the ways out and what is in them, anything named, the closest by meaning)
+nearest_of_kind: 3           # "the smithy": the nearest places of a kind the words name, wherever they are
+places_by_meaning: 6         # how many places may come in by meaning alone
+place_floor: 0.45            # how close a place's name must be to the words to come in by meaning
+most_people: 8               # the most people met-and-elsewhere shown
+people_by_meaning: 3
+person_floor: 0.45
+about_floor: 0.45            # how close the words must be to one of the sentences below for that catalogue to be shown
+# One sentence per kind of catalogue: the words are compared to it by meaning. Nothing is matched on particular words.
+about:
+  wares:     "buying something that is for sale here, asking what is sold or what it costs, or shopping"
+  abilities: "using, casting or trying one of the character's own abilities or spells"
+  pack:      "handling an item they carry: using, equipping, wearing, wielding, drinking, eating, dropping, giving, showing or examining it"
+  recipes:   "crafting, cooking, brewing or making something from materials"
+  buyers:    "selling something they carry, or asking who would buy it"
+  stash:     "putting something into storage or taking it out of the item box"
+# A catalogue this short goes in whole whatever the words are
+always_if_short: 4
+# Words that name nothing on their own: a place is named by its other words ("the Blackpine inn" by "blackpine", not "inn")
+generic_words: [the, of, and, hall, house, guild, guildhall, inn, shop, temple, forge, smithy, market, square, tavern, workshop, yard, trading,
+                village, town, city, road, gate, north, south, east, west]
+# When the words name a town, which of its places come in with it (the ones a traveller would mean by the town's name)
+named_town_types: [city, town, village, guild, inn, market, square, shop, temple, smithy, yard]

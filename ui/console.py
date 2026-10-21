@@ -11,13 +11,21 @@ CONTEXT_LABEL = {"combat": "C", "out_of_combat": "O", "both": "B"}
 
 
 def say(text: str, speaker: str = "") -> None:
+    """Speech under the speaker's name. A paragraph wrapped in parentheses is what they do, not what they say: it is shown as narration,
+    between the spoken parts (f277)."""
+    paras = [p.strip() for p in text.strip().split("\n") if p.strip()]
     with kind("speech"):
         print()
         if speaker:
             print(f"  {speaker}:")
-        for para in text.strip().split("\n"):
-            if para.strip():
-                print(textwrap.fill(para.strip(), WIDTH, initial_indent="    ", subsequent_indent="    "))
+    for para in paras:
+        if para.startswith("(") and para.endswith(")") and para.count("(") == 1:
+            with kind("narration"):
+                print(textwrap.fill(para[1:-1].strip(), WIDTH, initial_indent="    ", subsequent_indent="    "))
+        else:
+            with kind("speech"):
+                print(textwrap.fill(para, WIDTH, initial_indent="    ", subsequent_indent="    "))
+    with kind("speech"):
         print()
 
 
@@ -64,6 +72,11 @@ def out(text: str = "") -> None:
 
 
 damage_tags = False        # the window sets this: it draws blow figures as hoverable tokens and keeps its own combat log
+
+
+def windowed() -> bool:
+    """Whether a window is drawing the game (the bridge sets damage_tags when it installs)."""
+    return damage_tags
 
 
 def combat_state(data: dict | None) -> bool:
@@ -119,15 +132,103 @@ def note(message: str) -> None:
         print(f"\n[{message}]")
 
 
+def ledger(message: str) -> None:
+    """(f325) A mechanical fact - coins, a contract's state, a thing taken, a check's result - kept out of the story's column. The terminal
+    shows it small; the GUI folds it into the ticker under the status strip, where it stays until the next line is typed."""
+    with kind("ledger"):
+        print(f"  · {message}")
+
+
 def show_class(interp) -> None:
     constraints = "; ".join(interp.constraints) or "none"
     print(f"\n[ {interp.custom_class} | {interp.archetype.value} | focus: {interp.focus} ]")
     print(f"[ {interp.combat_identity} | themes: {', '.join(interp.themes)} ]")
-    print(f"[ constraints: {constraints} | companions: {'yes' if interp.uses_companions else 'no'} ]")
+    print(f"[ constraints: {constraints} | companions: {'yes' if interp.uses_companions else 'no'} | summons: {'yes' if getattr(interp, 'summoner', False) else 'no'} ]")
+    if getattr(interp, "adapted", ""):
+        debug(f"adapted to this world: {interp.adapted}")         # (f264) shown only in debug mode
 
 
 CONTEXT_WORD = {"combat": "combat only", "out_of_combat": "outside combat", "both": "combat and outside"}
-RULE = "─" * WIDTH
+RULE = "─" * min(WIDTH, 92)
+
+
+KIND_WORD = {"damage": "", "control": "Control", "healing": "Healing", "buff": "Buff", "mobility": "Movement", "summon": "Summon",
+             "command": "Command", "utility": "Utility", "influence": "Influence", "crafting": "Crafting"}
+
+
+def damage_kind(a) -> str:
+    """What an attack's damage is (f265): its element if it has one, else physical for a weapon blow, magic for a spell, and
+    a channeled strike whichever the target resists less."""
+    if getattr(a, "element", ""):
+        return a.element
+    if a.channel:
+        return "physical or magic"
+    return "magic" if a.resource.value == "mana" else "physical"
+
+
+def ability_kind(a) -> str:
+    """What kind of ability it is, in a word or two (f262): a Spell or a Technique for an attack, a Channeled strike for both at once,
+    and the effect's own name for the rest."""
+    mana = a.resource.value == "mana"
+    if a.effect.value == "damage":
+        return "Channeled strike" if a.channel else ("Spell" if mana else "Technique")
+    if a.effect.value in ("control", "healing"):
+        return f"{KIND_WORD[a.effect.value]} {'spell' if mana else 'technique'}"
+    return KIND_WORD.get(a.effect.value, a.effect.value.capitalize())
+
+
+def _ability_facts(a, level: int) -> list[str]:
+    """What an ability is and costs, as the short facts that head its card."""
+    from engine import ability_traits as at, pools
+    from engine.combat import RULES as COMBAT
+    table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
+    price = max(1, round(pools.reference_pool(a.resource.value, level) * COMBAT[table][a.tier.value] / 100))
+    if a.effect.value == "buff":
+        price = max(1, round(price * at.T["buff_cost"]))
+    if a.shape == "overcharge":
+        price = round(price * at.SHAPES["overcharge"]["cost"])
+    body = 0
+    if a.channel:                                     # (f260) a technique's stamina plus half a spell's mana
+        price = max(1, round(price * COMBAT["channel"]["cost"]))
+        body = max(1, round(pools.reference_pool("stamina", level) * COMBAT["stamina_cost_percent"][a.tier.value] / 100 * COMBAT["channel"]["stamina"]))
+    if a.reach.value != "self":
+        where = f"{a.reach.value.capitalize()} reach"
+    elif a.effect.value == "buff":                    # (f253) Mana Shield is your own; the rest can go on an ally
+        where = "On you or allies" if at.BUFFS.get(a.buff, {}).get("allies", True) else "On yourself"
+    else:
+        where = ""                                    # a movement, summon, command or world ability: "on yourself" says nothing
+    facts = [ability_kind(a)] + ([where] if where else []) + [f"{price} {a.resource.value}"]
+    if a.resource.value == "mana":
+        facts[-1] += f" ({(a.attribute or 'casting')[:3].upper()})" if a.attribute else ""
+    if body:
+        facts[-1] = f"{body} stamina + {facts[-1]}"
+    if a.cooldown:
+        facts.append(f"cooldown {a.cooldown}")
+    if a.effect.value == "damage":                    # (f262) how hard it hits, against what it scales from
+        pct = round((a.power or COMBAT["damage"]["multiplier"][a.tier.value]) * 100)
+        facts.append(f"deals {pct}% of {'spell' if a.resource.value == 'mana' and not a.channel else 'weapon'} damage as {damage_kind(a)} damage")
+    facts.append(CONTEXT_WORD[a.context.value])
+    return facts
+
+
+def ability_tip(a, level: int = 1) -> list[list[str]]:
+    """An ability as hover lines [class, text]: its name, what it is and costs, what it looks like, what makes it special, and what it does."""
+    from engine import ability_traits as at, field
+    out = [["h", a.name], ["dim", " · ".join(_ability_facts(a, level))], ["", a.description]]
+    out += [["", f"✦ {label}: {text}"] for label, text in at.parts(a)]
+    fight = field.fight_text(a)
+    if fight:
+        out.append(["", f"⚔ In a fight: {fight}"])
+    outside = field.outside_text(a)
+    if outside:
+        out.append(["", f"☼ Outside combat: {outside}"])
+    if a.summon_form:
+        out.append(["", f"⚑ {summon_text(a)}"])
+    return out
+
+
+def passive_tip(p) -> list[list[str]]:
+    return [["h", p.name], ["", p.effect_text()], ["dim", p.description]]
 
 
 def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) -> list[str]:
@@ -136,22 +237,9 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
     from engine.combat import RULES as COMBAT
     pad = " " * indent
     body = pad + " " * (5 if index is not None else 2)
-    table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
-    price = max(1, round(pools.reference_pool(a.resource.value, level) * COMBAT[table][a.tier.value] / 100))
-    if a.effect.value == "buff":
-        price = max(1, round(price * at.T["buff_cost"]))
-    if a.shape == "overcharge":
-        price = round(price * at.SHAPES["overcharge"]["cost"])
-    if a.channel:
-        price = round(price * COMBAT["channel"]["cost"])
     head = f"{pad}{index:>2}.  " if index is not None else f"{pad}◆ "
     lines = [f"{head}{a.name}"]
-    facts = [f"{a.tier.value} {a.effect.value}", ("on you or allies" if a.effect.value == "buff" else "on yourself") if a.reach.value == "self" else f"{a.reach.value} reach", f"{price} {a.resource.value}"]
-    if a.resource.value == "mana":
-        facts[-1] += f" ({(a.attribute or 'casting')[:3].upper()})" if a.attribute else ""
-    if a.cooldown:
-        facts.append(f"cooldown {a.cooldown}")
-    facts.append(CONTEXT_WORD[a.context.value])
+    facts = _ability_facts(a, level)
     lines.append(body + " · ".join(facts))
     lines += textwrap.wrap(a.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)
     for label, text in at.parts(a):
@@ -162,18 +250,22 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
     out = field.outside_text(a)
     if out:
         lines += textwrap.wrap(f"☼ Outside combat: {out}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
-    if a.companion:
-        c = a.companion
-        sp = COMBAT["creatures"]["spirit"]
-        r = sp["role"].get(c.role.value, {"health": 1, "damage": 1})
-        article = "an" if c.kind.value[:1] in "aeiou" else "a"
-        feel = {"striker": "hits hard", "guardian": "sturdy, hits softly", "rogue": "quick, bleeds what it hits", "healer": "mends you and your allies", "support": "bolsters your allies' strikes"}.get(c.role.value, "")
-        lines += textwrap.wrap(f"⚑ Calls {c.name}, {article} {c.kind.value} {c.role.value} - {c.description}", WIDTH - len(body),
-                               initial_indent=body, subsequent_indent=body + "  ")
-        lines += textwrap.wrap(f"  {sp['size'][a.tier.value]} size ({a.tier.value} tier) · {c.role.value}: {feel} "
-                               f"({r['health']:g}× health, {r['damage']:g}× damage) · grows with your level",
-                               WIDTH - len(body), initial_indent=body, subsequent_indent=body + "    ")
+    if a.summon_form:
+        lines += textwrap.wrap(f"⚑ {summon_text(a)}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
     return lines
+
+
+def summon_text(a) -> str:
+    """What a summon ability makes, in the engine's terms (engine/summons.py)."""
+    from engine import summons
+    spec = summons.FORMS.get(a.summon_form, {})
+    tier = a.tier.value
+    hp = summons.S["health"][tier] * spec.get("health", 1)
+    who = a.summoned.name if a.summoned else "a summon"
+    last = "stays with you between fights (your Bound summon - one at a time)" if a.summon_form == "bound" else \
+        f"lasts {summons.S['rounds'][tier]} rounds"
+    el = f" · {a.element}" if getattr(a, "element", "") else ""
+    return f"Makes {who} - {a.summon_form}: {spec.get('depict', '')} · {hp:g}% of your health · {last}{el}"
 
 
 def show_actives(abilities, level: int = 1) -> None:
@@ -191,19 +283,28 @@ def show_lessons(options, level: int = 1) -> None:
         if isinstance(o, Passive):
             body = " " * 7
             print(f"  {i:>2}.  ◇ {o.name}")
-            print(body + f"{o.tier.value} passive trait · {o.effect_text()}")
+            print(body + f"passive trait · {o.effect_text()}")
             print("\n".join(textwrap.wrap(o.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)))
         else:
             print("\n".join(ability_lines(o, level, i)))
         print()
 
 
+def passive_lines(p, index: int, indent: int = 2) -> list[str]:
+    """One passive trait as a small card, laid out like an ability's: name, what kind it is, what it looks like, what it does (f250)."""
+    pad = " " * indent
+    body = pad + " " * 5
+    lines = [f"{pad}{index:>2}.  {p.name}"]
+    lines += textwrap.wrap(p.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)
+    lines += textwrap.wrap(f"✦ {p.effect_text()}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
+    return lines
+
+
 def show_passives(passives) -> None:
-    print("\nPASSIVE TRAITS   (◆ = changes how something works)")
+    print(f"\n{RULE}\n PASSIVE TRAITS\n{RULE}")
     for i, p in enumerate(passives, 1):
-        mark = "◆" if p.mechanic else " "
-        print(f"{i:>2}. {mark} {p.name:<28} {p.effect_text()}")
-        print(f"      {p.description}")
+        print("\n".join(passive_lines(p, i)))
+        print()
 
 
 def show_stat_rules(guidance: list[str] = ()) -> None:
@@ -228,27 +329,35 @@ def _section(title: str) -> None:
 
 def _bar(now: int, top: int, width: int = 20) -> str:
     filled = round(width * now / top) if top else 0
+    if top and now > 0:
+        filled = max(1, filled)                    # a sliver of health still shows as a sliver
     return "█" * filled + "░" * (width - filled)
 
 
+SLOT_ORDER = ("main_hand", "off_hand", "head", "body", "hands", "feet", "neck", "ring")
+
+
+def _slot_rank(slot: str) -> tuple:
+    base = slot.rstrip("_0123456789")
+    return (SLOT_ORDER.index(base) if base in SLOT_ORDER else len(SLOT_ORDER), slot)
+
+
 ATTR_MARK = "@@ATTRIBUTES@@"
+ABIL_MARK = "@@ABILITIES@@"
+EQUIP_MARK = "@@EQUIPMENT@@"
 
 
 def show_player_block(character, location_name: str, time_label: str, vitals: list[tuple[str, int, int]]) -> None:
     c = character
-    print("\n" + "═" * WIDTH)
+    print("\n" + "═" * min(WIDTH, 92))
     print(f"  {c.name.upper()} · {c.custom_class} ({c.archetype.value}) · Level {c.level}")
     print(f"  {time_label} · {location_name}")
-    print("═" * WIDTH)
+    print("═" * min(WIDTH, 92))
 
     _section("CONDITION")
     for name, now, top in vitals:
         print(f"  {name.capitalize():<8} {_bar(now, top)} {now}/{top}")
 
-    from engine import combat as _combat
-    prof = _combat.crit_profile(_combat.fighter_from_character(c))
-    spread = f"{prof['chance']:g}%" if prof["most"] == prof["chance"] else f"{prof['chance']:g}% (up to {prof['most']:g}% with more Dexterity than your target)"
-    print(f"  Crit     {spread} chance · {prof['multiplier']:g}× damage")
     from engine import needs as _needs
     cost = _needs.penalties(c)
     if cost["checks"] or cost["stamina"] or cost["health"] or cost["damage"]:
@@ -260,7 +369,16 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
     if getattr(c, "primary_attributes", None):
         extra.append(f"main attributes for your class: {', '.join(a[:3].upper() for a in c.primary_attributes)}")
     attrs = [{"key": k, "label": k[:3].upper(), "value": stats.effective(c, k, gear), "bonus": gear.get(k) or 0} for k in stats.STAT_NAMES]
-    if panel("character", {"attrs": attrs, "points": c.unspent_points, "extra": extra}):
+    from engine import loadout
+    brought = {a.id for a in loadout.prepared(c)}
+    windowed = panel("character", {"attrs": attrs, "points": c.unspent_points, "extra": extra,
+                                   "abilities": [{"name": a.name + ("" if a.id in brought else " (in book)"), "tip": ability_tip(a, c.level),
+                                                  "brought": a.id in brought} for a in c.actives],
+                                   "passives": [{"name": p.name, "tip": passive_tip(p)} for p in c.passives],
+                                   "worn": [{"slot": slot.replace("_", " "), "name": items.display_name(item), "detail": items.summary(item),
+                                             "rarity": item.rarity, "legendary": item.rarity == "legendary"}
+                                            for slot, item in sorted(c.equipment.items(), key=lambda kv: _slot_rank(kv[0]))]})
+    if windowed:
         print(ATTR_MARK)
     else:
         print("  " + "   ".join(f"{k[:3].upper()} {stats.effective(c, k, gear)}" + (f" (+{gear[k]})" if gear.get(k) else "") for k in stats.STAT_NAMES))
@@ -273,7 +391,9 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
     print(f"  {money.fmt(c.coins)}")
 
     _section("EQUIPMENT")
-    if c.equipment:
+    if windowed:
+        print(EQUIP_MARK)                 # (f327) the window draws the worn pieces as rows
+    elif c.equipment:
         for slot, item in c.equipment.items():
             star = "★ " if item.rarity == "legendary" else ""
             print(f"  {slot.replace('_', ' '):<10} {star}{items.display_name(item)} - {items.summary(item)}")
@@ -294,35 +414,65 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
                 from engine import arcs as _arcs
                 print(f"      {_arcs.perk_text(comp)}")
 
-    _section("ACTIVE ABILITIES")
-    for a in c.actives:
-        print("\n".join(ability_lines(a, c.level)))
-        print()
+    if windowed:
+        print(ABIL_MARK)                  # the window lists these by name and shows each on hover
+    else:
+        _section("ACTIVE ABILITIES")
+        for a in c.actives:
+            print("\n".join(ability_lines(a, c.level)) + ("" if a.id in brought else "\n    (in your book, not brought - #book)"))
+            print()
 
-    _section("PASSIVES")
-    for p in c.passives:
-        print(f"  ◆ {p.name} - {p.effect_text()}")
-        print(textwrap.fill(p.description, WIDTH, initial_indent="    ", subsequent_indent="    "))
+        _section("PASSIVES")
+        for p in c.passives:
+            print(f"  ◆ {p.name} - {p.effect_text()}")
+            print(textwrap.fill(p.description, WIDTH, initial_indent="    ", subsequent_indent="    "))
 
-    print("═" * WIDTH)
+    print("═" * min(WIDTH, 92))
+
+
+PACK_GROUPS = (("Gear", ("weapon", "armor", "jewelry")), ("Consumables", ("consumable",)), ("Food & herbs", ("food", "herb")))
+
+
+def item_rows(bag: list, usable: bool = False) -> list[dict]:
+    """(f327) The things in a bag as rows for a window's pane: what it is, what it does, what it is worth; grouped like the pack."""
+    from engine import inventory as inv
+    rows = []
+    for n, item in enumerate(bag, 1):
+        cat = inv.category(item)
+        group = next((g for g, kinds in PACK_GROUPS if cat in kinds), "Materials")
+        good = inv.GOODS[item.good] if item.good else None
+        rows.append({"n": n, "uid": item.uid, "name": items.display_name(item), "qty": item.quantity, "detail": items.summary(item),
+                     "value": money.short(inv.unit_value(item)), "rarity": item.rarity, "legendary": item.rarity == "legendary", "group": group,
+                     "flavour": item.description if item.rarity == "legendary" and item.description else "",
+                     "use": good.name if usable and good and good.kind != "herb" else ""})
+    return rows
+
+
+def key_item_rows(c) -> list[dict]:
+    out = []
+    for k in getattr(c, "key_items", None) or []:
+        src = (f"from {k.source}, day {k.day}" if k.source else "") + (f" · for {k.for_whom}" if k.for_whom else "")
+        out.append({"name": k.name, "detail": k.description, "kind": "quest" if k.kind == "quest" else "key", "source": src.strip(" ·")})
+    return out
 
 
 def show_inventory(c) -> None:
-    print("\n" + "═" * WIDTH)
-    print(f"  INVENTORY · {money.fmt(c.coins)}")
-    print("═" * WIDTH)
-    windowed = panel("inventory", {})                 # the window has a Gear pane for what is worn
-    if not windowed:
-        _section("EQUIPPED")
-        for slot, item in c.equipment.items() or []:
-            star = "★ " if item.rarity == "legendary" else ""
-            print(f"  {slot.replace('_', ' '):<10} {star}{items.display_name(item)} - {items.summary(item)}")
-        if not c.equipment:
-            print("  nothing")
-        from engine import sets
-        for line in sets.summary(c.equipment):
-            print(("  " if not line.startswith(" ") else "") + line)
     from engine import inventory as inv
+    if panel("inventory", {"purse": money.fmt(c.coins), "count": len(c.inventory), "cap": inv.RULES["pack_slots"],
+                           "items": item_rows(c.inventory, usable=True), "keys": key_item_rows(c), "groups": [g for g, _ in PACK_GROUPS] + ["Materials"]}):
+        return                                        # (f327) the window draws the pack itself; worn gear has its own pane
+    print("\n" + "═" * min(WIDTH, 92))
+    print(f"  INVENTORY · {money.fmt(c.coins)}")
+    print("═" * min(WIDTH, 92))
+    _section("EQUIPPED")
+    for slot, item in c.equipment.items() or []:
+        star = "★ " if item.rarity == "legendary" else ""
+        print(f"  {slot.replace('_', ' '):<10} {star}{items.display_name(item)} - {items.summary(item)}")
+    if not c.equipment:
+        print("  nothing")
+    from engine import sets
+    for line in sets.summary(c.equipment):
+        print(("  " if not line.startswith(" ") else "") + line)
     _section(f"PACK  {len(c.inventory)}/{inv.RULES['pack_slots']} slots")
     for n, item in enumerate(c.inventory, 1):
         star = "★ " if item.rarity == "legendary" else ""
@@ -339,9 +489,9 @@ def show_inventory(c) -> None:
             src = f" · from {k.source}, day {k.day}" if k.source else ""
             src += f" · for {k.for_whom}" if k.for_whom else ""
             print(textwrap.fill(f"  {tag}  {k.name} - {k.description}{src}", WIDTH, subsequent_indent="           "))
-    print("\n  #stash to see your item box" if windowed else "\n  #equip <number or name>   #unequip <slot or name>   #stash to see your item box")
+    print("\n  #equip <number or name>   #unequip <slot or name>   #stash to see your item box")
     print("  Or just say it: drink a draught, drop the hides, sell the pelts to the hunter, brew a tonic...")
-    print("═" * WIDTH)
+    print("═" * min(WIDTH, 92))
 
 
 def legendary_reveal(item) -> None:
@@ -355,9 +505,9 @@ def legendary_reveal(item) -> None:
 
 
 def show_journal(facts: list[str], people: list[str], history: list[str] = ()) -> None:
-    print("\n" + "═" * WIDTH)
+    print("\n" + "═" * min(WIDTH, 92))
     print("  JOURNAL")
-    print("═" * WIDTH)
+    print("═" * min(WIDTH, 92))
     _section("PEOPLE YOU'VE MET")
     for line in people or ["no one yet"]:
         print(f"  {line}")
@@ -368,16 +518,24 @@ def show_journal(facts: list[str], people: list[str], history: list[str] = ()) -
         _section("ITEMS DELIVERED OR LET GO")
         for text in history:
             print(textwrap.fill(text, WIDTH, initial_indent="  - ", subsequent_indent="    "))
-    print("═" * WIDTH)
+    print("═" * min(WIDTH, 92))
 
 
 def show_help() -> None:
     print("\nCOMMANDS (these don't take any game time)")
     print("  #character your character: attributes, wealth, equipment, abilities, passives")
+    print("  #stats     every combat number: attack power, hit and crit chance, armor, ward, evasion")
     print("  #journal  people you've met and things you've learned")
+    print("  #events   what has happened, in order")
+    print("  #audit    where this session's record of every model call is kept")
+    print("  #refusals the lines the game could not act on this session, and what it asked")
     print("  #inventory  what you carry and wear (#equip / #unequip to change it)")
+    print("  #book     your abilities: what you bring (5 spells and 5 techniques at first) and what stays in your book")
+    print("  #prepare  change what you bring, out of a fight and once a day, e.g. #prepare 1 3 4 or #prepare Firebolt, Ice Wall")
+    print("  #prebuff  the buffs you cast before the first blow of a fight you start, e.g. #prebuff Stoneskin, Frost Armor (#prebuff none clears)")
     print("  #allocate spend attribute points from leveling, e.g. #allocate str 3 dex 2")
     print("  #enchant  see enchantments an enchanter here can bind into your gear")
+    print("  #resetlayout  put the info pane's buttons back in their original order (drag a button to move it; game window only)")
     print("  #help     this list")
     print("  quit      save and exit")
     print("  *text*    in asterisks is something you do, never say:  \"I'll get to it.\" *I lift the sacks*")
@@ -401,6 +559,8 @@ def show_help() -> None:
 
 def meter(now: float, top: float, width: int = 10) -> str:
     filled = max(0, min(width, round(width * now / top))) if top else 0
+    if top and now > 0:
+        filled = max(1, filled)
     return "⸢" + "▰" * filled + "▱" * (width - filled) + "⸥"
 
 

@@ -40,13 +40,13 @@ class RoadActions:
 
     # ---------- walking ----------
 
-    def run_journey(self, route: list[str], walk: int, text: str) -> None:
+    def run_journey(self, route: list[str], walk: int, text: str, events: int = 0) -> None:
         stretches = roads.edges(self.world, route, walk)
         legs = roads.plan_legs(walk)
         quiet = getattr(self, "journey_event_factor", 1.0)        # Swift Step thins out the troubles on this trip
         self.journey_event_factor = 1.0
         log = list((self.player.road or {}).get("log", []))
-        done = events = 0
+        done = 0
         for k, leg in enumerate(legs):
             self.advance(leg, exert=True)
             done += leg
@@ -105,17 +105,22 @@ class RoadActions:
         ends = [pulse.danger_factor(self.store, pulse.town_of(self.world, p), self.minutes) for p in (a, b)]
         return f * (sum(ends) / 2) * self.danger_multiplier(b, True)
 
-    def road_event(self, route, a, b, minutes, frac, text, log):
+    def road_event(self, route, a, b, minutes, frac, text, log, resume: str | None = None, stop_name: str = ""):
+        """`resume` is where a won fight carries on to (default: the end of the route); `stop_name` names a stop on the road."""
         tier = roads.roll_tier(self.rng)
         wilds = roads.nearby_wilds(self.world, a, b)
         hostile = bool(wilds) and self.rng.random() < min(R["hostile_max"], R["hostile"] * self.road_danger(a, b))
         hit = None
         deterred = camp = False
         BR = R["bandits"]
+        from engine import matters
+        matter = matters.road_matter(self, a, b, self.rng)                # (f317) the road's happening may be part of a matter nearby
         if hostile:
             wild = self.rng.choice(wilds)
             themed = self.bandit_road(a, b)
             force = "bandit" if self.rng.random() < (BR["themed"] if themed else BR["base"]) else ""
+            if matter and matter[2]:
+                force = matter[2]                                          # the matter's own creature comes at them
             hit = encounters.roll(self.store, self.world, wild, 1.0, self.rng, force=force)
             high = self.world.places[wild].danger[1]
             if hit and self.deterred(hit[0], high):
@@ -144,6 +149,8 @@ class RoadActions:
                     "Not a fight; kind sight. Describe the unseen watchers and the tension, in the traveler's view")
         else:
             must = "a happening that is not a fight"
+        if matter and (hostile or not deterred):
+            must += matters.road_lines(matter[0], matter[1], hostile)
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
         try:
             ev = generate(
@@ -156,16 +163,18 @@ class RoadActions:
         except LLMError as e:
             console.debug(f"road: nothing happened this time ({e})")
             return None
-        console.note(f"On the road - {ev.title}")
+        console.ledger(f"On the road - {ev.title}")
         console.narrate(ev.scene)
         log.append(f"{ev.title}: {ev.scene}")
         self.road_effects(ev, tier, a, b, state)
+        if matter and (hostile or not deterred):
+            matters.road_shown(self, matter[0]["id"], carried=not hostile)
         if not hostile:
             self.road_outcome(ev, tier, a, b, near)
         if hostile or interrupts:
             role = ev.meets_role if ev.meets_role in self.world.roles and not hostile else ""
-            stop = roads.make_stop(self.world, a, b, frac, minutes, ev.scene, role, ev.title, ev.detail)
-            stop.update(log=log[-6:], text=text, resume=route[-1] if hostile and not interrupts else "")
+            stop = roads.make_stop(self.world, a, b, frac, minutes, ev.scene, role, ev.title, ev.detail, stop_name)
+            stop.update(log=log[-6:], text=text, resume=(route[-1] if resume is None else resume) if hostile and not interrupts else "")
             if camp:
                 stop["camp"] = max(1, round(sum(self.world.places[wild].danger) / 2))
             self.player.road = stop
@@ -173,12 +182,19 @@ class RoadActions:
             self.enter(stop["id"])
             if hostile:
                 creature, enemies = hit
-                if creature.temperament == "territorial" or self.has("danger_sense") is not None:
+                if creature.temperament == "territorial" or self.sees_far():
                     for e in enemies:
-                        e.band = "far"
+                        e.starts_far = True
                 self.wildlife = None
+                if self.owns("scout_ahead"):
+                    for e in enemies:
+                        e.statuses["unaware"] = 1         # Scout Ahead: you saw them first, and they have not seen you
                 from scenes.combat_scene import CombatScene
                 self.combat = CombatScene.begin(self, creature, enemies, f"On the road,")
+                if self.owns("scout_ahead") and self.combat is not None:
+                    from engine import battlefield as bf
+                    bf.gain(self.combat.fight.player, "concealed")
+                    console.note("You saw them before they saw you (Scout Ahead).")
                 return "fight"
             console.note(f"You stop here, on the road. Onward to {self.world.places[b].name}, or back to {self.world.places[a].name}.")
             self.show_exits()
@@ -225,11 +241,11 @@ class RoadActions:
             floor = R["find"]["rare_min"] if tier == "rare" else "common"
             item = loot.make_drop(level, max(best, floor, key=RARITY.index), rng, loot.keeps_companions(c))
             left = inv.add(self.pack, item, self.pack_slots())
-            console.note(f"You take: {inv.label(item)}." if left is None else
+            console.ledger(f"You take: {inv.label(item)}." if left is None else
                          f"You find {inv.label(item)}, but your pack is full - you leave it.")
         elif ev.kind == "hazard":
             odds, _ = checks.chance(c, ev.check, self.check_triggers(ev.check, False))
-            degree, _ = checks.roll(odds, rng)
+            degree, _ = checks.roll(odds, rng, c=c)
             console.note(checks.label(ev.check, degree.replace("_", " ")))
             if degree in ("failure", "partial"):
                 lo, hi = R["hazard"]["delay_minutes"][tier]
@@ -240,7 +256,7 @@ class RoadActions:
                     top = pools.maximum(c, "health")
                     c.health = max(1.0, pools.current(c, "health") - top * R["hazard"]["health_loss_pct"][tier] / 100)
                     lost = " and you come away bruised"
-                console.note(f"It costs you {clock.describe_duration(delay)}{lost}.")
+                console.ledger(f"It costs you {clock.describe_duration(delay)}{lost}.")
         elif ev.kind == "aid":
             lo, hi = R["aid"]["coins"][tier]
             pay = rng.randint(lo, hi) * max(1, level // 4)
@@ -248,7 +264,7 @@ class RoadActions:
             town = pulse.town_of(self.world, near)
             if not self.world.places[town].danger:
                 self.player.reputation[town] = max(-100, min(100, self.player.reputation.get(town, 0) + R["aid"]["reputation"][tier]))
-            console.note("Your help is remembered, and repaid.")
+            console.ledger("Your help is remembered, and repaid.")
         self.store.save_player(self.player)
 
     # ---------- after a fight on the road ----------

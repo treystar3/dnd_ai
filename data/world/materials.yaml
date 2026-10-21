@@ -25,6 +25,13 @@
 # iron): a weapon is picked for the fight ahead, and these are meant to be rare.
 
 materials:
+- id: copper
+  name: copper
+  family: metal
+  levels: [1, 12]
+  rarity: common
+  source: Cut from the Ironvein mines by the dwarves
+  note: Soft and plentiful, the first metal every smith learns.
 - id: bronze
   name: bronze
   family: metal

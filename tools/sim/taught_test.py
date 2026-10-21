@@ -25,7 +25,8 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 F = field.F["functions"]
-TAUGHT = {"picklock", "pickpocket", "shadow", "revivify", "word_of_recall", "phantom_steed", "summon_labor", "bind_beast", "speak_corpse"}
+TAUGHT = {"picklock", "pickpocket", "shadow", "revivify", "word_of_recall", "phantom_steed", "summon_labor", "bind_beast", "speak_corpse",
+          "pass_without_trace", "haste"}            # Pass Without Trace (f246); journey Haste left creation (f250)
 LEVELED = {"shelter", "trapfinder", "snare", "commune", "bless"}
 check("the taught-only list is as agreed", {f for f, s in F.items() if s.get("taught_only")} == TAUGHT, {f for f, s in F.items() if s.get("taught_only")})
 check("the level-gated list is as agreed", {f for f, s in F.items() if s.get("min_level")} == LEVELED and all(F[f]["min_level"] == 5 for f in LEVELED))
@@ -102,7 +103,7 @@ e2 = foe(10, 0.2); fight.fighters.append(e2)
 c.level = 40; c.companions[:] = [x for x in c.companions if x.source != "tamed"]; c.level = 10
 ws.player.field.clear(); p.stamina = stam
 sc.rng = random.Random(1); chance = taming.bind_chance(c, e2, wolf, "moderate")
-sc.rng = NS(random=lambda: 0.999)                                  # always fails
+sc.rng = NS(random=lambda: 0.999, uniform=lambda a, b: b, choice=lambda xs: xs[0])   # always fails (and the attack it falls back to can roll)
 sc.try_bind(move, bind, e2)
 check("a failed bind costs the ability's price", p.stamina < stam, (p.stamina, stam))
 check("a failed bind still uses the day's charge", ws.field_ready_in(bind) > 0 and e2 in fight.fighters)

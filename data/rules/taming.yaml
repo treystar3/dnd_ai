@@ -2,7 +2,7 @@
 # Only the engine rolls this. The model reads "tame the wolf" and describes the moment.
 
 # Creature categories that can be tamed. People, lycanthropes and the like cannot.
-categories: [beast, monstrosity, dragon, elemental, fey, celestial, plant, construct, ooze, undead]
+categories: [beast, monstrosity, dragon, fey, plant]      # living things only: a made thing (construct, undead, elemental) is a summon, never tamed
 
 # The target must be at or below this share of its health (a creature fights free of you while it is strong).
 max_health_share: 0.35

@@ -1,0 +1,69 @@
+# MARTIAL TECHNIQUES (engine/martial.py, f233): what spells got from spellcraft.yaml, techniques get here.
+# A technique is a stamina ability that is not a channeled strike. Its FORM is how the blow is delivered; its MANEUVER is what the
+# blow does besides damage - deterministic, like an element's expression, and decided by size, which magic never cares about.
+# Maneuvers take the place of the old chance riders on techniques (spells without an element keep the rider pool).
+
+# ---- forms ----
+#   strike   one target; the only form that takes a shape (opener, finisher, combo...), as only a bolt does
+#   sweep    everyone engaged with you, each at a share - the martial burst: you must be in the thick of it
+#   flurry   a set number of quick hits on one target (the planner sets the number, by the class's families, below)
+#   windup   declared this turn, lands at the start of your next for a great blow; that turn goes to it; a stun, a fall or a
+#            stagger breaks it (the same law as a charged spell - spellcraft.yaml forms.charged)
+#   counter  you ready yourself instead of striking: the first engaged enemy to attack you before your next turn is met - its blow
+#            lands weakened and you strike back hard. Nobody comes: nothing happens.
+forms:
+  strike:  {label: Strike,  text: "strikes one target."}
+  sweep:   {label: Sweep,   text: "hits every enemy in melee with you, each for {share_pct}% damage.", share: 0.7}
+  flurry:  {label: Flurry,  text: "strikes one target {hits} times, each for {each_pct}% damage."}
+  windup:  {label: Wind-up, text: "takes two turns: you set yourself on the first and the blow lands on the second (that whole turn is spent on it), for {mult_pct}% damage. If you are stunned, knocked down or staggered before then, the blow is lost and both turns are wasted.", mult: 3.5}
+  counter: {label: Counter, text: "instead of striking, you ready yourself: the first enemy in melee with you that attacks before your next turn deals {weaken_pct}% less damage, and you hit it back for {mult_pct}% damage. If no one attacks you, nothing happens.", weaken: 0.75, mult: 1.6}
+
+# Flurry: the hits a class may be offered, by its families (the highest of its families counts), and the total damage of each count.
+flurry:
+  most_hits:
+    guardian: 2
+    paladin: 2
+    berserker: 2
+    warrior: 3
+    ranger: 3
+    artisan: 3
+    leader: 3
+    bard: 3
+    rogue: 4
+    monk: 6
+  default_most: 3
+  total: {2: 1.20, 3: 1.20, 4: 1.25, 5: 1.28, 6: 1.30}
+
+# How the planner gives a technique its form (melee and extended reach may sweep; a ranged technique strikes, flurries or winds up).
+form_weights: {strike: 40, sweep: 15, flurry: 20, windup: 12, counter: 13}
+
+# ---- maneuvers ----
+# Each: label, text (the card), depict (the narrator), status/rounds for the ones that set one, and the size limit -
+#   size_up: how many sizes larger than the user the target may be (0 = no larger than you); absent = any size.
+#   control: whether it can be the whole of a martial control ability (then it is contested with the technique's attributes).
+maneuvers:
+  # reach (f251): the reaches a technique carrying it may have - a trip or a pin is close work, a hook reaches out for someone away from you
+  trip:      {label: Trip, reach: [melee, extended],      status: prone,   rounds: 1, size_up: 1, control: true,
+              text: "knocks the target off its feet (no more than one size larger than you).", depict: "sweeping the legs out from under the target"}
+  hamstring: {label: Hamstring, status: slowed,  rounds: 2, control: true,
+              text: "slows the target for 2 rounds.", depict: "a cut low that hobbles the target"}
+  rend:      {label: Rend,      status: bleeding, rounds: 3,
+              text: "opens a wound of 20% of the hit: for 3 rounds, every physical hit the target takes, from anyone, deals that much extra damage. Undead, constructs and other bloodless things cannot bleed.", depict: "a tearing cut that leaves the target bleeding"}
+  disarm:    {label: Disarm,    status: weakened, rounds: 2, control: true, armed_only: true,
+              text: "knocks the target's weapon aside: it deals 25% less damage for 2 rounds (not against claws, fangs and other natural weapons).", depict: "a twist that knocks the target's weapon aside"}
+  stagger:   {label: Stagger,   size_up: 1, control: true,
+              text: "interrupts any blow or spell the target is winding up, and leaves it open (easier to hit for a round) (no more than one size larger than you).", depict: "a jarring blow that knocks the target off balance"}
+  pin:       {label: Pin, reach: [melee, extended],       status: grappled, rounds: 2, size_up: 0, control: true,
+              text: "holds the target for 2 rounds: it cannot get away from you (no larger than you).", depict: "catching hold of the target and pinning it"}
+  shove:     {label: Shove, reach: [melee, extended],     size_up: 0, control: true,
+              text: "pushes the target out of melee and leaves it exposed (30% less armor and ward) (no larger than you).", depict: "a heavy shove that drives the target back"}
+  hook:      {label: Hook, reach: [extended, ranged],      size_up: 0, control: true,
+              text: "drags a distant or guarded target into melee with you (no larger than you).", depict: "hooking the target and hauling it in"}
+  sunder:    {label: Sunder,    pct: {light: 10, moderate: 15, heavy: 20}, cap: 60,
+              text: "breaks {pct}% of the target's armor for the rest of the fight (building up, to at most {cap}%).", depict: "a blow that cracks and splits armor"}
+  feint:     {label: Feint, reach: [melee, extended],     status: exposed, rounds: 2, control: true,
+              text: "draws the target's guard down: it is exposed for 2 rounds (30% less armor and ward).", depict: "a false opening that draws the target's guard wide"}
+# Who carries a weapon to knock aside: people, and anything built like one (data/rules/creatures.yaml categories).
+armed_categories: [person, hostile, social, combat, giant]
+# The share of techniques that carry a maneuver (the rest are plain, and Honed).
+maneuver_share: 0.7

@@ -11,9 +11,15 @@ from pathlib import Path
 from core import paths
 from urllib.parse import parse_qs, urlparse
 
+from ui.gui.bridge import PINNABLE
+
 WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).resolve().parent / "web"
-STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8"}
-PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto"}
+STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg"}
+for _f in ("literata-latin-400-normal", "literata-latin-400-italic", "literata-latin-600-normal", "literata-latin-700-normal"):
+    STATIC[f"/fonts/{_f}.woff2"] = "font/woff2"                       # (f326) the reading face for the story column
+PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": []}
+MAX_BODY = 65536
+
 
 
 def prefs_path() -> Path:
@@ -27,15 +33,43 @@ def load_prefs() -> dict:
     except (OSError, ValueError):
         raw = {}
     out = dict(PREF_DEFAULTS)
-    if "pinned" in raw and (raw["pinned"] is None or isinstance(raw["pinned"], str)):
-        out["pinned"] = "#character" if raw["pinned"] == "#system" else raw["pinned"]
+    if raw.get("pinned") is None and "pinned" in raw:
+        out["pinned"] = None
+    elif isinstance(raw.get("pinned"), str):
+        out["pinned"] = raw["pinned"] if raw["pinned"] in PINNABLE else "#character"
     if isinstance(raw.get("width"), (int, float)):
         out["width"] = max(240, min(900, int(raw["width"])))
     if isinstance(raw.get("hidden"), bool):
         out["hidden"] = raw["hidden"]
     if raw.get("theme") in ("auto", "light", "dark"):
         out["theme"] = raw["theme"]
+    if _good_order(raw.get("order")):
+        out["order"] = list(raw["order"])
     return out
+
+
+def _good_order(v) -> bool:
+    return isinstance(v, list) and len(v) <= 40 and all(isinstance(x, str) and x.startswith("#") and len(x) <= 24 for x in v)
+
+
+def prefs_problem(new) -> str:
+    """Why these settings cannot be saved, or "" when every value is the right kind."""
+    if not isinstance(new, dict):
+        return "settings must be an object"
+    for k, v in new.items():
+        if k not in PREF_DEFAULTS:
+            continue
+        if k == "pinned" and not (v is None or (isinstance(v, str) and v in PINNABLE)):
+            return "pinned must be a view that can be pinned"
+        if k == "width" and not (isinstance(v, (int, float)) and not isinstance(v, bool)):
+            return "width must be a number"
+        if k == "hidden" and not isinstance(v, bool):
+            return "hidden must be true or false"
+        if k == "theme" and v not in ("auto", "light", "dark"):
+            return "theme must be auto, light or dark"
+        if k == "order" and not _good_order(v):
+            return "order must be a list of commands"
+    return ""
 
 
 def save_prefs(new: dict) -> dict:
@@ -129,7 +163,12 @@ def make_server(bridge, token: str | None = None):
             if not self._authed(q):
                 return self._send(403, b"forbidden", "text/plain")
             try:
-                n = min(int(self.headers.get("Content-Length") or 0), 65536)
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._json(400, {"error": "bad length"})
+            if n > MAX_BODY:
+                return self._json(413, {"error": "too large"})
+            try:
                 data = json.loads(self.rfile.read(n) or b"{}")
             except ValueError:
                 return self._json(400, {"error": "bad json"})
@@ -153,13 +192,16 @@ def make_server(bridge, token: str | None = None):
                 return self._json(200, {"ok": True})
             if u.path == "/pin":
                 cmd = data.get("command")
-                if cmd is not None and not (isinstance(cmd, str) and cmd.startswith("#") and len(cmd) < 40):
-                    return self._json(400, {"error": "command"})
+                if cmd is not None and not (isinstance(cmd, str) and cmd in PINNABLE):
+                    return self._json(400, {"error": "that view cannot be pinned"})
                 bridge.pinned = cmd
                 bridge.dirty = False
                 return self._json(200, {"ok": True})
             if u.path == "/prefs":
-                return self._json(200, save_prefs(data if isinstance(data, dict) else {}))
+                problem = prefs_problem(data)
+                if problem:
+                    return self._json(400, {"error": problem})
+                return self._json(200, save_prefs(data))
             self._send(404, b"not found", "text/plain")
 
     class Server(ThreadingHTTPServer):

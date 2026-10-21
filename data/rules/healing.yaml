@@ -1,0 +1,31 @@
+# HEALING - how restoring health works in a fight (engine/healing.py). Every heal in a fight goes through one path, so perks,
+# withering and the rest apply to all of them alike. The engine plans each healing ability's form; the model only names it.
+#
+# A heal is single-target: yourself or one ally (Rescue: one fallen ally). Its size is a share of the TARGET's maximum health,
+# scaled by the caster's power - so a great healer heals a giant as well as a child, in proportion.
+
+percent: {light: 12, moderate: 20, heavy: 32}     # share of the target's maximum health, before the caster's power
+outside: {light: 15, moderate: 25, heavy: 40}       # out of a fight, a healing ability heals its caster this share of their health
+attribute_center: 10                              # the casting attribute (or constitution, for a stamina heal) at which power is 1.0
+per_point: 0.04                                   # power gained per point above the center (lost per point below), floored at 0.6
+
+# The forms: how a healing ability restores. Each tier draws from the forms that fit it.
+#   share        multiplies the heal
+#   rounds       renew: the heal is spread over this many of the target's turns (total = share x heal)
+#   cap          ward: the barrier never exceeds this share of the target's maximum health
+#   lifts        cleanse: afflictions lifted
+#   price        transfer: the caster pays this share of the heal in their own health; the target gets share x heal
+#   revive       rescue: a fallen ally is brought back at this share of their maximum health (once per ally per fight)
+forms:
+  mend:     {share: 1.0, tiers: [light, moderate, heavy], depict: "an instant mending - wounds close at once"}
+  renew:    {share: 1.6, rounds: 3, tiers: [light, moderate, heavy], depict: "a lasting renewal - it keeps healing over the next few moments"}
+  ward:     {share: 1.2, cap: 0.5, tiers: [light, moderate, heavy], depict: "a protective ward - a barrier that takes the next blows before the body does"}
+  cleanse:  {share: 0.5, lifts: 2, tiers: [light, moderate], depict: "a cleansing - it purges poison, fear and other afflictions, and soothes a little"}
+  transfer: {share: 2.0, price: 0.6, tiers: [moderate, heavy], depict: "a sacrifice - the caster gives their own life to heal another twice over"}
+  rescue:   {share: 1.0, revive: 0.35, tiers: [heavy], depict: "a rescue - it can raise a fallen ally back to their feet mid-fight"}
+
+# Healing draws the eye: an enemy that saw a heal this round or last goes for the healer instead, this often, when it can reach them.
+attention: {chance: 0.5, rounds: 1}
+
+# Withered: necrotic harm sours the body - healing on a withered creature, and its own regeneration, is halved.
+wither: {rounds: 2, factor: 0.5, elements: [necrotic]}

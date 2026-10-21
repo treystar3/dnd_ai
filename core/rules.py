@@ -108,7 +108,9 @@ class MechanicDef(BaseModel):
     values: tuple[float, float]
     text: str
     companion_only: bool = False
-    suits: Suits = Suits()
+    where: Literal["creation", "taught"] = "creation"   # creation: a character-defining perk, offered only at the Threshold;
+    suits: Suits = Suits()                              # taught: plainer fare, learned from instructors out in the world
+    needs: list[str] = []                               # what fuels this perk (an axis tag, informational: the draw never gates on it)
 
     def describe(self, value: float) -> str:
         return self.text.format(value=f"{value:g}")
@@ -116,19 +118,27 @@ class MechanicDef(BaseModel):
 
 ENGINE_COMBAT_MECHANICS = {
     "riposte", "aegis", "retribution", "vampiric", "executioner", "relentless", "regeneration", "last_stand",
-    "hardening", "triumph", "windwalker", "phantom", "echoing", "unburdened", "cleave", "spellblade", "frostbite",
+    "hardening", "triumph", "windwalker", "phantom", "echoing", "unburdened", "cleave", "follow_through", "spellblade", "frostbite",
     "rending", "thunderous", "first_blood", "unyielding", "sanctified", "fearsome", "second_wind", "opportunist",
     "beastbane", "gravewarden", "giantsbane", "dragonslayer", "hellbane", "warbreaker", "dragonward", "graveward",
     "guardian", "bulwark", "spellmirror", "stormcaller", "wardbreaker", "hellward", "giantward", "killer_instinct",
     "piercing", "bloodlust", "battle_rhythm", "soul_harvest", "blinding", "terrify", "barrier", "mana_shield",
     "rally", "inspire", "battle_cry", "flurry", "deflect", "hex", "blood_pact",
+    "stancework", "press_the_opening", "shield_bearer", "sure_footed",
+    "sworn_enemy", "read_the_wind", "no_one_escapes", "night_stalker", "stubborn_hold", "avenger", "vantage_fighter",
+    *"""deathleap plaguebearer threefold_weave spell_echo grave_chorus storm_chosen firebrand thermal_shock deep_freeze open_wound crippling_wounds
+       bulwark_engine red_mist pain_engine adrenaline overchannel overcast pack_tactics martyr bound_pair unmaking
+       lasting_word echoing_mend dread_ambusher vessel devourer shared_skin provoke mirror_plate unbreakable war_drum fearmonger
+       showstopper flow_state rampage consecration two_fisted pack_alpha challenger overabundance glass_cannon conduit
+       juggernaut headsman blood_for_blood judgement thick_of_it shadowstep dormant_venom quarry steady_aim high_ground_hunter curse_of_rust ley_tether attuned_edge withering blood_summons familiars_eyes feral_form arcane_precision frostborne frozen_ground triage coordinated_strike mending_rhythm sanctuary_circle twin_benediction selfless shared_strength dread_regent""".split(),       # creation perks (engine/combat_perks.py)
 }
-ENGINE_WORLD_MECHANICS = {"trusted_face", "beast_friend", "danger_sense", "scavenger", "trailblazer", "keen_judge",
+ENGINE_WORLD_MECHANICS = {*"""siege_breaker scout_ahead reverse_engineer all_or_nothing well_trodden famous troubadour nobody above_the_law borrowed_hands tavern_ear practiced_hands frugal_hands shaped_to_you enchanter symbiosis campfire_cook spirit_guide pale_company pious_path visions""".split(),       # creation perks (f211)
+                          "trusted_face", "beast_friend", "danger_sense", "scavenger", "trailblazer", "keen_judge",
                           "tracker", "lucky_find", "thrifty", "masterwork", "quick_hands", "quick_study", "haggler",
                           "drillmaster", "veterans_eye", "town_defender", "safe_camp", "blood_price", "butcher",
                           "cache_hunter", "trap_sense", "forager", "wayfinder", "arcane_appraiser", "scholars_memory",
                           "dread_name", "grave_robber", "green_hands", "field_medic", "brewer", "good_employer",
-                          "crowd_pleaser", "local_favorite", "familiar_forager", "oathbound", "almsgiver", "inner_calm",
+                          "crowd_pleaser", "local_favorite", "familiar_forager", "oathbound", "inner_calm",
                           "ascetic", "patron_whispers", "dark_charisma", "commission_broker", "lucky_break",
                           *""" weapon_wise soldiers_bearing campaigner victors_name delvers_wage night_watch helping_hand
                           road_warden shelter_earned patient_watch keeper_of_oaths raw_appetite wild_presence trophy_hunter

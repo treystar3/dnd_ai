@@ -1,6 +1,9 @@
 # Facts about Rivia, tagged by who knows them.
-# The Taking is the kingdom's practice (the crown at Valecourt). Eldervale, Ironvein, Frostholm and Sunspire each see
-# magic their own way, and know the Taking only as the kingdom's custom.
+# The Taking is a southern human custom: Riverhaven and Amaranth send out Seekers who take magic-sensitive children from the smaller
+# settlements around them (Parth, Willowmead, Greyhollow, Kelpmoor). The crown at Valecourt thinks it unbecoming and takes no child
+# itself, but will not police another house's customs; its people look down on the south for it and keep that to themselves with
+# strangers. The further north, the more open the disdain. Eldervale, Ironvein, Frostholm, Sunspire and the far lands each see magic
+# their own way, and know the Taking only as a southern custom.
 #
 # known_by: knowledge groups (from world.yaml) whose members know this fact.
 #           An NPC knowing a fact doesn't mean they'll share it - personality decides that.
@@ -12,15 +15,31 @@
 
 - id: the_taking
   text: >
-    Children who show signs of magic must be reported. Seekers sent by the nobility test
-    them and take the gifted away to be trained and placed in noble houses.
+    Children who show signs of magic must be reported. Seekers sent by the noble houses of
+    Riverhaven and Amaranth test the children of the smaller settlements and take the gifted away to be trained and placed in noble houses.
     Officially it is the Summons; common folk call it the Taking.
-  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, valecourt_locals, redstone_locals]
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals, riverhaven_locals, amaranth_locals]
   found_at: [trading_square]
 
 - id: taking_payment
-  text: A family whose child is taken receives a payment from the crown or the noble house.
-  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, valecourt_locals, redstone_locals]
+  text: A family whose child is taken receives a payment from the house that takes them.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals, riverhaven_locals, amaranth_locals]
+
+- id: taking_is_southern
+  text: The Taking is the south's custom - it is Riverhaven and Amaranth that send the Seekers. The crown at Valecourt has never sent one and takes no child.
+  known_by: [valecourt_locals, nobility, scholars, merchants, riverhaven_locals, amaranth_locals, parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals]
+
+- id: crown_tolerates_taking
+  text: The crown thinks the Taking unbecoming and says so only in private; in public it leaves the southern houses to their own customs, for the sake of peace, and will not police them.
+  known_by: [valecourt_locals, nobility, scholars]
+
+- id: valecourt_looks_down
+  text: People of Valecourt think less of the south for the Taking, and would not say so to a traveller they had just met.
+  known_by: [valecourt_locals, nobility, merchants]
+
+- id: north_scorns_taking
+  text: The further north one goes, the less patience there is for the Taking - spoken of with disgust in Greyhollow, barely believed in Ironvein and Frostholm, where a Seeker would not be made welcome.
+  known_by: [greyhollow_locals, ironvein_locals, frostholm_locals, eldervale_locals, hrimgard_locals, skarnhelm_locals, merchants]
 
 - id: taken_rarely_return
   text: Children who are taken almost never come home again.
@@ -28,7 +47,7 @@
 
 - id: hiding_is_crime
   text: Hiding a gifted child is a crime. Families caught doing it are punished.
-  known_by: [parth_locals, willowmead_locals, greyhollow_locals, riverhaven_locals, valecourt_locals, redstone_locals]
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals, riverhaven_locals, amaranth_locals]
   found_at: [trading_square]
 
 - id: seekers_visit
@@ -65,12 +84,12 @@
 # --- the wider world (from the world writeup) ---
 
 - id: parth_crossroads
-  text: Parth sits where the kingdom's roads meet - north to Greyhollow, northeast to Ironvein, east to Redstone, south to Willowmead and west to Valecourt.
+  text: Parth sits where the roads of the south meet - north to Greyhollow, northeast to Ironvein, east to Redstone, south to Willowmead and southwest to Kelpmoor and the sea.
   known_by: [everyone]
 
 - id: taking_seen_from_outside
-  text: The kingdom takes its magically gifted children into the service of its nobles. Outsiders find the custom strange, cruel, or simply foolish.
-  known_by: [eldervale_locals, ironvein_locals, frostholm_locals, sunspire_locals, merchants]
+  text: The southern cities of Riverhaven and Amaranth take their magically gifted children into the service of their nobles. Outsiders find the custom strange, cruel, or simply foolish.
+  known_by: [eldervale_locals, ironvein_locals, frostholm_locals, sunspire_locals, thalassor_locals, skarnhelm_locals, frontier_locals, redstone_locals, merchants]
 
 - id: willowmead_slow
   text: Willowmead is a slow, rural place of farms and orchards, one of the region's important farming villages. Magic stays outside village life there.
@@ -109,7 +128,7 @@
   known_by: [frostholm_locals]
 
 - id: frostpass_winter
-  text: The Frostpass between Ironvein and Frostholm is far harder in winter, and some winters it cannot be crossed at all.
+  text: The Frostpass between Dunmarrow and Frostholm is far harder in winter, and some winters it cannot be crossed at all.
   known_by: [frostholm_locals, ironvein_locals, merchants]
 
 - id: riverhaven_trade
@@ -454,3 +473,99 @@
   text: >
     Orenna's last breath is held in you. It will be spent the first time you would die.
   known_by: [nobody]
+
+- id: valecourt_tolerates_taking
+  text: >
+    Valecourt's nobles disapprove of the Taking. They say a kingdom is kept at peace by tolerating everyone's customs, even the ones
+    they disagree with, and the crown has never forbidden it.
+  known_by: [valecourt_locals, nobility]
+
+# --- the new lands ---
+
+- id: thalassor_overhang
+  text: Thalassor's Hanging College stands on a great shelf of rock, the Overhang, above the harbour. The rock is held up by keystone wards that the Fellows renew every year.
+  known_by: [thalassor_locals, scholars, mages]
+
+- id: thalassor_college
+  text: >
+    The Hanging College was founded and is still run by elves, who teach magic as a gift. Students of every people are welcome, and no Seeker has any
+    standing there.
+  known_by: [thalassor_locals, eldervale_locals, scholars, mages]
+
+- id: thalassor_bells
+  text: Thalassor's Bellwrights cast the fog bells that guide ships home. A bell is rung at every birth and every death in the city.
+  known_by: [thalassor_locals, merchants]
+
+- id: thalassor_wreck_rights
+  text: Any ship that sinks within sight of Thalassor's harbour belongs to the city, and the wreck-rights are sold at auction.
+  known_by: [thalassor_locals, merchants]
+
+- id: cairnholt_cairns
+  text: Cairnholt's families each keep a cairn on the moor for an ancestor, and restack it every spring. If one falls, someone must restack it before dusk.
+  known_by: [thalassor_locals]
+
+- id: whitehaven_weather
+  text: Whitehaven's Weathermongers sell the day's forecast and refund the price if it proves wrong. Disputes go to the Weather Reeve.
+  known_by: [thalassor_locals, merchants]
+
+- id: wraithmoor_kept
+  text: On foggy mornings the dead soldiers of the Wraithmoor stand up out of the peat, whole and unrotted. Locals call them the Kept.
+  known_by: [thalassor_locals, hunters]
+
+- id: skarnhelm_guest_right
+  text: In Skarnhelm a guest is protected under the lintel for a week and a day. Breaking guest-right is the gravest crime in the city, and the sentence is exile onto the ice.
+  known_by: [skarnhelm_locals, merchants]
+
+- id: skarnhelm_reckoning
+  text: Skarnhelm's clans carry great stones up the city's stair at the yearly Reckoning, and a clan's standing for the next year depends on how far it gets.
+  known_by: [skarnhelm_locals]
+
+- id: glimmerfrost_glimmer
+  text: Glimmerfrost's miners cut glimmer from the crevasses, a crystal that holds daylight. Miners work in tethered pairs, and folk say the crystal dims near a liar.
+  known_by: [skarnhelm_locals, merchants]
+
+- id: kelpmoor_knots
+  text: In Kelpmoor a newborn has a ship-knot tied on their wrist, untied only on the day they leave the town. People who come back are met at the quay with a feast.
+  known_by: [kelpmoor_locals, merchants]
+
+- id: saltmarsh_drag
+  text: Saltmarsh Landing's houses stand on sledges, and every few years the whole village drags itself inland as the marsh creeps. They call it the Drag.
+  known_by: [kelpmoor_locals]
+
+- id: elmshade_unrooted
+  text: Elmshade was settled by elves who left Eldervale and planted their own grove. Eldervale thinks it a little vulgar, and the elves of Elmshade call themselves the Unrooted.
+  known_by: [eldervale_locals, parth_locals]
+
+- id: harrowgate_barn
+  text: Harrowgate is built in rings around the Tithe-Barn, where the crown stores its grain. Royal inspectors come and go.
+  known_by: [valecourt_locals, merchants]
+
+- id: kingsmere_court
+  text: Kingsmere triples in size when the court arrives for the summer. The old royal summer palace lies drowned at the bottom of the lake.
+  known_by: [valecourt_locals, nobility, merchants]
+
+- id: dustwell_well
+  text: Dustwell's well is so deep that a dropped coin takes a long count to land. The well-keepers say voices answer from the bottom.
+  known_by: [redstone_locals, merchants]
+
+- id: saltwind_dawn
+  text: At Saltwind Oasis the spring runs sweet only at dawn. All trade is done in the first hour of daylight, and the market closes when the sun clears the ridge.
+  known_by: [sunspire_locals, merchants]
+
+- id: cinders_rest_drake
+  text: Cinder's Rest is built inside the fossil ribcage of a fire-drake that died in the ash. The villagers bake in the heart-stone, which is still warm.
+  known_by: [cinderhold_locals, merchants]
+
+- id: frontier_garrison
+  text: >
+    The Cracked Plains are a constant battlefield. Every major city keeps a standing company at the Frontier Garrison, rotated each season, to hold the line
+    against what comes across the cracks.
+  known_by: [everyone]
+
+- id: frontier_rolls
+  text: At dusk the Frontier Garrison reads out the Frontier Rolls, the names of the dead since the last season. A soldier who comes back alive from beyond the line drops a pebble on the cairn.
+  known_by: [frontier_locals, guards]
+
+- id: ironvein_mines_copper
+  text: Ironvein's dwarves cut copper and iron from the mines behind the city gates. The Deep Stair goes down from the lowest gallery, to the Deep Roads below.
+  known_by: [ironvein_locals, merchants]

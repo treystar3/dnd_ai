@@ -17,7 +17,7 @@ def ok(cond, msg):
 
 c, _ = simlib.make_character("summoner", random.Random(1))
 c.level = 40
-ok(len(c.companions) == 2, "a summoner starts with a wolf and a spirit")
+ok(len(c.companions) == 1 and c.bound_summon, "the stand-in summoner keeps a wolf (a companion) and has a Bound summon (not a companion)")
 wolf = world.bestiary["wolf"]
 e = combat.fighter_from_creature(wolf, 40, "normal", "e1", "wolf")
 ok("wear it down" in taming.check(c, e, wolf), "a healthy wolf cannot be tamed")
@@ -59,16 +59,6 @@ ok(taming.check(c, combat.fighter_from_creature(wolf, 150, "normal", "e3", "wolf
 freed = taming.release(c, "release the wolf")
 ok(freed and freed.name == "Wolf" and not taming.tamed(c), "releasing frees the tamed companion")
 
-sizes = {}
-for tier in ("light", "moderate", "heavy"):
-    comp = NS(id="s", name="S", kind="spirit", role="striker", tier=tier)
-    sh = _Shape(comp)
-    f = combat.companion_fighter(sh, 100, "a", "s", (tier, "striker"))
-    sizes[tier] = (sh.size, f.max_hp, f.weapon_damage)
-ok([sizes[t][0] for t in ("light", "moderate", "heavy")] == ["Medium", "Large", "Huge"], "spirit size follows the ability tier")
-ok(sizes["light"][1] < sizes["moderate"][1] < sizes["heavy"][1], "a heavier tier has more health")
-ok(sizes["light"][2] < sizes["moderate"][2] < sizes["heavy"][2], "and hits harder")
-g = combat.companion_fighter(_Shape(NS(id="g", name="G", kind="spirit", role="guardian", tier="light")), 100, "a", "g", ("light", "guardian"))
-s = combat.companion_fighter(_Shape(NS(id="s", name="S", kind="spirit", role="striker", tier="light")), 100, "a", "s", ("light", "striker"))
-ok(g.max_hp > s.max_hp and s.weapon_damage > g.weapon_damage, "a guardian is tougher and a striker hits harder")
+for cat in ("construct", "undead", "elemental", "celestial"):
+    ok(cat not in taming.T["categories"], f"a {cat} is a made thing, never tamed")
 print("\nALL OK" if not bad else "\nFAILED", bad)

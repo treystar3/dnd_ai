@@ -4,8 +4,6 @@ from core.models import (
     COMPANION_TARGETS,
     NONCOMBAT_TARGETS,
     NONCOMBAT_TRIGGERS,
-    CompanionKind,
-    CompanionRole,
 )
 from core.rules import FAMILIES, STATS, TRIGGERS
 from llm.contracts import ClassInterpretation
@@ -15,6 +13,14 @@ def _list(values) -> str:
     return ", ".join(v.value for v in values)
 
 
+WORLD_FACTS = """THE WORLD (Rivia) - everything you write must belong to it:
+- It is a medieval high-fantasy world: swords, bows, magic, faith, beasts, guilds, alchemy and clockwork.
+- Weapons that exist: clubs, daggers, spears, axes, maces, hammers, swords, lances, slings, bows, crossbows, staves, wands, charms, instruments, bare hands.
+- Nothing powered by gunpowder or engines exists: no guns, firearms, rifles, pistols, cannons, bullets, grenades, explosives, electricity,
+  motors, vehicles, computers or other modern technology. Alchemy, clockwork and spring-and-gear devices do exist.
+- If a concept needs something that does not exist (a gunslinger, a hacker, a pilot), translate it to the closest thing that does (a
+  crossbow marksman, a trickster of locks and secrets, a rider) and write the translated class, never the missing thing."""
+
 CLASSIFY_SYSTEM = """You interpret a player's character concept for a high-fantasy RPG.
 Map the concept to exactly one archetype: warrior, mage, rogue, or support.
 The archetype is the mechanical foundation; pick the one that best fits how the character fights or contributes.
@@ -23,19 +29,29 @@ combat_identity is a few words on weapon and fighting style.
 themes are 2-4 short thematic keywords.
 summary is one or two sentences describing the class in-world.
 focus is how the concept spends its time: combat (mostly fighting), balanced (fighting and life beyond it), or social (mostly people, performance, knowledge, trade or intrigue rather than fighting).
+adapted: leave empty unless the concept needs something that does not exist in this world (see THE WORLD below). Then write one plain sentence saying what
+  the player asked for and what you made of it instead (for example "Firearms do not exist here; I read this as a crossbow marksman."), and write the
+  class name, combat_identity, themes and summary for the translated version only.
 constraints are explicit limits or preferences the player stated, such as "avoids melee" or "never kills". Empty list if none. Never invent constraints.
-uses_companions is true only if the concept relies on summoned, tamed, raised, bound or hired allies to fight or act on their behalf.
+uses_companions is true only if the concept relies on COMPANIONS: living creatures it has tamed, raised or bonded with - animals and
+  beasts that grow with it (a beast-tamer, a falconer, a druid with a wolf). Never for things made with magic.
+summoner is true only if the concept MAKES beings with magic to fight or act for it - conjured spirits, animated constructs or guardians,
+  raised dead, elementals, familiars it created. A summon is made, not tamed: a summoner is never uses_companions for its summons.
+  A concept can be both (a druid with a wolf who also calls up thorn spirits).
 primary_attributes are the 2 or 3 attributes this concept relies on most, most important first:
   strength (heavy weapons, raw force), dexterity (finesse, bows, speed, agility), constitution (toughness, endurance),
   intelligence (arcane study and spellcraft), wisdom (faith, nature, perception), charisma (presence, performance, pacts).
 casting_attribute is what powers this concept's magic, if it has any: intelligence (studied, arcane - wizards,
   artificers of spells), wisdom (faith, nature, spirits - clerics, druids, shamans), charisma (pacts, performance,
   innate gifts - warlocks, bards, sorcerers). Leave it empty only if the concept uses no magic at all.
+elements: only if the concept names the element(s) its magic works in, list them from: fire, cold, lightning, poison, acid, necrotic,
+  radiant, nature ("a fire mage" -> [fire]; "a druid of thorn and root" -> [nature]; "a witch of storm and frost" -> [lightning, cold]; "a plague doctor" -> [poison]). Leave it empty
+  when the concept does not name one - never guess an element from mood alone.
 families are one to three kinds of class this concept draws on, most important first. Choose from:
 {families}
   A Dragoon might be warrior and ranger; a bard who heals, bard and healer; a necromancer with thralls, necromancer and
   summoner; a warlock bound to a dark patron, warlock and mage; a martial-arts monk, monk and rogue.
-Respond only with JSON matching the schema.""".replace("{families}", "\n".join(f"  {k}: {v.description}" for k, v in FAMILIES.items()))
+Respond only with JSON matching the schema.""".replace("{families}", "\n".join(f"  {k}: {v.description}" for k, v in FAMILIES.items())) + "\n\n" + WORLD_FACTS
 
 ACTIVES_SYSTEM = f"""You design level 1 ACTIVE abilities for a custom RPG class.
 An active ability is something the character deliberately does in a moment.
@@ -45,7 +61,7 @@ Make them varied so the player has a real choice.
 You only choose categories; the game engine decides all numbers. Never include numbers in descriptions.
 
 effect:
-  damage, healing, control, defense, mobility, utility: ordinary effects.
+  damage, healing, control, mobility, utility: ordinary effects. (There are no defensive stances: a guard or ward is a buff.)
   influence: sways a person's feelings, beliefs or choices (calm, frighten, charm, persuade, unsettle).
   summon: calls or creates a companion that stays and acts on its own turns.
   command: directs the companions already present. Give it a command from the commands on offer (every command ability a different one).
@@ -65,7 +81,7 @@ rider and shape: the request lists the riders and shapes on offer for this chara
   damage abilities (not reach area). Leave both empty on everything else.
   Name and describe each such ability so it fits what it does (a chilling rider belongs on a frost spell, a volley on a barrage).
   A rider or shape must match what the ability actually is and says: never put ricochet, chaining or sweeping on an ability described as
-  one target, lunge on a ranged spell, or reliable on something wild or chaotic. If nothing on offer suits an ability, leave it plain.
+  one target, sweeping on a ranged spell, or reliable on something wild or chaotic. If nothing on offer suits an ability, leave it plain.
   Give a multi-hit shape to an ability whose description is several strikes (a rapid sequence of fireballs, a flurry, a spread of arrows),
   and never put some other shape on an ability that describes several hits. Multi-hit shapes (double, volley, barrage) must be named and described for THIS class: an archer's Multishot or Rain of Arrows,
   a monk's Flurry of Blows, a mage's Arcane Missiles, a rogue's Fan of Knives or Twin Stab, a warrior's Rapid Strikes - never a generic
@@ -78,12 +94,11 @@ field_use: REQUIRED for every ability whose context is out_of_combat or both, ex
   function on offer is used at most once. If an ability fits none that are left, make it a combat ability (context combat)
   and leave field_use empty. A function that is "always on" still counts as one ability's field_use.
 A world function such as phantom_steed (a spectral mount) or summon_labor (a servant to carry things) is effect utility with its
-  field_use - never effect summon. Effect summon is only for a companion that fights beside the character, and it needs summons.
-summons: only for summon abilities, and required for them. Describe the companion:
-  name, one-sentence description, kind ({_list(CompanionKind)}), role ({_list(CompanionRole)}).
-  Roles: striker hits hard; guardian is sturdy; rogue bleeds what it hits; healer mends you and allies; support bolsters allies' damage.
+  field_use - never effect summon. Effect summon is only for a being the character makes with magic, and it needs summons.
+summons: only for a summon ability, and required for it. Name and describe what it makes: name, one-sentence description.
+  The engine has already decided its form (under "does") - depict that form; its size and element are the engine's too.
 
-If the class uses companions: include 2 to 4 summon abilities and 2 to 3 command abilities, and keep the character's own direct attacks few and light.
+If the class makes summons: include at least one summon ability. If it keeps companions or makes summons, include 2 to 3 command abilities.
 Name command abilities as evocative techniques, calls or signals, never in the form "Command: X".
 The class constraints are absolute. If it says the character avoids melee, give no melee-reach abilities.
 description is one sentence describing what the ability looks and feels like.
@@ -102,9 +117,10 @@ For every numbered ability:
   A defense, mobility, buff or self ability acts on the caster alone. An outside-combat function is shown by what the description does
   (looking ahead, making camp, working a lock, bargaining), so the name and description should make that function obvious.
 - slot: the ability's number, exactly as given.
-- summons: only for a summon ability. Describe the companion: name, one-sentence description, kind ({_list(CompanionKind)}),
-  role ({_list(CompanionRole)}).
-  Roles: striker hits hard; guardian is sturdy; rogue bleeds what it hits; healer mends you and allies; support bolsters allies' damage.
+- summons: only for a summon ability, and required for it. Name and describe what it makes: name, one-sentence description.
+    The engine has already decided its form (under "does") - depict that form; its size and element are the engine's too.
+Flavor every name and description from the class's own themes and magic, never from another class's: a holy paladin's quick step is
+holy or martial, never shadowy; a necromancer's is never holy. The words under "does" say what happens, not what it should look like.
 Make the 15 sound varied, and keep them grounded for a beginner. Respect the class constraints (if the character avoids melee, never
 depict melee fighting). If the class uses companions, name command abilities as evocative calls or signals.
 Respond only with JSON matching the schema."""
@@ -162,7 +178,9 @@ def class_context(interp: ClassInterpretation) -> str:
         f"Families: {', '.join(interp.families) or 'unspecified'}\n"
         f"Focus: {interp.focus}\n"
         f"Constraints: {constraints}\n"
-        f"Uses companions: {'yes' if interp.uses_companions else 'no'}"
+        f"Elements: {', '.join(getattr(interp, 'elements', []) or []) or 'any'}\n"
+        f"Keeps companions (tamed, living): {'yes' if interp.uses_companions else 'no'}\n"
+        f"Makes summons (with magic): {'yes' if getattr(interp, 'summoner', False) else 'no'}"
     )
 
 
@@ -248,9 +266,8 @@ For every numbered lesson:
   An ability on the caster alone has no target. An outside-combat function shows in what the description does.
   For a PASSIVE TRAIT describe what the character IS, KNOWS or HAS BECOME - never an action they take.
 - slot: the lesson's number, exactly as given.
-- summons: only for a summon ability. Describe its companion: name, one-sentence description, kind ({_list(CompanionKind)}),
-  role ({_list(CompanionRole)}).
-  Roles: striker hits hard; guardian is sturdy; rogue bleeds what it hits; healer mends you and allies; support bolsters allies' damage.
+- summons: only for a summon ability, and required for it. Name and describe what it makes: name, one-sentence description.
+    The engine has already decided its form (under "does") - depict that form; its size and element are the engine's too.
 Respect the class and its habits (if the character avoids melee, never depict melee fighting). Grounded and practical for their level.
 Respond only with JSON matching the schema."""
 
@@ -267,10 +284,11 @@ def lesson_user(c, request: str, slot_text: str) -> str:
 WANT_SYSTEM = """A player asked a guild instructor to teach them something. Say what they are after.
 kind: "active" for something they do on purpose (a spell, technique, move), "passive" for a lasting quality (a knack, instinct, resistance,
 being better at something), "either" if the request does not say.
-effect: for an active, the one that fits best - damage, control, defense, mobility, healing, buff, utility, influence, summon or crafting;
+effect: for an active, the one that fits best - damage, control, mobility, healing, buff (a guard or ward is a buff), utility, influence, summon or crafting;
 empty if the request is open.
 stat: for a passive, the one it improves - accuracy, evasion, defense, damage, movement, resolve, recovery, perception, stealth, insight,
 persuasion, intimidation, deception, performance, lore, crafting - empty if none is named.
+element: the element the request names, from fire, cold, lightning, poison, acid, necrotic, radiant, nature - empty if it names none.
 Respond only with JSON matching the schema."""
 
 
@@ -292,3 +310,7 @@ Respond only with JSON matching the schema."""
 def field_user(abilities) -> str:
     lines = [f"- {a.name} ({a.effect.value}, {a.reach.value}): {a.description}" for a in abilities]
     return "Abilities:\n" + "\n".join(lines)
+
+
+for _name in ("ACTIVES_SYSTEM", "SLOTS_SYSTEM", "PASSIVES_SYSTEM", "MECH_PASSIVES_SYSTEM", "STAT_PASSIVES_SYSTEM"):
+    globals()[_name] = globals()[_name] + "\n\n" + WORLD_FACTS

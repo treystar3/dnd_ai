@@ -31,6 +31,12 @@ def shape_text(sid: str) -> str:
     return SHAPES[sid]["text"]
 
 
+def shape_label(sid: str, reach="") -> str:
+    """A shape's name on the card: a volley swung at arm's length is a flurry (f254)."""
+    s = SHAPES[sid]
+    return s.get("close_label", s["label"]) if tier_of(reach) in ("melee", "extended") else s["label"]
+
+
 def command_text(cid: str, tier) -> str:
     c = COMMANDS[cid]
     nums = {k: value(v, tier) for k, v in c.items() if isinstance(v, dict) and tier_of(tier) in v}
@@ -43,12 +49,56 @@ def buff_stat_word(stat: str) -> str:
     return {"armor": "armor", "ward": "ward", "both": "armor and ward"}.get(stat, "armor")
 
 
-def buff_text(bid: str, tier, stat: str = "") -> str:
-    b = BUFFS[bid]
-    pct = value(b["pct"], tier)
-    if bid == "bulwark" and stat == "both":
-        pct = round(pct * b["both_share"])
-    return b["text"].format(rounds=value(b["rounds"], tier), pct=pct, half=round(pct / 2), stat=buff_stat_word(stat))
+def buff_text(bid: str, tier=None, stat: str = "") -> str:
+    """What a buff does, in the card's words. Buffs have one strength (f235): the tier is ignored."""
+    b = BUFFS.get(bid)
+    if not b:
+        return ""
+    return b["text"].format(**{k: v for k, v in b.items() if isinstance(v, (int, float)) and not isinstance(v, bool)})
+
+
+def imbue_text(element: str, expressions=(), tier="light") -> str:
+    """Imbue as it is for this ability: its own element, and what that element does on each hit (f250)."""
+    from engine import spellcraft
+    b = BUFFS["imbue"]
+    el = element or "fire"
+    out = f"for {b['rounds']} rounds, every weapon hit deals {b['pct']}% of the hit again as {el}"
+    does = [spellcraft.expression_text(e, tier) for e in (expressions or []) if e in spellcraft.EXPR]
+    if does:
+        out += ", and each one " + " It also ".join(does)
+    return out
+
+
+ARCHON = {     # what an archon of each element does better with it (engine/combat.py ATTUNE, engine/afflictions.py) - f261
+    "fire": "their burns are half again as strong",
+    "cold": "their slows last a round longer",
+    "lightning": "their lightning leaps on to other enemies half again as hard",
+    "poison": "their poison lands two stacks at a time",
+    "acid": "their acid eats half again as much armor",
+    "necrotic": "their withering lasts a round longer and their drains heal half again as much",
+    "radiant": "the enemies they light up or blind stay that way a round longer",
+    "nature": "their bark barriers grow half again as thick",
+}
+WARD = {"fire": "cannot be set burning", "cold": "cannot be slowed by cold", "lightning": "cannot be slowed or blinded by lightning",
+        "poison": "cannot be poisoned", "acid": "cannot be slowed or blinded by acid", "necrotic": "cannot be withered or unraveled",
+        "radiant": "cannot be lit up or blinded by radiance", "nature": "cannot be bled, knocked down or petrified by nature"}
+
+
+def attunement_text(element: str) -> str:
+    """Attunement as it is for this ability: its own element, said plainly (f261)."""
+    b = BUFFS["attunement"]
+    el = element or "fire"
+    return (f"for {b['rounds']} rounds, the one it is cast on becomes an archon of {el}: they take {b['pct']}% less {el} damage, "
+            f"{WARD.get(el, 'shrug off its effects')}, and {ARCHON.get(el, 'their own ' + el + ' is stronger')}")
+
+
+def ability_buff_text(a) -> str:
+    """What this ability's buff does, as its card shows it."""
+    if getattr(a, "buff", "") == "imbue":
+        return imbue_text(getattr(a, "element", ""), getattr(a, "expressions", None) or [], tier_of(getattr(a, "tier", "light")))
+    if getattr(a, "buff", "") == "attunement":
+        return attunement_text(getattr(a, "element", ""))
+    return buff_text(a.buff)
 
 
 def parts(a) -> list[tuple[str, str]]:
@@ -56,16 +106,44 @@ def parts(a) -> list[tuple[str, str]]:
     out = []
     if getattr(a, "command", "") and tier_of(a.effect) == "command":
         out.append((COMMANDS[a.command]["label"], command_text(a.command, a.tier)))
-    if getattr(a, "buff", ""):
-        out.append((BUFFS[a.buff]["label"], buff_text(a.buff, a.tier, a.buff_stat)))
-    if tier_of(a.effect) == "damage" and not getattr(a, "shape", "") and not getattr(a, "rider", ""):
+    if getattr(a, "buff", "") in BUFFS:
+        out.append((BUFFS[a.buff]["label"], ability_buff_text(a)))
+    if tier_of(a.effect) == "healing":
+        from engine import healing
+        out.append(("In a fight", healing.card_text(a)))
+    if tier_of(a.effect) == "damage" and not getattr(a, "shape", "") and not getattr(a, "rider", "") and not getattr(a, "expressions", None) \
+            and not getattr(a, "maneuver", "") and getattr(a, "martial_form", "") in ("", "strike"):
         out.append((PLAIN_LABEL, f"deals {round(T['plain_damage'] * 100)}% more damage, having no rider or shape"))
     if getattr(a, "shape", ""):
-        out.append((SHAPES[a.shape]["label"], shape_text(a.shape)))
+        out.append((shape_label(a.shape, getattr(a, "reach", "")), shape_text(a.shape)))
     if getattr(a, "rider", ""):
         out.append((RIDERS[a.rider]["label"], rider_text(a.rider, a.tier)))
+    if getattr(a, "spell_form", "") and a.spell_form != "bolt":
+        from engine import spellcraft
+        out.append((spellcraft.FORMS[a.spell_form]["label"], spellcraft.form_text(a.spell_form)))
+    from engine import spellcraft
+    for eid in ([] if getattr(a, "buff", "") == "imbue" else spellcraft.exprs_of(a)):     # Imbue says its element's effect in its own line
+        x = spellcraft.EXPR[eid]
+        lead = "Deals no damage; instead it " if x["kind"] == "control" else ("While it lasts, your weapon's hits also " if
+                                                                             getattr(a, "buff", "") == "imbue" else "Each hit ")
+        out.append((x["label"], lead + spellcraft.expression_text(eid, a.tier)))
+    turns = int(getattr(a, "cast_turns", 0) or 0)       # a cast time of its own (a charged spell's form already says its two turns)
+    if turns > 1:
+        out.append(("Cast time", f"takes {turns} turns: begun on the first, the rest go to finishing it. A stun or a fall breaks it."))
+    if getattr(a, "martial_form", "") and a.martial_form != "strike":
+        from engine import martial
+        out.append((martial.FORMS[a.martial_form]["label"], martial.form_text(a.martial_form, getattr(a, "hits", 0))))
+    if getattr(a, "maneuver", ""):
+        from engine import martial
+        lead = "Deals no damage; contested, it " if tier_of(a.effect) == "control" else "When it lands, it "
+        out.append((martial.MANEUVERS[a.maneuver]["label"], lead + martial.maneuver_text(a.maneuver, a.tier)))
+    if getattr(a, "movement", ""):
+        from engine import movement
+        txt = movement.card_text(a.movement)
+        if txt:
+            out.append(("Movement", txt))
     if getattr(a, "channel", False):
-        out.append(("Channeled", "a mana strike through your weapon: its damage plus a spell's, against whichever of armor or ward is weaker (an ordinary spell without a melee weapon in hand); costs 25% more"))
+        out.append(("Channeled", "it hits with your weapon damage plus half of your spell power."))
     return out
 
 
@@ -74,22 +152,22 @@ def describe(a) -> str:
     return "; ".join(f"{label.lower()}: {text}" for label, text in parts(a))
 
 
-def buff_mech(buff: str, tier, stat: str = "", magical: bool = False) -> dict:
-    """The combat mechanics a buff grants while it lasts."""
-    b = BUFFS[buff]
-    pct = value(b["pct"], tier)
-    if buff == "bulwark":
-        stat = stat or ("ward" if magical else "armor")
-        if stat == "both":
-            share = round(pct * b["both_share"])
-            return {"bulwark_armor": share, "bulwark_ward": share}
-        return {f"bulwark_{stat}": pct}
-    if buff == "thorns":
-        return {"thorns": pct}
-    special = {"manashield": "mana_shield", "empower": "empowered", "frenzy": "blood_pact", "vampiric": "vampiric", "elemental": "elemental_weapon"}
-    if buff in special:
-        return {special[buff]: pct}
-    return {"regeneration": pct}
+def buff_mech(buff: str, tier=None, stat: str = "", magical: bool = False) -> dict:
+    """The combat mechanics a buff grants while it lasts (f235: one strength each)."""
+    b = BUFFS.get(buff)
+    if not b:
+        return {}
+    return {"imbue": {"elemental_weapon": b.get("pct", 0)}, "precision": {"precision": b.get("crit", 0)},
+            "blur": {"blur": 1}, "arcaneward": {"bulwark_ward": b.get("pct", 0)}, "attunement": {"element_ward": b.get("pct", 0)},
+            "bladeward": {"bladeward": b.get("pct", 0)}, "manashield": {"mana_veil": b.get("pct", 0)},
+            "enlarge": {"enlarged": b.get("pct", 0)},
+            "frostarmor": {"bulwark_armor": b.get("pct", 0), "frost_armor": 1},
+            "stoneform": {"stoneform": b.get("pct", 0)}, "envenom": {"envenom_weapon": 1},
+            "acidcoat": {"acid_weapon": b.get("pct", 0)}, "thorns": {"thorn_flat": b.get("flat", 0), "thorn_pct": b.get("pct", 0)}}.get(buff, {})
+
+
+def buff_rounds(buff: str) -> int:
+    return int((BUFFS.get(buff) or {}).get("rounds", 3))
 
 
 def _score(entry: dict, interp) -> float:
@@ -103,7 +181,7 @@ def _score(entry: dict, interp) -> float:
 
 def _draw(table: dict, n: int, interp, rng: random.Random, skip=(), max_multi: int | None = None) -> list[str]:
     """Weighted draw without repeats. Companion-only entries need a class that has companions; multi-hit shapes are capped."""
-    pack = getattr(interp, "uses_companions", False)
+    pack = getattr(interp, "uses_companions", False) or getattr(interp, "summoner", False)   # allies of its own, kept or made
     ids = [k for k in table if k not in skip and (pack or not table[k].get("companion"))]
     out, multi = [], 0
     while ids and len(out) < n:
@@ -126,7 +204,7 @@ def draw_offers(interp, rng: random.Random | None = None, sizes: dict | None = N
     return {
         "functions": field.draw(interp, rng, minimum=min_functions, count=(sizes or {}).get("functions"), skip=owned_functions,
                                level=level, lesson=lesson),
-        "commands": list(COMMANDS) if getattr(interp, "uses_companions", False) else [],
+        "commands": list(COMMANDS) if (getattr(interp, "uses_companions", False) or getattr(interp, "summoner", False)) else [],
         "riders": _draw(RIDERS, n["riders"], interp, rng, skip),
         "shapes": _draw(SHAPES, n["shapes"], interp, rng, skip, max_multi=T["max_multi"]),
         "buffs": _draw(BUFFS, n["buffs"], interp, rng),
@@ -150,8 +228,7 @@ def offer_lines(offers: dict) -> str:
             lines.append(f"  {cm}: {command_text(cm, 'moderate')}")
     lines.append("Buffs on offer (give an ability the effect buff and this buff; it strengthens the caster for a few rounds of a fight):")
     for b in offers["buffs"]:
-        lines.append(f"  {b}: " + ("raises armor, ward or both - set buff_stat to armor, ward or both" if b == "bulwark"
-                                   else buff_text(b, "moderate")))
+        lines.append(f"  {b}: {buff_text(b)}")
     return "\n".join(lines)
 
 
@@ -231,13 +308,8 @@ def dedupe_traits(skills) -> None:
 
 
 def infer_buff(a, candidates, used=()) -> str:
-    """Which buff an unlabeled buff ability is: bulwark if it names a stat, else the candidate whose flavor words appear in its text,
-    else the first candidate."""
-    candidates = [c for c in candidates if c in BUFFS]
-    if not candidates:
-        return "bulwark"
-    if getattr(a, "buff_stat", "") and "bulwark" in candidates:
-        return "bulwark"
+    """Which buff an unlabeled buff ability is: the candidate whose flavor words appear in its text, else the first candidate."""
+    candidates = [c for c in candidates if c in BUFFS] or list(BUFFS)
     text = f"{a.name} {a.description}".lower()
     scored = [(2 * sum(w in text for w in BUFFS[c].get("words", [])) + (1 if c not in used else 0), -i, c) for i, c in enumerate(candidates)]
     return max(scored)[2]
@@ -245,18 +317,20 @@ def infer_buff(a, candidates, used=()) -> str:
 
 def repair_buffs(skills, offered_buffs=None) -> None:
     """A buff ability with no buff, or one that is not on offer, gets the best-fitting offered buff instead of failing the whole set."""
+    for a in skills:                                       # no defense stances (f250): a guard the model wrote is a buff
+        if tier_of(a.effect) == "defense":
+            a.effect = type(a.effect)("buff")
     for a in skills:
         if tier_of(a.effect) != "buff":
             continue
         if not a.buff or (offered_buffs and a.buff not in offered_buffs):
             a.buff = infer_buff(a, offered_buffs or list(BUFFS), {s.buff for s in skills if s.buff})
-            if a.buff != "bulwark":
-                a.buff_stat = ""
-            elif not a.buff_stat:
-                a.buff_stat = "ward" if tier_of(a.resource) == "mana" else "armor"
+            a.buff_stat = ""
     extra = [a for a in skills if tier_of(a.effect) == "buff"][T["max_buffs"]:]
-    for a in extra:                                        # too many buffs: the surplus become plain defensive stances
-        a.effect = type(a.effect)("defense")
+    for a in extra:                                        # too many buffs: the surplus become plain attacks
+        a.effect = type(a.effect)("damage")
+        if tier_of(a.reach) == "self":
+            a.reach = type(a.reach)("melee")
         a.buff = a.buff_stat = ""
 
 

@@ -27,7 +27,7 @@ lanes:
     label: striker's
     flavor: made for someone who fights with the hand - quick, hard, finishing
     stats: [damage, accuracy, max_stamina, resolve, recovery, strength, dexterity, crit_chance, crit_damage, elemental_damage]
-    mechs: {relentless: 4, executioner: 25, opportunist: 20, flurry: 15, bloodlust: 8, battle_rhythm: 3, cleave: 30}
+    mechs: {relentless: 4, executioner: 25, opportunist: 20, flurry: 15, bloodlust: 8, battle_rhythm: 3, follow_through: 30}
     world: {fortunes_favor: 15, warden_wage: 15, reapers_tally: 20, wreckers_mark: 0}
     powers: [smite, frenzy, rend]
   trickster:
@@ -91,7 +91,7 @@ bosses:
     - {id: unseen_eye, power: {name: the unblinking eye, kind: dazzle, rounds: 2, wide: true, text: "Blind and slow every enemy in the field."}}
   giant:
     - {id: earthshaker, fight: {earthshaker: 15}, text: "Your blows have a {value}% chance to knock the enemy flat (always on a critical hit), and nothing can knock you down."}
-    - {id: titan_stride, power: {name: a giant's stride, kind: buff, rounds: 3, mech: {stoneskin: 30, unyielding: 0, cleave: 60}, text: "For 3 rounds you take 30% less damage, cannot be stunned or knocked down, and your hits cleave."}}
+    - {id: titan_stride, power: {name: a giant's stride, kind: buff, rounds: 3, mech: {stoneskin: 30, unyielding: 0, follow_through: 60}, text: "For 3 rounds you take 30% less damage, cannot be stunned or knocked down, and your killing blows carry into the next enemy."}}
   elemental:
     - {id: attunement, fight: {attunement: 6}, text: "Each ability you use attunes you further: +{value}% damage per stack, up to five, for the rest of the fight."}
     - {id: stormcall, power: {name: the gathered storm, kind: nova, mult: 150, text: "The storm answers you: every enemy takes {mult}% of a spell."}}

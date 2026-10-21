@@ -7,7 +7,9 @@ hit:
   spread: 40        # how far an accuracy advantage can swing it
   min: 5
   max: 95
-  point_blank: 25   # accuracy lost by a physical ranged attacker (a bow) against an enemy already engaged with them
+  point_blank: 15   # accuracy lost by a physical ranged attacker (a bow, an archer) with a foe already engaged with them
+  screened_backline: 10   # accuracy lost shooting at a backliner behind a working front line
+  cover: 10               # accuracy lost shooting from another zone at someone in cover
   graze_band: 15    # the last N points under the hit chance are grazes (half damage)
 
 crit:
@@ -28,8 +30,42 @@ ability_cost_percent: {light: 8, moderate: 15, heavy: 25}      # mana: a finite 
 # refilled by fighting. A landed basic attack and each new round give some back; a critical hit gives more.
 stamina_cost_percent: {light: 10, moderate: 20, heavy: 35}
 momentum: {round: 4, hit: 5, crit: 10}
-healing_percent: {light: 15, moderate: 25, heavy: 40}
-defend_percent: {basic: 50, light: 30, moderate: 45, heavy: 60}
+# healing abilities: see data/rules/healing.yaml (f219)
+defend_percent: {basic: 50}        # the free one-round brace everyone has; defense ABILITIES are stances, below
+
+# A defense ability is a stance: it holds for rounds while you keep acting, costs stamina upkeep each round, and (heavy) strikes back
+# when an engaged attacker misses you. One stance at a time; the free defend above stays the one-round panic button.
+stance:
+  percent: {light: 20, moderate: 30, heavy: 40}
+  rounds: {light: 3, moderate: 3, heavy: 4}
+  upkeep_percent: 6      # above the 4% the round gives back, so holding a stance always costs something real
+  counter: {heavy: 60}             # the heavy stance ripostes a missed engaged attacker this often
+
+# A heavy hitter (elite, boss, or anything Huge and up) winds up its big blow a round early, naming its target. Answered by a stance,
+# the free defend, an interpose, an interrupt (stun or prone it), or by not being there when it lands - the light-footed step out and
+# the blow finds air, leaving the brute open.
+telegraph:
+  chance: 0.45
+  multiplier: 2.2
+opening: {accuracy: 15, crit: 10, rounds: 1}
+
+# Control is a graded contest with diminishing returns, not a coin flip: the upper resist_share of what would have been a clean resist
+# half-takes instead (shorter, lesser hold); every time the same target is controlled again the result is worn down a step; a boss
+# counts as already controlled once. A stun or a knockdown interrupts a wound-up blow - control's premium use.
+control:
+  resist_share: 0.5
+  boss_prior: 1
+
+# Morale (engine/behaviors.py): a fight has a second way to end. When the pack's leader falls, or half of them are down, the rest may
+# break and run (or yield, for those who can). The mindless and the sworn never rout; set-piece bosses and the fearless never rout.
+# Improvised actions (engine/combat_improv.py): an ability is a promise, an improvisation is a gamble.
+improv: {base_odds: 55, damage_mult: 0.8}
+
+morale:
+  leader_odds: 0.5        # chance each survivor breaks when the strongest of them is slain
+  half_down_odds: 0.3     # chance each survivor breaks when a death leaves half of them or more fallen
+  frightened_bonus: 0.25  # fear makes both easier
+  never: [undead, construct, ooze, elemental, plant]
 
 mitigation:
   # reduction = armor / (armor + armor_k x attacker growth), capped. Growth = 1 + item_level_growth x (level - 1).
@@ -39,9 +75,29 @@ mitigation:
 
 elevated_accuracy: 10
 
+# The line (engine/battlefield.py): how many enemies each kind of fighter contains while holding a front row. Ranged fighters hold
+# nobody whatever the table says. screened_backline and cover (under hit, below) are what shooting past a line or into cover costs.
+# Pace (engine/battlefield.py pace_of): how fast a fighter covers ground. slow cannot follow a retreat, never strikes in the round it
+# crosses a zone, and (for the player) heavy armor means moving IS your action and you cannot dance out of a blow. fast follows a
+# retreating foe's step for free and may cross and still strike. Everyone else is normal: one free step toward the fight, and backing
+# away costs the action (and blood, if someone is on you).
+pace:
+  slow_sizes: [Huge, Gargantuan]
+  slow_categories: [construct, plant, ooze]
+  fast_categories: [beast, swarm, lycanthrope]
+  armor: {heavy: slow, medium: normal, light: normal}
+narrow_cap: 2        # in a narrow place, at most this many can come at one defender at once
+
+hold:
+  player: {warrior: 3, rogue: 1, mage: 0, support: 0}
+  ally:   {fighter: 1, rogue: 1, archer: 0, priest: 0, mage: 0}
+  normal: 1
+  elite: 2
+  boss: 3
+
 # A channeled ability (a mana strike through your weapon): your weapon's damage plus this share of a spell's base power, struck as
 # physical or magic whichever the target resists less. It costs this much more mana. Without a melee weapon in hand it is an ordinary spell.
-channel: {bonus: 0.5, cost: 1.25}
+channel: {bonus: 0.5, cost: 0.5, stamina: 1.0}   # (f260) a channeled strike costs a technique's full stamina plus half a spell's mana
 
 spell_base_damage: 6         # a damaging spell's base power; spell power (a focus's damage, an off-hand focus, spell power on gear) adds on top
 spell_attribute: 50          # a spell's damage is multiplied by 1 + its casting attribute / this (INT 40 -> x1.8)
@@ -53,21 +109,37 @@ flee:
   band: {engaged: -20, near: 10, far: 40}
   dexterity_spread: 30
 
+illuminated_accuracy: 10   # attacks on an illuminated target gain this much accuracy
 statuses:
   slowed:     {evasion: -15, accuracy: -10}
   prone:      {evasion: -15}
   frightened: {accuracy: -10}
   blinded:    {accuracy: -30}
-  bleeding:   {damage_percent: 3}
+  bleeding:   {damage_percent: 3}   # only a fallback when nothing made the wound (engine/afflictions.py)
   stunned:    {}
-  poisoned:   {damage_percent: 3, power: -10}     # damage over time; it hits softer (Venom)
-  burning:    {damage_percent: 4}                 # damage over time (Ignite)
+  poisoned:   {damage_percent: 2}                 # stacks of damage over time (engine/afflictions.py); the % is only for a poison with no maker
+  burning:    {damage_percent: 4}                 # an ignite (engine/afflictions.py); the % is only for a burn with no maker
   weakened:   {power: -25}                        # deals less damage (Enfeeble)
   exposed:    {protection: -30}                   # armor and ward count for less (Exposing)
   marked:     {taken: 20}                         # takes more damage from the other side (Mark)
   befuddled:  {}                                  # its next attack goes at a random fighter (Befuddle)
   grappled:   {evasion: -10}                      # held in melee: cannot flee, hang back or be pushed away (Grappling)
   unaware:    {}      # surprised by a sneak attack: loses its first turn and takes unaware_damage times damage
+  withered:   {}      # soured by necrotic harm: healing on it, and its regeneration, is halved (engine/healing.py)
+  illuminated: {}     # lit up by radiant light: it cannot hide, cover and a screening line do not protect it, attacks on it gain accuracy (engine/spellcraft.py)
+  petrified:  {}      # turned to stone (Petrify, f266): it cannot act and cannot be damaged
+  brittle:    {}                   # critical hits against it are twice as likely (Brittle, f268)
+  shaky:      {accuracy: -20}      # its aim shakes (Nerve Toxin, f268)
+  jittered:   {evasion: -20}       # twitching with current, it dodges less (Jittered, f268)
+  wasting:    {}                   # poison hurts it more (Wasting, f268)
+  conductive: {}                   # takes more lightning damage (Conductor, f268)
+  superconductive: {}              # lightning that hits it arcs to its area (Superconductor, f268)
+  frostwelded: {}                  # cannot leave its area or step away from melee (Frostweld, f268)
+  numb_hands: {}                   # cannot make ranged attacks (Numb Hands, f268)
+  tangled:    {}                   # cannot make melee attacks (Tangled Arms, f268)
+  humbled:    {}                   # cannot land critical hits (Humbled, f268)
+  scented:    {}                   # companions and summons hit it harder (Pack Scent, f268)
+  unraveled:  {}      # necrotic unravelling: any healing it gets deals that much damage instead (engine/combat.py restore, f263)
 
 creatures:
   # Lift: a creature weaker than the benchmark build of its level (size, ability score and category below) is strengthened toward it, so
@@ -113,16 +185,9 @@ creatures:
   # An animal given as a reward to someone who does not keep companions is a helper, not a partner.
   companion_gift: {health: 0.5, damage: 0.4}
   companion: {health: 1.0, damage: 0.8, late_health: 0.004, late_damage: 0.003, start_level: 40}
-  # A companion who goes down is out until it recovers. A summoned spirit only disperses (call it again, or wait);
-  # a beast has death_chance of not surviving at all, and only a revival brings it back.
+  # A companion (a tamed, living creature) who goes down is out until it recovers, and has death_chance of not surviving at all;
+  # only a revival brings it back. (Summons are not companions: data/rules/summons.yaml.)
   companion_fall: {death_chance: 0.5, recover_hours: 24}
-  # A summoned spirit is as big as the ability that calls it (light: Medium, moderate: Large, heavy: Huge) and is built for its role.
-  spirit:
-    size: {light: Medium, moderate: Large, heavy: Huge}
-    role: {striker: {health: 1.0, damage: 1.3}, guardian: {health: 1.4, damage: 0.8}, rogue: {health: 0.9, damage: 1.1}, healer: {health: 1.0, damage: 0.6}, support: {health: 1.0, damage: 0.8}}
-    rogue_bleed: {light: 50, moderate: 70, heavy: 90}
-    healer: {pct: {light: 8, moderate: 12, heavy: 16}, below: 0.7, cooldown: 1}
-    support: {pct: {light: 12, moderate: 18, heavy: 25}, rounds: 2, cooldown: 1}
   rank: {normal: {health: 1, damage: 1}, elite: {health: 1.35, damage: 1.05}, boss: {health: 2.6, damage: 1.2}}
   # Pack creatures (those whose smallest group is 2 or more) are individually weaker - the threat is in numbers.
   pack: {health: 0.45, damage: 0.45}
@@ -201,13 +266,29 @@ talk:
   surrender_reward: 0.8                  # share of a kill's XP for a foe that yields
 
 # Damage multiplier against a target that is unaware (a sneak attack)
-unaware_damage: 3.0
+unaware_damage: 2.0
+# ...and against an unaware target caught in an area attack (a blast, burst or sweep)
+unaware_area_damage: 1.5
 
 # A hired priest heals the most hurt friend below this share of health, by this percent of their maximum, then rests a few rounds. (A full party of three roughly triples the odds against a full camp; one or two hirelings barely move them.)
 ally_heal: {below: 0.60, pct: 8, cooldown: 3}
-# A buff cast on the player and every ally at once costs this many times its price.
-buff_all_cost: 2
 
 death:
   days_pass: 3
   coin_lost: 0.5       # the share of your coin lost on death; levels and gear are kept
+
+# IGNITE AND POISON (engine/afflictions.py, f227) - one law for every source: a spell, a weapon rider, gear, a creature, a perk.
+#   Ignite (burning): a share of the hit that set it, dealt over a few rounds. Only one burns at a time: a stronger ignite replaces a
+#     weaker one, a weaker one changes nothing. Fire is about the size of the hit.
+#   Poison (poisoned): each poisoning adds a stack. Every stack deals the same flat amount each round - a share of its maker's offensive
+#     power (weapon power for a weapon, spell power for a spell), whatever the hit that applied it. No cap. A new stack refreshes all of
+#     them, so poison builds while it is kept up and falls away all at once when it is not. Poison is about frequency.
+ignite: {share: 0.5, rounds: 2}
+poison: {share: 0.08, rounds: 3}
+# Bleeding is an open wound (f234): its size is a share of the hit that opened it, and it does nothing by itself - every physical hit
+# the bleeder takes afterwards, from anyone, makes it bleed its size again (each hit of a flurry too; not the hit that opened it).
+# One wound at a time: a bigger wound replaces a smaller one (and starts its rounds again); a smaller one changes nothing. It closes
+# after 3 rounds whatever happens, or at once when the bleeder is healed, bandaged or cleansed. Armor and shields do not stop it.
+# Creatures with no blood cannot bleed. Open it with one big blow; make it pay with many small ones.
+bleed: {share: 0.2, rounds: 3, bloodless: [undead, construct, elemental, ooze, plant]}
+

@@ -139,8 +139,9 @@ def _guards(combat, e, n: int) -> int:
         g.boss, g.spawn, g.rank = {}, "", "normal"
         g.max_hp = g.hp = max(1, round(e.max_hp * B["guard_share"]))
         g.weapon_damage = e.weapon_damage * 0.5
-        g.shield, g.statuses, g.cooldowns, g.band = 0, {}, {}, "near"
-        combat.fighters.append(g)
+        g.shield, g.statuses, g.cooldowns = 0, {}, {}
+        from engine.combat import enters
+        enters(combat, g)
         made += 1
     return made
 
@@ -175,7 +176,7 @@ def _do(combat, e, opt: dict, rng, mult: float) -> None:
         e.shield += e.max_hp * 0.05
     elif kind == "mend":
         heal = round(e.max_hp * 0.06)
-        e.hp = min(e.max_hp, e.hp + heal)
+        C.restore(combat, e, heal)
         C.tell(combat, f"its wounds close ({heal})")
     elif kind == "summon":
         n = _guards(combat, e, 2)

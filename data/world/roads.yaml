@@ -11,7 +11,7 @@
    description: "Climbs from rocky foothills into dense pine and then the ancient forest, growing overgrown and hard to tell from the woods as it nears Eldervale."}
 - {id: kings_pass, name: the King's Pass, from: parth, to: ironvein,
    description: "Follows a valley through rolling hills and highlands into the Grey Mountains, narrowing to a pass. A trade route between farmland and the dwarves."}
-- {id: frostpass, name: the Frostpass, from: ironvein, to: frostholm,
+- {id: frostpass, name: the Frostpass, from: dunmarrow, to: frostholm,
    description: "Crosses some of the hardest country there is - mountain valleys, high alpine ground, past the snowline into tundra. Far worse in winter."}
 - {id: old_forest_trail, name: the Old Forest Trail, from: eldervale, to: frostholm,
    description: "An ancient path rather than a road, older than the kingdoms, through old woods, highland forest and alpine ground into the frozen north."}
@@ -19,15 +19,13 @@
    description: "Runs east from fertile grassland into dry grass, scrub, and finally the red hills and badlands around Redstone."}
 - {id: sun_road, name: the Sun Road, from: redstone, to: sunspire,
    description: "Crosses ever more arid country - badlands, scrub, rocky desert, then the great desert around Sunspire. One of the great long trade routes."}
-- {id: royal_road, name: the Royal Road, from: parth, to: valecourt,
-   description: "The best-kept road in the region, running west through farmland into hills, vineyards, valleys and great noble estates."}
 - {id: southern_route, name: the southern trade route, from: riverhaven, to: sunspire,
    description: "The long merchant route linking the Great River to the Sunscar, by river, road and caravan."}
 - {id: ember_road, name: the Ember Road, from: sunspire, to: cinderhold,
    description: "Leaves the last oasis and runs east across salt flats and black rock, the sand turning to ash and the horizon to a glow. Few caravans make it without an escort."}
 - {id: cloud_stair, name: the Cloud Stair, from: frostholm, to: hrimgard,
    description: "A giants' road of enormous stone steps climbing through the snow into the clouds, worn by weather and left by something far bigger than people."}
-- {id: deep_stair, name: the Deep Stair, from: ironvein, to: dunmarrow,
+- {id: deep_stair, name: the Deep Stair, from: ironvein_mines, to: deep_roads_tunnels,
    description: "A dwarven stair down through the mountain's roots, lit by crystal lamps and guarded at every landing. The air thickens and the sound of the world above fades."}
 - {id: sunken_road, name: the Sunken Road, from: valecourt, to: brinewatch,
    description: "Runs west from the royal vales to a cold, stony coast, past farms, then wreck-timber fences, then salt marsh and the smell of the sea."}
@@ -58,3 +56,47 @@
    description: "A track through broken hills strewn with weapons the size of felled trees. The wind carries a sound like distant war-horns."}
 - {id: tidewrack_road, name: the Tidewrack Road, from: wreck_coast, to: sunken_crown,
    description: "A cliff road above a retreating sea, with the drowned capital's towers showing a little more with every visit."}
+
+# --- the new lands ---
+- {id: valley_road, name: the Valley Road, from: riverhaven, to: valecourt,
+   description: "Follows the broad river valley north from the Great River lands into vineyards and royal estates, the busiest road in the kingdom."}
+- {id: marrow_road, name: the Marrow Road, from: valecourt, to: dunmarrow,
+   description: "Climbs from the royal vales into the broken hills of the Deep Roads country, a long road with few inns and a toll at every bridge."}
+- {id: north_road, name: the North Road, from: valecourt, to: frostholm,
+   description: "Runs north from the capital across rolling hills and high moor, the snow arriving a little sooner every year."}
+- {id: gull_road, name: the Gull Road, from: brinewatch, to: thalassor,
+   description: "A cold coast road of shingle and shell, shrouded in sea-fog, where bells hang from the milestones so travellers can find their way."}
+- {id: bell_road, name: the Bell Road, from: thalassor, to: cairnholt,
+   description: "A foggy road climbing from the harbour onto the moor, marked every mile by a bell on a post that rings when the wind turns."}
+- {id: cairn_road, name: the Cairn Road, from: cairnholt, to: whitehaven,
+   description: "A track across open moor lined with cairns, each tended by a family. Don't kick one over."}
+- {id: weather_road, name: the Weather Road, from: whitehaven, to: frostholm,
+   description: "The dry way between the coast and the north, with weather-vanes at every bridge and a Weathermonger waiting at each."}
+- {id: glimmer_way, name: the Glimmer Way, from: skarnhelm, to: glimmerfrost,
+   description: "A road of packed ice and gravel between the clans' stair and the crevasse mines, lit at night by lamps of glimmer."}
+- {id: rime_road, name: the Rime Road, from: glimmerfrost, to: dunmarrow,
+   description: "A long mountain road that drops from the Rimelands into the roots of the Deep Roads country, the frost thinning as the stone gets older."}
+- {id: ash_road, name: the Ash Road, from: skarnhelm, to: cinderhold,
+   description: "A long road along the edge of the ash plains, cold on one side and hot on the other, with few places to rest."}
+- {id: salt_road, name: the Salt Road, from: parth, to: kelpmoor,
+   description: "Runs southwest from the Wend Vale through windy grassland to the coast, carrying salt, rope and fish."}
+- {id: landing_track, name: the Landing Track, from: kelpmoor, to: saltmarsh_landing,
+   description: "A track along the tide-line that is half mud and half boardwalk, rebuilt after every Drag."}
+- {id: coast_road, name: the Coast Road, from: kelpmoor, to: riverhaven,
+   description: "Follows the southern coast east to the mouth of the Great River, past salt pans and fishing hamlets."}
+- {id: tithe_road, name: the Tithe Road, from: harrowgate, to: valecourt,
+   description: "A broad royal road of wagon ruts, built to carry grain to the capital and kept in repair by the crown."}
+- {id: lakeshore_road, name: the Lakeshore Road, from: kingsmere, to: riverhaven,
+   description: "Skirts the lake and then runs south through vineyards and orchards to the river, rolling between summer villas."}
+- {id: well_road, name: the Well Road, from: redstone, to: dustwell,
+   description: "A red-dust road across the badlands from Redstone to the great well, with a cairn every league for the sandstorms."}
+- {id: dawn_road, name: the Dawn Road, from: dustwell, to: saltwind_oasis,
+   description: "A caravan road that crosses the desert edge, timed so travellers reach the oasis for its dawn market."}
+- {id: rest_road, name: the Rest Road, from: cinders_rest, to: sunspire,
+   description: "Runs from the oasis across salt flats and black rock to the drake's ribcage, a safe night at the end."}
+- {id: pyre_road, name: the Pyre Road, from: cinders_rest, to: cinderhold,
+   description: "A short road of ash and cinder between the drake's ribs and the caldera city, lit at night by the glow on the horizon."}
+- {id: frontier_road, name: the Frontier Road, from: redstone, to: frontier_garrison,
+   description: "A long military road across the red badlands toward the Cracked Plains, worn by supply wagons and marching companies."}
+- {id: supply_road, name: the Supply Road, from: riverhaven, to: frontier_garrison,
+   description: "A road of wagon-ruts and picket-lines from the river to the garrison, along which the cities send their troops and stores."}

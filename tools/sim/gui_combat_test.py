@@ -32,7 +32,7 @@ char.level = 8
 store.save_player(PlayerState(character=char, location="parth"))
 ws = WorldScene(store, world, load_traits(), store.load_player())
 ws.enter("parth")
-b = Bridge(); b.install(); b.pinned = "#system"
+b = Bridge(); b.install(); b.pinned = "#character"
 foes = [combat.fighter_from_creature(world.bestiary["wolf"], 4, "normal", f"e{i}", name=f"wolf {i + 1}") for i in range(2)]
 scene = cs.CombatScene.begin(ws, world.bestiary["wolf"], foes, "A pack of")
 ws.combat = scene
@@ -59,7 +59,8 @@ check("no raw tags left in the text", "[h" not in texts)
 check("no numbers line under the narration in the window", "⚔" not in texts)
 if ws.combat is None:
     check("the pane is released when the fight ends", any(e["k"] == "combat_end" for e in evs()) and b.in_combat is False)
-    check("pinned view comes back afterwards", b.ask(main=True) == "#system")
+    b.dirty = True
+    check("pinned view comes back afterwards", b.ask(main=True) == "#character")
 b.uninstall()
 print("\nFAILED: " + ", ".join(bad) if bad else "\nall ok", file=sys.__stdout__)
 sys.exit(1 if bad else 0)

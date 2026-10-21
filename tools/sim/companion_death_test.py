@@ -1,4 +1,4 @@
-"""A companion who goes down sits out; beasts may die, spirits disperse and come back."""
+"""A companion - a living creature - who goes down sits out, and may die. (Summons are not companions: summons_test.py.)"""
 import random, sys, types
 sys.path.insert(0, ".")
 import simlib
@@ -19,14 +19,15 @@ def rig(comps, minutes=1000, seed=1):
                                store=types.SimpleNamespace(save_player=lambda p: saved.append(1)))
     sc = CombatScene.__new__(CombatScene)
     sc.ws, sc.rng = ws, random.Random(seed)
+    sc.fight = types.SimpleNamespace(bound_fell=False)
     return sc, ws
 
-spirit = Companion(id="s1", name="Bone Warden", kind="undead", role="guardian", source="Skeletal Sentry")
+hawk = Companion(id="s1", name="Kestrel", creature="wolf", kind="beast", role="striker")
 wolf = Companion(id="w1", name="Grey", creature="wolf", kind="beast", role="striker")
-sc, ws = rig([spirit, wolf])
-check("fresh companions are active", spirit.active and wolf.active)
+sc, ws = rig([hawk, wolf])
+check("fresh companions are active", hawk.active and wolf.active)
 sc.companions_after_fight({"ally_s1"})
-check("a downed spirit is fallen, never dead", spirit.fallen and not spirit.dead and spirit.recover_at == 1000 + 24 * 60)
+check("a downed companion sits out for a day", hawk.fallen and hawk.recover_at == 1000 + 24 * 60)
 check("the other companion is untouched", wolf.active)
 deaths = 0
 for seed in range(200):

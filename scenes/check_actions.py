@@ -23,7 +23,7 @@ class CheckActions:
     def resolve(self, check: str, npc=None, talking: bool = False, text: str = "", extra=()) -> str:
         odds, why = checks.chance(self.player.character, check, self.check_triggers(check, talking), npc,
                                   self.check_bonuses(check, npc, talking, text or getattr(self, "last_text", "")) + list(extra))
-        degree, rolled = checks.roll(odds)
+        degree, rolled = checks.roll(odds, c=self.player.character)
         today = clock.day(self.minutes)
         if check == "lore" and self.has("patron_whispers") is not None and self.player.character.whisper_day != today:
             self.player.character.whisper_day = today
@@ -32,13 +32,31 @@ class CheckActions:
             degree = "partial"
         console.debug(f"{check}: {odds:.0f}% ({', '.join(why)}) - rolled {rolled}")
         self.spend_edge(check, npc)
-        console.note(checks.label(check, degree))
+        console.ledger(checks.label(check, degree))
         if degree == "failure":
             lucky = self.lucky_save()
             if lucky:
                 degree = "success"
                 console.note(f"A lucky break! You succeeded because of {lucky}.")
+        if degree == "failure":
+            self.bad_failure(check, npc)
         return degree
+
+    def bad_failure(self, check: str, npc=None) -> None:
+        """All or Nothing: a failure is a bad one - it costs trust with whoever it was aimed at, and standing in the town."""
+        from engine import pulse, world_perks
+        c = self.player.character
+        if not world_perks.bad(c, "failure"):
+            return
+        R = world_perks.P["all_or_nothing"]
+        hurt = []
+        if npc is not None and check in checks.SOCIAL + ("insight",):
+            npc.trust = max(0, npc.trust + R["bad_trust"])
+            hurt.append(f"{npc.name.split()[0]} thinks less of you")
+        if self.place.danger is None and check in checks.SOCIAL + ("performance", "stealth"):
+            self.reputation_add(pulse.town_of(self.world, self.player.location), R["bad_standing"])
+            hurt.append("the town hears of it")
+        console.note("It goes badly, as it always does when it goes wrong for you (All or Nothing)" + (": " + ", ".join(hurt) if hurt else "") + ".")
 
     def target_npc(self, intent):
         return next((n for n in self.present if n.id == intent.target), None) or \
@@ -50,6 +68,9 @@ class CheckActions:
         if intent.kind in ("steal", "unlock"):          # a theft rolls its own bar (scenes/law_actions.py)
             return False
         wanted = [c for c in dict.fromkeys(intent.checks) if c in checks.CHECKS]
+        if "stealth" in wanted and intent.kind in ("attack", "ability") and getattr(self, "wildlife", None):
+            wanted.remove("stealth")                    # creeping up to strike: the fight rolls it, after any buffs go up (f248)
+            self.sneaking = True
         if intent.kind == "give" and any(w in (intent.item or "").lower() for w in self.COIN_WORDS):
             wanted = [c for c in wanted if c != "persuasion"]       # offering coin rolls its own persuasion check (a bribe)
         if not wanted:
@@ -203,9 +224,10 @@ class CheckActions:
                     self.reputation_add(town, 1)
         if degree in ("strong success", "success") and self.has("local_favorite") is not None:
             self.reputation_change("performed")
+        self.troubadour(degree)
         if tips and self.place.danger is None:
             self.player.character.coins += tips
-            console.note(f"Tips: {money.fmt(tips)}")
+            console.ledger(f"Tips: {money.fmt(tips)}")
         if degree == "strong success":
             for n in audience[:4]:
                 n.trust = min(100, n.trust + 1)

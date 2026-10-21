@@ -39,7 +39,7 @@ def low_share(rank, hall="eldervale_guild"):
             if q["kind"] in ("hunt", "bounty"):
                 tot += 1; low += world.places[q["place"]].danger[1] < 30
     return low / max(1, tot), tot
-f, fn = low_share("F"); b, bn = low_share("B")
+f, fn = low_share("F", "ironvein_guild"); b, bn = low_share("B", "ironvein_guild")
 print(f"   hunts in zones topping out under 30: rank F {f:.0%} of {fn}, rank B {b:.0%} of {bn}")
 check("a rank-B member is mostly not offered starter-zone hunts", b < 0.35 and b < f, f"{b:.0%} vs {f:.0%}")
 print("FAILED" if bad else "ALL PASS", bad)

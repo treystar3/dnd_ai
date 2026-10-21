@@ -1,0 +1,108 @@
+# The map of Rivia: where each place sits on a 1000 x 1000 sheet (x to the right, y downward; north is up).
+# Distances are only roughly to scale - travel times in places.yaml decide how long a walk takes, not these numbers.
+# A region is drawn as a soft shaded area around its places; a place with no entry here falls back to the old diagram layout.
+
+regions:
+  wend_vale: "#b9a35a"
+  northern_hills: "#8aa05a"
+  blackpine: "#3f7a4a"
+  grey_mountains: "#8a8f9a"
+  far_north: "#9fc2d6"
+  stormcrown: "#7d7fb0"
+  deep_roads: "#6b5a76"
+  great_river: "#5f9fb0"
+  jade_maw: "#2f8a5a"
+  eastern_frontier: "#b8744a"
+  sunscar: "#d2a64a"
+  ashen_reach: "#a84a3a"
+  royal_vales: "#c0a0b8"
+  sepulchre: "#7a7a6a"
+  drowned_coast: "#3f6f9f"
+  cracked_plains_region: "#8a3a3a"
+  gloaming_coast: "#6f8fa0"
+  rimelands: "#9fb4c0"
+  saltmarches: "#b8c47a"
+
+places:
+  parth: [240, 770]
+  south_fields: [232, 800]
+  greywood: [200, 750]
+  willowmead: [350, 810]
+  willowmead_wetlands: [340, 837]
+  riverhaven: [480, 820]
+  great_river_reaches: [510, 795]
+  mirewater_fens: [520, 855]
+  blackwater_deeps: [570, 875]
+  greyhollow: [255, 640]
+  greyhollow_foothills: [220, 620]
+  hollow_barrows: [295, 675]
+  eldervale: [190, 440]
+  blackpine_forest: [215, 535]
+  elderwild: [140, 470]
+  ironvein: [412, 692]
+  grey_mountains: [432, 648]
+  ironcrown_peaks: [345, 585]
+  frostholm: [500, 225]
+  northern_tundra: [535, 195]
+  rimewind_barrens: [460, 190]
+  worldfrost_expanse: [425, 140]
+  hrimgard: [515, 95]
+  stormcrown_heights: [555, 70]
+  thunder_spires: [605, 55]
+  windbreak_ridge: [470, 60]
+  tempest_throne: [640, 37]
+  dunmarrow: [612, 382]
+  deep_roads_tunnels: [645, 410]
+  delvers_deep: [665, 365]
+  lightless_deep: [655, 445]
+  abyssal_gallery: [698, 478]
+  redstone: [700, 700]
+  red_badlands: [735, 725]
+  sunspire: [880, 640]
+  sunscar_desert: [915, 610]
+  sunken_vaults: [850, 648]
+  glass_sea: [960, 622]
+  cinderhold: [880, 470]
+  ash_wastes: [925, 435]
+  smoulder_fields: [855, 420]
+  cinder_caldera: [958, 390]
+  furnace_of_ages: [975, 345]
+  valecourt: [500, 490]
+  howling_downs: [545, 525]
+  shattered_downs: [582, 560]
+  first_hall: [620, 592]
+  brinewatch: [140, 360]
+  drowned_shore: [103, 353]
+  wreck_coast: [106, 286]
+  sunken_crown: [89, 257]
+  leviathan_trench: [70, 385]
+  sepulchre_fields: [350, 430]
+  throne_of_ashes: [315, 465]
+  amaranth: [470, 925]
+  jade_maw_jungle: [435, 950]
+  emerald_mire: [530, 945]
+  heartroot_sanctum: [480, 975]
+  cracked_plains: [890, 880]
+  thalassor: [180, 112]
+  skarnhelm: [850, 190]
+  kelpmoor: [310, 905]
+  kingsmere: [590, 700]
+  cairnholt: [300, 190]
+  glimmerfrost: [740, 260]
+  saltmarsh_landing: [190, 905]
+  harrowgate: [640, 560]
+  elmshade: [235, 560]
+  whitehaven: [385, 260]
+  dustwell: [790, 690]
+  saltwind_oasis: [945, 590]
+  cinders_rest: [800, 560]
+  wraithmoor: [250, 260]
+  whispering_cairns: [285, 85]
+  stormbreak_cape: [150, 215]
+  giants_ladder: [700, 210]
+  rimewood: [790, 125]
+  aurora_fields: [925, 275]
+  tidepool_caves: [131, 958]
+  shipwreck_shoals: [250, 955]
+  frontier_garrison: [676, 868]
+  ironvein_mines: [392, 662]

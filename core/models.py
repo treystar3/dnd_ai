@@ -95,15 +95,10 @@ class Attributes(BaseModel):
     charisma: int = Field(10, ge=1)
 
 
-class CompanionTemplate(BaseModel):
-    id: str
+class Summoned(BaseModel):
+    """What a summon ability makes, as the model named and described it. Its form and size are the engine's (engine/summons.py)."""
     name: str
-    description: str
-    kind: CompanionKind
-    role: CompanionRole
-    tier: PowerTier
-    health: int
-    damage: int
+    description: str = ""
 
 
 class Ability(BaseModel):
@@ -118,7 +113,8 @@ class Ability(BaseModel):
     tags: list[str] = []
     cost: int
     cooldown: int
-    companion: CompanionTemplate | None = None
+    summon_form: str = ""        # for a summon: the form it makes - bound, sentinel, striker, swarm, totem, decoy, volatile
+    summoned: Summoned | None = None   # for a summon: what it makes, as named
     attribute: str = ""   # for mana abilities: the attribute of the magic discipline it belongs to
     rider: str = ""       # an extra thing it does when it lands (engine/ability_traits.py)
     shape: str = ""       # how a damage ability delivers its damage
@@ -126,6 +122,17 @@ class Ability(BaseModel):
     command: str = ""     # for the command effect: focus, guard, press or hold
     buff_stat: str = ""   # for bulwark: armor, ward or both
     channel: bool = False  # a mana strike delivered through the wielded weapon (engine/combat.py)
+    movement: str = ""     # for mobility: the engine-owned movement kind it performs (data/rules/movement.yaml)
+    heal_form: str = ""    # for healing: how it restores - mend, renew, ward, cleanse, transfer or rescue (data/rules/healing.yaml)
+    expressions: list[str] = []   # what its element does: each rides on every hit, or is part of a control spell (data/rules/spellcraft.yaml)
+    power: float = 0       # its own damage multiplier in place of its tier's (0 = the tier's) - for abilities taught with their own numbers
+    cost_percent: float = 0  # its own cost, a percent of the pool, in place of its tier's (0 = the tier's)
+    cast_turns: int = 0    # turns it takes to use, the first included (0 = one, or two for a charged spell)
+    martial_form: str = ""  # a technique: strike, sweep, flurry, windup or counter (data/rules/martial.yaml)
+    hits: int = 0          # a flurry: how many hits
+    maneuver: str = ""     # a technique's maneuver: trip, hamstring, rend, disarm, stagger, pin, shove, hook, sunder or feint
+    spell_form: str = ""   # a mana damage spell: bolt, blast, burst, curse or charged (data/rules/spellcraft.yaml)
+    element: str = ""      # the element it carries, set by the engine when it was planned; the model only narrates it
     field_use: str = ""   # what it does outside combat: scout, shelter, haste, influence, shadow, recall or showmanship (engine/field.py)
 
 
@@ -142,6 +149,7 @@ class Passive(BaseModel):
     mechanic: str = ""
     when: str = ""
     value: float = 0
+    subject: str = ""     # a perk's chosen subject, when it has one (Sworn Enemy: the creature category)
 
     def effect_text(self) -> str:
         if self.mechanic:
@@ -188,6 +196,7 @@ class Item(BaseModel):
     relic: dict = {}        # a ring or amulet's power: {"id", "name", "text", "kind", "value", "uses", "cooldown"} (engine/relics.py)
     enchantments: list[Enchantment] = []
     good: str = ""          # for goods (herbs, food, consumables): the id in goods.yaml
+    origin: str = ""        # for meat and what is cooked from it: the family of the beast it came from, when the player hunted it (Symbiosis)
     quantity: int = 1       # stack size for goods and raw materials
     reforged: bool = False  # its rolls have been reforged once; never again
 
@@ -238,11 +247,21 @@ class Character(BaseModel):
     archetype: Archetype
     custom_class: str
     class_summary: str = ""
-    uses_companions: bool = False
+    uses_companions: bool = False      # keeps companions: tamed, living creatures that grow with them
+    summoner: bool = False             # makes summons with magic (engine/summons.py); a summon is never a companion
+    bound_summon: str = ""             # the summon ability whose Bound summon walks with them now
+    bound_broken: bool = False         # that Bound summon was unmade in a fight and has not been cast again
     primary_attributes: list[str] = []
     casting_attribute: str = ""
+    elements: list[str] = []                   # the concept's named element palette: abilities learned later draw from it too
     attributes: Attributes = Attributes()
-    actives: list[Ability] = []
+    actives: list[Ability] = []                # the book: every ability learned (engine/loadout.py)
+    prepared: list[str] = []                   # the ids of the abilities brought - spells and techniques each have their own room
+    book_seen: list[str] = []                  # abilities the loadout has already considered (a newly learned one comes along if there is room)
+    loadout_day: int = 0                       # the day the loadout was last changed (once a day)
+    loadout_free: bool = True                  # the first change costs nothing
+    prebuffs: list[str] = []                   # combat buffs cast as the opening of a fight you start yourself (#prebuff, f247)
+    loadout_room: int = 0                      # the room the loadout last had (when a level brings more, the book fills it)
     passives: list[Passive] = []
     knowledge: list[str] = []
     unspent_points: int = 0
@@ -264,6 +283,9 @@ class Character(BaseModel):
     last_drill_day: int = -1
     patron_gift_day: int = -100
     whisper_day: int = -1                      # patron's whisper: the day it was last used
+    recipes_made: list[str] = []               # gear bases made at a workshop, which Practiced Hands can make anywhere after
+    studied: dict[str, str] = {}               # Reverse Engineer: gear bases studied overnight -> the finest rarity studied of each
+    gift: dict = {}                            # Symbiosis: {"family", "mechanics": {id: value}} from a meal of your own hunt, until you sleep
     orenna_breath: bool = False                # the blessing of Orenna's Last Breath, unspent (see data/world/orenna.yaml)
     phoenix_day: int = -10000                  # the day a Phoenix item last brought the wearer back from a killing blow
     companions: list[Companion] = []

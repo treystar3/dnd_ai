@@ -78,6 +78,85 @@ class Stub:
                         "description": "A person.", "activity": "going about their work"})
         return {"residents": out}
 
+    def a_MentorLines(self, u, k):
+        first = next((m["content"] for m in k["messages"] if m["role"] == "user"), u)       # a retry's last message is the complaint, not the lines
+        lines = re.findall(r"^\d+\. (.*)$", first.split("LINES TO SAY", 1)[-1], re.M)
+        reply = "Fair enough." if "THE PLAYER JUST SAID" in first else ""
+        if getattr(self, "reply", None) is not None and reply:
+            reply = self.reply
+        if getattr(self, "voice", None):
+            return {"lines": self.voice(lines), "reply": reply}
+        return {"lines": lines, "reply": reply}
+
+    def a_MentorSpeech(self, u, k):
+        first = next((m["content"] for m in k["messages"] if m["role"] == "user"), u)
+        body = first.split("POINTS TO COVER", 1)[-1].split("WORD FOR WORD", 1)[0]
+        pts = re.findall(r"^\d+\. (.*)$", body, re.M)
+        musts = re.findall(r"^  - (.*)$", first.split("WORD FOR WORD", 1)[-1].split("HOW IT ENDS")[0], re.M)
+        if getattr(self, "speech", None):
+            return {"paragraphs": self.speech(pts, musts)}
+        step = 2 if len(pts) <= 4 else 3
+        paras = [" ".join(pts[i:i + step]) for i in range(0, len(pts), step)]
+        have = " ".join(paras)
+        missing = [m for m in musts if m and m not in have]
+        if missing:
+            paras.append(" ".join(missing))
+        ends = first.split("HOW IT ENDS:", 1)[-1] if "HOW IT ENDS:" in first else ""
+        if " asks " in " " + ends.lower() and not paras[-1].rstrip().endswith("?"):
+            paras[-1] = paras[-1].rstrip(". ") + "?"
+        return {"paragraphs": paras}
+
+    def a_Exchange(self, u, k):
+        first = next((m["content"] for m in k["messages"] if m["role"] == "user"), u)
+        names = [x.strip() for x in first.rsplit("speakers from:", 1)[-1].strip().rstrip(".").split(",")]
+        if getattr(self, "exchange", None):
+            return {"lines": self.exchange(names, first)}
+        lo = int(re.search(r"WRITE (\d+) TO", first).group(1))
+        return {"lines": [{"speaker": names[i % len(names)], "text": "Well, here we are."} for i in range(max(lo, 2))]}
+
+    def a_CompanionReply(self, u, k):
+        if getattr(self, "companion", None):
+            return self.companion(u)
+        return {"speech": "Aye. That is how it is with me.", "gesture": "", "remember": "", "impression": ""}
+
+    def a_CanonCheck(self, u, k):
+        if getattr(self, "canon", None):
+            return self.canon(u)
+        return {"verdict": "new", "which": 0}
+
+    def a_Overheard(self, u, k):
+        if getattr(self, "overheard", None):
+            return self.overheard(u)
+        return {"about": [], "party": False, "weight": "light"}
+
+    def a_Extracted(self, u, k):
+        if getattr(self, "extract", None):
+            return self.extract(u)
+        return {"facts": []}
+
+    def a_PersonaDetails(self, u, k):
+        return {"details": ["They grew up in a fishing village on a cold coast.", "They love bread burnt at the edges.",
+                            "A pale scar crosses one thumb, from a gutting knife.", "They hum when they clean their gear.",
+                            "They think often of an older sister who married young."],
+                "secrets": ["I still owe a boatwright for the net I lost the night my father drowned.", "I let my sister take the blame for it, and she has never said a word."],
+                "weights": ["personal", "light", "light", "light", "light"]}
+
+    def a_PairDynamic(self, u, k):
+        names = [ln.split(":", 1)[0].strip() for ln in u.splitlines() if ":" in ln][:2]
+        a, b = (names + ["One", "Other"])[:2]
+        return {"dynamic": f"{a} says the hard thing and {b} softens it after, and neither of them would admit the arrangement works.",
+                "first_wants": "to get a rise out of the other", "second_wants": "to see the other eats",
+                "first_thinks": f"thinks {b} fusses, and is secretly glad of it", "second_thinks": f"thinks {a} is kinder than he lets on"}
+
+    def a_StrangerRead(self, u, k):
+        said = u.split("THE STRANGER SAID:", 1)[-1].lower()
+        import re as _re
+        hostile = bool(_re.search(r"bandit|rob|kill you|mind your own|none of your|steal|threat", said))
+        return {"settled": not hostile and len(said.split()) > 3, "hostile": hostile}
+
+    def a_MentorReply(self, u, k):
+        return {"speech": "Keep your eyes on the ground and your hand near your weapon."}
+
     def a_NPCProfile(self, u, k):
         motive = "work toward a goal" if "THEY HAVE A MOTIVE: write one" in u else ""
         return {"personality": "Plain.", "voice": "Plain.", "concern": "A small worry.", "motive": motive}
@@ -111,7 +190,7 @@ class Stub:
             NAME_COUNTER[0] += 1
             row = {"slot": int(m.group(1)), "name": f"Technique {NAME_COUNTER[0]}", "description": "A learned technique."}
             if m.group(2) == "SUMMON":
-                row["summons"] = {"name": f"Spirit {NAME_COUNTER[0]}", "description": "A bound spirit.", "kind": "spirit", "role": "striker"}
+                row["summons"] = {"name": f"Spirit {NAME_COUNTER[0]}", "description": "A spirit made of will."}
             out.append(row)
         return {"skills": out}
 
@@ -273,15 +352,17 @@ class Stub:
         comp = [o for o, _, c in lines if c]
         world = [o for o, kd, c in lines if kd == "world" and not c]
         combat = [o for o, kd, c in lines if kd == "combat" and not c]
-        need_c = re.search(r"at least (\d+) of the (?:offered )?mechanics (?:marked )?\(?companions", u)
-        n_c = min(2, len(comp)) if self.cls == "summoner" else 0
-        picks = comp[:n_c] + world[:2]
-        for o in combat + world[2:] + comp[n_c:]:
-            if len(picks) >= 8:
+        count = int(m.group(1)) if (m := re.search(r"Choose exactly (\d+)", u)) else 8
+        need_c = int(m.group(1)) if (m := re.search(r"At least (\d+) must be mechanics marked \(companions\)", u)) else \
+            (min(2, len(comp)) if self.cls == "summoner" else 0)
+        need_w = int(m.group(1)) if (m := re.search(r"At least (\d+) must be world mechanics", u)) else 2
+        picks = comp[:need_c] + world[:need_w]
+        for o in combat + world[need_w:] + comp[need_c:]:
+            if len(picks) >= count:
                 break
             if o not in picks:
                 picks.append(o)
-        picks = picks[:8]
+        picks = picks[:count]
         return {"passives": [{"option_id": o, "name": f"Mech{self.rng.randrange(10**6)}{i}", "description": "d", "tier": "light"}
                              for i, o in enumerate(picks)]}
 
@@ -330,6 +411,13 @@ class Stub:
 
 def install(stub: Stub):
     gw._client = types.SimpleNamespace(chat=stub.chat)
+    import config
+    config.AUDIT_LOG = False         # a stubbed run is not a session anyone audits; keep logs/audit/ for real play
+    config.REFUSALS_LOG = False
+    from ui import console as _c
+    _c.ledger = lambda m: _c.note(m)     # (f325) under the stub, a ledger line is a note: the tests that watch notes see it
+    from npc import life
+    life.FIRST_BATCH = None          # tests see a place's whole population at once unless they turn the split on
 
 
 # ------------------------------------------------------------------ the four characters
@@ -355,7 +443,8 @@ CLASSES = {
         name="Beastcaller", archetype="support", families=["summoner", "ranger"], primary=["charisma", "wisdom"], casting="wisdom",
         points={"charisma": 14, "wisdom": 14, "constitution": 12}, per_level={"charisma": 2, "wisdom": 2, "constitution": 1},
         weapon="spear", armor=("leather", "body"), uses_magic=True,
-        actives=[("Call the Pack", "summon", "moderate", "self", "mana"), ("Call the Warden", "summon", "moderate", "self", "mana"),
+        actives=[("Call the Pack", "summon", "moderate", "self", "mana", {"summon_form": "swarm"}),
+                 ("Call the Warden", "summon", "moderate", "self", "mana", {"summon_form": "bound"}),
                  ("Hunt Together", "command", "light", "ranged", "mana"), ("Spirit Dart", "damage", "light", "ranged", "mana")],
         stats=[("companion_damage", "always"), ("companion_durability", "always"), ("max_health", "always"), ("perception", "in_wilderness"),
                ("damage", "with_companion_present"), ("persuasion", "in_conversation"), ("recovery", "out_of_combat")]),
@@ -445,10 +534,10 @@ def make_character(cls_key: str, rng: random.Random):
     from character import creation
     from core.models import Ability, Archetype, Attributes, Character, Companion
     from engine import abilities, items
-    from llm.contracts import ActiveProposal, ClassInterpretation, CompanionProposal
+    from llm.contracts import ActiveProposal, ClassInterpretation, SummonProposal
     spec = CLASSES[cls_key]
     interp = ClassInterpretation(archetype=Archetype(spec["archetype"]), custom_class=spec["name"], combat_identity="x", themes=["x"],
-                                 summary="x", focus="balanced", uses_companions=(cls_key == "summoner"), families=spec["families"],
+                                 summary="x", focus="balanced", uses_companions=(cls_key == "summoner"), summoner=(cls_key == "summoner"), families=spec["families"],
                                  primary_attributes=spec["primary"], casting_attribute=spec["casting"])
     actives = []
     extra = TRAIT_ACTIVES.get(cls_key, []) if os.environ.get("SIM_TRAITS") == "1" else []
@@ -457,23 +546,27 @@ def make_character(cls_key: str, rng: random.Random):
         if more:
             d.update(more[0])
         if effect == "summon":
-            d["summons"] = (CompanionProposal(name="Stone Warden", description="a guardian of living stone", kind="spirit", role="guardian")
-                            if "Warden" in nm else CompanionProposal(name="Wolf", description="a grey wolf", kind="beast", role="striker"))
+            d["summons"] = (SummonProposal(name="Stone Warden", description="a guardian of living stone")
+                            if "Warden" in nm else SummonProposal(name="Spirit Pack", description="a pack of spirit hounds"))
         actives.append(abilities.materialize_active(ActiveProposal(**d)))
     for a in actives:
         if a.resource.value == "mana" and not a.attribute:
             a.attribute = spec["casting"] or "wisdom"
-    passives = creation.generate_passives(interp, actives)
+    offered = creation.generate_passives(interp, actives)
+    # the character keeps as many as a player would pick (creation.PICKS), world ones first: the test fighter is a plain one unless a test
+    # gives it perks itself, now that every creation offer is a character-defining rule (f209)
+    from core.rules import MECHANICS as _M
+    offered.sort(key=lambda p_: 0 if _M.get(p_.mechanic) and _M[p_.mechanic].kind == "world" else 1)
+    passives = offered[:creation.PICKS]
     attrs = {a: 10 for a in ("strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma")}
     for a, n in spec["points"].items():
         attrs[a] += n
-    c = Character(name=spec["name"], archetype=Archetype(spec["archetype"]), custom_class=spec["name"], uses_companions=(cls_key == "summoner"),
+    c = Character(name=spec["name"], archetype=Archetype(spec["archetype"]), custom_class=spec["name"], uses_companions=(cls_key == "summoner"), summoner=(cls_key == "summoner"),
                   primary_attributes=spec["primary"], casting_attribute=spec["casting"], attributes=Attributes(**attrs),
                   actives=actives, passives=passives, kit_given=True, coins=1000)
     c.equipment = {"main_hand": items.make(spec["weapon"], "common", 1)}
     if cls_key == "summoner":
         c.companions = [Companion(id="wolf", name="Grey Wolf", creature="wolf", kind="beast", role="striker", level=1,
-                                  description="a grey wolf"),
-                        Companion(id="stone_warden", name="Stone Warden", kind="spirit", role="guardian", level=1, tier="moderate",
-                                  description="a guardian of living stone", source="Call the Warden")]
+                                  description="a grey wolf")]
+        c.bound_summon = next((a.id for a in actives if a.summon_form == "bound"), "")     # the Warden: its Bound summon
     return c, spec

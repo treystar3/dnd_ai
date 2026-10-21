@@ -100,7 +100,7 @@ class OrennaActions:
     def orenna_floor_done(self, d: dict, f: int) -> None:
         R = O["ruin"]
         spec = R["floors"][f]
-        console.note(f"Floor {f + 1} cleared: {spec['title']}.")
+        console.ledger(f"Floor {f + 1} cleared: {spec['title']}.")
         console.narrate(spec["mural"].strip())
         self.orenna_lore(spec["lore"])
         if f + 1 < len(d["floors"]):
@@ -219,7 +219,7 @@ class OrennaActions:
         bound.bound = True
         self.orenna_fight = "keeper"
         from scenes.combat_scene import CombatScene
-        self.combat = CombatScene.begin(self, keeper_c, [keeper, bound], "Before you,")
+        self.combat = CombatScene.begin(self, keeper_c, [keeper, bound], "Before you,", big="lair")
 
     def orenna_fight_over(self, outcome: str) -> None:
         kind = getattr(self, "orenna_fight", None)

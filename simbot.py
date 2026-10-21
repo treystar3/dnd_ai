@@ -133,11 +133,12 @@ class Bot:
         self.store.save_player(PlayerState(character=char, location=start))
         self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
         _orig_after = self.ws.party_after_fight
-        def _count_fallen(fallen, _o=_orig_after, _bot=self):
+        def _count_fallen(fallen, *rest, _o=_orig_after, _bot=self):
             _bot.party_tally["fell"] += sum(1 for m in _bot.ws.player.party if f"ally_{m['id']}" in {a.id for a in fallen})
-            _o(fallen)
+            _o(fallen, *rest)
         self.ws.party_after_fight = _count_fallen
         self.rarity_tally = collections.Counter()
+        self.trials = []
         self.mana_stats = []
         self.legendaries = []
         _orig_pack = self.ws.to_pack
@@ -367,7 +368,8 @@ class Bot:
         enemies = f.enemies()
         if not enemies:
             return {"kind": "attack", "target": ""}
-        tgt = min(enemies, key=lambda e: (e.hp, combat.BANDS.index(e.band)))
+        from engine import battlefield as bf
+        tgt = min(enemies, key=lambda e: (e.hp, 0 if bf.attack_access(f, p, e).ok else 1))
         hpf = p.hp / max(1, p.max_hp)
         base = {"target": tgt.id, "summary": "bot"}
         if not NORUN and not f.player_acted and f.round == 1 and self.last_rate < self.flee_below:
@@ -922,7 +924,29 @@ class Bot:
         self.last_guild_day = self.day
         self.town_services()
         if ws.player.guild_rank:
+            self.trial_attempt()
             self.take_contracts()
+
+    def trial_attempt(self):
+        """Stand for the next rank whenever the numbers allow and the examiner is free."""
+        ws = self.ws
+        if not ws.trial_due() or self.minutes_now() < ws.player.trial.get("wait_until", -1):
+            return
+        deaths0, rank0 = self.c.deaths, ws.player.guild_rank
+        try:
+            ws.handle("I would like to take the trial for my next rank")
+        except LLMError as e:
+            self.note_exc("LLMError(trial)", str(e)[:100], None)
+        if ws.combat:
+            self.fight_out()
+        won = ws.player.guild_rank != rank0
+        self.trials.append({"rank": ws.player.guild_rank if won else rank0, "won": won, "level": self.c.level, "day": self.day})
+        self.log("trial", rank=self.trials[-1]["rank"], won=won, level=self.c.level)
+        if self.c.deaths > deaths0:
+            self.violation("trial_death", "the trial killed the player")
+
+    def minutes_now(self):
+        return self.ws.minutes
 
     def feasible(self, q) -> bool:
         c = self.c

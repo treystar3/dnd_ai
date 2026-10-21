@@ -13,9 +13,16 @@ class TraitChange(BaseModel):
 
 
 class Memory(BaseModel):
+    """One thing a person remembers. Kept as rows of the campaign's npc_memory table, not in the person's record: the record carries only
+    the window the game reads (storage.campaign.MEMORY_WINDOW), the table keeps the rest. importance: 1 routine (bought bread), 2 worth
+    keeping (a gift, a job done), 3 defining (a crime against them, a death, a betrayal): a defining memory is never pushed out of the
+    window by routine ones. id: the row, once saved; None for a memory made this turn."""
     day: int
     turn: int
     text: str
+    importance: int = 1
+    kind: str = "event"
+    id: int | None = None
 
 
 class NPC(BaseModel):
@@ -24,6 +31,7 @@ class NPC(BaseModel):
     people: str
     role: str
     location: str
+    gender: str = ""
     tier: Literal["background", "known", "significant"] = "background"
 
     epithet: str = ""
@@ -35,6 +43,8 @@ class NPC(BaseModel):
     personality: str = ""
     voice: str = ""
     concern: str = ""
+    concern_from: str = ""        # (f317) the matter (thread id) that put the concern there; the profile writer leaves such a concern alone
+    anchor: str = ""              # (f317) one of the town's anchors (data/world/towns/<id>.yaml): the note that says who they are in the town
     knowledge_groups: list[str] = []
 
     trust: int = 50
@@ -59,7 +69,8 @@ class NPC(BaseModel):
     work_offer: dict | None = None  # paid work offered to the player: {task, pay, minutes}
     quest_offer: dict | None = None # a personal request offered to the player, waiting for a yes          # game minute until which they've stepped away (after ending a conversation)
     heard_of: dict = {}           # someone else named them to the player before they met: {"by": speaker, "day": n, "line": what was said}
-    memories: list[Memory] = []
+    memories: list[Memory] = []   # the window of what they remember (see Memory); the table npc_memory holds all of it
+    memory_total: int = 0         # how many they hold in all (read from the table on load; not saved in the record)
 
     def label(self) -> str:
         return self.name if self.name_known_to_player else (self.epithet or f"the {self.role.replace('_', ' ')}")

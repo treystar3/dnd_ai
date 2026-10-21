@@ -2,6 +2,7 @@
 import shutil, sys, random
 sys.path.insert(0, ".")
 import simlib
+from engine import loadout as _lo; _lo.L["start"] = _lo.L["max"] = 99   # every function at once: more than any loadout brings (f232)
 STUB = simlib.Stub("mage", 5)
 simlib.install(STUB)
 import ui.console as uc

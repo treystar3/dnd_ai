@@ -218,6 +218,22 @@ class FieldActionsBase:
     def use_shadow(self) -> None:
         self.fld.pop("shadow", None)
 
+    # ---------- pass without trace (an exploration buff, f247) ----------
+
+    def field_pass_without_trace(self, ability, intent, text: str) -> str | None:
+        self.fld["traceless"] = {"until": self.minutes + F["pass_without_trace"]["lasts_minutes"]}
+        who = "you and those with you" if getattr(self.player, "party", None) else "you"
+        console.note(f"For the next hour {who} move as one shadow: every attempt to go unseen is much easier, "
+                     f"and it holds after the first.")
+        return "A hush falls over them and their tracks seem to vanish behind them. Describe how they pass without trace."
+
+    def traceless(self) -> bool:
+        t = self.fld.get("traceless")
+        if t and t["until"] <= self.minutes:
+            self.fld.pop("traceless", None)
+            return False
+        return bool(t)
+
     # ---------- recall ----------
 
     def field_recall(self, ability, intent, text: str) -> str | None:
@@ -789,7 +805,7 @@ class FieldFunctions:
             got.append(f"{n} raw {items.MATERIALS[mid].name}")
         self.advance(F["salvage"]["minutes"])
         self.store.save_player(self.player)
-        console.note(f"You break down the {items.display_name(item)}: {', '.join(got)}.")
+        console.ledger(f"You break down the {items.display_name(item)}: {', '.join(got)}.")
         return f"They take {items.display_name(item)} apart piece by piece and keep the {', '.join(got)}. Describe the work briefly."
 
     def field_soul_tether(self, ability, intent, text: str) -> str | None:

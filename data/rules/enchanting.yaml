@@ -43,6 +43,7 @@ general:
   - {id: acid_edge, name: Corrosion edge, suffix: of Corrosion, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: acid_damage, magnitude: 6}]}
   - {id: necrotic_edge, name: Blight edge, suffix: of Blight, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: necrotic_damage, magnitude: 6}]}
   - {id: radiant_edge, name: Radiance edge, suffix: of Radiance, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: radiant_damage, magnitude: 6}]}
+  - {id: nature_edge, name: Thorn edge, suffix: of Thorns, applies: weapon, fee_multiplier: 2.5, effects: [{modifies: nature_damage, magnitude: 6}]}
   - {id: warding, name: Warding, suffix: of Warding, applies: armor, fee_multiplier: 2, effects: [{modifies: defense, magnitude: 5}]}
   - {id: vigor, name: Vigor, suffix: of Vigor, applies: any, fee_multiplier: 2, effects: [{modifies: max_health, magnitude: 5}]}
   - {id: bulwark, name: Bulwark, suffix: of the Bulwark, applies: any, fee_multiplier: 2.5, effects: [{modifies: physical_resistance, magnitude: 6}]}
@@ -54,6 +55,7 @@ general:
   - {id: acid_ward, name: Corrosion ward, suffix: of the Corrosion Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: acid_resistance, magnitude: 6}]}
   - {id: necrotic_ward, name: Blight ward, suffix: of the Blight Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: necrotic_resistance, magnitude: 6}]}
   - {id: radiant_ward, name: Radiance ward, suffix: of the Radiance Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: radiant_resistance, magnitude: 6}]}
+  - {id: nature_ward, name: Bark ward, suffix: of the Bark Ward, applies: any, fee_multiplier: 2.5, effects: [{modifies: nature_resistance, magnitude: 6}]}
   - {id: aegis, name: Aegis, suffix: of the Aegis, applies: armor, fee_multiplier: 3, effects: [{modifies: all_elemental_resistance, magnitude: 3}]}
   - {id: swiftness, name: Swiftness, suffix: of Swiftness, applies: any, fee_multiplier: 2, effects: [{modifies: movement, magnitude: 10}]}
   - {id: elusion, name: Elusion, suffix: of Elusion, applies: any, fee_multiplier: 2, effects: [{modifies: evasion, magnitude: 8}]}

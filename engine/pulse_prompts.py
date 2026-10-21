@@ -33,14 +33,27 @@ unfolds over weeks.
 
 Write:
   title: a short name for it.  place: the PLACE id.  news: what people are saying about it, in one sentence.
+  kind: what sort of thing it is - threat, social, economic, natural, mystery or fortune.
   groups: knowledge groups who hear of it first (from GROUPS).
   stages: exactly the requested number, in order - each what is happening by then, with its effects.
   fallout: how it ends if nobody steps in (bad, good or neither), with its effects.
   resolution: what someone could do to settle it. contract: only if it is something the adventurers' guild would
     post a job about (kind hunt, gather or deliver; what; count).
+  truth: what is really going on, in two or three sentences - the whole of it, which the people may only know parts of.
+  clues: one to three things people of the place know, each in that person's own words as they would say it to a
+    stranger who asked (not a summary). holder: the person's id from PEOPLE, or a role word (shepherd, innkeeper)
+    when nobody listed fits. The clues together should let someone work out the truth; no single one gives it all.
+  paths: one or two REAL ways someone could end it, each {{name, how, kind, target}}: kind kill - target a creature id
+    from CREATURES that is part of this (or lives at the place); kind persuade - target a person id from PEOPLE whose
+    mind settles it; kind find - target a place id from PLACES where the thing that settles it is to be found (the
+    barn, the cache, the body), with how saying what is there; kind contract - target empty, only when you wrote a
+    contract. A wedding or a windfall has no path.
+  reveal: only with a contract: what the one who finishes the job finds that the posting did not say - a mark on the
+    beast, a letter on the body, the "stolen" goods somewhere they should not be. Empty when the job is just the job.
 
 {EFFECTS}
-Never involve the player. Respond only with JSON matching the schema."""
+Name nobody and nowhere that is not under PEOPLE, PLACES, CREATURES or the LORE: a person you need who is not listed is "a shepherd",
+"the miller's boy", never a name. Never involve the player. Respond only with JSON matching the schema."""
 
 MOTIVE_SYSTEM = f"""You are the hidden life of a fantasy world, moving one person's life a step forward while the player
 is elsewhere. The PERSON has a MOTIVE - something they are working toward. Decide the next thing they do or that
@@ -59,12 +72,13 @@ Never involve the player. Respond only with JSON matching the schema."""
 
 
 def place_context(world, store, place, now, season, threads, history, pressures, facts, people, groups, traits,
-                  roads: str = "", creatures: str = "", roles: str = "") -> str:
+                  roads: str = "", creatures: str = "", roles: str = "", town_lines: list[str] = ()) -> str:
     extra = (f"\nCREATURES (id: name, levels): {creatures}" if creatures else "") + (f"\nROLES: {roles}" if roles else "")
     return (
         f"PLACE: {place.id} - {place.name} ({place.type}), {world.regions[place.region].name}\n"
         f"SEASON: {season}\n"
-        f"PRESSURES HERE: {'; '.join(pressures) or 'none in particular'}\n"
+        + "".join(f"{t}\n" for t in town_lines)
+        + f"PRESSURES HERE: {'; '.join(pressures) or 'none in particular'}\n"
         f"LORE: {' '.join(facts) or 'nothing special'}\n"
         f"ALREADY GOING ON: {'; '.join(threads) or 'nothing'}\n"
         f"RECENTLY: {'; '.join(history) or 'nothing notable'}\n"

@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Protocol
 
-TARGETED = ("talk", "give", "show", "buy", "sell", "commission", "attack", "train", "work", "board", "steal", "unlock")
+from engine.actions import TARGETED                  # the kinds aimed at someone who must be here: declared with the action (engine/actions.py)
 MONEY = re.compile(r"\b(gold|silver|copper|coins?|fee|pay|paid|price|cost|costs|owe|bribe|tip)\b|\d+\s*(g|s|c)\b")
 
 # common verbs we know the interpreter handles: a verb in the text should show up as one of these kinds in the plan
@@ -47,6 +47,7 @@ class Situation:
     place: str = ""
     partner: str = ""
     wildlife: bool = False
+    workers: set[str] = field(default_factory=set)            # ids of people here with a work offer standing
     lines: list[str] = field(default_factory=list)            # plain scene facts shown to the model
 
     def knows_target(self, target: str) -> bool:
@@ -124,6 +125,8 @@ def risk_flags(text: str, plan: list, sit: Situation) -> list[str]:
         flags.append("money_context")
     if problems(plan, sit):
         flags.append("invalid_step")
+    if "work" in kinds and not sit.workers and MONEY.search(low):
+        flags.append("work_without_offer")
     words = _words(low)
     if words & FORCE_WORDS and not any(getattr(s, "force", False) for s in plan) and "attack" not in kinds:
         flags.append("unmarked_force")
@@ -169,7 +172,7 @@ def audit(text: str, plan: list, sit: Situation, ask: AuditAsk) -> Result:
     bad = problems(plan, sit)
     described = describe(plan, sit)
     res.described = described
-    hint = ""
+    hint, why = "", ""
     try:
         if not bad:
             res.meaning = ask.meaning(text, sit)
@@ -186,8 +189,13 @@ def audit(text: str, plan: list, sit: Situation, ask: AuditAsk) -> Result:
             proposal = fix(ask.propose(text, hint))
             res.calls += 1
             still = problems(proposal, sit)
+            if not still and len(proposal) > len(plan):
+                still = ["the new plan has more steps than the first; only remove or correct steps, never add"]
             if not still:
                 if [_key(s) for s in proposal] == [_key(s) for s in plan]:
+                    return res
+                if not why.strip() and not bad:
+                    res.verdict = "audit change with no reason ignored"
                     return res
                 res.status, res.plan = "changed", proposal
                 return res

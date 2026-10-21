@@ -10,19 +10,27 @@ kind:
   item    - they drink, apply or use something from YOUR ITEMS (a draught, a tonic, a bandage)
   move    - they reposition: closer, back (retreat a step), or high_ground (climb or leap to a higher spot)
   defend  - they guard, brace, block or take cover
+  interpose - they put themselves between an enemy and an ALLY to shield them ("cover Isel", "get between it and Bram";
+            target = that ally's id from ALLIES)
   flee    - they try to run away or escape the fight
   tame    - they try to tame, bind, calm, befriend or take in a wounded wild creature as a companion (target = that creature)
   talk    - the player's main act is to SPEAK to an enemy: threaten it, demand its surrender, plead, reason, bargain, or lie to it.
             If they speak while also swinging or casting, choose the attack or ability instead; talk is for when words are the act.
-  other   - anything else
+  other   - anything else: an improvised use of the fight's surroundings (kicking something over, throwing sand, climbing,
+            putting the fire between you). The engine decides whether it works; still name the enemy it concerns as target.
 approach: only for talk - intimidate (threaten, demand surrender, show strength), persuade (plead, reason, offer terms, call it off),
   or deceive (lie, bluff, trick, distract).
 target: the id of the enemy they mean, from ENEMIES. If unclear, the nearest one.
 ability: for ability, the id from YOUR ABILITIES.
 item: for item, the item as they named it.
 move: for move, closer / back / high_ground.
-buff_for: only for a buff ability. "self" (the default) when they cast it on themselves; the id from ALLIES when they cast it on one
-  companion or ally; "all" when they cast it on all their allies / everyone / the whole party.
+buff_for: only for a buff or healing ability. "self" (the default) when they cast it on themselves; the id from ALLIES when they cast
+  it on one companion or ally (a fallen one too, when they try to raise them). Blessings and heals go on one creature at a time.
+movement: a MOVEMENT ability from YOUR ABILITIES (marked [movement]) that they use on the way while also doing something else -
+  "breach past their fighters and stab the archer" is movement = that ability's id, kind attack, target the archer. When the movement
+  ability is ALL they do, choose kind ability with that id instead. A movement ability marked "whole turn" is always kind ability.
+step: only when their words MOVE them while also doing something else: advance ("charge in and strike", "step up and swing") or
+  withdraw ("fall back and shoot", "back off while casting"). The move kind is for when moving is the whole act; step rides along.
 summary: one short line describing what they do.
 Companions fight on their own and follow the player's lead. If the player tells a companion to attack something
 and has no command ability, that is kind attack on that target. Never choose a summon ability just because a
@@ -72,11 +80,12 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
-                    you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = ()) -> str:
+                    you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "") -> str:
     return (
         f"PLACE: {place}\nTIME AND WEATHER: {time_label}\nTHE PLAYER FIGHTS WITH: {weapon}\n"
         f"THE PLAYER: {gear}\n"
-        "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
+        + (f"THE GROUND NOW (who stands where; never move anyone elsewhere):\n{ground}\n" if ground else "")
+        + "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
         f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
         f'THE PLAYER SAID: "{player_words}"\n'

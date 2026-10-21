@@ -118,26 +118,28 @@ def interpret_request(time_label: str, place_name: str, places: list[tuple[str, 
                       text: str, wares: list[str] = (), abilities: list[str] = (), pack: list[str] = (),
                       ground: list[str] = (), box: list[str] | None = None, buyers: list[str] = (),
                       recipes: list[str] = (), keys: list[str] = (), markup: str = "", hint: str = "", board: list[str] = (),
-                      contracts: list[str] = ()) -> str:
+                      contracts: list[str] = (), left_out: list[str] = ()) -> str:
     place_lines = "\n".join(f"  {pid}: {name}" for pid, name in places) or "  (none)"
     present = "\n".join(f"  {nid}: {label} - {desc}" for nid, label, desc in people) or "  (no one)"
     away = "\n".join(f"  {nid}: {label} - at {where}" for nid, label, where in elsewhere) or "  (no one)"
     return (
         f"TIME: {time_label}\n"
         f"CURRENT PLACE: {place_name}\n"
-        f"PLACES:\n{place_lines}\n"
+        f"PLACES (the ones nearby or that the player's words could mean; a place they name that is not here is still a move, with its name as destination):\n{place_lines}\n"
         f"PEOPLE HERE:\n{present}\n"
         f"PEOPLE ELSEWHERE (met before):\n{away}\n"
         f"CURRENT CONVERSATION PARTNER: {partner or 'none'}\n"
         f"LAST SPOKE TO: {last_spoken or 'no one'}\n"
-        f"FOR SALE:\n" + ("\n".join(f"  {w}" for w in wares) or "  (nothing)") + "\n"
-        f"YOUR ABILITIES:\n" + ("\n".join(f"  {a}" for a in abilities) or "  (none)") + "\n"
-        f"YOUR PACK: {', '.join(pack) or 'empty'}\n"
+        f"FOR SALE:\n" + ("\n".join(f"  {w}" for w in wares) or ("  (not listed)" if "wares" in left_out else "  (nothing)")) + "\n"
+        f"YOUR ABILITIES:\n" + ("\n".join(f"  {a}" for a in abilities) or ("  (not listed)" if "abilities" in left_out else "  (none)")) + "\n"
+        f"YOUR PACK: {', '.join(pack) or ('(not listed)' if 'pack' in left_out else 'empty')}\n"
         f"KEY ITEMS: {', '.join(keys) or 'none'}\n"
         f"ON THE GROUND HERE: {', '.join(ground) or 'nothing'}\n"
-        f"ITEM BOX: {('here - ' + (', '.join(box) or 'empty')) if box is not None else 'not here'}\n"
-        f"WHO BUYS WHAT: {'; '.join(buyers) or 'no one here buys anything'}\n"
-        f"RECIPES: {', '.join(recipes)}\n"
+        f"ITEM BOX: {('here - ' + (', '.join(box) or ('(not listed)' if 'stash' in left_out else 'empty'))) if box is not None else 'not here'}\n"
+        f"WHO BUYS WHAT: {'; '.join(buyers) or ('(not listed)' if 'buyers' in left_out else 'no one here buys anything')}\n"
+        f"RECIPES: {', '.join(recipes) or ('(not listed)' if 'recipes' in left_out else 'none')}\n"
+        + (f"NOT LISTED ABOVE because the player's words are not about them (if they are after all, read the action as that kind and "
+           f"name the thing as the player did): {', '.join(left_out)}\n" if left_out else "")
         + (("CONTRACT BOARD (the clerk is here; the player taking one of these is accept_quest with item = its number):\n"
             + "\n".join(f"  {b}" for b in board) + "\n") if board else "")
         + (f"CONTRACTS THE PLAYER HOLDS: {'; '.join(contracts)}\n" if contracts else "")
@@ -146,6 +148,14 @@ def interpret_request(time_label: str, place_name: str, places: list[tuple[str, 
         + (f"\nMARKUP:\n{markup}" if markup else "")
         + (f"\nREVIEW NOTE (your first reading was questioned - read the player's words again and fix it):\n{hint}" if hint else "")
     )
+
+
+# Picking up something that is not an item the game keeps (nothing like it lies on the ground here): the narrator decides whether such a
+# thing would be here at all, and the game keeps nothing either way.
+SCENERY_PICKUP = ("The player reaches to pick up {thing}. It is not anything the game keeps: if an ordinary, worthless bit of the place like that "
+                  "(a stone, a stick, a leaf, a handful of dirt) would plausibly be here, describe them picking it up, turning it over, and keeping "
+                  "it in hand or letting it fall, in a sentence or two. If {thing} would be anything of worth or use (coin, a weapon, gear, food, "
+                  "something someone owns), they find nothing like that here; say so plainly. Either way nothing goes into their pack.")
 
 
 NARRATOR_SYSTEM = DM_VOICE + """
@@ -172,12 +182,14 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
-                      happenings: list[str] = (), length: str = "two to five sentences") -> str:
-    visible = "\n".join(f"  - {v}" for v in place.visible)
+                      happenings: list[str] = (), length: str = "two to five sentences", streets: list[str] = (), town: str = "") -> str:
+    visible = "\n".join(f"  - {v}" for v in list(place.visible) + list(streets))       # (f313) the crowd, the watch, the town's state and landmarks, from the truth layer
     present = "\n".join(f"  - {label}: {desc} Right now: {activity}" for label, desc, activity in people) or "  (no one)"
     said = f'\nPLAYER\'S WORDS: "{player_text}"' if player_text else ""
     return (
-        f"GAME STATE\nTIME: {time_label}\n{('THE PLAYER: ' + gear + chr(10)) if gear else ''}PLACE: {place.name} ({place.type})\nVISIBLE:\n{visible}\nPEOPLE HERE:\n{present}\n\n"
+        f"GAME STATE\nTIME: {time_label}\n{('THE PLAYER: ' + gear + chr(10)) if gear else ''}PLACE: {place.name} ({place.type})\n"
+        + (f"THE TOWN (its character; let it colour the scene, never recite it): {town}\n" if town else "")
+        + f"VISIBLE:\n{visible}\nPEOPLE HERE:\n{present}\n\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
         + (f"LYING ON THE GROUND HERE: {', '.join(ground)}\n" if ground else "")
@@ -209,6 +221,34 @@ Rules:
 - If the character is leaving, "after" shows them going.
 - Plain prose, no quotation marks, no markdown.
 Respond only with JSON matching the schema."""
+
+
+EXCHANGE_SYSTEM = DM_VOICE + """
+You are framing a short exchange between several people. The game will print their spoken lines between your two pieces of prose,
+exactly as given - you never repeat them, quote them, paraphrase them or add to them, and nobody else speaks.
+
+before: how they fall into talking - where they are, what they are doing with their hands, who looks at whom - built only from the scene.
+after: how the talk ends or trails off, and when it fits, the place around them: the road, the fire, the room, the weather.
+
+Keep it proportionate: FRAME LENGTH in the scene sets the most you may write. Never repeat details already used in RECENT NARRATION.
+Rules:
+- Describe only what the SCENE contains. Never add people, items, events or dialogue of your own.
+- Call people only by the names given.
+- Plain prose, no quotation marks, no markdown.
+Respond only with JSON matching the schema."""
+
+
+def exchange_request(time_label: str, place, speakers: list[str], others: list[str], first: str, last: str, recent: list[str],
+                     frame: str, player: str = "") -> str:
+    visible = "; ".join(place.visible)
+    return (
+        f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
+        f"WHO IS TALKING: {'; '.join(speakers)}\nOTHERS PRESENT: {'; '.join(others) or 'no one else'}\n"
+        + (f"THE PLAYER: {player}\n" if player else "") + f"FRAME LENGTH: {frame}\n\n"
+        f'THE FIRST LINE (printed by the game, do not repeat): "{first}"\n'
+        f'THE LAST LINE (printed by the game, do not repeat): "{last}"\n'
+        "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in recent[-3:]) or "  (none)")
+    )
 
 
 def dialogue_request(time_label: str, place, others: list[str], who: str, looks: str, doing: str,

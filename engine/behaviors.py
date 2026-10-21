@@ -50,8 +50,21 @@ def _hurt(f, share: float) -> bool:
 
 def _break(combat, f, surrender: bool) -> None:
     from engine import combat as C
+    from engine import battlefield as bf
+    import random as _r
+    if not surrender:
+        from engine import combat_perks as _cp
+        if _cp.turn_coat(combat, f):
+            return                                      # Dread Regent: it turns on its own instead of running
+        hunter = next((o for o in bf.standing(combat, f.zone_id) if bf.hostile(o, f) and f.id in o.engaged_with
+                       and "no_one_escapes" in C.mechanics(o, combat)), None)
+        if hunter is not None and f.alive:
+            C.tell(combat, f"{C.who(f)} turns to run, and {C.who(hunter)} {C.vb(hunter, 'take', 'takes')} the parting strike owed (No One Escapes)")
+            C.apply_damage(combat, hunter, f, 1.0, "cuts down the fleeing", _r.Random(combat.round * 31 + len(combat.log)),
+                           can_cleave=False, can_riposte=False)
     f.fled = True
     f.surrendered = surrender
+    bf.release(combat, f)
     if surrender:
         combat.log.append(f"{f.name} yields")
         C.tell(combat, f"{C.who(f)} throws down {C.whose(f)} weapon and yields")
@@ -73,6 +86,38 @@ def morale(combat, source, rng: random.Random) -> None:
         C.tell(combat, f"{C.who(e)} loses heart seeing {C.who(source)} break")
 
 
+def _routs(e, combat) -> bool:
+    from engine import combat as C
+    M = C.RULES.get("morale") or {}
+    return not e.boss and "fearless" not in e.behaviors and e.category not in (M.get("never") or ()) and not e.spawn
+
+
+def morale_on_death(combat, fallen, rng: random.Random) -> None:
+    """A fight's second way to end (engine: a death may rout the rest). The leader slain - nobody left stronger than the fallen - or a
+    death that leaves half of them or more down, and each survivor who can break may break: the yielding yield, the rest run."""
+    from engine import combat as C
+    if fallen.side != "enemy" or combat.duel:
+        return
+    M = C.RULES.get("morale") or {}
+    living = combat.enemies()
+    if not living:
+        return
+    dead = [f for f in combat.fighters if f.side == "enemy" and not f.alive]
+    leader_fell = not any(e.level > fallen.level for e in living) and (fallen.rank in ("elite", "boss") or len(dead) + len(living) > 1)
+    half_down = len(dead) >= len(living)
+    if not leader_fell and not half_down:
+        return
+    odds = M.get("leader_odds", 0.5) if leader_fell else M.get("half_down_odds", 0.3)
+    why = f"seeing {C.who(fallen)} fall" if leader_fell else "with so many of them down"
+    for e in living:
+        if not _routs(e, combat):
+            continue
+        chance = odds + (M.get("frightened_bonus", 0.25) if "frightened" in e.statuses else 0)
+        if rng.random() < chance:
+            _break(combat, e, can_surrender(e))
+            C.tell(combat, f"{C.who(e)} breaks, {why}")
+
+
 def pre_turn(combat, e, target, rng: random.Random) -> bool:
     """Choices made before it strikes: bolt, yield, drink, guard, or loose a signature attack. True if the turn is spent."""
     from engine import combat as C
@@ -85,7 +130,8 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
         morale(combat, e, rng)
         return True
     s = beh(e, "flee_low")
-    if s and not fearless and _hurt(e, s) and rng.random() < FLEE_ODDS and "grappled" not in e.statuses:
+    from engine import combat_perks as _cp
+    if s and not fearless and _hurt(e, s) and rng.random() < FLEE_ODDS and "grappled" not in e.statuses and "frostwelded" not in e.statuses and not _cp.held_fast(combat, e):
         _break(combat, e, False)
         morale(combat, e, rng)
         return True
@@ -93,7 +139,7 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
     if s and _hurt(e, s) and not e.counters.get("drank") and rng.random() < DRINK_ODDS:
         e.counters["drank"] = 1
         heal = round(e.max_hp * DRAUGHT)
-        e.hp = min(e.max_hp, e.hp + heal)
+        C.restore(combat, e, heal)
         combat.log.append(f"{e.name} drinks a draught: +{heal}")
         C.tell(combat, f"{C.who(e)} pulls a flask from {C.whose(e)} belt and drinks, the worst of the hurt easing")
         return True
@@ -211,15 +257,19 @@ def after_turn(combat, e, rng) -> None:
     hover = int(beh(e, "hover", 0))
     if hover and beh(e, "dive"):
         e.counters["since"] = e.counters.get("since", 0) + 1
-        if e.counters["since"] >= hover and e.band == "engaged":
+        from engine import battlefield as bf
+        from engine import combat_perks as _cp
+        if e.counters["since"] >= hover and bf.engaged(combat, e) and not _cp.held_fast(combat, e):
             e.counters["since"] = 0
             e.counters["dive"] = 1
-            e.band = "near"
+            bf.slip_away(combat, e)
             C.tell(combat, f"{C.who(e)} wheels back up and out of reach")
             return
-    if beh(e, "keep_range") and e.band == "engaged":
+    from engine import battlefield as bf
+    from engine import combat_perks as _cp
+    if beh(e, "keep_range") and bf.engaged(combat, e) and not _cp.held_fast(combat, e):
         e.counters["back"] = e.counters.get("back", 0) + 1
         if e.counters["back"] >= KEEP_RANGE_EVERY:
             e.counters["back"] = 0
-            e.band = "near"
+            bf.slip_away(combat, e)
             C.tell(combat, f"{C.who(e)} steps back to keep its distance")

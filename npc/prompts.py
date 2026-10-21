@@ -1,8 +1,8 @@
 """Prompts for generating NPCs and voicing them in conversation."""
 
 RESIDENTS_SYSTEM = """You create the ordinary people who live and work in one place in a fantasy world.
-The game has already decided how many people there are, their roles and their peoples. You give each one:
-  name: fits their people's naming style. Do not reuse the example names. First and family name.
+The game has already decided how many people there are, their names, genders, roles and peoples. You give each one:
+  name: copy the NAME given for the slot exactly. Never invent or change a name.
   epithet: 2 to 4 words someone would use for them before learning their name, e.g. "the stooped baker", "a red-bearded guard".
   description: one sentence on how they look. Appearance only, no personality.
   activity: one sentence, present tense, on what they are doing at this moment. Ordinary, specific, suited to the place.
@@ -12,13 +12,16 @@ look and dress like a wanderer of the woods). Their role still decides what they
 Respond only with JSON matching the schema."""
 
 
-def residents_request(place, world_summary: str, slots: list[tuple[str, str, str, str]]) -> str:
-    lines = [f"  slot {i}: {role} ({role_desc}); people: {people} - {naming}"
-             for i, (role, role_desc, people, naming) in enumerate(slots, 1)]
+def residents_request(place, world_summary: str, slots: list[tuple[str, str, str, str, str]], town_lines: list[str] = ()) -> str:
+    """town_lines (engine/towns.py resident_lines, f316): the town's character, its condition and the trouble underneath, so the people
+    made here belong to it."""
+    lines = [f"  slot {i}: {role} ({role_desc}); people: {people}; NAME: {name}; {gender}"
+             for i, (role, role_desc, people, name, gender) in enumerate(slots, 1)]
     visible = "\n".join(f"  - {v}" for v in place.visible)
     return (
         f"WORLD: {world_summary.strip()}\n\n"
         f"PLACE: {place.name} ({place.type})\n{visible}\n"
+        + "".join(f"{t}\n" for t in town_lines)
         + (f"WHY THEY ARE HERE: {place.origin}\n" if getattr(place, "origin", "") else "")
         + "\nPEOPLE TO CREATE:\n" + "\n".join(lines)
     )
@@ -37,12 +40,13 @@ Respond only with JSON matching the schema.
 """
 
 
-def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False) -> str:
+def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = ()) -> str:
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     return (
         f"NAME: {npc.name}\nPEOPLE: {npc.people}\nROLE: {npc.role.replace('_', ' ')}\n"
         f"WHERE: {place_name}\nLOOKS: {npc.description}\nDOING: {npc.activity}\n"
-        f"TRAITS:\n{traits}\n"
+        + "".join(f"{t}\n" for t in town_lines)
+        + f"TRAITS:\n{traits}\n"
         + ("THEY HAVE A MOTIVE: write one." if has_motive else "THEY HAVE NO MOTIVE: leave motive empty.")
     )
 
@@ -54,13 +58,17 @@ When THEY SAY ends with [THE GAME HAS DECIDED: ...], that outcome is fact - your
 What you know:
 - You only know the facts listed under WHAT YOU KNOW, your memories, and what is plainly around you (YOUR PLACE and the TIME,
   including the weather). Do not describe weather that contradicts it.
-- Everyone under HERE WITH YOU is in the same place as you right now. You know them.
+- Everyone under HERE WITH YOU or WHO IS HERE is in the same place as you right now; a neighbour you know by name, a stranger by their look.
 - You know the people under PEOPLE YOU KNOW and where they usually are. You do not know where anyone is at this
   exact moment unless they are here with you. Never invent someone's whereabouts or what they are busy with.
   If asked about someone not on either list, you have not heard of them.
 - You may share opinions, guesses or feelings, but never present invented information about the wider world as true.
   If you don't know, say so, deflect, or guess openly as a guess.
-- For directions, only mention places listed under PLACES NEARBY. Do not invent lanes, landmarks or buildings.
+- For directions, only mention places listed under PLACES NEARBY and WHAT THIS TOWN HAS. Do not invent lanes, landmarks or buildings.
+- If they ask for a kind of place or tradesman (a smith, a healer, an inn), answer from WHAT THIS TOWN HAS: name the one there is, or say
+  there is none here and where the nearest one is. Never make up a shop, a craftsman or their name.
+- Contracts and guild work: only what is under ON THE GUILD BOARD, if it is given; otherwise you do not know what is posted.
+- What is under HAPPENING HERE is going on around you now; what is under NEWS THAT HAS REACHED HERE is what people are talking about.
 - Where herbs grow and where game is hunted: say only what THE LAND AROUND YOU lists, with its places and distances, exactly as listed.
   If what they ask about is not there, you do not know where it is found - say so. Never say a herb grows somewhere the list does not give.
 - You know the person in front of you only as described. You do not know their name unless your memories say so.
@@ -88,8 +96,9 @@ Your reply:
   remember: one short line worth remembering about them from this exchange, written about "the stranger" or their name.
     Leave empty for trivial small talk. If you lied, say what you lied about.
   journal_note: leave empty unless a line "JOURNAL NOTE DUE" appears in your context; then write one plain sentence, under 28
-    words, that the stranger would jot in their journal about you - who you are and what they have learned of you, in the third
-    person, as of now.
+    words, that the STRANGER writes in THEIR journal about YOU: your role, where you are found, and what they have learned of you,
+    with you in the third person by name ("Fenella Reeve, the guild clerk in Parth; fussy about her ledgers and anxious about mistakes").
+    It is never your own thought about the stranger, never in your voice, never "I" or "my".
   gives: only if your speech hands them an object right now. Only tokens, documents and keys that are plausibly yours
     to give: a pendant, badge, seal, letter, map, ledger, key, note, ring of passage. Never weapons, armor, potions,
     coins or anything of real worth - those are not yours to conjure. name is short ("dragoon pendant"); description
@@ -103,7 +112,8 @@ Your reply:
   offers_work: only when you offer them paid work right now - a real task you need done. task is a short phrase
     ("load the grain onto the wagon"); minutes is how long it should take; pay is in copper, at honest village
     rates (about 20 copper an hour). If you already offered work, don't offer it again.
-Respond only with JSON matching the schema."""
+""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + """
+Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules
 
 
 def trust_words(trust: int) -> str:
@@ -121,14 +131,15 @@ def trust_words(trust: int) -> str:
 def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                          player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
-                         length: str = "one to three sentences", land: list[str] = ()) -> str:
+                         length: str = "one to three sentences", land: list[str] = (), buildings: list[str] = (), truth_text: str = "") -> str:
     if not npc.met_player:
         who = "A stranger you have never met."
     elif npc.knows_player_as:
         who = f"Someone you have met before. They told you their name is {npc.knows_player_as}."
     else:
         who = "Someone you have met before, though you don't know their name."
-    memories = "\n".join(f"  - day {m.day}: {m.text}" for m in npc.memories[-12:]) or "  (none)"
+    shared = [m for m in npc.memories if not m.text.startswith("(my own life)")]        # their own life is given separately
+    memories = "\n".join(f"  - day {m.day}: {m.text}" for m in shared[-12:]) or "  (none)"
     known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     traits = "\n".join(f"  - {t}" for t in trait_lines)
@@ -136,12 +147,14 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
         f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
         f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\nVOICE: {npc.voice}\n"
         f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
-        f"TRAITS:\n{traits}\n\n"
+        f"TRAITS (how you decide and react; never a subject you bring up):\n{traits}\n\n"
         f"TIME: {time_label}\n"
         f"YOUR PLACE: {place.name}\n" + "\n".join(f"  - {v}" for v in place.visible) + "\n"
-        f"HERE WITH YOU: {'; '.join(here_with) or 'no one'}\n"
-        f"PEOPLE YOU KNOW: {'; '.join(people_known) or 'no one in particular'}\n"
+        + (f"HERE WITH YOU: {'; '.join(here_with) or 'no one'}\n" if here_with or not truth_text else "")
+        + f"PEOPLE YOU KNOW: {'; '.join(people_known) or 'no one in particular'}\n"
         f"PLACES NEARBY: {', '.join(nearby) or 'none'}\n"
+        + (("WHAT THIS TOWN HAS (every one there is; there are no others, and nobody here does that work):\n" + "\n".join(f"  - {x}" for x in buildings) + "\n") if buildings else "")
+        + (truth_text + "\n" if truth_text else "")
         + (("THE LAND AROUND YOU (what everyone here knows of where things grow and are hunted):\n" + "\n".join(f"  - {x}" for x in land) + "\n") if land else "")
         + "\n"
         f"THE PERSON IN FRONT OF YOU: {who} {trust_words(npc.trust).capitalize()}.\n\n"

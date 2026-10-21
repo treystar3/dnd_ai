@@ -100,6 +100,8 @@
 - {id: noble, hours: [10, 23],        description: A member of a noble house, at home in the court.,      knowledge_groups: [nobility]}
 - {id: courtier, hours: [9, 22],      description: Serves and schemes within the royal court.,            knowledge_groups: [nobility]}
 - {id: royal_guard, hours: [0, 24],   description: Guards the capital and its great houses in the crown's colors., knowledge_groups: [guards, nobility]}
+- {id: monarch, hours: [9, 21],       description: Rules the kingdom from Valecourt - seen by few, and never without the court around them., knowledge_groups: [nobility, scholars]}
+- {id: chamberlain, hours: [7, 22],   description: Keeps the palace - who is admitted, who is fed, who waits, and for how long., knowledge_groups: [nobility, merchants]}
 - {id: relic_dealer, hours: [9, 18], description: "Deals in a handful of famous, one-of-a-kind arms and armor, kept under lock and key for buyers with deep purses.", knowledge_groups: [merchants], relics: true}
 - {id: land_agent, hours: [9, 18], description: Sells houses and lots in the city, and knows who is leaving and who is moving in., knowledge_groups: [merchants]}
 - {id: prisoner, hours: [0, 24], description: "A captive taken in a fight and held by the player. Frightened, defiant or calculating - how they behave depends on their nature.", knowledge_groups: [outlaws]}

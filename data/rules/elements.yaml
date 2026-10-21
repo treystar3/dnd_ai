@@ -3,6 +3,13 @@
 # keywords match the START of a word (so "frost" catches "frostbite" but "light" never catches "lightning").
 # creature_hints: a creature id/name containing the text counts as that element even if its attacks don't say it (dragons by colour).
 native_resist: 50       # a creature made of an element resists it by this much (a fire elemental barely feels fire)
+# Some kinds of creature resist an element by nature, or are weak to it (a negative value: they take that much more).
+category_resist:
+  undead:    {necrotic: 50, poison: 50, radiant: -50, nature: -25}
+  construct: {poison: 75}
+  plant:     {fire: -50, nature: 50}
+  beast:     {nature: 25}
+  fiend:     {radiant: -50}
 resist_cap: 75          # total resistance to one thing never exceeds this percent
 elements:
   fire:      [fire, flame, flaming, burn, scorch, ember, cinder, inferno, magma, lava, pyre, blaze, smolder, smoulder, salamander, hellfire, immol]
@@ -12,6 +19,7 @@ elements:
   acid:      [acid, corro, caustic, rust, dissolv]
   necrotic:  [necrotic, death, decay, rot, grave, wither, curse, shadow, wraith, drain, soul, haunt, tomb]
   radiant:   [radiant, holy, divine, smite, sunfire, radiance, celestial, angelic, blessed, sacred]
+  nature:    [nature, thorn, vine, bramble, briar, verdant, grove, bark, druidic, sylvan, overgrow]
 creature_hints:
   red dragon: fire
   white dragon: cold
@@ -32,3 +40,32 @@ creature_hints:
   ghoul: necrotic
   vampire: necrotic
   lich: necrotic
+
+# ABILITY ELEMENTS (f220) - an ability's element is an explicit field the ENGINE sets when it plans the ability (engine/ability_slots.py
+# assign_elements); the model only names and describes it. A concept that names its magic ("a fire mage") gets that palette and
+# nothing else (ClassInterpretation.elements). Otherwise a class's elemental abilities lean on its families below, and a share of
+# them carry no element at all (raw arcane force, holy light without heat, a curse with no substance).
+family_lean:
+  mage: [fire, cold, lightning, acid]
+  warlock: [fire, necrotic, poison]
+  necromancer: [necrotic, cold, poison]
+  druid: [nature, lightning, poison, cold]
+  summoner: [lightning, cold, necrotic]
+  paladin: [radiant, fire]
+  healer: [radiant]
+  bard: [lightning, radiant]
+  monk: [lightning, radiant]
+  ranger: [nature, poison, cold]
+  rogue: [poison, acid]
+  artisan: [fire, acid, lightning]
+  warrior: [fire, lightning]
+  guardian: [radiant, cold]
+  berserker: [fire, lightning]
+  leader: [radiant, lightning]
+unaligned: 0.25          # with an open palette, this share of elemental abilities carry no element
+
+# THE WHEEL (f266) - the eight elements in a ring, each beside the two most like it. When the engine plans an elemental ability, it may
+# borrow one of its neighbors' effects instead of its own (borrow_chance): the damage stays its own element, only the effect is
+# borrowed. Elements further round the wheel never lend. (The ring closes: fire's neighbors are lightning and radiant.)
+wheel: [radiant, nature, poison, acid, necrotic, cold, lightning, fire]
+borrow_chance: 0.25

@@ -17,12 +17,13 @@ def scene(ptype, npcs):
     met = [n for n in npcs if n.met_player]      # shop_data lists only people you have met
     s = NS(place=NS(type=ptype), present=npcs, world=w, BUSINESS_PLACES=cls.BUSINESS_PLACES,
            shop_data=lambda: {"sellers": [{"name": n.label(), "wares": [], "buys": []} for n in met], "sell": [], "purse": ""},
-           stable_stock=lambda: [], show_stable=lambda: lines.append("STABLE"))
+           stable_stock=lambda: [], show_stable=lambda: lines.append("STABLE"),
+           trades_here=lambda: ", ".join(f"{n.label()} (wares)" for n in npcs if not n.met_player))      # (f328) who sells here, unmet
     return s
 merchant = NS(role="merchant", met_player=False, label=lambda: "Stranger")
 lines.clear(); cls.show_shop(scene("temple", [merchant])); check("not in a business: nothing sold", len(lines) == 1 and "Nothing is sold" in lines[0])
-lines.clear(); cls.show_shop(scene("town", [merchant])); check("town counts, unmet seller hidden", len(lines) == 1 and "Speak to the people" in lines[0])
-lines.clear(); cls.show_shop(scene("shop", [merchant])); check("unmet seller hidden", len(lines) == 1 and "Speak to the people" in lines[0])
+lines.clear(); cls.show_shop(scene("town", [merchant])); check("town counts, unmet seller hidden but named", len(lines) == 1 and "Trading here: Stranger (wares)" in lines[0] and "Speak to them first" in lines[0])
+lines.clear(); cls.show_shop(scene("shop", [merchant])); check("unmet seller hidden but named", len(lines) == 1 and "Trading here: Stranger (wares)" in lines[0])
 for t in ("city", "guild", "temple"):
     lines.clear(); cls.show_shop(scene(t, [NS(role="merchant", met_player=True, label=lambda: "X")])); check(f"{t} is not a business", "Nothing is sold" in lines[0])
 print("FAILED: " + ", ".join(bad) if bad else "all ok")

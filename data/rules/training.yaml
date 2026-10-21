@@ -43,7 +43,7 @@ lessons:
   fight_function_chance: 0.4  # a control lesson may be a fighting function (bind a beast) when one is on offer
   shape_chance: 0.35    # a damage lesson carries a shape, a rider, or neither
   rider_chance: 0.5
-  wildcard_effects: {damage: 3, control: 2, defense: 2, mobility: 2, healing: 1.5, buff: 1.5, utility: 2, influence: 1, summon: 1}
+  wildcard_effects: {damage: 3, control: 2, mobility: 2, healing: 1.5, buff: 1.5, utility: 2, influence: 1, summon: 1}
   # conditions any class may be taught; the narrow ones (a biome, a foe type, weather) only if they suit the class
   common_triggers: [always, after_moving, when_attacked, while_defending, at_low_health, first_round_of_combat, after_defeating_foe, in_conversation, while_performing, out_of_combat, in_settlements, in_wilderness, with_companion_present, in_daylight, at_night]
   # passive traits that suit each kind of ability, for a request that names no stat
@@ -87,3 +87,12 @@ lessons:
     movement: [faster, swift, quick]
     recovery: [recover, regenerate]
     resolve: [willpower, resolve, nerve]
+
+# LOADOUT (engine/loadout.py, f232): you keep every ability you learn in your book, but you bring only so many - spells (anything
+# that costs mana) and techniques (anything that costs stamina) each have their own room. Every active ability counts, in a fight or
+# out of one. The loadout changes only out of combat, once a day; the first change is free.
+loadout:
+  start: 5              # each room at level 1
+  levels_per_more: 20   # one more in each room every this many levels...
+  max: 10               # ...to this, at level 100
+  priority: [damage, control, healing, defense, mobility, summon, buff, command, influence, utility, crafting]   # the order an automatic pick fills by

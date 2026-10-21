@@ -37,7 +37,7 @@ def offer(npc, amount, rolls, summary="lets me through the gate"):
     ws.player.character.coins = 100000
     talks.clear(); npc.memories = []
     seq = iter(rolls)
-    checks.roll = lambda odds: next(seq)
+    checks.roll = lambda odds, rng=None, c=None: next(seq)
     it = ActionIntent(kind="give", target=npc.id, item="silver", summary=summary)
     ws.offer_bribe(it, "I slip the guard some silver", npc, amount)
     return ws.player.character.coins

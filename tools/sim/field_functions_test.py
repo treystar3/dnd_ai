@@ -2,6 +2,7 @@
 import shutil, sys, random, types
 sys.path.insert(0, ".")
 import simlib
+from engine import loadout as _lo; _lo.L["start"] = _lo.L["max"] = 99   # every function at once: more than any loadout brings (f232)
 STUB = simlib.Stub("mage", 5)
 simlib.install(STUB)
 import ui.console as uc
@@ -296,7 +297,7 @@ ws.fld.pop("lucky", None)
 check("no luck without the passive", ws.lucky_save() == "")
 char.passives.append(Passive(id="lucky-break", name="Fool's Luck", description="d", tier=PowerTier.LIGHT, mechanic="lucky_break", value=1))
 orig_roll = checks.roll
-checks.roll = lambda odds, rng=None: ("failure", 99)
+checks.roll = lambda odds, rng=None, c=None: ("failure", 99)
 NOTES.clear()
 r1 = ws.resolve("lore")
 r2 = ws.resolve("lore")
@@ -304,12 +305,12 @@ checks.roll = orig_roll
 check("the first failure each day is saved", r1 == "success" and any("lucky break" in x.lower() and "Fool's Luck" in x for x in NOTES), NOTES)
 check("the second is not", r2 == "failure")
 ws.advance_quiet(24 * 60)
-checks.roll = lambda odds, rng=None: ("failure", 99)
+checks.roll = lambda odds, rng=None, c=None: ("failure", 99)
 check("it comes back tomorrow", ws.resolve("lore") == "success")
 checks.roll = orig_roll
 char.passives[-1].value = 2
 ws.advance_quiet(24 * 60)
-checks.roll = lambda odds, rng=None: ("failure", 99)
+checks.roll = lambda odds, rng=None, c=None: ("failure", 99)
 check("a stronger version saves two", [ws.resolve("lore") for _ in range(3)] == ["success", "success", "failure"])
 checks.roll = orig_roll
 check("lucky is no longer an ability function", "lucky" not in field.FUNCTIONS)
@@ -351,8 +352,10 @@ check("...and faster than the cheap horses", ws.mount_info()["speed"] >= 0.30)
 def fighter(id_, side, hp=10**6):
     return combat.Fighter(id=id_, name=id_, side=side, level=20, attrs={a: 10 for a in combat.ATTRIBUTES}, hp=hp, max_hp=hp,
                           weapon_damage=50, armor=0, ward=0)
-p = fighter("p", "player"); pet = fighter("ally_pet", "ally"); foe = fighter("e", "enemy"); foe.band = "engaged"
+p = fighter("p", "player"); pet = fighter("ally_pet", "ally"); foe = fighter("e", "enemy")
 cmb = combat.Combat(fighters=[p, pet, foe])
+from engine import battlefield as bf
+bf.engage(cmb, foe, p)
 rng = random.Random(4)
 for i in range(60):
     combat.enemy_turn(cmb, foe, rng)

@@ -19,9 +19,12 @@ LOG_CAP = 6000
 VIEWS = {"system", "sys", "stats", "character", "exits", "where", "places", "map", "party", "journal", "j", "inventory", "inv", "i",
          "board", "contracts", "standing", "rumors", "dungeon", "floors", "quests", "quest", "jobs", "arc", "story",
          "trail", "clues", "home", "house", "property", "homes", "shop", "store", "wares", "buy", "stash", "box",
-         "itembox", "gear", "equipment", "worn", "help", "h", "?", "world", "pulse"}
+         "itembox", "gear", "equipment", "worn", "help", "h", "?", "world", "pulse", "book", "spellbook", "loadout"}
 DEFAULT_PIN = "#character"
-HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname", "#boardaccept", "#boardabandon", "#boardrequest", "#boardjoin", "#goto")      # the shop pane's buttons: run like commands, never echoed
+PINNABLE = {"#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc",
+            "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse", "#book"}     # read-only views: a pin runs again after every turn
+HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname", "#boardaccept", "#boardabandon", "#boardrequest", "#boardjoin", "#boardhire", "#goto", "#mapgo",
+          "#useitem", "#correct", "#questabandon")      # the panes' buttons: run like commands, never echoed
 WRAP_WIDTH = 2000
 
 
@@ -173,7 +176,7 @@ class Bridge:
     # ---------- input ----------
     def ask(self, main: bool = False) -> str:
         self.flush_text()
-        if main and self.pinned and self.dirty and not self.closed and not self.in_combat:
+        if main and self.pinned in PINNABLE and self.dirty and not self.closed and not self.in_combat:
             self.dirty = False
             return self.pinned           # the game's own loop runs it; scope() sends it to the side pane
         if self.closed:

@@ -34,6 +34,9 @@ def check(c: Character, item: Item) -> str | None:
         return f"You need {', '.join(short)} to use the {item.name}."
     if b.slot == "off_hand" and two_handed_equipped(c):
         return f"Your hands are full with the {c.equipment['main_hand'].name}."
+    from engine import pools
+    if pools.mechanic(c, "glass_cannon") is not None and not b.is_weapon and not b.ward and items.weight(item) not in (None, "", "light"):
+        return f"You cannot bear the {item.name}: your gift will not suffer anything heavier than cloth (Glass Cannon)."
     return None
 
 

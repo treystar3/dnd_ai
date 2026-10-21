@@ -60,6 +60,18 @@ check("foreign host refused", req("/prefs", host="evil.example:80")[0] == 403)
 check("page needs token", req("/", token=None)[0] == 403 and req("/?t=" + tok, token=None)[0] == 200)
 check("page carries token", tok.encode() in req("/", token=None) [1] if False else tok.encode() in urllib.request.urlopen(srv.url).read())
 check("static served", req("/app.js", token=None)[0] == 200 and req("/style.css", token=None)[0] == 200)
+fnt = urllib.request.urlopen(base + "/fonts/literata-latin-400-normal.woff2", timeout=5)
+check("the reading face is served with the page (f326)", fnt.status == 200 and fnt.headers.get("Content-Type") == "font/woff2" and fnt.read()[:4] == b"wOF2")
+page = urllib.request.urlopen(srv.url).read().decode()
+check("the pane's title row carries the tools (f326)", 'id="sidetitlerow"' in page and 'id="sidetools"' in page.split('id="sidetitlerow"')[1])
+js = req("/app.js", token=None)[1].decode()
+check("the window reads speech, notes and waits by shape, not the terminal's spaces (f326)", 'kind === "speech"' in js and 'kind === "note"' in js and 'kind === "wait"' in js and "function addEcho" in js)
+css = req("/style.css", token=None)[1].decode()
+check("the panes draw the pack, box, contracts, dungeon, house and standing from data (f327)", all(f"function render{n}" in js for n in ("Inventory", "Stash", "Quests", "Dungeon", "Home", "Standing", "Worn")) and all(f'pn === "{n}"' in js for n in ("inventory", "stash", "quests", "dungeon", "home", "standing")))
+check("a whole-line [note] in a pane loses its brackets; a help line becomes two columns (f327)", "a whole-line [note] in a pane is a note" in js and '"hrow"' in js and ".hrow .hc" in css and ".row2 .val" in css and ".meter.sym" in css)
+check("item names take their rarity's colour in every pane (f328)", "const RARE = " in js and js.count("named(") >= 5 and all(f".r-{r} {{ color: var(--r-{r}); }}" in css for r in ("uncommon", "rare", "epic")) and css.count("--r-epic:") == 3)
+check("the map frame follows the known world and stays on the painted map (f327)", "svg.style.aspectRatio" in js and "stays on the painted map" in js and "height: 520px" not in css)
+check("the fiction has its own face and measure; the rest keeps the machine's (f326)", "--serif" in css and "--measure" in css and ".k-narration .ln { font: 17px/1.62 var(--serif)" in css and "body { background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font: 14px/1.45 var(--mono); }" in css)
 
 def wait_for(pred, t=5):
     end = time.time() + t
@@ -121,10 +133,28 @@ got = sse(1, after=last_id - 1)
 check("SSE resumes after Last-Event-ID", got[0] == b.log[-1][1])
 
 # ---- prefs ----
-check("prefs default", json.loads(req("/prefs")[1]) == {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto"})
-check("prefs saved", json.loads(req("/prefs", {"width": 520, "hidden": True, "pinned": None, "junk": 1})[1]) == {"pinned": None, "width": 520, "hidden": True, "theme": "auto"})
+check("prefs default", json.loads(req("/prefs")[1]) == {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": []})
+check("prefs saved", json.loads(req("/prefs", {"width": 520, "hidden": True, "pinned": None, "junk": 1})[1]) == {"pinned": None, "width": 520, "hidden": True, "theme": "auto", "order": []})
 check("prefs persist to disk", server.load_prefs()["width"] == 520)
 check("prefs clamp", json.loads(req("/prefs", {"width": 99999})[1])["width"] == 900)
+
+# ---- pins and settings are validated ----
+check("pin accepts a read-only view", req("/pin", {"command": "#inventory"})[0] == 200 and b.pinned == "#inventory")
+for cmd in ("#newgame", "#quit", "#equip sword", "newgame", "#" + "x" * 50, 5):
+    code = req("/pin", {"command": cmd})[0]
+    check(f"pin refuses {cmd!r}", code == 400 and b.pinned == "#inventory", code)
+check("pin can be cleared", req("/pin", {"command": None})[0] == 200 and b.pinned is None)
+req("/pin", {"command": "#character"})
+before = server.load_prefs()
+for body in ({"hidden": "yes"}, {"width": "wide"}, {"theme": "neon"}, {"pinned": "#newgame"}, {"width": True}):
+    code, out = req("/prefs", body)
+    check(f"prefs refuse {body}", code == 400 and server.load_prefs() == before, (code, out))
+check("prefs refuse a JSON array", req("/prefs", [1, 2])[0] == 400)
+check("an oversize body is 413, not bad json", req("/prefs", {"theme": "dark", "pad": "x" * 70000})[0] == 413)
+check("...and nothing was saved", server.load_prefs() == before)
+server.prefs_path().write_text(json.dumps({"pinned": "#newgame"}))
+check("a bad stored pin falls back to the default", server.load_prefs()["pinned"] == "#character")
+server.prefs_path().write_text(json.dumps(before))
 
 # ---- kinds (colours) and wrapping ----
 k0 = len(b.log)
@@ -136,6 +166,11 @@ kinds = [e["kind"] for e in new if e["text"].strip()]
 check("kinds tagged", kinds == ["narration", "speech", "speech", "speech", "note", "wait", "combat"] or set(kinds) == {"narration", "speech", "note", "wait", "combat"}, kinds)
 check("narration not hard-wrapped", any(e["kind"] == "narration" and e["text"].count("\n") <= 2 and len(e["text"]) > 500 for e in new))
 check("plain print keeps plain kind", b.cur_kind == "plain")
+k1 = len(b.log)
+console.ledger("Wolf pelt taken")
+b.flush_text()
+led = [e for _, e in b.log[k1:] if e["k"] == "text" and e["text"].strip()]
+check("a ledger line is tagged for the ticker, not the story column (f325)", led and all(e["kind"] == "ledger" for e in led) and "Wolf pelt taken" in led[0]["text"], led)
 
 # ---- shop panel and hidden shop commands ----
 check("panel refused outside the side pane", b.panel("shop", {}) is False)

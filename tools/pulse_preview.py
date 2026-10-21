@@ -96,8 +96,7 @@ def main() -> None:
             out += [f"  - effect: {fx(e)}" for e in st["effects"]]
         out.append(f"**If nobody steps in:** {th['fallout']['description']}")
         out += [f"  - effect: {fx(e)}" for e in th["fallout"]["effects"]]
-        board = [q["title"] for pid in store.root.joinpath("places").glob("*.json") for q in store.load_place(pid.stem).board
-                 if q.get("thread") == th["id"]] if store.root.joinpath("places").exists() else []
+        board = [q["title"] for pid in store.list_places() for q in store.load_place(pid).board if q.get("thread") == th["id"]]
         if board:
             out.append(f"**Guild contract posted:** {board[0]}")
         out.append("")

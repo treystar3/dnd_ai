@@ -1,0 +1,62 @@
+# PARTH - the town's profile (f316). One file per town, keyed by the id of its top place in places.yaml. The engine reads these through
+# engine/towns.py; the truth layer (engine/truth.py) hands the right parts to the narrator, the people, the party and the interpreter.
+#
+# character:  what the town is like, in a paragraph. The narrator and the people made here are given it. Describe, never instruct.
+# landmarks:  named things anyone here can point to. `where` is the place they stand at (a place of this town). Speakers may name these.
+# districts:  the quarters people give directions by. Not places on the map: colour, and a thing to say "down by".
+# anchors:    the people who make the town what it is: made on the player's first visit, by name, and never removed by the world's
+#             situations (that is build 4; the shape is settled here). role must be one the town's places list as a resident.
+# trouble:    what is wrong underneath. Given to the writer of the world's situations as standing pressure, and to the people as
+#             something that may colour a concern. Never read out as fact.
+# secret:     what the town keeps. Only the writer of big situations is told; no townsperson is given it.
+# festivals:  the town's own holidays: {name, season, day, days}. While one is on, the town's condition is festive (data/rules/towns.yaml).
+# scale, crowd, guard: how big and busy, how the streets look by time of day, how much of the watch is about - these override the
+#             place's own in places.yaml (data/rules/truth.yaml has the scales and the defaults).
+
+id: parth
+character: >
+  A river-crossing market town that lives on the trade road and knows it: everyone has a cousin who drives a cart, and the
+  innkeeper counts the season by who comes through. Plain-spoken, slow to take offence and slower to forgive, with a
+  countryman's suspicion of magic that comes from watching the Seekers take children away. The Greywood sits at the edge of
+  every conversation about the north.
+landmarks:
+  - name: the Wend bridge
+    where: parth
+    note: the old stone bridge the trade road crosses on; carts queue on it on market mornings
+  - name: the well
+    where: trading_square
+    note: the stone well at the centre of the square, where the notices are read aloud
+  - name: the old granary
+    where: guild_house
+    note: what people still call the guild house, which was a granary within living memory
+  - name: the sunburst
+    where: parth_temple
+    note: the gilded sunburst over the Sun Warden's altar, the one fine thing in town
+districts:
+  - the river market
+  - the sheep hill
+  - the wood end
+anchors:
+  - role: watch_captain
+    note: has held the tower for twenty years and thinks the guild is a nuisance that pays well
+  - role: guild_master
+    note: came from the capital, means to make Parth's hall count for something, and has not yet
+  - role: innkeeper
+    note: keeps the Tilted Plough and hears everything before the watch does
+trouble:
+  - The watch and the guild hall argue over whose job every problem is, and the town waits while they do.
+  - "The Greywood is closer than it was: woodcutters go in less far each year, and the sheep hills lose animals to it."
+  - A Seeker has not come in some years, and every family with a quick child is counting.
+secret: >
+  The temple's sunburst is not gilt: it is solid, old, and nobody living knows where it came from. The priest knows what it would
+  fetch and has never said so.
+festivals:
+  - {name: the Harvest Fair, season: autumn, day: 12, days: 2}
+  - {name: the Crossing Day, season: spring, day: 20, days: 1}
+scale: town
+crowd:
+  market: "busy: carts on the bridge, the square full of stalls and the inn's front room full of drivers"
+  easing: "the carts gone on, the square being swept, the inn filling"
+  quiet: "a few people about, most doors shut, the inn's windows lit"
+  empty: "empty streets; the watch's bell, a dog, nobody else"
+guard: light

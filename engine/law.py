@@ -132,7 +132,8 @@ def current_heat(player, town: str, day: int) -> int:
     rec = player.heat.get(town)
     if not rec:
         return 0
-    return max(0, rec["heat"] - H["decay_per_day"] * max(0, day - rec["day"]))
+    from engine import world_perks
+    return world_perks.heat_today(getattr(player, "character", None), rec, day, max(0, rec["heat"] - H["decay_per_day"] * max(0, day - rec["day"])))
 
 
 def set_heat(player, town: str, value: int, day: int) -> int:

@@ -1,0 +1,218 @@
+# HOW PEOPLE SPEAK - who a hire is (their people and the culture that raised them), how well they speak Common, how strongly their
+# culture shows, and how they show what they feel. The engine rolls these once, when a hire appears on the guild's list, and compiles a few
+# of them into each reply's instructions (engine/voice_profile.py): never the whole profile at once, and never the same lines every time.
+#
+# DRAFT CONTENT: the cultures below (dialect lines, imagery, sayings, words) are a first pass for you to rewrite as Rivia's own.
+# The rule for writing them: dialect lines, habits, tells and expression describe BEHAVIOUR and never hold words to be said (a line the
+# model can quote, it will quote). Sayings and words are the only text that may be said as written; the engine offers them one at a time.
+
+hire_peoples: {human: 40, dwarf: 10, halfling: 8, half_elf: 8, elf: 8, gnome: 6, goliath: 5, orc: 6, dragonborn: 5, genasi: 4}
+
+peoples:                     # people -> the cultures they are raised in, by weight
+  human:      {heartland: 50, rimelands: 12, sunscar: 12, saltmarches: 10, frontier: 10, gloaming: 6}
+  dwarf:      {ironvein: 75, heartland: 15, rimelands: 10}
+  halfling:   {heartland: 60, saltmarches: 40}
+  half_elf:   {heartland: 50, eldervale: 35, saltmarches: 15}
+  elf:        {eldervale: 85, heartland: 15}
+  gnome:      {heartland: 55, ironvein: 30, gloaming: 15}
+  goliath:    {hrimgard: 70, rimelands: 30}
+  orc:        {frontier: 60, rimelands: 20, heartland: 20}
+  dragonborn: {cinderhold: 75, sunscar: 25}
+  genasi:     {cinderhold: 50, sunscar: 25, saltmarches: 25}
+
+fluency:                     # how well they speak Common, for anyone raised with a tongue of their own
+  weights: {native: 15, fluent: 60, learner: 25}
+  baseline: "Common is their second language. They speak it well and plainly, in normal English word order; most lines are fully correct. Never broken, never comic, never a caricature: a capable adult speaking a second language."
+
+strength:                    # how strongly their culture shows in how they talk
+  weights: {light: 30, moderate: 50, strong: 20}
+
+# THE CULTURE BUDGET. One roll per reply decides whether their culture shows at all; when it does, exactly ONE feature of it is used.
+# Most replies are just the person. A character who shows their culture in every line is demonstrating it, not living it.
+culture:
+  show: {light: 0.25, moderate: 0.4, strong: 0.6}   # the chance, per reply, that their culture shows
+  weights:                                          # which feature, when it does
+    dialect: 4                                      # a line of their culture's way of talking
+    transfer_learner: 4                             # their first tongue showing through their Common (still learning it)
+    transfer_fluent: 1.5                            # the same, for someone fluent
+    saying: 1.5                                     # a saying from home, offered to be said as it is
+    imagery: 1                                      # one image from home, allowed as a turn of phrase
+    word: 0                                         # a word of their home tongue (0: off for now - the model used them as filler; the words stay in the data)
+imagery_gap: 6               # an image from home, then not again until they have said this many more lines
+saying_gap: 12               # a saying from home, then not again until they have said this many more lines
+word_gap: 8                  # a home word, then not again until they have said this many more lines
+
+cultures:
+  heartland:
+    home: the heartland of the Wend Vale and the Great River country
+    tongue: ""
+    dialect:
+      - "Talks about the practical thing first: the road, the weather, the price, the meal."
+      - "Understates, the way farm country does; big trouble is described as a bad season."
+      - "Friendly to strangers, slow to trust anything grand or clever."
+    imagery: [the harvest, the market, the river, the plough]
+    sayings: ["Rain on a wedding is luck for the barn.", "A full cart turns slow.", "Never sell the cow to buy the bell."]
+  frontier:
+    home: the eastern frontier around Redstone
+    tongue: ""
+    dialect:
+      - "Short and hard-spoken, with no patience for ceremony."
+      - "Judges people by what they do in a bad hour, not by what they say."
+      - "Rough-mannered and unbothered by it; kindness comes out sideways."
+    imagery: [dust, horses, dry wells, the long road]
+    sayings: ["Water first, then talk.", "A good horse forgives a bad rider once.", "Dust settles on the dead and the lazy alike."]
+  gloaming:
+    home: the Gloaming Coast around Thalassor
+    tongue: ""
+    dialect:
+      - "Speaks softly, as if sound might carry too far, and leaves pauses that do the work."
+      - "Thinks of time in tides and fog rather than hours."
+      - "Careful with secrets and slow to say anything plainly that could be said sideways."
+    imagery: [fog, bells, the tide, lamplight]
+    sayings: ["Mind the second bell, not the first.", "Fog keeps every secret but the tide's.", "Speak low and you will be heard."]
+  rimelands:
+    home: the Rimelands of the far north
+    tongue: rime
+    dialect:
+      - "Proud of hardship and quietly scornful of comfort."
+      - "Treats a guest with great care and a rival with cold courtesy."
+      - "Says little about what they feel and shows it in what they do."
+    imagery: [cold, distance, endurance, snow]
+    sayings: ["A cold hearth makes a short night.", "Snow remembers every footstep.", "Only a fool counts the winter before it is over.", "The wolf that howls is not the one to fear."]
+  sunscar:
+    home: the Sunscar in the east, around Sunspire
+    tongue: sunscar
+    dialect:
+      - "Courteous and warm, with careful greetings and thanks."
+      - "Weighs everything by water, shade and what is shared."
+      - "Takes hospitality and debts of kindness seriously, both ways."
+    imagery: [water, shade, sand, the well]
+    sayings: ["Shade is a gift you give the next traveller.", "The well does not ask who is thirsty.", "Sand in the bread is still bread."]
+  saltmarches:
+    home: the Saltmarches on the coast south-west of Parth
+    tongue: salt
+    dialect:
+      - "Easy-going and unhurried, slow to anger and slow to worry."
+      - "Talks about moods as if they were weather and plans as if they were tides."
+      - "Keeps things short and practical, and laughs easily."
+    imagery: [tides, nets, wind, boats]
+    sayings: ["A calm sea never made a sailor.", "Mend the net before you need it.", "The tide does not wait for the slow."]
+  ironvein:
+    home: Ironvein under the Grey Mountains
+    tongue: ironvein
+    dialect:
+      - "Judges everything by how well it is made, people included."
+      - "Keeps debts and grudges both, and is open about keeping them."
+      - "Blunt, with a dry humour that does not smile."
+    imagery: [stone, ore, the forge, deep places]
+    sayings: ["Measure twice, strike once.", "A crack runs where you will not look.", "Stone remembers the hand that cut it."]
+  eldervale:
+    home: Eldervale in the Blackpine
+    tongue: eldervale
+    dialect:
+      - "Patient, and speaks as though there were always time."
+      - "Notices living things before people, and says so."
+      - "Courteous and a little distant; seldom hurried into an answer."
+    imagery: [trees, seasons, roots, slow growth]
+    sayings: ["The oak does not hurry, and the oak is still here.", "Every root was once a seed that waited.", "Leaves fall so the tree may sleep."]
+  hrimgard:
+    home: Hrimgard in the Stormcrown
+    tongue: hrimgard
+    dialect:
+      - "Speaks of honour, deeds and a word kept."
+      - "Openly competitive, and generous to anyone who has earned respect."
+      - "Plain and loud; does not whisper or hint."
+    imagery: [storms, peaks, the long climb, thin air]
+    sayings: ["A word given is a stone set.", "The higher the peak, the colder the praise.", "Storms are only weather to the patient."]
+  cinderhold:
+    home: Cinderhold in the Ashen Reach
+    tongue: cinderhold
+    dialect:
+      - "Formal, and proud of clan and forge."
+      - "Judges people by what they have endured and what they have made."
+      - "Uses few words and weighs each one."
+    imagery: [fire, ash, the anvil, tempering]
+    sayings: ["What survives the fire is the blade.", "Ash is honest; it hides nothing.", "Tend the flame or be warmed by none."]
+
+# The tongues not already in quirks.yaml (rime, sunscar, salt live there). habits: how the first tongue shows through in Common, as
+# behaviour only. words: always used for the same thing, and never shared with another tongue. offer: the words that may be offered to
+# be said - endearments, exclamations, a yes or a no; the rest are known to the game (so they are never borrowed by someone else) but are
+# not offered, because a model given a noun from an invented tongue tends to misuse it.
+tongues:
+  ironvein:
+    home: Ironvein under the Grey Mountains
+    habits: "now and then puts the verb at the end of a sentence, the way their own tongue does; counts and measures things exactly; uses few small joining words"
+    words: {khaz: "solid, well made, sound", brund: "a fool, fondly or not", orrum: "home, the hall", taak: "agreed, it is done"}
+    offer: [brund, taak]
+  eldervale:
+    home: Eldervale in the Blackpine
+    habits: "speaks with an old-fashioned formality; uses longer sentences than most; speaks of time in seasons and generations"
+    words: {ithren: "friend, kin of the heart", saelo: "patience, slow time", velun: "a sorrow carried long", lith: "light, or a good omen"}
+    offer: [ithren, saelo]
+  hrimgard:
+    home: Hrimgard in the Stormcrown
+    habits: "uses short, weighty sentences with the important word first; rarely bothers with words for small things"
+    words: {haug: "high ground, and the honour of standing on it", skorr: "a small person, kindly meant", drev: "a storm, or a temper", ulm: "yes, it is so"}
+    offer: [skorr, ulm]
+  cinderhold:
+    home: Cinderhold in the Ashen Reach
+    habits: "speaks in a measured, formal way; addresses people by what they do; sometimes ends a sentence on a single hard word"
+    words: {zharr: "a tended fire, a home", ashk: "ended, gone to ash", oru: "kin, the clan", drass: "proof, a thing tested in fire"}
+    offer: [oru, ashk]
+
+# What the engine knows someone feels, from what is happening (the same situations as SUBTEXT in quirks.yaml).
+emotions: {hurt_self: hurting, caretaker: worried, lost: angry, hard_win: relieved, fallen: grieving, painful_told: sad, warned_self: uneasy}
+
+# How each person shows a feeling. One is rolled for each, once, so the same person shows it the same way every time.
+tells:
+  hurting: ["goes quieter than usual and answers in fewer words", "makes light of it and changes the subject", "gets short with anyone who fusses", "talks about anything except the hurt"]
+  worried: ["talks more than usual and asks more questions", "busies themselves with something practical", "goes very still and watchful", "makes jokes that do not quite land"]
+  angry: ["stops joking and says exactly what they think", "goes cold and very polite", "gets louder and blunter", "says less and less"]
+  relieved: ["gets talkative and a little giddy", "goes quiet and lets the moment be", "jokes more than usual", "starts on the next practical thing at once"]
+  grieving: ["speaks of the lost one as if they were still near", "starts a thought and cannot finish it", "keeps to practical matters", "remembers one small thing about them"]
+  sad: ["speaks softly and slowly", "offers something of their own in return", "keeps it brief and stays near", "says the plain thing without dressing it up"]
+  uneasy: ["asks questions they half know the answers to", "hedges what they say", "watches the other for a reaction", "comes back to the doubt more than once"]
+  devastated: ["weeps openly and does not try to hide it", "goes rigid and silent, then says one thing far too loudly", "turns the anger on someone - the enemy, the player, themselves", "prays, or begs, under their breath", "throws themselves at the nearest task as if it could undo what happened", "cannot stop saying the name"]
+
+# How each person shows what they feel toward someone. One of each, rolled once.
+expression:
+  affection: ["teases and checks on them in the same breath", "shows it by small practical help, hardly ever in words", "says gruff things that mean the opposite", "remembers small things they said and brings them back"]
+  irritation: ["turns sarcastic", "goes clipped and formal", "says exactly what annoys them, once, and then drops it", "pointedly speaks to someone else"]
+  respect: ["asks for their opinion", "defers to them on what they know best", "says so plainly, once, and moves on"]
+regard:                      # how often their warmth or irritation toward the other shows in a reply: most replies are just the words
+  show: 0.3
+  emotional: 0.6             # when the engine knows they are feeling something right now
+relation_affection: 15       # a pair this warm or warmer shows affection to each other; this cold or colder (negative), irritation
+
+# ---- WHO THEIR FAMILY WERE. Rolled apart from culture: a life first, then the place gives it colour. An Ironvein cook fed the shift
+# workers; an Ironvein noble never held a pick. Culture only shifts the odds (DRAFT weights: yours to adjust).
+backgrounds:
+  merchant:  {weight: 10, family: "merchants and traders"}
+  noble:     {weight: 4,  family: "a minor noble household"}
+  cook:      {weight: 8,  family: "cooks and innkeepers"}
+  smith:     {weight: 7,  family: "smiths and metalworkers"}
+  soldier:   {weight: 7,  family: "soldiers and guards"}
+  farmer:    {weight: 12, family: "farmers"}
+  temple:    {weight: 5,  family: "temple servants; they were raised in and around a temple"}
+  street:    {weight: 6,  family: "nobody who stayed; they grew up on the streets"}
+  scholar:   {weight: 4,  family: "scribes, clerks and scholars"}
+  sailor:    {weight: 6,  family: "sailors and fisherfolk"}
+  herder:    {weight: 6,  family: "herders"}
+  crafter:   {weight: 9,  family: "craftsfolk: weavers, carpenters, potters, tanners"}
+  miner:     {weight: 5,  family: "miners"}
+  smuggler:  {weight: 3,  family: "smugglers"}
+  hunter:    {weight: 6,  family: "hunters and trappers"}
+  performer: {weight: 3,  family: "travelling players and musicians"}
+  healer:    {weight: 4,  family: "healers and herb-sellers"}
+
+culture_backgrounds:         # multiplies a background's weight for someone raised there (0 = never)
+  heartland:   {farmer: 1.5, herder: 1.3, sailor: 0.3, miner: 0.4}
+  frontier:    {soldier: 2, herder: 1.8, hunter: 1.5, smuggler: 1.5, sailor: 0, noble: 0.5, scholar: 0.5}
+  gloaming:    {sailor: 2.5, smuggler: 1.5, scholar: 1.5, herder: 0.3, miner: 0}
+  rimelands:   {hunter: 2.5, herder: 1.5, smith: 1.3, farmer: 0.4, sailor: 0.3}
+  sunscar:     {merchant: 2.5, herder: 1.5, performer: 1.5, sailor: 0, farmer: 0.4, miner: 0.5}
+  saltmarches: {sailor: 3, farmer: 1.2, cook: 1.3, miner: 0}
+  ironvein:    {miner: 3, smith: 2.5, merchant: 1.5, crafter: 1.3, sailor: 0, herder: 0.2, farmer: 0.2, hunter: 0.4}
+  eldervale:   {hunter: 2, healer: 2, scholar: 1.5, performer: 1.5, miner: 0, sailor: 0.2, smuggler: 0.3}
+  hrimgard:    {hunter: 2, herder: 2, soldier: 1.8, sailor: 0, merchant: 0.5, scholar: 0.5}
+  cinderhold:  {smith: 3, miner: 1.5, soldier: 1.5, temple: 1.3, sailor: 0, farmer: 0.2, herder: 0.4}

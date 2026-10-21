@@ -89,3 +89,23 @@
   name: the Sepulchre Fields
   description: The burial grounds of a dead empire, miles of barrow, mausoleum and bone-white road, west of the royal vales. Nothing in them rests.
   ruled_by: null
+
+- id: gloaming_coast
+  name: the Gloaming Coast
+  description: >
+    A fog-bound seaboard far to the north-west where the sun shows on perhaps a hundred days a year. Sound carries oddly,
+    so people speak softly, keep bells on everything and measure time by the tides. The Taking is a southern custom
+    and is not practised here.
+  ruled_by: Thalassor
+
+- id: rimelands
+  name: the Rimelands
+  description: >
+    The far north-eastern corner of the kingdom, where tundra runs into the Ashen Reach. The cold is old and the people
+    are proud of it. Nothing here is gentle, but nothing is cruel without a reason, and guests are treated better than at home.
+  ruled_by: Skarnhelm
+
+- id: saltmarches
+  name: the Saltmarches
+  description: A soft, windy coast of tidal flats and kelp beds just south-west of Parth, the gentlest country on the map.
+  ruled_by: the crown at Valecourt

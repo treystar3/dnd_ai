@@ -7,3 +7,4 @@
 - {id: mana_tonic,      makes: {mana_tonic: 1},      ingredients: [{good: moonpetal, count: 2}]}
 - {id: bandage,         makes: {bandage: 2},         ingredients: [{good: yarrow, count: 2}]}
 - {id: trail_ration,    makes: {trail_ration: 2},    ingredients: [{kind: food, count: 1}, {good: wild_garlic, count: 1}]}
+- {id: hearty_meal,     makes: {hearty_meal: 1},     ingredients: [{meat: true, count: 1}]}

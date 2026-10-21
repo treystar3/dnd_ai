@@ -27,6 +27,9 @@ def main():
     print(f"World: {world.name}  (start: {world.places[world.start_location].name})")
     print(f"  {len(world.regions)} regions, {len(world.places)} places, {len(world.peoples)} peoples, "
           f"{len(world.lore)} facts, {len(world.pressures)} pressures, {len(catalog.traits)} traits")
+    towns = [p for p in world.places.values() if not p.parent and p.type in ("town", "city", "village")]
+    print(f"  {len(world.towns)} of {len(towns)} towns have a profile (data/world/towns/): "
+          + ", ".join(f"{t.id} ({len(t.landmarks)} landmarks, {len(t.anchors)} anchors, {len(t.festivals)} festivals)" for t in world.towns.values()))
 
     print("\nA shepherd from Parth would know:")
     for fact in world.facts_known_by({"everyone", "parth_locals", "shepherds"}):

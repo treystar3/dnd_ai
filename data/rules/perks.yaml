@@ -1,0 +1,85 @@
+# PERKS - the numbers behind the character-defining passives offered at creation (data/rules/passive_mechanics.yaml, where: creation).
+# The rules themselves live in engine/combat_perks.py (fights) and scenes/passive_hooks.py (the world); every figure they use is here.
+
+# how creation draws its offer (character/creation.py draw_mechanics). Families are a lean, not a wall: every creation perk the
+# class could ever use is reachable, own families weigh most, and a class's identity is anchored by its signature slots.
+draw:
+  rings: {own: 0.7, kin: 0.5, foreign: 0.35}          # weight of a perk by where it sits relative to the class's families
+  archetype_lean: 0.25                                # a family leans an archetype when this share of its options are tagged with it
+  dormant_needs: [stance]                             # fuel no character can have yet (f250: no stances until they are redesigned) - never drawn
+  class_needs:                                        # fuel only some classes are built around (f269): a perk needing it is drawn only for them
+    summon: summoner                                  # a summon of your own: only a class that conjures one
+    summon_ability: summoner
+    companion: uses_companions                        # an animal companion: only a class that keeps one
+
+combat:
+  # what counts as an affliction: the harmful statuses that Plaguebearer carries on and Vessel passes to a summon
+  afflictions: [bleeding, poisoned, burning, slowed, frightened, blinded, weakened, marked, hexed, withered, exposed, unraveled, illuminated,
+                brittle, shaky, jittered, wasting, conductive, superconductive, frostwelded, numb_hands, tangled, humbled, scented]
+  vessel_takes: [bleeding, poisoned, burning, slowed, frightened, blinded, weakened, stunned, prone, withered]
+
+  bulwark_engine: {per_charge: 20, sure_at: 3}        # each hit taken in a stance: +per_charge% on the next heavy; at sure_at charges it cannot miss
+  red_mist: {below: 0.5}                              # under this share of health: no stun, fear or slow, and heavies cost as lights
+  pain_engine: {share: 0.5}                           # damage taken returned as mana, as a share of the damage
+  adrenaline: {share: 0.5}                            # ...and as stamina
+  overchannel: {power: 1.5}                           # a spell paid for in blood lands this much harder
+  overcast: {cost: 2.0}                               # a spell cast through its cooldown costs this many times as much
+  firebrand: {}                                       # your ignites add to the burn already there instead of replacing it
+  thermal_shock: {per_round: 0.35}                    # each round left on the non-burning affliction bursts for this share of the blow
+  deep_freeze: {stun_rounds: 1}
+  storm_chosen: {arc: 0.5}                            # the share of the blow that arcs, as lightning, to each other enemy in reach
+  plaguebearer: {}
+  grave_chorus: {cap: 3}                              # echoes standing at once, at most
+  rampage: {below: 0.5, heal: 0.25}                   # a kill under this share of health restores this share of it
+  martyr: {share: 0.5}                                # the share of a companion's blow that lands on you instead
+  shared_skin: {share: 0.2}                           # the share of your blow that lands on your summon instead
+  unbreakable: {cap: 0.5}                             # no single blow takes more than this share of your health
+  bound_pair: {heal: 0.10, mana: 0.06}                # a cast heals the summon this share of its health; its blow refunds this share of your mana
+  devourer: {grow: 0.15}                              # each kill: this share more health and damage, until the fight ends
+  unmaking: {tier: heavy}                             # the burst is a heavy spell's worth against everything around the summon
+  echoing_mend: {share: 0.5}
+  consecration: {share: 0.5, element: radiant}        # undead engaged with the healed take this share of the heal
+  war_drum: {mult: 2.0}                               # a companion's next strike after your heavy lands hits this many times harder
+  showstopper: {}
+  fearmonger: {rounds: 2}                             # a threat that fails still leaves them frightened this long
+  flow_state: {}
+  provoke: {}
+  mirror_plate: {}
+  pack_tactics: {}
+  deathleap: {}
+  open_wound: {deep: 2.0}
+  crippling_wounds: {}                            # (f312) a wound you open slows its bearer while it stays open                         # (f311) your blows tear a wound this many times its size
+  spell_echo: {run: 3}
+  threefold_weave: {run: 3}
+  dread_ambusher: {}
+  lasting_word: {rounds: 99}
+  two_fisted: {items: 2}
+  pack_alpha: {}
+  curse_of_rust: {cap: 5}                             # stacks of armor stripped, at the perk's value each: five strips it all
+  blood_summons: {health: 0.15}                       # the share of your health a blood-called summon costs
+  glass_cannon: {crit_mult: 2.0, armor: [light]}            # spell crit chance multiplier; the heaviest armor weight it allows (cloth is light or warded)
+  conduit: {share: 0.5}                               # the share of the spell's blow each leap carries
+  overabundance: {cap: 0.4}                           # healing past full becomes a barrier, up to this share of the healed one's life
+  challenger:                                         # a fight with people made a duel: the leader faces you alone, the rest stand down
+    about: "a challenge to single combat: fight me alone, your leader against me, one on one, send your champion"
+    people: [hostile people, person template, monstrous race]
+
+world:
+  all_or_nothing: {bad_trust: -5, bad_standing: -1, bad_heat: 5}   # a failed check, made bad: trust lost with whoever saw it, standing in town, and heat on a failed theft
+  well_trodden: {share: 0.5}                                    # a road walked before takes this share of the time
+  famous: {}                                                    # news of you reaches every road-neighbor town at once and in full
+  nobody: {}                                                    # heat clears at dawn; news of you never moves standing; infamy never sticks
+  above_the_law: {standing_per_gold: 1}                         # reputation points per gold of fine the purse could not cover
+  borrowed_hands: {}
+  tavern_ear: {wares: [drink, meal]}                            # buying one of these at an inn is the drink that loosens tongues
+  practiced_hands: {}
+  frugal_hands: {}                                              # the chance is the mechanic's value (passive_mechanics.yaml)
+  shaped_to_you: {}
+  enchanter: {}
+  symbiosis: {default_gift: {regeneration: 1}}                  # a family without a gift: of its own gives this
+  campfire_cook: {trust: 2, feeds: 60}                          # bond each companion gains; hunger cleared for the player
+  spirit_guide: {}
+  pale_company: {categories: [undead]}
+  pious_path: {feeds: 60}
+  visions: {}
+  troubadour: {standing: 1}                                     # reputation in each town the song is about

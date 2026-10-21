@@ -10,6 +10,18 @@ CAP = R["resist_cap"]
 _PATTERNS = {e: re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + ")") for e, kws in R["elements"].items()}
 
 
+WHEEL = list(R.get("wheel") or [])
+BORROW = float(R.get("borrow_chance", 0))
+
+
+def neighbors(element: str) -> list[str]:
+    """The two elements beside this one on the wheel (f266) - the only ones it borrows effects from."""
+    if element not in WHEEL:
+        return []
+    i = WHEEL.index(element)
+    return [WHEEL[(i - 1) % len(WHEEL)], WHEEL[(i + 1) % len(WHEEL)]]
+
+
 def of_text(text: str) -> str:
     """The element a piece of text describes ('' if none): the one it names most."""
     t = text.lower().replace("_", " ")

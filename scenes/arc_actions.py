@@ -198,7 +198,7 @@ class ArcActions:
         skill, odds = self.best_of(n.get("check") or tpl["site_checks"])
         place = self.pname(n["place"])
         while True:
-            degree, _ = checks.roll(odds, rng)
+            degree, _ = checks.roll(odds, rng, c=c)
             n["attempts"] += 1
             console.debug(f"arc site {n['id']}: {skill} {odds:.0f}% -> {degree} (try {n['attempts']})")
             if degree in ("success", "strong success"):
@@ -223,7 +223,7 @@ class ArcActions:
         evidence = min(C["evidence_cap"], proper * C["evidence_per_step"])
         skill, odds = self.best_of(tpl["confront_checks"], [("evidence", evidence)])
         rng = random.Random(f"{self.store.meta.seed}:confront:{arc['id']}")
-        degree, _ = checks.roll(odds, rng)
+        degree, _ = checks.roll(odds, rng, c=c)
         sn = self.story_node(arc, n["id"])
         who = sn.get("npc_name") or "the one behind it"
         console.debug(f"arc confront: {skill} {odds:.0f}% (evidence +{evidence}) -> {degree}")

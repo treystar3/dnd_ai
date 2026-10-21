@@ -1,0 +1,36 @@
+# SUMMONS - beings a magic user creates (engine/summons.py). A summon is never a companion: companions are living creatures that are
+# tamed and grow with you (character.companions); summons are made, by a summon ability, out of the caster's own power.
+#
+# The engine plans each summon ability's FORM (the model only names and describes the being). Every summon is sized by its caster:
+# its health is a share of the caster's maximum health, its blows are a share of the caster's spell (the spell's base power plus
+# spell power, struck with the caster's casting attribute), and it carries the ability's element.
+#
+# A summon class has exactly one BOUND summon at a time: a lasting creation that stays between fights. It can know several Bound
+# spells, but only one Bound summon stands at once, and it can only be switched out of a fight (casting another Bound spell there
+# unmakes the old one and makes the new). Destroyed in a fight, it cannot be re-formed until the fight is over.
+# The other forms are made in a fight and last a few rounds (or until destroyed); at most `standing` of them at once.
+
+health: {light: 30, moderate: 50, heavy: 80}     # share of the caster's maximum health, before the form's own multiplier
+damage: {light: 60, moderate: 80, heavy: 100}    # share of the caster's spell, before the form's own multiplier
+rounds: {light: 3, moderate: 4, heavy: 5}        # how long a fight-made summon lasts
+standing: 2                                      # fight-made summons at once; making another lets the oldest go
+defense: 0.5                                     # a summon's armor and ward: this share of its caster's
+bound_restore: 0.4                               # casting the Bound spell with the Bound summon standing restores this share of its health
+
+# The forms.
+#   health, damage   multiply the sizes above        bodies   how many it splits into (the totals are shared among them)
+#   intercept        takes the blows meant for its caster, when it stands where they do
+#   draw             the chance an enemy turns on it instead of whoever it meant to strike
+#   pulse            each of its turns: its element strikes every enemy where it stands, for this share of its blow
+#                    (with no element it urges the allies where it stands instead: empower % by tier for one round)
+#   burst            when it falls or its time runs out, it bursts on every enemy where it stands for this share of its blow
+#   still            it does not move and does not strike
+forms:
+  bound:    {health: 1.0, damage: 1.0, tiers: [moderate], depict: "a lasting creation bound to the caster - it stays at their side between fights"}
+  sentinel: {health: 1.5, damage: 0.4, tiers: [light, moderate, heavy], intercept: true, depict: "a guardian that stands at the caster's side and takes the blows meant for them"}
+  striker:  {health: 0.8, damage: 1.4, tiers: [light, moderate, heavy], depict: "a hunter made to strike - fierce, fast and fragile"}
+  swarm:    {health: 1.2, damage: 1.2, bodies: 3, tiers: [moderate, heavy], depict: "a swarm of small things - several bodies that harry the enemy and split its attention"}
+  totem:    {health: 0.8, damage: 0.8, still: true, pulse: 0.6, empower: {light: 10, moderate: 15, heavy: 20}, tiers: [light, moderate, heavy],
+             depict: "a fixed totem or circle that pulses its power every moment where it stands - it does not move or strike"}
+  decoy:    {health: 0.7, damage: 0, still: true, draw: 0.6, tiers: [light, moderate], depict: "a lure or false image that draws the enemy's attacks onto itself"}
+  volatile: {health: 0.6, damage: 0.8, burst: 1.5, tiers: [light, moderate, heavy], depict: "an unstable creation that fights, then bursts when it falls or fades"}

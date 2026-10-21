@@ -6,12 +6,17 @@ from pathlib import Path
 
 import config
 from engine import intent_audit as ia
-from llm.contracts import AuditMeaning, AuditVerdict
+from llm.contracts import AuditMeaning, AuditVerdict, Clarify
 from llm.gateway import generate, trim_log
 from ui import console
 
 MEANING_SYSTEM = """You read one line a player typed in a role-playing game and say, in one short plain sentence, what they want to do.
 Use only their words and the scene facts. Do not add actions they did not ask for, and do not invent items or people."""
+
+CLARIFY_SYSTEM = """A line the player typed in a role-playing game could not be acted on. Ask them, in one short line and in character, what they
+meant - as the person they are speaking to would ask it, or, when nobody is being spoken to, as a plain beat from the narrator in which
+nobody speaks. Offer the one or two readings that fit the scene ("Pay the fee, or something else?"). Never explain the game, never say
+'I'm not sure', never list options with numbers. speaker: the id of the one being spoken to when there is one, else 'narrator'."""
 
 COMPARE_SYSTEM = """You check whether a PLAN does what a PLAYER MEANT in a role-playing game.
 matches = true if the plan carries out what they meant, even loosely or in different words.
@@ -25,10 +30,11 @@ class AuditActions:
 
     def situation(self) -> ia.Situation:
         sit = ia.Situation(
-            present={n.id: n.label() for n in self.present},
+            present=__import__("engine.truth", fromlist=["scene_of"]).scene_of(self).present_ids(),   # (f313) the one list everyone reads
             abilities={k: a.name for a in self.player.character.actives for k in (a.id.lower(), a.name.lower())},
             place=self.place.name, wildlife=bool(self.wildlife),
-            partner=self.partner.label() if self.partner else "")
+            partner=self.partner.label() if self.partner else "",
+            workers={n.id for n in self.present if n.work_offer})
         sit.lines = [f"Place: {sit.place}.", "People here: " + (", ".join(sit.present.values()) or "no one") + ".",
                      "Talking with: " + (sit.partner or "no one") + ".",
                      "Pack: " + (", ".join(self.pack_names()) or "empty") + "."]
@@ -72,9 +78,40 @@ class AuditActions:
         if res.status == "changed":
             console.debug(f"audit changed the plan: {res.verdict or res.reason}")
         if res.status == "failed":
-            console.note("I'm not sure what you meant - could you say it another way? (" + res.reason + ")")
+            console.debug(f"audit could not make sense of the plan: {res.reason}")
+            self.ask_back("audit_failed", text, res.reason, res.meaning)                 # (f321) the world asks; no system note
             return None
         return res.plan
+
+    def ask_back(self, kind: str, text: str, why: str, meaning: str = "") -> None:
+        """(f321) A line that could not be read is answered with one question in character - from the one being spoken to, or a beat from
+        the narrator - and the player's next line is read together with this one. Every one is logged as a refusal."""
+        from engine import refusals
+        if getattr(self, "pending_clarify", None):                       # asked once already and still unread: say so plainly, once
+            refusals.note("clarify_failed", text, why, self.player.location, self.store.meta.turn)
+            self.pending_clarify = None
+            console.note("That still didn't come through - try it in different words.")
+            return
+        people = ", ".join(f"{n.id}: {n.label()}" for n in self.present) or "nobody"
+        partner = self.partner.id if self.partner else ""
+        asked = ""
+        try:
+            req = (f'PLAYER TYPED: "{text}"\n' + (f"A READING OF IT: {meaning}\n" if meaning else "") + f"WHY IT COULD NOT BE ACTED ON: {why}\n"
+                   f"PEOPLE HERE (id: name): {people}\nSPEAKING WITH: {partner or 'nobody'}\nPLACE: {self.place.name}")
+            r = generate("clarify", CLARIFY_SYSTEM, req, Clarify, temperature=0.4, retries=1, max_tokens=120)
+            asked = " ".join(r.line.split())
+            if asked:
+                who = next((n for n in self.present if n.id == r.speaker), None) or (self.partner if r.speaker == partner else None)
+                if who is not None:
+                    console.npc_says(who.label(), asked, "")
+                else:
+                    console.narrate(asked)
+        except Exception as e:
+            console.debug(f"clarify: no question ({e})")
+        if not asked:
+            console.note("I'm not sure what you meant - could you say it another way?")
+        refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
+        self.pending_clarify = {"text": text, "question": asked}
 
     def log_turn(self, text, sit, raw_plan, res, seconds):
         try:

@@ -1,7 +1,8 @@
 # THE ADVENTURERS' GUILD - ranks, contracts, rewards and perks.
 
 joining_fee: 300            # copper (3 silver)
-board_size: 4               # contracts posted at a time (perks can add more)
+board_size: 7               # contracts posted at a time (perks can add more)
+above_max: 2                # at most this many of them a rank above yours (f292), so most of the board is work you can take
 board_refresh_days: 1       # the board gets a pass this often: some postings stay, some go, new ones come
 board_keep: 0.5             # chance each posting survives one pass (after several missed days it compounds, up to 3)
 # true: a hunt or bounty is posted at the level of the place it sends you to (the hall's own wilds, or an expedition to a far one), so better
@@ -21,16 +22,25 @@ personal_share: 0.5         # personal requests from NPCs pay this share of the 
 # perks: what this rank adds (they stack with everything below it):
 #   board: more postings | active: more contracts at once | room_discount / shop_discount / reward_bonus: percent
 #   storage: your item box is reachable at guild houses
+# trial: holding a higher rank takes more than the numbers. Once you qualify you must beat an examiner of that rank in a duel nobody can
+# die in (the blow that would kill ends it for either side). No potions. Lose and you wait retry_days before you may stand again.
+trial:
+  retry_days: 3
+  rank: elite                    # how tough the examiner is, by the creature ranks in combat.yaml
+  level_edge: {E: 4, D: 7, C: 13, B: 6, A: 0, S: 22}   # levels added to the examiner's (the higher of the rank's bar and yours); tools/tune_trial.py sets them so a typically geared character wins about seven times in ten
+  master_edge: 0                 # more again for the guild master, who tests for the top rank
+  roles: [fighter, archer, rogue, mage]
+
 ranks:
   F: {levels: [1, 10],    reward: {coins: 750,   xp: 310},   deadline_days: 3,  requires: null,
       perks: {}}
   E: {levels: [10, 25],   reward: {coins: 2200,  xp: 1600},  deadline_days: 4,  requires: {level: 10, completed: 4},
       perks: {active: 1, room_discount: 10}}
-  D: {levels: [25, 45],   reward: {coins: 6000,  xp: 4250},  deadline_days: 5,  requires: {level: 25, completed: 5},
+  D: {levels: [25, 50],   reward: {coins: 6000,  xp: 4250},  deadline_days: 5,  requires: {level: 25, completed: 5},
       perks: {storage: true, board: 1}}
-  C: {levels: [45, 70],   reward: {coins: 15000, xp: 8200},  deadline_days: 6,  requires: {level: 45, completed: 6},
+  C: {levels: [50, 75],   reward: {coins: 15000, xp: 8200},  deadline_days: 6,  requires: {level: 50, completed: 6},
       perks: {reward_bonus: 10, shop_discount: 10}}
-  B: {levels: [70, 100],  reward: {coins: 37000, xp: 14100}, deadline_days: 7,  requires: {level: 70, completed: 7},
+  B: {levels: [75, 100],  reward: {coins: 37000, xp: 14100}, deadline_days: 7,  requires: {level: 75, completed: 7},
       perks: {active: 1, room_discount: 15}}
   A: {levels: [100, 150], reward: {coins: 85000, xp: 23700}, deadline_days: 8,  requires: {level: 100, completed: 8},
       perks: {reward_bonus: 10, shop_discount: 10}}
@@ -67,3 +77,18 @@ hall_tiers:
      kinds: {hunt: 3, bounty: 4, gather: 0, materials: 1, deliver: 0, delve: 3, dungeon_boss: 4, missing: 2}}
   - {min_danger: 140, size: 3, reward_mult: 1.9,  far_reach_minutes: 4000, far_min_danger: 100,
      kinds: {hunt: 3, bounty: 4, gather: 0, materials: 1, deliver: 0, delve: 3, dungeon_boss: 4, missing: 2}}
+
+# CONTRACTS WITH A WHO AND A WHY (f322, engine/stakes.py). Who in the hall's town asks for each kind of work, by role, first found first;
+# a posting of a kind not listed, or in a town with nobody of these roles, stays the guild's own.
+issuers:
+  hunt:         [shepherd, farmer, hunter, lumberjack, miller, orchard_keeper, fisher, watch_captain, trapper]
+  bounty:       [watch_captain, guard, caravan_master, innkeeper, merchant, land_agent]
+  gather:       [herbalist, cook, priest, acolyte, baker, innkeeper]
+  materials:    [smith, chandler, tinker, enchanter, engineer, stonemason, relic_dealer]
+  delve:        [guild_master, loremaster, land_agent, relic_dealer, scholar]
+  dungeon_boss: [guild_master, watch_captain]
+chain:                               # a posting that turns out to have more behind it: the share by kind, and how long the matter runs
+  chance: {hunt: 0.2, bounty: 0.3, gather: 0.1, materials: 0.1, delve: 0.25, dungeon_boss: 0.2}
+  days: 7
+issuer_thanks_trust: 5               # what the issuer thinks of the player once the job is done
+done_danger: {value: -15, days: 5}   # a hunt or bounty done makes its place safer for a while

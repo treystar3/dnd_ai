@@ -42,6 +42,10 @@ knowledge_groups:
   brinewatch_locals: People of Brinewatch and the drowned coast.
   amaranth_locals: People of Amaranth and the Jade Maw.
   valecourt_locals: People of Valecourt and the royal vales.
+  thalassor_locals: People of Thalassor and the Gloaming Coast.
+  skarnhelm_locals: People of Skarnhelm and the Rimelands.
+  kelpmoor_locals: People of Kelpmoor and the Saltmarches.
+  frontier_locals: Soldiers and camp-followers of the Eastern Frontier garrison.
   outlaws: Bandits, smugglers and others who live outside the law.
   nobody: Known to no living person. Discoverable only through the world itself.
 

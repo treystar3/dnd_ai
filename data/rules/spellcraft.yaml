@@ -1,0 +1,868 @@
+# SPELLCRAFT (engine/spellcraft.py, f227): what an element DOES, and the forms a damage spell takes.
+#
+# ELEMENT EXPRESSIONS
+#   Every element has a mechanical speciality. An elemental ability carries one expression of its element, planned by the engine
+#   (engine/ability_slots.py) like its element: a damage expression rides on each hit; a control expression is a spell that deals no
+#   damage at all and changes the fight instead. Expressions replace the generic riders on elemental abilities - physical and
+#   unaligned abilities keep the rider pool. The same law holds for every source: a weapon or a melee ability with an element
+#   expresses it exactly as a spell does (ignite and poison themselves are one law for all - data/rules/combat.yaml, engine/afflictions.py).
+#
+#   Each expression:
+#     element   the element it belongs to
+#     kind      damage (rides on hits) | control (the whole spell, no damage)
+#     label     the name on the ability card
+#     text      what the card says, plainly ({numbers} filled per tier)
+#     depict    what the narrator is told it looks like
+#     numbers   per-tier values (light / moderate / heavy)
+expressions:
+  ignite:
+    element: fire
+    kind: damage
+    label: Ignite
+    text: "sets the target burning: it takes half the hit again as fire over the next two rounds. Only the strongest burn on a target counts."
+    depict: "flames catching and clinging to the target"
+  spreading_flames:
+    element: fire
+    kind: damage
+    label: Spreading Flames
+    text: "sets the target burning, and the fire leaps to every other enemy standing in the same area, burning each of them just as hot."
+    depict: "fire leaping from the target to everyone around it"
+  chill:
+    element: cold
+    kind: damage
+    label: Chill
+    text: "slows the target for {rounds} rounds."
+    depict: "cold sinking into the target's limbs"
+    rounds: {light: 1, moderate: 2, heavy: 2}
+  arc:
+    element: lightning
+    kind: damage
+    label: Arc
+    text: "jumps to one other enemy in the same area, which takes {pct}% of the hit."
+    depict: "the bolt jumping on to a second foe"
+    pct: {light: 40, moderate: 50, heavy: 60}
+  conduction:
+    element: lightning
+    kind: damage
+    label: Conduction
+    text: "spreads through every enemy in the target's area that is fighting the same people as the target: each takes {pct}% of the hit, or half again as much if it wears metal armor or is made of metal."
+    depict: "current running through everyone tangled up in the same fight"
+    pct: {light: 30, moderate: 40, heavy: 50}
+    metal: 1.5
+  envenom:
+    element: poison
+    kind: damage
+    label: Envenom
+    text: "adds a stack of poison. Every stack deals the same damage each round, however small the hit was, and each new stack restarts the timer on all of them."
+    depict: "venom working into the wound"
+  corrode:
+    element: acid
+    kind: damage
+    label: Corrode
+    text: "eats away {pct}% of the target's armor and ward for the rest of the fight (it builds up, to at most {cap}%)."
+    depict: "acid pitting armor and hide"
+    pct: {light: 10, moderate: 15, heavy: 20}
+    cap: 75
+  wither:
+    element: necrotic
+    kind: damage
+    label: Wither
+    text: "withers the target for {rounds} rounds: healing and regeneration do half as much for it."
+    depict: "the flesh greying and dying around the wound"
+    rounds: {light: 2, moderate: 2, heavy: 3}
+  drain:
+    element: necrotic
+    kind: damage
+    label: Drain
+    text: "heals you for {pct}% of the damage it deals."
+    depict: "the target's life flowing back into the caster"
+    pct: {light: 25, moderate: 35, heavy: 45}
+  illuminate:
+    element: radiant
+    kind: damage
+    label: Illuminate
+    text: "lights the target up for {rounds} rounds: it cannot hide, cover and allies guarding it do not protect it, and it is easier to hit."
+    depict: "the target lit up in a hard glare it cannot escape"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+  dazzle:
+    element: radiant
+    kind: damage
+    label: Dazzle
+    text: "blinds the target for a round."
+    depict: "a flash that leaves the target seeing only white"
+
+  rot:
+    element: necrotic
+    kind: damage
+    label: Rot
+    text: "rots away the target's maximum health by {pct}% of the damage dealt, for the rest of the fight - healing cannot bring it back."
+    depict: "flesh rotting away where the blow landed"
+    pct: {light: 20, moderate: 30, heavy: 40}
+  reap:
+    element: necrotic
+    kind: damage
+    label: Reap
+    text: "marks the target for {rounds} rounds: if it dies before then, it rises and fights for you until the fight ends. Bosses never rise."
+    depict: "a cold claim laid on the target's soul"
+    rounds: {light: 2, moderate: 2, heavy: 3}
+  scorch:
+    element: fire
+    kind: damage
+    label: Scorch
+    text: "burns straight through magical protection: the hit ignores the target's ward."
+    depict: "white-hot fire that no ward can turn"
+  shatter:
+    element: cold
+    kind: damage
+    label: Shatter
+    text: "deals {pct}% more damage to a target that is slowed."
+    depict: "frozen flesh cracking like ice under the blow"
+    pct: {light: 40, moderate: 50, heavy: 60}
+  overload:
+    element: lightning
+    kind: damage
+    label: Overload
+    text: "builds a charge on the target: hit it with this again by the end of your next turn and it is stunned for a round."
+    depict: "charge building in the target until it locks up"
+  paralytic:
+    element: poison
+    kind: damage
+    label: Paralytic
+    text: "slows the target for {rounds} rounds if it carries {stacks} or more stacks of poison."
+    depict: "venom that stiffens the muscles"
+    rounds: {light: 2, moderate: 2, heavy: 3}
+    stacks: 3
+  sickening:
+    element: poison
+    kind: damage
+    label: Sickening
+    text: "sickens the target for {rounds} rounds: it deals {pct}% less damage."
+    depict: "nausea that saps the strength from every blow"
+    rounds: {light: 2, moderate: 2, heavy: 3}
+    pct: 25
+  splash:
+    element: acid
+    kind: damage
+    label: Splash
+    text: "splashes the other enemies in the target's area for {pct}% of the hit."
+    depict: "acid spraying over everyone close by"
+    pct: {light: 20, moderate: 30, heavy: 40}
+  blister:
+    element: acid
+    kind: damage
+    label: Blister
+    text: "deals 1% more damage for every 1% of armor and ward already eaten away from the target."
+    depict: "acid finding the raw places where the armor is already gone"
+  smite:
+    element: radiant
+    kind: damage
+    label: Smite
+    text: "deals {pct}% more damage to undead and fiends."
+    depict: "holy light that burns the unclean"
+    pct: {light: 40, moderate: 50, heavy: 60}
+  barkskin_graft:
+    element: nature
+    kind: damage
+    label: Barkskin Graft
+    text: "grows bark over you: you gain a barrier equal to {pct}% of the damage dealt (a barrier never grows past half your health)."
+    depict: "bark creeping over the caster's skin as the blow lands"
+    pct: {light: 10, moderate: 15, heavy: 20}
+    cap: 0.5
+  vine_lash:
+    element: nature
+    kind: damage
+    label: Vine Lash
+    text: "drags the target into melee with you, out of the back line or another area (no larger than you)."
+    depict: "vines whipping round the target and hauling it in"
+  thornburst:
+    element: nature
+    kind: damage
+    label: Thornburst
+    text: "makes the target bleed: thorns open a wound of 20% of the hit, and for 3 rounds every physical hit it takes, from anyone, deals that much extra damage."
+    depict: "thorns bursting out of the wound"
+
+  flashfire:
+    element: fire
+    kind: damage
+    label: Flashfire
+    text: "sets off the burn on the target: it takes all its remaining burn damage at once."
+    depict: "a smouldering target going up all at once"
+  pyre:
+    element: fire
+    kind: damage
+    label: Pyre
+    text: "marks the target for the pyre: if it dies, its body burns, and the ground where it fell burns for {rounds} rounds."
+    depict: "a body catching fire as it falls"
+    rounds: 2
+  blowback:
+    element: fire
+    kind: damage
+    label: Blowback
+    text: "knocks the target out of melee with the force of the blast."
+    depict: "a blast that throws the target clear of the fight"
+  smolder:
+    element: fire
+    kind: damage
+    label: Smolder
+    text: "sets the target burning slowly: the burn lasts {rounds} rounds instead of 2, at half the heat each round."
+    depict: "a low fire that will not go out"
+    rounds: 4
+  flare_up:
+    element: fire
+    kind: damage
+    label: Flare-up
+    text: "sets the target burning; a critical hit doubles the size of the burn."
+    depict: "fire that flares at a well-placed blow"
+  stoke:
+    element: fire
+    kind: damage
+    label: Stoke
+    text: "stokes your fire: the next burn you set is {pct}% bigger for every hit with this you have landed in a row, up to double. A miss resets it."
+    depict: "flames fed higher with every blow"
+    pct: 25
+    cap: 2.0
+  fan_the_flames:
+    element: fire
+    kind: damage
+    label: Fan the Flames
+    text: "deals {pct}% more damage to a target that is already burning."
+    depict: "fire fed into fire"
+    pct: {light: 30, moderate: 30, heavy: 40}
+  last_ember:
+    element: fire
+    kind: damage
+    label: Last Ember
+    text: "adds a round to the burn already on the target."
+    depict: "embers that refuse to die"
+  phoenix_spark:
+    element: fire
+    kind: damage
+    label: Phoenix Spark
+    text: "that kills makes your next fire ability cost nothing."
+    depict: "a kill that rekindles the caster's fire"
+  afterglow:
+    element: fire
+    kind: damage
+    label: Afterglow
+    text: "makes a burning target glow: it cannot hide for as long as it burns."
+    depict: "a burning target lit up like a torch in the dark"
+  cold_snap:
+    element: cold
+    kind: damage
+    label: Cold Snap
+    text: "slows the target and every other enemy in its area for 1 round."
+    depict: "a sudden bitter cold over one part of the field"
+  shatter_ward:
+    element: cold
+    kind: damage
+    label: Shatter Ward
+    text: "cracks the target's barrier before the blow lands: the barrier is gone, and the hit lands on health."
+    depict: "ice cracking a ward apart"
+  brittle:
+    element: cold
+    kind: damage
+    label: Brittle
+    text: "makes the target brittle for {rounds} rounds: critical hits against it are twice as likely."
+    depict: "frozen flesh that cracks at a touch"
+    rounds: 2
+  frostbite:
+    element: cold
+    kind: damage
+    label: Frostbite
+    text: "leaves frostbite: while the target stays slowed, it takes {pct}% of the hit again at the start of each of its turns."
+    depict: "cold eating into the target's limbs"
+    pct: 10
+  frostweld:
+    element: cold
+    kind: damage
+    label: Frostweld
+    text: "freezes the target's feet to the ground for {rounds} rounds: it cannot leave its area or step away from melee."
+    depict: "ice welding the target's feet to the ground"
+    rounds: 2
+  avalanche:
+    element: cold
+    kind: damage
+    label: Avalanche
+    text: "drives the target into the next area over."
+    depict: "a wall of snow and ice sweeping the target away"
+  hypothermia:
+    element: cold
+    kind: damage
+    label: Hypothermia
+    text: "deepens the cold: if the target is slowed, the slow lasts a round longer."
+    depict: "cold sinking deeper into an already chilled body"
+  superconductor:
+    element: cold
+    kind: damage
+    label: Superconductor
+    text: "chills the target for {rounds} rounds: while it lasts, lightning that hits the target arcs to everyone else in its area for {pct}% of the hit."
+    depict: "ice that carries lightning like wire"
+    rounds: 2
+    pct: 30
+  numb_hands:
+    element: cold
+    kind: damage
+    label: Numb Hands
+    text: "numbs the target's hands for {rounds} rounds: it cannot make ranged attacks."
+    depict: "fingers too cold to draw a string"
+    rounds: 2
+  snowdrift:
+    element: cold
+    kind: damage
+    label: Snowdrift
+    text: "buries the target's area in deep snow for {rounds} rounds: moving into or out of it takes a whole turn."
+    depict: "snow piling up waist-deep"
+    rounds: 2
+  galvanize:
+    element: lightning
+    kind: damage
+    label: Galvanize
+    text: "stuns a target in metal armor, or made of metal, for a round."
+    depict: "current locking up everything metal on the target"
+  spasm:
+    element: lightning
+    kind: damage
+    label: Spasm
+    text: "breaks any blow or spell the target is winding up, and leaves it open: easier to hit, and to hit hard, for a round."
+    depict: "muscles jerking out of the target's control"
+  charged_step:
+    element: lightning
+    kind: damage
+    label: Charged Step
+    text: "charges you: you move fast until your next turn."
+    depict: "the caster crackling with speed"
+  jumping_spark:
+    element: lightning
+    kind: damage
+    label: Jumping Spark
+    text: "that kills jumps on to another enemy in the area for the full damage."
+    depict: "a bolt leaping on from the fallen"
+  recharge:
+    element: lightning
+    kind: damage
+    label: Recharge
+    text: "brings every one of your cooldowns back a round sooner."
+    depict: "power surging back into the caster"
+  lightning_step:
+    element: lightning
+    kind: damage
+    label: Lightning Step
+    text: "carries you to the target in a flash before the blow lands, however far away it stands."
+    depict: "the caster crossing the field as a streak of light"
+  conductor:
+    element: lightning
+    kind: damage
+    label: Conductor
+    text: "charges the target for {rounds} rounds: it takes {pct}% more lightning damage."
+    depict: "charge clinging to the target"
+    rounds: 3
+    pct: 25
+  storm_charge:
+    element: lightning
+    kind: damage
+    label: Storm Charge
+    text: "deals {pct}% more damage if you moved this turn."
+    depict: "a blow with a charging run behind it"
+    pct: 40
+  jittered:
+    element: lightning
+    kind: damage
+    label: Jittered
+    text: "sets the target twitching for {rounds} rounds: it dodges {pct}% less."
+    depict: "the target jerking and twitching with current"
+    rounds: 2
+    pct: 20
+  ball_lightning:
+    element: lightning
+    kind: damage
+    label: Ball Lightning
+    text: "leaves a ball of lightning over the target's area: next round, every enemy who starts their turn there takes {pct}% of the hit."
+    depict: "a slow orb of lightning drifting over the ground"
+    pct: 30
+  virulent:
+    element: poison
+    kind: damage
+    label: Virulent
+    text: "adds 2 stacks of poison."
+    depict: "a double dose of venom"
+  festering:
+    element: poison
+    kind: damage
+    label: Festering
+    text: "makes the target's poison last {rounds} rounds longer."
+    depict: "venom that festers in the wound"
+    rounds: 2
+  nerve_toxin:
+    element: poison
+    kind: damage
+    label: Nerve Toxin
+    text: "shakes the target's aim for {rounds} rounds: its attacks are {pct}% less accurate."
+    depict: "a toxin that sets the hands trembling"
+    rounds: 2
+    pct: 20
+  contagion:
+    element: poison
+    kind: damage
+    label: Contagion
+    text: "makes the target's poison catching: if it dies poisoned, every stack passes to the nearest enemy."
+    depict: "sickness that spreads from the fallen"
+  venom_spray:
+    element: poison
+    kind: damage
+    label: Venom Spray
+    text: "adds a stack of poison to every enemy in the target's area."
+    depict: "venom spraying over everyone close by"
+  wasting:
+    element: poison
+    kind: damage
+    label: Wasting
+    text: "leaves the target wasting for {rounds} rounds: poison hurts it {pct}% more."
+    depict: "a sickness that leaves the body open to every venom"
+    rounds: 3
+    pct: 50
+  lethal_dose:
+    element: poison
+    kind: damage
+    label: Lethal Dose
+    text: "deals {pct}% more damage to a target carrying {stacks} or more stacks of poison."
+    depict: "venom tipping a poisoned body over the edge"
+    pct: 40
+    stacks: 3
+  persistent_toxin:
+    element: poison
+    kind: damage
+    label: Persistent Toxin
+    text: "adds a stack of poison that never fades while the target lives."
+    depict: "venom that settles in for good"
+  anticoagulant:
+    element: poison
+    kind: damage
+    label: Anticoagulant
+    text: "thins the blood of a bleeding target: its bleeding does twice the damage."
+    depict: "blood that will not clot"
+  refined_venom:
+    element: poison
+    kind: damage
+    label: Refined Venom
+    text: "adds a stack of poison, and the poison on the target ignores its resistance to poison: it works on the undead and on constructs."
+    depict: "venom distilled to work on anything"
+  etch:
+    element: acid
+    kind: damage
+    label: Etch
+    text: "etches through: the hit ignores half the target's armor and ward."
+    depict: "acid eating a path straight through the guard"
+  lingering_acid:
+    element: acid
+    kind: damage
+    label: Lingering Acid
+    text: "keeps eating: the target takes {pct}% of the hit again over its next 2 turns."
+    depict: "acid still working in the wound"
+    pct: 30
+  seep:
+    element: acid
+    kind: damage
+    label: Seep
+    text: "seeps under the target's barrier, straight to its health."
+    depict: "acid running under a ward like water under a door"
+  strip:
+    element: acid
+    kind: damage
+    label: Strip
+    text: "strips the target's protection for {rounds} rounds: its armor and ward count {pct}% less."
+    depict: "armor and wards eaten raw"
+    rounds: 2
+    pct: 30
+  burn_through:
+    element: acid
+    kind: damage
+    label: Burn Through
+    text: "burns through a guard: a target that is defending still takes full damage."
+    depict: "acid pouring over a raised guard"
+  corrode_the_hold:
+    element: acid
+    kind: damage
+    label: Corrode the Hold
+    text: "eats through whatever holds you: you break free of any grapple or hold."
+    depict: "acid melting the grip that held the caster"
+  caustic_drip:
+    element: acid
+    kind: damage
+    label: Caustic Drip
+    text: "leaves acid dripping on the target for {rounds} rounds: it takes {pct}% of the hit again every time it attacks."
+    depict: "acid that runs with every movement of the arm"
+    rounds: 2
+    pct: 10
+  creeping_corrosion:
+    element: acid
+    kind: damage
+    label: Creeping Corrosion
+    text: "sets corrosion creeping over the target: for {rounds} rounds, its armor and ward count another {pct}% less each round."
+    depict: "rust spreading across armor like frost"
+    rounds: 3
+    pct: 5
+  tarnish:
+    element: acid
+    kind: damage
+    label: Tarnish
+    text: "tarnishes the target's weapon: its next {hits} hits cannot be critical."
+    depict: "a blade dulled and pitted"
+    hits: 2
+  caustic_venom:
+    element: acid
+    kind: damage
+    label: Caustic Venom
+    text: "makes the poison on the target caustic: while it stays poisoned, each poison tick also eats {pct}% of its armor and ward."
+    depict: "venom and acid working together"
+    pct: 2
+  dread:
+    element: necrotic
+    kind: damage
+    label: Dread
+    text: "frightens the target for {rounds} rounds."
+    depict: "a terror of the grave"
+    rounds: 2
+  marked_for_death:
+    element: necrotic
+    kind: damage
+    label: Marked for Death
+    text: "marks the target for death for {rounds} rounds: it takes {pct}% more damage from everyone."
+    depict: "a dark mark everyone can see"
+    rounds: 3
+    pct: 20
+  soul_leech:
+    element: necrotic
+    kind: damage
+    label: Soul Leech
+    text: "feeds your summon or thrall: it heals for {pct}% of the damage dealt."
+    depict: "stolen life flowing into the caster's creature"
+    pct: 30
+  death_feeds:
+    element: necrotic
+    kind: damage
+    label: Death Feeds
+    text: "that kills heals you for {pct}% of your health."
+    depict: "a death that feeds its maker"
+    pct: 15
+  entropy:
+    element: necrotic
+    kind: damage
+    label: Entropy
+    text: "unravels the target's magic: every buff on it loses a round."
+    depict: "magic rotting away before its time"
+  blood_price:
+    element: necrotic
+    kind: damage
+    label: Blood Price
+    text: "costs you {pct}% of the damage dealt in health, and deals {more}% more."
+    depict: "power bought with the caster's own blood"
+    pct: 10
+    more: 40
+  dominate:
+    element: necrotic
+    kind: damage
+    label: Dominate
+    text: "turns an undead target on its own side for {rounds} rounds."
+    depict: "the dead bending to a stronger will"
+    rounds: 2
+  shadowcloak:
+    element: necrotic
+    kind: damage
+    label: Shadowcloak
+    text: "lets you slip into hiding after the blow, if there is cover where you stand."
+    depict: "the caster folding into shadow"
+  deaths_door:
+    element: necrotic
+    kind: damage
+    label: Death's Door
+    text: "kills a target below {pct}% health outright. Bosses never die this way."
+    depict: "death reaching for the nearly dead"
+    pct: 15
+  life_theft:
+    element: necrotic
+    kind: damage
+    label: Life Theft
+    text: "steals the target's next healing: whatever would heal it heals you instead."
+    depict: "healing drawn away into the caster's hand"
+  purge:
+    element: radiant
+    kind: damage
+    label: Purge
+    text: "strips one buff from the target."
+    depict: "light burning a spell away"
+  cleanse:
+    element: radiant
+    kind: damage
+    label: Cleanse
+    text: "lifts one affliction from you."
+    depict: "light washing the caster clean"
+  shield_of_faith:
+    element: radiant
+    kind: damage
+    label: Shield of Faith
+    text: "shields your allies in your area: each gains a barrier of {pct}% of the damage dealt."
+    depict: "light settling over the caster's companions"
+    pct: 10
+  censure:
+    element: radiant
+    kind: damage
+    label: Censure
+    text: "censures the target: its next action must be aimed at you."
+    depict: "a light the target cannot look away from"
+  judgement:
+    element: radiant
+    kind: damage
+    label: Judgement
+    text: "deals {pct}% more damage to a target that hurt one of your allies last round."
+    depict: "light that falls hardest on the guilty"
+    pct: 30
+  guiding_light:
+    element: radiant
+    kind: damage
+    label: Guiding Light
+    text: "guides your allies: their next hit on the target cannot miss."
+    depict: "a light marking the target for everyone on the caster's side"
+  daybreak:
+    element: radiant
+    kind: damage
+    label: Daybreak
+    text: "clears any smoke or undergrowth from the target's area."
+    depict: "light burning away everything that hides"
+  rallying_light:
+    element: radiant
+    kind: damage
+    label: Rallying Light
+    text: "that lands critically rallies your allies: each one's next hit deals {pct}% more."
+    depict: "a flash of light that lifts every ally's arm"
+    pct: 30
+  humbled:
+    element: radiant
+    kind: damage
+    label: Humbled
+    text: "humbles the target for {rounds} rounds: it cannot land a critical hit."
+    depict: "a light that takes the edge off every blow the target makes"
+    rounds: 2
+  sunfire:
+    element: radiant
+    kind: damage
+    label: Sunfire
+    text: "sets the target burning with holy fire: the burn cannot be cleansed, and it burns the undead and fiends half again as hot."
+    depict: "white fire that clings and will not be put out"
+  entangle:
+    element: nature
+    kind: damage
+    label: Entangle
+    text: "roots the target in place for a round: it is held, and cannot get away."
+    depict: "roots winding round the target's legs"
+  spore_burst:
+    element: nature
+    kind: damage
+    label: Spore Burst
+    text: "fills the target's head with spores: its next attack goes at a random fighter, friend or foe."
+    depict: "a cloud of spores bursting in the target's face"
+  lifebloom:
+    element: nature
+    kind: damage
+    label: Lifebloom
+    text: "heals your allies in your area for {pct}% of the damage dealt."
+    depict: "life drawn from the blow and given to others"
+    pct: 15
+  quake_strike:
+    element: nature
+    kind: damage
+    label: Quake Strike
+    text: "knocks the target off its feet (no more than one size larger than you)."
+    depict: "the ground heaving under the target"
+  crushing_roots:
+    element: nature
+    kind: damage
+    label: Crushing Roots
+    text: "deals {pct}% more damage to a target that is held or on the ground."
+    depict: "roots crushing what cannot get away"
+    pct: 50
+  seedburst:
+    element: nature
+    kind: damage
+    label: Seedburst
+    text: "plants a seed in the target: {rounds} rounds later, if it still lives, the seed bursts for {pct}% of the hit."
+    depict: "a seed taking root in the wound"
+    rounds: 2
+    pct: 60
+  pack_scent:
+    element: nature
+    kind: damage
+    label: Pack Scent
+    text: "marks the target's scent for {rounds} rounds: your companions and summons deal {pct}% more damage to it."
+    depict: "a scent every hunter can follow"
+    rounds: 2
+    pct: 30
+  sunlit_growth:
+    element: nature
+    kind: damage
+    label: Sunlit Growth
+    text: "deals {pct}% more damage in daylight under open sky."
+    depict: "growth that drinks the sun"
+    pct: 30
+  bramble_wrap:
+    element: nature
+    kind: damage
+    label: Bramble Wrap
+    text: "wraps the target in brambles for {rounds} rounds: it takes {pct}% of the hit again whenever it moves."
+    depict: "thorns that bite with every step"
+    rounds: 2
+    pct: 10
+  tangled_arms:
+    element: nature
+    kind: damage
+    label: Tangled Arms
+    text: "tangles the target's arms with vines: it cannot make melee attacks next round."
+    depict: "vines binding the target's arms to its sides"
+
+  burning_ground:
+    element: fire
+    kind: control
+    label: Burning Ground
+    text: "sets the target's area alight for {rounds} rounds: anyone who starts their turn there takes fire damage."
+    depict: "the ground bursting into flame"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+    pct: {light: 20, moderate: 30, heavy: 40}       # of the caster's spell power, each turn
+  freezing_surface:
+    element: cold
+    kind: control
+    label: Freezing Surface
+    text: "freezes the target's area for {rounds} rounds: anyone who starts their turn there is slowed."
+    depict: "the ground glazing over with ice"
+    rounds: {light: 2, moderate: 3, heavy: 4}
+  seal_the_way:
+    element: cold
+    kind: control
+    label: Seal the Way
+    text: "raises a wall of ice for {rounds} rounds: no one can cross between your area and the target's (if you share an area, every way out of it is sealed)."
+    depict: "a wall of ice rising to close the way"
+    rounds: {light: 2, moderate: 2, heavy: 3}
+  static_field:
+    element: lightning
+    kind: control
+    label: Static Field
+    text: "charges the target's area for {rounds} rounds: anyone who enters or leaves it, or starts their turn there, takes lightning damage."
+    depict: "the air in one place crackling with charge"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+    pct: {light: 20, moderate: 30, heavy: 40}
+  toxic_cloud:
+    element: poison
+    kind: control
+    label: Toxic Cloud
+    text: "fills the target's area with poison for {rounds} rounds: anyone who starts their turn there gains a stack of poison."
+    depict: "a choking cloud rolling over one part of the field"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+  dissolve_barriers:
+    element: acid
+    kind: control
+    label: Dissolve Barriers
+    text: "strips the target's protections: its barrier, its stance, any buff that guards it, and its Defend."
+    depict: "acid eating through every guard the target had raised"
+  unravel_recovery:
+    element: necrotic
+    kind: control
+    label: Unravel Recovery
+    text: "turns the target's healing against it for {rounds} rounds: every heal, drain or regeneration it gets deals that much damage to it instead."
+    depict: "death worming into the target's ability to mend"
+    rounds: {light: 2, moderate: 2, heavy: 3}
+  reveal:
+    element: radiant
+    kind: control
+    label: Reveal
+    text: "floods the target's area with light for {rounds} rounds: no one there can hide, and the cover there hides no one."
+    depict: "light flooding every hiding place"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+
+  grasping_dead:
+    element: necrotic
+    kind: control
+    label: Grasping Dead
+    text: "raises clutching hands from the ground of the target's area for {rounds} rounds: any enemy who starts their turn there is held for a round and cannot get away."
+    depict: "dead hands clawing up out of the ground"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+  smoke:
+    element: fire
+    kind: control
+    label: Smoke
+    text: "fills the target's area with smoke for {rounds} rounds: attacks into or out of it are much likelier to miss."
+    depict: "thick smoke boiling up over one part of the field"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+    accuracy: 30
+  thunderclap:
+    element: lightning
+    kind: control
+    label: Thunderclap
+    text: "staggers every enemy in the target's area: any blow or spell they are winding up is broken, and they are left open: easier to hit, and to hit hard, for a round."
+    depict: "a crack of thunder that knocks every head back"
+  caustic_pool:
+    element: acid
+    kind: control
+    label: Caustic Pool
+    text: "floods the target's area with acid for {rounds} rounds: any enemy who starts their turn there loses {pct}% of its armor and ward for the rest of the fight (up to 75%)."
+    depict: "a spreading pool of acid hissing over the ground"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+    pct: {light: 10, moderate: 10, heavy: 15}
+  flare:
+    element: radiant
+    kind: control
+    label: Flare
+    text: "blinds every enemy in the target's area for a round."
+    depict: "a burst of light too bright to look at"
+  overgrowth:
+    element: nature
+    kind: control
+    label: Overgrowth
+    text: "grows thick undergrowth over the target's area for {rounds} rounds: no one outside can see in to target anyone there from range."
+    depict: "undergrowth surging up thick enough to hide in"
+    rounds: {light: 2, moderate: 3, heavy: 4}
+  earthen_barricade:
+    element: nature
+    kind: control
+    label: Earthen Barricade
+    text: "walls in the area you stand in with packed earth for {rounds} rounds. Behind the walls, you and everyone with you are in cover: ranged attacks on you are likelier to miss. Anyone crossing the walls, in or out, has to climb, and that costs a whole turn."
+    depict: "walls of packed earth heaving up out of the ground"
+    rounds: {light: 2, moderate: 3, heavy: 3}
+  earthquake:
+    element: nature
+    kind: control
+    label: Earthquake
+    text: "knocks every enemy in the target's area off their feet (no more than one size larger than you)."
+    depict: "the ground bucking and splitting underfoot"
+  petrify:
+    element: nature
+    kind: control
+    label: Petrify
+    text: "turns the target to stone for {rounds} rounds: it cannot act, and it cannot be damaged. Bosses cannot be petrified."
+    depict: "stone creeping over the target until it stands frozen"
+    rounds: {light: 1, moderate: 2, heavy: 2}
+
+# Which control spells resist: a control expression aimed at an enemy is contested like any control spell (a full success lands
+# it whole; a partial success lands it for one round less, at least one). Ground expressions (burning ground, freezing surface,
+# seal the way, static field, toxic cloud, reveal) change the place, not the creature, so they always land.
+ground: [burning_ground, freezing_surface, seal_the_way, static_field, toxic_cloud, reveal, grasping_dead, smoke, thunderclap,
+         caustic_pool, flare, overgrowth, earthen_barricade, earthquake]
+
+# SPELL FORMS - how a mana damage spell (not a channeled strike) delivers its damage.
+#   bolt     one target (the default)
+#   blast    everyone hostile in one area - the target's - each at a share
+#   burst    everyone hostile in your own area, each at a share
+#   curse    the damage comes over the target's next turns instead of now (it cannot miss, and it ignores a guard's interception)
+#   charged  takes two whole turns: begun on the first, released on the second (that turn goes to it, and it cannot be dropped) for an
+#            enormous blow; a stun or a fall before then breaks it and both turns are lost
+forms:
+  bolt:  {label: Bolt,  text: "strikes one target."}
+  blast: {label: Blast, text: "strikes every enemy in the target's area, each for {share_pct}% damage.", share: 0.7}
+  burst: {label: Burst, text: "strikes every enemy in your own area, each for {share_pct}% damage.", share: 0.8}
+  curse: {label: Curse, text: "curses the target for {total_pct}% damage spread over its next {turns} turns. It cannot miss.", total: 1.5, turns: 3}
+  charged: {label: Charged, text: "takes two turns: you begin casting on the first and release it on the second (that whole turn is spent on it, and you cannot stop once begun), for {mult_pct}% damage. If you are stunned or knocked down before it goes off, it is lost and both turns are wasted.", mult: 3.5}
+# The old "area" reach strikes the target's area (a blast) - never every enemy on the field.
+area_share: 0.7
+
+# How the planner gives a mana damage spell its form (engine/ability_slots.py). An area spell is a blast or a burst; a single-target
+# spell with a shape stays a bolt; a curse never carries a rider (its damage comes later, with nothing riding on it).
+form_weights:
+  area:   {blast: 60, burst: 40}
+  single: {bolt: 50, curse: 25, charged: 25}

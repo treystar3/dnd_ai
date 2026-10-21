@@ -4,6 +4,11 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
 from engine import combat as C, ability_traits as AT
+from engine import battlefield as BF
+from engine.battlefield import Battlefield, BattleZone, BattleEdge
+def FIELD():
+    return Battlefield(zones={"z1": BattleZone(id="z1", name="the near ground", tags=["open"]),
+                              "z2": BattleZone(id="z2", name="the far ground", tags=["open"])}, edges=[BattleEdge(a="z1", b="z2")], start="z1")
 from core.models import Archetype
 from llm.contracts import ClassInterpretation
 bad = []
@@ -20,11 +25,20 @@ def mv(effect="damage", tier="moderate", reach="melee", resource="stamina", **k)
     return C.Move(id="m", name="Test Move", effect=effect, tier=tier, reach=reach, resource=resource, attribute="intelligence" if resource == "mana" else "", **k)
 def setup(n_foes=2, pets=0, **fk):
     p = F("p", "player", **fk)
-    foes = [F(f"e{i}", "enemy", band="engaged", armor=0) for i in range(n_foes)]
+    foes = [F(f"e{i}", "enemy", armor=0) for i in range(n_foes)]
     cmb = C.Combat(fighters=[p] + foes)
     for i in range(pets):
         cmb.fighters.append(F(f"pet{i}", "ally", weapon_damage=50))
+    cmb.battlefield = FIELD()
+    BF.place_fighters(cmb)
+    for f in cmb.fighters:
+        f.zone_id, f.row = "z1", "front"
+    for e in foes:
+        BF.engage(cmb, p, e)                          # everyone starts in melee with the player, on a two-zone field
     return cmb, p, foes
+def far(cmb, f): BF.enter_zone(cmb, f, "z2")          # across the field: out of melee, in another zone
+def near(cmb, f): BF.release(cmb, f)                  # same zone, not engaged
+def engaged(p, f): return BF.engaged_pair(p, f)
 def lost(move, trials=200, foe=0, setup_fn=None, **fk):
     tot = [0, 0]
     for i in range(trials):
@@ -46,7 +60,7 @@ for sid, parts, total in (("double", 2, 1.2), ("volley", 3, 1.2), ("barrage", 5,
     check(f"{sid} makes {parts} separate hits for about {total:.0%} in total", n == parts and total * 0.7 < r < total * 1.1, (n, f"{r:.2f}"))
 r = lost(mv(shape="sweeping"))
 check("sweeping hits every engaged enemy for less than a full blow each", r[0] > 0 and r[1] > 0 and r[0] < base and abs(r[0] - r[1]) < r[0] * 0.3, (r, base))
-def far_second(cmb, p, foes): foes[1].band = "far"
+def far_second(cmb, p, foes): far(cmb, foes[1])
 r = lost(mv(shape="sweeping"), setup_fn=far_second)
 check("sweeping spares enemies who are not engaged", r[1] == 0 and r[0] > 0, r)
 r = lost(mv(shape="ricochet"), n_foes=3) if False else None
@@ -65,14 +79,9 @@ for i in range(150):
     C.act_ability(cmb, p, mv(shape="reliable"), foes[0], random.Random(i))
     d = h - foes[0].hp; dmgs.add(d); misses += d == 0
 check("reliable never misses and every blow is the same average hit", misses == 0 and len(dmgs) == 1, (misses, sorted(dmgs)[:4]))
-# lunge
-def far_first(cmb, p, foes): foes[0].band = "far"
-cmb, p, foes = setup(); foes[0].band = "far"; h = foes[0].hp; C.act_ability(cmb, p, mv(shape="lunge"), foes[0], random.Random(2))
-check("lunge closes any distance and strikes in the same action", foes[0].band == "engaged" and any("damage" in l or "miss" in l for l in cmb.log), (foes[0].band, cmb.log[-2:]))
-a = lost(mv(shape="lunge"), setup_fn=far_first)[0]; b = lost(mv(shape="lunge"))[0]
-check("lunge hits harder against a target who was not already in melee", a > b * 1.15, (round(a), round(b)))
-cmb, p, foes = setup(); foes[0].band = "far"; C.act_ability(cmb, p, mv(), foes[0], random.Random(2))
-check("without lunge a melee ability only closes a step", foes[0].band == "near", foes[0].band)
+# lunge is gone (f233: the movement law - closing in is a movement ability's work)
+cmb, p, foes = setup(); far(cmb, foes[0]); C.act_ability(cmb, p, mv(), foes[0], random.Random(2))
+check("a melee ability only closes a step", p.zone_id == foes[0].zone_id and not engaged(p, foes[0]), (p.zone_id, foes[0].zone_id))
 # flank
 def flanked(cmb, p, foes): foes[0].counters["flanked"] = cmb.round
 a = lost(mv(shape="flank"), setup_fn=flanked)[0]; b = lost(mv(shape="flank"))[0]
@@ -86,7 +95,7 @@ check("a companion's strike marks the target as flanked", foes[0].counters.get("
 a = lost(mv(shape="desperate"))[0]
 def hurt(cmb, p, foes): p.hp = p.max_hp * 0.1
 b = lost(mv(shape="desperate"), setup_fn=hurt)[0]
-check("desperate strike is weak at full health and strong near death", a < base * 0.95 and b > base * 1.5, (round(a), round(b), round(base)))
+check("desperate strike is a normal blow at full health and strong near death", abs(a - base) < base * 0.05 and b > base * 1.5, (round(a), round(b), round(base)))
 # combo
 cmb, p, foes = setup(n_foes=1); out = []
 for i in range(5):
@@ -105,7 +114,7 @@ check("switching target breaks the combo", "combo:e0" not in p.counters)
 # exploiting
 def afflicted(cmb, p, foes): foes[0].statuses["bleeding"] = 3
 a = lost(mv(shape="exploiting"), setup_fn=afflicted)[0]; b = lost(mv(shape="exploiting"))[0]
-check("exploiting punishes an afflicted target and is weak against a clean one", a > base * 1.4 and b < base * 0.95, (round(a), round(b), round(base)))
+check("exploiting punishes an afflicted target and is a normal blow against a clean one", a > base * 1.3 and abs(b - base) < base * 0.05, (round(a), round(b), round(base)))
 # pack hunt
 cmb, p, foes = setup(n_foes=1, pets=2); h = foes[0].hp
 for i in range(20):
@@ -149,22 +158,24 @@ def dealt_by(status, n=150):
         h = p.hp; C.apply_damage(cmb, foes[0], p, 1.0, "hits", random.Random(i)); t += h - p.hp
     return t / n
 check("a weakened enemy deals less", dealt_by("weakened") < dealt_by(None) * 0.85, (dealt_by(None), dealt_by("weakened")))
-check("a poisoned enemy deals a little less", dealt_by("poisoned") < dealt_by(None) * 0.97)
-for st in ("poisoned", "burning", "bleeding"):
+check("poison no longer weakens (f227: it is damage only)", abs(dealt_by("poisoned") - dealt_by(None)) < 0.01)
+for st in ("poisoned", "burning"):
     cmb, p, foes = setup(); foes[0].statuses[st] = 3; h = foes[0].hp; C.start_turn(foes[0], cmb)
     check(f"{st} hurts at the start of the target's turn", foes[0].hp < h, h - foes[0].hp)
+cmb, p, foes = setup(); foes[0].statuses["bleeding"] = 3; foes[0].bleed = 10; h = foes[0].hp; C.start_turn(foes[0], cmb)
+check("an open wound does nothing by itself at the start of a turn (f234: blows make it bleed)", foes[0].hp == h, h - foes[0].hp)
 # hooking
-cmb, p, foes = setup(); foes[0].band = "far"; C.act_ability(cmb, p, mv(rider="hook", reach="ranged"), foes[0], random.Random(1))
-check("hooking pulls a distant target a step closer", foes[0].band == "near", foes[0].band)
+cmb, p, foes = setup(); far(cmb, foes[0]); C.act_ability(cmb, p, mv(rider="hook", reach="ranged"), foes[0], random.Random(1))
+check("hooking hauls a distant target across and into melee", foes[0].zone_id == p.zone_id and engaged(p, foes[0]), foes[0].zone_id)
 cmb, p, foes = setup(); C.act_ability(cmb, p, mv(rider="hook"), foes[0], random.Random(1))
-check("hooking does nothing to a target already in melee", foes[0].band == "engaged")
+check("hooking does nothing to a target already in melee", engaged(p, foes[0]) and not any("hauled" in l for l in cmb.log))
 # grappling
 for i in range(40):
-    cmb, p, foes = setup(); foes[0].band = "near"; C.act_ability(cmb, p, mv(rider="grapple", tier="heavy", reach="ranged"), foes[0], random.Random(i))
+    cmb, p, foes = setup(); near(cmb, foes[0]); C.act_ability(cmb, p, mv(rider="grapple", tier="heavy", reach="ranged"), foes[0], random.Random(i))
     if "grappled" in foes[0].statuses: break
-check("grappling drags the target into melee", "grappled" in foes[0].statuses and foes[0].band == "engaged", (foes[0].statuses, foes[0].band))
+check("grappling drags the target into melee", "grappled" in foes[0].statuses and engaged(p, foes[0]), foes[0].statuses)
 cmb, p, foes = setup(); foes[0].statuses["grappled"] = 2; C.act_ability(cmb, p, mv(rider="shove"), foes[0], random.Random(1))
-check("a grappled target cannot be pushed away", foes[0].band == "engaged")
+check("a grappled target cannot be pushed away", engaged(p, foes[0]))
 cmb, p, foes = setup(); foes[0].temperament = "passive"; foes[0].statuses["grappled"] = 2; cmb.round = 3
 fled = False
 for i in range(60):
@@ -208,51 +219,9 @@ check("rousing empowers the companions", all(a.buffs for a in pet) and all("pres
 cmb, p, foes = setup(); C.act_ability(cmb, p, mv(rider="rouse"), foes[0], random.Random(1))
 check("rousing with no companion does nothing odd", not p.buffs)
 
-# ---- buffs
+# ---- buffs (f235: Imbue, Precision, Blur and Mana Shield - each tested in tools/sim/buffs_test.py)
 def bf(kind, tier="moderate", resource="stamina", name="Test Move", **k):
     return C.Move(id="b", name=name, effect="buff", tier=tier, reach="self", resource=resource, buff=kind, **k)
-def with_buff(kind, **k):
-    cmb, p, foes = setup(n_foes=1); C.act_ability(cmb, p, bf(kind, **k), None, random.Random(1)); return cmb, p, foes
-def my_damage(buffed, n=150, kind="empower"):
-    t = 0
-    for i in range(n):
-        cmb, p, foes = with_buff(kind) if buffed else setup(n_foes=1)
-        h = foes[0].hp; C.apply_damage(cmb, p, foes[0], 1.0, "hits", random.Random(i)); t += h - foes[0].hp
-    return t / n
-r = my_damage(True) / my_damage(False)
-check("empower raises damage by about 30%", 1.2 < r < 1.45, f"{r:.2f}")
-r = my_damage(True, kind="frenzy") / my_damage(False)
-check("frenzy raises damage dealt", r > 1.25, f"{r:.2f}")
-def took(buffed, kind, n=100):
-    t = 0
-    for i in range(n):
-        cmb, p, foes = with_buff(kind) if buffed else setup(n_foes=1)
-        h = p.hp; C.apply_damage(cmb, foes[0], p, 1.0, "hits", random.Random(i)); t += h - p.hp
-    return t / n
-check("frenzy also makes you take more damage", took(True, "frenzy") > took(False, "frenzy") * 1.1)
-cmb, p, foes = with_buff("manashield", resource="mana"); p.mana = 1000; h, m = p.hp, p.mana
-for i in range(10): C.apply_damage(cmb, foes[0], p, 1.0, "hits", random.Random(i))
-cmb2, p2, foes2 = setup(n_foes=1); h2 = p2.hp
-for i in range(10): C.apply_damage(cmb2, foes2[0], p2, 1.0, "hits", random.Random(i))
-check("mana shield pays part of the damage in mana", p.mana < m and (h - p.hp) < (h2 - p2.hp) * 0.7, (h - p.hp, h2 - p2.hp, m - p.mana))
-cmb, p, foes = with_buff("vampiric"); p.hp = p.max_hp // 2; h = p.hp
-for i in range(10): C.apply_damage(cmb, p, foes[0], 1.0, "hits", random.Random(i))
-check("vampiric aura heals you as you hit", p.hp > h, p.hp - h)
-cmb, p, foes = setup(n_foes=1); p.hp = p.max_hp // 2; h = p.hp
-for i in range(10): C.apply_damage(cmb, p, foes[0], 1.0, "hits", random.Random(i))
-check("no healing without the aura", p.hp == h)
-def elem(buffed, name="Frost Brand", n=100):
-    t = 0
-    for i in range(n):
-        cmb, p, foes = setup(n_foes=1)
-        if buffed:
-            m = bf("elemental", name=name); m.element = "cold" if "Frost" in name else ""
-            C.act_ability(cmb, p, m, None, random.Random(1))
-        h = foes[0].hp; C.apply_damage(cmb, p, foes[0], 1.0, "hits", random.Random(i)); t += h - foes[0].hp
-    return t / n
-check("elemental weapon adds a hit of bonus damage", elem(True) > elem(False) * 1.15, (elem(False), elem(True)))
-cmb, p, foes = setup(n_foes=1); m = bf("elemental", name="Frost Brand"); m.element = "cold"; C.act_ability(cmb, p, m, None, random.Random(1))
-check("elemental weapon takes the element from the ability", list(p.buffs.values())[0]["element"] == "cold")
 for kind in AT.BUFFS:
     cmb, p, foes = setup(n_foes=1); C.act_ability(cmb, p, bf(kind, "light"), None, random.Random(1))
     check(f"{kind} lasts its rounds and fades", len(p.buffs) == 1 or kind == "x", kind)
@@ -268,7 +237,7 @@ for sid in AT.SHAPES: AT.shape_text(sid)
 for bid in AT.BUFFS:
     for tier in ("light", "moderate", "heavy"): AT.buff_text(bid, tier)
 check("every rider, shape and buff has card text", True)
-check("counts: 21 riders, 16 shapes, 8 buffs", (len(AT.RIDERS), len(AT.SHAPES), len(AT.BUFFS)) == (21, 16, 8), (len(AT.RIDERS), len(AT.SHAPES), len(AT.BUFFS)))
+check("counts: 21 riders, 16 shapes (Lunge gone f233, Cleave f250), 13 buffs (f235-f244)", (len(AT.RIDERS), len(AT.SHAPES), len(AT.BUFFS)) == (21, 16, 13), (len(AT.RIDERS), len(AT.SHAPES), len(AT.BUFFS)))
 check("offer sizes are 6 riders, 4 shapes, 3 buffs", (AT.T["offer"]["riders"], AT.T["offer"]["shapes"], AT.T["offer"]["buffs"]) == (6, 4, 3))
 check("renamed shapes", AT.SHAPES["desperate"]["label"] == "Desperate Strike" and AT.SHAPES["exploiting"]["label"] == "Exploiting")
 
@@ -326,10 +295,10 @@ def prop(i, **k):
     d = dict(name=f"Move {i}", description="d", effect="damage", tier="light", reach="melee", resource="stamina", context="combat"); d.update(k)
     return ActiveProposal(**d)
 def build(shapes_offered, pyres_shape="reliable"):
-    offers = {"riders": ["rend", "chill", "dread", "sunder", "shove", "siphon"], "shapes": shapes_offered, "buffs": ["bulwark"]}
+    offers = {"riders": ["rend", "chill", "dread", "sunder", "shove", "siphon"], "shapes": shapes_offered, "buffs": ["blur"]}
     ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"),
           prop(3, name="Arcane Pyres", description="The caster hurls multiple small, explosive fireballs in a rapid sequence.", reach="ranged", resource="mana", shape=pyres_shape),
-          prop(4, shape="finisher"), prop(5, shape="chain"), prop(6, effect="buff", buff="bulwark", reach="self")]
+          prop(4, shape="finisher"), prop(5, shape="chain", reach="ranged"), prop(6, effect="buff", buff="blur", reach="self")]
     ps += [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(15 - len(ps))]
     s = ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers, "min_noncombat": 0})
     return next(x for x in s.skills if x.name == "Arcane Pyres")
@@ -340,32 +309,30 @@ check("a fitting multi-hit shape is left alone", build(["double", "finisher", "c
 
 # ---- traits that contradict what the ability is
 def build2(**over):
-    offers = {"riders": ["rend", "chill", "dread", "sunder", "shove", "siphon", "hook"], "shapes": ["reliable", "finisher", "chain", "ricochet", "lunge"], "buffs": ["bulwark"]}
-    ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(4, shape="finisher"), prop(5, shape="chain"),
-          prop(6, effect="buff", buff="bulwark", reach="self"), prop(7, shape="finisher", reach="melee")]
+    offers = {"riders": ["rend", "chill", "dread", "sunder", "shove", "siphon", "hook"], "shapes": ["reliable", "finisher", "chain", "ricochet"], "buffs": ["blur"]}
+    ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(4, shape="finisher"), prop(5, shape="chain", reach="ranged"),     # Chaining is ranged or extended (f250)
+          prop(6, effect="buff", buff="blur", reach="self"), prop(7, shape="finisher", reach="melee")]
     ps.append(prop(3, **over))
     ps += [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(15 - len(ps))]
     s = ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers, "min_noncombat": 0})
     return next(x for x in s.skills if x.name == "Scorch")
 beam = dict(name="Scorch", description="A concentrated beam of heat strikes a single target, burning deep into their armor.", reach="ranged", resource="mana")
 check("a ricochet on 'a single target' beam is dropped", build2(shape="ricochet", **beam).shape == "")
-check("a lunge on a ranged spell is dropped", build2(shape="lunge", name="Scorch", description="A ball of fire.", reach="ranged", resource="mana").shape == "")
-check("a lunge on a melee strike is kept", build2(shape="lunge", name="Scorch", description="A fiery leap and slash.", reach="melee").shape == "lunge")
 check("reliable on a chaotic spell is dropped", build2(shape="reliable", name="Scorch", description="Wild sparks scatter everywhere.", reach="ranged", resource="mana").shape == "")
 check("hooking on a melee strike is dropped", build2(rider="hook", name="Scorch", description="A heavy blow.", reach="melee").rider == "")
 check("hooking on a ranged strike is kept", build2(rider="hook", name="Scorch", description="A barbed chain flies out.", reach="ranged").rider == "hook")
-offers_tight = {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "ricochet"], "buffs": ["bulwark"]}
-ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(4, shape="finisher"), prop(6, effect="buff", buff="bulwark", reach="self"),
-      prop(3, shape="ricochet", **beam)] + [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(9)]
+offers_tight = {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "ricochet"], "buffs": ["blur"]}
+ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(4, shape="finisher"), prop(6, effect="buff", buff="blur", reach="self"),
+      prop(3, shape="ricochet", **beam)] + [prop(40 + j, context="both", effect="healing" if j < 3 else "damage", reach="ranged") for j in range(9)]   # Ricochet is ranged (f250)
 sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers_tight, "min_noncombat": 0}).skills
 check("a contradicting shape leaves its ability and is re-homed on one it suits, so the minimum still holds",
       next(x for x in sk if x.name == "Scorch").shape == "" and len({x.shape for x in sk if x.shape}) >= 2, [x.shape for x in sk if x.shape])
 
 # ---- no repeated riders or shapes
 def build3(extra):
-    offers = {"riders": ["rend", "chill", "dread", "sunder"], "shapes": ["finisher", "chain", "opener"], "buffs": ["bulwark"]}
+    offers = {"riders": ["rend", "chill", "dread", "sunder"], "shapes": ["finisher", "chain", "opener"], "buffs": ["blur"]}
     ps = [prop(0, rider="rend", description="A blade slash."), prop(1, rider="chill"), prop(2, rider="dread"), prop(3, shape="finisher"), prop(4, shape="chain"),
-          prop(5, effect="buff", buff="bulwark", reach="self")] + extra
+          prop(5, effect="buff", buff="blur", reach="self")] + extra
     ps += [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(15 - len(ps))]
     return ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers, "min_noncombat": 0}).skills
 sk = build3([prop(10, rider="rend"), prop(11, rider="rend"), prop(12, shape="chain"), prop(13, shape="finisher")])
@@ -379,22 +346,20 @@ check("the repeat that suits the rider best keeps it", next(x for x in sk if x.n
 # ---- plain damage abilities are Honed
 AT.T["plain_damage"] = HONED
 plain = lost(mv())[0]; unplain = lost(mv(rider="seeker"))[0]
-check("a plain damage ability hits about 15% harder than the same one with a rider that adds no damage", 1.08 < plain / unplain < 1.25, f"{plain/unplain:.2f}")
+check("a plain damage ability hits about 30% harder than the same one with a rider that adds no damage", 1.2 < plain / unplain < 1.42, f"{plain/unplain:.2f}")
 check("a shaped ability does not get the bonus", 0.9 < lost(mv(shape="reliable"))[0] / unplain < 1.1 or True)
 check("the card says why", "honed" in AT.describe(abilities.materialize_active(ActiveProposal(name="Ignite", description="d", effect="damage", tier="light", reach="ranged", resource="mana", context="combat"))))
 check("a rider ability has no Honed line", "honed" not in AT.describe(abilities.materialize_active(ActiveProposal(name="Ignite", description="d", effect="damage", tier="light", reach="ranged", resource="mana", context="combat", rider="ignite"))))
 # ---- sets that used to fail whole: a buff with no buff named, a phantom steed written as a summon
 def sets(replacement, offers=None):
-    offers = offers or {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "opener"], "buffs": ["frenzy", "bulwark", "elemental"]}
-    ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(3, shape="finisher"), prop(4, shape="opener"), prop(8, name="Base Ward", effect="buff", reach="self", buff="bulwark"), replacement]
+    offers = offers or {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "opener"], "buffs": ["blur", "precision", "imbue"]}
+    ps = [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(3, shape="finisher"), prop(4, shape="opener"), prop(8, name="Base Ward", effect="buff", reach="self", buff="blur"), replacement]
     ps += [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(15 - len(ps))]
     return ActiveSet.model_validate({"skills": [p.model_dump() for p in ps]}, context={"offers": offers, "min_noncombat": 0}).skills
-b1 = next(x for x in sets(prop(9, name="Iron Bulwark", effect="buff", reach="self", buff_stat="both")) if x.name == "Iron Bulwark")
-check("a buff ability naming a stat but no buff becomes a bulwark", b1.buff == "bulwark" and b1.buff_stat == "both", (b1.buff, b1.buff_stat))
 b2 = next(x for x in sets(prop(9, name="Dragon's Fury", description="A rage of flame wreathes you.", effect="buff", reach="self")) if x.name == "Dragon's Fury")
-check("a buff ability with no buff gets an offered one that fits", b2.buff in ("frenzy", "bulwark", "elemental"), b2.buff)
-b3 = next(x for x in sets(prop(9, name="Wild Frenzy", description="Blind frenzy.", effect="buff", reach="self", buff="mend")) if x.name == "Wild Frenzy")
-check("a buff that was not on offer is swapped for one that was", b3.buff == "frenzy", b3.buff)
+check("a buff ability with no buff gets an offered one that fits", b2.buff == "imbue", b2.buff)
+b3 = next(x for x in sets(prop(9, name="Shimmering Haze", description="A haze.", effect="buff", reach="self", buff="manashield")) if x.name == "Shimmering Haze")
+check("a buff that was not on offer is swapped for one that was", b3.buff == "blur", b3.buff)
 st = next(x for x in sets(prop(9, name="Summon Phantom Steed", effect="summon", reach="self", context="out_of_combat", field_use="phantom_steed")) if x.name == "Summon Phantom Steed")
 check("a phantom steed written as a summon becomes a utility with its function", st.effect.value == "utility" and st.field_use == "phantom_steed" and st.summons is None, (st.effect, st.field_use))
 try:
@@ -406,43 +371,44 @@ check("a real summon with no companion is still refused", ok_)
 # ---- the engine fills what the model leaves out
 def bare(n=15, **over):
     ps = [prop(i, name=f"Strike {i}", description="A heavy spear thrust.", **over) for i in range(n - 2)]
-    ps += [prop(90, effect="buff", buff="bulwark", reach="self", name="Ward Up"), prop(91, effect="healing", name="Mend Up", context="combat")]
+    ps += [prop(90, effect="buff", buff="blur", reach="self", name="Ward Up"), prop(91, effect="healing", name="Mend Up", context="combat")]
     return ps
-offers_all = {"riders": ["rend", "chill", "dread", "hook"], "shapes": ["finisher", "opener", "lunge", "ricochet"], "buffs": ["bulwark"]}
+offers_all = {"riders": ["rend", "chill", "dread", "hook"], "shapes": ["finisher", "opener", "reliable", "ricochet"], "buffs": ["blur"]}
 sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in bare()]}, context={"offers": offers_all, "min_noncombat": 0}).skills
 check("a set with no riders or shapes at all is filled to the minimums", len({x.rider for x in sk if x.rider}) >= 3 and len({x.shape for x in sk if x.shape}) >= 2,
       ([x.rider for x in sk if x.rider], [x.shape for x in sk if x.shape]))
 check("hooking is never filled onto a melee ability", all(x.rider != "hook" for x in sk if x.reach.value == "melee"))
 check("the fill keeps within the cap on decorated abilities", sum(1 for x in sk if x.rider or x.shape) <= AT.T["max_decorated"])
 sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in [prop(i, name=f"Blaze {i}", description="A flame burns.", rider="") for i in range(13)]
-      + [prop(90, effect="buff", buff="bulwark", reach="self", name="Ward Up"), prop(91, effect="healing", name="Mend Up")]]}, context={"offers": offers_all, "min_noncombat": 0}).skills
+      + [prop(90, effect="buff", buff="blur", reach="self", name="Ward Up"), prop(91, effect="healing", name="Mend Up")]]}, context={"offers": offers_all, "min_noncombat": 0}).skills
 check("wording that matches a trait gets it (a rending blade, a frost bolt)", True)
 sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in bare(shape="volley")]}, context={"offers": offers_all, "min_noncombat": 0}).skills
-check("a shape that was not on offer is removed and replaced from the offer", all(x.shape in ("", "finisher", "opener", "lunge", "ricochet") for x in sk) and len({x.shape for x in sk if x.shape}) >= 2)
+check("a shape that was not on offer is removed and replaced from the offer", all(x.shape in ("", "finisher", "opener", "reliable", "ricochet") for x in sk) and len({x.shape for x in sk if x.shape}) >= 2)
 from engine import field as _field
 def few_outside():
     ps = [prop(0, name="Dragon's Leap", description="A mighty leap.", effect="damage"), prop(1, name="Vaulting", description="A vault.", effect="mobility", reach="self"),
           prop(2, name="Show of Arms", description="A display.", effect="utility", reach="extended", context="out_of_combat", field_use="showmanship"),
-          prop(3, name="Ward Up", effect="buff", buff="bulwark", reach="self"), prop(4, name="Mend Up", effect="healing"),
+          prop(3, name="Ward Up", effect="buff", buff="blur", reach="self"), prop(4, name="Mend Up", effect="healing"),
           prop(5, name="Stance", description="A stance.", effect="defense", reach="self"), prop(6, name="Ember Strike", effect="damage")]
     ps += [prop(40 + j, effect="damage", description="A strike.") for j in range(15 - len(ps))]
     return ps
-offers_f = dict(offers_all, buffs=["bulwark"], functions=["showmanship", "haste", "read_the_room", "word_of_recall", "picklock"])
+offers_f = dict(offers_all, buffs=["blur"], functions=["showmanship", "haste", "read_the_room", "word_of_recall", "picklock"])
 sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in few_outside()]}, context={"offers": offers_f, "min_noncombat": 5}).skills
 usable = sum(1 for x in sk if x.context.value != "combat" and (x.effect.value in ("healing", "crafting", "summon") or x.field_use))
 check("a set short on outside-combat abilities is filled to the requirement", usable >= 5, usable)
 fns = [x.field_use for x in sk if x.field_use]
 check("each function is used once and only offered ones", len(fns) == len(set(fns)) and set(fns) <= set(offers_f["functions"]), fns)
-check("damage abilities are the last to be repurposed", sum(1 for x in sk if x.effect.value == "damage" and x.field_use) <= 2, [(x.name, x.field_use) for x in sk if x.field_use])
+check("damage abilities are the last to be repurposed", sum(1 for x in sk if x.effect.value == "damage" and x.field_use) <= 3, [(x.name, x.field_use) for x in sk if x.field_use])     # (f250: the stance is a buff now, not a spare)
 
 # ---- too many buffs, and a blessing written as a buff
-many = [prop(60 + k, name=f"Aura {k}", effect="buff", reach="self", buff=b_) for k, b_ in enumerate(["bulwark", "frenzy", "empower", "elemental", "thorns"])]
+many = [prop(60 + k, name=f"Aura {k}", effect="buff", reach="self", buff=b_) for k, b_ in enumerate(["blur", "precision", "imbue", "manashield", "blur"])]
 sk = ActiveSet.model_validate({"skills": [p.model_dump() for p in
       [prop(0, rider="rend"), prop(1, rider="chill"), prop(2, rider="dread"), prop(3, shape="finisher"), prop(4, shape="opener")] + many
       + [prop(40 + j, context="both", effect="healing" if j < 3 else "damage") for j in range(5)]]},
-      context={"offers": {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "opener"], "buffs": ["bulwark", "frenzy", "empower", "elemental", "thorns"]}, "min_noncombat": 0}).skills
-check("more than three buffs: the surplus become defensive stances instead of failing the set",
-      sum(x.effect.value == "buff" for x in sk) == AT.T["max_buffs"] and sum(x.effect.value == "defense" for x in sk) == 2)
+      context={"offers": {"riders": ["rend", "chill", "dread"], "shapes": ["finisher", "opener"], "buffs": ["blur", "precision", "imbue", "manashield"]}, "min_noncombat": 0}).skills
+check("more than three buffs: the surplus become plain attacks instead of failing the set (f250: no stances)",
+      sum(x.effect.value == "buff" for x in sk) == AT.T["max_buffs"] and not any(x.effect.value == "defense" for x in sk)
+      and sum(x.name.startswith("Aura") and x.effect.value == "damage" for x in sk) == len(many) - AT.T["max_buffs"])
 bl = prop(9, name="Call of the High Peaks", effect="buff", reach="self", context="both", field_use="bless")
 check("a buff with a world function and no combat buff becomes that world ability", bl.effect.value == "utility" and bl.field_use == "bless" and bl.context.value == "out_of_combat", (bl.effect, bl.field_use))
 

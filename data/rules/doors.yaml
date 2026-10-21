@@ -1,0 +1,50 @@
+# DOORS (f317, engine/matters.py): how the player comes to meet a situation the world has started (a pulse thread).
+#
+# The situation is one thing; the door it is met through is chosen when it is born, from the weights below for its tier, and kept
+# on the thread. Every situation of every tier also carries what makes it a matter the player can look into: the truth, the clues the
+# people hold (in their own words), and the real ways to end it (paths). Clues are found by talking to the people who hold them; a
+# path met ends the matter and the town remembers who did it.
+#
+# board:       the guild posts the contract the writer gave it. Done is done.
+# board_more:  the guild posts it as an ordinary job, with nothing in the title to say more is behind it. Finishing the job pays,
+#              shows the reveal, and leaves the matter open with its paths - the rest is nobody's business, unless the player makes it theirs.
+# word:        one person of the town has the first clue as their concern: they bring it up the way concerns come up, and answer when asked.
+# scene:       a moment the player walks into when next at the town - the situation as it would be seen - with the people there holding the clues.
+# summons:     someone of the town comes looking for the player, with the first clue. Only when the town thinks something of them (below).
+# A door that cannot open (no contract to post, nobody to send) falls back to word.
+
+weights:
+  normal:    {board: 4, word: 4, scene: 2, summons: 1}
+  uncommon:  {board: 3, board_more: 2, word: 3, scene: 2, summons: 1}
+  rare:      {board_more: 2, word: 2, scene: 3, summons: 2}
+  campaign:  {board_more: 1, word: 2, scene: 3, summons: 2}
+  cataclysm: {scene: 1, summons: 2}     # (f324) a cataclysm's scenes come from the engine (warnings, the gate); its anchors send for the player
+
+board_more_share: 0.2            # of the situations that come with a contract, this share hides more behind it (a weight-free cap)
+no_repeat_at_town: true          # the same door is not used twice running at one town
+
+summons:
+  reputation: 12                 # the town must think this much of the player before anyone comes looking (one or two jobs done for it)
+  known_by_all: 25               # from here, people who have never met the player know them by name and may come looking too
+  anchors_first: true            # the town's anchors (data/world/towns/<id>.yaml) are the ones who send, when there are any
+  cooldown_days: 2               # at most one summons at a town this often
+
+scene:
+  cooldown_days: 1               # at most one moment at a town this often
+  on_enter_chance: 0.7           # a pending moment fires when the player arrives somewhere in the town, this often; otherwise it waits for the next turn
+
+# The road (door five): when a situation is live at a town at either end of the road, the road's happening is part of it this often -
+# an ambush by the situation's own creatures (a kill path's target), or a meeting, an aid or a find that carries one of its clues.
+road:
+  chance: 0.5
+  once: true                     # a situation shows itself on the road once
+
+# A second door opens when the first was not answered: after this many days unanswered, a word door becomes a scene, a scene a board posting.
+reopen_after_days: 3
+
+# What the town keeps when a matter ends (engine/truth.py gives it to every speaker there under WHAT THIS TOWN HAS).
+memory:
+  keep_days: 30
+  settled:  "{title}: settled by {name} ({when})"
+  ignored:  "{title}: {name} was asked, and let it be ({when})"
+  reputation: {normal: 3, uncommon: 4, rare: 6, campaign: 12, cataclysm: 12}

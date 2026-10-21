@@ -68,6 +68,18 @@ gods:
     imagery: roots, rot, seed, ripening, vines
     habits: death and rot are not mourned as ending; things are returned to the soil
     swears: by the Keeper, by seed and root
+  thalassor:
+    name: Vessa the Bellkeeper
+    cares: ships brought home, warnings heeded, what is rung and what is answered
+    imagery: bells, fog, lanterns, the tide, a rope in the dark
+    habits: a bell is rung at every birth and every death; a lie is called "an unrung bell"; fog is a kind of blessing
+    swears: by the Bell, by fog and tide
+  skarnhelm:
+    name: Orrun the Longwinter
+    cares: endurance, hospitality, the stone carried, a promise kept through the cold
+    imagery: stone, ice, the stair, a banked fire, the lintel
+    habits: every worshipper carries a small stone up the stair; a guest is never turned away; to carry a stone means to bear a burden
+    swears: by the Winter, by the stone
   morrowen:
     name: Morrowen the Ferryman
     cares: the dead carried across, the passage paid

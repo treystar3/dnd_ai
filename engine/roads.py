@@ -72,14 +72,14 @@ def nearby_wilds(world, a: str, b: str) -> list[str]:
     return found
 
 
-def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role: str, title: str, detail: str = "") -> dict:
+def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role: str, title: str, detail: str = "", name: str = "") -> dict:
     """A place on the road between a and b where the player is left. Returned as the dict saved in the player's state."""
     from world.loader import Place
     near = a if frac < 0.5 else b
     ta = max(1, round(minutes * frac))
     tb = max(1, minutes - ta)
     r = world.road_between(a, b)
-    name = f"{r.name if r else 'the way'} between {world.places[a].name} and {world.places[b].name}"
+    name = name or f"{r.name if r else 'the way'} between {world.places[a].name} and {world.places[b].name}"
     pid = f"road_{uuid.uuid4().hex[:8]}"
     place = Place(id=pid, name=name, type="road", region=world.places[a].region, biome=world.places[near].biome,
                   connects={a: ta, b: tb}, peoples=dict(world.places[near].peoples), residents={role: 1} if role else {},

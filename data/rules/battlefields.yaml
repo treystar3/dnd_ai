@@ -1,0 +1,242 @@
+# The ground fights are fought on (engine/battlefield_builder.py): for each biome, the main zones a fight can start in and the side
+# zones that may stand beside it. The builder draws one main and 0-2 sides, seeded by the campaign, so the same ambush on the same day
+# is the same ground. The model never chooses topology or tags; it only dresses these names in the narration.
+#
+# Zone tags (engine/battlefield.py TERRAIN_TAGS):
+#   open       nothing special
+#   concealed  hard to see into: hiding, ambushes
+#   cover      things to duck behind: ranged attacks in are harder
+#   elevated   high ground: its holders strike down with the high-ground bonus
+#   difficult  hard going: crossing in or out costs the whole action
+#   narrow     a squeeze: only so many can come at one defender at once
+#   hazardous  the ground itself can hurt (kept rare)
+# Edge ways (ways between zones): open, doorway, stairs, climb, jump, difficult, blocked.
+
+sides: {none: 0.2, one: 0.5, two: 0.3}    # how many side zones a battlefield gets
+side_link: 0.3                            # chance the two side zones also join each other (by a difficult way)
+
+default:
+  main:
+    - {name: open ground, tags: [open]}
+  side:
+    - {name: a rocky rise, tags: [elevated, difficult], way: climb}
+    - {name: a jumble of boulders, tags: [cover, difficult]}
+    - {name: a shallow gully, tags: [cover]}
+
+forest:
+  main:
+    - {name: the forest trail, tags: [open]}
+    - {name: a small clearing, tags: [open]}
+    - {name: the deep wood, tags: [concealed]}
+  side:
+    - {name: dense brush, tags: [concealed, difficult]}
+    - {name: a rocky rise, tags: [elevated, difficult], way: climb}
+    - {name: a creek bed, tags: [cover, difficult]}
+    - {name: fallen timber, tags: [cover]}
+    - {name: a game run between thickets, tags: [narrow]}
+
+hills:
+  main:
+    - {name: the hillside path, tags: [open]}
+    - {name: a grassy saddle, tags: [open]}
+  side:
+    - {name: a stony crest, tags: [elevated], way: climb}
+    - {name: a scree slope, tags: [difficult, hazardous]}
+    - {name: a sheepfold of piled stone, tags: [cover]}
+    - {name: a cut between the hills, tags: [narrow]}
+
+mountains:
+  main:
+    - {name: the mountain track, tags: [open]}
+    - {name: a wind-scoured shelf, tags: [open]}
+  side:
+    - {name: a ledge above the track, tags: [elevated], way: climb}
+    - {name: a boulder field, tags: [cover, difficult]}
+    - {name: a narrow defile, tags: [narrow]}
+
+highpeaks:
+  main:
+    - {name: the high shelf, tags: [open]}
+    - {name: a saddle between crags, tags: [narrow]}
+  side:
+    - {name: an icy ledge, tags: [elevated, hazardous], way: climb}
+    - {name: wind-piled snow and rock, tags: [cover, difficult]}
+
+farmland:
+  main:
+    - {name: the cart road, tags: [open]}
+    - {name: an open field, tags: [open]}
+  side:
+    - {name: a drystone wall, tags: [cover]}
+    - {name: standing grain, tags: [concealed]}
+    - {name: a ditch beside the road, tags: [cover, difficult]}
+    - {name: a barn doorway, tags: [narrow], way: doorway}
+
+urban:
+  main:
+    - {name: the street, tags: [open]}
+    - {name: a market yard, tags: [open]}
+    - {name: a back lane, tags: [narrow]}
+  side:
+    - {name: a doorway, tags: [narrow, cover], way: doorway}
+    - {name: an alley mouth, tags: [narrow]}
+    - {name: stacked crates and barrels, tags: [cover]}
+    - {name: an outer stair, tags: [elevated], way: stairs}
+
+ruins:
+  main:
+    - {name: the broken court, tags: [open]}
+    - {name: a roofless hall, tags: [open]}
+  side:
+    - {name: a fallen archway, tags: [narrow, cover], way: doorway}
+    - {name: a rubble mound, tags: [elevated, difficult], way: climb}
+    - {name: shadowed colonnades, tags: [concealed, cover]}
+
+underground:
+  main:
+    - {name: the cavern floor, tags: [open]}
+    - {name: a low gallery, tags: [open]}
+  side:
+    - {name: a squeeze between pillars, tags: [narrow]}
+    - {name: a raised shelf of stone, tags: [elevated], way: climb}
+    - {name: deep shadow beyond the light, tags: [concealed]}
+    - {name: fallen slabs, tags: [cover, difficult]}
+
+deep_underground:
+  main:
+    - {name: the great dark floor, tags: [open]}
+    - {name: a bridge of stone, tags: [narrow, hazardous]}
+  side:
+    - {name: a forest of pillars, tags: [cover, concealed]}
+    - {name: a ledge over the dark, tags: [elevated, hazardous], way: climb}
+
+desert:
+  main:
+    - {name: open sand, tags: [open]}
+    - {name: a dry wash, tags: [open]}
+  side:
+    - {name: a dune crest, tags: [elevated, difficult], way: climb}
+    - {name: wind-carved rocks, tags: [cover]}
+    - {name: a slot between stones, tags: [narrow]}
+
+cracked_plains:
+  main:
+    - {name: the cracked flat, tags: [open]}
+  side:
+    - {name: a fissure lip, tags: [cover, hazardous]}
+    - {name: a tilted slab, tags: [elevated], way: climb}
+    - {name: a dust gully, tags: [cover, difficult]}
+
+swamp:
+  main:
+    - {name: the raised causeway, tags: [narrow]}
+    - {name: a firm hummock, tags: [open]}
+  side:
+    - {name: knee-deep mire, tags: [difficult, hazardous]}
+    - {name: a reed brake, tags: [concealed]}
+    - {name: a leaning dead tree, tags: [cover]}
+
+drowned:
+  main:
+    - {name: the flooded street, tags: [difficult]}
+    - {name: a dry rooftop, tags: [open]}
+  side:
+    - {name: a half-sunk barge, tags: [cover]}
+    - {name: a slick stair above the water, tags: [elevated, hazardous], way: stairs}
+
+jungle:
+  main:
+    - {name: the overgrown path, tags: [narrow]}
+    - {name: a root-tangled clearing, tags: [open]}
+  side:
+    - {name: a wall of green, tags: [concealed, difficult]}
+    - {name: a great buttressed trunk, tags: [cover]}
+    - {name: a low bough, tags: [elevated], way: climb}
+
+coast:
+  main:
+    - {name: the open strand, tags: [open]}
+    - {name: a shingle beach, tags: [difficult]}
+  side:
+    - {name: tide-worn rocks, tags: [cover]}
+    - {name: a dune lip, tags: [elevated], way: climb}
+    - {name: a cleft in the cliff, tags: [narrow]}
+
+freshwater:
+  main:
+    - {name: the riverbank, tags: [open]}
+    - {name: a gravel ford, tags: [difficult]}
+  side:
+    - {name: the reeds, tags: [concealed]}
+    - {name: a high bank, tags: [elevated], way: climb}
+    - {name: a log jam, tags: [cover, hazardous]}
+
+arctic:
+  main:
+    - {name: the snowfield, tags: [difficult]}
+    - {name: wind-packed ice, tags: [open]}
+  side:
+    - {name: a pressure ridge, tags: [cover, elevated], way: climb}
+    - {name: blowing snow, tags: [concealed]}
+
+tundra:
+  main:
+    - {name: the frozen flat, tags: [open]}
+  side:
+    - {name: a frost-heaved ridge, tags: [elevated], way: climb}
+    - {name: a hollow out of the wind, tags: [cover]}
+    - {name: half-frozen bog, tags: [difficult, hazardous]}
+
+volcanic:
+  main:
+    - {name: the black rock field, tags: [open]}
+  side:
+    - {name: a steam vent, tags: [concealed, hazardous]}
+    - {name: a hardened lava ridge, tags: [elevated, difficult], way: climb}
+    - {name: a cinder hollow, tags: [cover]}
+
+wasteland:
+  main:
+    - {name: the ash flat, tags: [open]}
+  side:
+    - {name: a burned-out wreck, tags: [cover]}
+    - {name: a spoil heap, tags: [elevated, difficult], way: climb}
+    - {name: drifting ash haze, tags: [concealed]}
+
+# BIG FIGHTS (f224): camp and hideout assaults, boss fights, and any fight with 6 or more enemies (reserves counted) are fought on
+# a larger, chained field. Ordinary encounters keep the small field above; duels keep their one bare zone.
+#   wild   - this biome's ground, larger: a main zone, 2-3 side zones, and 1-2 zones beyond a side (a biome may list its own
+#            `beyond`; otherwise its side zones serve). The far end is 3 steps or more from where the fight starts.
+#   camp   - a camp or hideout, entered from outside: you come in at the approach, the camp's fighters are among the tents,
+#            archers take the watch platform, the leader waits at the back and the rest of the camp comes from there.
+#   lair   - a boss's chamber: you come in at the entrance, the boss holds the dais, and what it calls comes out of the alcove.
+#   Roles: player = where you and yours begin; enemy = where they begin; back = where their leader or boss begins (and anything
+#   spotted from afar); arrivals = where reinforcements come in from. Enemy archers and casters begin on the nearest high or
+#   covered ground on their side, when there is any.
+big:
+  sides: {two: 0.5, three: 0.5}
+  beyond: {one: 0.6, two: 0.4}
+  camp:
+    zones:
+      approach: {name: the approach to the camp, tags: [open]}
+      gate:     {name: the camp gate, tags: [narrow]}
+      tents:    {name: between the tents, tags: [cover]}
+      platform: {name: the watch platform, tags: [elevated]}
+      leader:   {name: the leader's tent, tags: [concealed]}
+    edges: [[approach, gate, open], [gate, tents, open], [tents, platform, climb], [tents, leader, doorway]]
+    player: approach
+    enemy: tents
+    back: leader
+    arrivals: leader
+  lair:
+    zones:
+      entrance: {name: the entrance, tags: [open]}
+      floor:    {name: the chamber floor, tags: [open]}
+      pillars:  {name: among the pillars, tags: [cover]}
+      dais:     {name: the dais, tags: [elevated]}
+      alcove:   {name: a dark alcove, tags: [concealed]}
+    edges: [[entrance, floor, open], [floor, pillars, open], [floor, dais, stairs], [pillars, alcove, difficult]]
+    player: entrance
+    enemy: floor
+    back: dais
+    arrivals: alcove

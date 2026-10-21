@@ -38,6 +38,12 @@ def fmt(amount: int) -> str:
     return " ".join(f"{count}{symbol}" for _, symbol, count in split(amount))
 
 
+def short(amount: int) -> str:
+    """(f327) For a window's pane, where columns line up by themselves: only the coins that are there - '1Ş 50₵', not '0₲ 1Ş 50₵'."""
+    parts = [f"{count}{symbol}" for _, symbol, count in split(amount) if count]
+    return " ".join(parts) or f"0{split(0)[-1][1]}"
+
+
 def to_smallest(**coins: int) -> int:
     """to_smallest(gold=1, silver=5) -> 10500"""
     return sum(next(v for i, _, v in VALUES if i == k) * n for k, n in coins.items())

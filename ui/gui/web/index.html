@@ -9,12 +9,13 @@
 <body>
 <!-- status strip: a self-contained block (this div + the Strip section in app.js + .strip rules in style.css); delete all three to remove it -->
 <header id="strip" class="strip" aria-label="Status"></header>
+<div id="ticker" class="ticker" hidden aria-live="polite"></div>   <!-- (f325) this turn's mechanics: coins, contracts, things taken, checks -->
 <button id="updatebtn" hidden>⬆ Update available</button>
 
 <div id="app">
   <main id="main">
     <div id="log" aria-live="polite"></div>
-    <div id="busy" hidden>The world is thinking…</div>
+    <div id="busy" hidden><span>The world is thinking…</span></div>
     <form id="form" autocomplete="off">
       <span class="caret">&gt;</span>
       <input id="input" type="text" spellcheck="false" autofocus placeholder="What do you do?">
@@ -24,15 +25,15 @@
 
   <div id="grip" title="Drag to resize"></div>
   <aside id="side">
-    <div id="sidehead">
-      <div id="buttons"></div>
+    <div id="sidehead"><div id="buttons"></div></div>
+    <div id="sidetitlerow">
+      <div id="sidetitle"></div>
       <div id="sidetools">
-        <button id="pin" title="Pin this view: it refreshes after every turn">📌 Pin</button>
-        <button id="theme" title="Colour theme: auto follows Windows">◐ Auto</button>
-        <button id="hide" title="Hide this pane">Hide ▸</button>
+        <button id="pin" title="Pin this view: it refreshes after every turn">📌</button>
+        <button id="theme" title="Colour theme: auto follows Windows">◐</button>
+        <button id="hide" title="Hide this pane">▸</button>
       </div>
     </div>
-    <div id="sidetitle"></div>
     <pre id="sidebody"></pre>
   </aside>
   <button id="show" hidden title="Show the info pane">◂ Info</button>

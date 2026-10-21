@@ -35,6 +35,7 @@ class Want:
     effect: str = ""
     stat: str = ""
     text: str = ""
+    element: str = ""           # an element the request names: the lessons that answer it carry that element
 
     def words(self) -> set[str]:
         return {w for w in re.findall(r"[a-z]+", self.text.lower()) if len(w) >= 4}
@@ -57,7 +58,8 @@ def from_words(text: str) -> Want:
         kind = "either"
     if kind == "active" and stat and not effect:
         kind = "either"
-    return Want(kind, effect, stat if kind != "active" else "", text)
+    from engine import elements as EL
+    return Want(kind, effect, stat if kind != "active" else "", text, EL.of_text(low))
 
 
 def from_model(read, text: str) -> Want:
@@ -65,7 +67,9 @@ def from_model(read, text: str) -> Want:
     kind = read.kind if read.kind in ("active", "passive", "either") else "either"
     effect = read.effect.strip().lower()
     stat = read.stat.strip().lower()
-    return Want(kind, effect if effect in EFFECTS else "", stat if stat in STATS else "", text)
+    from engine import elements as EL
+    el = getattr(read, "element", "") or ""
+    return Want(kind, effect if effect in EFFECTS else "", stat if stat in STATS else "", text, el if el in EL.ELEMENTS else "")
 
 
 # ---------- what the character already has ----------
@@ -75,7 +79,8 @@ def view(c) -> SimpleNamespace:
     return SimpleNamespace(
         custom_class=c.custom_class, combat_identity="", summary=getattr(c, "class_summary", ""), themes=[],
         families=FAMILIES_BY_ARCHETYPE.get(c.archetype.value, ["warrior"]), archetype=c.archetype, focus="balanced",
-        uses_companions=c.uses_companions, constraints=[], primary_attributes=list(c.primary_attributes))
+        uses_companions=c.uses_companions, summoner=getattr(c, "summoner", False), constraints=[], primary_attributes=list(c.primary_attributes),
+        casting_attribute=getattr(c, "casting_attribute", ""), elements=list(getattr(c, "elements", []) or []))
 
 
 def mana_share(c, rng) -> float:
@@ -147,6 +152,8 @@ def _function_slot(s: dict, effect: str, offers: dict, want: Want, biased: bool,
 
 
 def active_slot(c, view_, effect: str, offers: dict, want: Want, biased: bool, share: float, rng) -> dict:
+    if effect == "defense":                         # no defense stances (f250): asked to be taught a guard, they learn a buff
+        effect = "buff" if offers.get("buffs") else "damage"
     arch = c.archetype.value
     level = c.level
     s = AS._base()
@@ -154,7 +161,7 @@ def active_slot(c, view_, effect: str, offers: dict, want: Want, biased: bool, s
     if effect in ("utility", "influence"):
         if not _function_slot(s, effect, offers, want, biased, view_, rng):
             effect = "control"
-    if effect == "summon" and not c.uses_companions:
+    if effect == "summon" and not getattr(c, "summoner", False):
         effect = "damage"
     if effect == "control":
         fight_fns = [fn for fn in offers["functions"] if field.in_combat_function(fn)]
@@ -183,35 +190,45 @@ def active_slot(c, view_, effect: str, offers: dict, want: Want, biased: bool, s
                 offers["riders"].remove(s["rider"])
         AS._set_reach(s, rng, forbidden, AS.P["reach"][arch], allow_area=True)
         s["tier"] = _tier(level, rng, attack=True)
-    elif effect in ("defense", "mobility"):
-        s.update(effect=effect, tier="moderate" if level >= L["moderate_level"] and rng.random() < 0.25 else "light",
-                 reach="self", context="combat")
+    elif effect == "mobility":
+        owned = {a.movement for a in c.actives if getattr(a, "movement", "")}
+        kinds = AS.pick_moves(view_.families, 1, rng, skip=owned)
+        if kinds:
+            from engine import movement as MVE
+            s.update(effect="mobility", tier=MVE.M["tier"], reach="self", context="combat", movement=kinds[0])
+        else:                                       # every everyday move is already known
+            return active_slot(c, view_, "buff" if offers.get("buffs") else "damage", offers, want, biased, share, rng)
     elif effect == "healing":
         s.update(effect="healing", tier=_tier(level, rng), reach="self" if rng.random() < 0.5 else "extended", context="both")
     elif effect == "buff":
         if offers["buffs"]:
             b = _pick(rng, offers["buffs"], AT.BUFFS, view_)
             offers["buffs"].remove(b)
-            s.update(effect="buff", tier=_tier(level, rng), reach="self", context="combat", buff=b)
+            s.update(effect="buff", tier="moderate", reach="self", context="combat", buff=b,     # one strength (f235)
+                     resource="mana")                                    # every buff is magic (f238)
         else:
-            s.update(effect="defense", tier="light", reach="self", context="combat")
+            return active_slot(c, view_, "damage", offers, want, biased, share, rng)
     elif effect == "summon":
-        s.update(effect="summon", tier=rng.choice(["light", "moderate"]) if level >= L["moderate_level"] else "light",
-                 reach="self", context="both")
+        from engine import summons
+        tier = rng.choice(["light", "moderate"]) if level >= L["moderate_level"] else "light"
+        form = rng.choice(list(summons.FORMS))
+        if tier not in summons.FORMS[form]["tiers"]:
+            tier = summons.FORMS[form]["tiers"][0]
+        s.update(effect="summon", tier=tier, reach="self", context="both" if form == "bound" else "combat", summon_form=form)
     elif effect == "crafting":
         s.update(effect="crafting", tier="light", reach="self", context="out_of_combat")
     if s["tier"] == "heavy" and level < L["heavy_level"]:
         s["tier"] = "moderate"
     if s["tier"] == "moderate" and level < L["moderate_level"]:
         s["tier"] = "light"
-    s["resource"] = "mana" if rng.random() < share else "stamina"
+    s["resource"] = "mana" if (rng.random() < share or s["effect"] == "summon") else "stamina"
     s["type"] = "active"
     return s
 
 
 def _wildcard_effect(c, rng, avoid: str) -> str:
     table = dict(L["wildcard_effects"])
-    if not c.uses_companions:
+    if not getattr(c, "summoner", False):
         table.pop("summon", None)
     if len(table) > 1:
         table.pop(avoid, None)
@@ -301,7 +318,7 @@ def plan(c, want: Want, rng: random.Random | None = None, n: int | None = None, 
     mechs = {}
     if any(t == "passive" for t, _ in types):
         from character.creation import draw_mechanics
-        mechs = draw_mechanics(view_, rng, runs=[])
+        mechs = draw_mechanics(view_, rng, where="taught")    # the world teaches the plainer fare; perks are creation's
     share = mana_share(c, rng)
     slots, taken, used_mech = [], set(), set()
     used_effects = set()
@@ -323,6 +340,16 @@ def plan(c, want: Want, rng: random.Random | None = None, n: int | None = None, 
                 continue
         s["biased"] = biased
         slots.append(s)
+    # elements are the engine's: the class's palette (or its families' lean); a lesson answering a request that named an element carries it
+    AS.assign_elements(slots, view_.elements, view_.families, rng)
+    for s in slots:
+        if want.element and s["biased"] and AS.elemental(s):
+            s["element"] = want.element
+    AS.buff_resources(slots)
+    AS.split_poison_imbue(slots, offers)
+    AS.assign_expressions(slots, rng)                     # what each element does, and each damage spell's form (engine/spellcraft.py)
+    AS.assign_forms(slots, rng)
+    AS.assign_martial(slots, list(view_.families or []), rng)   # a technique's form and maneuver (engine/martial.py)
     rng.shuffle(slots)
     for k, s in enumerate(slots, 1):
         s["n"] = k
@@ -369,5 +396,9 @@ def build(slots: list[dict], names) -> list:
         out.append(materialize_active(ActiveProposal(
             name=x.name, description=x.description, effect=s["effect"], tier=s["tier"], reach=s["reach"], resource=s["resource"],
             context=s["context"], summons=x.summons if s["effect"] == "summon" else None, rider=s["rider"], shape=s["shape"],
-            buff=s["buff"], buff_stat=s["buff_stat"], command=s["command"], field_use=s["field_use"])))
+            buff=s["buff"], buff_stat=s["buff_stat"], command=s["command"], field_use=s["field_use"], channel=bool(s.get("channel")),
+            movement=s.get("movement", ""), heal_form=s.get("heal_form", ""), element=s.get("element", ""),
+            summon_form=s.get("summon_form", ""), expressions=list(s.get("expressions") or []), spell_form=s.get("spell_form", ""),
+            power=s.get("power", 0), cost_percent=s.get("cost_percent", 0), cast_turns=s.get("cast_turns", 0),
+            martial_form=s.get("martial_form", ""), hits=s.get("hits", 0), maneuver=s.get("maneuver", ""))))
     return out

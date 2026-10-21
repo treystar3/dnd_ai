@@ -19,7 +19,7 @@ from ui import console
 OLLAMA_SETUP_URL = "https://ollama.com/download/OllamaSetup.exe"
 OLLAMA_PAGE = "https://ollama.com/download"
 MODEL_GB = 9                    # about what the model takes to download; the exact size shows once the download starts
-DISK_NEEDED_GB = 12             # the model plus room to work
+DISK_NEEDED_GB = 13             # the model, the small helper model, and room to work
 VRAM_GOOD_GB = 10               # the whole model sits on the graphics card
 VRAM_TIGHT_GB = 6               # part of it does
 QUIT_WORDS = {"quit", "q", "exit", "no", "n"}
@@ -175,17 +175,29 @@ def install_ollama(on_progress) -> bool:
 
 
 def pull_model(on_progress, name: str = "") -> None:
+    """Pull the model. Ollama reports each file (layer) of it separately, so the bar adds them up instead of restarting for every file."""
     import ollama
     name = name or config.MODEL
-    last = 0.0
+    last, started = 0.0, time.time()
+    layers: dict[str, list[int]] = {}
+    best = 0.0
     for ev in ollama.Client(host=base_url()).pull(name, stream=True):
         get = (lambda k: getattr(ev, k, None)) if not isinstance(ev, dict) else ev.get
         status, done, total = get("status") or "", get("completed") or 0, get("total") or 0
-        if total and time.time() - last < 0.2 and done < total:
+        digest = get("digest") or status
+        if total:
+            layers[digest] = [done, total]
+        all_done, all_total = sum(v[0] for v in layers.values()), sum(v[1] for v in layers.values())
+        if time.time() - last < 0.2 and not (all_total and all_done >= all_total):
             continue
         last = time.time()
-        on_progress((done / total) if total else 0.0,
-                    f"{status}  {done / 2 ** 30:.1f} / {total / 2 ** 30:.1f} GB" if total else status)
+        if all_total:
+            best = max(best, all_done / all_total)           # a new file starting must not drag the bar back
+            secs = max(1.0, time.time() - started)
+            speed = all_done / secs / 2 ** 20
+            on_progress(best, f"{best * 100:.0f}%  -  {all_done / 2 ** 30:.2f} / {all_total / 2 ** 30:.2f} GB  -  {speed:.1f} MB/s")
+        else:
+            on_progress(0.0, status or "Starting...")
 
 
 # ---------- the screen ----------

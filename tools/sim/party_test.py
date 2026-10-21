@@ -31,9 +31,9 @@ notes.clear(); ws.enter("guild_house"); w("notice:", notes)
 notes.clear(); w("list ->", ws.party_turn("Who are the adventurers available for hire?"), notes)
 r=ws.party_roster(); w("roster", [(x["name"],x["role"],x["level"],x["fee"]) for x in r])
 coins0=c.coins
-notes.clear(); w("hire 1 ->", ws.party_turn("I'd like to hire the first one, 1"), notes, "coins spent", coins0-c.coins)
-notes.clear(); w("hire priest by role ->", ws.party_turn("hire the priest"), notes)
-notes.clear(); w("hire all ->", ws.party_turn("recruit them all"), notes, [m["name"] for m in ws.player.party])
+notes.clear(); w("typed hire does nothing (f309) ->", ws.party_turn("I'd like to hire the first one, 1"), [m["name"] for m in ws.player.party])
+for x in r[:3]:
+    notes.clear(); ws.board_click(f"#boardhire {x['id']}"); w("pane hire ->", x["name"], notes[-1:] if notes else "")
 w("party",ws.player.party, "mode", ws.player.party_mode)
 w("roster after (no dupes)", [(x["name"]) for x in ws.party_roster()])
 notes.clear(); ws.command("#party"); w("#party", notes)
@@ -41,7 +41,7 @@ notes.clear(); ws.command("#party"); w("#party", notes)
 n=arcs.current(ws.my_arc()[1]); ws.enter(n["place"]); ws.arc_arrival()
 camp=arcs.current(ws.my_arc()[1])["camp"]; w("camp guards", len(camp["guards"]))
 real=checks.roll
-checks.roll=lambda odds,rng=None:("success",50)
+checks.roll=lambda odds,rng=None,c=None:("success",50)
 notes.clear(); ws.handle("scout the camp"); w("scout with party notes", notes[-4:])
 # stealth penalty visible via debug? compute
 import scenes.camp_actions as ca

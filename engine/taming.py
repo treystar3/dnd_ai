@@ -86,7 +86,8 @@ def release(character, words: str):
 
 def binder(character):
     """The character's Bind a Beast ability, or None."""
-    return next((a for a in character.actives if a.field_use == "bind_beast"), None)
+    from engine import loadout
+    return next((a for a in loadout.prepared(character) if a.field_use == "bind_beast"), None)     # only what is brought
 
 
 def bind_check(character, enemy, creature) -> str:

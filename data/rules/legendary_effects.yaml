@@ -11,7 +11,7 @@
 - {id: vampiric,     name: Vampiric,      applies: weapon, value: 15, description: "Heals you for {value}% of the damage you deal."}
 - {id: retribution,  name: Retribution,   applies: armor,  value: 20, description: "Returns {value}% of the damage you take to the attacker."}
 - {id: deathward,    name: Deathward,     applies: armor,    value: 20, description: "Once per fight, a killing blow leaves you at 1 health and you recover {value}% of your health."}
-- {id: cleave,       name: Cleave,        applies: weapon, value: 50, description: "Your hits also strike a second nearby enemy for {value}% damage."}
+- {id: cleave,       name: Cleave,        applies: weapon, value: 50, description: "Your melee weapon hits carry through into one other enemy engaged with you for {value}% damage."}
 - {id: executioner,  name: Executioner,   applies: weapon, value: 50, description: "+{value}% damage against enemies below 30% health."}
 - {id: first_blood,  name: First Blood,   applies: weapon, value: 0,  description: "Your first strike in every fight is a critical hit."}
 - {id: relentless,   name: Relentless,    applies: weapon, value: 8,  description: "Each consecutive hit deals +{value}% more damage, up to five times. A miss resets it."}

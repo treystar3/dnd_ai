@@ -1,4 +1,7 @@
-"""What a new character wakes up with: a rudimentary weapon (or a companion for companion classes) and some coin.
+"""What a new character wakes up with: a rudimentary weapon - or, for a class that keeps companions, a companion instead - and some coin.
+
+A companion is a living creature, tamed, that grows with the player; it takes the weapon's place. (A summoner's Bound summon is not
+part of the kit: it is made by its summon ability, engine/summons.py, and the summoner carries a weapon like anyone else.)
 
 The model only chooses from lists. The engine builds the items, the companion and the purse.
 """
@@ -17,11 +20,14 @@ For an ordinary class, choose the one weapon id from WEAPON OPTIONS that best fi
   their STRONGEST ATTRIBUTES - a weapon driven by a weak attribute is nearly useless to them.
   Casters use a focus (wand, staff, charm), performers an instrument, archers a bow or sling,
   and martial artists who fight bare-handed use hand wraps.
-For a class that relies on companions, instead choose one creature id from COMPANION OPTIONS that fits their
-  theme, and give it a short fitting name. Leave weapon empty in that case.
+When COMPANION OPTIONS are listed, the class keeps a companion INSTEAD of a weapon: choose one creature id from them that fits
+  their theme, give it a short fitting name, and leave weapon empty.
 Respond only with JSON matching the schema."""
 
-COMPANION_CATEGORIES = {"beast", "fey", "plant", "elemental", "celestial", "dragon", "construct", "undead"}
+from llm.prompts import WORLD_FACTS
+KIT_SYSTEM += "\n\n" + WORLD_FACTS
+
+COMPANION_CATEGORIES = {"beast", "dragon", "monstrosity", "plant", "fey"}     # living things that grow - never made things
 
 
 def weapon_options() -> list[items.BaseItem]:
@@ -45,38 +51,41 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
     c.kit_given = True
     purse = money.fmt(money.to_smallest(**rules["starting_coins"]))
 
-    summon = next((a for a in c.actives if a.effect == Effect.SUMMON and a.companion), None)
-    if uses_companions and summon:
-        t = summon.companion
-        c.companions.append(Companion(id=t.id, name=t.name, kind=t.kind.value, role=t.role.value,
-                                      description=t.description, source=f"summoned with {summon.name}",
-                                      tier=t.tier.value, health=t.health, damage=t.damage))
-        return f"{t.name}, the companion they summon, is at their side, and they carry a small purse of {purse}."
-
-    weapons = weapon_options()
+    made = next((a for a in c.actives if a.effect == Effect.SUMMON and a.id == c.bound_summon), None)
+    bound = (f" {(made.summoned.name if made.summoned else made.name)}, the summon they made, stands bound to them."
+             if made is not None else "")
     creatures = companion_options(world) if uses_companions else []
+    if creatures:
+        kit = _ask_kit(c, class_text, uses_companions, [], creatures)
+        creature = world.bestiary[kit.companion]
+        name = kit.companion_name.strip()
+        c.companions.append(Companion(id=_slug(name) or creature.id, name=name, creature=creature.id,
+                                      kind=creature.category, description=f"a {creature.name.lower()}",
+                                      source="bonded before the player woke"))
+        return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion, in place of any weapon -"
+                f" and they carry a small purse of {purse}.{bound}")
+    options = weapon_options()
+    if any(getattr(a, "channel", False) for a in c.actives):      # its channeled strikes need a melee weapon in hand (f260)
+        options = [b for b in options if b.reach in ("melee", "extended") and b.damage == "physical"] or options
+    kit = _ask_kit(c, class_text, False, options, [])
+    weapon = items.make(kit.weapon, rules["starting_rarity"])
+    c.equipment[items.base_of(weapon).slot] = weapon
+    return f"A {weapon.name} lies beside them, and they carry a small purse of {purse}.{bound}"
+
+
+def _ask_kit(c: Character, class_text: str, uses_companions: bool, weapons: list, creatures: list):
     attrs = sorted(((a, getattr(c.attributes, a)) for a in type(c.attributes).model_fields), key=lambda x: -x[1])
     lines = [f"CLASS: {class_text}", f"RELIES ON COMPANIONS: {'yes' if uses_companions else 'no'}",
              f"STRONGEST ATTRIBUTES: {', '.join(f'{a} {v}' for a, v in attrs[:2])}"]
     if c.casting_attribute:
         lines.append(f"MAGIC USES: {c.casting_attribute} - a caster's focus should use this attribute "
                      "(wand: intelligence, charm: wisdom, lute: charisma).")
-    if uses_companions:
+    if creatures:
         lines.append("COMPANION OPTIONS:\n" + "\n".join(f"  {b.id}: {b.name} ({b.category}, {b.size})" for b in creatures))
-    else:
+    if weapons:
         lines.append("WEAPON OPTIONS:\n" + "\n".join(f"  {b.id}: {b.name} ({b.reach}, {'/'.join(b.attributes)}, {', '.join(b.tags)})" for b in weapons))
-    kit = generate(
+    return generate(
         "starting_kit", KIT_SYSTEM, "\n".join(lines), StartingKit, temperature=0.3, max_tokens=200,
-        validation_context={"needs_companion": uses_companions, "weapons": [b.id for b in weapons],
+        validation_context={"needs_companion": bool(creatures), "weapons": [b.id for b in weapons],
                             "companions": [b.id for b in creatures]},
     )
-    if uses_companions:
-        creature = world.bestiary[kit.companion]
-        name = kit.companion_name.strip()
-        c.companions.append(Companion(id=_slug(name) or creature.id, name=name, creature=creature.id,
-                                      kind=creature.category, description=f"a {creature.name.lower()}",
-                                      source="bonded before the player woke"))
-        return f"A {creature.name.lower()} named {name} is with them, bonded to them, and they carry a small purse of {purse}."
-    weapon = items.make(kit.weapon, rules["starting_rarity"])
-    c.equipment[items.base_of(weapon).slot] = weapon
-    return f"A {weapon.name} lies beside them, and they carry a small purse of {purse}."

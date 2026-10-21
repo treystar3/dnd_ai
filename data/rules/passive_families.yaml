@@ -12,22 +12,48 @@ families:
     description: Soldiers, knights and weapon masters who win by steel, training and discipline.
     kin: [guardian, berserker]
     options:
+      - {mechanic: juggernaut}
+      - {mechanic: headsman}
+      - {mechanic: thick_of_it}
+      - {mechanic: siege_breaker}
+      - {mechanic: coordinated_strike}
+      - {mechanic: adrenaline}
+      - {mechanic: bulwark_engine}
+      - {mechanic: challenger}
+      - {mechanic: deathleap}
+      - {mechanic: flow_state}
+      - {mechanic: mirror_plate}
+      - {mechanic: open_wound}
+      - {mechanic: crippling_wounds}
+      - {mechanic: pack_tactics}
+      - {mechanic: provoke}
+      - {mechanic: rampage}
+      - {mechanic: red_mist}
+      - {mechanic: sworn_enemy}
+      - {mechanic: unbreakable}
+      - {mechanic: war_drum}
+      - {mechanic: famous}
+      - {mechanic: shaped_to_you}
+      - {mechanic: victors_name}
       - {mechanic: riposte}
-      - {mechanic: riposte, when: while_defending, values: [15,25]}
       - {mechanic: aegis}
       - {mechanic: hardening}
       - {mechanic: relentless}
-      - {mechanic: cleave}
-      - {mechanic: cleave, when: after_moving, values: [30,45]}
+      - {mechanic: follow_through}
       - {mechanic: executioner}
       - {mechanic: thunderous}
-      - {mechanic: thunderous, when: first_round_of_combat, values: [10,18]}
       - {mechanic: last_stand}
       - {mechanic: second_wind}
       - {mechanic: triumph}
       - {mechanic: battle_rhythm}
       - {mechanic: battle_cry}
       - {mechanic: killer_instinct}
+      - {mechanic: stancework}
+      - {mechanic: shield_bearer}
+      - {mechanic: press_the_opening}
+      - {mechanic: read_the_wind}
+      - {mechanic: no_one_escapes}
+      - {mechanic: avenger}
       - {mechanic: piercing}
       - {mechanic: unyielding}
       - {mechanic: warbreaker}
@@ -42,17 +68,33 @@ families:
       - {mechanic: weapon_wise}
       - {mechanic: soldiers_bearing}
       - {mechanic: campaigner}
-      - {mechanic: victors_name}
       - {mechanic: delvers_wage}
 
   guardian:
     description: Protectors and shield-bearers who stand between harm and others.
     kin: [warrior, paladin]
     options:
+      - {mechanic: juggernaut}
+      - {mechanic: judgement}
+      - {mechanic: thick_of_it}
+      - {mechanic: siege_breaker}
+      - {mechanic: sanctuary_circle}
+      - {mechanic: adrenaline}
+      - {mechanic: bulwark_engine}
+      - {mechanic: martyr}
+      - {mechanic: mirror_plate}
+      - {mechanic: provoke}
+      - {mechanic: unbreakable}
+      - {mechanic: shaped_to_you}
+      - {mechanic: victors_name}
       - {mechanic: aegis}
-      - {mechanic: aegis, when: while_defending, values: [20,35]}
+      - {mechanic: shield_bearer}
+      - {mechanic: stancework}
+      - {mechanic: sure_footed}
+      - {mechanic: stubborn_hold}
+      - {mechanic: avenger}
+      - {mechanic: read_the_wind}
       - {mechanic: hardening}
-      - {mechanic: hardening, when: at_low_health, values: [4,7]}
       - {mechanic: retribution}
       - {mechanic: spellmirror}
       - {mechanic: riposte, when: while_defending, values: [15,25]}
@@ -85,15 +127,31 @@ families:
     description: Raging fighters who grow more dangerous the more they bleed.
     kin: [warrior, ranger]
     options:
+      - {mechanic: headsman}
+      - {mechanic: blood_for_blood}
+      - {mechanic: thick_of_it}
+      - {mechanic: siege_breaker}
+      - {mechanic: quarry}
+      - {mechanic: feral_form}
+      - {mechanic: frostborne}
+      - {mechanic: adrenaline}
+      - {mechanic: deathleap}
+      - {mechanic: fearmonger}
+      - {mechanic: open_wound}
+      - {mechanic: crippling_wounds}
+      - {mechanic: provoke}
+      - {mechanic: rampage}
+      - {mechanic: red_mist}
+      - {mechanic: unbreakable}
+      - {mechanic: war_drum}
+      - {mechanic: all_or_nothing}
+      - {mechanic: symbiosis}
       - {mechanic: relentless}
-      - {mechanic: relentless, when: at_low_health, values: [6,10]}
       - {mechanic: last_stand}
       - {mechanic: second_wind}
       - {mechanic: vampiric}
-      - {mechanic: vampiric, when: at_low_health, values: [8,14]}
       - {mechanic: bloodlust}
-      - {mechanic: cleave}
-      - {mechanic: cleave, when: after_defeating_foe, values: [35,50]}
+      - {mechanic: follow_through}
       - {mechanic: triumph}
       - {mechanic: executioner}
       - {mechanic: rending}
@@ -124,32 +182,52 @@ families:
     description: Thieves, assassins and duelists who win by precision, misdirection and timing.
     kin: [ranger, bard]
     options:
+      - {mechanic: shadowstep}
+      - {mechanic: dormant_venom}
+      - {mechanic: quarry}
+      - {mechanic: steady_aim}
+      - {mechanic: high_ground_hunter}
+      - {mechanic: scout_ahead}
+      - {mechanic: curse_of_rust}
+      - {mechanic: deathleap}
+      - {mechanic: dread_ambusher}
+      - {mechanic: flow_state}
+      - {mechanic: night_stalker}
+      - {mechanic: open_wound}
+      - {mechanic: crippling_wounds}
+      - {mechanic: plaguebearer}
+      - {mechanic: showstopper}
+      - {mechanic: sworn_enemy}
+      - {mechanic: two_fisted}
+      - {mechanic: above_the_law}
+      - {mechanic: all_or_nothing}
+      - {mechanic: frugal_hands}
+      - {mechanic: memento_mori}
+      - {mechanic: nobody}
+      - {mechanic: tavern_ear}
+      - {mechanic: trap_sense}
       - {mechanic: lucky_break}
       - {mechanic: first_blood}
+      - {mechanic: press_the_opening}
+      - {mechanic: sure_footed}
+      - {mechanic: vantage_fighter}
       - {mechanic: executioner}
       - {mechanic: opportunist}
       - {mechanic: killer_instinct}
       - {mechanic: piercing}
       - {mechanic: windwalker}
       - {mechanic: phantom}
-      - {mechanic: phantom, when: at_night, values: [8,14]}
       - {mechanic: rending}
       - {mechanic: blinding}
       - {mechanic: frostbite}
       - {mechanic: riposte}
-      - {mechanic: executioner, when: at_night, values: [30,45]}
-      - {mechanic: killer_instinct, when: first_round_of_combat, values: [8,15]}
-      - {mechanic: piercing, when: at_night, values: [20,30]}
-      - {mechanic: windwalker, when: after_moving, values: [20,30]}
       - {mechanic: danger_sense}
       - {mechanic: scavenger}
       - {mechanic: lucky_find}
       - {mechanic: second_wind}
       - {mechanic: unburdened}
       - {mechanic: echoing}
-      - {mechanic: opportunist, when: after_moving, values: [20,35]}
       - {mechanic: cache_hunter}
-      - {mechanic: trap_sense}
       - {mechanic: fence_friend}
       - {mechanic: night_prowler}
       - {mechanic: second_look}
@@ -158,16 +236,41 @@ families:
     description: Hunters, trackers and archers at home in the wild places.
     kin: [rogue, druid]
     options:
+      - {mechanic: shadowstep}
+      - {mechanic: dormant_venom}
+      - {mechanic: quarry}
+      - {mechanic: steady_aim}
+      - {mechanic: high_ground_hunter}
+      - {mechanic: scout_ahead}
+      - {mechanic: familiars_eyes}
+      - {mechanic: coordinated_strike}
+      - {mechanic: deathleap}
+      - {mechanic: dread_ambusher}
+      - {mechanic: night_stalker}
+      - {mechanic: open_wound}
+      - {mechanic: crippling_wounds}
+      - {mechanic: pack_alpha}
+      - {mechanic: pack_tactics}
+      - {mechanic: storm_chosen}
+      - {mechanic: sworn_enemy}
+      - {mechanic: two_fisted}
+      - {mechanic: campfire_cook}
+      - {mechanic: never_shoddy}
+      - {mechanic: practiced_hands}
+      - {mechanic: spirit_guide}
+      - {mechanic: symbiosis}
+      - {mechanic: trap_sense}
+      - {mechanic: well_trodden}
       - {mechanic: lucky_break}
+      - {mechanic: vantage_fighter}
+      - {mechanic: no_one_escapes}
       - {mechanic: beastbane}
-      - {mechanic: beastbane, when: in_wilderness, values: [12,20]}
       - {mechanic: tracker}
       - {mechanic: beast_friend}
       - {mechanic: trailblazer}
       - {mechanic: danger_sense}
       - {mechanic: first_blood}
       - {mechanic: killer_instinct}
-      - {mechanic: killer_instinct, when: in_wilderness, values: [5,10]}
       - {mechanic: piercing}
       - {mechanic: frostbite}
       - {mechanic: rending}
@@ -194,6 +297,27 @@ families:
     description: Arcanists and elementalists who shape raw magic.
     kin: [warlock, necromancer]
     options:
+      - {mechanic: ley_tether}
+      - {mechanic: attuned_edge}
+      - {mechanic: arcane_precision}
+      - {mechanic: frostborne}
+      - {mechanic: frozen_ground}
+      - {mechanic: conduit}
+      - {mechanic: deep_freeze}
+      - {mechanic: firebrand}
+      - {mechanic: glass_cannon}
+      - {mechanic: grave_chorus}
+      - {mechanic: lasting_word}
+      - {mechanic: overcast}
+      - {mechanic: overchannel}
+      - {mechanic: pain_engine}
+      - {mechanic: spell_echo}
+      - {mechanic: storm_chosen}
+      - {mechanic: thermal_shock}
+      - {mechanic: threefold_weave}
+      - {mechanic: enchanter}
+      - {mechanic: frugal_hands}
+      - {mechanic: visions}
       - {mechanic: spellblade}
       - {mechanic: echoing}
       - {mechanic: unburdened}
@@ -208,13 +332,9 @@ families:
       - {mechanic: phantom}
       - {mechanic: stormcaller}
       - {mechanic: wardbreaker}
-      - {mechanic: echoing, when: first_round_of_combat, values: [20,35]}
-      - {mechanic: mana_shield, when: at_low_health, values: [30,45]}
       - {mechanic: spellmirror}
       - {mechanic: hellbane}
       - {mechanic: gravewarden}
-      - {mechanic: stormcaller, when: in_bad_weather, values: [20,35]}
-      - {mechanic: spellblade, when: at_night, values: [15,25]}
       - {mechanic: second_wind}
       - {mechanic: piercing}
       - {mechanic: arcane_appraiser}
@@ -230,8 +350,30 @@ families:
     description: Death-workers who bargain with souls, bone and the restless dead.
     kin: [warlock, mage]
     options:
+      - {mechanic: blood_for_blood}
+      - {mechanic: dormant_venom}
+      - {mechanic: withering}
+      - {mechanic: blood_summons}
+      - {mechanic: familiars_eyes}
+      - {mechanic: dread_regent}
+      - {mechanic: bound_pair}
+      - {mechanic: deep_freeze}
+      - {mechanic: devourer}
+      - {mechanic: fearmonger}
+      - {mechanic: glass_cannon}
+      - {mechanic: grave_chorus}
+      - {mechanic: overchannel}
+      - {mechanic: pain_engine}
+      - {mechanic: plaguebearer}
+      - {mechanic: shared_skin}
+      - {mechanic: spell_echo}
+      - {mechanic: unmaking}
+      - {mechanic: vessel}
+      - {mechanic: memento_mori}
+      - {mechanic: pale_company}
+      - {mechanic: spirit_guide}
+      - {mechanic: visions}
       - {mechanic: vampiric}
-      - {mechanic: vampiric, when: at_night, values: [8,14]}
       - {mechanic: soul_harvest}
       - {mechanic: triumph}
       - {mechanic: terrify}
@@ -255,7 +397,6 @@ families:
       - {mechanic: inspire}
       - {mechanic: hardening}
       - {mechanic: retribution}
-      - {mechanic: terrify, when: at_night, values: [12,20]}
       - {mechanic: dread_name}
       - {mechanic: grave_robber}
       - {mechanic: deaths_ledger}
@@ -263,22 +404,51 @@ families:
       - {mechanic: tomb_sleeper}
       - {mechanic: unsettling_presence}
       - {mechanic: last_possessions}
-      - {mechanic: memento_mori}
 
   druid:
     description: Keepers of the wild who draw on beasts, growing things and weather.
     kin: [ranger, healer]
     options:
+      - {mechanic: dormant_venom}
+      - {mechanic: high_ground_hunter}
+      - {mechanic: scout_ahead}
+      - {mechanic: curse_of_rust}
+      - {mechanic: ley_tether}
+      - {mechanic: attuned_edge}
+      - {mechanic: withering}
+      - {mechanic: familiars_eyes}
+      - {mechanic: feral_form}
+      - {mechanic: arcane_precision}
+      - {mechanic: frostborne}
+      - {mechanic: frozen_ground}
+      - {mechanic: triage}
+      - {mechanic: mending_rhythm}
+      - {mechanic: twin_benediction}
+      - {mechanic: bound_pair}
+      - {mechanic: conduit}
+      - {mechanic: deep_freeze}
+      - {mechanic: devourer}
+      - {mechanic: echoing_mend}
+      - {mechanic: firebrand}
+      - {mechanic: overabundance}
+      - {mechanic: overcast}
+      - {mechanic: pack_alpha}
+      - {mechanic: plaguebearer}
+      - {mechanic: shared_skin}
+      - {mechanic: storm_chosen}
+      - {mechanic: thermal_shock}
+      - {mechanic: threefold_weave}
+      - {mechanic: vessel}
+      - {mechanic: practiced_hands}
+      - {mechanic: spirit_guide}
+      - {mechanic: symbiosis}
       - {mechanic: regeneration}
-      - {mechanic: regeneration, when: in_wilderness, values: [2,4]}
       - {mechanic: beast_friend}
       - {mechanic: tracker}
       - {mechanic: trailblazer}
       - {mechanic: retribution, when: in_wilderness, values: [15,25]}
-      - {mechanic: retribution}
       - {mechanic: frostbite}
       - {mechanic: stormcaller}
-      - {mechanic: stormcaller, when: in_bad_weather, values: [20,35]}
       - {mechanic: rending}
       - {mechanic: hardening}
       - {mechanic: barrier}
@@ -290,7 +460,6 @@ families:
       - {mechanic: unburdened, when: in_wilderness, values: [15,25]}
       - {mechanic: echoing, when: in_wilderness, values: [15,25]}
       - {mechanic: thunderous}
-      - {mechanic: hardening, when: in_wilderness, values: [4,6]}
       - {mechanic: vampiric, when: in_wilderness, values: [6,10]}
       - {mechanic: green_hands}
       - {mechanic: forager}
@@ -302,6 +471,26 @@ families:
     description: Menders and protectors whose strength is keeping themselves and others alive.
     kin: [druid, paladin]
     options:
+      - {mechanic: judgement}
+      - {mechanic: ley_tether}
+      - {mechanic: triage}
+      - {mechanic: mending_rhythm}
+      - {mechanic: sanctuary_circle}
+      - {mechanic: twin_benediction}
+      - {mechanic: selfless}
+      - {mechanic: shared_strength}
+      - {mechanic: consecration}
+      - {mechanic: echoing_mend}
+      - {mechanic: lasting_word}
+      - {mechanic: martyr}
+      - {mechanic: overabundance}
+      - {mechanic: overcast}
+      - {mechanic: shared_skin}
+      - {mechanic: spell_echo}
+      - {mechanic: two_fisted}
+      - {mechanic: frugal_hands}
+      - {mechanic: pious_path}
+      - {mechanic: visions}
       - {mechanic: regeneration}
       - {mechanic: second_wind}
       - {mechanic: rally}
@@ -314,19 +503,14 @@ families:
       - {mechanic: aegis}
       - {mechanic: guardian}
       - {mechanic: inspire}
-      - {mechanic: regeneration, when: at_low_health, values: [3,5]}
       - {mechanic: gravewarden}
       - {mechanic: graveward}
       - {mechanic: hellbane}
       - {mechanic: blinding}
-      - {mechanic: aegis, when: while_defending, values: [20,35]}
-      - {mechanic: regeneration, when: with_companion_present, values: [2,3]}
       - {mechanic: hardening}
       - {mechanic: spellmirror}
-      - {mechanic: unburdened, when: at_low_health, values: [15, 25]}
       - {mechanic: field_medic}
       - {mechanic: brewer}
-      - {mechanic: almsgiver}
       - {mechanic: bedside_manner}
       - {mechanic: apothecary}
       - {mechanic: mercy_remembered}
@@ -336,6 +520,29 @@ families:
     description: Commanders, nobles and captains who turn a fight with presence and orders.
     kin: [bard, paladin]
     options:
+      - {mechanic: judgement}
+      - {mechanic: scout_ahead}
+      - {mechanic: triage}
+      - {mechanic: coordinated_strike}
+      - {mechanic: twin_benediction}
+      - {mechanic: selfless}
+      - {mechanic: shared_strength}
+      - {mechanic: dread_regent}
+      - {mechanic: challenger}
+      - {mechanic: lasting_word}
+      - {mechanic: martyr}
+      - {mechanic: pack_tactics}
+      - {mechanic: showstopper}
+      - {mechanic: war_drum}
+      - {mechanic: above_the_law}
+      - {mechanic: borrowed_hands}
+      - {mechanic: campfire_cook}
+      - {mechanic: famous}
+      - {mechanic: known_craftsman}
+      - {mechanic: tavern_ear}
+      - {mechanic: troubadour}
+      - {mechanic: victors_name}
+      - {mechanic: well_trodden}
       - {mechanic: lucky_break}
       - {mechanic: inspire}
       - {mechanic: rally}
@@ -349,7 +556,6 @@ families:
       - {mechanic: last_stand}
       - {mechanic: second_wind}
       - {mechanic: triumph}
-      - {mechanic: inspire, when: first_round_of_combat, values: [20,35]}
       - {mechanic: battle_rhythm}
       - {mechanic: executioner}
       - {mechanic: opportunist}
@@ -370,6 +576,30 @@ families:
     description: Performers whose music and words soothe, unsettle and inspire.
     kin: [leader, rogue]
     options:
+      - {mechanic: withering}
+      - {mechanic: arcane_precision}
+      - {mechanic: coordinated_strike}
+      - {mechanic: mending_rhythm}
+      - {mechanic: twin_benediction}
+      - {mechanic: selfless}
+      - {mechanic: shared_strength}
+      - {mechanic: dread_regent}
+      - {mechanic: conduit}
+      - {mechanic: echoing_mend}
+      - {mechanic: fearmonger}
+      - {mechanic: flow_state}
+      - {mechanic: grave_chorus}
+      - {mechanic: lasting_word}
+      - {mechanic: showstopper}
+      - {mechanic: spell_echo}
+      - {mechanic: war_drum}
+      - {mechanic: above_the_law}
+      - {mechanic: all_or_nothing}
+      - {mechanic: borrowed_hands}
+      - {mechanic: famous}
+      - {mechanic: tavern_ear}
+      - {mechanic: troubadour}
+      - {mechanic: well_trodden}
       - {mechanic: lucky_break}
       - {mechanic: trusted_face}
       - {mechanic: terrify}
@@ -389,8 +619,6 @@ families:
       - {mechanic: barrier}
       - {mechanic: first_blood}
       - {mechanic: thunderous}
-      - {mechanic: terrify, when: first_round_of_combat, values: [12,20]}
-      - {mechanic: echoing, when: first_round_of_combat, values: [20,35]}
       - {mechanic: spellmirror}
       - {mechanic: crowd_pleaser}
       - {mechanic: local_favorite}
@@ -406,6 +634,18 @@ families:
     description: Summoners and beast-masters who fight through bound or tamed companions.
     kin: [druid, necromancer]
     options:
+      - {mechanic: blood_summons}
+      - {mechanic: familiars_eyes}
+      - {mechanic: feral_form}
+      - {mechanic: coordinated_strike}
+      - {mechanic: bound_pair}
+      - {mechanic: devourer}
+      - {mechanic: pack_alpha}
+      - {mechanic: pack_tactics}
+      - {mechanic: shared_skin}
+      - {mechanic: unmaking}
+      - {mechanic: vessel}
+      - {mechanic: spirit_guide}
       - {mechanic: guardian}
       - {mechanic: bulwark}
       - {mechanic: inspire}
@@ -425,7 +665,6 @@ families:
       - {mechanic: phantom, when: with_companion_present, values: [6,12]}
       - {mechanic: triumph}
       - {mechanic: last_stand}
-      - {mechanic: inspire, when: first_round_of_combat, values: [20,35]}
       - {mechanic: familiar_forager}
       - {mechanic: faithful_guardian}
       - {mechanic: pack_instinct}
@@ -441,13 +680,36 @@ families:
     description: Holy warriors who carry faith into battle against darkness.
     kin: [guardian, healer]
     options:
+      - {mechanic: juggernaut}
+      - {mechanic: headsman}
+      - {mechanic: judgement}
+      - {mechanic: quarry}
+      - {mechanic: attuned_edge}
+      - {mechanic: triage}
+      - {mechanic: sanctuary_circle}
+      - {mechanic: twin_benediction}
+      - {mechanic: selfless}
+      - {mechanic: bulwark_engine}
+      - {mechanic: challenger}
+      - {mechanic: consecration}
+      - {mechanic: echoing_mend}
+      - {mechanic: lasting_word}
+      - {mechanic: martyr}
+      - {mechanic: mirror_plate}
+      - {mechanic: overabundance}
+      - {mechanic: provoke}
+      - {mechanic: sworn_enemy}
+      - {mechanic: unbreakable}
+      - {mechanic: above_the_law}
+      - {mechanic: famous}
+      - {mechanic: pious_path}
+      - {mechanic: victors_name}
       - {mechanic: sanctified}
       - {mechanic: gravewarden}
       - {mechanic: hellbane}
       - {mechanic: graveward}
       - {mechanic: hellward}
       - {mechanic: aegis}
-      - {mechanic: aegis, when: while_defending, values: [20,35]}
       - {mechanic: retribution}
       - {mechanic: second_wind}
       - {mechanic: regeneration}
@@ -466,7 +728,6 @@ families:
       - {mechanic: riposte, when: while_defending, values: [15,25]}
       - {mechanic: barrier}
       - {mechanic: oathbound}
-      - {mechanic: almsgiver}
       - {mechanic: town_defender}
       - {mechanic: honest_face}
       - {mechanic: righteous_hunt}
@@ -477,23 +738,44 @@ families:
     description: Disciplined fighters who turn body, breath and stillness into weapons.
     kin: [rogue, healer]
     options:
+      - {mechanic: blood_for_blood}
+      - {mechanic: thick_of_it}
+      - {mechanic: shadowstep}
+      - {mechanic: steady_aim}
+      - {mechanic: scout_ahead}
+      - {mechanic: curse_of_rust}
+      - {mechanic: ley_tether}
+      - {mechanic: feral_form}
+      - {mechanic: frostborne}
+      - {mechanic: mending_rhythm}
+      - {mechanic: sanctuary_circle}
+      - {mechanic: adrenaline}
+      - {mechanic: bulwark_engine}
+      - {mechanic: challenger}
+      - {mechanic: consecration}
+      - {mechanic: deathleap}
+      - {mechanic: dread_ambusher}
+      - {mechanic: flow_state}
+      - {mechanic: mirror_plate}
+      - {mechanic: night_stalker}
+      - {mechanic: rampage}
+      - {mechanic: red_mist}
+      - {mechanic: nobody}
+      - {mechanic: pious_path}
+      - {mechanic: well_trodden}
       - {mechanic: flurry}
-      - {mechanic: flurry, when: after_moving, values: [20, 30]}
       - {mechanic: deflect}
-      - {mechanic: deflect, when: while_defending, values: [20, 35]}
       - {mechanic: windwalker}
       - {mechanic: phantom}
       - {mechanic: killer_instinct}
       - {mechanic: opportunist}
       - {mechanic: thunderous}
-      - {mechanic: thunderous, when: first_round_of_combat, values: [10, 18]}
       - {mechanic: riposte}
       - {mechanic: unyielding}
       - {mechanic: sanctified}
       - {mechanic: regeneration}
       - {mechanic: second_wind}
       - {mechanic: battle_rhythm}
-      - {mechanic: battle_rhythm, when: after_moving, values: [5, 9]}
       - {mechanic: unburdened}
       - {mechanic: echoing}
       - {mechanic: hardening}
@@ -512,13 +794,43 @@ families:
     description: Pact-bound casters who trade with dark powers for curses and hungering magic.
     kin: [necromancer, mage]
     options:
+      - {mechanic: headsman}
+      - {mechanic: blood_for_blood}
+      - {mechanic: shadowstep}
+      - {mechanic: curse_of_rust}
+      - {mechanic: ley_tether}
+      - {mechanic: attuned_edge}
+      - {mechanic: withering}
+      - {mechanic: blood_summons}
+      - {mechanic: arcane_precision}
+      - {mechanic: frozen_ground}
+      - {mechanic: shared_strength}
+      - {mechanic: dread_regent}
+      - {mechanic: bound_pair}
+      - {mechanic: conduit}
+      - {mechanic: devourer}
+      - {mechanic: fearmonger}
+      - {mechanic: firebrand}
+      - {mechanic: glass_cannon}
+      - {mechanic: grave_chorus}
+      - {mechanic: overcast}
+      - {mechanic: overchannel}
+      - {mechanic: pain_engine}
+      - {mechanic: plaguebearer}
+      - {mechanic: spell_echo}
+      - {mechanic: thermal_shock}
+      - {mechanic: threefold_weave}
+      - {mechanic: unmaking}
+      - {mechanic: vessel}
+      - {mechanic: enchanter}
+      - {mechanic: memento_mori}
+      - {mechanic: nobody}
+      - {mechanic: pale_company}
+      - {mechanic: visions}
       - {mechanic: lucky_break}
       - {mechanic: hex}
-      - {mechanic: hex, when: at_night, values: [18, 28]}
       - {mechanic: blood_pact}
-      - {mechanic: blood_pact, when: at_low_health, values: [25, 40]}
       - {mechanic: vampiric}
-      - {mechanic: vampiric, when: at_night, values: [8, 14]}
       - {mechanic: soul_harvest}
       - {mechanic: terrify}
       - {mechanic: blinding}
@@ -547,6 +859,21 @@ families:
     description: Smiths, leatherworkers, alchemists and tinkers whose craft is their strength.
     kin: [warrior, leader]
     options:
+      - {mechanic: juggernaut}
+      - {mechanic: siege_breaker}
+      - {mechanic: steady_aim}
+      - {mechanic: curse_of_rust}
+      - {mechanic: two_fisted}
+      - {mechanic: borrowed_hands}
+      - {mechanic: campfire_cook}
+      - {mechanic: enchanter}
+      - {mechanic: frugal_hands}
+      - {mechanic: known_craftsman}
+      - {mechanic: never_shoddy}
+      - {mechanic: practiced_hands}
+      - {mechanic: shaped_to_you}
+      - {mechanic: tavern_ear}
+      - {mechanic: trap_sense}
       - {mechanic: thrifty}
       - {mechanic: masterwork}
       - {mechanic: quick_hands}
@@ -574,7 +901,5 @@ families:
       - {mechanic: field_kit}
       - {mechanic: salvager}
       - {mechanic: signature_work}
-      - {mechanic: never_shoddy}
       - {mechanic: prospector}
-      - {mechanic: known_craftsman}
 

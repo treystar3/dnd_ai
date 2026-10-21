@@ -121,15 +121,15 @@ class CampActions:
 
     def camp_enemies(self, camp: dict, tpl: dict, which: str, surprise: str = "none", far: bool = False) -> tuple[list, list]:
         """(the first wave, the reserves). The first wave is the leader and a few guards; the rest arrive while the fight lasts."""
-        band = "far" if far else "near"
+        start = "far" if far else "near"
         guards = []
         for i, g in enumerate(camp["guards"]):
             if g["state"] == "up":
                 guards.append(combat.fighter_from_creature(self.world.bestiary[g["creature"]], g["level"], "normal",
-                                                           f"e{i + 1}", g["name"], band))
+                                                           f"e{i + 1}", g["name"], start))
         ld = camp["leader"]
         leader = combat.fighter_from_creature(self.world.bestiary[ld["creature"]], ld["level"],
-                                              "boss" if which == "boss" else "elite", "e0", ld["name"], band)
+                                              "boss" if which == "boss" else "elite", "e0", ld["name"], start)
         first = guards[:A["camp_waves"]["first"]]
         reserves = guards[A["camp_waves"]["first"]:]
         if surprise == "all":
@@ -144,7 +144,7 @@ class CampActions:
         bonus = list(self.check_bonuses(check, None, False, getattr(self, "last_text", "") or "")) + list(extra) \
             + list(getattr(self, "camp_bonus", None) or [])
         odds, why = checks.chance(c, check, self.check_triggers(check, False), None, bonus)
-        degree, rolled = checks.roll(odds)
+        degree, rolled = checks.roll(odds, c=c)
         console.debug(f"camp {label}: {check} {odds:.0f}% ({', '.join(why)}) - rolled {rolled}")
         console.note(checks.label(check, degree))
         self.camp_log(label, degree)
@@ -526,5 +526,5 @@ class CampActions:
         from scenes.combat_scene import CombatScene
         self.combat = CombatScene.begin(self, leader_c, enemies, "At the hideout," if n["kind"] == "lair" else "At the end of the trail,",
                                         reserves=reserves, wave=(A["camp_waves"]["every"], A["camp_waves"]["count"],
-                                              A["camp_waves"]["quiet_start"].get(surprise, 1)))
+                                              A["camp_waves"]["quiet_start"].get(surprise, 1)), big="camp", initiated=True)
         return True

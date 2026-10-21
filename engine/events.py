@@ -281,6 +281,8 @@ def build_paths(store, world, state, proposed, thread: dict, contract_posted: bo
             add({"id": f"talk_{p.target}", "name": p.name, "how": p.how, "kind": "persuade", "target": p.target, "spawn": "", "done": False})
         elif p.kind == "clear" and p.target in world.places and world.places[p.target].danger:
             add({"id": f"clear_{p.target}", "name": p.name, "how": p.how, "kind": "clear", "target": p.target, "spawn": "", "done": False})
+        elif p.kind == "find" and p.target in world.places and world.places[p.target].type != "road":
+            add({"id": f"find_{p.target}", "name": p.name, "how": p.how, "kind": "find", "target": p.target, "spawn": "", "done": False})
         elif p.kind == "contract" and contract_posted:
             add({"id": "contract", "name": p.name, "how": p.how, "kind": "contract", "target": "", "spawn": "", "done": False})
     if contract_posted:
@@ -323,6 +325,8 @@ def path_met(path: dict, state: dict, thread: dict) -> bool:
         return any(d.get("place") == path["target"] for d in deeds.since(state, made, ["dungeon_cleared"]))
     if path["kind"] == "contract":
         return any(d.get("thread") == thread["id"] for d in deeds.since(state, made, ["quest_done"]))
+    if path["kind"] == "find":
+        return any(d.get("place") == path["target"] and d.get("thread") == thread["id"] for d in deeds.since(state, made, ["found"]))
     return False
 
 
@@ -335,9 +339,25 @@ def after_deed(ws, deed: dict) -> None:
     state = store.load_world_state()
     if not state:
         return
+    from engine import matters
     changed = False
     for th in [x for x in state.get("threads", []) if x["status"] == "active"]:
-        if th["tier"] not in ("normal", "uncommon") and th.get("paths"):
+        if deed["kind"] == "quest_done" and deed.get("thread") == th["id"]:
+            if th.get("hidden") and not th.get("revealed"):          # (f317) the job is done; what it did not say comes out, and the matter stays open
+                matters.reveal(ws, state, th)
+                changed = True
+                continue
+            if th["tier"] in ("normal", "uncommon"):
+                pulse.end_thread(store, state, th, "resolved", f"{th['title']} - settled by {ws.player.character.name}.", ws.minutes)
+                th["result"] = "player"
+                matters.remember(store, world, th, "settled", ws.player.character.name, ws.minutes, ws.store.meta.turn)
+                try:
+                    ws.reputation_add(pulse.town_of(world, th["place"]), matters.D["memory"]["reputation"].get(th["tier"], 3))
+                except Exception:
+                    pass
+                changed = True
+                continue
+        if th.get("paths"):                                           # (f317) every tier has real ways to end it
             met = next((p for p in th["paths"] if not p["done"] and path_met(p, state, th)), None)
             if met:
                 met["done"] = True
@@ -345,11 +365,6 @@ def after_deed(ws, deed: dict) -> None:
                 finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
                 changed = True
                 continue
-        elif deed["kind"] == "quest_done" and deed.get("thread") == th["id"]:
-            pulse.end_thread(store, state, th, "resolved", f"{th['title']} - settled by {ws.player.character.name}.", ws.minutes)
-            th["result"] = "player"
-            changed = True
-            continue
         if judge_ok(world, state, th, deed, ws.minutes):
             changed |= judge(ws, state, th, deed)
     if changed or deed.get("dirty"):
@@ -443,12 +458,14 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     th["ending"] = ending
     if th["tier"] == "cataclysm":
         state["cataclysm_end"] = t
+    from engine import matters
     for pid in {th["place"], *th.get("hit_towns", [])}:
         if pid in world.places:
             try:
-                ws.reputation_add(pulse.town_of(world, pid), 6 if th["tier"] == "rare" else 12)
+                ws.reputation_add(pulse.town_of(world, pid), matters.D["memory"]["reputation"].get(th["tier"], 6))
             except Exception:
                 pass
+    matters.remember(store, world, th, "settled", name, t, ws.store.meta.turn)
     console.note(f"{th['title']} is ended - {how}.")
     if th["tier"] in ("campaign", "cataclysm"):
         grand_reward(ws, state, th)
@@ -577,10 +594,8 @@ def recruit_allies(ws, enemies) -> None:
         return
     towns = {pulse.town_of(ws.world, th["place"]), *th.get("hit_towns", [])} - {s.get("side")}
     cands = []
-    for nid in ws.store.list_npcs():
-        n = ws.store.load_npc(nid)
-        if n.gone or n.tier == "background" or n.trust < cfg["min_trust"] or n.role not in cfg["roles"]:
-            continue
+    from engine import retrieval
+    for n in ws.store.load_npcs([r.id for r in retrieval.with_role(ws.store, cfg["roles"], not_tier="background", min_trust=cfg["min_trust"])]):
         if pulse.town_of(ws.world, n.location) in towns and not any(m.get("npc") == n.id for m in ws.player.party):
             cands.append(n)
     cands.sort(key=lambda n: -n.trust)
@@ -588,8 +603,8 @@ def recruit_allies(ws, enemies) -> None:
     joined = []
     for n in cands[:min(room, cfg["max_join"])]:
         r = cfg["roles"][n.role]
-        ws.player.party.append({"id": f"npc_{n.id}", "name": n.name, "role": r["party"], "level": max(1, round(lvl * r["share"])),
-                                "blurb": f"{n.name}, {n.role.replace('_', ' ')}", "npc": n.id, "event": th["id"]})
+        ws.party_service.join({"id": f"npc_{n.id}", "name": n.name, "role": r["party"], "level": max(1, round(lvl * r["share"])),
+                               "blurb": f"{n.name}, {n.role.replace('_', ' ')}", "npc": n.id, "event": th["id"]})
         joined.append(n.name)
     if joined:
         console.note(f"{', '.join(joined)} {'comes' if len(joined) == 1 else 'come'} to stand with you against {s['name']}.")
@@ -617,10 +632,10 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
 
 def release_allies(ws) -> None:
     """The fight is over; realm-allies go home."""
-    left = [m for m in ws.player.party if m.get("npc")]
+    left = [m for m in ws.player.party if m.get("npc") and not m.get("stay")]
     if not left:
         return
-    ws.player.party = [m for m in ws.player.party if not m.get("npc")]
+    ws.party_service.dismiss(left, how="home")
     alive = [m["name"] for m in left if not ws.store.load_npc(m["npc"]).gone]
     if alive:
         console.note(f"{', '.join(alive)} {'goes' if len(alive) == 1 else 'go'} back to the work of rebuilding.")
@@ -780,9 +795,10 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
                f"MINIONS: {', '.join(sorted({world.bestiary[m['creature']].name for m in minions})) or 'none'}\n"
                f"PATHS (write one for each id): {', '.join(path_ids)}\nSTAGES: {stages_n}\n" + "\n".join(lines) +
                f"\nPLAYER LEVEL: {level}")
+    from engine import truth
     try:
         proposal = generate("pulse_cataclysm", pp.CATACLYSM_SYSTEM, request, CataclysmProposal, temperature=0.9, max_tokens=2400,
-                            validation_context={"stages": stages_n})
+                            validation_context={"stages": stages_n, "known": truth.world_words(world)})     # (f324) nothing named the world lacks
     except LLMError as e:
         console.debug(f"cataclysm: not this time ({e})")
         state["spawns"] = [s for s in state.get("spawns", []) if s["thread"] != thread_id]
@@ -846,6 +862,7 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
               "scope_places": [h for step in hits for h in step] + [boss_zone.id] + [l["town"] for l in leaders],
               "boss": boss["id"] if boss else "", "leaders": leaders,
               "antagonist": proposal.antagonist or (boss_c.name if boss_c else "the war"), "keepsake": proposal.keepsake, "fallen": [], "level": level,
+              "door": "scene", "summons": "pending", "moment": "", "sender": "", "clues": [], "touched": False, "answered": False, "opened": t,   # (f324) a threatened town's anchors may send for the player
               "triumph": {"description": proposal.triumph or "The danger passes, and the survivors begin to rebuild.",
                           "effects": [{"kind": "mark", "place": origin.id, "text": f"{proposal.title} was ended here"}]}}
     state["threads"].append(thread)
@@ -870,6 +887,9 @@ def on_stage(store, world, catalog, state, th: dict, t: int, rng: random.Random)
     if sig:
         pulse.add_news(state, sig, th["place"], t, th["groups"])
     for town in hits[i] if i < len(hits) else []:
+        if _player_in(store, world, town) and [s for s in live_spawns(state, t, th["id"]) if not s["boss"]]:      # (f324) fought for, not rolled
+            state.setdefault("assaults", []).append({"thread": th["id"], "town": town, "stage": i, "minute": t})
+            continue
         town_outcome(store, world, catalog, state, th, town, i, t, rng)
     ahead = i + C["warn_stages"]
     if ahead < len(hits):
@@ -915,9 +935,21 @@ def boss_dead(state: dict, th: dict) -> bool:
     return bool(s and s["defeated"])
 
 
-def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: int, rng: random.Random) -> None:
-    """A town is hit. It falls or holds by a roll; people are caught by the result; homes may be ruined."""
+def _player_in(store, world, town: str) -> bool:
     pulse = _pulse()
+    if not store.player_exists():
+        return False
+    try:
+        return pulse.town_of(world, store.load_player().location) == town
+    except Exception:
+        return False
+
+
+def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: int, rng: random.Random, held_by_player: bool = False) -> None:
+    """A town is hit. It falls or holds by a roll; people are caught by the result; homes may be ruined. held_by_player (f324): the
+    assault was beaten at the gate - the town holds, no roll, and the toll is a holding town's."""
+    pulse = _pulse()
+    from engine import matters
     cfg = C["fall"]
     kind = C["kinds"][th["kind"]]
     p = (cfg["base"] + cfg["per_stage"] * stage_i) * kind["fall_mult"]
@@ -927,15 +959,10 @@ def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: i
         if path["kind"] == "treaty":
             won = sum(1 for i in path["target"].split(",") if i and _won_over(state, th["made"], i))
             p *= C["treaty_fall_halving"] ** won
-    present = False
-    if store.player_exists():
-        try:
-            present = pulse.town_of(world, store.load_player().location) == town
-        except Exception:
-            pass
+    present = _player_in(store, world, town)
     if present:
         p *= cfg["player_present"]
-    fell = rng.random() < p
+    fell = False if held_by_player else rng.random() < p
     name = world.places[town].name
     refuge = _refuge(world, th, town)
     caught = _catch_people(store, world, state, th, town, fell, refuge, t, rng)
@@ -945,11 +972,18 @@ def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: i
         ps.marks = (ps.marks + [f"half in ruin after {th['title']}"])[-12:]
         store.save_place(ps)
         th.setdefault("fallen", []).append(town)
+        state.setdefault("fallen", {})[town] = t                                   # (f324) the town's condition reads this: ruined, then rebuilding
         pulse.add_news(state, f"{name} has fallen. {_toll_text(caught)}", town, t, ["everyone"])
+        matters.town_note(store, world, town, f"{name} fell to {th['title']}. {_toll_text(caught)}", t)
         state.setdefault("player_events", []).append({"kind": "fell", "town": town, "title": th["title"], "present": present,
                                                       "roll": rng.random()})
     else:
-        if caught["dead"] or caught["fled"]:
+        if held_by_player and store.player_exists():
+            who = store.load_player().character.name
+            pulse.add_news(state, f"{name} held against {th['title']} - {who} stood at the gate. {_toll_text(caught)}", town, t, ["everyone"])
+            matters.town_note(store, world, town, f"{name} held against {th['title']}: {who} stood at the gate", t)
+            th.setdefault("held", []).append(town)
+        elif caught["dead"] or caught["fled"]:
             pulse.add_news(state, f"{name} held. {_toll_text(caught)}", town, t, ["everyone"])
         else:
             pulse.add_news(state, f"{name} held against {th['title']}.", town, t, ["everyone"])
@@ -978,10 +1012,8 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
     out = {"dead": [], "fled": []}
     base = C["toll"]["falls" if fell else "holds"]
     lost_roles = []
-    for nid in store.list_npcs():
-        n = store.load_npc(nid)
-        if n.gone or pulse.town_of(world, n.location) != town:
-            continue
+    from engine import retrieval
+    for n in store.load_npcs([r.id for r in retrieval.people_in_town(store, world, town)]):
         risk = base * C["role_risk"].get(n.role, 1.0)
         if n.tier != "background":
             risk *= C["met_risk"]
@@ -999,6 +1031,10 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
                    else f"killed defending {world.places[town].name} against {th['antagonist']}")
             pulse.remove_npc(store, world, n, how, t)
             out["dead"].append(n.name + (f" ({n.role.replace('_', ' ')})" if n.role.startswith("guild") or n.role in ("priest", "smith") else ""))
+            if n.role == "monarch":                                              # (f324) the crown is dead: the whole kingdom hears
+                from engine import matters
+                pulse.add_news(state, f"The crown is dead: {n.name} {how}. The kingdom waits on the heir.", town, t, ["everyone"])
+                matters.town_note(store, world, town, f"{n.name}, who ruled, {how}", t)
         lost_roles.append((n.role, n.location))
     for role, loc in lost_roles:
         _vacancy_for(state, world, loc, role, t, rng)
@@ -1013,7 +1049,7 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
 
 def _memory(t: int, text: str):
     from npc.models import Memory
-    return Memory(day=clock.day(t), turn=-1, text=text)
+    return Memory(day=clock.day(t), turn=-1, text=text, importance=3)
 
 
 def _vacancy_for(state: dict, world, place_id: str, role: str, t: int, rng: random.Random) -> None:
@@ -1042,10 +1078,24 @@ def vacant_roles(store, place_id: str, now: int) -> dict[str, int]:
 # ---------- what the player sees ----------
 
 def apply_player_events(ws) -> None:
-    """Pending notices for the player: warnings for homes in the path, homes lost. Called by the scene after the pulse runs."""
+    """Pending notices for the player: warnings for homes in the path, homes lost, and (f324) a cataclysm reaching the town they stand in,
+    which is fought at the gate rather than rolled. Called by the scene after the pulse runs."""
     store = ws.store
     state = store.load_world_state()
-    if not state or not state.get("player_events"):
+    if not state:
+        return
+    if state.get("assaults") and not ws.combat:
+        pending, state["assaults"] = state["assaults"], []
+        store.save_world_state(state)
+        for a in pending:
+            if not _begin_assault(ws, a):
+                st = store.load_world_state()
+                th = next((x for x in st.get("threads", []) if x["id"] == a["thread"]), None)
+                if th:
+                    town_outcome(store, ws.world, ws.catalog, st, th, a["town"], a["stage"], a["minute"], random.Random(f"{store.meta.seed}:fall:{a['town']}:{a['minute']}"))
+                    store.save_world_state(st)
+        state = store.load_world_state()
+    if not state.get("player_events"):
         return
     evs, state["player_events"] = state["player_events"], []
     rng = random.Random(f"{store.meta.seed}:homes:{ws.minutes}")
@@ -1054,6 +1104,10 @@ def apply_player_events(ws) -> None:
         town = ev["town"]
         name = ws.world.places[town].name
         home = ws.player.homes.get(town)
+        if ev["kind"] == "warn" and _player_in(store, ws.world, town):                 # (f324) in the path, and here: it is a scene, not a notice
+            ws.weight_hint = "rich"
+            ws.narrate(f"WORD HAS COME THAT {name.upper()} LIES IN THE PATH OF {ev['title'].upper()}. Show what that does to the place in front of the player: "
+                       "those who can leaving, the watch readying, the ones who cannot leave making what ready they can. No one addresses the player unless it fits.")
         if ev["kind"] == "warn" and home and not home.get("ruined"):
             fort = "fortify" in home["upgrades"]
             console.note(f"Word comes that {name} lies in the path of {ev['title']}. Your house there is in danger"
@@ -1071,6 +1125,61 @@ def apply_player_events(ws) -> None:
     if changed:
         ws.ensure_homes()
         store.save_player(ws.player)
+
+
+def _begin_assault(ws, a: dict) -> bool:
+    """(f324) The host reaches the town the player stands in: the moment is shown, and the thread's own creatures come at the gate. The
+    fight's end decides the town (assault_over). False when the player is elsewhere now or there is nothing to fight."""
+    store = ws.store
+    state = store.load_world_state()
+    th = next((x for x in state.get("threads", []) if x["id"] == a["thread"]), None)
+    if not th or not _player_in(store, ws.world, a["town"]) or ws.combat:
+        return False
+    hosts = [s for s in live_spawns(state, ws.minutes, th["id"]) if not s["boss"]]
+    if not hosts:
+        return False
+    s = hosts[0]
+    rng = random.Random(f"{store.meta.seed}:assault:{a['town']}:{a['minute']}")
+    creature, fighters = spawn_fighters(ws.world, s, rng, ws.player.character.level)
+    stage = th["stages"][a["stage"]]
+    name = ws.world.places[a["town"]].name
+    ws.weight_hint = "major"
+    ws.narrate(f"{th['title'].upper()} REACHES {name.upper()}, NOW, WITH THE PLAYER IN IT. {stage.get('signs', '')} {stage['description']} "
+               f"Show the host coming at the town - {creature.name.lower()}s at the gate - and the people's fear; the player stands between. "
+               "Do not say how it goes.")
+    ws.assault = {"thread": th["id"], "town": a["town"], "stage": a["stage"], "minute": a["minute"]}
+    from scenes.combat_scene import CombatScene
+    ws.combat = CombatScene.begin(ws, creature, fighters, f"At the gate of {name},", big="wild")
+    console.debug(f"assault: {th['title']} at {a['town']} - {len(fighters)} x {creature.id}")
+    return True
+
+
+def assault_over(ws, outcome: str) -> None:
+    """(f324) The fight at the gate is over: a victory holds the town without a roll; anything else lets the roll run, the player counted."""
+    a = getattr(ws, "assault", None)
+    if not a:
+        return
+    ws.assault = None
+    store = ws.store
+    state = store.load_world_state()
+    th = next((x for x in state.get("threads", []) if x["id"] == a["thread"]), None)
+    if not th:
+        return
+    rng = random.Random(f"{store.meta.seed}:fall:{a['town']}:{a['minute']}")
+    won = outcome == "victory"
+    town_outcome(store, ws.world, ws.catalog, state, th, a["town"], a["stage"], ws.minutes, rng, held_by_player=won)
+    store.save_world_state(state)
+    name = ws.world.places[a["town"]].name
+    if won:
+        from engine import deeds
+        deeds.log(store, "defend", ws.minutes, a["town"], thread=th["id"], town=a["town"])
+        try:
+            ws.reputation_add(a["town"], C.get("held_reputation", 15))
+        except Exception:
+            pass
+        console.note(f"{name} holds. The gate is yours, and the town knows it.")
+    else:
+        console.note(f"The gate is lost; what becomes of {name} is in other hands now.")
 
 
 def after_ignored(store, world, state, th: dict, t: int) -> None:
