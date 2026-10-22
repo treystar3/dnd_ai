@@ -814,5 +814,37 @@
   text: "I buy a meal, then ask Hollis about the roads"
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
   plan: [{kind: buy, destination: the Tilted Plough, target: i1, speech: 'I buy a meal, then ask Hollis about the roads', ware: meal from i1, summary: Buying a meal from the innkeeper.}, {kind: talk, destination: the Tilted Plough, target: i1, speech: 'I buy a meal, then ask Hollis about the roads', summary: Asking the innkeeper about the roads.}]
-  expect: {handled_by: interpret, kinds: [buy, talk], steps: [{}, {speech: ask Hollis about the roads}]}
+  expect: {handled_by: interpret, kinds: [buy, talk], steps: [{}, {'speech!': 'I buy a meal, then ask Hollis about the roads'}]}   # its own clause, or the model's own words: never the whole line
   note: "as the model read two_actions_in_order"
+
+# ---- the second wide live run (146/152): its six misses, pinned
+- name: a_wordless_talk_beside_the_heal_is_dropped
+  text: "I heal Bram with Mending Light"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}]}
+  plan: [{kind: ability, ability: mending_light, summary: Healing Bram with Mending Light}, {kind: talk, target: 'hire:h0', summary: Healing Bram with Mending Light}]
+  expect: {handled_by: interpret, kinds: [ability]}
+  note: "as the model read healing_a_hire_is_an_ability"
+- name: the_material_used_twice_beside_the_craft_is_dropped
+  text: "I forge myself a spear from the bronze"
+  scene: {place: trading_square, pack: ['raw:bronze', 'raw:bronze']}
+  plan: [{kind: craft, item: spear, summary: I forge myself a spear from the bronze}, {kind: use, item: raw bronze, summary: I use raw bronze to forge a spear}, {kind: use, item: raw bronze, summary: I use raw bronze to forge a spear}]
+  expect: {handled_by: interpret, kinds: [craft]}
+  note: "as the model read forging_your_own_gear_is_craft"
+- name: a_wait_for_the_mark_beside_the_theft_is_dropped
+  text: "I slip a hand into the merchant's purse while he's distracted"
+  scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}]}
+  plan: [{kind: steal, item: purse, force: true, summary: I slip a hand into the merchant's purse while he's distracted.}, {kind: talk, target: m1, speech: '...', summary: I wait for the merchant to be distracted.}]
+  expect: {handled_by: interpret, kinds: [steal], first: {target: m1}}
+  note: "as the model read picking_a_pocket_is_steal"
+- name: a_greeting_beside_the_theft_is_dropped
+  text: "I pocket a draught from the herbalist's table when she looks away"
+  scene: {place: trading_square, present: [{id: e1, name: Mirel, role: herbalist}]}
+  plan: [{kind: steal, item: a healing draught, summary: I pocket a draught from the herbalist's table when she looks away}, {kind: talk, target: e1, speech: Hello there., summary: I greet the herbalist}]
+  expect: {handled_by: interpret, kinds: [steal], first: {target: e1}}
+  note: "as the model read lifting_from_a_stall_is_steal"
+- name: a_candle_lit_read_as_other_is_pray
+  text: "I light a candle for my mother"
+  scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
+  plan: [{kind: other, summary: I light a candle for my mother}]
+  expect: {handled_by: interpret, kinds: [pray]}
+  note: "as the model read lighting_a_candle_is_pray"

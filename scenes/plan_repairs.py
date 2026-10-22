@@ -84,6 +84,8 @@ TRAIN = re.compile(r"\b(teach|taught|train|training|lessons?|drills?|tutor|tutor
 ASKING = re.compile(r"\b(me|my|i want|i'd like|i would like|can you|could you|will you|would you|i wish|i need)\b")
 JOB = re.compile(r"\b((take|do|accept|start|finish|have) (the|that|this|your|my) (job|work|task)|put me to work|hire me|i'll work|"
                  r"ready to work|work for you)\b")
+PRAYING = re.compile(r"\b(pray|prayer|prayers|kneel|kneels|light a candle|lights? a candle|candle for|altar|offering|give thanks|gives thanks|"
+                     r"vow|blessing|the gods|the god|goddess)\b")
 LOOKING = re.compile(r"\b(look|looks|looking|examine|inspect|see|watch|glance|study|survey|around|peer|gaze|check|take in|scan|notice|read|"
                      r"admire|observe|eye)\b")
 PARTING = ("turn", "walk", "step", "nod", "wave", "leave", "move", "stop", "fall", "say", "go", "back")
@@ -205,6 +207,9 @@ class PlanRepairs:
                     a.kind, a.target, a.item = "train", teacher.id, a.item or a.speech
             elif JOB.search(low) and who is not None and not question and not re.search(r"\b(don'?t|do not|won'?t|not|never)\b", low):
                 a.kind = "work"
+        for a in plan:                                                # an 'other' that is a small rite is a prayer, anywhere
+            if a.kind == "other" and PRAYING.search(f"{a.summary} {low}".lower()) and not question:
+                a.kind = "pray"
 
     def ware_named(self, low: str, seller) -> str:
         """The id of the seller's ware the line names ("the room"), '' when none or several."""
@@ -284,8 +289,13 @@ class PlanRepairs:
             why = ""
             if a.kind == "attack" and any(b.kind == "ability" and opens_a_fight(b) and (not a.target or not b.target or a.target == b.target) for b in before):
                 why = "the ability opens the fight"
-            elif a.kind == "use" and any(b.kind == "craft" and norm(a.item) and norm(a.item) in norm(f"{b.summary} {b.item}") for b in plan if b is not a):
-                why = "the ingredient of the craft"
+            elif a.kind == "use" and any(b.kind == "craft" for b in plan) and \
+                    (any(w in materials for w in re.findall(r"[a-z]+", a.item.lower().replace("raw", "")))
+                     or any(b.kind == "craft" and (words(a.item.replace("raw", "")) & words(f"{b.summary} {b.item}")) for b in plan if b is not a)):
+                why = "the ingredient or material of the craft"
+            elif a.kind == "talk" and any(b.kind == "steal" and (not b.target or not a.target or b.target == a.target) for b in plan if b is not a) \
+                    and (not norm(a.speech) or norm(a.speech) not in norm(low)) and '"' not in low:
+                why = "a word to the mark the line never said"
             elif a.kind == "give" and any(b.kind == "commission" for b in plan) \
                     and any(w in materials for w in re.findall(r"[a-z]+", a.item.lower().replace("raw", ""))) \
                     and not re.search(r"\b(gift|present|keep it|for you)\b", low):
