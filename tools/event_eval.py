@@ -67,8 +67,8 @@ def judge(got: dict, expect: dict) -> list[str]:
         bad.append(f"result {got['result']!r}, not {expect['result']!r}")
     if "min_stage" in expect and got["stage"] < int(expect["min_stage"]):
         bad.append(f"reached stage {got['stage']}, not {expect['min_stage']}")
-    if "won_path" in expect and str(expect["won_path"]).lower() not in got["won_path"].lower():
-        bad.append(f"path met {got['won_path']!r}, not one with {expect['won_path']!r}")
+    if "won_path" in expect and str(expect["won_path"]).lower() not in (got["won_path"] + " " + got.get("won_path_id", "")).lower():
+        bad.append(f"path met {got['won_path']!r} ({got.get('won_path_id', '')}), not one with {expect['won_path']!r}")   # the id is the engine's, the name the writer's
     if "reward" in expect and bool(got["reward"]) != bool(expect["reward"]):
         bad.append("no reward" if expect["reward"] else "a reward when there should be none")
     if "titles" in expect and bool(got["titles"]) != bool(expect["titles"]):
@@ -110,6 +110,9 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict
             print(("ok   " if not bad else "FAIL ") + f"{case['name']:<34} " + et.verdict(out) + ("" if not bad else "\n     <- " + "; ".join(bad)))
             if live:
                 print(f"     model wrote: {out['title']!r}; paths {[p for p, _ in out['paths']]}")
+            if not out["started"]:
+                for l in out["lines"][-3:]:
+                    print(f"     {l[:200]}")
     n = len(cases)
     by: dict[str, list[int]] = {}
     for case, (_, _, bad) in zip(cases, results):

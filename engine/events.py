@@ -291,6 +291,34 @@ def build_paths(store, world, state, proposed, thread: dict, contract_posted: bo
     return out
 
 
+def ensure_a_way(store, world, state, th: dict, t: int, rng: random.Random) -> dict | None:
+    """A big event the model wrote with no way the engine can check (a kill it named by a word, a person who does not exist, no boss)
+    would run its course untouchable, ending only by the judge or by time. So it gets one: a boss of the nearest zone, a creature that
+    fits the zone's band near the player's level, abroad from the second stage, and the kill path that goes with it (sync_paths). The
+    model's boss_lines, if it wrote any, are its voice. Returns the spawn, or None when nothing could be placed."""
+    from engine.encounters import CREATURE_RULES
+    pulse = _pulse()
+    level = player_level(store)
+    zone = nearest_zone(world, th["place"], level)
+    if zone is None:
+        return None
+    cands = world.creature_candidates(zone.id, CREATURE_RULES["rarity_weight"], CREATURE_RULES.get("fit"))
+    pool = sorted([c for c, w in cands if w > 0 and c.levels[1] >= level - 10], key=lambda c: (abs((c.levels[0] + c.levels[1]) // 2 - (level + 4)), c.id))[:4]         or sorted([c for c, _ in cands], key=lambda c: (-c.levels[1], c.id))[:4]
+    if not pool:
+        return None
+    c = rng.choice(pool)
+    boss_level = level + rng.randint(*C["boss_levels_over"])
+    live_from = th["times"][1] if len(th.get("times", [])) > 1 else t
+    days = max(1, (th["times"][-1] - t) // 1440) + 30
+    s = add_spawn(store, world, state, th["id"], zone.id, c.id, True, t, days=days, level=boss_level, live_from=live_from,
+                  tier=th["tier"] if th["tier"] in ("campaign", "cataclysm") else "", lines=th.get("boss_lines") or {})
+    if s:
+        sync_paths(state, th)
+        pulse.pulselog.note("thread", f"{th['title']}: the model wrote no way to end it, so {s['name']} (level {boss_level}) will haunt {zone.name} from stage 2")
+        console.debug(f"event: {th['title']} had no path; {s['name']} placed in {zone.id} as its end")
+    return s
+
+
 def sync_paths(state: dict, th: dict) -> None:
     """A boss that turned up in a later stage becomes a way to end the event."""
     have = {p.get("spawn") for p in th.get("paths", [])}

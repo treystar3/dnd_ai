@@ -254,6 +254,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         posted = post_contract(store, world, proposal.contract, thread, t, plain=thread["hidden"])
     thread["posted"] = posted
     thread["paths"] = events.build_paths(store, world, state, proposal.paths, thread, posted and not thread["hidden"])
+    if big and not thread["paths"]:                                  # a big event the model left with no checkable way to end it gets one
+        events.ensure_a_way(store, world, state, thread, t, rng)
     if big:
         thread["scope_places"] = sorted({e.place for st in proposal.stages for e in st.effects if e.place in world.places})
     console.debug(f"pulse: [{tier}] {proposal.title} at {proposal.place}")

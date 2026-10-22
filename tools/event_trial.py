@@ -64,6 +64,8 @@ class Trial:
         self.notes: list[str] = []
         self.narrations: list[str] = []
         self.lines: list[str] = []
+        self.debug: list[str] = []
+        uc.debug = lambda m, *a, **k: self.debug.append(str(m))
         if quiet:
             uc.note = lambda m, *a, **k: self.notes.append(str(m))
             uc.narrate = lambda t, *a, **k: None
@@ -105,7 +107,18 @@ class Trial:
 
     # ---------- the event
 
-    def start(self, pressure: str = "") -> bool:
+    def start(self, pressure: str = "", tries: int = 3) -> bool:
+        """Begin the event; the model may give nothing usable (a coined name, a telling the engine refuses), and the game would try
+        again at the next slot, so this tries up to `tries` times and keeps every reason."""
+        for n in range(tries):
+            if self.start_once(pressure):
+                return True
+            why = [d for d in self.debug if "not this time" in d or "nothing usable" in d or "miss" in d][-1:] or self.debug[-1:]
+            self.lines.append(f"start attempt {n + 1} failed: " + ("; ".join(why) if why else "no reason given"))
+            self.rng = random.Random(self.seed + 11 * (n + 1))
+        return False
+
+    def start_once(self, pressure: str = "") -> bool:
         from engine import events, pulse
         state = self.store.load_world_state()
         if self.tier == "campaign":
@@ -310,7 +323,8 @@ class Trial:
         c = self.ws.player.character
         out = {"tier": self.tier, "kind": th.get("kind", self.kind), "title": th.get("title", ""), "level": self.level, "days": self.day,
                "started": bool(th), "status": th.get("status", ""), "result": th.get("result", ""), "ending": th.get("ending", ""),
-               "won_path": (th.get("won_path") or {}).get("name", ""), "paths": [(p["id"], p["done"]) for p in th.get("paths", [])],
+               "won_path": (th.get("won_path") or {}).get("name", ""), "won_path_id": (th.get("won_path") or {}).get("id", ""),
+               "paths": [(p["id"], p["done"]) for p in th.get("paths", [])],
                "stages": len(th.get("stages", [])), "stage": th.get("stage", 0) + 1, "reward": [n for n in self.notes if n.startswith("The survivors give")],
                "coins_gained": c.coins - self.coins0, "titles": [t for t in self.ws.player.titles if t not in self.titles0],
                "fallen": sorted((self.store.load_world_state() or {}).get("fallen", {}).keys()),
@@ -346,8 +360,8 @@ def run(tier: str, kind: str = "", level: int = 60, cls: str = "warrior", seed: 
     trial = Trial(tier, kind, level, cls, seed, live, save, quiet)
     if not trial.start(pressure):
         return {"tier": tier, "kind": kind, "title": "", "level": level, "days": 0, "started": False, "status": "", "result": "", "ending": "",
-                "won_path": "", "paths": [], "stages": 0, "stage": 0, "reward": [], "coins_gained": 0, "titles": [], "fallen": [], "problems": [],
-                "acted": [], "lines": trial.lines, "notes": trial.notes, "seconds": 0}
+                "won_path": "", "won_path_id": "", "paths": [], "stages": 0, "stage": 0, "reward": [], "coins_gained": 0, "titles": [], "fallen": [],
+                "problems": [], "acted": [], "lines": trial.lines, "notes": trial.notes, "seconds": round(time.time() - trial.start_at, 1)}
     return trial.run(days, ignore, prefer, act_from_stage)
 
 
@@ -383,7 +397,8 @@ def play(tier: str, kind: str, level: int, cls: str, seed: int, pressure: str, d
     problems = invariants.validate_campaign(bot.store, bot.world)
     return {"tier": tier, "kind": (th or {}).get("kind", kind), "title": (th or {}).get("title", ""), "level": bot.c.level, "days": bot.day,
             "started": bool(ok and th), "status": (th or {}).get("status", ""), "result": (th or {}).get("result", ""), "ending": (th or {}).get("ending", ""),
-            "won_path": ((th or {}).get("won_path") or {}).get("name", ""), "paths": [(p["id"], p["done"]) for p in (th or {}).get("paths", [])],
+            "won_path": ((th or {}).get("won_path") or {}).get("name", ""), "won_path_id": ((th or {}).get("won_path") or {}).get("id", ""),
+            "paths": [(p["id"], p["done"]) for p in (th or {}).get("paths", [])],
             "stages": len((th or {}).get("stages", [])), "stage": (th or {}).get("stage", 0) + 1, "reward": [], "coins_gained": 0,
             "titles": list(bot.ws.player.titles), "fallen": sorted(st.get("fallen", {}).keys()), "problems": [str(p) for p in problems],
             "acted": [json.dumps(b) for b in bot.big_log], "lines": [f"the bot stopped: {bot.aborted}"] + [json.dumps(x) for x in getattr(bot, "exc_log", [])[-5:]],
