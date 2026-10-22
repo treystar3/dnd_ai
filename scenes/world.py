@@ -307,8 +307,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here."""
-        pulse.catch_up(self.store, self.world, self.catalog, self.minutes)
-        from engine import events
+        from engine import drift, events
+        drift.apply_player(self.player, pulse.catch_up(self.store, self.world, self.catalog, self.minutes) or {})   # (f331) what the drift owes the record this scene holds
         events.apply_player_events(self)
         self.arc_tick()
         here = self.store.load_place(self.player.location)
@@ -386,8 +386,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def enter(self, place_id: str) -> None:
         self.wildlife = None
-        if pulse.town_of(self.world, place_id) != pulse.town_of(self.world, self.player.location):
+        new_town, old_town = pulse.town_of(self.world, place_id), pulse.town_of(self.world, self.player.location)
+        if new_town != old_town:
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
+            from engine import ambient
+            if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
+                self.player.last_in[old_town] = self.minutes                       # (f331) when the player last left a town
+            self._arrival_lines = ambient.since(self.store, self.world, new_town, self.player.last_in.get(new_town), self.minutes)
         self.leave_road(place_id)
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
@@ -1134,11 +1139,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seen = self.__dict__.setdefault("_happenings_seen", set())
         unseen = [h for h in here.lines("happenings") if (self.player.location, h) not in seen]    # (f323) told once, and again when it changes
         seen.update((self.player.location, h) for h in unseen)
+        unseen = self.__dict__.pop("_arrival_lines", []) + unseen                                  # (f331) what changed here while the player was away, once
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
                                        unseen, rule["length"], streets=here.streets(),
-                                       town=" ".join(prof.character.split()) if prof and not self.place.danger else "")
+                                       town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
+                                       news=here.lines("news")[:3])                                 # (f331) the narrator hears what the town is talking about
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=rule["tokens"],
                        temperature=0.4 if strict else 0.9)
         shown = self.unnamed(result.text)

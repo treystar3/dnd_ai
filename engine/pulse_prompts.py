@@ -91,6 +91,20 @@ def place_context(world, store, place, now, season, threads, history, pressures,
     )
 
 
+# ---------- (f331) the engine's own situations, re-told when the player comes where they are ----------
+
+TELLING_SYSTEM = """You are the hidden life of a fantasy world. The game has already DECIDED a situation somewhere - what it is, where,
+who is in it, what it will do and how it could end - and written it plainly. You re-tell the given lines in the world's own words, so
+that what the player meets reads as something that happened to real people in a real place, not as a form filled in.
+
+Keep every fact exactly: the same place, the same creature, the same people (by their trade - "the shepherd", "the innkeeper"; never a
+name), the same things lost, found, blocked, paid or killed, the same outcome. Add texture, not events: a detail seen, a thing said, the
+weather of it. Each line is one or two sentences. A CLUE is what that person would say to a stranger who asked, in their own voice. The
+TRUTH is the whole of it in plain words. The FALLOUT is how it ends if nobody steps in. The REVEAL is what the one who does the guild's
+job finds that the posting did not say. Write one re-told line for every line given, in order; an empty string keeps a line as it is.
+Name nobody and nowhere that is not in the lines or under PLACES and CREATURES. Never involve the player. Respond only with JSON matching the schema."""
+
+
 # ---------- big events: campaigns that change the world's shape, cataclysms, and the judge ----------
 
 BIG_EXTRA = """

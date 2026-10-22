@@ -139,6 +139,8 @@ class Pressure(BaseModel):
     scope: Literal["individual", "local", "regional", "national", "kingdom", "global"]
     campaign: bool = False                       # suitable as a campaign-scale event (preferred when a campaign starts)
     reward: list[str] = []                       # grand reward hints: any of item, deed, mount, title
+    template: str = ""                           # (f331) the engine's template for situations it builds itself (data/rules/threads.yaml); the kind's when empty
+    words: dict[str, str] = {}                   # (f331) slots fixed for this pressure: creature: wolf, wild: greywood
 
 
 class Landmark(BaseModel):

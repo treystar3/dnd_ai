@@ -252,6 +252,14 @@ class Stub:
             out["contract"] = {"kind": "hunt", "what": r.choice(["wolves", "boars", "goblins", "giant spiders", "bandits"]), "count": 3}
         return out
 
+    def a_ThreadTelling(self, u, k):
+        stages = re.findall(r"^STAGE \d+: (.*)$", u, re.M)
+        clues = re.findall(r"^CLUE \d+ \(.*?\): (.*)$", u, re.M)
+        one = lambda key: (re.search(rf"^{key}: (.*)$", u, re.M).group(1) if re.search(rf"^{key}: ", u, re.M) else "")
+        told = lambda t: ("(retold) " + t) if t else ""
+        return {"stages": [told(t) for t in stages], "clues": [told(t) for t in clues], "fallout": told(one("FALLOUT")),
+                "truth": told(one("TRUTH")), "reveal": told(one("REVEAL")), "resolution": told(one("RESOLUTION"))}
+
     def a_CataclysmProposal(self, u, k):
         n = int(re.search(r"STAGES: (\d+)", u).group(1))
         ids = re.search(r"PATHS \(write one for each id\): (.*)", u).group(1).split(", ")

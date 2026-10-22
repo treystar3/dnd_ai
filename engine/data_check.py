@@ -209,6 +209,16 @@ def check() -> list[str]:
         from scenes import intercepts as _ic
         for p_ in _ic.problems(_WS):
             need(False, p_)
+    from engine import threads as _th                        # (f331) the engine's own situations: templates, effect kinds, slots, the pressures that use them
+    from llm.contracts import WorldEffect as _WE
+    import typing as _ty
+    _pl = {p_["id"] for p_ in _load("data/world/places.yaml")}
+    _cr = {c_["id"] for c_ in _load("data/world/bestiary.yaml")}
+    for p_ in _th.problems({pr["id"]: pr for pr in _load("data/world/pressures.yaml")}, _ty.get_args(_WE.model_fields["kind"].annotation), _pl, _cr):
+        need(False, p_)
+    from engine import drift as _dr
+    for p_ in _dr.problems({t_["id"] for t_ in _load("data/traits.yaml")}):
+        need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
           "generic_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},

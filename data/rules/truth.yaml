@@ -36,7 +36,7 @@ profiles:                                  # which facets each kind of reader is
   hire:        [here, present, town, board, happenings, lately, news]
   maren:       [here, present, town, board, happenings]
   banter:      [here, present, town, happenings, lately, news]
-  narrator:    [here, present, happenings, lately]
+  narrator:    [here, present, happenings, lately, news]
 
 # What the player did here lately (f330: engine/reactions.py, the campaign journal). A deed those present saw is known to them, and to the
 # narrator; the public kinds below are known to everyone of the town. Nothing done unseen, nothing from another town.

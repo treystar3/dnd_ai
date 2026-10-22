@@ -375,7 +375,7 @@ let pulseFilter = "";
 function renderPulse(d) {
   side.appendChild(el("div", "dimrow", `Now ${d.now}. Last pulse ${d.last}; next in ${d.next_in} min (every ${d.interval} min).`));
   const bar = el("div", "pulsebar");
-  for (const k of ["", "thread", "stage", "end", "motive", "miss"]) {
+  for (const k of ["", "thread", "stage", "end", "motive", "drift", "miss"]) {
     const b = el("button", pulseFilter === k ? "on" : "", k || "all");
     b.onclick = () => { pulseFilter = k; paintSide(); };
     bar.appendChild(b);

@@ -75,6 +75,7 @@ class PlayerState(BaseModel):
     delve: dict | None = None      # inside a dungeon: {"dungeon", "floor", "chamber", "rest"}
     reputation: dict[str, int] = {}  # how each town regards the player, -100..100
     visited: list[str] = []        # places the player has been
+    last_in: dict[str, int] = {}   # (f331) town id -> the game minute the player last left it, for "since you were last here"
     audiences: dict[str, int] = {}  # (f320) places whose door has been opened to the player: place -> game minute it shuts (engine/court.py)
     heard: list[str] = []          # places the player has heard of (named by someone, in a contract) without having been there
     free_room_day: int = -1        # Sing for Your Supper: a room is owed tonight

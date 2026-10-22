@@ -1,0 +1,42 @@
+# AMBIENT HAPPENINGS (f331, engine/ambient.py): what is going on in a town on an ordinary day, chosen by the engine from the town's
+# state and the calendar, with no model call. The lines join HAPPENING HERE beside the situations' own (engine/truth.py), so the
+# narrator and every speaker see the same day; the narrator is told once, as with any happening.
+#
+# A rule fires where its `when` holds; one line is chosen for the day (the same all day). Conditions the engine knows:
+#   market_day: N      every N days, offset by the town, in the working hours of the day
+#   funeral: D         someone of the town was lost within D days, in a way that reads as a death ({name} is theirs)
+#   heat: H            the player's heat in this town is at least H
+#   season: s          in that season; with days: [from, to] within it and roles: [..] only at a town with such people
+#   prices_at_least: P / danger_at_least: D    the total of the live effects at the town's places
+#   scales: [..]       only at towns of these scales (truth.yaml); any when absent
+rules:
+  - id: market_day
+    when: {market_day: 7}
+    scales: [village, town, city, capital]
+    lines: ["Market day in {town}: stalls up in the square, carts in from every road, and more strangers about than usual.",
+            "It is market day; {town} is loud with trade, and anyone with something to sell is selling it."]
+  - id: funeral
+    when: {funeral: 2}
+    lines: ["A funeral today: black cloth on a door, a slow procession, and {name}'s people standing about in their best.",
+            "{Town} is burying {name} today; the lanes are quiet and the inn is full of those come to pay respects."]
+  - id: watch_out
+    when: {heat: 40}
+    lines: ["The watch is out in numbers, stopping people and asking after a stranger.",
+            "There are more of the watch about than usual, and they are looking at faces."]
+  - id: harvest
+    when: {season: autumn, days: [1, 12], roles: [farmer, orchard_keeper]}
+    lines: ["Harvest: carts of grain and fruit on every road, and everyone who can walk out in the fields till dark.",
+            "The harvest is in full swing; {town} smells of cut grain and there is nobody idle."]
+  - id: planting
+    when: {season: spring, days: [1, 10], roles: [farmer]}
+    lines: ["Planting time: the fields around {town} are full of people and the roads full of mud."]
+  - id: hungry_market
+    when: {prices_at_least: 20}
+    lines: ["The market is thin and dear; people are arguing over prices and going home with less than they came for."]
+  - id: fearful
+    when: {danger_at_least: 40}
+    lines: ["Nobody is going far from the walls; the roads out are watched from the gate, and the flocks are kept close."]
+
+# "Since you were last here" (engine/ambient.py since): on coming back to a town after at least min_days away, the narrator is handed,
+# once, the plain changes the world made there in the meantime - situations begun and ended, what still leans on prices and danger.
+since: {min_days: 1, most: 4}

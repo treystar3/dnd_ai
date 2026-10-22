@@ -123,7 +123,8 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
-                      happenings: list[str] = (), length: str = "two to five sentences", streets: list[str] = (), town: str = "") -> str:
+                      happenings: list[str] = (), length: str = "two to five sentences", streets: list[str] = (), town: str = "",
+                      news: list[str] = ()) -> str:
     visible = "\n".join(f"  - {v}" for v in list(place.visible) + list(streets))       # (f313) the crowd, the watch, the town's state and landmarks, from the truth layer
     present = "\n".join(f"  - {label}: {desc} Right now: {activity}" for label, desc, activity in people) or "  (no one)"
     said = f'\nPLAYER\'S WORDS: "{player_text}"' if player_text else ""
@@ -135,7 +136,9 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
            if marks else "")
         + (f"LYING ON THE GROUND HERE: {', '.join(ground)}\n" if ground else "")
         + (f"WHAT'S GOING ON HERE LATELY (let it show in the scene when it would be noticed): {' '.join(happenings)}\n"
-           if happenings else "") +
+           if happenings else "")
+        + (f"WHAT PEOPLE HERE ARE TALKING ABOUT (background only; nobody recites it, nobody addresses the player with it): {' '.join(news)}\n"
+           if news else "") +
         f"GAME EVENT: {event}{said}\nLENGTH: {length}\n"
         "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)")
     )
