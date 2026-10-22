@@ -4,6 +4,7 @@ Bound to 127.0.0.1 only. Every request except the static files needs the random 
 header must be the local address, so no other site or machine can drive the game."""
 
 import json
+import re
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,7 +18,9 @@ WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).
 STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg"}
 for _f in ("literata-latin-400-normal", "literata-latin-400-italic", "literata-latin-600-normal", "literata-latin-700-normal"):
     STATIC[f"/fonts/{_f}.woff2"] = "font/woff2"                       # (f326) the reading face for the story column
-PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": []}
+PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}}
+TEXT_KINDS = ("narration", "speech", "speaker", "note", "wait", "combat", "echo", "pane")   # what the Settings pane styles (app.js TEXT_KINDS)
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 MAX_BODY = 65536
 
 
@@ -45,11 +48,32 @@ def load_prefs() -> dict:
         out["theme"] = raw["theme"]
     if _good_order(raw.get("order")):
         out["order"] = list(raw["order"])
+    if _good_text(raw.get("text")):
+        out["text"] = raw["text"]
     return out
 
 
 def _good_order(v) -> bool:
     return isinstance(v, list) and len(v) <= 40 and all(isinstance(x, str) and x.startswith("#") and len(x) <= 24 for x in v)
+
+
+def _good_text(v) -> bool:
+    """{kind: {size?: 10..28, dark?: '#rrggbb', light?: '#rrggbb'}} for the kinds the window styles, nothing else."""
+    if not isinstance(v, dict) or len(v) > len(TEXT_KINDS):
+        return False
+    for kind, spec in v.items():
+        if kind not in TEXT_KINDS or not isinstance(spec, dict):
+            return False
+        for f, x in spec.items():
+            if f == "size":
+                if isinstance(x, bool) or not isinstance(x, (int, float)) or not 10 <= x <= 28:
+                    return False
+            elif f in ("dark", "light"):
+                if not isinstance(x, str) or not _HEX.match(x):
+                    return False
+            else:
+                return False
+    return True
 
 
 def prefs_problem(new) -> str:
@@ -69,6 +93,8 @@ def prefs_problem(new) -> str:
             return "theme must be auto, light or dark"
         if k == "order" and not _good_order(v):
             return "order must be a list of commands"
+        if k == "text" and not _good_text(v):
+            return "text must be sizes (10-28) and colours (#rrggbb, per theme) by kind"
     return ""
 
 
