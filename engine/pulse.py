@@ -395,13 +395,14 @@ def lift(state: dict, th: dict, t: int) -> None:
 def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     lift(state, th, t)
     th["status"] = status
+    th["ended_at"] = t
     if state.get("campaign") == th["id"]:
         state["campaign"] = ""
     state["history"].append({"minute": t, "text": line, "place": th["place"]})
     state["history"] = state["history"][-200:]
-    done = [x for x in state.get("threads", []) if x["status"] != "active"]
-    if len(done) > FINISHED_KEPT:
-        drop = {x["id"] for x in done[:-FINISHED_KEPT]}
+    done = sorted([x for x in state.get("threads", []) if x["status"] != "active"], key=lambda x: x.get("ended_at", x.get("made", 0)))
+    if len(done) > FINISHED_KEPT:                     # the finished records kept are the ones that ended last - never the one ending now,
+        drop = {x["id"] for x in done[:-FINISHED_KEPT]}   # which used to be first out when it was the oldest made (a cataclysm, every time)
         state["threads"] = [x for x in state["threads"] if x["id"] not in drop]
     add_news(state, line, th["place"], t, th["groups"], thread=th["id"])
 
