@@ -81,7 +81,7 @@ def creature_menu(world, place_id: str, limit: int = 28) -> str:
     from engine.encounters import CREATURE_RULES
     zone = nearest_zone(world, place_id)
     out, seen = [], set()
-    cands = world.creature_candidates(zone.id, CREATURE_RULES["rarity_weight"]) if zone else []
+    cands = world.creature_candidates(zone.id, CREATURE_RULES["rarity_weight"], CREATURE_RULES.get("fit")) if zone else []   # the best fits first
     for c, _ in sorted(cands, key=lambda cw: -cw[1]):
         if c.id not in seen and len(out) < limit:
             seen.add(c.id)

@@ -214,8 +214,10 @@ class World(BaseModel):
     def road_between(self, a: str, b: str) -> Road | None:
         return next((r for r in self.roads.values() if {r.from_, r.to} == {a, b}), None)
 
-    def creature_candidates(self, place_id: str, rarity_weight: dict[str, float]) -> list[tuple[Creature, float]]:
-        """Creatures that could live in this place, with their roll weights. Empty if the place has no danger."""
+    def creature_candidates(self, place_id: str, rarity_weight: dict[str, float], fit: dict | None = None) -> list[tuple[Creature, float]]:
+        """Creatures that could live in this place, with their roll weights. Empty if the place has no danger. With `fit`
+        (data/rules/creatures.yaml), a creature whose level range sits where the place's band sits weighs more than one that
+        merely overlaps it: the weight is scaled by how much of the band they cover times how much of their own range lies in it."""
         place = self.places[place_id]
         if not place.danger or not place.biome:
             return []
@@ -226,7 +228,12 @@ class World(BaseModel):
                 continue
             if c.levels[1] < low or c.levels[0] > high:
                 continue
-            found.append((c, rarity_weight.get(c.rarity, 0)))
+            weight = rarity_weight.get(c.rarity, 0)
+            if fit and weight:
+                shared = max(0, min(high, c.levels[1]) - max(low, c.levels[0])) + 1
+                cover, share = shared / (high - low + 1), shared / (c.levels[1] - c.levels[0] + 1)
+                weight *= max(float(fit.get("floor", 0.05)), cover * share)
+            found.append((c, weight))
         return found
 
     def place_chain(self, place_id: str) -> list[Place]:

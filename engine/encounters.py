@@ -23,7 +23,7 @@ def ensure_roster(store, world, place_id: str) -> list[str]:
         return state.roster
     if not world.places[place_id].danger:
         return state.roster
-    found = world.creature_candidates(place_id, CREATURE_RULES["rarity_weight"])
+    found = world.creature_candidates(place_id, CREATURE_RULES["rarity_weight"], CREATURE_RULES.get("fit"))   # peers before stragglers
     rng = random.Random(f"{store.meta.seed}:roster:{place_id}")
     roster = list(anchors)
     pool = [f for f in found if f[0].id not in roster]
