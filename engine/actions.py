@@ -68,7 +68,7 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they drop, leave or set down something from YOUR PACK"""),
     Action("pick_up", "pick something up from the ground", words=("pick up", "loot"),
            prompt="""they pick up or take something listed ON THE GROUND HERE"""),
-    Action("give", "give an item or coin to someone here", targeted=True, verbs=("give", "hand", "bribe"),
+    Action("give", "give an item or coin to someone here", targeted=True, verbs=("give", "hand", "bribe"), words=("offer",),
            prompt="""they give or hand something from YOUR PACK or KEY ITEMS to a person here"""),
     Action("show", "show someone an item or key item", targeted=True, verbs=("give", "hand", "show"),
            prompt="""they show, present or display something (usually from KEY ITEMS) to a person here"""),
