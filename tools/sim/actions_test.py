@@ -38,6 +38,13 @@ check("a kind added to the table is described without a hand edit", "  other    
 from scenes import intercepts
 check("the intercepts the mixins declare make a consistent table", intercepts.problems(WorldScene) == [], intercepts.problems(WorldScene))
 check("they run in their declared order, the errand first and the way out of town last", [i.name for i in WorldScene.INTERCEPT_TABLE][:2] == ["errand", "mentor_intercept"] and WorldScene.INTERCEPT_TABLE[-1].name == "exit", [i.name for i in WorldScene.INTERCEPT_TABLE])
+from scenes import plan_repairs
+check("the plan repairs the mixins declare make a consistent table", plan_repairs.problems(WorldScene) == [], plan_repairs.problems(WorldScene))
+check("they run in their declared order, markup first and the harvest rule last", WorldScene.REPAIR_TABLE[0].name == "scrub_markup" and WorldScene.REPAIR_TABLE[-1].name == "one_harvest", [r.name for r in WorldScene.REPAIR_TABLE])
+class Ghost(WorldScene):
+    REPAIRS = (plan_repairs.Repair("tidy_fields", 60, "tidy_fields"), plan_repairs.Repair("ghost", 61, "no_such_repair"))
+probs = plan_repairs.problems(Ghost)
+check("a repair declared twice, and one naming a method the scene lacks, are caught at start-up", any("declared twice" in p for p in probs) and any("no_such_repair" in p for p in probs), probs)
 class Twice(WorldScene):
     INTERCEPTS = (intercepts.Intercept("errand", 10, "errand_intercept"), intercepts.Intercept("ghost", 11, "no_such_method"))
 probs = intercepts.problems(Twice)

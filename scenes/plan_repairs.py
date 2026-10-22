@@ -1,20 +1,72 @@
-"""Plan repairs (f333): what the engine straightens in the interpreter's reading before any step runs.
+"""Plan repairs (f333): what the engine straightens in the interpreter's reading before any step runs, declared in one ordered table.
 
 Why: the live evaluator (tools/interp_eval.py --live) showed the model making the same few slips over and over, each one a habit rather
-than a misunderstanding - the catalogue's own label "room from i1" copied into `ware`, the seller's id put in `destination`, an attack
-added after the spell that already starts the fight, a `look` invented at the end of a line that never looks, a parting narrated as
-speech, a hand of cards read as talk, "I use Mending Light" read as an item. Each habit here is one small rule the game applies itself;
-the model is never asked twice. Every rule is pinned offline by a case in data/replay/interp_cases.yaml that carries the model's own
-reading, so a rule that stops working is caught without a model.
+than a misunderstanding - the catalogue's own label copied into `ware`, the seller's id put in `destination`, an attack added after the
+spell that already starts the fight, a `look` invented at the end of a line that never looks, a parting narrated as speech, a hand of
+cards read as talk, "I use Mending Light" read as an item. Each habit is one small rule the game applies itself; the model is never
+asked twice. The rules grew into a second pipeline whose order decided meaning, the way the intercepts once were (scenes/intercepts.py),
+so they are declared the same way: each mixin lists the repairs it owns (its REPAIRS tuple), the scene gathers them in order, repair()
+runs them one after another, and every change is recorded by the rule's name - in the turn log (engine/turnlog.py `repairs`), in --debug,
+and in the evaluator's count of which rules fire. data_check refuses to start a game whose table is inconsistent.
 
-The rules run in handle() after the narrated-talk and local-building repairs (scenes/world.py) and before the guild and bribe rewrites.
-They only ever move a field, change a kind or drop a step; none adds a step the model did not read."""
+A repair is a scene method `fn(text, plan) -> list | None`: it may change the steps in place (None) or return the steps to keep. It only
+ever moves a field, changes a kind or drops a step; none adds a step the model did not read. Every rule here is pinned offline by a case
+in data/replay/interp_cases.yaml that carries the model's own reading, so a rule that stops working is caught without a model."""
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from engine import actions
 from ui import console
+
+
+@dataclass(frozen=True)
+class Repair:
+    name: str                  # what the turn log and the evaluator call it
+    order: int                 # lower runs first
+    method: str                # the scene method: fn(text, plan) -> list | None
+    note: str = ""             # what it straightens, for anyone reading the table
+
+
+def gather(scene_class) -> tuple[Repair, ...]:
+    """Every repair the scene's classes declare, in order of `order`."""
+    found: list[Repair] = []
+    for cls in scene_class.__mro__:
+        found.extend(cls.__dict__.get("REPAIRS", ()))
+    return tuple(sorted(found, key=lambda r: r.order))
+
+
+def problems(scene_class) -> list[str]:
+    """What does not agree: a method the scene lacks, a name or an order declared twice."""
+    out = []
+    table = gather(scene_class)
+    names = [r.name for r in table]
+    orders = [r.order for r in table]
+    for n in sorted({n for n in names if names.count(n) > 1}):
+        out.append(f"plan repair '{n}' is declared twice")
+    for o in sorted({o for o in orders if orders.count(o) > 1}):
+        out.append(f"plan repair order {o} is used twice: {', '.join(r.name for r in table if r.order == o)}")
+    for r in table:
+        if not callable(getattr(scene_class, r.method, None)):
+            out.append(f"plan repair '{r.name}' names a method the scene lacks: {r.method}")
+    return out
+
+
+def describe(scene_class) -> list[str]:
+    return [f"{r.order:>4}  {r.name:<16} {r.method}  {r.note}" for r in gather(scene_class)]
+
+
+def brief(plan: list) -> str:
+    """A plan in a few words, for the record of what a rule changed: 'talk:i1 buy:i1/meal'."""
+    out = []
+    for a in plan:
+        d = a if isinstance(a, dict) else a.model_dump(exclude_defaults=True)
+        what = d.get("target") or d.get("destination") or ""
+        thing = d.get("ware") or d.get("item") or d.get("ability") or d.get("seek") or ""
+        out.append(d.get("kind", "?") + (f":{what}" if what else "") + (f"/{thing[:18]}" if thing else ""))
+    return " ".join(out) or "-"
+
 
 GOING = re.compile(r"\b(go|goes|going|walk|head|travel|ride|set out|set off|make for|off to|over to|leave for|to the|towards?|visit|return)\b")
 WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|the bar|the counter|a table|the table|the corner|the hearth|the fire|"
@@ -49,27 +101,44 @@ def words(text: str) -> set[str]:
 
 
 class PlanRepairs:
+    REPAIRS = (
+        Repair("tidy_fields", 60, "tidy_fields", "'room from i1' is the catalogue's label: the ware is the room, the seller the target; a person's id in destination is the target"),
+        Repair("one_goodbye", 70, "one_goodbye", "a talk and a leave_conversation to the one they were speaking with is one parting"),
+        Repair("quiet_parting", 80, "quiet_parting", "a parting narrated as speech ('I turn away') is not words said"),
+        Repair("talk_to_deed", 90, "talk_to_deed", "a talk that is a hand of cards, a price beaten down, a lesson asked for or a job taken is that deed"),
+        Repair("use_to_ability", 100, "use_to_ability", "an ability named as if it were an item in the pack is the ability"),
+        Repair("move_elsewhere", 110, "move_elsewhere", "out of a delve is leave_dungeon; a roof is a climb (other); upstairs or the bar is look"),
+        Repair("fishing", 120, "fishing", "fishing is one attempt where they stand, not a hunt for fish or a journey to the water"),
+        Repair("drop_restatements", 130, "drop_restatements", "a step that only says again what another does goes: the attack after the spell, the ingredient beside the craft, a look nobody asked for"),
+        Repair("name_the_target", 140, "name_the_target", "a step aimed at someone, with nobody named in it, is for the one person the line names"),
+    )
 
-    def repair_plan(self, text: str, plan: list) -> list:
-        """The habits, each straightened in turn; the order is the order the slips feed one another (a field moved before a kind is
-        changed, a kind changed before a restating step is dropped, a target named last for whatever still lacks one)."""
-        here = {n.id: n for n in self.present}
-        self.tidy_fields(plan, here)
-        plan = self.one_goodbye(plan)
-        self.quiet_parting(plan)
-        self.talk_to_deed(text, plan, here)
-        self.use_to_ability(plan)
-        self.move_elsewhere(text, plan)
-        plan = self.fishing(text, plan)
-        plan = self.drop_restatements(text, plan)
-        self.name_the_target(text, plan)
+    # ---------- the runner
+
+    def repair(self, text: str, plan: list) -> list:
+        """Every repair in its declared order; each change recorded under the rule's name (self.repairs, for the turn log)."""
+        self.repairs = []
+        for r in self.REPAIR_TABLE:
+            before = [a.model_dump(exclude_defaults=True) for a in plan]
+            out = getattr(self, r.method)(text, plan)
+            if out is not None:
+                plan = out
+            after = [a.model_dump(exclude_defaults=True) for a in plan]
+            if after != before:
+                was, now = brief(before), brief(after)
+                self.repairs.append({"rule": r.name, "before": was, "after": now})
+                console.debug(f"repair {r.name}: {was} -> {now}")
         return plan
+
+    def here_map(self) -> dict:
+        return {n.id: n for n in self.present}
 
     # ---------- fields
 
-    def tidy_fields(self, plan: list, here: dict) -> None:
+    def tidy_fields(self, text: str, plan: list) -> None:
         """"room from i1" is the catalogue's own label, copied: the ware is the room, the seller is i1. A person's id in `destination`
         is the target. The place they already stand in, named as a destination on a step that is not a move, is nothing."""
+        here = self.here_map()
         here_names = {norm(self.place.name), norm(self.place.name).removeprefix("the "), self.player.location}
         for a in plan:
             for f in ("ware", "item"):
@@ -89,7 +158,7 @@ class PlanRepairs:
 
     # ---------- conversation
 
-    def one_goodbye(self, plan: list) -> list:
+    def one_goodbye(self, text: str, plan: list) -> list | None:
         """"Thanks, that's all. Goodbye." read as a talk and then a leave_conversation is one parting, said to the one they were talking
         with: the words go on the leaving step, which says them in parting (on_leave_conversation)."""
         partner = self.partner.id if self.partner else ""
@@ -98,26 +167,24 @@ class PlanRepairs:
             if a.kind == "talk" and b.kind == "leave_conversation" and partner and a.target in ("", partner) and b.target in ("", partner):
                 b.speech = b.speech.strip() or a.speech
                 b.target = partner
-                console.debug("a talk and a leave_conversation to the same person: one parting")
                 return plan[:k] + plan[k + 1:]
-        return plan
+        return None
 
-    @staticmethod
-    def quiet_parting(plan: list) -> None:
+    def quiet_parting(self, text: str, plan: list) -> None:
         """"I turn away from Osric and say nothing more" put in a leave_conversation's speech is narration, not words said in parting."""
         for a in plan:
             if a.kind == "leave_conversation" and a.speech.strip():
                 said = re.sub(r"^\W*(?:i|we)\s+(?:try to |will |'ll )?", "", a.speech.strip().lower())
                 lead = re.findall(r"[a-z']+", said)[:2]
                 if lead and lead[0] in PARTING:
-                    console.debug(f"a parting narrated, not spoken: {a.speech[:50]!r}")
                     a.speech = ""
 
     # ---------- a talk that is a deed
 
-    def talk_to_deed(self, text: str, plan: list, here: dict) -> None:
+    def talk_to_deed(self, text: str, plan: list) -> None:
         """A talk whose words are a pastime or a request the game has a kind for: a hand of cards is gamble, beating a price down is
         haggle (when a ware of the seller's is named), asking the instructor to teach is train, taking the job offered is work."""
+        here = self.here_map()
         low = text.lower()
         question = low.strip().endswith("?")
         for a in plan:
@@ -126,22 +193,18 @@ class PlanRepairs:
             who = here.get(a.target)
             if GAMBLE.search(low):
                 a.kind = "gamble"
-                console.debug(f"a talk that is a game: {text[:50]!r}")
             elif HAGGLE.search(low) and not question:
                 sellers = [n for n in here.values() if self.world.roles[n.role].sells]
                 seller = who if who in sellers else (sellers[0] if sellers and who is None else None)
                 ware = self.ware_named(low, seller) if seller is not None else ""
                 if ware:
                     a.kind, a.ware, a.target = "haggle", ware, seller.id
-                    console.debug(f"a talk that bargains over {ware}: haggle")
             elif TRAIN.search(low) and ASKING.search(low) and (not question or self.asks_what(low)):
                 teacher = who if who is not None and who.role == "guild_instructor" else (self.instructor_here() if who is None else None)
                 if teacher is not None:
                     a.kind, a.target, a.item = "train", teacher.id, a.item or a.speech
-                    console.debug("a talk asking the instructor to teach: train")
             elif JOB.search(low) and who is not None and not question and not re.search(r"\b(don'?t|do not|won'?t|not|never)\b", low):
                 a.kind = "work"
-                console.debug(f"a talk taking up {who.label()}'s job: work")
 
     def ware_named(self, low: str, seller) -> str:
         """The id of the seller's ware the line names ("the room"), '' when none or several."""
@@ -154,7 +217,7 @@ class PlanRepairs:
 
     # ---------- things and abilities
 
-    def use_to_ability(self, plan: list) -> None:
+    def use_to_ability(self, text: str, plan: list) -> None:
         """"I use Mending Light on myself": an ability named as if it were an item in the pack is the ability."""
         from engine import inventory as inv, loadout
         for a in plan:
@@ -164,7 +227,6 @@ class PlanRepairs:
             hit = next((ab for ab in loadout.prepared(self.player.character) if named in (ab.name.lower(), ab.id.lower())), None)
             if hit is not None and inv.find(self.pack, a.item) is None:
                 a.kind, a.ability, a.item = "ability", hit.id, ""
-                console.debug(f"'{named}' used as an item is the ability {hit.id}")
 
     # ---------- going nowhere
 
@@ -178,37 +240,33 @@ class PlanRepairs:
             dest = a.destination.strip()
             if self.player.delve and OUT_OF_DUNGEON.search(low):
                 a.kind, a.destination = "leave_dungeon", ""
-                console.debug("a move while delving, with the words of climbing out: leave_dungeon")
                 continue
             if dest in self.world.places or any(dest.lower() == pl.name.lower() or dest.lower() == pl.name.lower().removeprefix("the ")
                                                  for pl in self.world.places.values()):
                 continue
             if HIGH.search(dest.lower()) and (CLIMB.search(low) or not GOING.search(low)):
                 a.kind, a.destination, a.summary = "other", "", a.summary or text
-                console.debug(f"'{dest}' is not a place but a climb: other")
             elif WITHIN.search(dest.lower()) or WITHIN.search(low) and not self.local_person(dest):
                 a.kind, a.destination = "look", ""
-                console.debug(f"'{dest}' is within this place: look")
 
-    def fishing(self, text: str, plan: list) -> list:
+    def fishing(self, text: str, plan: list) -> list | None:
         """"I fish in the river for my supper" is one attempt where they stand: not a hunt for fish (search) and not a journey to the
         water, unless they said they go."""
         low = text.lower()
         if not FISHING.search(low):
-            return plan
+            return None
         kept = []
         for a in plan:
             if a.kind in ("search", "forage", "look") and FISHING.search(f"{a.seek} {a.summary} {a.item}".lower()):
                 a.kind, a.seek, a.summary = "other", "", a.summary or text
             elif a.kind == "move" and not GOING.search(low):
-                console.debug(f"fishing: the move to {a.destination} was not asked for")
                 continue
             kept.append(a)
         return kept or plan
 
     # ---------- a step restating another
 
-    def drop_restatements(self, text: str, plan: list) -> list:
+    def drop_restatements(self, text: str, plan: list) -> list | None:
         """Steps the model adds that only say again what another step does: an attack after the ability that opens the fight; the
         ingredient 'used' beside the craft that uses it; the material 'given' beside the commission made from it; cutting the bonds
         beside the release; a look or search after the harvest, about the same beast; a look nobody asked for at the end of a line."""

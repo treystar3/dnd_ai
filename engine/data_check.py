@@ -209,6 +209,9 @@ def check() -> list[str]:
         from scenes import intercepts as _ic
         for p_ in _ic.problems(_WS):
             need(False, p_)
+        from scenes import plan_repairs as _pr                 # (f333) the plan repairs, declared like the intercepts
+        for p_ in _pr.problems(_WS):
+            need(False, p_)
     from engine import threads as _th                        # (f331) the engine's own situations: templates, effect kinds, slots, the pressures that use them
     from llm.contracts import WorldEffect as _WE
     import typing as _ty
