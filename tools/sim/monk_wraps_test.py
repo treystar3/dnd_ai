@@ -29,7 +29,7 @@ def setup(effect, armored=False):
 def duel(effect, armored=False, seed=1):
     ch = setup(effect, armored)
     p = combat.fighter_from_character(ch)
-    e = combat.fighter_from_creature(world.bestiary["troll"], 50, "normal", "e1", band="engaged")
+    e = combat.fighter_from_creature(world.bestiary["troll"], 50, "normal", "e1", start="engaged")
     return p, e, combat.Combat(fighters=[p, e]), random.Random(seed)
 
 p, e, c, r = duel("ki_strike"); p.stamina = 0

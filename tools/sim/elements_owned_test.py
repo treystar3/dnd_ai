@@ -59,7 +59,7 @@ check("a frost name on a fire slot is turned back", bool(p) and "reads as cold" 
 u = dict(s, element="")
 check("an unaligned slot is told to stay unaligned", "carries no element" in AS.mechanic_text(u))
 p = AS.text_problem(u, "Fire Bolt", "a bolt of flame")
-check("...and an elemental name on it is turned back", bool(p) and "not elemental" in p, p)
+check("...and an elemental name on it is turned back", bool(p) and "no element" in p, p)
 check("a name with no element words is fine either way", "reads as" not in (AS.text_problem(s, "Arcane Spear", "a lance of force") or ""))
 
 # ---- carried through to the ability and into combat

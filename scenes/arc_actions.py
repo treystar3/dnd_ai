@@ -193,6 +193,7 @@ class ArcActions:
 
     def work_site(self, data: dict, arc: dict, n: dict, tpl: dict) -> None:
         """Search a place with the best fitting skill. Failures cost hours; three and the thread turns up another way, at a cost of days."""
+        c = self.player.character
         sn = self.story_node(arc, n["id"])
         rng = random.Random(f"{self.store.meta.seed}:site:{arc['id']}:{n['id']}")
         skill, odds = self.best_of(n.get("check") or tpl["site_checks"])
@@ -223,7 +224,7 @@ class ArcActions:
         evidence = min(C["evidence_cap"], proper * C["evidence_per_step"])
         skill, odds = self.best_of(tpl["confront_checks"], [("evidence", evidence)])
         rng = random.Random(f"{self.store.meta.seed}:confront:{arc['id']}")
-        degree, _ = checks.roll(odds, rng, c=c)
+        degree, _ = checks.roll(odds, rng, c=self.player.character)
         sn = self.story_node(arc, n["id"])
         who = sn.get("npc_name") or "the one behind it"
         console.debug(f"arc confront: {skill} {odds:.0f}% (evidence +{evidence}) -> {degree}")

@@ -5,6 +5,7 @@
 # class could ever use is reachable, own families weigh most, and a class's identity is anchored by its signature slots.
 draw:
   rings: {own: 0.7, kin: 0.5, foreign: 0.35}          # weight of a perk by where it sits relative to the class's families
+  shared_power: 0.8                                   # a perk one family owns outweighs one that n families share by (1/n) to this power
   archetype_lean: 0.25                                # a family leans an archetype when this share of its options are tagged with it
   dormant_needs: [stance]                             # fuel no character can have yet (f250: no stances until they are redesigned) - never drawn
   class_needs:                                        # fuel only some classes are built around (f269): a perk needing it is drawn only for them

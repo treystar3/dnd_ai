@@ -9,6 +9,7 @@ import config
 import ui.console as uc
 SAID = []
 uc.say = lambda t, s="": SAID.append((s, t))
+uc.dialogue = lambda before, who, speech, after="": SAID.append((who, speech))     # a hire's reply comes framed (console.dialogue)
 uc.narrate = lambda t: None
 uc.note = lambda m, *a, **k: None
 import llm.gateway as gw
