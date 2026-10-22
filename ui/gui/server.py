@@ -18,7 +18,8 @@ WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).
 STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg"}
 for _f in ("literata-latin-400-normal", "literata-latin-400-italic", "literata-latin-600-normal", "literata-latin-700-normal"):
     STATIC[f"/fonts/{_f}.woff2"] = "font/woff2"                       # (f326) the reading face for the story column
-PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}}
+PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}, "measure": "full"}
+MEASURES = ("narrow", "book", "wide", "full")       # the story column's width (app.js MEASURES): full stretches to the pane's edges
 TEXT_KINDS = ("narration", "speech", "speaker", "note", "wait", "combat", "echo", "pane")   # what the Settings pane styles (app.js TEXT_KINDS)
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 MAX_BODY = 65536
@@ -50,6 +51,8 @@ def load_prefs() -> dict:
         out["order"] = list(raw["order"])
     if _good_text(raw.get("text")):
         out["text"] = raw["text"]
+    if raw.get("measure") in MEASURES:
+        out["measure"] = raw["measure"]
     return out
 
 
@@ -95,6 +98,8 @@ def prefs_problem(new) -> str:
             return "order must be a list of commands"
         if k == "text" and not _good_text(v):
             return "text must be sizes (10-28) and colours (#rrggbb, per theme) by kind"
+        if k == "measure" and v not in MEASURES:
+            return "measure must be narrow, book, wide or full"
     return ""
 
 

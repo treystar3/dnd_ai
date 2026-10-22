@@ -7,7 +7,7 @@ const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory"
   ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"]];
 
 const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
-const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [], text: {} } };
+const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [], text: {}, measure: "full" } };
 
 async function api(path, body) {
   try {
@@ -971,6 +971,15 @@ function renderSettings() {
     themes.appendChild(b);
   }
   box.appendChild(themes);
+  box.appendChild(el("h3", "", "Story column"));
+  const widths = el("div", "themes");
+  for (const [m, label] of MEASURES) {
+    const b = el("button", (state.prefs.measure || "full") === m ? "on" : "", label);
+    b.onclick = () => { state.prefs.measure = m; applyMeasure(); setPrefs({ measure: m }); paintSide(); };
+    widths.appendChild(b);
+  }
+  box.appendChild(widths);
+  box.appendChild(el("div", "hint", "How wide the story reads: a book's measure keeps lines short; full width reaches the pane's edges."));
   box.appendChild(el("h3", "", "Text"));
   box.appendChild(el("div", "hint", `Size is shared by both themes. A colour is kept for the ${activeTheme()} theme you are in now; ↺ puts back the theme's own.`));
   const text = state.prefs.text || {};
@@ -986,8 +995,13 @@ $("theme").onclick = () => {
   const next = { auto: "dark", dark: "light", light: "auto" }[state.prefs.theme] || "auto";
   state.prefs.theme = next; applyTheme(); setPrefs({ theme: next });
 };
+const MEASURES = [["narrow", "Narrow", "620px"], ["book", "Book", "720px"], ["wide", "Wide", "960px"], ["full", "Full width", "100%"]];
+function applyMeasure() {                                   // the story column's width: a book's measure, or the whole pane
+  const m = MEASURES.find((x) => x[0] === state.prefs.measure) || MEASURES[MEASURES.length - 1];
+  document.documentElement.style.setProperty("--measure", m[2]);
+}
 function applyLayout() {
-  applyTheme();
+  applyTheme(); applyMeasure();
   $("side").style.width = state.prefs.width + "px";
   document.body.classList.toggle("pane-hidden", !!state.prefs.hidden);
   $("show").hidden = !state.prefs.hidden;

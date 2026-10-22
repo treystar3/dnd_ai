@@ -9,7 +9,7 @@
   --c-narration: var(--ink); --c-speech: var(--dialogue); --c-speaker: var(--speaker); --c-note: var(--dim); --c-wait: var(--dim); --c-combat: var(--combat); --c-echo: var(--echo); --c-pane: var(--ink);
   --serif: "Literata", Georgia, "Palatino Linotype", "Book Antiqua", serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
-  --measure: 720px; --gutter: 28px;
+  --measure: 100%; --gutter: 28px;       /* the story column's width: the Settings pane sets it (app.js applyMeasure); 100% reaches the pane's edges */
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
