@@ -73,7 +73,7 @@ body { background: var(--bg); color: var(--ink); display: flex; flex-direction: 
 .k-narration .ln + .ln { margin-top: .55em; }
 .k-speech { margin: 14px 0; padding: 1px 0 1px 16px; border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
 .k-speech .spk { font: 600 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
-.k-speech .ln { font: 17px/1.6 var(--serif); color: var(--ink); padding-left: 0 !important; text-indent: 0 !important; }
+.k-speech .ln { font: 17px/1.6 var(--serif); color: var(--accent); padding-left: 0 !important; text-indent: 0 !important; }   /* spoken words in the speaker's gold, so dialogue reads apart from narration at a glance */
 .k-speech .ln + .ln { margin-top: .5em; }
 .k-speech .ln + .spk { margin-top: 10px; }
 .k-speech .beat, .k-narration .beat { font-style: italic; color: var(--dim); }
