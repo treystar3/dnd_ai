@@ -926,8 +926,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     @staticmethod
     def wordless_talk(text: str, plan: list) -> list:
-        return [a for k, a in enumerate(plan)              # (f299) "...and I talk to the clerk": a wordless talk to whoever the line already spoke to adds nothing
-                if not (k and a.kind == "talk" and not (a.speech or "").strip() and any(b.kind == "talk" and b.target == a.target for b in plan[:k]))] or plan
+        """(f299) "...and I talk to the clerk": a wordless talk to whoever the line already spoke to adds nothing; and a wordless talk
+        beside a deed, saying the deed's summary over again or aimed at the one the deed is for, is the deed's own narration."""
+        def norm(s): return re.sub(r"\W+", " ", (s or "").lower()).strip()
+        kept = []
+        for k, a in enumerate(plan):
+            if a.kind == "talk" and not (a.speech or "").strip() and len(plan) > 1:
+                if any(b.kind == "talk" and b.target == a.target for b in plan[:k]):
+                    continue
+                others = [b for b in plan if b is not a and b.kind != "talk"]
+                if others and any(norm(b.summary) == norm(a.summary) and a.summary.strip() or (a.target and b.target == a.target) for b in others):
+                    continue
+            kept.append(a)
+        return kept or plan
 
     def move_to_present(self, text: str, plan: list) -> list:
         here_ids = {n.id for n in self.present}

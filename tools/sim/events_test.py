@@ -287,5 +287,16 @@ norm = _cb.fighter_from_creature(c, 112, "normal", "e", "x", "near").max_hp
 sp = {"id": "z", "thread": "z", "place": "delvers_deep", "creature": c.id, "boss": True, "level": 112, "name": "x", "need": 1, "kills": 0}
 _, fs = events.spawn_fighters(world, sp, random.Random(1), 112)
 check("event boss has 4x health", abs(fs[0].max_hp / norm - 4) < 0.05, f"{fs[0].max_hp / norm:.2f}x")
+# ---- a big event the model left with no way to end it gets one: a boss of the nearest zone, and the kill path that goes with it
+state = store.load_world_state()
+bare = {"id": "bare1", "title": "A matter with no way out", "tier": "campaign", "place": "parth", "kind": "social", "pressure": "", "stage": 0, "status": "active",
+        "made": t, "times": [t, t + 10 * 1440, t + 20 * 1440, t + 30 * 1440, t + 40 * 1440], "stages": [{"description": "s", "effects": []}] * 4,
+        "fallout": {"description": "f", "effects": []}, "groups": ["everyone"], "paths": [], "boss_lines": None}
+state["threads"].append(bare)
+sp = events.ensure_a_way(store, world, state, bare, t, random.Random(3))
+check("a campaign with no checkable path is given a boss of the nearest zone, abroad from its second stage, near the player's level",
+      sp is not None and sp["boss"] and sp["thread"] == "bare1" and sp["from"] == bare["times"][1]
+      and events.player_level(store) + 2 <= sp["level"] <= events.player_level(store) + 6 and sp["place"] in world.places, sp)
+check("...and the way to end it is the kill that goes with it", bare["paths"] and bare["paths"][0]["kind"] == "kill" and bare["paths"][0]["spawn"] == sp["id"], bare["paths"])
 print("FAILED" if bad else "ALL PASS", bad)
 sys.exit(1 if bad else 0)

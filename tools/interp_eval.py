@@ -226,7 +226,10 @@ def judge(got: dict, expect: dict) -> list[str]:
     for i, want in enumerate(expect.get("steps") or []):
         step = got["steps"][i] if i < len(got["steps"]) else {}
         for k, v in (want or {}).items():
-            if str(step.get(k, "")).lower() != str(v).lower():
+            if k.endswith("!"):                                           # "speech!": what the field must NOT be
+                if str(step.get(k[:-1], "")).lower() == str(v).lower():
+                    bad.append(f"step {i + 1}.{k[:-1]} is still {v!r}")
+            elif str(step.get(k, "")).lower() != str(v).lower():
                 bad.append(f"step {i + 1}.{k} = {step.get(k, '')!r}, not {v!r}")
     if "most" in expect and len(got["kinds"]) > int(expect["most"]):
         bad.append(f"{len(got['kinds'])} steps ran; at most {expect['most']} should")
