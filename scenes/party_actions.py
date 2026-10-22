@@ -13,10 +13,12 @@ from engine.party import P
 from llm.contracts import CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import clock, money
+from engine import actions, clock, money
 from ui import console
 
 G = quests.G
+
+PARTY_WORDS = ("hire", "recruit", "dismiss", "disband", "promote")     # read by party_turn, not action kinds: a line with one is still not talk
 
 # Cheap pre-filter: the model is only asked when the words could be about a party at all.
 HINTS = ("recruit", "hire", "party", "adventurer", "hireling", "mercenar", "sellsword", "join me", "come with", "come along",
@@ -321,7 +323,8 @@ class PartyActions:
                          "; ".join(f"{m['name']} {self.temper_text(m)}" for m in hired) +
                          ".] Describe the brief meeting and the group setting out, in two or three sentences.", text)
 
-    TALK_ACTIONS = re.compile(r"\b(hire|recruit|dismiss|disband|promote|attack|kill|hit|fight|steal|rob|search|skin|butcher|loot|walk|go|head|travel|buy|sell|rest|sleep)\b")
+    # a line with an action word in it is not said to a hire or to Maren, whatever name it carries: the one list is the action table's
+    TALK_ACTIONS = actions.action_re(PARTY_WORDS)
 
     def hire_people(self) -> list[tuple[str, str, str, str]]:
         """The hired adventurers travelling with the player, as people here: (id, name, description, what they are doing). Nobody is listed

@@ -48,9 +48,9 @@ check("with the plan read back and what was shown", calls[0]["plan"] == [{"kind"
 model_rows = [json.loads(l) for l in open(config.LOG_PATH, encoding="utf-8")]
 check("the model log carries the same turn as the key", any(r.get("turn") == turn0 and r["task"] == "interpret_action" for r in model_rows), [(r.get("turn"), r["task"]) for r in model_rows])
 
-ws.handle("I ask the barkeep about the trial")               # away from a hall the trial intercept takes any line about a trial
+ws.handle("I'd like to take the trial")                     # away from a hall the trial intercept answers a line about your own trial
 rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")]
-check("a line an intercept took is a row naming the intercept", len(rows) == 2 and rows[1]["handled_by"] == "trial" and rows[1]["text"] == "I ask the barkeep about the trial", rows[-1])
+check("a line an intercept took is a row naming the intercept", len(rows) == 2 and rows[1]["handled_by"] == "trial" and rows[1]["text"] == "I'd like to take the trial", rows[-1])
 check("and carries no interpreter call", "interpreter" not in rows[1] and rows[1]["turn"] == turn0 + 1, rows[1])
 check("the turn passed either way", store.meta.turn == turn0 + 2, store.meta.turn)
 
@@ -68,7 +68,7 @@ check("an old-style row without interpreter calls still promotes", replay.promot
 
 config.TURN_LOG = False
 turnlog.COUNTS.clear()
-ws.handle("I ask again about the trial")
+ws.handle("I'd like to take the trial now")
 rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")]
 check("with the log off nothing is written but the session still counts", len(rows) == 2 and turnlog.COUNTS == {"trial": 1}, (len(rows), turnlog.COUNTS))
 config.TURN_LOG = True

@@ -15,21 +15,12 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from engine.actions import TARGETED                  # the kinds aimed at someone who must be here: declared with the action (engine/actions.py)
+from engine.actions import VERB_KINDS as _TABLE_VERBS
 MONEY = re.compile(r"\b(gold|silver|copper|coins?|fee|pay|paid|price|cost|costs|owe|bribe|tip)\b|\d+\s*(g|s|c)\b")
 
-# common verbs we know the interpreter handles: a verb in the text should show up as one of these kinds in the plan
-VERB_KINDS: dict[str, tuple[str, ...]] = {
-    "buy": ("buy", "commission", "join_guild", "board"), "purchase": ("buy", "commission", "join_guild"),
-    "sell": ("sell",), "attack": ("attack", "ability"), "stab": ("attack", "ability"), "shoot": ("attack", "ability"),
-    "kill": ("attack", "ability"), "give": ("give", "show", "sell"), "hand": ("give", "show", "sell"),
-    "bribe": ("give", "other"), "equip": ("equip",), "wield": ("equip",), "wear": ("equip",),
-    "craft": ("craft", "commission"), "forge": ("craft", "commission"), "harvest": ("harvest", "forage"),
-    "skin": ("harvest",), "butcher": ("harvest",), "forage": ("forage",), "drop": ("drop", "discard"),
-    "discard": ("discard", "drop"), "cast": ("ability",), "join": ("join_guild", "accept_quest", "board"),
-    "register": ("join_guild",), "train": ("train", "learn_ability"), "learn": ("learn_ability", "train"),
-    "sleep": ("wait", "buy"), "rest": ("wait", "buy"), "wait": ("wait",), "board": ("board", "move"),
-    "abandon": ("abandon_quest",), "release": ("release",), "arrest": ("hand_over",), "surrender": ("hand_over",),
-}
+# the verbs each kind of action declares (engine/actions.py): a verb in the text should show up as one of its kinds in the plan
+VERB_KINDS: dict[str, tuple[str, ...]] = dict(_TABLE_VERBS)
+VERB_KINDS["board"] = VERB_KINDS.get("board", ()) + ("move",)            # "board the ferry" is a move
 # thefts and acts of force the plan might not show (words come from data/rules/law.yaml)
 from engine import law as _law
 for _w in _law.L["words"]["steal"]:

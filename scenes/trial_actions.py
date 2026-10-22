@@ -16,6 +16,11 @@ T = G["trial"]
 
 ASK = re.compile(r"\b(trial|rank test|test for (my |the )?rank|take the test|advance my rank|promote me|promote my rank|rank me up|rank up|"
                  r"prove (myself|my worth)|duel (the |an )?examiner|next rank)\b", re.I)
+# away from a hall only a line plainly about the player's own trial is answered; "the heretic's trial" is for whoever they are talking to
+ASK_AWAY = re.compile(r"\b(take (the|my|a) trial|trial of rank|my trial|rank test|test for (my |the )?rank|take the test|advance my rank|"
+                      r"promote me|promote my rank|rank me up|rank up|next rank|duel (the |an )?examiner)\b", re.I)
+QUESTION = re.compile(r"\?|^\W*(what|how|when|where|do i|does|is|am i|can i|could i)\b", re.I)
+STANDING = re.compile(r"\b(i'?d like|i would like|let me|i want|i will|i'?ll|ready to|take (the|my) (trial|test)|stand for|begin|start)\b", re.I)
 
 
 class TrialActions:
@@ -48,7 +53,7 @@ class TrialActions:
         if self.combat or text.lstrip().startswith(("#", "/")) or not ASK.search(text):
             return False
         if not self.at_guild_hall_here():
-            if re.search(r"\b(trial|rank test|examiner)\b", text, re.I):
+            if ASK_AWAY.search(text):
                 console.note("Trials of rank are held at a guild hall.")
                 return True
             return False
@@ -56,6 +61,12 @@ class TrialActions:
             console.note(f"You already hold the highest rank, {self.rank}.")
             return True
         nxt = self.trial_due()
+        if QUESTION.search(text) and not STANDING.search(text):     # "what do I need for the next rank?" asks; it does not step into the ring
+            if nxt:
+                console.note(f"You have earned rank {nxt} on paper. To hold it you must win a trial against an examiner of that rank: "
+                             f"say \"I'd like to take the trial\".")
+                return True
+            nxt = quests.next_rank(self.rank)
         if not nxt:
             nxt = quests.next_rank(self.rank)
             need = G["ranks"][nxt]["requires"]

@@ -66,6 +66,9 @@ from ui import console
 from world.loader import World
 
 QUIT_WORDS = {"quit", "exit", "/quit", "/exit"}
+NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|refuse|decline|later)\b")     # "I don't want to join" is not joining
+PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
+JOIN_WORDS = re.compile(r"\b(fee|pay|sign|register|join|enrol|enroll|silver|coin|coins)\b")                    # at the clerk's desk, the player's business
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 SEARCH = encounters.E
 
@@ -780,8 +783,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         turnlog.record(self.store.meta.turn, text, by, place=self.player.location, **fields)
 
     def took(self, text: str, by: str) -> None:
-        """An intercept took the line before the model saw it: logged under its name, and the turn passes."""
+        """An intercept took the line before the model saw it: logged under its name, and the turn passes. A question the world had
+        asked (f321) is spent too: the next line is not glued to a question the player has moved past."""
         self.handled(text, by)
+        self.pending_clarify = None
         self.store.meta.turn += 1
 
     def handle(self, text: str) -> None:
@@ -808,12 +813,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.run_pulse()
             return self.took(text, "camp")
         said = text.strip()
-        if self.mentor_with_you() and not self.partner and len(said) > 2 and said[0] in "\"\u201c" and said[-1] in "\"\u201d" and said.count(chr(34)) + said.count("\u201c") + said.count("\u201d") == 2:
+        low = said.lower()
+        if self.mentor_with_you() and not self.partner and len(said) > 2 and said[0] in "\"\u201c" and said[-1] in "\"\u201d" and said.count(chr(34)) + said.count("\u201c") + said.count("\u201d") == 2 \
+                and not (mentor.stage(self.player) == "sign" and JOIN_WORDS.search(low)):      # at the desk, "Here's the fee" is for the clerk
             self.advance(clock.TALK_MINUTES)                 # a line wholly in quotes, with her beside them, is said to her
             self.mentor_talk(said[1:-1].strip())
             return self.took(text, "mentor_quoted")
-        if self.mentor_with_you() and mentor.named(text) and ("?" in text or text.strip().lower().startswith(("maren", "ask maren", "tell maren"))
-                                                               or not re.search(r"\b(hire|recruit|dismiss|disband|attack|kill|hit|fight|steal|rob|search|skin|butcher|loot|walk|go|head|travel)\b", text.lower())):
+        if self.mentor_with_you() and mentor.named(text) and ("?" in text or not self.TALK_ACTIONS.search(low)):   # named, and no action in the line: said to her
             self.advance(clock.TALK_MINUTES)
             self.mentor_talk(text)
             return self.took(text, "mentor_named")
@@ -847,7 +853,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         plan = [a for k, a in enumerate(plan)
                 if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
                                                  and b.target in here_ids for b in plan[k + 1:]))] or plan
-        if not self.rank and self.clerk_here():     # paying or asking to join the guild, said to the clerk, is joining - and only once
+        if not self.rank and self.clerk_here() and not NEGATED.search(text.lower()):     # paying or asking to join the guild, said to the clerk, is joining - and only once
             asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
             for a in plan:
                 low = f"{text} {a.summary}".lower()
@@ -868,6 +874,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             plan = kept
         for a in plan:                              # "I offer the guard 5 silver to look the other way" is giving coin, whatever it was read as
             if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) \
+                    and not NEGATED.search(text.lower()) and not PAST.search(text.lower()) \
                     and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
                 m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
                 a.kind, a.item = "give", (m.group(0) if m else "coins")

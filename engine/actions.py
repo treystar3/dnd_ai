@@ -7,9 +7,16 @@ method, and one line of description in the interpreter's instructions; forgettin
 Fields:
   minutes   how long the action takes when it does not say itself (None: the handler decides, or it takes no time)
   targeted  the action is aimed at a person who must be here (the audit checks the target against the scene)
+  verbs     the player's words that mean this kind surely enough that a plan without it is suspect: the audit
+            (engine/intent_audit.py) flags a line with such a verb and no step of its kind. A verb may belong to several kinds
+            ("give" is give, show or sell), and a kind may claim a verb that usually means another ("sleep" is wait, or buying a room)
+  words     looser words that still mark a line as an action rather than talk ("go", "look", "drink"). With the verbs they are the one
+            list that tells the mentor's and a hire's intercepts (scenes/world.py, scenes/party_actions.py) that a line naming someone
+            is not said to them. Too loose to audit: "go" is in half of what a player types
   note      what it is, for anyone reading this table"""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from engine import clock
@@ -21,53 +28,71 @@ class Action:
     note: str
     minutes: int | None = None
     targeted: bool = False
+    verbs: tuple[str, ...] = ()
+    words: tuple[str, ...] = ()
 
 
 ACTIONS: tuple[Action, ...] = (
-    Action("move", "go to a place, or to a person elsewhere"),
-    Action("look", "look around, or at something here", clock.LOOK_MINUTES),
-    Action("search", "search this place"),
-    Action("explore", "set out to find somewhere not on the map"),
+    Action("move", "go to a place, or to a person elsewhere", words=("go", "walk", "head", "travel", "ride", "set out", "set off")),
+    Action("look", "look around, or at something here", clock.LOOK_MINUTES, words=("look", "examine", "inspect")),
+    Action("search", "search this place", words=("search",)),
+    Action("explore", "set out to find somewhere not on the map", words=("explore",)),
     Action("talk", "speak to someone here", clock.TALK_MINUTES, targeted=True),
     Action("leave_conversation", "end the conversation", 0),
-    Action("buy", "buy a ware from someone here", targeted=True),
-    Action("sell", "sell something to someone here", targeted=True),
-    Action("ability", "use one of the character's abilities"),
-    Action("use", "use an item they carry"),
-    Action("drop", "drop an item here"),
-    Action("pick_up", "pick something up from the ground"),
-    Action("give", "give an item or coin to someone here", targeted=True),
-    Action("show", "show someone an item or key item", targeted=True),
-    Action("discard", "throw an item away for good"),
-    Action("store", "put an item in the item box"),
+    Action("buy", "buy a ware from someone here", targeted=True, verbs=("buy", "purchase", "sleep", "rest")),       # sleep, rest: a room
+    Action("sell", "sell something to someone here", targeted=True, verbs=("sell", "give", "hand")),
+    Action("ability", "use one of the character's abilities", verbs=("attack", "stab", "shoot", "kill", "cast", "heal")),
+    Action("use", "use an item they carry", words=("use", "drink", "eat", "quaff")),
+    Action("drop", "drop an item here", verbs=("drop", "discard")),
+    Action("pick_up", "pick something up from the ground", words=("pick up", "loot")),
+    Action("give", "give an item or coin to someone here", targeted=True, verbs=("give", "hand", "bribe")),
+    Action("show", "show someone an item or key item", targeted=True, verbs=("give", "hand", "show")),
+    Action("discard", "throw an item away for good", verbs=("discard", "drop")),
+    Action("store", "put an item in the item box", words=("stow",)),
     Action("retrieve", "take an item out of the item box"),
-    Action("equip", "wear or wield an item"),
-    Action("forage", "forage for herbs and materials"),
-    Action("craft", "make something from materials"),
-    Action("commission", "order gear from a crafter", targeted=True),
+    Action("equip", "wear or wield an item", verbs=("equip", "wield", "wear")),
+    Action("forage", "forage for herbs and materials", verbs=("harvest", "forage")),
+    Action("craft", "make something from materials", verbs=("craft", "forge")),
+    Action("commission", "order gear from a crafter", targeted=True, verbs=("buy", "purchase", "craft", "forge")),
     Action("work", "take, do or finish paid work for someone", targeted=True),
-    Action("harvest", "skin or butcher a carcass"),
-    Action("join_guild", "pay the fee and sign the register"),
-    Action("board", "read or ask about the contract board", targeted=True),
-    Action("accept_quest", "take a contract or request"),
-    Action("abandon_quest", "give a contract or request up"),
-    Action("train", "train with a teacher", targeted=True),
-    Action("learn_ability", "learn a taught ability"),
-    Action("delve", "go down into a dungeon"),
+    Action("harvest", "skin or butcher a carcass", verbs=("harvest", "skin", "butcher")),
+    Action("join_guild", "pay the fee and sign the register", verbs=("buy", "purchase", "join", "register")),
+    Action("board", "read or ask about the contract board", targeted=True, verbs=("buy", "join", "board")),
+    Action("accept_quest", "take a contract or request", verbs=("join",)),
+    Action("abandon_quest", "give a contract or request up", verbs=("abandon",)),
+    Action("train", "train with a teacher", targeted=True, verbs=("train", "learn")),
+    Action("learn_ability", "learn a taught ability", verbs=("train", "learn")),
+    Action("delve", "go down into a dungeon", words=("delve", "descend")),
     Action("leave_dungeon", "leave the dungeon"),
-    Action("wait", "wait, rest or sleep"),
-    Action("attack", "attack someone or something", targeted=True),
-    Action("release", "release a captive"),
-    Action("hand_over", "hand a captive over"),
-    Action("steal", "steal from someone here", 5, targeted=True),
+    Action("wait", "wait, rest or sleep", verbs=("sleep", "rest", "wait")),
+    Action("attack", "attack someone or something", targeted=True, verbs=("attack", "stab", "shoot", "kill"), words=("hit", "fight")),
+    Action("release", "release a captive", verbs=("release",)),
+    Action("hand_over", "hand a captive over", verbs=("arrest", "surrender")),
+    Action("steal", "steal from someone here", 5, targeted=True, words=("steal", "rob")),      # the audit's theft words come from law.yaml
     Action("unlock", "pick or force a lock", targeted=True),
-    Action("other", "anything else: narrated as an attempt", clock.OTHER_MINUTES),
+    Action("other", "anything else: narrated as an attempt", clock.OTHER_MINUTES, verbs=("bribe",)),
 )
 
 BY_KIND: dict[str, Action] = {a.kind: a for a in ACTIONS}
 KINDS: tuple[str, ...] = tuple(a.kind for a in ACTIONS)
 TARGETED: tuple[str, ...] = tuple(a.kind for a in ACTIONS if a.targeted)
 TIME_COST: dict[str, int] = {a.kind: a.minutes for a in ACTIONS if a.minutes is not None}
+
+VERB_KINDS: dict[str, tuple[str, ...]] = {}          # verb -> the kinds it may mean, from the rows above
+for _a in ACTIONS:
+    for _v in _a.verbs:
+        VERB_KINDS[_v] = VERB_KINDS.get(_v, ()) + (_a.kind,)
+ACTION_WORDS: frozenset[str] = frozenset(w for _a in ACTIONS for w in _a.verbs + _a.words)
+
+
+def action_re(extra: tuple[str, ...] = ()) -> re.Pattern:
+    """A pattern that matches any action word as a whole word (longest first, so "set out" wins over "out"). `extra` adds a caller's own
+    words: the party's hire and dismiss, which scenes/party_actions.py reads itself and which are not action kinds."""
+    words = sorted(set(ACTION_WORDS) | set(extra), key=len, reverse=True)
+    return re.compile(r"\b(" + "|".join(re.escape(w) for w in words) + r")\b")
+
+
+ACTION_RE: re.Pattern = action_re()
 
 
 def problems(scene_class, interpreter_text: str) -> list[str]:

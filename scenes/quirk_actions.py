@@ -16,6 +16,17 @@ from ui import console
 
 YES = re.compile(r"^\W*(yes|yeah|aye|sure|fine|go on|go ahead|of course|all right|alright|ok|okay|take it|take your time|do it|you may|granted)\b", re.I)
 NO = re.compile(r"^\W*(no|not now|later|another time|we can't|we cannot|there's no time|no time|keep moving|not today)\b", re.I)
+ANSWER_TAIL = 6                 # an answer may carry this many words after the yes or no ("yes, of course", "no, not now") and no action
+
+
+def is_answer(rx: re.Pattern, text: str) -> bool:
+    """The line is that answer and nothing more: "Okay, let's head to the inn first" starts like a yes but is a plan of its own."""
+    m = rx.match(text)
+    if not m:
+        return False
+    rest = text[m.end():].lower()
+    from engine import actions
+    return len(re.findall(r"[a-z']+", rest)) <= ANSWER_TAIL and not actions.ACTION_RE.search(rest)
 
 
 def deed_situation(scene, deed: str) -> str:
@@ -339,7 +350,7 @@ class QuirkActions:
         self._errand = None
         day = clock.day(self.minutes)
         extra = {"sum": money.words(E["cost"])} if "cost" in E else {}
-        if YES.search(text):
+        if is_answer(YES, text):
             c = self.player.character
             if "cost" in E:
                 if c.coins < E["cost"]:
@@ -360,7 +371,7 @@ class QuirkActions:
                 m.setdefault("seen_towns", []).append(self.player.location)
             self.store.save_player(self.player)
             return True
-        if NO.search(text):
+        if is_answer(NO, text):
             console.narrate(quirks.errand_text(m, "no_line", **extra))
             m["quirks"]["errand"] = "no"
             m["bond"] = m.get("bond", 0) - 1

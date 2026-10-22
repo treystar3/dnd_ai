@@ -22,6 +22,11 @@ SECTOR_WORDS = {
 FORK_SHARE = 0.3                 # the road forks this far along the nearest place's journey
 FORK_MIN, FORK_MAX = 20, 360     # but never sooner than this many minutes, nor later than this
 LEAVING = ("head", "go", "walk", "leave", "set out", "set off", "ride", "travel", "follow", "take", "out", "exit", "strike out", "venture", "march", "depart", "off")
+# the leaving words as whole words, with their inflections: "heading out" leaves, "about" and "offer" do not
+LEAVING_RE = re.compile(r"\b(head(s|ed|ing)?|go(es|ing)?|went|walk(s|ed|ing)?|leav(e|es|ing)|left|set(s|ting)? (out|off)|rid(e|es|ing)|rode|"
+                        r"travel(s|led|ling|ed|ing)?|follow(s|ed|ing)?|tak(e|es|ing)|took|out|exit(s|ed|ing)?|strik(e|es|ing) out|struck out|"
+                        r"ventur(e|es|ing)|march(es|ed|ing)?|depart(s|ed|ing)?|off|onto|along)\b")
+QUESTION = re.compile(r"\?|^\W*(what|where|who|how|why|when|which|tell me|do you|does|is there|are there|can you|could you|know)\b", re.I)
 ROAD_WORDS = ("gate", "road", "path", "track", "trail", "highway", "way", "route")
 LEFT_RIGHT = {2: ("left", "right"), 3: ("left", "middle", "right"), 4: ("far left", "left", "right", "far right")}
 
@@ -109,9 +114,11 @@ def match(world, top: str, text: str) -> tuple[dict | None, str]:
     A line that names a place of the world is a trip to that place, not a way out."""
     gs = groups(world, top)
     t = _words(text)
+    if QUESTION.search(text):                            # "tell me about the Red Road" asks; it does not leave
+        return None, ""
     for gp in gs:
         for m in gp["members"]:
-            if m["name"] and f" {_road(m['name'])} " in t and any(f" {v} " in t or v in t for v in LEAVING + ("onto", "along")):
+            if m["name"] and f" {_road(m['name'])} " in t and LEAVING_RE.search(t):
                 return gp, ""
     d = direction_in(text)
     if not d:
@@ -120,7 +127,7 @@ def match(world, top: str, text: str) -> tuple[dict | None, str]:
         n = pl.name.lower().replace("the ", "", 1)
         if len(n) > 4 and f" {n} " in t:
             return None, ""
-    if not (any(v in t for v in LEAVING) or any(f" {w} " in t for w in ROAD_WORDS)):
+    if not (LEAVING_RE.search(t) or any(f" {w} " in t for w in ROAD_WORDS)):
         return None, ""
     for gp in gs:
         if gp["dir"] == d:

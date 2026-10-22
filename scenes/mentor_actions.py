@@ -562,6 +562,14 @@ class MentorActions:
             return False
         if re.search(r"\bwhen\b|\bwill (it|he|she|they)\b|\bready (yet|by|for)\b", low) and "greywood" not in low and "let" not in low:
             return False
+        if "greywood" not in low:
+            if re.search(r"\b(first|before|later|not yet|afterwards|after that)\b", low):      # "let's go to the market first" is not the hunt
+                return False
+            from engine import candidates, mapview
+            town = mapview.top_of(self.world, self.player.location)
+            if any(candidates.names_in(low, p.name) for pid, p in self.world.places.items()          # a line naming another place is a trip there
+                   if pid != M["hunt"]["place"] and mapview.top_of(self.world, pid) != town):
+                return False
         self.on_move(ActionIntent(kind="move", destination=M["hunt"]["place"], summary=text), text)
         return True
 
