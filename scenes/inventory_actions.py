@@ -657,7 +657,7 @@ class InventoryActions:
         out = []
         from engine import pulse
         haggle = max(0, 1 - (crafting.mechanic(self.player.character, "haggler") + self.guild_perks()["shop_discount"] + self.barter_pct()) / 100) \
-            * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price()
+            * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price() * getattr(self, "haggle_factor", 1.0)
         for n in self.present:
             if self.world.roles[n.role].stock:
                 self.ensure_stock(n)

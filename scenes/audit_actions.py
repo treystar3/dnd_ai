@@ -77,6 +77,10 @@ class AuditActions:
             console.debug(f"audit could not make sense of the plan: {res.reason}")
             self.ask_back("audit_failed", text, res.reason, res.meaning)                 # (f321) the world asks; no system note
             return None
+        if res.status == "unsure":                                                      # (f332) flagged, and the check itself could not be made: fail closed
+            console.debug(f"audit could not be made on a flagged plan: {res.reason}")
+            self.ask_back("audit_unsure", text, "the line looked like it might mean something else, and it could not be checked", res.meaning)
+            return None
         return res.plan
 
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "") -> None:

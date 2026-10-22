@@ -54,7 +54,7 @@ class AuditAsk(Protocol):
 
 @dataclass
 class Result:
-    status: str                       # skipped | unchanged | changed | failed
+    status: str                       # skipped | unchanged | changed | failed | unsure (f332: flagged, and the audit could not be made)
     plan: list
     reason: str = ""
     risk: list[str] = field(default_factory=list)
@@ -192,10 +192,10 @@ def audit(text: str, plan: list, sit: Situation, ask: AuditAsk) -> Result:
                 return res
             hint += " Your last try also failed: " + "; ".join(still) + "."
         res.reason = "; ".join(still)
-    except Exception as e:                      # the model is down or rambling: fail open unless the plan is impossible
+    except Exception as e:                      # the model is down or rambling
         res.reason = f"{type(e).__name__}: {e}"
-        if not bad:
-            res.verdict = "audit unavailable"
+        if not bad:                             # (f332) a flagged plan nobody could check does not run on a shrug: the world asks instead
+            res.status, res.verdict = "unsure", "audit unavailable"
             return res
     res.status = "failed"
     return res

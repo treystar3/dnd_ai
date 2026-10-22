@@ -9,7 +9,7 @@ validation context passed to llm.gateway.generate.
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
 
 from core.models import (
     COMPANION_TARGETS,
@@ -467,15 +467,22 @@ class PartyIntent(BaseModel):
 
 
 class ActionPlan(BaseModel):
-    """What the player does this message: one to three actions, in order."""
+    """What the player does this message: one to three actions, in order. More than three are kept aside (f332: the scene tells the player
+    what was not done) rather than refused, since the gateway would only retry the whole reading."""
     actions: list[ActionIntent]
+    _dropped: list = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def at_most_three(self):
         if not self.actions:
             raise ValueError("give at least one action")
+        self._dropped = list(self.actions[3:])
         self.actions = self.actions[:3]
         return self
+
+    @property
+    def dropped(self) -> list:
+        return list(self._dropped)
 
 class ResidentProposal(BaseModel):
     slot: int

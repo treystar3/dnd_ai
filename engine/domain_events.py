@@ -377,6 +377,35 @@ class Tithe(Deed):
 
 
 @dataclass(frozen=True)
+class Prayed(Deed):
+    """(f332) A prayer or a small rite; npc is the priest who saw it, if one did."""
+    kind: str = field(init=False, default="prayed")
+    god: str = ""
+    temple: bool = False           # at a temple: the companions see a stop at a shrine
+
+    def text(self) -> str:
+        return "prayed" + (f" to {self.god}" if self.god else "") + (" at the temple" if self.temple else "")
+
+    def victim_line(self) -> str:
+        return "The stranger stopped to pray" + (f" to {self.god}" if self.god else "") + (", here before the altar." if self.temple else ".")
+
+
+@dataclass(frozen=True)
+class Gambled(Deed):
+    """(f332) Dice or cards with someone here: amount staked, won (+) or lost (-) in copper."""
+    kind: str = field(init=False, default="gambled")
+    amount: int = 0
+    won: int = 0
+
+    def text(self) -> str:
+        return f"gambled {self.amount} copper and {'won' if self.won > 0 else 'lost' if self.won < 0 else 'broke even'}"
+
+    def victim_line(self) -> str:
+        from engine import money
+        return (f"Played the stranger at dice for {money.words(self.amount)}; they " + ("took my coin." if self.won > 0 else "lost theirs." if self.won < 0 else "broke even."))
+
+
+@dataclass(frozen=True)
 class Gift(Deed):
     kind: str = field(init=False, default="gift")
     item: str = ""

@@ -1,0 +1,19 @@
+# PASTIMES (f332, scenes/pastime_actions.py): three things a player kept asking for that the interpreter had nowhere to put - praying,
+# gambling and haggling - each a real action with a rule, a cost and a world that notices (engine/reactions.py), not an improvisation.
+
+pray:
+  minutes: 15                       # a prayer, a rite, a candle lit: the time it takes
+  temple_types: [temple]            # at one of these the priest hears it and the companions see a stop at a shrine (quirks.yaml deeds shrine)
+
+gamble:
+  default_stake: 100                # copper, when no stake is named ("I throw dice")
+  max_share: 0.5                    # at most this share of the purse on one throw, whatever was said
+  odds: 42                          # the player's chance before their wits: a house always has the edge
+  insight_weight: 0.6               # ...plus this per point of wisdom over checks.yaml attribute_center (reading the table)
+  payout: {strong success: 2.0, success: 1.0, partial: 0.0, failure: -1.0}     # in stakes won (+) or lost (-)
+  roles: [innkeeper, server, cook, dockhand, bargeman, miner, farmer, merchant, caravan_master, guard, hunter, trapper, lumberjack]   # who will play
+  minutes: 30
+
+haggle:
+  discount: {strong success: 0.75, success: 0.85, partial: 0.95}    # the price after a persuasion check that lands; a failure buys nothing
+  annoyed_trust: -2                 # a seller haggled with and not persuaded thinks a little less of the stranger

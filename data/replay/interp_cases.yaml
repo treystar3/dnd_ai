@@ -120,3 +120,19 @@
   text: "I'd like to take the trial"
   scene: {place: trading_square, clarify: true}
   expect: {handled_by: trial}
+# (f332) three things players kept typing that had no kind of their own
+- name: prayer_is_pray
+  text: "I kneel at the altar and pray for a safe road"
+  scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
+  plan: [{kind: pray, summary: "pray for a safe road"}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: dice_at_the_inn_is_gamble
+  text: "I throw dice with the innkeeper for a silver"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: gamble, target: i1, item: "1 silver", summary: "dice with the innkeeper"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: bargaining_is_haggle_not_talk
+  text: "I haggle with the smith over the longsword"
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
+  plan: [{kind: haggle, target: s1, ware: longsword, summary: "haggle over the longsword"}]
+  expect: {handled_by: interpret, kinds: [haggle]}

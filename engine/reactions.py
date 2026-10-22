@@ -191,3 +191,55 @@ class Reactions:
     def hires(self, e: de.Deed) -> None:
         for deed in _flagged(rule(e.kind).get("hire"), e):
             self.ws.deed(deed)
+
+
+# ---------- checks
+
+MEMORY_ROLES = ("victim", "witness", "unseen_victim")
+HEAT_KEYS = ("event", "offense", "gain")
+WEIGHTS = ("story_or_valuable", "event")
+
+
+def problems(deed_kinds=(), quirk_deeds=(), standing_kinds=(), reputation_keys=(), heat_gains=(), offenses=()) -> list[str]:
+    """What is wrong with data/rules/reactions.yaml against the tables it points into: a kind no deed declares, a memory role that is not
+    one, a standing or reputation or hire or heat name the other tables do not have. Run by engine/data_check.py at start-up, so a new
+    reaction is one line in the table and a typo in it is caught before play."""
+    bad = []
+    for kind, r in KINDS.items():
+        where = f"reactions.yaml {kind}"
+        if deed_kinds and kind not in deed_kinds:
+            bad.append(f"{where}: no deed of that kind is declared in engine/domain_events.py")
+        m = r.get("memory") or {}
+        for role, spec in m.items():
+            if role not in MEMORY_ROLES:
+                bad.append(f"{where} memory: '{role}' is not victim, witness or unseen_victim")
+            elif not isinstance(spec, dict) or not 1 <= int(spec.get("importance", 1)) <= 3:
+                bad.append(f"{where} memory {role}: needs importance 1 to 3")
+        st = r.get("standing")
+        if st:
+            if not isinstance(st, dict) or "kind" not in st:
+                bad.append(f"{where} standing: needs kind")
+            else:
+                if standing_kinds and st["kind"] not in standing_kinds:
+                    bad.append(f"{where} standing: '{st['kind']}' is not a deed in standing.yaml")
+                if st.get("weight") not in (None, *WEIGHTS):
+                    bad.append(f"{where} standing: weight must be one of {', '.join(WEIGHTS)}")
+        rep = r.get("reputation")
+        for key in ([rep] if isinstance(rep, str) else list((rep or {}).values())):
+            if reputation_keys and key not in reputation_keys:
+                bad.append(f"{where} reputation: '{key}' is not in pulse.yaml reputation")
+        h = r.get("heat") or {}
+        for k, v in h.items():
+            if k not in HEAT_KEYS:
+                bad.append(f"{where} heat: '{k}' is not event, offense or gain")
+            elif k == "gain" and heat_gains and v not in heat_gains:
+                bad.append(f"{where} heat: gain '{v}' is not in law.yaml")
+            elif k == "offense" and offenses and v not in offenses:
+                bad.append(f"{where} heat: offense '{v}' is not in law.yaml")
+        hire = r.get("hire")
+        for deed in ([hire] if isinstance(hire, str) else list((hire or {}).values())):
+            if quirk_deeds and deed not in quirk_deeds:
+                bad.append(f"{where} hire: '{deed}' is not a deed in quirks.yaml")
+        if "ledger" in r and not isinstance(r["ledger"], bool):
+            bad.append(f"{where}: ledger is true or false")
+    return bad

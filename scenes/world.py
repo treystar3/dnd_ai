@@ -49,6 +49,7 @@ from scenes.field_actions import FieldActions
 from scenes.audit_actions import AuditActions
 from scenes.standing_actions import StandingActions
 from scenes.law_actions import LawActions
+from scenes.pastime_actions import PastimeActions
 from scenes import markup
 from engine import mapview, mentor, needs, pulse, pulselog, quests
 from engine import inventory as inv
@@ -73,7 +74,8 @@ SEARCH = encounters.E
 
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
-                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions):
+                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
+                 PastimeActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -328,7 +330,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 rows.append({"when": when(r["t"]) + ("" if r["count"] == 1 else f" - {when(r['to'])}"), "kind": "quiet", "text": text, "effects": []})
             else:
                 rows.append({"when": when(r["t"]), "kind": r["kind"], "text": r["text"], "effects": list(r["effects"])})
-        threads = [f"[{t['tier']}] {t['title']} - stage {t['stage'] + 1}/{len(t['stages'])} at {self.where_name(t['place'])}, ends day {clock.day(t['times'][-1])}"
+        threads = [f"[{t['tier']}{', engine-built' + (', re-told' if t.get('told') else '') if t.get('made_by') == 'engine' else ''}] {t['title']} - stage {t['stage'] + 1}/{len(t['stages'])} at {self.where_name(t['place'])}, ends day {clock.day(t['times'][-1])}"
                    + (f"; door {t['door']}{' (hidden)' if t.get('hidden') else ''}, clues found {sum(1 for c in t.get('clues', []) if c['found'])}/{len(t.get('clues', []))}, paths {len(t.get('paths') or [])}" if t.get("door") else "")
                    for t in st.get("threads", []) if t["status"] == "active"]
         live = [f"{e['kind']} {e.get('value', '')} at {self.where_name(e['place'])} until day {clock.day(e['until'])}"
@@ -923,6 +925,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.turn_in()
             if intent.kind in TIME_COST:
                 self.advance(TIME_COST[intent.kind])
+        undone = self.__dict__.pop("dropped_steps", [])
+        if undone:                                             # (f332) the game does at most three things a line: say what it did not do
+            from engine import refusals
+            console.note("Three things at a time: not done - " + "; ".join(undone) + ". Say it again when you are ready.")
+            refusals.note("undone", text, "more than three actions in one line: " + "; ".join(undone), self.player.location, self.store.meta.turn)
         self.ensure_dungeons()
         self.run_pulse()
         self.flush(text)
@@ -1305,7 +1312,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    [f"[{q['letter']}] {q['title']}" for q in self.player.quests], left_out=left_out)
         self.last_interpret = {"chars": len(wp.INTERPRET_SYSTEM) + len(req), "places": len(places), "people_away": len(elsewhere),
                                "of_places": len(self.world.places) - 1, "of_people_away": len(away_rows), "left_out": left_out}
-        actions = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700).actions
+        read = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700)
+        actions = read.actions
+        self.dropped_steps = [(a.summary or a.kind).strip() for a in read.dropped]        # (f332) a fourth thing and beyond: told to the player, not lost
         self.__dict__.setdefault("interpret_calls", []).append({          # the call in full, for the turn log and a lossless replay case
             "hint": hint, "place": self.player.location, "place_name": self.place.name,
             "roles": {p.id: p.role for p in _sc.present_people() if p.kind == "npc"},

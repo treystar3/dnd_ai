@@ -77,7 +77,9 @@ check("a second try is allowed", r.status == "changed" and a.calls == ["propose"
 a = Ask(proposals=[[A(kind="talk", target="ghost")], [A(kind="talk", target="ghost2")]]); r = ia.audit("hello ghost", bad_plan, sit, a)
 check("two bad proposals fail with a reason", r.status == "failed" and "not here" in r.reason, (r.status, r.reason))
 a = Ask(boom=True); r = ia.audit("I give the guard 5 silver", risky, sit, a)
-check("a model that is down fails open on a possible plan", r.status == "unchanged" and len(r.plan) == 2, (r.status, r.reason))
+check("a model that is down leaves a flagged plan unsure, never run on a shrug (f332)", r.status == "unsure" and len(r.plan) == 2 and r.verdict == "audit unavailable", (r.status, r.reason))
+a = Ask(boom=True); r = ia.audit("hello there", [A(kind="talk", target="clerk1", speech="hello there")], sit, a)
+check("...while a plan nothing flags never needed the model", r.status == "skipped", r.status)
 a = Ask(boom=True); r = ia.audit("hello ghost", bad_plan, sit, a)
 check("a model that is down cannot rescue an impossible plan", r.status == "failed", r.status)
 

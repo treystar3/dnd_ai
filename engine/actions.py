@@ -133,6 +133,15 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they open a lock that is not theirs to open: pick it, jimmy it, break into a locked room, chest or door, or open
                one with a key they hold. Item = what is locked, in their words ("the back room", "the strongbox").
                Target = the person it belongs to, if any. Opening an ordinary unlocked door is move or look, never unlock."""),
+    Action("pray", "pray, or keep a small rite, at a temple or anywhere", words=("pray", "kneel", "worship"),
+           prompt="""they pray, kneel, light a candle, give thanks or keep a small rite - at a temple or shrine, or anywhere.
+               Coins into a tithe box are give, not pray."""),
+    Action("gamble", "stake coin on dice or cards with someone here", targeted=True, verbs=("gamble", "wager", "bet"), words=("dice", "cards"),
+           prompt="""they gamble: dice, cards or a wager with someone here. target: who they play with, if named. item: the stake
+               as they named it ("2 silver"), else empty."""),
+    Action("haggle", "bargain a price down before buying", targeted=True, verbs=("haggle", "bargain"),
+           prompt="""they haggle, bargain or try to beat down the price of something listed under FOR SALE before buying it:
+               ware and target as for buy. A plain purchase is buy."""),
     Action("other", "anything else: narrated as an attempt", clock.OTHER_MINUTES, verbs=("bribe",),
            prompt="""anything else they attempt"""),
 )

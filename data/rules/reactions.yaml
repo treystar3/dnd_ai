@@ -50,6 +50,12 @@ kinds:
   gift:
     memory: {victim: {importance: 2, trust: 2}}
     hire: charity
+  prayed:                               # (f332) the priest remembers a stranger at their altar; the companions see a stop at a shrine
+    memory: {victim: {importance: 1, trust: 1}}
+    hire: {temple: shrine}
+  gambled:                              # (f332) the one who played remembers; the companions see gambling
+    memory: {victim: {importance: 1}}
+    hire: gambling
   deliver:
     memory: {victim: {importance: 2}}
     ledger: true

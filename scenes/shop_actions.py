@@ -26,7 +26,8 @@ class ShopActions:
         if seller.role == "quartermaster":
             off += self.mech("quartermasters_friend")
         ware = ware.model_copy(update={"price": round(ware.price * max(0, 1 - off / 100)
-                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price())})
+                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price()
+                                                    * getattr(self, "haggle_factor", 1.0))})                 # (f332) a price a haggle won
         if ware.kind == "room" and ((self.owns("shelter_earned") and self.town_rep() >= 30)
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})
