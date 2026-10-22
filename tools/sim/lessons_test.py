@@ -139,7 +139,7 @@ world = load_world()
 shutil.rmtree("saves/lessons_test", ignore_errors=True)
 store = CampaignStore.open_or_create("lessons_test")
 store.meta.seed = 3; store.meta.turn = 1; store.meta.minutes = 600; store.save_meta()
-char, _ = simlib.make_character("warrior", random.Random(1))
+char, _ = simlib.make_character("warrior", random.Random(1), perks=True)      # the slot caps are counted against a drawn set of traits
 char.coins = 100000
 store.save_player(PlayerState(character=char, location="parth", guild_rank="member"))
 ws = WorldScene(store, world, load_traits(), store.load_player())

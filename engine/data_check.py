@@ -206,6 +206,38 @@ def check() -> list[str]:
     else:
         for p_ in _ac.problems(_WS, _wp.INTERPRET_SYSTEM):
             need(False, p_)
+        from scenes import intercepts as _ic
+        for p_ in _ic.problems(_WS):
+            need(False, p_)
+    from engine import threads as _th                        # (f331) the engine's own situations: templates, effect kinds, slots, the pressures that use them
+    from llm.contracts import WorldEffect as _WE
+    import typing as _ty
+    _pl = {p_["id"] for p_ in _load("data/world/places.yaml")}
+    _cr = {c_["id"] for c_ in _load("data/world/bestiary.yaml")}
+    for p_ in _th.problems({pr["id"]: pr for pr in _load("data/world/pressures.yaml")}, _ty.get_args(_WE.model_fields["kind"].annotation), _pl, _cr):
+        need(False, p_)
+    from engine import domain_events as _de, reactions as _rx       # (f330) every reaction points into tables that exist
+    _kinds = {getattr(c_, "kind", None) for c_ in _de.Deed.__subclasses__()} | {c_.__dataclass_fields__["kind"].default for c_ in _de.Deed.__subclasses__() if "kind" in c_.__dataclass_fields__}
+    _law = _load("data/rules/law.yaml")
+    _pulse_rules = _load("data/rules/pulse.yaml")
+    for p_ in _rx.problems({k for k in _kinds if isinstance(k, str)}, set(Q.get("deeds") or {}), set(_load("data/rules/standing.yaml").get("deeds") or {}),
+                           {k for k in (_pulse_rules.get("reputation") or {}) if k != "trust_per_point"}, set((_law.get("heat") or {}).get("gain") or {}),
+                           set(_law.get("offenses") or {})):
+        need(False, p_)
+    from engine import world_improv as _wi                   # (f332) what an improvisation may make true
+    for p_ in _wi.problems():
+        need(False, p_)
+    PT_ = _load("data/rules/pastimes.yaml")
+    _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
+    _degrees = set(_load("data/rules/checks.yaml")["degrees"])
+    need(set((PT_.get("gamble") or {}).get("payout") or {}) == _degrees, "pastimes.yaml gamble.payout: one entry per degree in checks.yaml")
+    need(all(r_ in _roles for r_ in (PT_.get("gamble") or {}).get("roles") or []), "pastimes.yaml gamble.roles: every role must be in roles.yaml")
+    need(set((PT_.get("haggle") or {}).get("discount") or {}) <= _degrees and "failure" not in ((PT_.get("haggle") or {}).get("discount") or {}),
+         "pastimes.yaml haggle.discount: degrees from checks.yaml, never failure (a failed haggle buys nothing)")
+    need(all(k in (PT_.get("pray") or {}) for k in ("minutes", "temple_types")), "pastimes.yaml pray: needs minutes and temple_types")
+    from engine import drift as _dr
+    for p_ in _dr.problems({t_["id"] for t_ in _load("data/traits.yaml")}):
+        need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
           "generic_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},

@@ -128,7 +128,7 @@ class Bot:
         self.store.meta.turn = 1
         self.store.meta.minutes = 8 * 60
         self.store.save_meta()
-        char, self.spec = simlib.make_character(CLS, self.rng)
+        char, self.spec = simlib.make_character(CLS, self.rng, perks=True)       # the bots play with the perks a player would draw
         start = self.world.start_location
         self.store.save_player(PlayerState(character=char, location=start))
         self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())

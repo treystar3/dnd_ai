@@ -1,13 +1,10 @@
 """The audit gate as the world scene uses it: the facts it checks against, the three model calls, the player-facing fallback and the turn log."""
-import json
 import time
-from datetime import datetime, timezone
-from pathlib import Path
 
 import config
 from engine import intent_audit as ia
 from llm.contracts import AuditMeaning, AuditVerdict, Clarify
-from llm.gateway import generate, trim_log
+from llm.gateway import generate
 from ui import console
 
 MEANING_SYSTEM = """You read one line a player typed in a role-playing game and say, in one short plain sentence, what they want to do.
@@ -26,7 +23,6 @@ Give a short reason."""
 
 
 class AuditActions:
-    audit_writes = 0
 
     def situation(self) -> ia.Situation:
         sit = ia.Situation(
@@ -81,6 +77,10 @@ class AuditActions:
             console.debug(f"audit could not make sense of the plan: {res.reason}")
             self.ask_back("audit_failed", text, res.reason, res.meaning)                 # (f321) the world asks; no system note
             return None
+        if res.status == "unsure":                                                      # (f332) flagged, and the check itself could not be made: fail closed
+            console.debug(f"audit could not be made on a flagged plan: {res.reason}")
+            self.ask_back("audit_unsure", text, "the line looked like it might mean something else, and it could not be checked", res.meaning)
+            return None
         return res.plan
 
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "") -> None:
@@ -114,20 +114,12 @@ class AuditActions:
         self.pending_clarify = {"text": text, "question": asked}
 
     def log_turn(self, text, sit, raw_plan, res, seconds):
-        try:
-            path = Path(getattr(config, "TURN_LOG_PATH", "logs/turns.jsonl"))
-            path.parent.mkdir(parents=True, exist_ok=True)
-            entry = {
-                "time": datetime.now(timezone.utc).isoformat(), "turn": self.store.meta.turn, "text": text,
-                "scene": sit.lines, "present": sit.present, "abilities": sorted(set(sit.abilities)), "wildlife": sit.wildlife, "raw": raw_plan,
-                "final": [s.model_dump(exclude_defaults=True) for s in res.plan],
-                "risk": res.risk, "audit": res.status, "meaning": res.meaning, "described": res.described,
-                "verdict": res.verdict, "reason": res.reason, "calls": res.calls, "seconds": round(seconds, 2),
-            }
-            with path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-            AuditActions.audit_writes += 1
-            if AuditActions.audit_writes % 50 == 1:
-                trim_log(path)
-        except OSError:
-            pass
+        """The interpreted line's row in the turn log (engine/turnlog.py): the scene the gate checked against, the plan as read and as
+        it ran, the audit's verdict, and every interpreter call made for the line in full."""
+        self.handled(text, "interpret",
+                     place_name=sit.place, scene=sit.lines, present=sit.present, abilities=sorted(set(sit.abilities)), wildlife=sit.wildlife,
+                     partner=self.partner.id if self.partner else "", last_spoken=self.last_spoken or "",
+                     raw=raw_plan, final=[s.model_dump(exclude_defaults=True) for s in res.plan],
+                     risk=res.risk, audit=res.status, meaning=res.meaning, described=res.described,
+                     verdict=res.verdict, reason=res.reason, calls=res.calls, seconds=round(seconds, 2),
+                     interpreter=list(getattr(self, "interpret_calls", [])))

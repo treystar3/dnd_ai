@@ -8,7 +8,6 @@ import re
 
 from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse
 from engine.field import F, tier_value
-from npc.models import Memory
 from ui import console
 
 LIGHT_WORDS = ("light", "glow", "illumin", "flame", "lantern", "radian", "torch", "shine", "luminous", "ember", "spark")
@@ -462,14 +461,14 @@ class FieldFunctions:
                 npc.trust = max(0, npc.trust - P["trust_loss"]["partial"])
                 self.store.save_npc(npc)
             console.note(f"You lift {money.fmt(coins)} from {npc.label()}." + (" They almost felt it." if degree == "partial" else ""))
+            from engine.domain_events import Pickpocketed
+            self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, npc=npc.id, name=npc.label(), coins=coins), npc)
             return (f"They quietly lift a purse from {npc.label()} and walk off with {money.words(coins)}. "
                     "Describe the sleight of hand, and that the person does not notice."
                     + (" The person nearly feels it." if degree == "partial" else ""))
         npc.trust = max(0, npc.trust - P["trust_loss"]["failure"])
-        npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                   text="The stranger tried to pick my pocket, and I caught them at it."))
-        self.store.save_npc(npc)
-        self.reputation_change("threat")
+        from engine.domain_events import Pickpocketed
+        self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), caught=True), npc)
         console.note(f"{npc.label().capitalize()} catches your hand. They will not forget it.")
         return (f"They reach for {npc.label()}'s purse and are caught. Describe the person's hand closing on their wrist, "
                 "and the cold look that follows. They get nothing.")

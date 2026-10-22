@@ -13,10 +13,12 @@ from engine.party import P
 from llm.contracts import CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import clock, money
+from engine import actions, clock, money
 from ui import console
 
 G = quests.G
+
+PARTY_WORDS = ("hire", "recruit", "dismiss", "disband", "promote")     # read by party_turn, not action kinds: a line with one is still not talk
 
 # Cheap pre-filter: the model is only asked when the words could be about a party at all.
 HINTS = ("recruit", "hire", "party", "adventurer", "hireling", "mercenar", "sellsword", "join me", "come with", "come along",
@@ -43,6 +45,9 @@ def keyword_party(text: str) -> str | None:
 
 
 class PartyActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("party", 40, "party_turn", "hiring and directing the party, and a friend asked along"),
+                  _I("hire", 80, "hire_turn", "a line said to a hire by name, or going on with the one who spoke last"))
 
     # ---------- when the guild will send help ----------
 
@@ -321,7 +326,8 @@ class PartyActions:
                          "; ".join(f"{m['name']} {self.temper_text(m)}" for m in hired) +
                          ".] Describe the brief meeting and the group setting out, in two or three sentences.", text)
 
-    TALK_ACTIONS = re.compile(r"\b(hire|recruit|dismiss|disband|promote|attack|kill|hit|fight|steal|rob|search|skin|butcher|loot|walk|go|head|travel|buy|sell|rest|sleep)\b")
+    # a line with an action word in it is not said to a hire or to Maren, whatever name it carries: the one list is the action table's
+    TALK_ACTIONS = actions.action_re(PARTY_WORDS)
 
     def hire_people(self) -> list[tuple[str, str, str, str]]:
         """The hired adventurers travelling with the player, as people here: (id, name, description, what they are doing). Nobody is listed
@@ -373,6 +379,15 @@ class PartyActions:
     def npc_addressed(self, text: str, npc) -> bool:
         from engine import mentor
         return mentor.addresses(text, npc)
+
+    def hire_turn(self, text: str) -> bool:
+        """A line said to one of the hires: named with no action in it, or going on with the one who spoke last turn."""
+        m = self.hire_wants_talk(text)
+        if not m:
+            return False
+        self.advance(clock.TALK_MINUTES)
+        self.hire_talk(m, text)
+        return True
 
     def hire_wants_talk(self, text: str) -> dict | None:
         if self.combat or text.lstrip().startswith(("#", "/")):

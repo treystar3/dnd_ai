@@ -37,6 +37,64 @@ def odds_for(c, effect: str) -> float:
     return max(W["min"], min(W["max"], raw))
 
 
+CHANGE_KINDS = ("closed", "danger", "news")
+
+
+def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
+    """(f332) What a success makes true besides its mark: the effect's `changes` (improv.yaml), applied to the world's state. A partial
+    applies closed and danger at half and spreads no word. Returns what was done, for the debug line."""
+    from engine import pulse
+    specs = W["effects"][effect].get("changes") or []
+    if not specs:
+        return []
+    half = degree == "partial"
+    state = ws.store.load_world_state()
+    if not state:
+        return []
+    here = ws.player.location
+    place = ws.world.places.get(here)
+    fmt = {"what": what or "it", "place": place.name if place else here}
+    done = []
+    for ch in specs:
+        kind = ch.get("kind")
+        if kind == "closed":
+            minutes = max(1, int(ch.get("minutes", 60)) // (2 if half else 1))
+            state["effects"].append({"kind": "closed", "place": here, "value": 0, "until": ws.minutes + minutes,
+                                     "text": (ch.get("text") or "{what}").format(**fmt), "cause": "improvised"})
+            done.append(f"closed {minutes}m")
+        elif kind == "danger":
+            if not (place and place.danger):
+                continue
+            value = round(int(ch.get("value", 0)) / (2 if half else 1))
+            if value:
+                state["effects"].append({"kind": "danger", "place": here, "value": value, "until": ws.minutes + max(1, int(ch.get("days", 1))) * 1440,
+                                         "cause": "improvised"})
+                done.append(f"danger {value:+d}")
+        elif kind == "news" and not half:
+            groups = [ws.world.locals_group(here) or "everyone" if g == "locals" else g for g in ch.get("groups") or ["everyone"]]
+            pulse.add_news(state, (ch.get("text") or "").format(**fmt), here, ws.minutes, [g for g in groups if g in ws.world.knowledge_groups] or ["everyone"])
+            done.append("news")
+    if done:
+        ws.store.save_world_state(state)
+    return done
+
+
+def problems() -> list[str]:
+    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing."""
+    bad = []
+    need = {"closed": ("minutes",), "danger": ("value", "days"), "news": ("text",)}
+    for name, e in (W.get("effects") or {}).items():
+        for ch in e.get("changes") or []:
+            kind = ch.get("kind")
+            if kind not in CHANGE_KINDS:
+                bad.append(f"improv.yaml {name}: change kind '{kind}' is not one of {', '.join(CHANGE_KINDS)}")
+                continue
+            for f in need[kind]:
+                if f not in ch:
+                    bad.append(f"improv.yaml {name}: a {kind} change needs {f}")
+    return bad
+
+
 def what_of(words: str) -> str:
     """The thing attempted, for a mark: the player's words, trimmed of the 'I' and kept short."""
     w = " ".join((words or "").split())
@@ -49,7 +107,7 @@ def what_of(words: str) -> str:
 
 def resolve(ws, words: str, text: str) -> None:
     """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact."""
-    from engine import checks, pools, law, clock
+    from engine import checks, pools
     c = ws.player.character
     effect = read_effect(words or text)
     e = W["effects"][effect]
@@ -59,9 +117,16 @@ def resolve(ws, words: str, text: str) -> None:
     console.ledger(f"{effect.capitalize()} — {degree.replace('_', ' ')}")
     what = what_of(words or text)
     mark = e["mark"].format(what=what) if e["mark"] and what else ""
+    from engine.domain_events import Improvised
+    failed = degree not in ("success", "strong success", "partial")
+    ws.notice(Improvised(minute=ws.minutes, place=ws.player.location, effect=effect, degree=degree, what=what, mark=mark,
+                         heat=float(W["fails"][e["fail"]].get("heat", 0) or 0) if failed else 0.0))
     if degree in ("success", "strong success"):
         if mark:
             ws.add_mark(mark)
+        changed = apply_changes(ws, effect, what, degree)
+        if changed:
+            console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
         ws.advance(5)
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
                    + ". Show it done, as it would be seen, and what is different now. Nothing is gained that was not there, and no one is harmed.", text)
@@ -70,6 +135,7 @@ def resolve(ws, words: str, text: str) -> None:
         P = W["partial"]
         if mark:
             ws.add_mark("roughly, " + mark)
+        apply_changes(ws, effect, what, degree)
         ws.advance(P["minutes"])
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works - {P['text']}. Show it as it would be seen, "
                    "the flaw in it plain. Nothing is gained that was not there.", text)
@@ -79,8 +145,6 @@ def resolve(ws, words: str, text: str) -> None:
     if F.get("health_pct"):
         top = pools.maximum(c, "health")
         c.health = max(1.0, pools.current(c, "health") - top * F["health_pct"] / 100)
-    if F.get("heat") and not ws.place.danger:
-        law.add_heat(ws.player, ws.town_here(), F["heat"], clock.day(ws.minutes))
     if F.get("mark") and mark:
         ws.add_mark(F["mark"].format(mark=mark))
     ws.store.save_player(ws.player)

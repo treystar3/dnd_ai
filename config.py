@@ -14,7 +14,9 @@ LOG_KEEP_ENTRIES = 300    # how many of the most recent entries survive a trim
 LOG_FULL_PROMPTS = False  # True stores every system prompt in full (large); False keeps the first part
 
 AUDIT_ENABLED = True       # a second opinion on risky action plans (several steps, money words, an unmatched verb...); costs two quick model calls on those turns only
-TURN_LOG_PATH = "logs/turns.jsonl"  # one line per turn: what was typed, what was read, what the audit changed
+TURN_LOG = True            # every line the player types is a row in TURN_LOG_PATH, naming what handled it (engine/turnlog.py)
+TURN_LOG_PATH = "logs/turns.jsonl"  # one line per typed line: what handled it; for an interpreted line, what was read and what the audit changed
+SESSION_STATS_PATH = "logs/sessions.jsonl"  # one line per session: lines by handler, model calls and failures by task, refusals by kind
 REFUSALS_LOG = True
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
 AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)

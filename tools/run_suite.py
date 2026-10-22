@@ -65,7 +65,7 @@ def run_one(test: Path, outdir: Path, timeout: int) -> tuple[str, int, float]:
             text = (outdir / f"{test.name}.out").read_text(encoding="utf-8", errors="replace")
         except OSError:
             text = ""
-        if re.search(r"^FAIL\b|^FAILED[: ]", text, re.M):
+        if re.search(r"^FAIL\b|^FAILED(?![: ]+none\b)[: ]", text, re.M):       # "FAILED: none" is how some tests say all passed
             rc = 1
     return test.name, rc, time.time() - start
 

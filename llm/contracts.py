@@ -9,7 +9,7 @@ validation context passed to llm.gateway.generate.
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
 
 from core.models import (
     COMPANION_TARGETS,
@@ -467,15 +467,22 @@ class PartyIntent(BaseModel):
 
 
 class ActionPlan(BaseModel):
-    """What the player does this message: one to three actions, in order."""
+    """What the player does this message: one to three actions, in order. More than three are kept aside (f332: the scene tells the player
+    what was not done) rather than refused, since the gateway would only retry the whole reading."""
     actions: list[ActionIntent]
+    _dropped: list = PrivateAttr(default_factory=list)
 
     @model_validator(mode="after")
     def at_most_three(self):
         if not self.actions:
             raise ValueError("give at least one action")
+        self._dropped = list(self.actions[3:])
         self.actions = self.actions[:3]
         return self
+
+    @property
+    def dropped(self) -> list:
+        return list(self._dropped)
 
 class ResidentProposal(BaseModel):
     slot: int
@@ -1042,6 +1049,35 @@ class ThreadProposal(BaseModel):
         out += [(f"clue {i + 1}", c.text) for i, c in enumerate(self.clues)]
         if self.triumph:
             out.append(("triumph", self.triumph.description))
+        return [(k, t) for k, t in out if t]
+
+
+class ThreadTelling(BaseModel):
+    """(f331) A situation the engine built, re-told in the world's own words when the player comes where it is (engine/threads.py tell).
+    The facts are the engine's and stay: the same place, the same creature, the same people by their trades, the same outcome. Only the
+    lines nothing has copied yet are given, numbered, and each comes back re-told in its place; an empty string keeps the line as it was."""
+    stages: list[str] = []          # one per STAGE given, in order
+    fallout: str = ""
+    truth: str = ""
+    clues: list[str] = []           # one per CLUE given, in order, in that person's own words to a stranger who asked
+    reveal: str = ""
+    resolution: str = ""
+
+    _blank = blank_placeholders("fallout", "truth", "reveal", "resolution")
+
+    @model_validator(mode="after")
+    def counted(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        need_s, need_c = ctx.get("stages"), ctx.get("clues")
+        if need_s is not None and len(self.stages) != need_s:
+            raise ValueError(f"write exactly {need_s} stages, one for each STAGE given, in order (an empty string keeps one as it is)")
+        if need_c is not None and len(self.clues) != need_c:
+            raise ValueError(f"write exactly {need_c} clues, one for each CLUE given, in order (an empty string keeps one as it is)")
+        return self
+
+    def spoken(self):
+        out = [("fallout", self.fallout), ("truth", self.truth), ("reveal", self.reveal), ("resolution", self.resolution)]
+        out += [(f"stage {i + 1}", t) for i, t in enumerate(self.stages)] + [(f"clue {i + 1}", t) for i, t in enumerate(self.clues)]
         return [(k, t) for k, t in out if t]
 
 

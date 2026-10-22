@@ -1,0 +1,138 @@
+# How the game reads what the player types (tools/interp_eval.py). Each case: a line, the scene it is typed in, what the model is taken
+# to have read (offline), and what should happen: which intercept takes it (or `interpret`, the model), what runs. The first cases are the
+# ordinary sentences that once went to the wrong place. Add a case from a real turn with --promote, then fill in `expect`.
+- name: road_question_is_talk
+  text: "Tell me about the Red Road"
+  scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}]}
+  plan: [{kind: talk, target: m1, speech: "Tell me about the Red Road"}]
+  expect: {handled_by: interpret, kinds: [talk]}
+- name: direction_question_is_talk
+  text: "What do you know about the north?"
+  scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}]}
+  plan: [{kind: talk, target: m1, speech: "What do you know about the north?"}]
+  expect: {handled_by: interpret, kinds: [talk]}
+- name: heretics_trial_is_for_the_priest
+  text: "I ask the priest about the heretic's trial"
+  scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
+  plan: [{kind: talk, target: p1, speech: "Tell me about the heretic's trial"}]
+  expect: {handled_by: interpret, kinds: [talk]}
+- name: own_trial_away_from_hall
+  text: "I'd like to take the trial"
+  scene: {place: trading_square}
+  expect: {handled_by: trial, kinds: []}
+- name: rank_question_at_hall_is_answered
+  text: "What do I need for the next rank?"
+  scene: {place: guild_house, rank: F, guild_done: {F: 5}, level: 10}
+  expect: {handled_by: trial, kinds: []}
+- name: maren_named_with_action_is_the_hunt
+  text: "Maren, let's head to the Greywood"
+  scene: {place: trading_square, mentor_stage: hunt}
+  expect: {handled_by: mentor_hunt, moves: [greywood]}
+- name: market_first_is_not_the_hunt
+  text: "Let's go to the market first"
+  scene: {place: trading_square, mentor_stage: hunt}
+  plan: [{kind: move, destination: trading_square}]
+  expect: {handled_by: interpret}
+- name: ready_lets_go_is_the_hunt
+  text: "I'm ready, let's go"
+  scene: {place: trading_square, mentor_stage: hunt}
+  expect: {handled_by: mentor_hunt, moves: [greywood]}
+- name: thanks_to_maren_by_name
+  text: "you saved my ass back there maren, thank you"
+  scene: {place: trading_square, mentor_stage: hunt}
+  expect: {handled_by: mentor_named}
+- name: show_maren_is_a_show
+  text: "I show Maren the wolf pelts"
+  scene: {place: trading_square, mentor_stage: hunt}
+  plan: [{kind: show, target: maren, item: wolf pelts}]
+  expect: {handled_by: interpret, kinds: [show]}
+- name: quoted_line_beside_maren
+  text: '"so, tell me about yourself"'
+  scene: {place: trading_square, mentor_stage: harvest}
+  expect: {handled_by: mentor_quoted}
+- name: joining_fee_quoted_at_the_desk
+  text: '"Here''s the joining fee."'
+  scene: {place: guild_house, mentor_stage: sign, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
+  plan: [{kind: talk, target: c1, speech: "Here's the joining fee."}]
+  expect: {handled_by: interpret, kinds: [join_guild]}
+- name: not_joining_stays_talk
+  text: "I don't want to join the guild"
+  scene: {place: guild_house, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
+  plan: [{kind: talk, target: c1, speech: "I don't want to join the guild"}]
+  expect: {handled_by: interpret, kinds: [talk]}
+- name: register_later_stays_talk
+  text: "I'll register later, the fee's too steep"
+  scene: {place: guild_house, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
+  plan: [{kind: talk, target: c1, speech: "I'll register later"}]
+  expect: {handled_by: interpret, kinds: [talk]}
+- name: paying_the_fee_joins
+  text: "I pay the fee and sign the register"
+  scene: {place: guild_house, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
+  plan: [{kind: talk, target: c1, speech: "I pay the fee"}]
+  expect: {handled_by: interpret, kinds: [join_guild]}
+- name: hire_asked_by_name
+  text: "Bram, how are you holding up?"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}]}
+  expect: {handled_by: hire}
+- name: giving_a_hire_a_draught
+  text: "I give Bram a healing draught"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}]}
+  plan: [{kind: give, target: "hire:h0", item: healing draught}]
+  expect: {handled_by: interpret, kinds: [give]}
+- name: healing_a_hire_is_an_ability
+  text: "I heal Bram with Mending Light"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}]}
+  plan: [{kind: ability, ability: mending_light, target: "hire:h0"}]
+  expect: {handled_by: interpret, kinds: [ability]}
+- name: waiting_after_a_hire_spoke
+  text: "I wait an hour"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
+  plan: [{kind: wait, wait_minutes: 60}]
+  expect: {handled_by: interpret, kinds: [wait]}
+- name: looking_after_a_hire_spoke
+  text: "I look around"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
+  expect: {handled_by: interpret, kinds: [look]}
+- name: question_after_a_hire_spoke_goes_on
+  text: "where are you from?"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
+  expect: {handled_by: hire}
+- name: okay_lets_head_is_not_a_yes
+  text: "Okay, let's head to the inn first"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], errand: true}
+  plan: [{kind: move, destination: tilted_plough}]
+  expect: {handled_by: interpret, moves: [tilted_plough]}
+- name: yes_of_course_is_a_yes
+  text: "Yes, of course"
+  scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], errand: true}
+  expect: {handled_by: errand}
+- name: coin_mentioned_is_not_offered
+  text: "Don't forget the 2 silver I paid you yesterday"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "Don't forget the 2 silver I paid you yesterday"}]
+  expect: {handled_by: interpret, kinds: [talk]}
+- name: coin_offered_to_look_away_is_a_give
+  text: "I offer the guard 2 silver to look the other way"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "look the other way"}]
+  expect: {handled_by: interpret, kinds: [give], first: {item: 2 silver}}
+- name: a_taken_line_spends_a_question
+  text: "I'd like to take the trial"
+  scene: {place: trading_square, clarify: true}
+  expect: {handled_by: trial}
+# (f332) three things players kept typing that had no kind of their own
+- name: prayer_is_pray
+  text: "I kneel at the altar and pray for a safe road"
+  scene: {place: parth_temple, present: [{id: p1, name: Brother Aldo, role: priest}]}
+  plan: [{kind: pray, summary: "pray for a safe road"}]
+  expect: {handled_by: interpret, kinds: [pray]}
+- name: dice_at_the_inn_is_gamble
+  text: "I throw dice with the innkeeper for a silver"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: gamble, target: i1, item: "1 silver", summary: "dice with the innkeeper"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
+- name: bargaining_is_haggle_not_talk
+  text: "I haggle with the smith over the longsword"
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
+  plan: [{kind: haggle, target: s1, ware: longsword, summary: "haggle over the longsword"}]
+  expect: {handled_by: interpret, kinds: [haggle]}

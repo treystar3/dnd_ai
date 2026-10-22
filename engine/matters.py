@@ -217,7 +217,13 @@ def on_arrival(ws) -> None:
     changed = False
     def touches(x):                                   # a cataclysm (f324) touches every town in its path, not only its origin
         return _town(ws.world, x["place"]) == town or town in x.get("hit_towns", [])
-    for th in [x for x in state.get("threads", []) if x["status"] == "active" and touches(x)]:
+    live = [x for x in state.get("threads", []) if x["status"] == "active" and touches(x)]
+    from engine import threads
+    for th in live:                                   # (f331) a situation the engine built is re-told in the world's words, once, now that the player is here
+        if th.get("made_by") == "engine" and not th.get("told"):
+            changed |= threads.tell(ws.store, ws.world, state, th, ws.minutes) or "told_at" in th
+            break
+    for th in live:
         if th.get("moment") == "pending" and _cooldown_ok(state, town, "scene", ws.minutes):
             if entering and rng.random() > D["scene"]["on_enter_chance"]:
                 continue
@@ -299,7 +305,7 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
 def try_find(ws, text: str = "") -> bool:
     """The player searches or looks closely where a matter's find path points: a perception roll, and on a success the thing is found,
     the deed is logged and the matter may end. True when a roll was made and narrated (the caller's own search is done)."""
-    from engine import checks, deeds, events
+    from engine import checks
     state = ws.store.load_world_state()
     here = ws.player.location
     for th in state.get("threads", []):
@@ -320,7 +326,8 @@ def try_find(ws, text: str = "") -> bool:
             ws.narrate("THE PLAYER FINDS WHAT THEY WERE LOOKING FOR, here, now: " + (path["how"] or path["name"])
                        + " Show the finding as it would be seen and handled, and stop there - no conclusions, no one explaining it.", text)
             console.debug(f"matter: found - {th['title']} at {here}")
-            events.after_deed(ws, deeds.log(ws.store, "found", ws.minutes, here, thread=th["id"], what=path["name"]))
+            from engine.domain_events import ClueFound
+            ws.notice(ClueFound(minute=ws.minutes, place=here, thread=th["id"], what=path["name"]))
         elif degree == "partial":
             ws.narrate("The player searches here and has the feeling something is to be found, without putting a hand on it yet. "
                        "Two sentences; nothing named.", text)
@@ -394,7 +401,7 @@ def reveal(ws, state: dict, th: dict) -> None:
         th["stage"] += 1
         stage = th["stages"][th["stage"]]
         pulse.apply_effects(ws.store, ws.world, ws.catalog, state, stage["effects"], th["tier"], ws.minutes, th["title"], raw=True, thread_id=th["id"])
-        pulse.add_news(state, stage["description"], th["place"], ws.minutes, th["groups"])
+        pulse.add_news(state, stage["description"], th["place"], ws.minutes, th["groups"], thread=th["id"])
     ws.weight_hint = "rich"
     ws.narrate("THE JOB IS DONE AND PAID, AND THERE IS MORE TO IT THAN THE POSTING SAID. What the player finds, now: " + th["reveal"]
                + " Show it plainly, as a thing seen or found, and stop there: no conclusions, no one explaining it.")

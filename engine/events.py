@@ -255,7 +255,7 @@ def apply_big(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
     elif kind == "seal" and pulse.known(world, e.get("place")):
         state["effects"].append({"kind": "closed", "place": e["place"], "value": 0,
                                  "until": t + (days or E["seal"]["days"]) * 1440,
-                                 "text": e.get("text") or "sealed off", "cause": cause, "seal": True})
+                                 "text": e.get("text") or "sealed off", "cause": cause, "seal": True, "thread": thread_id})
 
 
 # ---------- resolution paths ----------
@@ -422,7 +422,7 @@ def judge(ws, state, th, deed) -> bool:
             th["times"][i] += round(left * E["judge"]["partial_delay"])
         th["partial"] = th.get("partial", 0) + 1
         pulse.add_news(state, f"{th['title']}: word is that {v.reason.rstrip('.').lower()} - it has bought some time.",
-                       th["place"], ws.minutes, th["groups"])
+                       th["place"], ws.minutes, th["groups"], thread=th["id"])
         console.note(f"What you have done has set {th['title']} back. It is not over.")
         return True
     return False
@@ -433,8 +433,9 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     pulse = _pulse()
     store, world, t = ws.store, ws.world, ws.minutes
     name = ws.player.character.name
-    for e in state.get("effects", []):
-        if e.get("cause") == th["title"] and e["kind"] in ("danger", "closed", "prices"):
+    for e in state.get("effects", []):                  # (f331) lifted by the thread's id; by title for effects from before ids were kept
+        mine = e.get("thread") == th["id"] if e.get("thread") else e.get("cause") == th["title"]
+        if mine and e["kind"] in ("danger", "closed", "prices"):
             e["until"] = min(e["until"], t)
     for s in state.get("spawns", []):
         if s["thread"] == th["id"]:
@@ -445,7 +446,7 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     if th.get("triumph"):
         pulse.apply_effects(store, world, ws.catalog, state, th["triumph"].get("effects", []), th["tier"], t, th["title"],
                             raw=True, thread_id=th["id"])
-        pulse.add_news(state, th["triumph"]["description"], th["place"], t, th["groups"])
+        pulse.add_news(state, th["triumph"]["description"], th["place"], t, th["groups"], thread=th["id"])
     won = th.get("won_path") or {}
     if won.get("side"):
         loser = world.places[won["side"]].name
@@ -622,8 +623,9 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
                 pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes)
                 console.note(f"{n.name} is dead. They gave their life in the fight.")
                 _vacancy(ws.store, ws.world, n, ws.minutes, random.Random())
-                pulse.add_news(ws.store.load_world_state() or {}, f"{n.name} fell fighting beside {ws.player.character.name}.",
-                               n.location, ws.minutes, ["everyone"])
+                state = ws.store.load_world_state() or pulse.empty_state(ws.minutes)
+                pulse.add_news(state, f"{n.name} fell fighting beside {ws.player.character.name}.", n.location, ws.minutes, ["everyone"])
+                ws.store.save_world_state(state)
             else:
                 console.note(f"{n.name} is carried out of the fight, badly hurt but alive.")
                 n.mood = "badly wounded, but alive"
@@ -863,12 +865,13 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
               "boss": boss["id"] if boss else "", "leaders": leaders,
               "antagonist": proposal.antagonist or (boss_c.name if boss_c else "the war"), "keepsake": proposal.keepsake, "fallen": [], "level": level,
               "door": "scene", "summons": "pending", "moment": "", "sender": "", "clues": [], "touched": False, "answered": False, "opened": t,   # (f324) a threatened town's anchors may send for the player
+              "made_by": "model", "told": True,
               "triumph": {"description": proposal.triumph or "The danger passes, and the survivors begin to rebuild.",
                           "effects": [{"kind": "mark", "place": origin.id, "text": f"{proposal.title} was ended here"}]}}
     state["threads"].append(thread)
     state["campaign"] = thread_id
     state["cataclysms"] = state.get("cataclysms", 0) + 1
-    pulse.add_news(state, proposal.news, origin.id, t, ["everyone"])
+    pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id)
     from engine import pulselog
     row = pulselog.note("thread", f"[cataclysm:{kid}] {proposal.title} from {origin.name} - begins")
     pulse.apply_effects(store, world, catalog, state, stage_rows[0]["effects"], "cataclysm", t, thread["title"], raw=True, thread_id=thread_id, row=row)
@@ -885,7 +888,7 @@ def on_stage(store, world, catalog, state, th: dict, t: int, rng: random.Random)
     hits = th["hits"]
     sig = th["stages"][i].get("signs")
     if sig:
-        pulse.add_news(state, sig, th["place"], t, th["groups"])
+        pulse.add_news(state, sig, th["place"], t, th["groups"], thread=th["id"])
     for town in hits[i] if i < len(hits) else []:
         if _player_in(store, world, town) and [s for s in live_spawns(state, t, th["id"]) if not s["boss"]]:      # (f324) fought for, not rolled
             state.setdefault("assaults", []).append({"thread": th["id"], "town": town, "stage": i, "minute": t})
@@ -1171,8 +1174,8 @@ def assault_over(ws, outcome: str) -> None:
     store.save_world_state(state)
     name = ws.world.places[a["town"]].name
     if won:
-        from engine import deeds
-        deeds.log(store, "defend", ws.minutes, a["town"], thread=th["id"], town=a["town"])
+        from engine.domain_events import GateHeld
+        ws.notice(GateHeld(minute=ws.minutes, place=a["town"], thread=th["id"], town=a["town"]))    # the ledger, and the event it may end
         try:
             ws.reputation_add(a["town"], C.get("held_reputation", 15))
         except Exception:

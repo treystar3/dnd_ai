@@ -208,7 +208,7 @@ def _open_matter(ws, q: dict) -> None:
           "times": [ws.minutes, ws.minutes + G.get("chain", {}).get("days", 7) * 1440], "groups": ["everyone"], "resolution": "", "contract": None,
           "truth": m.get("truth", ""), "clues": [{"text": m["clue"], "holder": "", "npc": "", "found": False}] if m.get("clue") else [],
           "reveal": m.get("reveal", ""), "revealed": True, "touched": True, "door": "board_more", "hidden": True, "opened": ws.minutes,
-          "answered": True, "moment": "", "summons": "", "sender": "", "posted": True, "road": False}
+          "answered": True, "moment": "", "summons": "", "sender": "", "posted": True, "road": False, "made_by": "model", "told": True}
     paths = []
     p = m.get("path") or {}
     if p.get("kind") in ("kill", "persuade", "find") and p.get("target"):

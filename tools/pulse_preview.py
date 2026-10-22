@@ -42,6 +42,7 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=1, help="how many events to run")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--stub", action="store_true", help="use the template stand-in instead of the model")
+    ap.add_argument("--template", action="store_true", help="the engine builds the situation itself (data/rules/threads.yaml), whatever the tier")
     ap.add_argument("--fresh", action="store_true", help="start the scratch world over")
     ap.add_argument("--list", action="store_true")
     a = ap.parse_args()
@@ -79,13 +80,14 @@ def main() -> None:
             events.player_level = lambda s, _l=a.level: _l
             ok = events.start_cataclysm(store, world, catalog, state, t, rng)
         else:
-          ok = pulse.start_thread(store, world, catalog, state, t, rng, tier=a.tier, pressure_id=a.pressure, place_id=a.place)
+            ok = pulse.start_thread(store, world, catalog, state, t, rng, tier=a.tier, pressure_id=a.pressure, place_id=a.place,
+                                    made_by="engine" if a.template else "")
         if not ok:
             print("The model gave nothing usable this time (try again).")
             continue
         th = next(x for x in state["threads"] if x["id"] not in before)
         town = world.places[th["place"]].name
-        out = [f"# Event {i + 1}: {th['title']}",
+        out = [f"# Event {i + 1}: {th['title']}" + (f" (engine-built from the {th['template']} template, severity {th['severity']})" if th.get("made_by") == "engine" else ""),
                f"- Tier **{th['tier']}** · at {town} · seed `{th['pressure'] or 'free choice'}` · {len(th['stages'])} stage(s) over "
                f"{(th['times'][-1] - th['times'][0]) / 1440:.1f} days · first heard by: {', '.join(th['groups'])}",
                f"- What people are saying: {state['news'][-1]['text'] if state['news'] else ''}",

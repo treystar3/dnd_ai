@@ -5,8 +5,12 @@ step forward, or starts a situation (a "thread") somewhere. Threads unfold in st
 with by someone, or running their course and leaving their fallout. Everything mechanical goes through effects
 the engine knows how to apply; everything else becomes history and news that people carry along the roads.
 
-World state is saved per campaign in world_state.json:
-  last (minute of the last pulse), threads, news, history, effects, cooldowns, campaign (id of the running one)
+World state is the world_state row of the campaign's save (storage/campaign.py):
+  last (minute of the last pulse), threads, news, history, effects, cooldowns, campaign (id of the running one), drift_last (f331).
+
+Who writes a situation (f331): the ordinary tiers (pulse.yaml tiers engine: true) are built by the engine from data/rules/threads.yaml
+with no model call, complete at birth, and re-told in the world's words when the player comes where they are (engine/threads.py); the
+rare and campaign tiers are the model's. Between pulses the drift (engine/drift.py) settles what they left.
 """
 
 import random
@@ -28,7 +32,7 @@ INTERVAL = P["interval_hours"] * 60
 
 def empty_state(now: int) -> dict:
     return {"last": now, "threads": [], "news": [], "history": [], "effects": [], "cooldowns": {}, "campaign": "",
-            "deeds": [], "spawns": [], "camps": [], "vacancies": {}, "player_events": [], "cataclysms": 0, "cataclysm_end": 0}
+            "deeds": [], "spawns": [], "camps": [], "vacancies": {}, "player_events": [], "cataclysms": 0, "cataclysm_end": 0, "drift_last": now}
 
 
 # ---------- reading the world's state ----------
@@ -111,8 +115,9 @@ def travel_delay(world, origin: str, where: str) -> int:
 
 # ---------- the clock ----------
 
-def catch_up(store, world, catalog, now: int) -> None:
-    """Run every pulse between the last one and now. Timers always run; new events are capped per call."""
+def catch_up(store, world, catalog, now: int) -> dict:
+    """Run every pulse between the last one and now. Timers always run; new events are capped per call. Then the drift (engine/drift.py,
+    f331) settles what the pulses left, on its own clock; what it owes the player's record is returned for the scene to apply."""
     state = store.load_world_state() or empty_state(now)
     if "last" not in state:
         state["last"] = now
@@ -150,8 +155,11 @@ def catch_up(store, world, catalog, now: int) -> None:
         if done:
             budget -= 1
             changed = True
+    from engine import drift
+    deltas = drift.catch_up(store, world, state, now, random.Random(f"{store.meta.seed}:drift:{state.get('drift_last', now)}"))
     pulselog.close()
     store.save_world_state(state)
+    return deltas
 
 
 FINISHED_KEPT = 30
@@ -159,8 +167,10 @@ FINISHED_KEPT = 30
 
 # ---------- threads ----------
 
-def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "") -> bool:
-    """Start a situation. pressure_id / place_id force the seed and the place (used by tools/pulse_preview.py)."""
+def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "") -> bool:
+    """Start a situation. pressure_id / place_id force the seed and the place (used by tools/pulse_preview.py). made_by forces who writes it:
+    'engine' (data/rules/threads.yaml) or 'model'; by default the tier decides (pulse.yaml tiers engine: true), and a tier the model writes
+    falls back to the engine's own when the model gives nothing usable (f331)."""
     plain = [k for k in P["tiers"] if k not in ("campaign", "cataclysm")]
     tier = tier or rng.choices(plain, weights=[P["tiers"][k]["weight"] for k in plain])[0]
     rule = P["tiers"][tier]
@@ -184,22 +194,33 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         return False
     big = tier in events.BIG
     thread_id = uuid.uuid4().hex[:8]
-    system = pp.THREAD_SYSTEM + (pp.BIG_EXTRA if big else "")
-    extra = ""
-    if big:
-        extra = f"\nPLAYER LEVEL: {events.player_level(store)}"
-    from engine import truth
-    try:
-        proposal = generate(
-            "pulse_thread", system,
-            f"TIER: {tier}\nSTAGES: {rule['stages']}\n" + context_for_place(store, world, catalog, state, place, t, big=big) + extra,
-            ThreadProposal, temperature=0.95, max_tokens=2400 if big else 1800,
-            validation_context={"stages": rule["stages"], "known": truth.world_words(world)},      # (f323) nothing named that the world does not have
-        )
-    except LLMError as e:
-        console.debug(f"pulse: no situation this time ({e})")
-        pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: the model gave nothing usable ({e})")
-        return False
+    from engine import threads, truth
+    proposal, info = None, None
+    engine_made = made_by == "engine" or (not made_by and rule.get("engine"))
+    if not engine_made:
+        system = pp.THREAD_SYSTEM + (pp.BIG_EXTRA if big else "")
+        extra = ""
+        if big:
+            extra = f"\nPLAYER LEVEL: {events.player_level(store)}"
+        try:
+            proposal = generate(
+                "pulse_thread", system,
+                f"TIER: {tier}\nSTAGES: {rule['stages']}\n" + context_for_place(store, world, catalog, state, place, t, big=big) + extra,
+                ThreadProposal, temperature=0.95, max_tokens=2400 if big else 1800,
+                validation_context={"stages": rule["stages"], "known": truth.world_words(world)},      # (f323) nothing named that the world does not have
+            )
+        except LLMError as e:
+            if rule.get("fallback") != "engine" or made_by == "model":
+                console.debug(f"pulse: no situation this time ({e})")
+                pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: the model gave nothing usable ({e})")
+                return False
+            console.debug(f"pulse: the model gave nothing usable ({e}); the engine builds the situation itself")
+    if proposal is None:                                             # (f331) the engine's own
+        built = threads.build(store, world, state, place, pressure, tier, rng, t)
+        if not built:
+            pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: no template fits the place")
+            return False
+        proposal, info = built
     if not known(world, proposal.place):
         proposal.place = place.id
     days = rng.randint(*rule["days"])
@@ -212,15 +233,18 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
               "groups": [g for g in proposal.groups if g in world.knowledge_groups] or ["everyone"],
               "reward_hint": list(pressure.reward) if pressure else [], "paths": [], "scope_places": [],
               "triumph": proposal.triumph.model_dump() if proposal.triumph else None,
-              "boss_lines": proposal.boss_lines.model_dump(exclude={"captain_intro"}) if proposal.boss_lines and tier == "campaign" else None}
+              "boss_lines": proposal.boss_lines.model_dump(exclude={"captain_intro"}) if proposal.boss_lines and tier == "campaign" else None,
+              "made_by": "engine" if info else "model", "told": not info}                 # (f331) who wrote it; an engine-built one is re-told when met
+    if info:
+        thread.update(template=info["template"], severity=info["severity"], words=info["words"])
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
     state["threads"].append(thread)
     if pressure:
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
         state["campaign"] = thread["id"]
-    add_news(state, proposal.news, proposal.place, t, thread["groups"])
-    row = pulselog.note("thread", f"[{tier}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages")
+    add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
+    row = pulselog.note("thread", f"[{tier}{', engine-built' if info else ''}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages")
     apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)
     from engine import matters                                      # (f317) the door the player meets it through, and what it carries
     reputation = store.load_player().reputation.get(town_of(world, proposal.place), 0) if store.player_exists() else 0
@@ -298,7 +322,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             stage = th["stages"][th["stage"]]
             row = pulselog.note("stage", f"{th['title']} - stage {th['stage'] + 1}/{len(th['stages'])}: {stage['description'][:140]}")
             apply_effects(store, world, catalog, state, stage["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
-            add_news(state, stage["description"], th["place"], t, th["groups"])
+            add_news(state, stage["description"], th["place"], t, th["groups"], thread=th["id"])
             if th["tier"] == "cataclysm":
                 events.on_stage(store, world, catalog, state, th, t, rng)
             elif th["tier"] in events.BIG:
@@ -362,7 +386,7 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     if len(done) > FINISHED_KEPT:
         drop = {x["id"] for x in done[:-FINISHED_KEPT]}
         state["threads"] = [x for x in state["threads"] if x["id"] not in drop]
-    add_news(state, line, th["place"], t, th["groups"])
+    add_news(state, line, th["place"], t, th["groups"], thread=th["id"])
 
 
 def post_contract(store, world, offer, thread, t, plain: bool = False) -> bool:
@@ -413,6 +437,8 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     apply_effects(store, world, catalog, state, step.effects, "normal", t, f"{npc.name}'s doings", row=row)
     npc = store.load_npc(npc.id)
     npc.motive = (step.next_motive.strip() or npc.motive) if step.status == "continuing" else ""
+    if step.status != "continuing":
+        npc.motive_done_at = t                                      # (f331) after a while a new one may take hold (engine/drift.py)
     from npc.models import Memory
     npc.memories.append(Memory(day=clock.day(t), turn=-1, text=f"(my own life) {step.happened}"))
     store.save_npc(npc)
@@ -442,7 +468,7 @@ def apply_effects(store, world, catalog, state, effects, tier: str, t: int, caus
             if e["kind"] in ("spawn", "camp", "seal"):
                 events.apply_big(store, world, catalog, state, e, tier, t, cause, thread_id)
             else:
-                result = apply_one(store, world, catalog, state, e, tier, t, cause) or "applied"
+                result = apply_one(store, world, catalog, state, e, tier, t, cause, thread_id) or "applied"
         except Exception as err:  # an effect the world can't honor is simply dropped
             console.debug(f"pulse: dropped effect {e.get('kind')} ({err})")
             result = f"dropped: {err}"
@@ -453,8 +479,9 @@ def apply_effects(store, world, catalog, state, effects, tier: str, t: int, caus
                 pass
 
 
-def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str) -> str:
-    """Apply one effect. Returns what happened, in words, for the debug log."""
+def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str, thread_id: str = "") -> str:
+    """Apply one effect. Returns what happened, in words, for the debug log. A lasting effect (prices, danger, closed) is recorded with
+    the thread that made it (f331), so ending the thread lifts exactly its own."""
     kind, lim = e["kind"], P["effects"]
     days = max(1, min(lim["max_days"], e.get("days") or 3))
     npc = store.load_npc(e["npc"]) if e.get("npc") and store.npc_exists(e["npc"]) else None
@@ -464,10 +491,12 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         r = npc.relations.get(e["other"], {"score": 0, "feeling": ""})
         r["score"] = max(-100, min(100, r["score"] + max(lim["relation"]["min"], min(lim["relation"]["max"], e["value"]))))
         r["feeling"] = e.get("text") or r["feeling"]
+        r["since"] = t                                               # (f331) feelings nobody stirs ease with time (engine/drift.py)
         npc.relations[e["other"]] = r
         store.save_npc(npc)
     elif kind == "mood" and npc and e.get("text"):
         npc.mood = e["text"]
+        npc.mood_until = t + P.get("drift", {}).get("moods", {}).get("days", 6) * 1440      # (f331) a mood the world gave fades
         store.save_npc(npc)
     elif kind == "move" and npc and known(world, e.get("place")):
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
@@ -493,10 +522,10 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         lo, hi = lim[kind]["min"], lim[kind]["max"]
         place = town_of(world, e["place"]) if kind == "prices" else e["place"]
         state["effects"].append({"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
-                                 "until": t + days * 1440, "cause": cause})
+                                 "until": t + days * 1440, "cause": cause, "thread": thread_id})
     elif kind == "closed" and known(world, e.get("place")):
         state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
-                                 "text": e.get("text") or cause, "cause": cause})
+                                 "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "mark" and known(world, e.get("place")) and e.get("text"):
         ps = store.load_place(e["place"])
         ps.marks = (ps.marks + [e["text"]])[-12:]
@@ -562,10 +591,32 @@ def remove_npc(store, world, npc, how: str, t: int) -> None:
     store.save_player(player)
 
 
-def add_news(state, text: str, origin: str, t: int, groups: list[str]) -> None:
+NEWS_KEEP = 300
+
+
+def cap_news(news: list) -> list:
+    """The news list kept to NEWS_KEEP items: the oldest plain gossip goes first, so a tale of the player's deeds (engine/standing.py)
+    is still there to move standing when it reaches a far town."""
+    if len(news) <= NEWS_KEEP:
+        return news
+    over = len(news) - NEWS_KEEP
+    out = []
+    for n in news:                                             # drop the oldest entries without a deed, as many as needed
+        if over and not n.get("deed"):
+            over -= 1
+            continue
+        out.append(n)
+    return out[-NEWS_KEEP:]
+
+
+def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: str = "") -> None:
+    """A piece of news. `thread` (f331) ties it to the situation it is about, so arrival can find a situation's own news."""
     if text and text.strip():
-        state.setdefault("news", []).append({"text": text.strip(), "origin": origin, "minute": t, "groups": groups})
-        state["news"] = state["news"][-300:]
+        row = {"text": text.strip(), "origin": origin, "minute": t, "groups": groups}
+        if thread:
+            row["thread"] = thread
+        state.setdefault("news", []).append(row)
+        state["news"] = cap_news(state["news"])
 
 
 # ---------- context for the model ----------

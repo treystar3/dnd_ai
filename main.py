@@ -47,6 +47,8 @@ def main():
             setattr(sys, name, open(os.devnull, "w"))
     import atexit
     atexit.register(unload)                        # however the game ends, the model does not stay in memory
+    from engine import turnlog
+    atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl
     try:
         if args.gui or (paths.FROZEN and not args.terminal):
             from ui import gui

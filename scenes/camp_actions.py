@@ -63,6 +63,13 @@ def keyword_methods(text: str) -> list[str]:
 
 
 class CampActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("camp", 50, "camp_turn", "what the player does at an enemy camp they have not yet fought", after="camp_took"),)
+
+    def camp_took(self) -> None:
+        """After a camp turn: the dungeons it may have opened, and the world moving on."""
+        self.ensure_dungeons()
+        self.run_pulse()
     camp_events: list = None
 
     # ---------- the camp's state ----------

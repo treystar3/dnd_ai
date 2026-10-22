@@ -124,12 +124,28 @@ def live(cases=None) -> None:
     print(f"\n{right}/{n} right in the end; audit ran on {audited}; it repaired {fixed} and broke {broke} that were already right.")
 
 
+def promote_case(e: dict) -> dict:
+    """A replay case from one turn-log row (engine/turnlog.py): the scene as the gate saw it and, when the row carries the interpreter's
+    calls, the place, the places and the catalogues the model was shown, so --live rebuilds the same request."""
+    scene = {"present": e.get("present", {}), "abilities": e.get("abilities", []), "wildlife": e.get("wildlife", False)}
+    calls = e.get("interpreter") or []
+    first = calls[0] if calls else {}
+    if e.get("place_name") or first.get("place_name"):
+        scene["place"] = e.get("place_name") or first.get("place_name")
+    if first.get("places"):
+        scene["places"] = list(first["places"])
+    for key in ("wares", "pack"):
+        if (first.get("shown") or {}).get(key):
+            scene[key] = list(first["shown"][key])
+    return {"name": "promoted_turn", "text": e["text"], "scene": scene, "raw": e.get("raw") or [], "expect": e.get("final") or [],
+            "status": e.get("audit", "unchanged")}
+
+
 def promote(path: str, index: int) -> None:
     lines = [l for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip()]
-    e = json.loads(lines[index])
-    case = {"name": "promoted_turn", "text": e["text"], "scene": {"present": e.get("present", {}), "abilities": e.get("abilities", []),
-            "wildlife": e.get("wildlife", False)}, "raw": e.get("raw") or [], "expect": e.get("final") or [], "status": e.get("audit", "unchanged")}
-    print(yaml.safe_dump([case], sort_keys=False, allow_unicode=True))
+    rows = [json.loads(l) for l in lines]
+    rows = [r for r in rows if r.get("handled_by", "interpret") == "interpret"]       # only a line the model read can be a case
+    print(yaml.safe_dump([promote_case(rows[index])], sort_keys=False, allow_unicode=True))
 
 
 if __name__ == "__main__":

@@ -27,15 +27,24 @@ headers:                                   # header text per facet; the order th
   town:        "WHAT THIS TOWN HAS (every one there is; there are no others)"
   board:       "ON THE GUILD BOARD (all of it; speak only of these)"
   happenings:  "HAPPENING HERE"
+  lately:      "WHAT THE STRANGER DID HERE LATELY (only what you saw or everyone knows)"
   news:        "NEWS THAT HAS REACHED HERE"
   player:      "THE ONE IN FRONT OF YOU"
 
 profiles:                                  # which facets each kind of reader is given
-  townsfolk:   [here, present, town, board, happenings, news, player]
-  hire:        [here, present, town, board, happenings, news]
+  townsfolk:   [here, present, town, board, happenings, lately, news, player]
+  hire:        [here, present, town, board, happenings, lately, news]
   maren:       [here, present, town, board, happenings]
-  banter:      [here, present, town, happenings, news]
-  narrator:    [here, present, happenings]
+  banter:      [here, present, town, happenings, lately, news]
+  narrator:    [here, present, happenings, lately, news]
+
+# What the player did here lately (f330: engine/reactions.py, the campaign journal). A deed those present saw is known to them, and to the
+# narrator; the public kinds below are known to everyone of the town. Nothing done unseen, nothing from another town.
+lately:
+  days: 10                   # how far back a deed is still talked of
+  rows: 150                  # the newest journal rows looked through
+  most: 8                    # at most this many lines
+  public: [contract_done, tithe, joined_guild, defend, worked, gift, contract_dropped]
   interpreter: [here, present, town]
   audit:       [present]
 

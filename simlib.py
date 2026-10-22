@@ -252,6 +252,14 @@ class Stub:
             out["contract"] = {"kind": "hunt", "what": r.choice(["wolves", "boars", "goblins", "giant spiders", "bandits"]), "count": 3}
         return out
 
+    def a_ThreadTelling(self, u, k):
+        stages = re.findall(r"^STAGE \d+: (.*)$", u, re.M)
+        clues = re.findall(r"^CLUE \d+ \(.*?\): (.*)$", u, re.M)
+        one = lambda key: (re.search(rf"^{key}: (.*)$", u, re.M).group(1) if re.search(rf"^{key}: ", u, re.M) else "")
+        told = lambda t: ("(retold) " + t) if t else ""
+        return {"stages": [told(t) for t in stages], "clues": [told(t) for t in clues], "fallout": told(one("FALLOUT")),
+                "truth": told(one("TRUTH")), "reveal": told(one("REVEAL")), "resolution": told(one("RESOLUTION"))}
+
     def a_CataclysmProposal(self, u, k):
         n = int(re.search(r"STAGES: (\d+)", u).group(1))
         ids = re.search(r"PATHS \(write one for each id\): (.*)", u).group(1).split(", ")
@@ -529,8 +537,10 @@ TRAIT_ACTIVES = {
 }
 
 
-def make_character(cls_key: str, rng: random.Random):
-    """Build a level-1 character the way creation would: abilities, drawn-and-chosen passives, stats, kit."""
+def make_character(cls_key: str, rng: random.Random, perks: bool = False):
+    """Build a level-1 character the way creation would: abilities, stats, kit - and, with perks=True, a seeded draw of creation perks
+    (the balance bots). A test character is plain: no perks unless the test gives it some, so no rule a test pins is quietly changed by
+    an All or Nothing or an Above the Law that happened to be drawn."""
     from character import creation
     from core.models import Ability, Archetype, Attributes, Character, Companion
     from engine import abilities, items
@@ -552,12 +562,13 @@ def make_character(cls_key: str, rng: random.Random):
     for a in actives:
         if a.resource.value == "mana" and not a.attribute:
             a.attribute = spec["casting"] or "wisdom"
-    offered = creation.generate_passives(interp, actives)
-    # the character keeps as many as a player would pick (creation.PICKS), world ones first: the test fighter is a plain one unless a test
-    # gives it perks itself, now that every creation offer is a character-defining rule (f209)
-    from core.rules import MECHANICS as _M
-    offered.sort(key=lambda p_: 0 if _M.get(p_.mechanic) and _M[p_.mechanic].kind == "world" else 1)
-    passives = offered[:creation.PICKS]
+    passives = []
+    if perks:
+        offered = creation.generate_passives(interp, actives, rng)      # seeded: the same character for the same seed, every run
+        # it keeps as many as a player would pick (creation.PICKS), world ones first: the fighter stays plain in a fight (f209)
+        from core.rules import MECHANICS as _M
+        offered.sort(key=lambda p_: 0 if _M.get(p_.mechanic) and _M[p_.mechanic].kind == "world" else 1)
+        passives = offered[:creation.PICKS]
     attrs = {a: 10 for a in ("strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma")}
     for a, n in spec["points"].items():
         attrs[a] += n

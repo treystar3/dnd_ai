@@ -31,7 +31,7 @@ _BASE = {}
 def base_character(cls: str):
     if cls not in _BASE:
         simlib.install(simlib.Stub(cls, 1))              # the stand-in for the language model answers for one class at a time
-        _BASE[cls] = simlib.make_character(cls, random.Random(1))
+        _BASE[cls] = simlib.make_character(cls, random.Random(1, perks=True))
     c, spec = _BASE[cls]
     return c.model_copy(deep=True), spec
 

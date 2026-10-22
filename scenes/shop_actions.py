@@ -5,7 +5,6 @@ both end here, so prices, haggling, merchant memory and saving are the same eith
 Mixed into WorldScene. A button click runs quietly: one line in the log, no narrated scene and no model call."""
 
 from engine import clock, crafting, inventory as inv, items, money, needs, pools, pulse
-from npc.models import Memory
 from scenes.inventory_actions import quality_name
 from ui import console
 
@@ -27,7 +26,8 @@ class ShopActions:
         if seller.role == "quartermaster":
             off += self.mech("quartermasters_friend")
         ware = ware.model_copy(update={"price": round(ware.price * max(0, 1 - off / 100)
-                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price())})
+                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price()
+                                                    * getattr(self, "haggle_factor", 1.0))})                 # (f332) a price a haggle won
         if ware.kind == "room" and ((self.owns("shelter_earned") and self.town_rep() >= 30)
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})
@@ -95,9 +95,9 @@ class ShopActions:
             from engine import world_perks
             if ware.kind in world_perks.P["tavern_ear"]["wares"]:
                 self.tavern_ear(seller)
-        seller.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                      text=f"The stranger paid {money.words(ware.price)} for {ware.name}."))
-        self.store.save_npc(seller)
+        from engine.domain_events import Traded
+        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(seller.id,), npc=seller.id, name=seller.label(),
+                           item=ware.name, coins=ware.price, bought=True), seller)
         self.store.save_player(self.player)
         console.ledger(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
         if quiet:
@@ -127,9 +127,9 @@ class ShopActions:
             self.player.relics_bought.append(item.uid[len("relic_"):])
         else:
             crafting.remove_from_stock(npc, item.uid)
-        npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                   text=f"Sold the stranger {item.name} for {money.words(price)}."))
-        self.store.save_npc(npc)
+        from engine.domain_events import Traded
+        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
+                           item=item.name, coins=price, bought=True), npc)
         self.to_pack(item)
         self.store.save_player(self.player)
         console.note(f"Bought {quality_name(item)} (lv {item.item_level}) for {money.fmt(price)}. "
@@ -147,9 +147,9 @@ class ShopActions:
         self.known_work_sold(sold)
         self.player.character.coins += paid
         self.use_barter()
-        buyer.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                     text=f"Bought {inv.label(sold)} from the stranger for {money.words(paid)}."))
-        self.store.save_npc(buyer)
+        from engine.domain_events import Traded
+        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(buyer.id,), npc=buyer.id, name=buyer.label(),
+                           item=inv.label(sold), coins=paid, bought=False), buyer)
         self.store.save_player(self.player)
         console.note(f"Sold {inv.label(sold)} to {buyer.label()} for {money.fmt(paid)}. Purse: {money.fmt(self.player.character.coins)}")
         if not quiet:

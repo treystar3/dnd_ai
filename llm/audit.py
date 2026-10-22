@@ -56,6 +56,11 @@ def note_turn(turn: int, text: str) -> None:
     _turn = (turn, text or "")
 
 
+def current_turn() -> int:
+    """The turn the calls being made belong to (-1 before play starts): the key that joins the model log to the turn log."""
+    return _turn[0]
+
+
 def _h(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()[:10]
 

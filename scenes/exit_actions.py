@@ -14,6 +14,8 @@ KNOWS = {"innkeeper": 5, "server": 4, "merchant": 5, "caravan_master": 6, "scout
 
 
 class ExitActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("exit", 100, "exit_request", "a way out of town by road, gate or compass direction"),)
 
     def here_top(self) -> str:
         w = self.world

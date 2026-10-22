@@ -5,6 +5,13 @@
 # narrator see; a partial is done roughly, at a cost; a failure is a real event - noise, a hurt, time lost - never "nothing happens".
 #
 # The law, the same as in a fight (engine/combat_improv.py): an ability is a promise; an improvisation is a gamble.
+#
+# changes (f332): what a success makes true in the world besides its mark, as small state operations the engine applies and the
+# start-up check validates, so `other` can grow without code. Kinds:
+#   closed  - minutes, text: the way through this place is barred for a while (travel through it is refused, engine/pulse.py closed_reason)
+#   danger  - value, days: the place's own danger leans (percent); only where the place has danger (a snare in the wood, not in the square)
+#   news    - text, groups: word of it goes round (groups: locals for the place's own, else everyone)
+# {what} is what was attempted, {place} the place's name. A partial success applies closed and danger at half, and no news.
 
 base_odds: 50                    # with attribute_center and attribute_weight from checks.yaml: chance = base + (attr - 15) * 1.5 + odds
 min: 10
@@ -12,19 +19,23 @@ max: 90
 
 effects:
   block:   {about: "blocking, barring, propping or wedging a door or a way shut; building a barricade across it",
-            attr: [strength, intelligence], odds: 5,  mark: "the way is blocked: {what}", fail: noise}
+            attr: [strength, intelligence], odds: 5,  mark: "the way is blocked: {what}", fail: noise,
+            changes: [{kind: closed, minutes: 90, text: "barred from inside: {what}"}]}
   force:   {about: "forcing, breaking, prying, smashing or kicking something open or apart",
-            attr: [strength], odds: -5, mark: "broken: {what}", fail: noise}
+            attr: [strength], odds: -5, mark: "broken: {what}", fail: noise,
+            changes: [{kind: news, text: "Someone broke something at {place}: {what}.", groups: [locals]}]}
   climb:   {about: "climbing, getting up onto or over something, reaching a high place or a ledge, dropping down from one",
             attr: [dexterity, strength], odds: 0, mark: "", fail: hurt}
   rig:     {about: "rigging, tying, knotting, building or setting something up: a rope, a trap, a snare, a shelter, a lever",
-            attr: [intelligence, dexterity], odds: -5, mark: "rigged: {what}", fail: time}
+            attr: [intelligence, dexterity], odds: -5, mark: "rigged: {what}", fail: time,
+            changes: [{kind: danger, value: -10, days: 1}]}
   move:    {about: "dragging, carrying, heaving, overturning, pouring out or shifting a heavy or awkward thing",
             attr: [strength], odds: 0, mark: "moved: {what}", fail: hurt}
   hide:    {about: "hiding, stowing, burying or covering a thing, or covering your own tracks",
             attr: [dexterity, wisdom], odds: 0, mark: "hidden here: {what}", fail: noticed}
   signal:  {about: "shouting, ringing a bell, lighting a fire or a lamp, waving, making a signal or a noise on purpose",
-            attr: [charisma, strength], odds: 10, mark: "", fail: noise}
+            attr: [charisma, strength], odds: 10, mark: "", fail: noise,
+            changes: [{kind: news, text: "A signal was raised at {place}: {what}.", groups: [locals]}]}
   examine: {about: "testing, tasting, listening at, tapping, measuring, taking apart, working something out by hand",
             attr: [wisdom, intelligence], odds: 10, mark: "", fail: time}
   attempt: {about: "", attr: [dexterity, intelligence, strength], odds: -5, mark: "", fail: time}      # what none of the above fits

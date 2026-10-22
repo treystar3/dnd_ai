@@ -8,7 +8,8 @@
 
 groups: [guards, guild, merchants, outlaws, temple, nobility, mages]
 
-# Standing never drifts back on its own: what is lost is won back by deeds.
+# Standing is won and lost by deeds. Left alone, a town's groups slowly forget (f331, engine/drift.py: pulse.yaml drift.standing eases a
+# standing nobody has moved for weeks toward neutral, a little a day; per_day 0 turns that off).
 
 # Words for a standing, highest threshold first. A value at or above the number gets the word.
 words:
@@ -87,6 +88,12 @@ deeds:
     carriers: [guards]
     text: "{who} brought {item} to the watch in {place}."
     twisted: "They say {who} dragged {item} to the watch in {place} in chains."
+  contract_dropped:
+    public: true
+    deltas: {guild: -2}
+    carriers: [guild]
+    text: "{who} took the guild's job, {item}, and let it drop."
+    twisted: "They say {who} takes the guild's jobs and never finishes one."
 
 # A tithe left in a temple's box counts for more the more is given: its weight is
 # base + per_doubling for each doubling of min_gold, up to cap. Less than min_gold buys nothing but a blessing.

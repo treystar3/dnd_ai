@@ -10,10 +10,13 @@ max_new_events_per_action: 2    # model calls the pulse may make while the playe
 kinds: {motive: 4, thread: 4}
 
 # Tiers of new situations (threads). Odds are for an eventful pulse that starts a thread.
+# engine: true (f331): the engine builds the situation itself from data/rules/threads.yaml, with no model call; the model may re-tell its
+# lines when the player comes where it is. A tier without it is written by the model; with fallback: engine it is the engine's when the
+# model fails, and without that it simply does not start this time (a campaign needs what only the model writes).
 tiers:
-  normal:   {weight: 80, stages: 1, days: [1, 2],  resolved_by_others: 0.5}
-  uncommon: {weight: 15, stages: 2, days: [3, 6],  resolved_by_others: 0.35}
-  rare:     {weight: 5,  stages: 3, days: [7, 14], resolved_by_others: 0.2}
+  normal:   {weight: 80, stages: 1, days: [1, 2],  resolved_by_others: 0.5, engine: true}
+  uncommon: {weight: 15, stages: 2, days: [3, 6],  resolved_by_others: 0.35, engine: true}
+  rare:     {weight: 5,  stages: 3, days: [7, 14], resolved_by_others: 0.2, fallback: engine}   # the model's; the engine's when the model fails
   campaign: {stages: 4, days: [30, 90], resolved_by_others: 0.05}
   cataclysm: {stages: 6, days: [84, 144], resolved_by_others: 0.0}   # built by engine/events.py; nobody else ends one
 
@@ -71,3 +74,35 @@ reputation:
   caught_spying: -2
   performed: 2
   trust_per_point: 0.25               # people meeting the player for the first time start this much warmer per point
+
+# ---------- drift (f331, engine/drift.py): the world settling and shifting between pulses, with no model call ----------
+# A pass runs on its own clock (world_state drift_last), outside the pulse's event budget. What a pass does is measured in game time,
+# so a long absence is not a long computation: people are looked at a chunk per pass, round robin, and feelings ease by the days gone.
+drift:
+  every_hours: 24
+  most_passes: 30               # a long absence runs at most this many passes
+  people_per_pass: 40           # people looked at per pass, so a big campaign costs the same per pass as a small one
+  relations: {settle_after_days: 7, per_day: 1.0}     # a feeling nobody has stirred for a week eases toward neutral this much a day; at nothing it is forgotten
+  moods: {days: 6}              # a mood the world gave someone fades after this many days
+  motives:
+    cooldown_days: 12           # after a motive ends, this long before a new one may take hold
+    chance: 0.5                 # ...and then this chance each time they are looked at
+    seeds:                      # what takes hold, by the first of their traits that matches, else default; {role} and {town} are filled
+      ambitious: ["to be more than a {role} in {town}", "to have a say in how {town} is run"]
+      greedy: ["to get hold of the money going around {town}", "to be the richest {role} in {town}"]
+      vengeful: ["to get even with the one who wronged them in {town}"]
+      anxious: ["to make sure nothing in {town} goes wrong again"]
+      competitive: ["to be known as the best {role} in {town}"]
+      obsessive: ["to finish the one piece of work that matters, whatever it costs"]
+      envious: ["to have what the better-off of {town} have"]
+      rebellious: ["to shake {town} out of its habits"]
+      manipulative: ["to get someone in {town} to do their bidding"]
+      curious: ["to find out what is really going on in {town}"]
+      default: ["to see this year out better than the last", "to set something right at home"]
+  situations:                   # while a situation runs at a town, prices there and danger in its wild places lean this way: percent per
+    prices: {threat: 4, natural: 5, nature: 3, economic: 3, trade: -3, work: 2, politics: 2, mystery: 2, social: 0, fortune: -4}   # situation, by its kind,
+    danger: {threat: 12, nature: 10, mystery: 8, work: 5}                                                                          # scaled by its severity
+    cap: 25                     # the most such lean at one place
+    days: 2                     # re-laid every pass, so it ends soon after the situation does
+  travellers: {roles: [merchant, tinker, caravan_master, bargeman, scout], every_days: 6, chance: 0.4}   # a travelling trade moves along the roads to a neighbouring town now and then (people the player has not met)
+  standing: {after_days: 21, per_day: 0.5}     # a town's groups forget: standing nobody has moved for three weeks eases toward neutral this much a day

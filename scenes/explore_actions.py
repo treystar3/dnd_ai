@@ -109,6 +109,8 @@ class ExploreActions:
             out = {"kind": "track", "id": made["id"], "minutes": made["minutes"]}
         self.store.save_discoveries(data)
         discovery.apply_all(world, data)
+        from engine.domain_events import PlaceDiscovered
+        self.notice(PlaceDiscovered(minute=self.minutes, place=self.player.location, found=out["id"], what=out["kind"], name=prop.name.strip()))
         if prop.news.strip():
             pulse.add_news(state, prop.news, anchor, self.minutes, ["everyone"])
             self.store.save_world_state(state)

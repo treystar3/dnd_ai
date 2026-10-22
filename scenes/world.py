@@ -49,6 +49,7 @@ from scenes.field_actions import FieldActions
 from scenes.audit_actions import AuditActions
 from scenes.standing_actions import StandingActions
 from scenes.law_actions import LawActions
+from scenes.pastime_actions import PastimeActions
 from scenes import markup
 from engine import mapview, mentor, needs, pulse, pulselog, quests
 from engine import inventory as inv
@@ -66,12 +67,15 @@ from ui import console
 from world.loader import World
 
 QUIT_WORDS = {"quit", "exit", "/quit", "/exit"}
+NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|refuse|decline|later)\b")     # "I don't want to join" is not joining
+PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 SEARCH = encounters.E
 
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
-                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions):
+                 RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
+                 PastimeActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -98,6 +102,31 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import domain_events
         domain_events.journal_everything()
         self.name_ids()               # the journal and the stable ids are bound from the start, not only from the first turn
+        from engine import reactions
+        reactions.register(self)      # the world's reactions to the player's deeds, bound to this scene (engine/reactions.py)
+
+    def npc_by_id(self, nid: str):
+        """The person with this id as this scene holds them (present or resident here): the same object the scene saves at the end of the
+        turn, so a change made through it is not overwritten by that save. Anyone else is loaded from the store. None if there is no one."""
+        if not nid:
+            return None
+        held = self.__dict__.get("_live") or {}
+        if nid in held:
+            return held[nid]
+        for n in self.present + self.residents:
+            if n.id == nid:
+                return n
+        return self.store.load_npc(nid) if self.store.npc_exists(nid) else None
+
+    def notice(self, event, *people) -> None:
+        """The world notices a deed of the player's (engine/reactions.py). `people` are the records this code holds for anyone in it, so
+        that the reactions change the very objects it will save, whether or not they stand in `present` right now."""
+        from engine.domain_events import publish
+        self._live = {n.id: n for n in people if n is not None}
+        try:
+            publish(event)
+        finally:
+            self._live = {}
 
     @property
     def party_service(self):
@@ -280,8 +309,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here."""
-        pulse.catch_up(self.store, self.world, self.catalog, self.minutes)
-        from engine import events
+        from engine import drift, events
+        drift.apply_player(self.player, pulse.catch_up(self.store, self.world, self.catalog, self.minutes) or {})   # (f331) what the drift owes the record this scene holds
         events.apply_player_events(self)
         self.arc_tick()
         here = self.store.load_place(self.player.location)
@@ -301,7 +330,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 rows.append({"when": when(r["t"]) + ("" if r["count"] == 1 else f" - {when(r['to'])}"), "kind": "quiet", "text": text, "effects": []})
             else:
                 rows.append({"when": when(r["t"]), "kind": r["kind"], "text": r["text"], "effects": list(r["effects"])})
-        threads = [f"[{t['tier']}] {t['title']} - stage {t['stage'] + 1}/{len(t['stages'])} at {self.where_name(t['place'])}, ends day {clock.day(t['times'][-1])}"
+        threads = [f"[{t['tier']}{', engine-built' + (', re-told' if t.get('told') else '') if t.get('made_by') == 'engine' else ''}] {t['title']} - stage {t['stage'] + 1}/{len(t['stages'])} at {self.where_name(t['place'])}, ends day {clock.day(t['times'][-1])}"
                    + (f"; door {t['door']}{' (hidden)' if t.get('hidden') else ''}, clues found {sum(1 for c in t.get('clues', []) if c['found'])}/{len(t.get('clues', []))}, paths {len(t.get('paths') or [])}" if t.get("door") else "")
                    for t in st.get("threads", []) if t["status"] == "active"]
         live = [f"{e['kind']} {e.get('value', '')} at {self.where_name(e['place'])} until day {clock.day(e['until'])}"
@@ -359,8 +388,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def enter(self, place_id: str) -> None:
         self.wildlife = None
-        if pulse.town_of(self.world, place_id) != pulse.town_of(self.world, self.player.location):
+        new_town, old_town = pulse.town_of(self.world, place_id), pulse.town_of(self.world, self.player.location)
+        if new_town != old_town:
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
+            from engine import ambient
+            if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
+                self.player.last_in[old_town] = self.minutes                       # (f331) when the player last left a town
+            self._arrival_lines = ambient.since(self.store, self.world, new_town, self.player.last_in.get(new_town), self.minutes)
         self.leave_road(place_id)
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
@@ -462,8 +496,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return
             if text.startswith("#"):
                 before = self.player.location
-                with console.scope(text):
-                    self.command(text)
+                try:
+                    with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
+                        self.command(text)
+                except LLMError as e:
+                    console.debug(f"command rolled back: {e}")
+                    self.reload_after_rollback()
+                    console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
                 if self.restart:
                     self.store.save_player(self.player)
                     return
@@ -506,6 +545,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def reload_after_rollback(self) -> None:
         """The database was rolled back to before the turn; what the scene holds in memory must match it again."""
+        self.store.reload_meta()                           # the clock the turn advanced goes back with it
         self.player = self.store.load_player()
         pools.fill_missing(self.player.character)
         saved_fight = self.store.load_combat()
@@ -774,51 +814,35 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.status_block(when, f"{emoji} {sky}", place_line, spot_line, vitals,
                              c.level, c.unspent_points, c.coins, (c.xp, leveling.xp_to_next(c.level)))
 
+    def handled(self, text: str, by: str, **fields) -> None:
+        """The typed line went to `by` (an intercept's name, 'combat', or 'interpret'): one row in the turn log (engine/turnlog.py)."""
+        from engine import turnlog
+        turnlog.record(self.store.meta.turn, text, by, place=self.player.location, **fields)
+
+    def took(self, text: str, by: str) -> None:
+        """An intercept took the line before the model saw it: logged under its name, and the turn passes. A question the world had
+        asked (f321) is spent too: the next line is not glued to a question the player has moved past."""
+        self.handled(text, by)
+        self.pending_clarify = None
+        self.store.meta.turn += 1
+
     def handle(self, text: str) -> None:
         self.last_text = text
+        self.interpret_calls = []                           # every interpreter call made for this line, kept for the turn log
         from llm import audit
         audit.note_turn(self.store.meta.turn, text)         # the model calls that follow are filed under this turn (f314)
         if self.combat:
             self.combat.turn(text)
-            self.store.meta.turn += 1
+            self.took(text, "combat")
             if not self.combat and self.resume_pending:
                 self.resume_road()
             return
-        if self.errand_intercept(text) or self.mentor_intercept(text):
-            self.store.meta.turn += 1
-            return
-        if self.trial_turn(text) or self.party_turn(text):
-            self.store.meta.turn += 1
-            return
-        if self.camp_turn(text):
-            self.ensure_dungeons()
-            self.run_pulse()
-            self.store.meta.turn += 1
-            return
-        said = text.strip()
-        if self.mentor_with_you() and not self.partner and len(said) > 2 and said[0] in "\"\u201c" and said[-1] in "\"\u201d" and said.count(chr(34)) + said.count("\u201c") + said.count("\u201d") == 2:
-            self.advance(clock.TALK_MINUTES)                 # a line wholly in quotes, with her beside them, is said to her
-            self.mentor_talk(said[1:-1].strip())
-            self.store.meta.turn += 1
-            return
-        if self.mentor_with_you() and mentor.named(text) and ("?" in text or text.strip().lower().startswith(("maren", "ask maren", "tell maren"))
-                                                               or not re.search(r"\b(hire|recruit|dismiss|disband|attack|kill|hit|fight|steal|rob|search|skin|butcher|loot|walk|go|head|travel)\b", text.lower())):
-            self.advance(clock.TALK_MINUTES)
-            self.mentor_talk(text)
-            self.store.meta.turn += 1
-            return
-        hire = self.hire_wants_talk(text)
-        if hire:
-            self.advance(clock.TALK_MINUTES)
-            self.hire_talk(hire, text)
-            self.store.meta.turn += 1
-            return
-        if self.mentor_go_hunt(text):
-            self.store.meta.turn += 1
-            return
-        if self.exit_request(text):
-            self.store.meta.turn += 1
-            return
+        for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)
+            if getattr(self, ic.method)(text):
+                if ic.after:
+                    getattr(self, ic.after)()
+                console.debug(f"intercept: {ic.name} took the line")
+                return self.took(text, ic.name)
         asked = getattr(self, "pending_clarify", None)
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
@@ -840,7 +864,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         plan = [a for k, a in enumerate(plan)
                 if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
                                                  and b.target in here_ids for b in plan[k + 1:]))] or plan
-        if not self.rank and self.clerk_here():     # paying or asking to join the guild, said to the clerk, is joining - and only once
+        if not self.rank and self.clerk_here() and not NEGATED.search(text.lower()):     # paying or asking to join the guild, said to the clerk, is joining - and only once
             asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
             for a in plan:
                 low = f"{text} {a.summary}".lower()
@@ -861,6 +885,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             plan = kept
         for a in plan:                              # "I offer the guard 5 silver to look the other way" is giving coin, whatever it was read as
             if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) \
+                    and not NEGATED.search(text.lower()) and not PAST.search(text.lower()) \
                     and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
                 m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
                 a.kind, a.item = "give", (m.group(0) if m else "coins")
@@ -900,6 +925,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.turn_in()
             if intent.kind in TIME_COST:
                 self.advance(TIME_COST[intent.kind])
+        undone = self.__dict__.pop("dropped_steps", [])
+        if undone:                                             # (f332) the game does at most three things a line: say what it did not do
+            from engine import refusals
+            console.note("Three things at a time: not done - " + "; ".join(undone) + ". Say it again when you are ready.")
+            refusals.note("undone", text, "more than three actions in one line: " + "; ".join(undone), self.player.location, self.store.meta.turn)
         self.ensure_dungeons()
         self.run_pulse()
         self.flush(text)
@@ -1116,11 +1146,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seen = self.__dict__.setdefault("_happenings_seen", set())
         unseen = [h for h in here.lines("happenings") if (self.player.location, h) not in seen]    # (f323) told once, and again when it changes
         seen.update((self.player.location, h) for h in unseen)
+        unseen = self.__dict__.pop("_arrival_lines", []) + unseen                                  # (f331) what changed here while the player was away, once
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
                                        unseen, rule["length"], streets=here.streets(),
-                                       town=" ".join(prof.character.split()) if prof and not self.place.danger else "")
+                                       town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
+                                       news=here.lines("news")[:3])                                 # (f331) the narrator hears what the town is talking about
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=rule["tokens"],
                        temperature=0.4 if strict else 0.9)
         shown = self.unnamed(result.text)
@@ -1280,7 +1312,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    [f"[{q['letter']}] {q['title']}" for q in self.player.quests], left_out=left_out)
         self.last_interpret = {"chars": len(wp.INTERPRET_SYSTEM) + len(req), "places": len(places), "people_away": len(elsewhere),
                                "of_places": len(self.world.places) - 1, "of_people_away": len(away_rows), "left_out": left_out}
-        return generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700).actions
+        read = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700)
+        actions = read.actions
+        self.dropped_steps = [(a.summary or a.kind).strip() for a in read.dropped]        # (f332) a fourth thing and beyond: told to the player, not lost
+        self.__dict__.setdefault("interpret_calls", []).append({          # the call in full, for the turn log and a lossless replay case
+            "hint": hint, "place": self.player.location, "place_name": self.place.name,
+            "roles": {p.id: p.role for p in _sc.present_people() if p.kind == "npc"},
+            "partner": self.partner.id if self.partner else "", "last_spoken": last or "",
+            "places": [pid for pid, _ in places], "people": [p[0] for p in people], "elsewhere": [e[0] for e in elsewhere],
+            "shown": {k: v for k, v in shown.items() if v}, "left_out": left_out, "chars": self.last_interpret["chars"],
+            "request": req, "plan": [a.model_dump(exclude_defaults=True) for a in actions]})
+        return actions
 
     def end_conversation(self) -> None:
         self.partner = None
@@ -1964,3 +2006,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
         world_improv.resolve(self, intent.summary or text, text)
+
+
+from scenes import intercepts as _intercepts                                     # noqa: E402
+WorldScene.INTERCEPT_TABLE = _intercepts.gather(WorldScene)                     # declared by the mixins, run in order by handle()
