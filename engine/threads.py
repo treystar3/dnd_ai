@@ -3,7 +3,9 @@
 The pulse (engine/pulse.py) starts situations - threads - away from the player. Four in five are normal and most of the rest uncommon:
 wolves off the wood, a quarrel at the inn, a hard season, a windfall. Those the engine makes here from a template for the pressure's
 kind (data/rules/threads.yaml): the pressure's own severity and scope decide the size of it, the place's own people and creatures play
-the parts, and every line comes from a phrase table with its slots filled. The result is a ThreadProposal like the model's, complete
+the parts, and every line comes from a phrase table with its slots filled. A kind has several shapes (f341): a threat is predators at the
+pens, or a demand for tribute, or a party lost in the wild, or a road cut; the engine draws one the place can fill, by weight, so the
+seventeen threat pressures do not all open with the same three lines. The result is a ThreadProposal like the model's, complete
 at birth, so everything downstream (doors, clues, paths, contracts, effects, news) runs the same for either maker. The model keeps the
 rare and the campaign-sized, and takes over the normal ones only to re-tell them: when the player comes where a situation is, tell()
 makes one call that rewrites the lines nothing has copied yet in the world's own words - never the title, which is the key the world
@@ -183,9 +185,28 @@ def words_for(store, world, place, pressure, rng: random.Random, t: int, templat
 
 # ---------- the template, and what it needs
 
-def template_for(pressure, kind: str, words: dict) -> tuple[str, dict] | None:
-    """The template named by the pressure, else its kind's; one whose needs the place cannot meet falls back, until one fits."""
-    key = (pressure.template if pressure and pressure.template else kind) or "social"
+def kind_of(key: str) -> str:
+    """The kind a template tells: its own `kind`, else its key (a kind's base template is keyed by the kind itself)."""
+    tpl = T["templates"].get(key) or {}
+    return tpl.get("kind") or key
+
+
+def shapes(kind: str) -> list[str]:
+    """Every template that tells a situation of this kind: the base one first, then the other shapes in the order written."""
+    keys = [k for k in T["templates"] if kind_of(k) == kind]
+    return sorted(keys, key=lambda k: k != kind)
+
+
+def template_for(pressure, kind: str, words: dict, rng: random.Random | None = None) -> tuple[str, dict] | None:
+    """The template named by the pressure, else one of its kind's shapes the place can fill, drawn by weight (f341; the base shape when
+    no rng is given); when none fits, the kind's base template falls back, until one fits."""
+    key = pressure.template if pressure and pressure.template else ""
+    if not key:
+        fits = [k for k in shapes(kind or "social") if all(words.get(n) for n in T["templates"][k].get("needs", []))]
+        if fits:
+            k = fits[0] if rng is None else rng.choices(fits, weights=[float(T["templates"][x].get("weight", 1) or 1) for x in fits])[0]
+            return k, T["templates"][k]
+        key = kind or "social"
     seen = set()
     while key and key not in seen and key in T["templates"]:
         seen.add(key)
@@ -266,11 +287,11 @@ def build(store, world, state: dict, place, pressure, tier: str, rng: random.Ran
     from llm.contracts import ClueProposal, PathProposal, QuestOffer, StageProposal, ThreadProposal
     kind = pressure.kind if pressure else rng.choices(list(T["kind_weights"]), weights=list(T["kind_weights"].values()))[0]
     words = words_for(store, world, place, pressure, rng, t, T["templates"].get(kind))
-    found = template_for(pressure, kind, words)
+    found = template_for(pressure, kind, words, rng)
     if not found:
         return None
     key, tpl = found
-    if not words.get("about"):
+    if not pressure or not words.get("about"):                   # no description to take a clause from: the shape's own abouts
         words["about"] = fill(rng.choice(tpl.get("abouts") or ["a quiet trouble"]), words) or "a quiet trouble"
     words["groups_locals"] = world.locals_group(place.id) or "everyone"
     severity = rng.randint(*pressure.severity) if pressure else rng.randint(1, 3)
@@ -434,10 +455,30 @@ def problems(pressures: dict | None = None, effect_kinds=(), place_ids=(), creat
         for l in (spec if isinstance(spec, list) else [spec] if spec else []):
             slots_in(l, where)
 
+    always = {"town", "place", "region", "season", "about", "role", "role2", "good"}        # slots every place fills
+
+    def fillable(spec, where, needs):
+        """At least one line that needs only the slots this place is sure to have: else a town with no road, no neighbour or no
+        creature cannot build the situation at all."""
+        lines = spec if isinstance(spec, list) else [spec] if spec else []
+        ok = always | set(needs) | ({"creatures"} if "creature" in needs else set())
+        if lines and not any(all(m.group(1)[0].lower() + m.group(1)[1:] in ok for m in _SLOT.finditer(l)) for l in lines):
+            bad.append(f"threads.yaml {where}: every line needs a slot the template does not require ({', '.join(sorted(set(needs)))})")
+
     for key, tpl in tpls.items():
         for part in ("titles", "news", "stages", "fallout"):
             if not tpl.get(part):
                 bad.append(f"threads.yaml {key}: needs {part}")
+        kind = tpl.get("kind") or key
+        if kind not in tpls or (tpls[kind].get("kind") or kind) != kind:
+            bad.append(f"threads.yaml {key}: its kind '{kind}' has no base template of that name")
+        if "weight" in tpl and (not isinstance(tpl["weight"], (int, float)) or tpl["weight"] <= 0):
+            bad.append(f"threads.yaml {key}: weight must be a positive number")
+        needs = tpl.get("needs") or []
+        fillable(tpl.get("titles"), f"{key} titles", needs); fillable(tpl.get("news"), f"{key} news", needs)
+        for si, st in enumerate(tpl.get("stages") or []):
+            fillable(st.get("lines"), f"{key} stage {si + 1}", needs)
+        fillable((tpl.get("fallout") or {}).get("lines"), f"{key} fallout", needs)
         lines_ok(tpl.get("titles"), f"{key} titles"); lines_ok(tpl.get("news"), f"{key} news")
         for n in tpl.get("needs", []):
             if n not in SLOTS:

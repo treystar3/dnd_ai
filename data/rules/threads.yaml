@@ -11,6 +11,14 @@
 # also fix slots with `words:` (creature: wolf, wild: greywood); every other slot is filled from the place. With no pressure behind
 # the situation (a town with none), a kind is drawn from kind_weights.
 #
+# A kind has several SHAPES (f341): the base template keyed by the kind (threat, nature, ...) and any number more that name it with
+# `kind:` (threat_tribute, threat_missing, threat_road). The engine draws among the shapes whose `needs` the place can fill, by
+# `weight:` (1 when unset), with the seeded rng, so the same seed still builds the same situation; a shape whose needs fail is simply
+# not drawn, and when none fits the base template's `fallback` chain is followed as before. A pressure's `template:` names one shape
+# outright. Every titles, news, stage-lines and fallout list must hold at least one line that needs only the slots every place has
+# (town, place, region, season, about, role, role2, good) or the template's own needs: engine/data_check.py refuses the rest, because a
+# town with no road, no neighbour or no creature could otherwise build nothing.
+#
 # SLOTS, written {slot} in any line (the engine fills them; a capitalised slot name capitalises the first letter):
 #   town, place, wild, neighbour, road, region, season      names; wild is the nearest dangerous place, neighbour the nearest other town
 #   creature, creatures                                      one of the wild's own creatures, singular and plural
@@ -152,7 +160,8 @@ templates:
         effects:
           - {kind: prices, place: town, value: [10, 25], days: [6, 12]}
           - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["says they are holding back grain"]}
-      - lines: ["{Town} is hungry; what the weather spared is being sold dear, and {neighbour} is sending what it can spare."]
+      - lines: ["{Town} is hungry; what the weather spared is being sold dear, and {neighbour} is sending what it can spare.",
+                "{Town} is hungry; what the weather spared is being sold dear, and the {role} has shut the door on anyone asking for credit."]
         effects:
           - {kind: prices, place: town, value: [15, 30], days: [8, 14]}
           - {kind: prices, place: neighbour, value: [5, 12], days: [6, 10]}
@@ -234,7 +243,8 @@ templates:
         effects:
           - {kind: prices, place: town, value: [8, 20], days: [6, 10]}
           - {kind: mood, npc: role2, text: ["cornered about money"]}
-      - lines: ["{Town} is poorer for it; what was a shop is a shut door, and the ones who lost are talking of leaving for {neighbour}."]
+      - lines: ["{Town} is poorer for it; what was a shop is a shut door, and the ones who lost are talking of leaving for {neighbour}.",
+                "{Town} is poorer for it; what was a shop is a shut door, and the {role} has sold the tools of their trade to eat."]
         effects:
           - {kind: mark, place: town, text: ["a shuttered shop with a notice nailed to the door"]}
     fallout:
@@ -316,7 +326,8 @@ templates:
         effects:
           - {kind: prices, place: town, value: [5, 15], days: [4, 8]}
           - {kind: relation, npc: role2, other: role, value: [-12, -4], text: ["blames them for the stoppage"]}
-      - lines: ["{Wild} is shut; {town} lives on what it stored, and the young are leaving for {neighbour} to find work."]
+      - lines: ["{Wild} is shut; {town} lives on what it stored, and the young are leaving for {neighbour} to find work.",
+                "{Wild} is shut; {town} lives on what it stored, and the {role2} has stopped giving credit to anyone who worked there."]
         effects:
           - {kind: closed, place: wild, days: [3, 6], text: ["the works are shut"]}
     fallout:
@@ -460,5 +471,713 @@ templates:
       - {holder: role2, lines: ["Good luck in {town} usually costs somebody. We'll see who.",
                                 "I've never seen the {role} so free with coin. It's not like them."]}
     paths: []
+    contract: null
+    reveal: []
+
+  # ---------- the other shapes of each kind (f341): drawn by weight among those the place can fill
+
+  threat_tribute:
+    kind: threat
+    needs: [wild, creature]
+    fallback: threat
+    abouts: ["{creatures} have sent a demand to {town}", "tribute is being asked of {town}", "{town} is told to pay or burn"]
+    titles: ["A demand at {town}", "Tribute for {wild}", "The price of peace at {town}", "{Creatures} at the gate", "Pay or burn", "What {wild} asks of {town}"]
+    news: ["Word from {town}: {about}.", "{Creatures} out of {wild} have sent terms to {town}: so much a month, or the pens burn.",
+           "A {role} from {town} was given a message by something that does not usually talk: pay.",
+           "{Town} is arguing whether to pay the {creatures} of {wild} or to fight them.", "The watch at {town} has doubled since the demand came in from {wild}."]
+    stages:
+      - lines: ["A demand has come to {town} out of {wild}: the {creatures} want tribute, and a {role} who went to argue came back with the message burned into a board.",
+                "{Town} woke to a mark cut into its gate: the {creatures} of {wild} want paying, and the {role} is for paying them."]
+        effects:
+          - {kind: danger, place: wild, value: [15, 35], days: [3, 6]}
+          - {kind: mood, npc: role, text: ["for paying, and ashamed of it", "sick with worry over the demand"]}
+          - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["wants to pay; they want to fight"]}
+      - lines: ["{Town} did not pay, and the {creatures} came at night: a pen burned, a {role2} hurt, and the demand doubled by morning.",
+                "The first payment went out of {town} on a cart, and the {creatures} took the cart and the carter both."]
+        effects:
+          - {kind: prices, place: town, value: [8, 20], days: [4, 8]}
+          - {kind: danger, place: road, value: [20, 40], days: [4, 8]}
+          - {kind: mood, npc: role2, text: ["hurt, and furious about the tribute"]}
+      - lines: ["{Town} pays now, every month, and calls it a toll; the {creatures} of {wild} grow fat and the town grows thin.",
+                "{Town} has made its peace the only way it could: a cart goes into {wild} each new moon and comes back empty."]
+        effects:
+          - {kind: prices, place: town, value: [12, 25], days: [8, 14]}
+          - {kind: mark, place: town, text: ["an empty cart that goes into {wild} on the new moon and comes back lighter"]}
+    fallout:
+      lines: ["The tribute went on until the {creatures} wanted more than {town} had, and then they simply took it.",
+              "{Town} paid the {creatures} until a hard {season} killed enough of them to stop the asking; nobody there speaks of it."]
+      effects:
+        - {kind: prices, place: town, value: [8, 18], days: [10, 20]}
+        - {kind: mark, place: town, text: ["a gate with a mark cut into it, planed over and still showing"]}
+    resolution: ["Kill the {creatures} that carry the demand, or make {town} stand together.", "End the tribute: by the sword, or by backbone."]
+    truth: ["The {creatures} are not many; the demand is bluff and a few bold raids, and {town} would see them off if it stopped arguing and stood together.",
+            "Someone in {town} is behind the demand: a {role2} who takes a share of every cart that goes into {wild}, and who was the first to say pay."]
+    clues:
+      - {holder: role, lines: ["I counted them, when they came. Fewer than you'd think from the noise. But who'll stand with me?",
+                               "The {role2} knew the sum before the message came. Ask how."]}
+      - {holder: role2, lines: ["Pay them. It's cheaper than burying the ones who'd fight.",
+                                "A cart a month is nothing. It keeps the peace. Leave it be."]}
+    paths:
+      - {kind: kill, target: creature, name: "Break the {creatures}", how: "Kill enough of the {creatures} of {wild} that no demand comes again."}
+      - {kind: persuade, target: role2, name: "Turn the {role2}", how: "Make the {role2} stand with the town, or own what they take."}
+      - {kind: contract}
+    contract: {kind: hunt, what: creature, count: [2, 4]}
+    reveal: ["The cart that went into {wild} did not go to the {creatures}: its tracks turn off to a camp where men, not beasts, count the coin.",
+             "Among the {creatures} you killed, one wore a strip of cloth in {town}'s colours: a token, given, not taken."]
+
+  threat_missing:
+    kind: threat
+    needs: [wild]
+    fallback: threat
+    abouts: ["a party from {town} is missing in {wild}", "a {role} went into {wild} and has not come back", "{wild} has kept someone"]
+    titles: ["Lost in {wild}", "The {role}'s party", "Not come back from {wild}", "Searchers out of {town}", "Three days overdue", "What {wild} kept"]
+    news: ["From {town}: {about}.", "A party out of {town} went into {wild} and is overdue; the town is sending searchers.",
+           "A {role} from {town} went into {wild} a week ago and has not come down.",
+           "They are lighting a beacon at {town} every night now, for the ones lost in {wild}.", "{Town} wants anyone who knows {wild} to help look; the pay is a {role}'s whole savings."]
+    stages:
+      - lines: ["A party out of {town} went into {wild} and did not come back when they said; a {role} who sent them is sitting at the gate.",
+                "Somebody {town} needs went into {wild} three days ago, and the {role} who waited has stopped waiting and started asking."]
+        effects:
+          - {kind: mood, npc: role, text: ["sick with waiting", "not sleeping until they come back"]}
+          - {kind: danger, place: wild, value: [10, 25], days: [3, 6]}
+      - lines: ["The searchers from {town} found a camp in {wild}, cold, and a boot; the {role2} who found it will not go back in.",
+                "A second party from {town} went into {wild} after the first, and came back fewer, and the town is done sending."]
+        effects:
+          - {kind: mood, npc: role2, text: ["shaken by what was in {wild}"]}
+          - {kind: danger, place: wild, value: [20, 40], days: [4, 8]}
+          - {kind: mark, place: wild, text: ["a cold camp, one boot, a ring of searchers' tracks"]}
+      - lines: ["{Town} has given them up: a stone with no body under it, and {wild} left to itself for the rest of the {season}.",
+                "Nobody from {town} goes into {wild} now; the lost are mourned, and the {role} has not forgiven the town for stopping."]
+        effects:
+          - {kind: closed, place: wild, days: [2, 5], text: ["nobody from {town} will go in after the lost"]}
+          - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["blames them for calling off the search"]}
+    fallout:
+      lines: ["The lost of {wild} were never found; {town} put up a stone and the {role} stopped going to the gate.",
+              "A single one came back out of {wild}, months on, and would not say where the others were; {town} stopped asking."]
+      effects:
+        - {kind: mark, place: town, text: ["a new stone by the gate with names and no dates"]}
+    resolution: ["Go into {wild} and find them, alive or not.", "Find what in {wild} took them."]
+    truth: ["They are alive, some of them: holed up deep in {wild} with a hurt one they would not leave, and whatever took the rest is between them and the road.",
+            "The {creatures} of {wild} have them; the camp was taken at night, and what is left is in a den that can be found by the tracks."]
+    clues:
+      - {holder: role, lines: ["They went in by the old path, not the new one. If you follow anyone, follow that.",
+                               "One of them was hurt before they went. They'd not have moved fast. They're nearer than the searchers thought."]}
+      - {holder: role2, lines: ["The camp wasn't broken. It was left. Fires out, packs gone. They walked away from it, or were walked.",
+                                "I heard something answer when we called. Not them. I'm not going back for any pay."]}
+    paths:
+      - {kind: find, target: wild, name: "Find the lost in {wild}", how: "Search {wild} for the party, and bring word or bring them."}
+      - {kind: kill, target: creature, name: "Kill what took them", how: "Put down what in {wild} is keeping the lost from the road."}
+      - {kind: contract}
+    contract: {kind: hunt, what: creature, count: [1, 3]}
+    reveal: ["A trail of cut marks on the trees leads away from the camp: somebody blazed a way out, slowly, for someone who could not walk.",
+             "The den is lined with gear from {town}, and some of it is warm."]
+
+  threat_road:
+    kind: threat
+    needs: [road, creature]
+    fallback: threat
+    abouts: ["{road} is cut", "nothing gets through on {road}", "carts on {road} are being stopped"]
+    titles: ["{Road} cut", "Nothing through from {neighbour}", "The toll of {road}", "{Creatures} on {road}", "Carts that never came", "The long way round to {town}"]
+    news: ["On {road}: {about}.", "Nothing has come up {road} to {town} in a week; the carts that tried are not back.",
+           "A {role} who travels {road} says the {creatures} have made it theirs.",
+           "{Town} is sending carts the long way round; prices show it.", "The last cart up {road} to {town} came in with its driver dead on the box."]
+    stages:
+      - lines: ["The {creatures} have taken to {road}: two carts turned back, one not seen again, and the {role} of {town} waiting on goods that will not come.",
+                "{Road} has gone bad between {town} and {neighbour}; a {role} who tried it met the {creatures} and came home on foot."]
+        effects:
+          - {kind: danger, place: road, value: [25, 50], days: [3, 7]}
+          - {kind: prices, place: town, value: [5, 12], days: [3, 7]}
+          - {kind: mood, npc: role, text: ["waiting on a cart that is not coming"]}
+      - lines: ["{Town} has stopped sending carts by {road}; the long way adds days, and the {role2} is charging for every one of them.",
+                "A guarded cart went down {road} from {town} and the guards came back without it; the {creatures} are more than they were."]
+        effects:
+          - {kind: closed, place: road, days: [2, 5], text: ["the {creatures}: nothing gets through"]}
+          - {kind: prices, place: town, value: [10, 20], days: [5, 10]}
+          - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["says they are making coin out of the road being shut"]}
+      - lines: ["{Road} is given up for the {season}: grass on it, the {creatures} denned in the culverts, and {town} and {neighbour} strangers to each other.",
+                "{Town} lives on what the long road brings, dear and late; the {creatures} have {road} and nobody is taking it back."]
+        effects:
+          - {kind: danger, place: road, value: [30, 60], days: [6, 12]}
+          - {kind: prices, place: town, value: [12, 25], days: [8, 14]}
+          - {kind: mark, place: road, text: ["a cart on its side in the ditch, picked clean"]}
+    fallout:
+      lines: ["{Road} opened again when the {creatures} moved on, and the first cart up it found the last one still in the ditch.",
+              "{Town} learned to live with the long road; when {road} was safe again, half the trade had found other ways."]
+      effects:
+        - {kind: prices, place: town, value: [5, 12], days: [8, 16]}
+        - {kind: mark, place: road, text: ["a culvert the {creatures} denned in, still stinking"]}
+    resolution: ["Clear the {creatures} off {road}.", "Open {road} between {town} and {neighbour}."]
+    truth: ["The {creatures} did not come to {road} by chance: something is dead in the culvert at the low bend, and they came for it and stayed for the carts.",
+            "The {creatures} are the lesser trouble; the {role2} of {town} pays a few hard men to turn carts back so the long road, which they own a piece of, stays busy."]
+    clues:
+      - {holder: role, lines: ["My carter said the {creatures} were at the low bend, by the culvert. Every time, the same place. They've a reason to be there.",
+                               "The long road costs me double. Ask who it pays."]}
+      - {holder: role2, lines: ["It's the {creatures}, that's all. Roads go bad. I take what the long road brings.",
+                                "I'd not go down {road} for any money. Not past the bend."]}
+    paths:
+      - {kind: kill, target: creature, name: "Clear {road}", how: "Kill the {creatures} that hold {road}."}
+      - {kind: find, target: road, name: "Find why {road} is held", how: "Go down {road} to the low bend and find what keeps the {creatures} there."}
+      - {kind: contract}
+    contract: {kind: hunt, what: creature, count: [2, 4]}
+    reveal: ["In the culvert at the low bend, a cart's load of salt meat, spoiled, that the {creatures} have been feeding on for weeks: dumped, not lost.",
+             "Two of the {creatures} you killed had been fed by hand: no fear of men, and a cut rope on one."]
+
+  nature_cut_off:
+    kind: nature
+    needs: [wild, road]
+    fallback: nature
+    abouts: ["{wild} has closed {road}", "the way to {neighbour} is shut", "the {season} has shut the pass"]
+    titles: ["{Road} shut", "The way through {wild}", "Cut off at {town}", "A {season} that shut the road", "No way to {neighbour}", "{Wild} across the road"]
+    news: ["From {town}: {about}.", "{Wild} has come across {road}: snow, water or green, nobody agrees, but nothing moves on it.",
+           "A {role} from {town} tried {road} and turned back where {wild} had taken it.",
+           "{Town} is counting what it has in store, with the road shut.", "They say a way can be cut through {wild} to {neighbour}, if anyone dared."]
+    stages:
+      - lines: ["{Wild} has come across {road}: the way out of {town} is shut, and the {role} is counting stores and faces.",
+                "The {season} shut {road} at {wild} in a night; a {role} with a cart on the far side is sleeping under it."]
+        effects:
+          - {kind: closed, place: road, days: [3, 7], text: ["{wild} lies across it"]}
+          - {kind: prices, place: town, value: [5, 15], days: [4, 8]}
+          - {kind: mood, npc: role, text: ["fretting over the shut road"]}
+      - lines: ["A party from {town} tried to cut a way through {wild} and came back without the {role2}'s mule and nearly without the {role2}.",
+                "{Town} is on short rations with {road} shut; the {role2} has been caught selling stores out of the back."]
+        effects:
+          - {kind: danger, place: wild, value: [15, 35], days: [4, 8]}
+          - {kind: prices, place: town, value: [10, 22], days: [6, 10]}
+          - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["caught them selling stores dear"]}
+      - lines: ["{Town} is an island for the {season}: {road} under {wild}, and the stores a thing people stand guard on.",
+                "They have given up on {road}; {town} sends what it must the long way, and {wild} keeps the short one."]
+        effects:
+          - {kind: prices, place: town, value: [15, 30], days: [8, 14]}
+          - {kind: mark, place: road, text: ["a cart left where {wild} crossed the road, half swallowed"]}
+    fallout:
+      lines: ["{Wild} drew back from {road} when the {season} turned, and {town} found its neighbours thinner.",
+              "The road was dug out in the end by the people of {town} themselves, with the {role} setting the pace."]
+      effects:
+        - {kind: prices, place: town, value: [5, 12], days: [8, 14]}
+        - {kind: mark, place: road, text: ["a new cut through {wild} where the old road was lost"]}
+    resolution: ["Find a way through {wild}.", "Clear what {wild} has put across {road}."]
+    truth: ["There is a way through {wild}: an old track above the road that the {role} knows and will not say, because they want the town to pay them to cut it.",
+            "{Wild} crossed the road because something in it was disturbed: the {creatures} drove the earth or the water down, and until they are thinned it will keep coming."]
+    clues:
+      - {holder: role, lines: ["There's a track above the road. Old. I walked it as a boy. I could find it again, for a price.",
+                               "The road's not lost, only buried. Hands would do it. Nobody here has the stomach."]}
+      - {holder: role2, lines: ["I sold what I had to those who could pay. That's not a crime. Starving would be.",
+                                "It came down the week the {creatures} started moving. Mark that."]}
+    paths:
+      - {kind: find, target: wild, name: "Find a way through {wild}", how: "Search {wild} for the old track above {road} and bring {town} word of it."}
+      - {kind: kill, target: creature, name: "Thin what drove {wild} down", how: "Kill the {creatures} that are moving the land."}
+      - {kind: persuade, target: role, name: "Make the {role} talk", how: "Get the {role} to show the way they know."}
+    contract: null
+    reveal: []
+
+  nature_bounty:
+    kind: nature
+    needs: [wild]
+    fallback: nature
+    abouts: ["{wild} has given up something rich", "the {season} has been kind to {town}", "the land about {town} is in flower"]
+    titles: ["What {wild} gave", "A rich {season} at {town}", "{Wild} in flower", "The good year", "The thaw at {wild}", "Everyone into {wild}"]
+    news: ["Good news from {town}: {about}.", "{Wild} has opened like a hand this {season}: there is {good} for the picking and half of {town} is out picking it.",
+           "A {role} from {town} came back from {wild} with more than they could carry.",
+           "They say the {season} has shown something in {wild} that was never there before.", "{Town} is full of strangers come for what {wild} is giving."]
+    stages:
+      - lines: ["The {season} has been kind to {wild}: there is {good} where there was none, and a {role} from {town} is making coin of it.",
+                "{Wild} has drawn back and shown something: the people of {town} go out every morning and come back with full baskets and stories."]
+        effects:
+          - {kind: prices, place: town, value: [-15, -5], days: [4, 8]}
+          - {kind: mood, npc: role, text: ["glad, and greedy with it", "out every dawn with a basket"]}
+          - {kind: loot, place: wild, text: ["something dropped by a picker in a hurry"]}
+      - lines: ["Strangers have come to {town} for what {wild} gives; the {role2} is renting floor space by the night, and the {creatures} have noticed the crowds.",
+                "The good year has brought its own trouble: a quarrel over who may pick where, and the {role2} saying the far side of {wild} is theirs."]
+        effects:
+          - {kind: arrive, place: town, role: merchant, text: ["come for what {wild} is giving"]}
+          - {kind: danger, place: wild, value: [10, 25], days: [4, 8]}
+          - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["a quarrel over who picks where"]}
+      - lines: ["The bounty of {wild} is nearly picked out; {town} is richer, sorer and fuller of strangers than it likes.",
+                "The {season} turns and {wild} closes its hand; what was picked is sold, and the strangers are leaving {town} with the best of it."]
+        effects:
+          - {kind: prices, place: town, value: [3, 10], days: [6, 10]}
+          - {kind: mark, place: wild, text: ["ground trampled bare where the pickers went"]}
+    fallout:
+      lines: ["The good year at {wild} is remembered in {town} as the one that paid off the debts; the next was ordinary, as they are.",
+              "What {wild} gave it took back the next {season}; {town} spent the windfall and then looked at the empty hillside."]
+      effects:
+        - {kind: mood, npc: role, text: ["content after a good year"]}
+    resolution: ["A good year needs no settling; keep the {creatures} off the pickers, and a share is yours.", "See that {town} gets the best of its own good luck."]
+    truth: ["What {wild} shows this {season} was hidden on purpose, long ago; those who go furthest in are finding more than {good}, and keeping quiet.",
+            "The bounty is real, and so is what wakes under it: the {creatures} are moving because something they fear was uncovered with the rest."]
+    clues:
+      - {holder: role, lines: ["Go past where the others stop. There's more, further in, and something else besides. I saw stone.",
+                               "The {role2} has been out at night. Nobody picks {good} at night."]}
+      - {holder: role2, lines: ["It's a good year. Enjoy it. Don't go digging under it.",
+                                "The {creatures} don't come near the pickers. They come near the ones who go in deep. Think about that."]}
+    paths:
+      - {kind: find, target: wild, name: "Find what {wild} uncovered", how: "Go past the pickers into {wild} and find what the {season} laid bare."}
+      - {kind: kill, target: creature, name: "Keep the {creatures} off", how: "Kill the {creatures} that take a toll of the pickers."}
+      - {kind: contract}
+    contract: {kind: gather, what: good, count: [4, 8]}
+    reveal: ["Past the last of the pickers, a worked stone with a hole under it, and the earth about it fresh.",
+             "The {creatures} are not hunting the pickers. They are circling one place, and keeping everything away from it."]
+
+  mystery_changed:
+    kind: mystery
+    needs: [wild]
+    fallback: mystery
+    abouts: ["someone came back from {wild} changed", "a {role} from {town} will not speak of {wild}", "those who go to {wild} come back wrong"]
+    titles: ["Come back wrong from {wild}", "The {role} who went to {wild}", "What was heard in {wild}", "A silence in {town}", "Those who went in", "The voice from {wild}"]
+    news: ["What they say in {town}: {about}.", "A {role} from {town} went into {wild} and came back a stranger to their own family.",
+           "Three people in {town} who went to {wild} have started saying the same words, together.",
+           "There is a voice in {wild}, they say in {town}; those who hear it go back.", "A {role} in {town} walked out at night toward {wild} and had to be brought home tied."]
+    stages:
+      - lines: ["A {role} from {town} came back from {wild} different: quiet, sleepless, standing at the window at night facing the wood.",
+                "Two who went into {wild} from {town} have come back speaking the same words, and they have never met."]
+        effects:
+          - {kind: mood, npc: role, text: ["far away, since {wild}", "listening to something nobody else hears"]}
+          - {kind: mark, place: wild, text: ["a place at the edge where the ground is bare in a circle"]}
+      - lines: ["More of {town} has caught it: a {role2} walked toward {wild} at midnight and was stopped at the gate, and the ones already changed are gathering.",
+                "The changed in {town} are going back to {wild} by night in twos and threes; the {role2} who followed them came home and will not say what they saw."]
+        effects:
+          - {kind: mood, npc: role2, text: ["frightened of what they followed to {wild}"]}
+          - {kind: danger, place: wild, value: [15, 35], days: [4, 8]}
+          - {kind: fact, text: ["Something in {wild} calls people from {town}, and the ones who hear it go."], groups: [locals]}
+      - lines: ["{Town} bars its doors at dusk now, from the inside and the outside both; the changed walk to {wild} at night and come back at dawn with nothing to say.",
+                "Half of {town} will not look at {wild}, and the other half cannot stop."]
+        effects:
+          - {kind: closed, place: wild, days: [2, 5], text: ["the changed go in; nobody else dares"]}
+          - {kind: mark, place: town, text: ["doors with bars on the outside, where a family keeps someone in"]}
+    fallout:
+      lines: ["It passed, as a fever passes; the changed of {town} woke one morning themselves again and could not say where they had been.",
+              "{Town} buried two who walked into {wild} and did not come back, and the rest came slowly home to themselves."]
+      effects:
+        - {kind: mark, place: wild, text: ["a path worn to a place in {wild} by many feet, all going one way"]}
+    resolution: ["Go into {wild} and find what calls.", "Find what the changed heard, and silence it."]
+    truth: ["There is something in {wild} that speaks to those who come near it; it wants to be dug out, and the changed are its hands. Found and broken, it will stop.",
+            "The changed have found something in {wild} and are keeping it to themselves: a hoard, or a door, and the silence is theirs, not a spell's."]
+    clues:
+      - {holder: role, lines: ["It isn't words. It's a want. You'll hear it too if you go past the bare ground. Go past it anyway.",
+                               "We dig. At night. I don't know for what. I know where."]}
+      - {holder: role2, lines: ["I followed them to a hollow in {wild}. They were on their knees. Something under them was humming.",
+                                "They're not mad. They answer when they're spoken to. They're just elsewhere."]}
+    paths:
+      - {kind: find, target: wild, name: "Find what calls in {wild}", how: "Follow the changed into {wild} and find what they go to."}
+      - {kind: persuade, target: role, name: "Reach the {role}", how: "Get the {role} to say what they hear."}
+      - {kind: kill, target: creature, name: "Kill what waits in {wild}", how: "Whatever has made {wild} its own: put it down."}
+    contract: null
+    reveal: []
+
+  mystery_dead:
+    kind: mystery
+    needs: [wild, creature]
+    fallback: mystery
+    abouts: ["the dead of {wild} are walking", "a grave at {town} has been opened from inside", "something old is marching by night"]
+    titles: ["The dead of {wild}", "Graves open at {town}", "What marches by night", "Old bones at {wild}", "A barrow lord's host", "The unquiet of {wild}"]
+    news: ["What they say in {town}: {about}.", "Something marched along {road} by moonlight, they say in {town}, and left no tracks.",
+           "A grave-robber from {town} went into {wild} and the {role} who lent the spade is still waiting for it.",
+           "The dead at {wild} have been seen standing, a {role} swears, in rows.", "{Town}'s priest has been at the old graves every dawn since the first one was found open."]
+    stages:
+      - lines: ["A grave near {town} has been found open, dug from inside; the {role} who found it has not been right since, and {wild} is being avoided.",
+                "By moonlight something walks out of {wild} in rows and goes back before dawn; a {role} of {town} watched it from a roof and counted."]
+        effects:
+          - {kind: mood, npc: role, text: ["has not slept since the open grave"]}
+          - {kind: danger, place: wild, value: [15, 30], days: [3, 6]}
+          - {kind: mark, place: wild, text: ["an old barrow with the stone rolled aside"]}
+      - lines: ["The dead have come closer: a {role2} woke to a cold hand on the latch, and the {creatures} of {wild} walk with whatever marches there.",
+                "Robbers from {neighbour} went into the barrows at {wild} for the gold, and the {role2} who guided them came back alone, carrying nothing, saying nothing."]
+        effects:
+          - {kind: mood, npc: role2, text: ["white about the mouth; will not go near the graves"]}
+          - {kind: danger, place: wild, value: [25, 45], days: [4, 8]}
+          - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["blames them for guiding the robbers in"]}
+      - lines: ["{Town} buries nobody now; the dead are burned, and the ashes watched, and {wild} is given over to what marches in it.",
+                "A thing with a voice came out of {wild} to the gate of {town} and offered terms, and the town has not decided."]
+        effects:
+          - {kind: closed, place: wild, days: [2, 5], text: ["the dead walk there; nobody goes"]}
+          - {kind: fact, text: ["The dead of {wild} are abroad, and something commands them."], groups: [locals]}
+    fallout:
+      lines: ["The dead of {wild} lay down again when the robbers' gold was put back, or when the {season} turned; {town} tells both stories.",
+              "The marching stopped, and {town} went back to burying, with a stone on every grave that was not there before."]
+      effects:
+        - {kind: mark, place: town, text: ["heavy stones laid on every new grave"]}
+    resolution: ["Go into {wild} and lay what walks there.", "Find what was taken from the barrows and put it back."]
+    truth: ["The dead walk because something was taken from the oldest barrow in {wild}: a robber from {town} has it, and the host will march until it is returned or the robber is beneath it.",
+            "It is no curse: something living has woken the dead of {wild} to use them, and it is in the deepest barrow, and it can be killed."]
+    clues:
+      - {holder: role, lines: ["The first grave opened the night after the robbers came through. That's no coincidence, whatever the priest says.",
+                               "The {role2} guided them in. Ask what they were paid, and in what."]}
+      - {holder: role2, lines: ["I took them to the barrows. I didn't go in. I heard what they found. I'm not saying what.",
+                                "They went in with picks and came out with one bag between them. Then the dead got up. Find the bag."]}
+    paths:
+      - {kind: kill, target: creature, name: "Lay the dead of {wild}", how: "Put down what marches in {wild}, down to the one that commands it."}
+      - {kind: find, target: wild, name: "Find the opened barrow", how: "Search {wild} for the barrow the robbers opened and what they left."}
+      - {kind: persuade, target: role2, name: "Make the {role2} say it", how: "Get the {role2} to tell where the robbers went and what they carried."}
+      - {kind: contract}
+    contract: {kind: hunt, what: creature, count: [2, 3]}
+    reveal: ["The deepest barrow in {wild} has fresh tool marks on its door, and inside, a dais with the dust of something lifted from it.",
+             "One of the {creatures} you killed had a strip of grave-cloth in its teeth, and the cloth was new."]
+
+  social_stranger:
+    kind: social
+    needs: []
+    fallback: social
+    abouts: ["a stranger has {town} talking", "someone has come to {town} that half the town wants gone", "{town} is divided over a newcomer"]
+    titles: ["The stranger at {town}", "A guest in {town}", "Who let them in", "The newcomer at {town}", "Two doors in {town}", "The {role}'s guest"]
+    news: ["In {town}: {about}.", "A stranger is lodging with the {role} of {town}, and the {role2} has said in the street what they think of it.",
+           "Somebody has come to {town} who has the whole place taking sides.",
+           "The {role} of {town} has taken in a stranger the town does not want.", "A newcomer at {town} has been asked to leave by half of it and begged to stay by the other half."]
+    stages:
+      - lines: ["A stranger has come to {town} and lodged with the {role}; by the second night the {role2} had a crowd at the door asking who they were.",
+                "Someone new is in {town}, with a way of speaking and a reason for coming that nobody quite believes, and the {role} has taken their part."]
+        effects:
+          - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["took in the stranger; they want them gone"]}
+          - {kind: mood, npc: role, text: ["protective of the stranger", "stubborn about their guest"]}
+          - {kind: mood, npc: role2, text: ["suspicious of the newcomer"]}
+      - lines: ["{Town} has split over the stranger: a window broken at the {role}'s, a kindness done at the {role2}'s expense, and the watch asked to see papers nobody has.",
+                "The stranger at {town} has done something, good or ill, and the two halves of the town tell it two ways."]
+        effects:
+          - {kind: prices, place: town, value: [3, 8], days: [3, 6]}
+          - {kind: mark, place: town, text: ["a broken window boarded over, and a word painted beside it"]}
+      - lines: ["The stranger has gone from {town}, or gone to ground in it; either way the {role} and the {role2} are not speaking, and the town has learned something about itself.",
+                "{Town} keeps its stranger now, half of it with bad grace; the {role2} has stopped buying from the {role}."]
+        effects:
+          - {kind: relation, npc: role2, other: role, value: [-8, -3], text: ["an old quarrel over the stranger"]}
+    fallout:
+      lines: ["The stranger left {town} one morning without goodbyes, and the town argued over whether it had driven them out.",
+              "The stranger stayed and became one of {town}'s own, and in ten years nobody remembered who had been against it."]
+      effects:
+        - {kind: mark, place: town, text: ["a room kept ready at the {role}'s, for a guest who may not come back"]}
+    resolution: ["Find out what the stranger is, and tell {town} the truth of it.", "Get the {role} and the {role2} to make peace over the stranger."]
+    truth: ["The stranger is exactly what they say: someone who needed a place and found one, and the trouble is {town}'s own, not theirs.",
+            "The stranger is hiding from something, and the {role} knows what; the {role2} is right to be afraid, and wrong about why."]
+    clues:
+      - {holder: role, lines: ["They've done nothing but be new. Ask the {role2} what they're really afraid of.",
+                               "I know who they are. I'll not say. If you want to help, help them stay."]}
+      - {holder: role2, lines: ["Nobody comes to {town} for nothing. Ask them why here. Watch their face.",
+                                "They came by the back road, at night. Honest folk come by the gate at noon."]}
+    paths:
+      - {kind: persuade, target: role, name: "Win the {role} over", how: "Get the {role} to say what they know of their guest."}
+      - {kind: persuade, target: role2, name: "Win the {role2} over", how: "Get the {role2} to let the stranger be."}
+    contract: null
+    reveal: []
+
+  social_rite:
+    kind: social
+    needs: []
+    fallback: social
+    abouts: ["a sign has been seen at {town}", "a rite has split the faithful of {town}", "{town} is arguing over a holy thing"]
+    titles: ["A sign at {town}", "The rite at {town}", "What the {role} saw", "Blessing or omen at {town}", "The {role} and the {role2} at the temple door", "A holy quarrel in {town}"]
+    news: ["From {town}: {about}.", "A sign was seen at {town}, and the {role} and the {role2} cannot agree what it meant.",
+           "There is to be a rite at {town} that half the town calls a blessing and the other half calls a mistake.",
+           "The {role} of {town} says the gods spoke; the {role2} says it was the weather.", "Pilgrims have started arriving at {town}, and the town cannot decide whether to feed them."]
+    stages:
+      - lines: ["Something was seen at {town} that the {role} calls a sign and the {role2} calls a trick of the {season}, and the town is lining up behind one or the other.",
+                "A rite is to be held at {town} that has not been held in living memory, and the {role} is for it and the {role2} is against it, loudly."]
+        effects:
+          - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["a quarrel over the sign"]}
+          - {kind: mood, npc: role, text: ["exalted, since the sign", "sure of the gods this week"]}
+          - {kind: mood, npc: role2, text: ["sour about the pious"]}
+      - lines: ["Pilgrims have come to {town} for the sign, and the {role2} is charging them for water; the {role} has called it a sin in the square.",
+                "The rite at {town} was held, and something went wrong with it, or right: either way the {role2} walked out of it and took half the town along."]
+        effects:
+          - {kind: arrive, place: town, role: acolyte, text: ["a pilgrim come for the sign"]}
+          - {kind: prices, place: town, value: [4, 10], days: [3, 6]}
+          - {kind: mark, place: town, text: ["candles left burning at a spot in the square"]}
+      - lines: ["{Town} has two congregations now and one temple, and the {role} and the {role2} take turns at the door.",
+                "The sign has not come again, and {town} is left with the quarrel it started."]
+        effects:
+          - {kind: relation, npc: role2, other: role, value: [-8, -3], text: ["a holy grudge"]}
+    fallout:
+      lines: ["The sign at {town} was forgotten by everyone but the {role}, who keeps a candle for it still.",
+              "The quarrel over the rite at {town} outlived the rite; two congregations, one temple, and a door that is always being argued over."]
+      effects:
+        - {kind: mark, place: town, text: ["a spot in the square where candles are always burning, and always being blown out"]}
+    resolution: ["Find what the sign was, and tell {town}.", "Get the {role} and the {role2} to share one temple."]
+    truth: ["The sign was real, and was not the gods: something in the land about {town} is stirring, and the pious have read it the wrong way.",
+            "There was no sign; the {role} made it, for the best of reasons, and will not be able to stop now that the pilgrims have come."]
+    clues:
+      - {holder: role, lines: ["I saw it. I know what I saw. Ask the {role2} why they weren't looking.",
+                               "The pilgrims need feeding, and the {role2} needs reminding what the gods ask of us."]}
+      - {holder: role2, lines: ["It was a light in the {season} sky. We've had them before. The {role} wants it to mean something.",
+                                "The {role} was at the spot an hour before anyone else saw anything. Think about that."]}
+    paths:
+      - {kind: persuade, target: role, name: "Reach the {role}", how: "Get the {role} to say honestly what they saw."}
+      - {kind: persuade, target: role2, name: "Reach the {role2}", how: "Get the {role2} to let the pious have their rite."}
+    contract: null
+    reveal: []
+
+  politics_succession:
+    kind: politics
+    needs: []
+    fallback: politics
+    abouts: ["a seat in {town} has fallen empty", "two claimants want the same office in {town}", "a moot has been called at {town}"]
+    titles: ["The empty seat at {town}", "Who rules {town}", "A moot at {town}", "The {role}'s claim", "Two claimants in {town}", "The succession at {town}"]
+    news: ["News from {town}: {about}.", "An office has fallen empty at {town}, and the {role} and the {role2} both say it is theirs.",
+           "{Town} is to hold a moot, and the whole district is choosing sides.",
+           "The {role} of {town} has the seal; the {role2} has the people, they say.", "There is talk in {town} of settling the succession the old way, with blades."]
+    stages:
+      - lines: ["An office has fallen empty at {town}; the {role} has the papers for it and the {role2} has the friends, and the town is counting both.",
+                "{Town} has lost the one who ruled it, and the {role} and the {role2} were each at the door before the body was cold."]
+        effects:
+          - {kind: relation, npc: role, other: role2, value: [-15, -6], text: ["rivals for the seat"]}
+          - {kind: mood, npc: role, text: ["counting votes, or blades", "ambitious this {season}"]}
+          - {kind: mood, npc: role2, text: ["certain the seat is theirs"]}
+      - lines: ["The succession at {town} has turned sharp: a hall barred, the market shut on moot day, and the {role2}'s people turned back at the gate.",
+                "A challenge has been given in {town} over the empty seat, and the {role} has three days to answer it or step down."]
+        effects:
+          - {kind: prices, place: town, value: [5, 12], days: [4, 8]}
+          - {kind: mark, place: town, text: ["a moot-stone with two names scratched on it"]}
+      - lines: ["{Town} has its ruler, by a vote or a blade, and the one who lost has not left and has not forgiven.",
+                "The seat at {town} is filled, and half the town says it was stolen."]
+        effects:
+          - {kind: relation, npc: role2, other: role, value: [-12, -5], text: ["lost the seat; will not forgive"]}
+    fallout:
+      lines: ["The succession at {town} was settled and then unsettled again at the next bad harvest; the seat is a hard one.",
+              "Whoever took the seat at {town} kept it, and the other went to {neighbour} and did not come back."]
+      effects:
+        - {kind: mark, place: town, text: ["a chair in the hall with a new cushion and old scratches on the arms"]}
+    resolution: ["Find which claim is honest, and say so where it counts.", "Get the {role} and the {role2} to settle it without blood."]
+    truth: ["Neither claim is clean: the papers the {role} holds were written after the death, and the friends the {role2} counts were paid.",
+            "The {role2} has the better claim and the {role} knows it; the papers are real and the seal was lent, and someone in {neighbour} lent it."]
+    clues:
+      - {holder: role, lines: ["The papers are in order. Look at the date, and the ink, and don't listen to the {role2}.",
+                               "The {role2} can't rule a dog. The town knows it. They just like a loud voice."]}
+      - {holder: role2, lines: ["Ask who witnessed the papers. Then ask where that witness is now.",
+                                "I'd take it by the vote if they'd allow one. They won't. Draw your own conclusion."]}
+    paths:
+      - {kind: persuade, target: role, name: "Win the {role} over", how: "Get the {role} to put the claim to the town."}
+      - {kind: persuade, target: role2, name: "Win the {role2} over", how: "Get the {role2} to stand down, or to stand for a vote."}
+    contract: null
+    reveal: []
+
+  trade_overdue:
+    kind: trade
+    needs: [road]
+    fallback: trade
+    abouts: ["a shipment for {town} is overdue", "goods for {town} are held at the toll", "a cargo has gone astray on {road}"]
+    titles: ["The overdue cargo at {town}", "Held at the toll on {road}", "What never came up {road}", "{Town}'s missing goods", "The {role}'s shipment", "Empty shelves at {town}"]
+    news: ["Trade news from {town}: {about}.", "A cargo for {town} is a fortnight late on {road}, and the {role} who paid for it is past worrying and into shouting.",
+           "Goods for {town} are held at a toll on {road}, they say, over a paper nobody will produce.",
+           "Shelves in {town} are bare of what the cargo carried, and the price of what is left shows it.", "The {role2} of {town} has been seen with goods that look very like the ones that never arrived."]
+    stages:
+      - lines: ["A cargo bound for {town} has not come up {road}: paid for, loaded, seen on the road, and then not; the {role} who waits for it has stopped taking customers.",
+                "Goods for {town} are held somewhere on {road}: a toll, a claim, a paper; the {role} says robbery and the {role2} says law."]
+        effects:
+          - {kind: prices, place: town, value: [8, 18], days: [4, 8]}
+          - {kind: mood, npc: role, text: ["sick over the missing cargo"]}
+          - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["suspects them over the cargo"]}
+      - lines: ["The {role2} in {town} has begun selling what looks like the missing cargo, at a price, and says it was bought fair from a carter.",
+                "A rider came to {town} with a bill for the cargo: paid twice, delivered nowhere, and the {role} will not pay a third time."]
+        effects:
+          - {kind: prices, place: town, value: [10, 20], days: [6, 10]}
+          - {kind: mood, npc: role2, text: ["cagey about where the goods came from"]}
+          - {kind: mark, place: town, text: ["a shuttered shop with 'awaiting goods' chalked on the door"]}
+      - lines: ["{Town} has given the cargo up for lost; the {role} is ruined by it and the {role2} is not, and the town has drawn its own conclusions.",
+                "The toll on {road} has become a fact of life for {town}; everything comes dearer, and nobody will say who collects it."]
+        effects:
+          - {kind: prices, place: town, value: [12, 25], days: [8, 14]}
+          - {kind: danger, place: road, value: [10, 25], days: [6, 12]}
+    fallout:
+      lines: ["The cargo for {town} turned up, in the end, in the wrong hands, and the right ones could not prove it.",
+              "The toll on {road} lifted when whoever set it had made enough, and {town} paid what it had paid and said nothing."]
+      effects:
+        - {kind: prices, place: town, value: [5, 12], days: [8, 14]}
+    resolution: ["Find the cargo, or find who holds it.", "Make the one who sells it say where it came from."]
+    truth: ["The cargo is in {town} already: the {role2} bought it from the carter who stole it, knowing, and is selling it back to the town that paid for it.",
+            "There is a toll on {road} that no lord set: a few men with a chain and a paper, and the {role2} told them when the cargo would come."]
+    clues:
+      - {holder: role, lines: ["It left {neighbour} with my mark on every crate. If the {role2} is selling crates, look for the mark under the new paint.",
+                               "The carter was one I'd used for years. He'd not steal. Someone made it worth his while, or made him."]}
+      - {holder: role2, lines: ["I buy what's offered. I don't ask carters for their life story.",
+                                "There's a toll on {road} now. Everyone knows it. The {role} just can't afford it."]}
+    paths:
+      - {kind: find, target: road, name: "Find the cargo on {road}", how: "Go down {road} to the toll and find what holds the goods."}
+      - {kind: persuade, target: role2, name: "Make the {role2} own it", how: "Get the {role2} to say where their goods came from."}
+      - {kind: contract}
+    contract: {kind: gather, what: good, count: [3, 6]}
+    reveal: ["Under the new paint on the {role2}'s crates, the {role}'s mark.",
+             "At the toll on {road}, the chain, the paper, and a tally of carts with {town}'s goods listed in a hand you have seen in {town}."]
+
+  economic_fair:
+    kind: economic
+    needs: [road]
+    fallback: economic
+    abouts: ["strangers on {road} are selling cheap", "a travelling market has come to {town}", "bad coin is passing in {town}"]
+    titles: ["Strangers' goods at {town}", "The travelling market at {town}", "Cheap and then dear in {town}", "Bad coin in {town}", "The fair on {road}", "What the road brought {town}"]
+    news: ["The talk of {town}: {about}.", "Strangers have come up {road} to {town} with carts of goods at half the price, and the {role} is furious.",
+           "There is a fair at {town} this week that nobody planned, and the town is spending.",
+           "Coin that is not quite coin is passing in {town}, they say, since the strangers came.", "The {role2} of {town} says the strangers' goods are stolen; the {role} says they are cheap, and that is enough."]
+    stages:
+      - lines: ["Strangers have come up {road} with carts and set up at the edge of {town}: good things at half price, and the {role} who sells the same things at full is at the watch's door.",
+                "A fair nobody called has sprung up at {town}, run by people off {road}; the town is spending, and the {role} is counting what it is losing."]
+        effects:
+          - {kind: prices, place: town, value: [-18, -6], days: [3, 6]}
+          - {kind: arrive, place: town, role: merchant, text: ["one of the strangers off {road}"]}
+          - {kind: mood, npc: role, text: ["undercut, and bitter about it"]}
+          - {kind: relation, npc: role, other: role2, value: [-8, -3], text: ["says they side with the strangers"]}
+      - lines: ["The strangers' coin in {town} has turned out light: a {role2} was paid in it and found out too late, and the cheap goods are not looking so cheap.",
+                "Things have gone missing in {town} since the fair came, and the watch is between the strangers and a crowd."]
+        effects:
+          - {kind: prices, place: town, value: [5, 15], days: [4, 8]}
+          - {kind: mood, npc: role2, text: ["cheated, and loud about it"]}
+          - {kind: mark, place: town, text: ["a strangers' camp at the edge of town, ringed by the watch"]}
+      - lines: ["The strangers have gone from {town} down {road} as fast as they came, and the town is left with light coin, missing things, and the {role}'s prices.",
+                "{Town} turned the strangers out at the point of the watch's staves, and is arguing about whether it was right."]
+        effects:
+          - {kind: prices, place: town, value: [8, 18], days: [6, 12]}
+          - {kind: danger, place: road, value: [10, 20], days: [4, 8]}
+    fallout:
+      lines: ["The fair at {town} was remembered for the bargains and the coin that was not coin; the next strangers up {road} were met at the gate.",
+              "{Town} found it had bought half its goods for a {season} from people it then ran off, and did not know what to think."]
+      effects:
+        - {kind: prices, place: town, value: [3, 10], days: [8, 14]}
+    resolution: ["Find where the strangers' goods come from.", "Settle the strangers and the town before the watch has to."]
+    truth: ["The goods are honest and the coin is not: the strangers are being paid in false silver by somebody up {road}, and passing it on without knowing.",
+            "The strangers are a front: the cheap goods are stolen out of {neighbour}, and the {role2} of {town} tells the thieves what sells."]
+    clues:
+      - {holder: role, lines: ["Nobody sells at that price and lives. It's stolen, or it's bait.",
+                               "Bite the coin. Then ask the {role2} why they took so much of it."]}
+      - {holder: role2, lines: ["I was paid in it like everyone. If I knew it was light, would I have taken it?",
+                                "They came up {road} from {neighbour}'s side. Ask {neighbour} what's gone missing."]}
+    paths:
+      - {kind: find, target: road, name: "Find where the goods come from", how: "Go down {road} and find who sends the strangers."}
+      - {kind: persuade, target: role2, name: "Make the {role2} talk", how: "Get the {role2} to say what they know of the strangers' trade."}
+      - {kind: contract}
+    contract: {kind: gather, what: good, count: [3, 6]}
+    reveal: ["In the strangers' camp, a mould for silver that is not silver, and a sack of goods with another town's marks still on.",
+             "The strangers' ledger: every sale in {town}, and against each, a share set aside for a name you know."]
+
+  work_rush:
+    kind: work
+    needs: [wild]
+    fallback: work
+    abouts: ["a rich seam has been struck at {wild}", "hands are wanted at {wild}", "{town} is working through the night"]
+    titles: ["The strike at {wild}", "Hands wanted at {town}", "The rush to {wild}", "Working by lamplight at {wild}", "The {role}'s great order", "Too much, too fast at {wild}"]
+    news: ["From {town}: {about}.", "A rich seam has been struck at {wild}, and {town} is emptying into it.",
+           "The {role} of {town} is paying double for hands at {wild} and still short.",
+           "An order has come to {town} too large to fill, and the {role} has taken it anyway.", "They are working at {wild} through the night now; {town} can see the lamps from the walls."]
+    stages:
+      - lines: ["A rich strike at {wild} has {town} on its feet: hands wanted, wages doubled, the {role} who owns the works grinning and sleepless.",
+                "An order too large for {town} has come to the {role}, who has taken it, and the works at {wild} run day and night to fill it."]
+        effects:
+          - {kind: prices, place: town, value: [5, 15], days: [3, 6]}
+          - {kind: arrive, place: town, role: miner, text: ["come for the wages at {wild}"]}
+          - {kind: mood, npc: role, text: ["sleepless and rich", "driving the works too hard"]}
+      - lines: ["Haste at {wild} has cost: a prop gave, a {role2} was hurt, and the diggers who went too deep too fast broke into something that was not rock.",
+                "The rush at {wild} has outrun the stores in {town}: bread dear, the inn full, the {role2} fighting with the {role} over who pays the hurt."]
+        effects:
+          - {kind: danger, place: wild, value: [15, 35], days: [4, 8]}
+          - {kind: prices, place: town, value: [8, 18], days: [4, 8]}
+          - {kind: relation, npc: role2, other: role, value: [-12, -5], text: ["blames them for the haste that hurt people"]}
+      - lines: ["The strike at {wild} is worked out, or shut by what the haste broke into; {town} is left with the wages spent and the strangers leaving.",
+                "The order was filled, late and badly, and the {role}'s name is not what it was; {wild} is quiet again."]
+        effects:
+          - {kind: mark, place: wild, text: ["new galleries dug too fast, half of them propped with green wood"]}
+          - {kind: prices, place: town, value: [3, 10], days: [6, 10]}
+    fallout:
+      lines: ["The rush at {wild} made two fortunes in {town} and spent twenty, and the galleries it left are not safe to walk.",
+              "{Town} remembers the strike at {wild} as the year the lamps burned all night; the seam gave out, as seams do."]
+      effects:
+        - {kind: mark, place: wild, text: ["an abandoned rush-working, picks still in the face"]}
+    resolution: ["Clear what the diggers broke into at {wild}.", "Make the {role} slow the works before more are hurt."]
+    truth: ["The seam is real and the hurry is the trouble: the diggers have broken into a hollow under {wild} that the {creatures} use, and more will come up through it with every shift.",
+            "The strike was salted: the {role} needed the order filled and needed hands, and a rich seam brings hands; the real seam is thin and the works will not pay."]
+    clues:
+      - {holder: role, lines: ["It's a good seam. Best I've seen. Don't listen to the ones who got hurt; they were careless.",
+                               "The order has to be filled. I'll make it right with the hurt ones after."]}
+      - {holder: role2, lines: ["Three of us heard it, behind the face. Not rock. Something that moved when we struck.",
+                                "Ask the {role} what they showed the hands on the first day. Then ask where that ore went."]}
+    paths:
+      - {kind: kill, target: creature, name: "Clear what the diggers broke into", how: "Kill the {creatures} coming up through the new galleries at {wild}."}
+      - {kind: persuade, target: role, name: "Slow the {role}", how: "Get the {role} to stop the night shifts."}
+      - {kind: contract}
+    contract: {kind: hunt, what: creature, count: [2, 3]}
+    reveal: ["Behind the new face at {wild}, a hollow with worn steps going down, and the marks of many claws coming up.",
+             "The first day's ore, in a sack in the {role}'s office, with a different mine's stamp on it."]
+
+  natural_murrain:
+    kind: natural
+    needs: []
+    fallback: natural
+    abouts: ["a sickness is in the flocks about {town}", "the animals are dying at {town}", "{town}'s herds are sick"]
+    titles: ["The murrain at {town}", "Sick flocks at {town}", "The dying herds of {town}", "What ails the beasts at {town}", "A bad {season} for the flocks", "The {role}'s losses"]
+    news: ["From {town}: {about}.", "A sickness is in the flocks about {town}; the {role} has lost a third already.",
+           "In {town} they are burning carcasses at the edge of the fields and nobody will say the word.",
+           "{Neighbour} has shut its market to beasts from {town}.", "The {role2} of {town} is selling {good} as a cure, and the {role} is buying."]
+    stages:
+      - lines: ["A sickness is going through the flocks of {town}: the {role} has lost more than they will say, and the fires at the field's edge burn all day.",
+                "The beasts about {town} are dying, and the {role} who keeps them is walking the pens at night counting."]
+        effects:
+          - {kind: prices, place: town, value: [8, 18], days: [4, 8]}
+          - {kind: mood, npc: role, text: ["grim about the flocks", "counting losses"]}
+      - lines: ["The murrain at {town} has crossed from the beasts to the trade: nobody will take {town}'s stock, and the {role2} is selling a cure at a price that is its own kind of sickness.",
+                "A {role2} in {town} is accused of hiding sick beasts among the sound to sell them on, and the {role} has gone to the watch."]
+        effects:
+          - {kind: prices, place: town, value: [10, 25], days: [6, 12]}
+          - {kind: relation, npc: role, other: role2, value: [-14, -6], text: ["says they sold sick stock as sound"]}
+          - {kind: mood, npc: role2, text: ["cornered over the sick beasts"]}
+      - lines: ["{Town} has lost most of its flocks; the fields are empty and the {role} is talking of selling the land.",
+                "The murrain has run its course through {town}, and what is left is thin, dear and watched."]
+        effects:
+          - {kind: prices, place: town, value: [15, 30], days: [8, 14]}
+          - {kind: mark, place: town, text: ["a field of burned ground at the edge of town where the carcasses went"]}
+    fallout:
+      lines: ["The murrain passed from {town} with the {season}; the flocks were built up again from {neighbour}'s stock, at {neighbour}'s price.",
+              "{Town} came through the sickness with its flocks halved and its temper shorter; the {role2} does not trade there now."]
+      effects:
+        - {kind: prices, place: town, value: [5, 12], days: [10, 20]}
+    resolution: ["Find what is in the flocks, or bring {town} what will stop it.", "Make the one hiding sick beasts own it."]
+    truth: ["The sickness came in with stock bought cheap by the {role2}, who knew, and who has been selling the sound-looking ones on ever since.",
+            "It is the water: the stream the flocks drink from runs past something dead and old upstream, and the beasts that drink higher up are well."]
+    clues:
+      - {holder: role, lines: ["The {role2}'s beasts were the first to sicken and the first to be sold. Work that out.",
+                               "The ones on the upper pasture are fine. Same flock, same feed. Different water."]}
+      - {holder: role2, lines: ["I sold what I had. If they were sick, I didn't know it. Prove otherwise.",
+                                "There's a cure. {Good}, boiled, three times a day. I've the only stock of it."]}
+    paths:
+      - {kind: persuade, target: role2, name: "Make the {role2} own it", how: "Get the {role2} to say where their stock came from."}
+      - {kind: contract}
+    contract: {kind: gather, what: good, count: [4, 8]}
+    reveal: ["The {role2}'s bill of sale for stock 'as seen', dated the week before the first beast died.",
+             "Upstream of the drinking pool, a carcass in the water that no flock of {town} ever owned."]
+
+  fortune_wonder:
+    kind: fortune
+    needs: []
+    fallback: fortune
+    abouts: ["a wonder has come to {town}", "something rare is on show at {town}", "a tomb has been opened near {town}"]
+    titles: ["A wonder at {town}", "What they brought to {town}", "On show in {town}", "The opened tomb near {town}", "A rare thing in {town}", "Crowds at {town}"]
+    news: ["Good news from {town}: {about}.", "Something rare has come to {town}, and the whole district is coming to see it.",
+           "A {role} in {town} has a thing in their window that people are paying to look at.",
+           "A tomb was opened near {town} this {season}, and what came out of it is on show.", "A beast was brought into {town} alive, and the {role} who has it is charging a penny a look."]
+    stages:
+      - lines: ["A wonder has come to {town}: a {role} has it, under glass or under guard, and the queue to see it goes round the square.",
+                "Something was dug up near {town} and is on show at the {role}'s; a {role2} has already offered more than it is worth and been refused."]
+        effects:
+          - {kind: prices, place: town, value: [-10, -3], days: [3, 6]}
+          - {kind: arrive, place: town, role: merchant, text: ["come to see the wonder, and to buy it"]}
+          - {kind: mood, npc: role, text: ["proud of the wonder", "sleeping beside it with a cudgel"]}
+      - lines: ["The crowds in {town} have brought what crowds bring: a theft attempted, a {role2} caught too near the wonder at night, and the {role} not sleeping.",
+                "The wonder at {town} has done something: moved, spoken, gone cold in its case, and the {role2} who touched it will not say what happened."]
+        effects:
+          - {kind: mood, npc: role2, text: ["caught, and claiming innocence", "shaken by the wonder"]}
+          - {kind: relation, npc: role, other: role2, value: [-10, -4], text: ["caught them near the wonder at night"]}
+          - {kind: mark, place: town, text: ["a case in a window, with a guard on it day and night"]}
+      - lines: ["The wonder has gone from {town}: sold, stolen, or taken back by whoever it belonged to; the {role} is richer or ruined and will not say which.",
+                "{Town} has its wonder still and has stopped looking at it; the {role} keeps it in a back room now and the crowds have gone."]
+        effects:
+          - {kind: prices, place: town, value: [3, 8], days: [4, 8]}
+    fallout:
+      lines: ["The wonder at {town} is remembered as the {season} the square was full; what it was, and where it went, the stories do not agree.",
+              "The {role} of {town} sold the wonder to a stranger from {neighbour} for a sum the town still argues about."]
+      effects:
+        - {kind: mood, npc: role, text: ["richer, and missing the crowds"]}
+    resolution: ["A wonder needs no settling; keep it where it is, or find where it came from.", "Find who wants the wonder enough to steal it."]
+    truth: ["The wonder is real and was stolen before it came to {town}: whoever it was taken from is coming for it, and the {role} half knows.",
+            "The wonder is a fake, and a good one; the {role} knows, the {role2} suspects, and the crowds are the point."]
+    clues:
+      - {holder: role, lines: ["It came from the far side of {wild}. A man sold it to me and left in a hurry. That's all I'll say.",
+                               "The {role2} offered me triple on the first day. Nobody offers triple for a thing they think is honest."]}
+      - {holder: role2, lines: ["Look at the wear on it. Real old things wear where hands go. This wears where it's convenient.",
+                                "I wasn't stealing it. I was looking at the base. There's a mark there the {role} doesn't want seen."]}
+    paths:
+      - {kind: find, target: wild, name: "Find where the wonder came from", how: "Go into {wild} and find the place it was taken from."}
+      - {kind: persuade, target: role, name: "Make the {role} say it", how: "Get the {role} to say where the wonder came from."}
     contract: null
     reveal: []

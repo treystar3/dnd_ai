@@ -2,7 +2,7 @@
 call, from a template for its kind with the place's own creatures and people in the parts; the same seed gives the same situation and
 different seeds different ones; a hunt contract maps to a real creature; the pulse builds normal and uncommon tiers itself and falls back
 to the engine when the model fails a rare one; effects and news carry the thread's id and ending a thread lifts only its own; when the
-player comes where it is, one call re-tells only the lines nothing has copied yet."""
+player comes where it is, one call re-tells only the lines nothing has copied yet; a kind has several shapes and the draw spreads them (f341)."""
 import random
 import shutil
 import sys
@@ -87,7 +87,7 @@ store.save_world_state(state)
 th = state["threads"][-1]
 check("a normal situation starts with no model call", ok and stub.calls.get("ThreadProposal", 0) == before)
 check("...and the thread record says the engine made it, from which template, how severe, and that it is not yet told",
-      th["made_by"] == "engine" and th["template"] == "threat" and "severity" in th and th["told"] is False and th.get("door"), {k: th.get(k) for k in ("made_by", "template", "severity", "told", "door")})
+      th["made_by"] == "engine" and threads.kind_of(th["template"]) == "threat" and "severity" in th and th["told"] is False and th.get("door"), {k: th.get(k) for k in ("made_by", "template", "severity", "told", "door")})
 check("...its news carries its id", any(n.get("thread") == th["id"] for n in state["news"]), state["news"][-1])
 check("...and so does every lasting effect it laid", all(e.get("thread") == th["id"] for e in state["effects"] if e.get("cause") == th["title"]) and any(e.get("thread") == th["id"] for e in state["effects"]), state["effects"])
 ok = pulse.start_thread(store, world, ws.catalog, state, now, random.Random(4), tier="rare", place_id="parth")
@@ -199,8 +199,9 @@ for i in range(6):
     titles.append(prop_i.title)
     state["threads"].append({"id": f"tt{i}", "title": prop_i.title, "place": "parth", "status": "active"})
 check("six situations of one kind at one town wear six different titles", len(set(titles)) == 6, titles)
-tpl = threads.T["templates"][threads.template_for(world.pressures["inn_trouble"], world.pressures["inn_trouble"].kind, threads.words_for(store, world, parth, world.pressures["inn_trouble"], random.Random(1), now))[0]]
-state["threads"] = [{"id": f"u{i}", "title": threads.fill(l, threads.words_for(store, world, parth, world.pressures["inn_trouble"], random.Random(1), now)), "place": "parth", "status": "active"} for i, l in enumerate(tpl["titles"])]
+words_x = threads.words_for(store, world, parth, world.pressures["inn_trouble"], random.Random(7), now)      # the words build() draws first from the same seed
+state["threads"] = [{"id": f"u{i}", "title": threads.fill(l, words_x), "place": "parth", "status": "active"}
+                    for i, l in enumerate(l for k in threads.shapes("social") for l in threads.T["templates"][k]["titles"])]
 prop_x, _ = threads.build(store, world, state, parth, world.pressures["inn_trouble"], "normal", random.Random(7), now)
 check("...and when every title is taken, the next says so", prop_x.title.endswith(" again"), prop_x.title)
 
@@ -214,6 +215,41 @@ pulse.end_thread(store, state, old_big, "ended", "The oldest matter - ran its co
 check("a matter that ends keeps its record though it was the oldest made; the earliest-ended small ones go instead",
       any(x["id"] == "big0" and x["status"] == "ended" for x in state["threads"]) and not any(x["id"] == "fin0" for x in state["threads"]) and len([x for x in state["threads"] if x["status"] != "active"]) == pulse.FINISHED_KEPT,
       ([x["id"] for x in state["threads"]][:4], len(state["threads"])))
+
+# ---- 10. a kind has several shapes (f341): each builds whole at every tier, the draw spreads them, a pressure's own template still wins
+state = pulse.empty_state(now)
+check("every kind has at least two shapes, the base one first", all(len(threads.shapes(k)) >= 2 and threads.shapes(k)[0] == k for k in threads.T["kind_weights"]),
+      {k: threads.shapes(k) for k in threads.T["kind_weights"]})
+sample = {"threat": "greywood_predators", "nature": "willowmead_floods", "mystery": "the_hollow_stirs", "social": "inn_trouble", "politics": "valecourt_court",
+          "trade": "riverhaven_trade", "economic": "caravan_trouble", "work": "greyhollow_mines", "natural": "harvest_and_weather", "fortune": "far_wonder"}
+broken = []
+for kind, pid in sample.items():
+    pr = world.pressures[pid]
+    place = world.places.get(pr.place) or pulse.region_town(world, pr.place, random.Random(1))
+    for key in threads.shapes(kind):
+        for tier in ("normal", "uncommon", "rare"):
+            out = threads.build(store, world, state, place, pr.model_copy(update={"template": key}), tier, random.Random(f"{key}:{tier}"), now)
+            if not out:
+                broken.append((key, tier, "nothing built")); continue
+            prop, info = out
+            text = " ".join([prop.title, prop.news, prop.truth, prop.reveal, prop.resolution, prop.fallout.description]
+                            + [s.description for s in prop.stages] + [c.text for c in prop.clues] + [e.text for s in prop.stages for e in s.effects])
+            if info["template"] != key or "{" in text or "}" in text or len(prop.stages) != pulse.P["tiers"][tier]["stages"]:
+                broken.append((key, tier, info["template"], text[:60]))
+check("every shape builds whole at every tier when a pressure names it, with every slot filled", not broken, broken[:3])
+drawn = {threads.build(store, world, state, world.places["greywood"], world.pressures["greywood_predators"], "normal", random.Random(i), now)[1]["template"] for i in range(40)}
+check("forty seeds of one threat at the Greywood draw at least three of its shapes", len(drawn) >= 3 and all(threads.kind_of(k) == "threat" for k in drawn), drawn)
+same = [threads.build(store, world, state, world.places["greywood"], world.pressures["greywood_predators"], "uncommon", random.Random(21), now)[1]["template"] for _ in range(3)]
+check("...and the same seed draws the same shape", len(set(same)) == 1, same)
+w = threads.words_for(store, world, world.places["greywood"], world.pressures["greywood_predators"], random.Random(1), now)
+w2 = {k: v for k, v in w.items() if k not in ("road", "creature", "creatures")}
+picks = {threads.template_for(None, "threat", w2, random.Random(i))[0] for i in range(40)}
+check("a shape whose needs the place cannot fill is never drawn: no road and no creature leaves only the lost party",
+      picks == {"threat_missing"}, picks)
+check("...and with nothing a threat needs, the kind falls back as before", threads.template_for(None, "threat", {k: v for k, v in w2.items() if k != "wild"}, random.Random(1))[0] == "social")
+check("the checker refuses a shape with no base template, or one with no line a place can always fill",
+      any("no base template" in x for x in (lambda T0: (threads.T["templates"].__setitem__("odd_shape", {"kind": "oddity", "titles": ["x"], "news": ["x"], "stages": [{"lines": ["x"]}], "fallout": {"lines": ["x"]}}), threads.problems(), threads.T["templates"].pop("odd_shape"))[1])(None))
+      and any("every line needs a slot" in x for x in (lambda: (threads.T["templates"].__setitem__("thin_shape", {"kind": "social", "titles": ["{road}"], "news": ["x"], "stages": [{"lines": ["x"]}], "fallout": {"lines": ["x"]}}), threads.problems(), threads.T["templates"].pop("thin_shape"))[1])()))
 
 shutil.rmtree("saves/threads_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
