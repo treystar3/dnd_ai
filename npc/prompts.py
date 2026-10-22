@@ -40,14 +40,16 @@ Respond only with JSON matching the schema.
 """
 
 
-def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = ()) -> str:
+def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = (), motive_so_far: str = "") -> str:
     traits = "\n".join(f"  - {t}" for t in trait_lines)
+    motive = (f"THEIR MOTIVE, as the town knows it: {motive_so_far}. Write it in their own words, keeping its meaning." if motive_so_far
+              else "THEY HAVE A MOTIVE: write one." if has_motive else "THEY HAVE NO MOTIVE: leave motive empty.")
     return (
         f"NAME: {npc.name}\nPEOPLE: {npc.people}\nROLE: {npc.role.replace('_', ' ')}\n"
         f"WHERE: {place_name}\nLOOKS: {npc.description}\nDOING: {npc.activity}\n"
         + "".join(f"{t}\n" for t in town_lines)
         + f"TRAITS:\n{traits}\n"
-        + ("THEY HAVE A MOTIVE: write one." if has_motive else "THEY HAVE NO MOTIVE: leave motive empty.")
+        + motive
     )
 
 

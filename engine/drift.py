@@ -85,7 +85,7 @@ def people(store, world, state: dict, t: int, rng: random.Random) -> str:
     state["drift_cursor"] = (start + size) % len(ids)
     R, M, V = D.get("relations", {}), D.get("moods", {}), D.get("motives", {})
     settle, per_day = R.get("settle_after_days", 7) * 1440, R.get("per_day", 1.0)
-    eased = faded = moved = 0
+    eased = faded = moved = ended = 0
     for npc in store.load_npcs(chunk):
         changed = False
         for oid, r in list(npc.relations.items()):
@@ -116,14 +116,40 @@ def people(store, world, state: dict, t: int, rng: random.Random) -> str:
             if rng.random() < V.get("chance", 0.5):
                 npc.motive = motive_for(npc, world, V, rng)
                 npc.motive_done_at = -1
+                npc.motive_since = t
                 moved += 1
             else:
                 npc.motive_done_at = t
             changed = True
+        elif npc.motive and npc.tier == "background" and V.get("lasts_days"):      # (f334) a goal nobody watched runs its course
+            if not npc.motive_since:
+                npc.motive_since = t                                              # a goal from before clocks were kept starts its now
+                changed = True
+            elif t - npc.motive_since >= V["lasts_days"] * 1440:
+                motive_ends(npc, store, world, V, M, t, rng)
+                changed = True
+                ended += 1
         if changed:
             store.save_npc(npc)
-    bits = [f"{eased} feelings eased" if eased else "", f"{faded} moods faded" if faded else "", f"{moved} took up a new motive" if moved else ""]
+    bits = [f"{eased} feelings eased" if eased else "", f"{faded} moods faded" if faded else "", f"{moved} took up a new motive" if moved else "",
+            f"{ended} saw a motive through" if ended else ""]
     return ", ".join(b for b in bits if b)
+
+
+def motive_ends(npc, store, world, V: dict, M: dict, t: int, rng: random.Random) -> None:
+    """(f334) A background person's goal ends without a model call: made or not, by the rule's chance; the town remembers it in a line
+    (engine/matters.py town_note), the person carries a mood for a while, and the cooldown starts toward the next."""
+    from engine import matters
+    O = V.get("outcomes") or {}
+    made = rng.random() < V.get("made_chance", 0.5)
+    lines = O.get("made" if made else "failed") or ["{name}, the {role}, saw their goal through." if made else "{name}, the {role}, gave up on their goal."]
+    role = npc.role.replace("_", " ")
+    motive = npc.motive.strip().rstrip(".")
+    matters.town_note(store, world, npc.location, rng.choice(lines).format(name=npc.name, role=role, motive=motive), t)
+    moods = O.get("mood_made" if made else "mood_failed")
+    if moods:
+        npc.mood, npc.mood_until = rng.choice(moods), t + M.get("days", 6) * 1440
+    npc.motive, npc.motive_since, npc.motive_done_at = "", 0, t
 
 
 def motive_for(npc, world, V: dict, rng: random.Random) -> str:

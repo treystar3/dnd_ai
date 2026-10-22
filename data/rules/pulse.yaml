@@ -87,6 +87,15 @@ drift:
   motives:
     cooldown_days: 12           # after a motive ends, this long before a new one may take hold
     chance: 0.5                 # ...and then this chance each time they are looked at
+    lasts_days: 24              # (f334) a goal the engine gave someone nobody has spoken to runs its course in about this long...
+    made_chance: 0.5            # ...and this often they get there; the town remembers either way (engine/matters.py town_note)
+    outcomes:
+      made: ["{name}, the {role}, set out {motive} - and by the look of things, made it.",
+             "{name}, the {role}, got what they were after: {motive}. The town has noticed."]
+      failed: ["{name}, the {role}, wanted {motive}; it came to nothing, and they have stopped talking about it.",
+               "Whatever {name}, the {role}, meant by trying {motive}, it has not come off."]
+      mood_made: ["quietly pleased with how things have gone", "walking a little taller lately"]
+      mood_failed: ["sour about something that came to nothing", "short with people since a plan fell through"]
     seeds:                      # what takes hold, by the first of their traits that matches, else default; {role} and {town} are filled
       ambitious: ["to be more than a {role} in {town}", "to have a say in how {town} is run"]
       greedy: ["to get hold of the money going around {town}", "to be the richest {role} in {town}"]

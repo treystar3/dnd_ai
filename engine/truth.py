@@ -254,7 +254,8 @@ def _present_people(ws) -> list[Present]:
         note = (f"Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
                 "and 'taking the pay' once it is done is part of that work." if n.work_offer else "")
         out.append(Present(id=n.id, name=n.name or n.label(), label=n.label(), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
-                           desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}.", note=note, plain=n.description or "",
+                           desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}." + (f" Lately: {n.mood}." if n.mood else ""),   # (f334) a mood shows
+                           note=note, plain=n.description or "",
                            local=ws.world.locals_group(n.location) or ""))
     her = ws.mentor_person()
     if her:
