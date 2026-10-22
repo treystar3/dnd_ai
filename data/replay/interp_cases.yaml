@@ -136,3 +136,29 @@
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
   plan: [{kind: haggle, target: s1, ware: longsword, summary: "haggle over the longsword"}]
   expect: {handled_by: interpret, kinds: [haggle]}
+# (f333) what the live model did with four of the lines above, pinned so the plan repairs keep catching it
+- name: show_narrated_as_talk_is_dropped
+  text: "I show Maren the wolf pelts"
+  scene: {place: trading_square, mentor_stage: done}
+  plan: [{kind: show, target: maren, item: wolf pelts}, {kind: talk, target: maren, speech: "I show Maren the wolf pelts"}]
+  expect: {handled_by: interpret, kinds: [show]}
+- name: give_narrated_as_talk_is_dropped
+  text: "I give Bram a healing draught"
+  scene: {place: trading_square, party: [{name: Bram Voss}]}
+  plan: [{kind: give, target: "hire:h0", item: healing draught}, {kind: talk, target: "hire:h0", speech: "I give Bram a healing draught"}]
+  expect: {handled_by: interpret, kinds: [give]}
+- name: an_other_restating_the_ability_is_dropped
+  text: "I heal Bram with Mending Light"
+  scene: {place: trading_square, party: [{name: Bram Voss}]}
+  plan: [{kind: ability, target: "hire:h0", ability: mending_light, summary: "I heal Bram with Mending Light"}, {kind: other, summary: "I heal Bram with Mending Light"}]
+  expect: {handled_by: interpret, kinds: [ability]}
+- name: the_inn_is_this_towns_inn
+  text: "Okay, let's head to the inn first"
+  scene: {place: trading_square, party: [{name: Bram Voss}], errand: true}
+  plan: [{kind: talk, target: "hire:h0", speech: "Okay, let's head to the inn first"}, {kind: move, destination: kelpmoor_inn}]
+  expect: {handled_by: interpret, moves: [tilted_plough]}
+- name: a_named_towns_inn_is_that_one
+  text: "Let's ride to the inn at Kelpmoor"
+  scene: {place: trading_square}
+  plan: [{kind: move, destination: kelpmoor_inn}]
+  expect: {handled_by: interpret, moves: [kelpmoor_inn]}

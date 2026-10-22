@@ -69,7 +69,7 @@ class AuditActions:
         if getattr(config, "AUDIT_ENABLED", True):
             res = ia.audit(text, plan, sit, self.audit_asker())
         else:
-            res = ia.Result("skipped", plan)
+            res = ia.Result("skipped", ia.fix(plan))              # the model calls are off; the plain repairs (repeats, an 'other' restating a step) still run
         self.log_turn(text, sit, raw_plan, res, time.perf_counter() - start)
         if res.status == "changed":
             console.debug(f"audit changed the plan: {res.verdict or res.reason}")

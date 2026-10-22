@@ -889,6 +889,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
                 m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
                 a.kind, a.item = "give", (m.group(0) if m else "coins")
+        plan = self.drop_narrated_talk(text, plan)  # (f333) "I show Maren the pelts" read as show + a talk whose 'speech' is that very line: the talk is narration
+        self.local_building(text, plan)             # (f333) "the inn" with no town named is this town's inn, not a far one the model happened to pick
         HARVEST_WORDS = ("harvest", "skin", "butcher", "gut", "carcass", "hide", "meat", "parts", "gather")
         plan = [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
                 if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
@@ -940,6 +942,47 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         matters.on_arrival(self)                                 # (f317) after the turn's own passage: a moment walked into, or someone come looking
         self.law_check()
         self.store.meta.turn += 1
+
+    @staticmethod
+    def drop_narrated_talk(text: str, plan: list) -> list:
+        """(f333) A talk step whose 'speech' is the player describing an action the plan already has ("I give Bram a healing draught" beside
+        a give) is not words said: it is dropped. Spoken words in quotes are never touched, and a talk that is the only step stays."""
+        from engine import actions
+        if len(plan) < 2 or markup.has_markup(text) or '"' in text:
+            return plan
+        kept = []
+        for a in plan:
+            if a.kind == "talk" and a.speech.strip():
+                said = re.sub(r"^\W*(?:i|we)\s+(?:try to |go to |will |'ll )?", "", a.speech.strip().lower())
+                verbs = {w for b in plan if b is not a and b.kind != "talk" for w in actions.BY_KIND[b.kind].verbs + actions.BY_KIND[b.kind].words}
+                if any(said.startswith(v + " ") or said == v for v in verbs):
+                    console.debug(f"dropped a talk narrating the {[b.kind for b in plan if b is not a]} step: {a.speech[:60]!r}")
+                    continue
+            kept.append(a)
+        return kept or plan
+
+    def local_building(self, text: str, plan: list) -> None:
+        """(f333) "Let's head to the inn": a building named by its kind, with no town named, is this town's when it has one; the model is
+        shown the nearest of that kind in other towns too, and sometimes picks one of those."""
+        from engine import mapview, truth
+        low = text.lower()
+        here_top = mapview.top_of(self.world, self.player.location)
+        kinds = {kind for kind, words in truth.T["building_words"].items() if any(re.search(rf"\b{re.escape(w)}\b", low) for w in words)}
+        if not kinds:
+            return
+        for a in plan:
+            if a.kind != "move" or a.destination not in self.world.places:
+                continue
+            dest = self.world.places[a.destination]
+            if dest.type not in kinds or mapview.top_of(self.world, a.destination) == here_top:
+                continue
+            far_town = self.world.places.get(mapview.top_of(self.world, a.destination))
+            if far_town is not None and re.search(rf"\b{re.escape(far_town.name.lower().removeprefix('the '))}\b", low):
+                continue                                              # they named that town: they mean its inn
+            local = next((pid for pid, p in self.world.places.items() if p.type == dest.type and mapview.top_of(self.world, pid) == here_top and pid != self.player.location), None)
+            if local:
+                console.debug(f"destination {a.destination} ({dest.type}) read as this town's: {local}")
+                a.destination = local
 
     def flush(self, player_text: str = "") -> None:
         """Narrate everything held back so far, as one passage."""
@@ -1301,7 +1344,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                  "stash": cand.catalogue(text, "stash", stash_all, short) if stash_all is not None else None}
         left_out = [k for k, full in (("wares", wares_all), ("abilities", abilities_all), ("pack", pack_all), ("recipes", recipes_all),
                                       ("buyers", buyers_all), ("stash", stash_all or [])) if full and not shown[k]]
-        req = wp.interpret_request(self.time_label(), self.place.name, places, people, elsewhere,
+        from engine import mapview as _mv
+        here_top = _mv.top_of(self.world, self.player.location)
+        shown_places = []
+        for pid, name in places:                                      # (f333) the kind of place, and whose town when it is not this one
+            p_ = self.world.places[pid]
+            top_ = _mv.top_of(self.world, pid)
+            tag = p_.type if p_.type not in ("town", "city", "village") else ""
+            if top_ != here_top and top_ != pid and top_ in self.world.places:
+                tag = (tag + ", " if tag else "") + f"in {self.world.places[top_].name}"
+            shown_places.append((pid, f"{name} ({tag})" if tag else name))
+        req = wp.interpret_request(self.time_label(), self.place.name, shown_places, people, elsewhere,
                                    self.partner.id if self.partner else None, last, text,
                                    shown["wares"], shown["abilities"], shown["pack"], [inv.label(i) for i in self.ground_here()],
                                    shown["stash"] if stash_all is not None else None, shown["buyers"], shown["recipes"],
