@@ -206,6 +206,9 @@ def check() -> list[str]:
     else:
         for p_ in _ac.problems(_WS, _wp.INTERPRET_SYSTEM):
             need(False, p_)
+        from scenes import intercepts as _ic
+        for p_ in _ic.problems(_WS):
+            need(False, p_)
     from engine import candidates as _cd
     need({"most_places", "places_by_meaning", "place_floor", "most_people", "people_by_meaning", "person_floor", "about_floor", "about", "always_if_short",
           "generic_words", "named_town_types", "nearest_of_kind"} <= set(_cd.I) and set(_cd.I["about"]) == {"wares", "abilities", "pack", "recipes", "buyers", "stash"},

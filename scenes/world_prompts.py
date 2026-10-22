@@ -1,5 +1,6 @@
 """Prompts for the free-action loop: reading player input and narrating places."""
 
+from engine import actions as _ac
 from scenes.voice import DM_VOICE
 
 INTERPRET_SYSTEM = """You read what a player typed in a role-playing game and turn it into actions. You do not reply to them.
@@ -13,67 +14,7 @@ pointing, a gesture) belong to the action they accompany. Several sentences spok
 
 Each action has:
 kind:
-  move               - they want to go to one of the PLACES, or to a person listed under PEOPLE ELSEWHERE.
-                       Moving within the current place - upstairs, to their room, to a table, a corner, the bar,
-                       across the street - is look, not move. Going up to, approaching or walking over to someone
-                       in PEOPLE HERE is never move: it is part of talking to them.
-  explore            - they set out to find somewhere NOT on the PLACES list: follow a stream or trail to see where it leads,
-                       look for a shortcut or a hidden way, hunt for a cave, ruin or spring, wander off the path.
-                       Put what they look for in seek. Naming a place from PLACES is move, never explore.
-  look               - they look around or take in their surroundings, or think aloud with no one to answer
-  search             - they search, hunt, track, explore, scout or look for creatures, game, enemies or signs of them
-  talk               - they speak to, ask, whisper to, greet, approach or look for a PERSON in PEOPLE HERE,
-                       or keep talking in the current conversation. Any spoken words count as talk.
-  leave_conversation - they end the current conversation without going anywhere (a goodbye can include spoken words)
-  buy                - they pay for, buy, rent, order or accept the price of something listed under FOR SALE.
-                       Handing someone money for something they offered ("I hand him the silver") is buy, not give.
-  sell               - they sell something from YOUR PACK to a person here who BUYS it
-  ability            - outside a fight, they use one of YOUR ABILITIES - only when they name it or plainly describe
-                       doing exactly what it does. Watching, noticing, studying or reading someone is look.
-  use                - they drink, eat, apply or use a consumable or food from YOUR PACK
-  drop               - they drop, leave or set down something from YOUR PACK
-  pick_up            - they pick up or take something listed ON THE GROUND HERE
-  give               - they give or hand something from YOUR PACK or KEY ITEMS to a person here
-  show               - they show, present or display something (usually from KEY ITEMS) to a person here
-  discard            - they throw away, get rid of, burn or destroy something from KEY ITEMS
-  store              - they put something into their ITEM BOX (only if one is here)
-  retrieve           - they take something out of their ITEM BOX (only if one is here)
-  equip              - they equip, wield, wear, draw or put on gear from YOUR PACK
-  forage             - they gather, forage, pick or collect herbs or plants
-  craft              - they make, brew, cook, forge, sew or craft something themselves - a RECIPE, or gear such as a
-                       jerkin, helm, spear or shield from materials in YOUR PACK
-  work               - they do work or labor for or with a person here: help them, haul, load, carry, dig, chop,
-                       tend - including taking up a job that person offered
-  harvest            - they skin, butcher, gut or harvest the bodies of creatures they killed. "Skin it and harvest what I can"
-                       is ONE harvest, never a harvest plus an other
-  join_guild         - they join, sign up for or pay to enter the adventurers' guild, or say they want or hope to join it
-                       or its register (not a question about how)
-  board              - they read or look over the guild's contract board
-  accept_quest       - they take a contract from the board (item = its number or name; "the delivery one", "I'll do this" and
-                       "I want to take this job" all count, with the CONTRACT BOARD below to pick from), or say yes to a request
-                       a person here just asked of them
-  abandon_quest      - they give up a contract or request they hold (item = which)
-  train              - they ask for or pay for training: drills, lessons in a skill, or to be taught a new ability
-                       (item = what they want to train or learn, in their words)
-  learn_ability      - they choose one of the abilities an instructor just offered (item = its number or name)
-  delve              - at a dungeon: they go down, enter, press on, go deeper or continue to the next chamber
-  leave_dungeon      - in a dungeon: they turn back, climb out or leave
-  commission         - they ask or pay a person here to make gear for them ("forge me a spear", "make me boots
-                       from these hides")
-  wait               - they wait, rest, linger, pass time or skip ahead
-  attack             - they attack a creature (in PEOPLE HERE with id wildlife) or start a fight. Killing, executing or
-                       finishing off a captive prisoner in PEOPLE HERE is attack, with that prisoner's id as target.
-  release            - they let a captive prisoner in PEOPLE HERE go free, spare them, or send them away unharmed - or
-                       release a tamed companion back into the wild
-  hand_over          - they hand a captive prisoner over to the watch / a guard / the authorities (target = the prisoner)
-  steal              - they secretly take something that is not theirs: pick a pocket, lift or swipe an item from a stall, shelf,
-                       desk or person, slip something away unseen, or look through someone's things to take what they find.
-                       Item = what they take, in their words. Target = the person they take it from or whose it is, if any.
-                       Paying for something is buy, never steal. Asking for something is talk.
-  unlock             - they open a lock that is not theirs to open: pick it, jimmy it, break into a locked room, chest or door, or open
-                       one with a key they hold. Item = what is locked, in their words ("the back room", "the strongbox").
-                       Target = the person it belongs to, if any. Opening an ordinary unlocked door is move or look, never unlock.
-  other              - anything else they attempt
+""" + _ac.prompt_block() + """
 destination: for move, the id of the place they mean. If they want to go to a person elsewhere, use that person's place id.
 target: for talk, the id of the person they address. If they talk to "someone", "anyone" or "the first person",
   pick a fitting person from PEOPLE HERE. For attack, the id they attack. If they speak without naming anyone, use the current partner,

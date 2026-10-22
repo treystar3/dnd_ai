@@ -24,6 +24,8 @@ STANDING = re.compile(r"\b(i'?d like|i would like|let me|i want|i will|i'?ll|rea
 
 
 class TrialActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("trial", 30, "trial_turn", "a word about your own trial of rank"),)
 
     def trial_due(self) -> str | None:
         """The rank this member has earned on paper (level and contracts), if any: it is theirs once they win the trial."""

@@ -68,7 +68,6 @@ from world.loader import World
 QUIT_WORDS = {"quit", "exit", "/quit", "/exit"}
 NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|refuse|decline|later)\b")     # "I don't want to join" is not joining
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
-JOIN_WORDS = re.compile(r"\b(fee|pay|sign|register|join|enrol|enroll|silver|coin|coins)\b")                    # at the clerk's desk, the player's business
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 SEARCH = encounters.E
 
@@ -831,38 +830,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if not self.combat and self.resume_pending:
                 self.resume_road()
             return
-        if self.errand_intercept(text):
-            return self.took(text, "errand")
-        if self.mentor_intercept(text):
-            return self.took(text, "mentor_intercept")
-        if self.trial_turn(text):
-            return self.took(text, "trial")
-        if self.party_turn(text):
-            return self.took(text, "party")
-        if self.camp_turn(text):
-            self.ensure_dungeons()
-            self.run_pulse()
-            return self.took(text, "camp")
-        said = text.strip()
-        low = said.lower()
-        if self.mentor_with_you() and not self.partner and len(said) > 2 and said[0] in "\"\u201c" and said[-1] in "\"\u201d" and said.count(chr(34)) + said.count("\u201c") + said.count("\u201d") == 2 \
-                and not (mentor.stage(self.player) == "sign" and JOIN_WORDS.search(low)):      # at the desk, "Here's the fee" is for the clerk
-            self.advance(clock.TALK_MINUTES)                 # a line wholly in quotes, with her beside them, is said to her
-            self.mentor_talk(said[1:-1].strip())
-            return self.took(text, "mentor_quoted")
-        if self.mentor_with_you() and mentor.named(text) and ("?" in text or not self.TALK_ACTIONS.search(low)):   # named, and no action in the line: said to her
-            self.advance(clock.TALK_MINUTES)
-            self.mentor_talk(text)
-            return self.took(text, "mentor_named")
-        hire = self.hire_wants_talk(text)
-        if hire:
-            self.advance(clock.TALK_MINUTES)
-            self.hire_talk(hire, text)
-            return self.took(text, "hire")
-        if self.mentor_go_hunt(text):
-            return self.took(text, "mentor_hunt")
-        if self.exit_request(text):
-            return self.took(text, "exit")
+        for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)
+            if getattr(self, ic.method)(text):
+                if ic.after:
+                    getattr(self, ic.after)()
+                console.debug(f"intercept: {ic.name} took the line")
+                return self.took(text, ic.name)
         asked = getattr(self, "pending_clarify", None)
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
@@ -1328,6 +1301,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         actions = generate("interpret_action", wp.INTERPRET_SYSTEM, req, ActionPlan, temperature=0.2, max_tokens=700).actions
         self.__dict__.setdefault("interpret_calls", []).append({          # the call in full, for the turn log and a lossless replay case
             "hint": hint, "place": self.player.location, "place_name": self.place.name,
+            "roles": {p.id: p.role for p in _sc.present_people() if p.kind == "npc"},
             "partner": self.partner.id if self.partner else "", "last_spoken": last or "",
             "places": [pid for pid, _ in places], "people": [p[0] for p in people], "elsewhere": [e[0] for e in elsewhere],
             "shown": {k: v for k, v in shown.items() if v}, "left_out": left_out, "chars": self.last_interpret["chars"],
@@ -2016,3 +1990,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
         world_improv.resolve(self, intent.summary or text, text)
+
+
+from scenes import intercepts as _intercepts                                     # noqa: E402
+WorldScene.INTERCEPT_TABLE = _intercepts.gather(WorldScene)                     # declared by the mixins, run in order by handle()

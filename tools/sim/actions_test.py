@@ -32,5 +32,15 @@ check("a kind with no handler is caught at start-up", any("on_look" in p for p i
 probs = actions.problems(WorldScene, wp.INTERPRET_SYSTEM.replace("  move               - they want to go", "  fly                - they want to go"))
 check("a kind the instructions describe but nobody declared, and one declared but not described, are both caught",
       any("'fly'" in p for p in probs) and any("'move' is not described" in p for p in probs), probs)
+check("every kind carries the words the interpreter is told about it", all(a.prompt.strip() for a in actions.ACTIONS))
+check("the kinds block of the instructions is written from the table", actions.prompt_block() in wp.INTERPRET_SYSTEM and actions.prompt_block().splitlines()[0].startswith("  move               - they want to go"))
+check("a kind added to the table is described without a hand edit", "  other              - anything else" in actions.prompt_block())
+from scenes import intercepts
+check("the intercepts the mixins declare make a consistent table", intercepts.problems(WorldScene) == [], intercepts.problems(WorldScene))
+check("they run in their declared order, the errand first and the way out of town last", [i.name for i in WorldScene.INTERCEPT_TABLE][:2] == ["errand", "mentor_intercept"] and WorldScene.INTERCEPT_TABLE[-1].name == "exit", [i.name for i in WorldScene.INTERCEPT_TABLE])
+class Twice(WorldScene):
+    INTERCEPTS = (intercepts.Intercept("errand", 10, "errand_intercept"), intercepts.Intercept("ghost", 11, "no_such_method"))
+probs = intercepts.problems(Twice)
+check("a name or an order declared twice, and a method the scene lacks, are caught at start-up", any("declared twice" in p for p in probs) and any("order 10" in p for p in probs) and any("no_such_method" in p for p in probs), probs)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

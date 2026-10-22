@@ -45,6 +45,9 @@ def keyword_party(text: str) -> str | None:
 
 
 class PartyActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("party", 40, "party_turn", "hiring and directing the party, and a friend asked along"),
+                  _I("hire", 80, "hire_turn", "a line said to a hire by name, or going on with the one who spoke last"))
 
     # ---------- when the guild will send help ----------
 
@@ -376,6 +379,15 @@ class PartyActions:
     def npc_addressed(self, text: str, npc) -> bool:
         from engine import mentor
         return mentor.addresses(text, npc)
+
+    def hire_turn(self, text: str) -> bool:
+        """A line said to one of the hires: named with no action in it, or going on with the one who spoke last turn."""
+        m = self.hire_wants_talk(text)
+        if not m:
+            return False
+        self.advance(clock.TALK_MINUTES)
+        self.hire_talk(m, text)
+        return True
 
     def hire_wants_talk(self, text: str) -> dict | None:
         if self.combat or text.lstrip().startswith(("#", "/")):

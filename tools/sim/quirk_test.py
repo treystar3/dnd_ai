@@ -238,7 +238,7 @@ check("at rests she fusses, now and then, in a visible way", 3 < len(NARR) < 30 
 # the whole-loop hooks exist
 import scenes.world as _w
 src = open(_w.__file__, encoding="utf-8").read()
-check("the world loop runs the quirk tick and the errand answer", "self.quirk_tick()" in src and "self.errand_intercept(text)" in src and "self.rest_quirks(sleeping)" in src)
+check("the world loop runs the quirk tick and the errand answer", "self.quirk_tick()" in src and any(i.method == "errand_intercept" for i in _w.WorldScene.INTERCEPT_TABLE) and "self.rest_quirks(sleeping)" in src)
 src2 = open("scenes/combat_scene.py", encoding="utf-8").read()
 check("fights show habits at start and publish the deeds at the end", 'ws.habits("fight_start")' in src2 and "LootedDead(" in src2 and "Fled(" in src2 and "flaws_on_loot" in src2)
 

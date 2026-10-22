@@ -35,6 +35,8 @@ def deed_situation(scene, deed: str) -> str:
 
 
 class QuirkActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("errand", 10, "errand_intercept", "the yes or no to an errand a companion just asked"),)
     # ---------- the roll, for new hires and old saves ----------
 
     def quirked(self, m: dict) -> dict:

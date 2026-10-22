@@ -9,11 +9,18 @@ from llm.contracts import MentorLines, MentorReply, MentorSpeech
 from llm.gateway import LLMError, generate
 from ui import console
 
+JOIN_WORDS = re.compile(r"\b(fee|pay|sign|register|join|enrol|enroll|silver|coin|coins)\b")      # at the clerk's desk, the player's business
+
 M = mentor.M
 NAME = mentor.NAME
 
 
 class MentorActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("mentor_intercept", 20, "mentor_intercept", "her stepping in on a newcomer's first move in Parth"),
+                  _I("mentor_quoted", 60, "mentor_quoted_turn", "a line wholly in quotes with her beside you"),
+                  _I("mentor_named", 70, "mentor_named_turn", "her name in the line and no action in it, or a question"),
+                  _I("mentor_hunt", 90, "mentor_go_hunt", "setting out for the hunt with her"))
 
     def mentor_view(self):
         """Her view of the moment from the truth layer (engine/truth.py, f315): the same scene everyone reads, as she may know it - Parth's
@@ -549,6 +556,29 @@ class MentorActions:
         console.narrate(A["leave"])
         mentor.set_stage(self.player, "invite")
         self.store.save_player(self.player)
+
+    def mentor_quoted_turn(self, text: str) -> bool:
+        """A line wholly in quotes, with her beside them, is said to her - unless, at the clerk's desk, it is about the fee: that is the clerk's."""
+        said = text.strip()
+        if not (self.mentor_with_you() and not self.partner and len(said) > 2 and said[0] in "\"\u201c" and said[-1] in "\"\u201d"
+                and said.count(chr(34)) + said.count("\u201c") + said.count("\u201d") == 2):
+            return False
+        if mentor.stage(self.player) == "sign" and JOIN_WORDS.search(said.lower()):
+            return False
+        from engine import clock
+        self.advance(clock.TALK_MINUTES)
+        self.mentor_talk(said[1:-1].strip())
+        return True
+
+    def mentor_named_turn(self, text: str) -> bool:
+        """Her name in the line and no action in it (or a question): said to her. An action with her name in it is an action."""
+        low = text.strip().lower()
+        if not (self.mentor_with_you() and mentor.named(text) and ("?" in text or not self.TALK_ACTIONS.search(low))):
+            return False
+        from engine import clock
+        self.advance(clock.TALK_MINUTES)
+        self.mentor_talk(text)
+        return True
 
     def mentor_go_hunt(self, text: str) -> bool:
         """With the hunt taken, 'let's go' (or naming the Greywood and a going word) sets out, whatever the interpreter makes of it."""
