@@ -3,26 +3,27 @@
   --accent: #d4a24c; --echo: #8fb8d8; --speech: #f0c36a; --note: #7fb3a3; --combat: #e08a6a; --wait: #8d8478; --hp: #c0504d; --mp: #4f81c7; --sp: #6aa84f; --xp: #b38f2e;
   --r-uncommon: #8fd18f; --r-rare: #6fa8ff; --r-epic: #b784f5;
   --dialogue: #d4a24c;          /* spoken words: the speaker's gold in the dark theme, ink in the light one */
+  --speaker: #cfc4b4;           /* the speaker's name: soft cream over gold words in the dark theme; the amber label in the light one */
   /* the window's text by kind - size and colour - each a variable the Settings pane may override (app.js applyText) */
   --fs-narration: 17px; --fs-speech: 17px; --fs-speaker: 12px; --fs-note: 13px; --fs-wait: 14px; --fs-combat: 13.5px; --fs-echo: 14px; --fs-pane: 13px;
-  --c-narration: var(--ink); --c-speech: var(--dialogue); --c-speaker: var(--accent); --c-note: var(--dim); --c-wait: var(--dim); --c-combat: var(--combat); --c-echo: var(--echo); --c-pane: var(--ink);
+  --c-narration: var(--ink); --c-speech: var(--dialogue); --c-speaker: var(--speaker); --c-note: var(--dim); --c-wait: var(--dim); --c-combat: var(--combat); --c-echo: var(--echo); --c-pane: var(--ink);
   --serif: "Literata", Georgia, "Palatino Linotype", "Book Antiqua", serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
-  --measure: 720px; --gutter: 28px;
+  --measure: 100%; --gutter: 28px;       /* the story column's width: the Settings pane sets it (app.js applyMeasure); 100% reaches the pane's edges */
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #f4efe6; --panel: #fbf8f2; --panel2: #ede6d8; --ink: #2a241d; --ink2: #4a4036; --dim: #756a5a; --line: #cfc4b0;
     --accent: #8a5a12; --echo: #2f6690; --speech: #8a5200; --note: #2f7a67; --combat: #b04a25; --wait: #7a6f60; --hp: #b23a37; --mp: #2f5fb0; --sp: #4a8a2f; --xp: #99771a;
     --r-uncommon: #2f7a2f; --r-rare: #2458b8; --r-epic: #6a35b8;
-    --dialogue: #2a241d;
+    --dialogue: #2a241d; --speaker: #8a5a12;
   }
 }
 :root[data-theme="light"] {
     --bg: #f4efe6; --panel: #fbf8f2; --panel2: #ede6d8; --ink: #2a241d; --ink2: #4a4036; --dim: #756a5a; --line: #cfc4b0;
     --accent: #8a5a12; --echo: #2f6690; --speech: #8a5200; --note: #2f7a67; --combat: #b04a25; --wait: #7a6f60; --hp: #b23a37; --mp: #2f5fb0; --sp: #4a8a2f; --xp: #99771a;
     --r-uncommon: #2f7a2f; --r-rare: #2458b8; --r-epic: #6a35b8;
-    --dialogue: #2a241d;
+    --dialogue: #2a241d; --speaker: #8a5a12;
   }
 @font-face { font-family: "Literata"; font-weight: 400; font-style: normal; font-display: swap; src: url(/fonts/literata-latin-400-normal.woff2) format("woff2"); }
 @font-face { font-family: "Literata"; font-weight: 400; font-style: italic; font-display: swap; src: url(/fonts/literata-latin-400-italic.woff2) format("woff2"); }

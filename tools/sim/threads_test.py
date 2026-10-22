@@ -204,6 +204,17 @@ state["threads"] = [{"id": f"u{i}", "title": threads.fill(l, threads.words_for(s
 prop_x, _ = threads.build(store, world, state, parth, world.pressures["inn_trouble"], "normal", random.Random(7), now)
 check("...and when every title is taken, the next says so", prop_x.title.endswith(" again"), prop_x.title)
 
+# ---- 9. the finished records kept are the ones that ended last: the one ending now stays, however long ago it was made
+state = store.load_world_state()
+old_big = {"id": "big0", "title": "The oldest matter", "tier": "cataclysm", "place": "parth", "kind": "invasion", "pressure": "", "stage": 5, "status": "active", "made": now - 500 * 1440,
+           "stages": [{"description": "s", "effects": []}], "fallout": {"description": "f", "effects": []}, "times": [now - 500 * 1440, now], "groups": ["everyone"], "paths": [], "contract": None, "made_by": "engine", "told": False}
+state["threads"] = [old_big] + [{"id": f"fin{i}", "title": f"Small matter {i}", "tier": "normal", "place": "parth", "kind": "social", "pressure": "", "stage": 0, "status": "ended", "made": now - (40 - i) * 1440,
+                                 "ended_at": now - (39 - i) * 1440, "stages": [{"description": "s", "effects": []}], "fallout": {"description": "f", "effects": []}, "times": [now, now], "groups": ["everyone"], "paths": [], "contract": None} for i in range(pulse.FINISHED_KEPT + 5)]
+pulse.end_thread(store, state, old_big, "ended", "The oldest matter - ran its course.", now)
+check("a matter that ends keeps its record though it was the oldest made; the earliest-ended small ones go instead",
+      any(x["id"] == "big0" and x["status"] == "ended" for x in state["threads"]) and not any(x["id"] == "fin0" for x in state["threads"]) and len([x for x in state["threads"] if x["status"] != "active"]) == pulse.FINISHED_KEPT,
+      ([x["id"] for x in state["threads"]][:4], len(state["threads"])))
+
 shutil.rmtree("saves/threads_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)
