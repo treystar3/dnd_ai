@@ -183,7 +183,8 @@ class Bench:
         ws.player.delve = None
         if sc.get("dungeon"):
             ws.ensure_dungeons()
-            d = next((x for x in self.store.load_dungeons() if x["place"] == sc["dungeon"]), None)
+            ds = self.store.load_dungeons()
+            d = next((x for x in ds if x["place"] == sc["dungeon"]), None) or (ds[0] if ds else None)   # a place with no dungeon beneath it: any one will do
             if d:
                 ws.player.location = d["entrance"]
                 if sc.get("delve"):

@@ -50,6 +50,7 @@ from scenes.audit_actions import AuditActions
 from scenes.standing_actions import StandingActions
 from scenes.law_actions import LawActions
 from scenes.pastime_actions import PastimeActions
+from scenes.plan_repairs import PlanRepairs
 from scenes import markup
 from engine import mapview, mentor, needs, pulse, pulselog, quests
 from engine import inventory as inv
@@ -75,7 +76,7 @@ SEARCH = encounters.E
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
-                 PastimeActions):
+                 PastimeActions, PlanRepairs):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -866,6 +867,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                                  and b.target in here_ids for b in plan[k + 1:]))] or plan
         plan = self.drop_narrated_talk(text, plan)  # (f333) "I show Maren the pelts" read as show + a talk whose 'speech' is that very line: the talk is narration
         self.local_building(text, plan)             # (f333) "the inn" with no town named is this town's inn, not a far one the model happened to pick
+        plan = self.repair_plan(text, plan)         # (f333) the model's other habits, each straightened by one rule (scenes/plan_repairs.py)
         if not self.rank and self.clerk_here() and not NEGATED.search(text.lower()):     # paying or asking to join the guild, said to the clerk, is joining - and only once
             asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
             for a in plan:
@@ -950,30 +952,51 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     @staticmethod
     def drop_narrated_talk(text: str, plan: list) -> list:
         """(f333) A talk step whose 'speech' is the player describing an action the plan already has ("I give Bram a healing draught" beside
-        a give) is not words said: it is dropped. Spoken words in quotes are never touched, and a talk that is the only step stays."""
+        a give) is not words said: it is dropped, and the person it named is given to the deed when that lacks one. Spoken words in quotes
+        are never touched, and a talk that is the only step stays. When every step was handed the whole line as its speech and the line
+        has as many clauses as the plan has steps, each step's words are its own clause ("I buy a meal, then ask Hollis about the roads")."""
         from engine import actions
         if len(plan) < 2 or markup.has_markup(text) or '"' in text:
             return plan
-        kept = []
-        for a in plan:
+        whole = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", text.lower())).strip()
+        clauses = [c.strip() for c in re.split(r",?\s+(?:and then|then|and)\s+|;\s*", text.strip()) if c.strip()]
+        kept, lost = [], []
+        for k, a in enumerate(plan):
             if a.kind == "talk" and a.speech.strip():
-                said = re.sub(r"^\W*(?:i|we)\s+(?:try to |go to |will |'ll )?", "", a.speech.strip().lower())
+                speech = a.speech.strip()
+                same = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", speech.lower())).strip() == whole
+                if same and len(clauses) == len(plan) > 1:
+                    speech = a.speech = clauses[k]
+                    same = False
+                said = re.sub(r"^\W*(?:i|we)\s+(?:try to |go to |will |'ll )?", "", speech.lower())
                 verbs = {w for b in plan if b is not a and b.kind != "talk" for w in actions.BY_KIND[b.kind].verbs + actions.BY_KIND[b.kind].words}
                 lead = re.findall(r"[a-z']+", said)[:2]                  # "give bram", "throw dice", "offer the": the action is in the first two words
-                if any(w in verbs for w in lead) or any(" ".join(lead).startswith(v + " ") for v in verbs if " " in v):
+                narrated = any(w in verbs for w in lead) or any(" ".join(lead).startswith(v + " ") for v in verbs if " " in v)
+                first_person = re.match(r"^\W*(?:i|we)\b", speech.lower()) is not None and any(b.kind != "talk" for b in plan)
+                to_someone = re.search(r"\b(you|your|yours|you're|you've|you'll|please|thanks|thank you)\b", speech.lower()) is not None
+                if narrated or (same and first_person and not to_someone):   # the whole line, told in the first person to nobody, is the player narrating
                     console.debug(f"dropped a talk narrating the {[b.kind for b in plan if b is not a]} step: {a.speech[:60]!r}")
+                    lost.append(a.target)
                     continue
             kept.append(a)
+        for t in [t for t in lost if t]:                                 # the one the talk named is who the deed is for
+            for b in kept:
+                if b.kind in actions.TARGETED and not b.target:
+                    b.target = t
         return kept or plan
 
     def named_here(self, text: str) -> str:
-        """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several."""
+        """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several. A hire in
+        the party counts as here."""
         low = text.lower()
         hits = []
         for n in self.present:
             words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if n.name_known_to_player and n.name else set())
             if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):
                 hits.append(n.id)
+        for m in self.player.party:
+            if m.get("permanent") and m.get("name") and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low):
+                hits.append(f"hire:{m['id']}")
         return hits[0] if len(hits) == 1 else ""
 
     def local_building(self, text: str, plan: list) -> None:
