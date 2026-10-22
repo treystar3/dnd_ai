@@ -433,16 +433,7 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     pulse = _pulse()
     store, world, t = ws.store, ws.world, ws.minutes
     name = ws.player.character.name
-    for e in state.get("effects", []):                  # (f331) lifted by the thread's id; by title for effects from before ids were kept
-        mine = e.get("thread") == th["id"] if e.get("thread") else e.get("cause") == th["title"]
-        if mine and e["kind"] in ("danger", "closed", "prices"):
-            e["until"] = min(e["until"], t)
-    for s in state.get("spawns", []):
-        if s["thread"] == th["id"]:
-            s["defeated"] = True
-    for camp in state.get("camps", []):
-        if camp["thread"] == th["id"]:
-            camp["until"] = min(camp["until"], t + 2 * 1440)
+    pulse.lift(state, th, t)                            # (f331) what it laid on the world goes with it; end_thread lifts again, harmlessly
     if th.get("triumph"):
         pulse.apply_effects(store, world, ws.catalog, state, th["triumph"].get("effects", []), th["tier"], t, th["title"],
                             raw=True, thread_id=th["id"])

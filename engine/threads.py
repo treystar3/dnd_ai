@@ -214,6 +214,19 @@ def _line(spec, words: dict, rng: random.Random) -> str:
     return rng.choice(options) if options else ""
 
 
+def _title(tpl: dict, words: dict, rng: random.Random, state: dict, place_id: str) -> str:
+    """A title no situation at this place already wears, among those the place can fill; when every one is taken, the chosen one
+    'again'. The title is the name the world keeps a situation's effects and memories under, so two alike here would read as one."""
+    used = {x.get("title") for x in state.get("threads", []) if x.get("place") == place_id}
+    options = [o for o in (fill(l, words) for l in (tpl.get("titles") or [])) if o]
+    fresh = [o for o in options if o not in used]
+    if fresh:
+        return rng.choice(fresh)
+    if options:
+        return rng.choice(options) + " again"
+    return words["about"].capitalize()
+
+
 def _effect(spec: dict, words: dict, rng: random.Random, scale: float):
     """One effect from its template: slots resolved to ids, numbers rolled and scaled. None when a slot it needs is not filled."""
     from llm.contracts import WorldEffect
@@ -312,7 +325,7 @@ def build(store, world, state: dict, place, pressure, tier: str, rng: random.Ran
     scope = (pressure.scope if pressure else "local")
     groups = [words["groups_locals"] if g == "locals" else g for g in T["scope"].get(scope, T["scope"]["local"])["groups"]]
     proposal = ThreadProposal(
-        title=(_line(tpl["titles"], words, rng) or words["about"].capitalize())[:90], place=place.id, kind=kind,
+        title=_title(tpl, words, rng, state, place.id)[:90], place=place.id, kind=kind,
         news=_line(tpl["news"], words, rng) or f"There is talk in {words['town']}: {words['about']}.",
         groups=list(dict.fromkeys(groups)), stages=stages, fallout=fallout,
         resolution=_line(tpl.get("resolution"), words, rng), contract=contract, paths=paths,

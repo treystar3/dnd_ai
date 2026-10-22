@@ -44,9 +44,10 @@ templates:
     needs: [wild, creature]
     fallback: social
     abouts: ["{creatures} have been taking stock", "something has been killing in {wild}", "travellers on {road} have been set upon"]
-    titles: ["{Creatures} out of {wild}", "Trouble from {wild}", "The {creatures} of {wild}"]
+    titles: ["{Creatures} out of {wild}", "Trouble from {wild}", "The {creatures} of {wild}", "{Creatures} at the edge of {town}", "A hunt for the {creatures}", "Lost stock at {town}", "{Road} is not safe"]
     news: ["{Creatures} have come down out of {wild}; {town} has lost stock to them.", "Word from {town}: {about}.",
-           "A {role} from {town} swears the {creatures} in {wild} are bolder than any year they remember."]
+           "A {role} from {town} swears the {creatures} in {wild} are bolder than any year they remember.",
+           "A {role} on {road} came in white-faced, talking of {creatures}.", "Hunters out of {town} want company before they go into {wild} again."]
     stages:
       - lines: ["{Creatures} have been seen at the edge of {wild}, closer to {town} than anyone likes; a {role} has lost animals to them.",
                 "Tracks of {creatures} run right up to the fields of {town}, and a {role} is keeping a lamp lit all night.",
@@ -91,9 +92,10 @@ templates:
     needs: [wild]
     fallback: natural
     abouts: ["{wild} is not what it was", "the land itself has turned", "the {season} has been strange in {wild}"]
-    titles: ["{Wild} turns", "A strange {season} in {wild}", "The land about {town}"]
+    titles: ["{Wild} turns", "A strange {season} in {wild}", "The land about {town}", "Something wrong in {wild}", "A {season} nobody remembers in {wild}", "The ground under {town}"]
     news: ["Word from {town}: {about}.", "Travellers on {road} say {wild} has changed; nobody will say how, exactly.",
-           "A {role} from {town} came back from {wild} and would not go again."]
+           "A {role} from {town} came back from {wild} and would not go again.",
+           "Those who know {wild} say the {season} there is wrong, and will not say more.", "A {role} from {town} came back from {wild} and has not slept since."]
     stages:
       - lines: ["Something is wrong in {wild}: the game has gone quiet, the water runs the wrong colour, and the people of {town} keep to {road}.",
                 "{Wild} has turned strange this {season}; a {role} from {town} says the paths they know are not where they were.",
@@ -135,9 +137,10 @@ templates:
     needs: []
     fallback: social
     abouts: ["the weather has turned against the fields", "the {season} came hard and early", "the harvest is in doubt"]
-    titles: ["A hard {season} at {town}", "The weather turns on {town}", "Lean days in {town}"]
+    titles: ["A hard {season} at {town}", "The weather turns on {town}", "Lean days in {town}", "The {season} comes early to {town}", "Empty stores at {town}", "A {role}'s ruined year"]
     news: ["The {season} has come down hard on {town}: {about}.", "A {role} from {town} says they have never seen a {season} like it.",
-           "Prices in {town} are climbing with the weather."]
+           "Prices in {town} are climbing with the weather.",
+           "In {town} they are counting stores and finding them short.", "The {role} of {town} is selling what they can before the {season} bites."]
     stages:
       - lines: ["The weather has gone against {town}: the fields are hurt, and a {role} is counting what is left.",
                 "A hard turn of {season} weather at {town}; the roads are heavy and the stores are being watched."]
@@ -175,9 +178,10 @@ templates:
     needs: []
     fallback: economic
     abouts: ["a quarrel has split {town}", "an old grievance has come up again", "a wedding has set the town talking"]
-    titles: ["A quarrel in {town}", "Bad blood in {town}", "Talk in {town}"]
+    titles: ["A quarrel in {town}", "Bad blood in {town}", "Talk in {town}", "The {role} and the {role2}", "A grudge at {town}", "Sides taken in {town}"]
     news: ["In {town}: {about}.", "The {role} and the {role2} of {town} are not speaking; everyone has a side.",
-           "There is a quarrel in {town} that the whole place has taken up."]
+           "There is a quarrel in {town} that the whole place has taken up.",
+           "Nobody in {town} will sit at the same table as the {role} now.", "A quarrel in {town} has got to where the watch is called."]
     stages:
       - lines: ["A quarrel has broken out in {town} between the {role} and the {role2}; what began over a small thing has the whole place taking sides.",
                 "The {role} of {town} has accused the {role2} of a wrong, in public, and the town is talking of nothing else."]
@@ -216,8 +220,9 @@ templates:
     needs: []
     fallback: social
     abouts: ["a merchant's coin has gone missing", "the market has turned", "a debt has come due"]
-    titles: ["Coin trouble in {town}", "The market at {town}", "Debts in {town}"]
-    news: ["The talk of {town}: {about}.", "Traders on {road} say {town} is not paying its debts.", "There is money trouble in {town}; the {role} is at the heart of it."]
+    titles: ["Coin trouble in {town}", "The market at {town}", "Debts in {town}", "The price of {good} in {town}", "A {role}'s debt", "Hard bargains at {town}"]
+    news: ["The talk of {town}: {about}.", "Traders on {road} say {town} is not paying its debts.", "There is money trouble in {town}; the {role} is at the heart of it.",
+           "The {role} of {town} owes more than the town can lend.", "Coin is short in {town}; {good} sells for what the seller likes."]
     stages:
       - lines: ["Coin is tight in {town}: a {role} cannot pay what is owed, and the ones owed are getting loud.",
                 "Something has gone wrong with the money in {town}; the {role} says they were cheated, and the {role2} says they were not."]
@@ -255,9 +260,10 @@ templates:
     needs: []
     fallback: economic
     abouts: ["a rich cargo has come in", "a trade house is squeezing the market", "the road has brought strange goods"]
-    titles: ["Trade at {town}", "{Road} trade", "Goods and grudges in {town}"]
+    titles: ["Trade at {town}", "{Road} trade", "Goods and grudges in {town}", "Carts on {road}", "{Good} by the cartload", "{Town} and {neighbour} at the scales", "A cargo for {town}"]
     news: ["Trade news from {town}: {about}.", "Carts on {road} are full one way and empty the other; {town}'s traders are quarrelling over why.",
-           "A {role} in {town} has cornered something, and prices show it."]
+           "A {role} in {town} has cornered something, and prices show it.",
+           "A trade house has its hand on {town}'s market, and the {role} is squeezed.", "Carts bound for {neighbour} are being turned back at {town}."]
     stages:
       - lines: ["Trade in {town} has shifted: a {role} has got hold of a supply nobody else can match, and the {role2} is undercut.",
                 "A rich run of goods along {road} has filled {town}'s market; prices are falling, and the old traders are angry."]
@@ -295,9 +301,10 @@ templates:
     needs: [wild]
     fallback: economic
     abouts: ["the work has stopped", "a rich find has set everyone digging", "there has been an accident at the works"]
-    titles: ["The works at {wild}", "Trouble at the diggings", "Hard labour at {town}"]
+    titles: ["The works at {wild}", "Trouble at the diggings", "Hard labour at {town}", "Tools down at {wild}", "A find at {wild}", "The {role}'s crew"]
     news: ["From {town}: {about}.", "The workers at {wild} have downed tools; {town} is divided over whether they are right.",
-           "Something was found at the diggings by {wild}, and {town} has not stopped talking of it."]
+           "Something was found at the diggings by {wild}, and {town} has not stopped talking of it.",
+           "The {role} at {town} is hiring hands for {wild} and paying well.", "Somebody was hurt at {wild}; the works have stopped while they argue."]
     stages:
       - lines: ["Work has stopped at the diggings by {wild}: an accident, a quarrel over pay, and the {role} who runs it saying nothing.",
                 "The workers from {town} who go to {wild} have come back with a story: something in the workings, and no one willing to go deepest."]
@@ -337,8 +344,9 @@ templates:
     needs: []
     fallback: social
     abouts: ["two houses are at odds", "a new decree has reached the town", "an office has fallen vacant"]
-    titles: ["A matter of rank in {town}", "The decree at {town}", "Power in {town}"]
-    news: ["News from {town}: {about}.", "{Town}'s great folk are at odds, and the small folk are paying for it.", "A ruling has come down on {town}, and nobody there likes it."]
+    titles: ["A matter of rank in {town}", "The decree at {town}", "Power in {town}", "An empty chair in {town}", "The {role} and the law", "Orders from above at {town}"]
+    news: ["News from {town}: {about}.", "{Town}'s great folk are at odds, and the small folk are paying for it.", "A ruling has come down on {town}, and nobody there likes it.",
+           "The {role} of {town} has been called to account, and the town is taking sides.", "Word from {town}: an office stands empty and three people want it."]
     stages:
       - lines: ["A quarrel of rank has reached {town}: the {role} speaks for one side, the {role2} for the other, and the watch does not know whose orders to take.",
                 "A new ruling has come down on {town}; the {role} is to enforce it and the {role2} is refusing it, and the town watches."]
@@ -376,9 +384,10 @@ templates:
     needs: [wild]
     fallback: social
     abouts: ["lights have been seen where there should be none", "someone has gone missing", "an old story has started coming true"]
-    titles: ["Lights in {wild}", "What walks by {town}", "The matter of {wild}"]
+    titles: ["Lights in {wild}", "What walks by {town}", "The matter of {wild}", "Gone missing near {wild}", "An old story at {town}", "Nights in {wild}"]
     news: ["What they say in {town}: {about}.", "Something has been seen at night between {town} and {wild}; nobody agrees on what.",
-           "A {role} from {town} saw something in {wild} and has not been the same since."]
+           "A {role} from {town} saw something in {wild} and has not been the same since.",
+           "A {role} swears something followed them home from {wild}.", "Doors in {town} are barred early now, and nobody says why."]
     stages:
       - lines: ["There are lights in {wild} at night, seen from {town}, and footprints in the morning that lead nowhere; a {role} will not go out after dark.",
                 "Something has been taken from {town}, something nobody would want, and the tracks lead toward {wild}."]
@@ -418,9 +427,10 @@ templates:
     needs: []
     fallback: social
     abouts: ["a windfall has come to {town}", "a wedding is to be held", "a rich find has been made"]
-    titles: ["Good luck in {town}", "A windfall at {town}", "Feasting in {town}"]
+    titles: ["Good luck in {town}", "A windfall at {town}", "Feasting in {town}", "A wedding at {town}", "The {role}'s good fortune", "A fat {season} in {town}"]
     news: ["Good news from {town}: {about}.", "{Town} is in a holiday mood; the {role} has come into money and is spending it.",
-           "There is to be a feast in {town}, and strangers are welcome, they say."]
+           "There is to be a feast in {town}, and strangers are welcome, they say.",
+           "There is to be a feast in {town}; the {role} is paying.", "A {role} in {town} has come into money, and the town has come into drink."]
     stages:
       - lines: ["Good fortune has come to {town}: a {role} has come into money, and is spending it on the whole street.",
                 "A wedding is to be held in {town} between the {role}'s house and the {role2}'s; the ovens have not been cold in days."]

@@ -422,7 +422,7 @@ def _news(scene: Scene):
         if ws.minutes - n["minute"] > keep:
             continue
         if n["minute"] + pulse.travel_delay(ws.world, n["origin"], ws.player.location) <= ws.minutes:
-            out.append(Fact("news", n["text"], frozenset(f"groups:{g}" for g in n["groups"])))
+            out.append(Fact("news", pulse.news_text(n), frozenset(f"groups:{g}" for g in n["groups"])))
         if len(out) >= 8:
             break
     return out
