@@ -864,6 +864,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         plan = [a for k, a in enumerate(plan)
                 if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
                                                  and b.target in here_ids for b in plan[k + 1:]))] or plan
+        plan = self.drop_narrated_talk(text, plan)  # (f333) "I show Maren the pelts" read as show + a talk whose 'speech' is that very line: the talk is narration
+        self.local_building(text, plan)             # (f333) "the inn" with no town named is this town's inn, not a far one the model happened to pick
         if not self.rank and self.clerk_here() and not NEGATED.search(text.lower()):     # paying or asking to join the guild, said to the clerk, is joining - and only once
             asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
             for a in plan:
@@ -883,14 +885,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     seen_join = True
                 kept.append(a)
             plan = kept
+        coin_given = any(b.kind == "give" and self.coin_amount(b.item or "") for b in plan)
         for a in plan:                              # "I offer the guard 5 silver to look the other way" is giving coin, whatever it was read as
-            if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) \
+            if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) and not coin_given \
                     and not NEGATED.search(text.lower()) and not PAST.search(text.lower()) \
                     and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
                 m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
                 a.kind, a.item = "give", (m.group(0) if m else "coins")
-        plan = self.drop_narrated_talk(text, plan)  # (f333) "I show Maren the pelts" read as show + a talk whose 'speech' is that very line: the talk is narration
-        self.local_building(text, plan)             # (f333) "the inn" with no town named is this town's inn, not a far one the model happened to pick
+                coin_given = True
+            if a.kind == "give" and not a.target and self.coin_amount(a.item or ""):      # (f333) coin handed to nobody in particular: the one the line names
+                a.target = self.named_here(text) or (self.partner.id if self.partner else "") or (self.present[0].id if len(self.present) == 1 else "")
         HARVEST_WORDS = ("harvest", "skin", "butcher", "gut", "carcass", "hide", "meat", "parts", "gather")
         plan = [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
                 if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
@@ -955,11 +959,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if a.kind == "talk" and a.speech.strip():
                 said = re.sub(r"^\W*(?:i|we)\s+(?:try to |go to |will |'ll )?", "", a.speech.strip().lower())
                 verbs = {w for b in plan if b is not a and b.kind != "talk" for w in actions.BY_KIND[b.kind].verbs + actions.BY_KIND[b.kind].words}
-                if any(said.startswith(v + " ") or said == v for v in verbs):
+                lead = re.findall(r"[a-z']+", said)[:2]                  # "give bram", "throw dice", "offer the": the action is in the first two words
+                if any(w in verbs for w in lead) or any(" ".join(lead).startswith(v + " ") for v in verbs if " " in v):
                     console.debug(f"dropped a talk narrating the {[b.kind for b in plan if b is not a]} step: {a.speech[:60]!r}")
                     continue
             kept.append(a)
         return kept or plan
+
+    def named_here(self, text: str) -> str:
+        """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several."""
+        low = text.lower()
+        hits = []
+        for n in self.present:
+            words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if n.name_known_to_player and n.name else set())
+            if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):
+                hits.append(n.id)
+        return hits[0] if len(hits) == 1 else ""
 
     def local_building(self, text: str, plan: list) -> None:
         """(f333) "Let's head to the inn": a building named by its kind, with no town named, is this town's when it has one; the model is

@@ -162,3 +162,13 @@
   scene: {place: trading_square}
   plan: [{kind: move, destination: kelpmoor_inn}]
   expect: {handled_by: interpret, moves: [kelpmoor_inn]}
+- name: bribe_read_as_talk_and_a_give_is_one_give
+  text: "I offer the guard 2 silver to look the other way"
+  scene: {place: trading_square, present: [{id: g1, name: Garran Holt, role: guard}]}
+  plan: [{kind: talk, target: g1, speech: "I offer the guard 2 silver to look the other way"}, {kind: give, item: "2 silver"}]
+  expect: {handled_by: interpret, kinds: [give], first: {item: 2 silver, target: g1}}
+- name: dice_narrated_as_talk_is_dropped
+  text: "I throw dice with the innkeeper for a silver"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: gamble, target: i1, item: "1 silver"}, {kind: talk, target: i1, speech: "I throw dice with the innkeeper for a silver"}]
+  expect: {handled_by: interpret, kinds: [gamble]}
