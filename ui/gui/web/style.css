@@ -2,6 +2,7 @@
   --bg: #14110f; --panel: #1c1815; --panel2: #231e1a; --ink: #e8e0d4; --ink2: #cfc4b4; --dim: #9a8f80; --line: #3a322b;
   --accent: #d4a24c; --echo: #8fb8d8; --speech: #f0c36a; --note: #7fb3a3; --combat: #e08a6a; --wait: #8d8478; --hp: #c0504d; --mp: #4f81c7; --sp: #6aa84f; --xp: #b38f2e;
   --r-uncommon: #8fd18f; --r-rare: #6fa8ff; --r-epic: #b784f5;
+  --dialogue: #d4a24c;          /* spoken words: the speaker's gold in the dark theme, ink in the light one */
   --serif: "Literata", Georgia, "Palatino Linotype", "Book Antiqua", serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
   --measure: 720px; --gutter: 28px;
@@ -11,12 +12,14 @@
     --bg: #f4efe6; --panel: #fbf8f2; --panel2: #ede6d8; --ink: #2a241d; --ink2: #4a4036; --dim: #756a5a; --line: #cfc4b0;
     --accent: #8a5a12; --echo: #2f6690; --speech: #8a5200; --note: #2f7a67; --combat: #b04a25; --wait: #7a6f60; --hp: #b23a37; --mp: #2f5fb0; --sp: #4a8a2f; --xp: #99771a;
     --r-uncommon: #2f7a2f; --r-rare: #2458b8; --r-epic: #6a35b8;
+    --dialogue: #2a241d;
   }
 }
 :root[data-theme="light"] {
     --bg: #f4efe6; --panel: #fbf8f2; --panel2: #ede6d8; --ink: #2a241d; --ink2: #4a4036; --dim: #756a5a; --line: #cfc4b0;
     --accent: #8a5a12; --echo: #2f6690; --speech: #8a5200; --note: #2f7a67; --combat: #b04a25; --wait: #7a6f60; --hp: #b23a37; --mp: #2f5fb0; --sp: #4a8a2f; --xp: #99771a;
     --r-uncommon: #2f7a2f; --r-rare: #2458b8; --r-epic: #6a35b8;
+    --dialogue: #2a241d;
   }
 @font-face { font-family: "Literata"; font-weight: 400; font-style: normal; font-display: swap; src: url(/fonts/literata-latin-400-normal.woff2) format("woff2"); }
 @font-face { font-family: "Literata"; font-weight: 400; font-style: italic; font-display: swap; src: url(/fonts/literata-latin-400-italic.woff2) format("woff2"); }
@@ -73,7 +76,7 @@ body { background: var(--bg); color: var(--ink); display: flex; flex-direction: 
 .k-narration .ln + .ln { margin-top: .55em; }
 .k-speech { margin: 14px 0; padding: 1px 0 1px 16px; border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
 .k-speech .spk { font: 600 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
-.k-speech .ln { font: 17px/1.6 var(--serif); color: var(--accent); padding-left: 0 !important; text-indent: 0 !important; }   /* spoken words in the speaker's gold, so dialogue reads apart from narration at a glance */
+.k-speech .ln { font: 17px/1.6 var(--serif); color: var(--dialogue); padding-left: 0 !important; text-indent: 0 !important; }   /* the speaker's gold in the dark theme, ink in the light: --dialogue above */
 .k-speech .ln + .ln { margin-top: .5em; }
 .k-speech .ln + .spk { margin-top: 10px; }
 .k-speech .beat, .k-narration .beat { font-style: italic; color: var(--dim); }
