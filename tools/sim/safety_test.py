@@ -84,6 +84,17 @@ check("...a resident who is not a person is found", any("ghost_1" in x for x in 
 check("...a person standing in no place of the world is found", any("nowhere_land" in x for x in probs), probs)
 check("...a party member standing in for a missing npc is found", any("missing_npc" in x for x in probs), probs)
 check("...a relation naming someone never in the party is found", any("h1" in x and "party_relations" in x for x in probs), probs)
+# the game's own places and creature rosters are not problems; a roster entry that is no creature is
+gw = st.load_place("greywood"); gw.roster = ["wolf", "ghost_beast"]; st.save_place(gw)
+st.save_place(PlaceState(id="road_ab12cd34")); st.save_place(PlaceState(id="home_parth")); st.save_place(PlaceState(id="x_the_quiet_spot"))
+st.save_discoveries({"places": [{"place": {"id": "x_the_quiet_spot", "name": "the quiet spot"}, "anchor": "parth", "minutes": 20}], "tracks": []})
+p = st.load_player(); p.homes["parth"] = {"day": 1, "upgrades": []}; st.save_player(p)
+st.save_npc(NPC(id="n_hermit", name="Hermit", people="human", role="farmer", location="x_the_quiet_spot"))
+probs = [str(x) for x in invariants.validate_campaign(st, world)]
+check("...a creature on a place's roster is not a person and not a problem", not any("'wolf'" in x for x in probs), [x for x in probs if "roster" in x])
+check("...a roster entry that is no creature of the bestiary is found", any("ghost_beast" in x for x in probs), probs)
+check("...a road stop, a bought house and a discovered place are the game's own, not strays",
+      not any(k in x for x in probs for k in ("road_ab12cd34", "home_parth", "x_the_quiet_spot")), [x for x in probs if "place" in x])
 check("...and nothing was repaired", st.load_place("parth").residents == ["ghost_1"])
 
 # ---- stable ids: opinions by id, the last fight's hurt and carried by id
