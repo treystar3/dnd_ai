@@ -1,0 +1,79 @@
+# How the big events play out (tools/event_eval.py, over tools/event_trial.py). Each case: a character's level, a campaign or a cataclysm
+# of a kind, how long to give it and how the character goes at it, and what should come of it. Offline the stand-in writes the event;
+# --live the model does, and the same judgements say whether what it wrote can be played to its end.
+
+# ---- campaigns
+- name: campaign_at_60_ends_by_the_sword
+  tier: campaign
+  level: 60
+  seed: 5
+  days: 150
+  expect: {started: true, status: resolved, result: player, min_stage: 2, reward: true, titles: true, problems: 0}
+- name: campaign_of_a_marked_pressure
+  tier: campaign
+  pressure: ironvein_deeps
+  level: 80
+  seed: 5
+  days: 150
+  expect: {started: true, status: resolved, result: player, reward: true, problems: 0}
+- name: campaign_struck_at_once
+  tier: campaign
+  level: 60
+  seed: 9
+  days: 60
+  from_stage: 1
+  expect: {started: true, status: resolved, result: player, reward: true, problems: 0}
+- name: campaign_left_alone_runs_its_course
+  tier: campaign
+  level: 60
+  seed: 5
+  days: 200
+  ignore: true
+  expect: {started: true, status: [ended, resolved], result: [others, ignored], min_stage: 3, reward: false, problems: 0}
+
+# ---- cataclysms, each kind, each way of ending one
+- name: war_talked_through
+  tier: cataclysm
+  kind: war
+  level: 100
+  seed: 5
+  days: 160
+  path: treaty
+  expect: {started: true, status: resolved, result: player, won_path: peace, acted: [wins over], reward: true, problems: 0}
+- name: war_broken_by_the_sword
+  tier: cataclysm
+  kind: war
+  level: 100
+  seed: 5
+  days: 160
+  path: boss
+  expect: {started: true, status: resolved, result: player, won_path: break, acted: [breaks the horde], reward: true, problems: 0}   # a war has no one monster: its host is broken
+- name: awakening_boss_slain
+  tier: cataclysm
+  kind: awakening
+  level: 100
+  seed: 7
+  days: 160
+  expect: {started: true, status: resolved, result: player, min_stage: 2, reward: true, titles: true, problems: 0}
+- name: plague_at_120
+  tier: cataclysm
+  kind: plague
+  level: 120
+  seed: 5
+  days: 160
+  expect: {started: true, status: resolved, result: player, reward: true, problems: 0}
+- name: invasion_at_110
+  tier: cataclysm
+  kind: invasion
+  level: 110
+  seed: 5
+  days: 160
+  expect: {started: true, status: resolved, result: player, reward: true, problems: 0}
+- name: invasion_nobody_meets
+  tier: cataclysm
+  kind: invasion
+  level: 110
+  seed: 5
+  days: 200
+  ignore: true
+  expect: {started: true, status: [ended, resolved], result: [others, ignored], min_stage: 3, fallen_at_least: 1, lines: [news in, stage 3], reward: false, problems: 0}
