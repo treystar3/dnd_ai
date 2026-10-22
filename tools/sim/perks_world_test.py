@@ -111,7 +111,8 @@ ws.player.heat = {}
 
 # ---- Above the Law: no cell; the purse pays, then standing
 give("above_the_law")
-guard = types.SimpleNamespace(memories=[], name="Garrick Harl", label=lambda: "the guard", role="guard", trust=50)
+from npc.models import NPC as _NPC
+guard = _NPC(id="guard_x", name="Garrick Harl", people="human", role="guard", location=town.id)     # a real record: the world notices the deed through it (f330)
 ws.narrate = lambda *a, **k: None
 c.coins = 5000
 ws.player.reputation = {town.id: 10}
