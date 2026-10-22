@@ -210,8 +210,9 @@ class DungeonActions:
                     q["progress"] = 1
                     console.note(f"{q['title']}: done")
             if last:
-                from engine import deeds, events, pulse
-                events.after_deed(self, deeds.log(self.store, "dungeon_cleared", self.minutes, d["place"], dungeon=d["id"]))
+                from engine import pulse
+                from engine.domain_events import DungeonCleared
+                self.notice(DungeonCleared(minute=self.minutes, place=d["place"], dungeon=d["id"], boss=d.get("boss_name", "")))
                 state = self.store.load_world_state() or pulse.empty_state(self.minutes)
                 pulse.add_news(state, f"A newcomer went down into {d['name']} and killed {d['boss_name']}.",
                                d["place"], self.minutes, ["guild", "hunters", "merchants",

@@ -90,6 +90,7 @@ deeds:
   harvest:    "skinning and butchering what they kill"
   shrine:     "stopping at a shrine or temple"
   inn:        "spending the night at an inn instead of under the sky"
+  charity:    "giving coin or goods away for nothing"
 approve_bond: 2
 disapprove_bond: -2
 reaction_once_per_day: true

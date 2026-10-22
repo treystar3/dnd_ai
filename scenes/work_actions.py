@@ -9,7 +9,6 @@ import yaml
 from engine import clock, crafting, inventory as inv, items, loot, money, pools
 from llm.contracts import WorkOffer
 from llm.gateway import generate
-from npc.models import Memory
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -75,11 +74,9 @@ class WorkActions:
             c.coins += job["pay"]
             npc.trust = min(100, npc.trust + W["trust_on_finish"])
             npc.work_offer = None
-            self.reputation_change("work_done")
-            npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                       text=f"The stranger did the work I asked - {job['task']} - and I paid "
-                                            f"{money.words(job['pay'])}."))
-            self.store.save_npc(npc)
+            from engine.domain_events import Worked
+            self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
+                               task=job["task"], paid=job["pay"]), npc)
             self.store.save_player(self.player)
             console.note(f"Work done: {job['task']}. {npc.label().capitalize()} pays you {money.fmt(job['pay'])}. "
                          f"Purse: {money.fmt(c.coins)}")
@@ -96,12 +93,11 @@ class WorkActions:
         if npc:
             times = 2 if self.owns("helping_hand") else 1
             npc.trust = min(100, npc.trust + W["unpaid_trust"] * times)
-            for _ in range(times):
-                self.reputation_change("work_done")
+            if times > 1:
+                self.reputation_change("work_done")            # Helping Hand: counts twice; the deed below counts once
             self.mercy_spreads()
-            npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                       text="The stranger pitched in and helped me with my work, unasked and unpaid."))
-            self.store.save_npc(npc)
+            from engine.domain_events import Worked
+            self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), unasked=True), npc)
         self.store.save_player(self.player)
         who = f" alongside {npc.label()}" if npc else ""
         self.narrate(f"The player spends an hour working{who}. No pay was agreed, so none changes hands - but the "
@@ -163,5 +159,6 @@ class WorkActions:
                      f"the fallen ({bodies}), and takes {got}."
                      + (f" Through their own clumsiness with the knife they ruin the {' and the '.join(spoiled)}: torn, scored or spoiled "
                         "past use. Show how it goes wrong." if spoiled else ""), text)
-        self.deed("harvest")
+        from engine.domain_events import Harvested
+        self.notice(Harvested(minute=self.minutes, place=self.player.location, creature=", ".join(tally) if tally else ""))
         self.mentor_skinned()

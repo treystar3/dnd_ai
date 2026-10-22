@@ -6,7 +6,6 @@ import re
 
 from core.models import KeyItem
 from engine import clock, combat, inventory as inv, leveling, money, quests
-from npc.models import Memory
 from ui import console
 
 G = quests.G
@@ -334,9 +333,8 @@ class GuildActions:
         c.coins -= G["joining_fee"]
         self.player.guild_rank = "F"
         self.give_badge("F")
-        clerk.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                     text="Signed the stranger into the guild register at rank F."))
-        self.store.save_npc(clerk)
+        from engine.domain_events import JoinedGuild
+        self.notice(JoinedGuild(minute=self.minutes, place=self.player.location, witnesses=(clerk.id,), npc=clerk.id, name=clerk.label()), clerk)
         self.store.save_player(self.player)
         console.note(f"You join the adventurers' guild at rank F. Paid {money.fmt(G['joining_fee'])}. "
                      "Type #board to see the contracts, #quests for yours.")
@@ -418,6 +416,8 @@ class GuildActions:
         self.store.save_player(self.player)
         from engine import stakes                                           # (f326) no ledger line: the board pane and the clerk's own words carry it
         stakes.taken(self, q)                                               # (f322) the issuer hears who took it
+        from engine.domain_events import ContractTaken
+        self.notice(ContractTaken(minute=self.minutes, place=self.player.location, quest=str(q["id"]), title=q["title"]))
         if q["kind"] == "missing":
             q["hall"] = gid
             self.start_arc(q)
@@ -438,22 +438,35 @@ class GuildActions:
         self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
         self.store.save_player(self.player)
         console.ledger(f"Abandoned: {q['title']}.")
+        self.contract_dropped(q, "abandoned")
         self.arc_quest_gone(q, "you walked away from it")
 
     def on_board(self, intent, text: str) -> None:
         self.show_board()
 
+    def contract_dropped(self, q: dict, how: str) -> None:
+        """A contract let go: the one who posted it hears, and is free of the stranger's promise (engine/stakes.py); a guild job dropped
+        is a mark against them with the guild."""
+        from engine import stakes
+        from engine.domain_events import ContractDropped
+        issuer = q.get("issuer") if q.get("issuer") and self.store.npc_exists(q["issuer"]) else ""
+        n = self.npc_by_id(issuer) if issuer else None
+        self.notice(ContractDropped(minute=self.minutes, place=self.player.location, witnesses=(issuer,) if n else (), npc=issuer if n else "",
+                                    name=n.label() if n else "", quest=str(q["id"]), title=q["title"], how=how, guild=bool(q.get("guild"))), n)
+        if issuer:
+            stakes._release(self.store, issuer, q["id"])
+
     # ---------- progress ----------
 
     def record_kills(self, dead) -> None:
-        from engine import deeds, events
+        from engine import events
+        from engine.domain_events import CreatureKilled
         for e in dead:
-            deed = deeds.log(self.store, "kill", self.minutes, self.player.location, creature=e.creature, level=e.level,
-                             rank=e.rank, spawn=getattr(e, "spawn", ""))
             if getattr(e, "spawn", ""):
                 for s in events.on_kills(self.store, [e], self.minutes, self.world):
                     console.note(f"{s['name'].capitalize()} is dead." if s["boss"] else f"The {s['name']} that were troubling this place are broken.")
-            events.after_deed(self, deed)
+            self.notice(CreatureKilled(minute=self.minutes, place=self.player.location, creature=e.creature, level=e.level, rank=e.rank,
+                                       spawn=getattr(e, "spawn", "")))
         changed = False
         for q in self.player.quests:
             if q["kind"] in ("hunt", "bounty") and q.get("place") in (self.player.location, None):
@@ -466,9 +479,7 @@ class GuildActions:
             self.store.save_player(self.player)
 
     def record_delivery(self, key, npc) -> None:
-        from engine import deeds, events
-        events.after_deed(self, deeds.log(self.store, "deliver", self.minutes, self.player.location, item=key.name, npc=npc.id,
-                                          npc_name=npc.name))
+        """A key item handed over counts for a delivery contract. (The deed itself is published by the giving, scenes/inventory_actions.py.)"""
         for q in self.player.quests:
             if q["kind"] == "deliver" and q.get("item") == key.name:
                 to = (q.get("to_role") or "").replace("_", " ")
@@ -496,6 +507,7 @@ class GuildActions:
                 self.player.quests.remove(q)
                 self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
                 console.ledger(f"Contract expired: {q['title']}. The reward is forfeit.")
+                self.contract_dropped(q, "expired")
                 self.arc_quest_gone(q, "time ran out")
                 self.store.save_player(self.player)
 
@@ -522,22 +534,16 @@ class GuildActions:
             c.coins += coins
             levels = leveling.gain_xp(c, xp)
             self.player.quests.remove(q)
-            if q.get("thread"):
-                from engine import deeds, events
-                if self.owns("rally_the_town"):
-                    self.reputation_change("contract_done", q.get("place") or self.player.location)
-                events.after_deed(self, deeds.log(self.store, "quest_done", self.minutes, q.get("place") or self.player.location,
-                                                  thread=q["thread"], title=q["title"]))
+            if q.get("thread") and self.owns("rally_the_town"):
+                self.reputation_change("contract_done", q.get("place") or self.player.location)
             if q["guild"]:
                 self.player.guild_done[q["letter"]] = self.player.guild_done.get(q["letter"], 0) + q.get("rank_credit", 1)
-                self.reputation_change("contract_done")
-                self.standing_report("contract_done", None, q["title"])
             else:
                 payer.trust = min(100, payer.trust + 3)
-                self.reputation_change("request_done")
-            payer.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                         text=f"The stranger finished {q['title'].lower()}; I paid {money.words(coins)}."))
-            self.store.save_npc(payer)
+            from engine.domain_events import ContractDone
+            self.notice(ContractDone(minute=self.minutes, place=q.get("place") if q.get("thread") and q.get("place") else self.player.location,
+                                     witnesses=(payer.id,), npc=payer.id, name=payer.label(), quest=str(q["id"]), title=q["title"],
+                                     thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
             console.ledger(f"Completed: [{q['letter']}] {q['title']}. {payer.label().capitalize()} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
             from engine import stakes

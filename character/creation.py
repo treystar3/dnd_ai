@@ -120,13 +120,13 @@ MECHANIC_PICKS = 15        # all fifteen offers are mechanics; the model themes 
 STAT_PICKS = 7             # trainers still teach stat passives (scenes/training_actions.py); creation no longer offers them
 
 
-def generate_passives(interp: ClassInterpretation, actives: list[Ability]) -> list[Passive]:
+def generate_passives(interp: ClassInterpretation, actives: list[Ability], rng: random.Random | None = None) -> list[Passive]:
     """One step since B8: every offer is a mechanic - something that changes how a fight or a day plays, never a bare number. The model
     only names and describes the drawn mechanics; flat stat passives remain, at the trainers."""
     from llm.contracts import MechanicSet, PassiveProposal
     minimum = MIN_NONCOMBAT_PASSIVES[interp.focus]
     taken = [a.name for a in actives]
-    offered = draw_mechanics(interp)
+    offered = draw_mechanics(interp, rng)              # a given rng (the tests) makes the draw repeatable; play draws fresh
     lines = []
     for oid, o in offered.items():
         m = MECHANICS[o.mechanic]

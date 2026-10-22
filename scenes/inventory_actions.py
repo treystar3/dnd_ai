@@ -250,12 +250,14 @@ class InventoryActions:
         if self.is_bribe(intent, text):
             self.offer_bribe(intent, text, npc, amount)
             return
-        console.note(f"{npc.label().capitalize()} won't take your coin for nothing. Buy something, or say what the money is for.")
-        self.halted = True
-        return
+        c.coins -= amount                                     # coin for nothing is a gift: taken, remembered, and the companions have a view
+        from engine.domain_events import Gift
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), coin=amount), npc)
+        self.store.save_player(self.player)
+        console.ledger(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
         intent.target = npc.id
         intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + \
-            f"[They hand you {money.words(amount)}.]"
+            f"[They hand you {money.words(amount)}, asking nothing for it.]"
         self.on_talk(intent, text)
 
     BRIBE_WORDS = ("bribe", "look the other way", "blind eye", "let me through", "let me pass", "let me in", "keep quiet", "say nothing",
@@ -266,7 +268,6 @@ class InventoryActions:
         return "persuasion" in intent.checks or any(w in low for w in self.BRIBE_WORDS)
 
     def offer_bribe(self, intent, text: str, npc, amount: int) -> None:
-        self.deed("bribe")
         """Coin offered for a favor: a persuasion roll, helped by how big the offer is next to what the person has. Success takes the coins
         (the favor only happens in the story); otherwise the coins stay, and a failure costs trust. The person remembers it either way."""
         from engine import checks as ck
@@ -282,22 +283,22 @@ class InventoryActions:
         degree = self.resolve("persuasion", npc, talking=True, text=text, extra=extra)
         favor = (intent.summary or "").strip().rstrip(".") or "do them a favor"
         paid = degree in ("strong success", "success")
-        day, turn = clock.day(self.minutes), self.store.meta.turn
         npc.trust = max(0, min(100, npc.trust + B["trust"][degree]))
         sum_ = money.words(amount)
         if paid:
             c.coins -= amount
-            npc.memories.append(Memory(importance=3, day=day, turn=turn, text=f"Took {sum_} from the stranger as a bribe ({favor}). I was persuaded."))
             from engine import law
             npc.looks_away_until = self.minutes + law.N["look_away_minutes"]
             console.ledger(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
             effect = f"You are persuaded and take the {sum_}. You will do what they ask in the story, quietly."
         elif degree == "partial":
-            npc.memories.append(Memory(importance=3, day=day, turn=turn, text=f"The stranger offered {sum_} to {favor}. It was not enough; I held out for more."))
             effect = f"You are tempted by the {sum_} but it is not enough; you do NOT take it yet, and you want more or something else."
         else:
-            npc.memories.append(Memory(importance=3, day=day, turn=turn, text=f"The stranger tried to bribe me with {sum_} ({favor}). I refused, and I trust them less for it."))
             effect = f"You refuse the {sum_} and think less of them for offering. You do NOT take it."
+        from engine.domain_events import Bribe
+        from engine import law as _law
+        self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), amount=amount,
+                          worked=paid, degree=degree, favor=favor, confrontation=False, guard=npc.role in _law.H["guard_roles"]), npc)
         console.debug(f"bribe: {sum_} is {pct:.1f}% of {npc.role} wealth {wealth}; bonus {bonus:+.0f}, traits/duty {mods:+d}; {degree}")
         self.store.save_npc(npc)
         self.store.save_player(self.player)
@@ -329,9 +330,8 @@ class InventoryActions:
             self.halted = True
             return True
         c.coins -= amount
-        weight = standing.tithe_weight(amount)
-        if weight:
-            self.standing_report("tithe", None, self.place.name, weight)
+        from engine.domain_events import Tithe
+        self.notice(Tithe(minute=self.minutes, place=self.player.location, name=self.place.name, amount=amount, weight=standing.tithe_weight(amount)))
         self.store.save_player(self.player)
         console.note(f"You leave {money.fmt(amount)} in the tithe box. Purse: {money.fmt(c.coins)}")
         self.narrate(f"The player drops {money.words(amount)} into the tithe box at {self.place.name}. Two sentences, quiet and unhurried; "
@@ -365,32 +365,37 @@ class InventoryActions:
             c = self.player.character
             c.key_items.remove(key)
             day = clock.day(self.minutes)
-            self.record_delivery(key, npc)
             delivered = key.kind == "quest" and self.is_recipient(npc, key.for_whom)
             if delivered:
                 npc.trust = min(100, npc.trust + R["gift_trust"] + 1)
-                npc.memories.append(Memory(day=day, turn=self.store.meta.turn,
-                                           text=f"The stranger delivered {key.name} to me, as {key.source} asked."))
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
                 console.ledger(f"Delivered: {key.name}.")
             else:
-                npc.memories.append(Memory(importance=2, day=day, turn=self.store.meta.turn, text=f"The stranger handed me {key.name}."))
                 meant = f" - it was meant for {key.for_whom}" if key.for_whom else ""
                 c.item_history.append(f"Gave {key.name} to {npc.name}{meant} (day {day}).")
                 console.ledger(f"Handed over: {key.name}{meant}.")
-            self.store.save_npc(npc)
+            from engine.domain_events import Delivered
+            self.notice(Delivered(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
+                                  item=key.name, asked_by=key.source, meant=delivered), npc)
+            self.record_delivery(key, npc)
             self.store.save_player(self.player)
             intent.target = npc.id
             intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + \
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
-        item = inv.find(self.pack, intent.item or text)
+        item = inv.take(self.pack, intent.item or text, 1)
         if not item:
             console.note("You aren't carrying that.")
-        else:
-            console.note(f"{npc.label().capitalize()} waves it off - people here don't take handouts. Sell it, or keep it.")
-        self.halted = True
+            self.halted = True
+            return
+        from engine.domain_events import Gift                 # a thing given for nothing: taken, remembered, and the companions have a view
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), item=inv.label(item)), npc)
+        self.store.save_player(self.player)
+        console.ledger(f"Gave {inv.label(item)} to {npc.label()}.")
+        intent.target = npc.id
+        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They hand you {inv.label(item)}, asking nothing for it.]"
+        self.on_talk(intent, text)
 
     def on_store(self, intent, text: str) -> None:
         if self.refuse_key(intent.item or text, "store"):

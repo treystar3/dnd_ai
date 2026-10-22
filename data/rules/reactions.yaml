@@ -1,0 +1,109 @@
+# How the world reacts to what the player does (engine/reactions.py), one entry per kind of deed (engine/domain_events.py).
+#
+# A deed is published once by the scene that saw it happen; everything below follows from the entry for its kind, so a new way for the
+# world to notice something is a line here, not another call site. The words people remember are the event's own (each event class
+# writes its victim's and its witnesses' line from its facts); what is here is what the deed does:
+#
+#   memory      who remembers and how hard. victim: the one it was done to (the event's target); witness: anyone else who saw it;
+#               unseen_victim: the target when nobody saw (a theft that was not noticed). importance 1 routine, 2 worth keeping,
+#               3 defining (storage keeps defining memories in the window). trust: the change in that person's trust in the player.
+#   standing    the deed in standing.yaml it counts as; weight: a rule in engine/reactions.py for how hard it lands (default 1)
+#   reputation  a key in pulse.yaml reputation, applied in the town where it happened
+#   heat        how wanted it makes the player in that town (engine/law.py): offense <kind> (law.yaml, scaled by value and who saw),
+#               gain <kind> (a flat gain from law.yaml, scaled down when only passers-by saw), or event (the heat the event itself carries)
+#   hire        the deed in quirks.yaml the companions may have a view on
+#   ledger      true: the deed goes into the deeds ledger (engine/deeds.py) for event paths and the judge, with after_deed run
+#
+# Towns in danger places have no law and no standing: heat and standing are skipped there, as before.
+kinds:
+  theft:
+    memory: {victim: {importance: 3, trust: -15}, witness: {importance: 3, trust: -5}, unseen_victim: {importance: 3}}
+    standing: {kind: theft, weight: story_or_valuable}
+    heat: {offense: theft}
+    ledger: true
+  break_in:
+    memory: {victim: {importance: 3, trust: -15}, witness: {importance: 3, trust: -5}}
+    standing: {kind: break_in}
+    heat: {gain: break_in}
+    ledger: true
+  assault:
+    memory: {victim: {importance: 3, trust: -10}, witness: {importance: 3, trust: -5}}
+    standing: {kind: assault}
+    heat: {offense: assault}
+    ledger: true
+  fine_paid:
+    memory: {victim: {importance: 3}}
+    standing: {kind: fine_paid}
+  talked_out:
+    memory: {victim: {importance: 3}}
+  ran_from_watch:
+    memory: {victim: {importance: 3}}
+    heat: {gain: run}
+  jailed:
+    memory: {victim: {importance: 3}}
+  bribe:
+    memory: {victim: {importance: 3}}
+    standing: {kind: bribe_guard, only: worked_on_guard}      # only a guard bought off is a tale about the watch
+    hire: bribe
+  tithe:
+    standing: {kind: tithe, weight: event}
+  gift:
+    memory: {victim: {importance: 2, trust: 2}}
+    hire: charity
+  deliver:
+    memory: {victim: {importance: 2}}
+    ledger: true
+  contract_taken: {}                                       # the issuer's own memory is engine/stakes.py's (taken)
+  contract_done:
+    memory: {victim: {importance: 1}}
+    standing: {kind: contract_done, only: guild}
+    reputation: {guild: contract_done, request: request_done}
+    ledger: true
+  contract_dropped:
+    memory: {victim: {importance: 2, trust: -2}}
+    standing: {kind: contract_dropped, only: guild}
+  persuade:
+    memory: {}
+    reputation: {intimidation: threat}
+    ledger: true
+  lie_caught:
+    memory: {victim: {importance: 1}}
+    reputation: lie_caught
+  caught_spying:
+    memory: {victim: {importance: 1, trust: -3}}
+    reputation: caught_spying
+  pickpocket:
+    memory: {victim: {importance: 2}}
+    reputation: {caught: threat}
+  improvised:
+    heat: {event: true}
+  trade:
+    memory: {victim: {importance: 1}}
+  worked:
+    memory: {victim: {importance: 1}}
+    reputation: work_done
+  trained:
+    memory: {victim: {importance: 1}}
+  joined_guild:
+    memory: {victim: {importance: 1}}
+  rest:
+    hire: {inn: inn, late: sleep_late}
+  visited:
+    hire: {shrine: shrine}
+  harvested:
+    hire: harvest
+  spared:
+    hire: spare
+  looted_dead:
+    hire: loot_dead
+  fled:
+    hire: flee
+  kill:
+    ledger: true
+  dungeon_cleared:
+    ledger: true
+  found:
+    ledger: true
+  defend:
+    ledger: true
+  discovered: {}

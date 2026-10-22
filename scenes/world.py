@@ -101,6 +101,31 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import domain_events
         domain_events.journal_everything()
         self.name_ids()               # the journal and the stable ids are bound from the start, not only from the first turn
+        from engine import reactions
+        reactions.register(self)      # the world's reactions to the player's deeds, bound to this scene (engine/reactions.py)
+
+    def npc_by_id(self, nid: str):
+        """The person with this id as this scene holds them (present or resident here): the same object the scene saves at the end of the
+        turn, so a change made through it is not overwritten by that save. Anyone else is loaded from the store. None if there is no one."""
+        if not nid:
+            return None
+        held = self.__dict__.get("_live") or {}
+        if nid in held:
+            return held[nid]
+        for n in self.present + self.residents:
+            if n.id == nid:
+                return n
+        return self.store.load_npc(nid) if self.store.npc_exists(nid) else None
+
+    def notice(self, event, *people) -> None:
+        """The world notices a deed of the player's (engine/reactions.py). `people` are the records this code holds for anyone in it, so
+        that the reactions change the very objects it will save, whether or not they stand in `present` right now."""
+        from engine.domain_events import publish
+        self._live = {n.id: n for n in people if n is not None}
+        try:
+            publish(event)
+        finally:
+            self._live = {}
 
     @property
     def party_service(self):
@@ -465,8 +490,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return
             if text.startswith("#"):
                 before = self.player.location
-                with console.scope(text):
-                    self.command(text)
+                try:
+                    with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
+                        self.command(text)
+                except LLMError as e:
+                    console.debug(f"command rolled back: {e}")
+                    self.reload_after_rollback()
+                    console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
                 if self.restart:
                     self.store.save_player(self.player)
                     return
@@ -509,6 +539,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def reload_after_rollback(self) -> None:
         """The database was rolled back to before the turn; what the scene holds in memory must match it again."""
+        self.store.reload_meta()                           # the clock the turn advanced goes back with it
         self.player = self.store.load_player()
         pools.fill_missing(self.player.character)
         saved_fight = self.store.load_combat()

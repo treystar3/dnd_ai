@@ -622,8 +622,9 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
                 pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes)
                 console.note(f"{n.name} is dead. They gave their life in the fight.")
                 _vacancy(ws.store, ws.world, n, ws.minutes, random.Random())
-                pulse.add_news(ws.store.load_world_state() or {}, f"{n.name} fell fighting beside {ws.player.character.name}.",
-                               n.location, ws.minutes, ["everyone"])
+                state = ws.store.load_world_state() or pulse.empty_state(ws.minutes)
+                pulse.add_news(state, f"{n.name} fell fighting beside {ws.player.character.name}.", n.location, ws.minutes, ["everyone"])
+                ws.store.save_world_state(state)
             else:
                 console.note(f"{n.name} is carried out of the fight, badly hurt but alive.")
                 n.mood = "badly wounded, but alive"
@@ -1171,8 +1172,8 @@ def assault_over(ws, outcome: str) -> None:
     store.save_world_state(state)
     name = ws.world.places[a["town"]].name
     if won:
-        from engine import deeds
-        deeds.log(store, "defend", ws.minutes, a["town"], thread=th["id"], town=a["town"])
+        from engine.domain_events import GateHeld
+        ws.notice(GateHeld(minute=ws.minutes, place=a["town"], thread=th["id"], town=a["town"]))    # the ledger, and the event it may end
         try:
             ws.reputation_add(a["town"], C.get("held_reputation", 15))
         except Exception:

@@ -562,10 +562,28 @@ def remove_npc(store, world, npc, how: str, t: int) -> None:
     store.save_player(player)
 
 
+NEWS_KEEP = 300
+
+
+def cap_news(news: list) -> list:
+    """The news list kept to NEWS_KEEP items: the oldest plain gossip goes first, so a tale of the player's deeds (engine/standing.py)
+    is still there to move standing when it reaches a far town."""
+    if len(news) <= NEWS_KEEP:
+        return news
+    over = len(news) - NEWS_KEEP
+    out = []
+    for n in news:                                             # drop the oldest entries without a deed, as many as needed
+        if over and not n.get("deed"):
+            over -= 1
+            continue
+        out.append(n)
+    return out[-NEWS_KEEP:]
+
+
 def add_news(state, text: str, origin: str, t: int, groups: list[str]) -> None:
     if text and text.strip():
         state.setdefault("news", []).append({"text": text.strip(), "origin": origin, "minute": t, "groups": groups})
-        state["news"] = state["news"][-300:]
+        state["news"] = cap_news(state["news"])
 
 
 # ---------- context for the model ----------

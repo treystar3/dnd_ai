@@ -299,7 +299,7 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
 def try_find(ws, text: str = "") -> bool:
     """The player searches or looks closely where a matter's find path points: a perception roll, and on a success the thing is found,
     the deed is logged and the matter may end. True when a roll was made and narrated (the caller's own search is done)."""
-    from engine import checks, deeds, events
+    from engine import checks
     state = ws.store.load_world_state()
     here = ws.player.location
     for th in state.get("threads", []):
@@ -320,7 +320,8 @@ def try_find(ws, text: str = "") -> bool:
             ws.narrate("THE PLAYER FINDS WHAT THEY WERE LOOKING FOR, here, now: " + (path["how"] or path["name"])
                        + " Show the finding as it would be seen and handled, and stop there - no conclusions, no one explaining it.", text)
             console.debug(f"matter: found - {th['title']} at {here}")
-            events.after_deed(ws, deeds.log(ws.store, "found", ws.minutes, here, thread=th["id"], what=path["name"]))
+            from engine.domain_events import ClueFound
+            ws.notice(ClueFound(minute=ws.minutes, place=here, thread=th["id"], what=path["name"]))
         elif degree == "partial":
             ws.narrate("The player searches here and has the feeling something is to be found, without putting a hand on it yet. "
                        "Two sentences; nothing named.", text)

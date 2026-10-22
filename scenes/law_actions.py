@@ -7,11 +7,11 @@ import re
 
 from core.models import KeyItem
 from engine import voice_rules
-from engine import checks, clock, deeds, inventory as inv, items, law, locks, money, pools, pulse, standing
+from engine import checks, clock, inventory as inv, items, law, locks, money, pools, pulse, standing
+from engine.domain_events import BreakIn, Bribe, FinePaid, Jailed, PersonHarmed, RanFromWatch, TalkedOut, Theft
 from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
 from llm.gateway import generate
-from npc.models import Memory
 from ui import console
 
 H = law.H
@@ -134,7 +134,7 @@ class LawActions:
         from engine import world_perks
         degree = "failure" if nothing else world_perks.gamble(c, res["degree"])
         if world_perks.bad(c, degree) and not nothing:
-            law.add_heat(self.player, town, world_perks.P["all_or_nothing"]["bad_heat"], clock.day(self.minutes))
+            law.add_heat(self.player, self.town_here(), world_perks.P["all_or_nothing"]["bad_heat"], clock.day(self.minutes))
             console.note("A bad failure: the fumble is loud, and the town's heat rises (All or Nothing).")
         console.debug(f"steal: zone {zone}, window {res['window']}, score {res['score']:.0f}, bar {res['bar']:.0f}, "
                       f"x{res['mult']:.2f}, roll {res['roll']} -> {degree}{' (hopeless: the roll is skipped)' if res['hopeless'] else ''}")
@@ -178,29 +178,10 @@ class LawActions:
         console.note(f"You take {loot['label']}.")
 
     def record_theft(self, loot, owner, noticed, took, degree, nothing, day, turn) -> None:
-        what = loot["label"]
-        for n in noticed:
-            seen = "tried to take" if not took else "took"
-            n.memories.append(Memory(importance=3, day=day, turn=turn, text=f"Saw the stranger {seen} {what}" +
-                                     (f" from {owner.label()}." if owner and n.id != owner.id else ".") if n.id != (owner.id if owner else None)
-                                     else f"Caught the stranger {'taking' if took else 'trying to take'} {what} from me."))
-            n.trust = max(0, n.trust - (15 if owner and n.id == owner.id else 5))
-            self.store.save_npc(n)
-        if owner and took and owner not in noticed:
-            owner.memories.append(Memory(importance=3, day=day, turn=turn, text=f"{what.capitalize()} has gone missing. I have no idea who took it."))
-            self.store.save_npc(owner)
-        if not noticed:
-            return
-        guard = any(n.role in H["guard_roles"] for n in noticed)
-        victim = bool(owner and owner in noticed)
-        story = loot["story"]
-        self.standing_report("theft", noticed, what, 1.5 if story or loot["value"] > H["valuable_over"] else 1.0)
-        deeds.log(self.store, "offense", self.minutes, self.player.location, offense="theft", item=what, took=took,
-                  witnesses=[n.id for n in noticed], story=story)
-        if not self.lawless_here():
-            gain = law.offense_heat("theft", loot["value"], story, only_passersby=not (victim or guard))
-            heat = law.add_heat(self.player, self.town_here(), gain, clock.day(self.minutes))
-            console.debug(f"offense: heat +{gain:.0f} -> {heat} in {self.town_here()}")
+        """The world learns of it (engine/reactions.py): who saw it remembers and trusts less, the tale starts, the watch may hear."""
+        self.notice(Theft(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in noticed),
+                          npc=owner.id if owner else "", name=owner.label() if owner else "", item=loot["label"], took=took,
+                          story=bool(loot["story"]), value=int(loot["value"] or 0)), owner, *noticed)
 
     def theft_event(self, loot, holder, degree, took, nothing, hopeless, owner, noticed) -> str:
         what = loot["label"]
@@ -416,24 +397,8 @@ class LawActions:
         return self.lock_for(behind, owner, verdict.worth)
 
     def record_break_in(self, lock, owner, noticed, opened, day, turn) -> None:
-        what = lock["name"]
-        for n in noticed:
-            n.memories.append(Memory(importance=3, day=day, turn=turn, text=(f"Caught the stranger {'breaking into' if opened else 'trying to break into'} {what}."
-                                                              if owner and n.id == owner.id else
-                                                              f"Saw the stranger {'break into' if opened else 'try to break into'} {what}.")))
-            n.trust = max(0, n.trust - (15 if owner and n.id == owner.id else 5))
-            self.store.save_npc(n)
-        if not noticed:
-            return
-        guard = any(n.role in H["guard_roles"] for n in noticed)
-        victim = bool(owner and owner in noticed)
-        self.standing_report("break_in", noticed, what)
-        deeds.log(self.store, "offense", self.minutes, self.player.location, offense="break_in", item=what, took=opened,
-                  witnesses=[n.id for n in noticed], story=False)
-        if not self.lawless_here():
-            gain = H["gain"]["break_in"] * (H["passerby_share"] if not (victim or guard) else 1)
-            heat = law.add_heat(self.player, self.town_here(), gain, day)
-            console.debug(f"offense: break-in, heat +{gain:.0f} -> {heat} in {self.town_here()}")
+        self.notice(BreakIn(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in noticed),
+                            npc=owner.id if owner else "", name=owner.label() if owner else "", lock=lock["name"], opened=opened), owner, *noticed)
 
     def unlock_event(self, lock, degree, opened, hopeless, tool, changed, noticed) -> str:
         what = lock["name"]
@@ -459,22 +424,8 @@ class LawActions:
         npc = next((n for n in self.present if n.id == intent.target), None) or (self.partner if self.partner in self.present else None)
         if not npc:
             return
-        day, turn = clock.day(self.minutes), self.store.meta.turn
         seen = [w for w in self.watchers(npc) if law.notices("success", w.role, assault=True)]
-        noticed = [npc] + seen
-        for n in noticed:
-            n.memories.append(Memory(importance=3, day=day, turn=turn, text=("The stranger laid hands on me." if n.id == npc.id
-                                                              else f"Saw the stranger lay hands on {npc.label()}.")))
-            n.trust = max(0, n.trust - (10 if n.id == npc.id else 5))
-            self.store.save_npc(n)
-        deeds.log(self.store, "offense", self.minutes, self.player.location, offense="assault", target=npc.id,
-                  witnesses=[n.id for n in noticed])
-        guard = any(n.role in H["guard_roles"] for n in noticed)
-        self.standing_report("assault", noticed, npc.label())
-        if not self.lawless_here():
-            gain = law.offense_heat("assault", 0, False, only_passersby=not (npc in noticed or guard) or False)
-            heat = law.add_heat(self.player, self.town_here(), gain, day)
-            console.debug(f"offense: assault, heat +{gain:.0f} -> {heat} in {self.town_here()}")
+        self.notice(PersonHarmed(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in [npc] + seen), npc=npc.id, name=npc.label()), npc, *seen)
         if law.fights_back(npc.role, npc.traits):
             console.debug(f"{npc.label()} fights back")
             self.narrate(f"{npc.label()} does not take it. They break free and hit back, shoving the player away and shouting for "
@@ -540,15 +491,14 @@ class LawActions:
         self.settle(guard, town, pick, fine)
 
     def settle(self, guard, town: str, pick: str, fine: int) -> None:
-        c, day, turn = self.player.character, clock.day(self.minutes), self.store.meta.turn
+        c, day = self.player.character, clock.day(self.minutes)
         heat = law.current_heat(self.player, town, day)
-        remember = lambda t: guard.memories.append(Memory(importance=3, day=day, turn=turn, text=t))
+        seen = (guard.id,)
         if pick == "pay":
             if c.coins >= fine:
                 c.coins -= fine
                 law.set_heat(self.player, town, H["after_paid"], day)
-                self.standing_report("fine_paid", [guard])
-                remember(f"The stranger paid {money.words(fine)} to settle their crimes.")
+                self.notice(FinePaid(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(), amount=fine), guard)
                 console.note(f"You pay {money.fmt(fine)}. Purse: {money.fmt(c.coins)}")
                 self.narrate(f"The player pays {guard.label()} {money.words(fine)}. The guard counts it and lets them go with a warning.", "")
             else:
@@ -561,7 +511,7 @@ class LawActions:
             relief = H["talk_relief"].get(degree, 0)
             if relief:
                 law.set_heat(self.player, town, heat - relief, day)
-                remember("The stranger talked their way out of trouble with me.")
+                self.notice(TalkedOut(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label()), guard)
                 self.narrate(f"The player talks {guard.label()} down. The guard relents with a warning. Keep it short.", "")
             elif degree == "partial":
                 console.note("The guard is not swayed - he wants the fine.")
@@ -572,14 +522,13 @@ class LawActions:
         elif pick == "bribe":
             self.settle_bribe(guard, town, fine)
         else:
-            law.add_heat(self.player, town, H["gain"]["run"], day)
-            remember("The stranger ran from the watch.")
+            self.notice(RanFromWatch(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label()), guard)
             self.narrate(f"The player bolts from {guard.label()} and slips away through the crowd. Keep it brief.", "")
         self.store.save_npc(guard)
         self.store.save_player(self.player)
 
     def settle_bribe(self, guard, town: str, fine: int) -> None:
-        c, day, turn = self.player.character, clock.day(self.minutes), self.store.meta.turn
+        c, day = self.player.character, clock.day(self.minutes)
         if c.coins < fine:
             console.note("You cannot cover that.")
             return self.arrest(guard, town, forced=True)
@@ -592,25 +541,26 @@ class LawActions:
             c.coins -= fine
             law.set_heat(self.player, town, law.current_heat(self.player, town, day) - H["bribe_relief"], day)
             guard.looks_away_until = self.minutes + law.N["look_away_minutes"]
-            self.standing_report("bribe_guard", [guard])
-            guard.memories.append(Memory(importance=3, day=day, turn=turn, text=f"Took {money.words(fine)} from the stranger to forget what I knew."))
+            self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
+                              worked=True, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.ledger(f"The coins vanish. Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away. Keep it brief.", "")
         else:
             guard.trust = max(0, guard.trust + B["trust"][degree])
-            guard.memories.append(Memory(importance=3, day=day, turn=turn, text="The stranger tried to bribe me. I did not take it."))
+            self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
+                              worked=False, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.note("The guard refuses. You are arrested.")
             self.arrest(guard, town, forced=True)
 
     def serve_time(self, guard, town: str, fine: int) -> None:
-        c, day = self.player.character, clock.day(self.minutes)
+        c = self.player.character
         if self.owns("above_the_law"):
             return self.pay_in_standing(guard, town, fine)
         price = min(c.coins, round(fine * H["jail_fine_share"]))
         c.coins -= price
         self.advance(H["jail_days"] * 1440)
         law.set_heat(self.player, town, H["after_paid"], clock.day(self.minutes))
-        guard.memories.append(Memory(importance=3, day=day, turn=self.store.meta.turn, text="The stranger spent time in the cells."))
+        self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), days=H["jail_days"]), guard)
         console.note(f"You serve {H['jail_days']} days and pay {money.fmt(price)}. Purse: {money.fmt(c.coins)}")
         self.narrate(f"The player spends {H['jail_days']} days in the town cells and is released with a stern warning. "
                      f"Describe the stay in two or three sentences.", "")
@@ -626,8 +576,7 @@ class LawActions:
         if lost:
             self.reputation_add(pulse.town_of(self.world, town), -lost, spread=False)
         law.set_heat(self.player, town, H["after_paid"], day)
-        guard.memories.append(Memory(importance=3, day=day, turn=self.store.meta.turn,
-                                     text="The stranger's kind do not see the inside of a cell. They paid what they could and walked."))
+        self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), walked=True), guard)
         console.note(f"No cell for you. You pay {money.fmt(paid)}" + (f"; the rest ({money.fmt(owed)}) is paid in standing here ({-lost})" if owed else "")
                      + f". Purse: {money.fmt(c.coins)} (Above the Law)")
         self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes {money.words(paid)}"

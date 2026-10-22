@@ -240,7 +240,7 @@ import scenes.world as _w
 src = open(_w.__file__, encoding="utf-8").read()
 check("the world loop runs the quirk tick and the errand answer", "self.quirk_tick()" in src and "self.errand_intercept(text)" in src and "self.rest_quirks(sleeping)" in src)
 src2 = open("scenes/combat_scene.py", encoding="utf-8").read()
-check("fights show habits at start and judge the deeds at the end", 'ws.habits("fight_start")' in src2 and 'ws.deed("loot_dead")' in src2 and 'ws.deed("flee")' in src2 and "flaws_on_loot" in src2)
+check("fights show habits at start and publish the deeds at the end", 'ws.habits("fight_start")' in src2 and "LootedDead(" in src2 and "Fled(" in src2 and "flaws_on_loot" in src2)
 
 # how they speak, what they feel, what is relevant, and their own small details
 import config as _cfg

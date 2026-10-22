@@ -425,6 +425,37 @@ def _news(scene: Scene):
     return out
 
 
+@facet("lately")
+def _lately(scene: Scene):
+    """(f330) What the player did here lately that people saw, from the journal (engine/reactions.py publishes every deed): a deed is known to
+    those who saw it and to the narrator; a public one (a job done, a tithe) to everyone of the town. Nothing done unseen, nothing elsewhere."""
+    from engine import clock, mapview
+    ws = scene.ws
+    L = T.get("lately") or {}
+    if not L or ws.place.danger:
+        return []
+    world = ws.world
+    top = mapview.top_of(world, ws.player.location)
+    here = {pid for pid in world.places if mapview.top_of(world, pid) == top}
+    public = set(L.get("public", []))
+    keep = int(L.get("days", 10)) * 1440
+    out = []
+    for row in ws.store.journal_tail(int(L.get("rows", 150))):
+        data = row.get("data") or {}
+        if row["actor"] != "player" or data.get("place") not in here or ws.minutes - row["minute"] > keep or not row["text"]:
+            continue
+        witnesses = [w for w in (data.get("witnesses") or []) if w]
+        if row["kind"] in public:
+            known = frozenset({"all"})
+        elif witnesses:
+            known = frozenset({f"npc:{w}" for w in witnesses} | {"narrator"})
+        else:
+            continue
+        when = "today" if clock.day(row["minute"]) == clock.day(ws.minutes) else f"day {clock.day(row['minute'])}"
+        out.append(Fact("lately", f"{when}: the stranger {row['text']}", known, id=row["kind"]))
+    return out[-int(L.get("most", 8)):]
+
+
 @facet("player")
 def _player(scene: Scene):
     """What anyone can see of the player: the badge, the weapon, the company they keep."""

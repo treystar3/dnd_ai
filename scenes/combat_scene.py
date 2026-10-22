@@ -869,12 +869,14 @@ class CombatScene:
         self.companions_after_fight({a.id for a in fallen})
         if f.over == "victory" and not f.no_rewards:
             dead_ = [e for e in f.fighters if e.side == "enemy" and not e.alive]
+            from engine.domain_events import LootedDead, Spared
             if any(e.side == "enemy" and e.alive and e.surrendered for e in f.fighters):
-                ws.deed("spare")
+                ws.notice(Spared(minute=ws.minutes, place=ws.player.location))
             if any(e.category in loot.L["coin_categories"] for e in dead_):
-                ws.deed("loot_dead")                        # (f310) picking over the dead for coin: only the dead who carry it, not wolves
+                ws.notice(LootedDead(minute=ws.minutes, place=ws.player.location))      # (f310) only the dead who carry coin, not wolves
         elif f.over == "fled" and not f.mentor:
-            ws.deed("flee")
+            from engine.domain_events import Fled
+            ws.notice(Fled(minute=ws.minutes, place=ws.player.location))
         if f.over == "victory":
             self.victory()
             ws.dungeon_fight_over("victory")

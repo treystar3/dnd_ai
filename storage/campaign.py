@@ -141,6 +141,8 @@ class SaveTooNew(Exception):
 
 
 BACKUPS_KEPT = 3
+JOURNAL_KEEP = 6000          # event_log rows kept: the oldest go once past this (the trail, not the state; checked every JOURNAL_CHECK rows)
+JOURNAL_CHECK = 500
 MEMORY_WINDOW = 24           # how many of a person's memories their record carries: every defining one (importance 3), then the newest
 MEMORY_DEFINING = 3
 
@@ -290,6 +292,12 @@ class CampaignStore:
 
     def save_meta(self) -> None:
         self._put("campaign", self.meta.model_dump_json())
+
+    def reload_meta(self) -> None:
+        """The clock and turn count as the database has them: after a rollback, what the scene advanced in memory is taken back too."""
+        text = self._kv_text("campaign")
+        if text:
+            self.meta = CampaignMeta.model_validate_json(text)
 
     def load_world_state(self) -> dict:
         return self._kv("world_state") or {}
@@ -448,8 +456,18 @@ class CampaignStore:
     def journal(self, minute: int, kind: str, actor: str = "", target: str = "", text: str = "", data: dict | None = None, action: str = "") -> None:
         """One authoritative fact, appended. Not event sourcing: the game's state is still the rows above; this is the trail."""
         with self._lock:
-            self._db.execute("INSERT INTO event_log (minute, kind, actor, target, text, data, action) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                             (int(minute), kind, actor or "", target or "", text or "", json.dumps(data or {}), action or ""))
+            cur = self._db.execute("INSERT INTO event_log (minute, kind, actor, target, text, data, action) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                   (int(minute), kind, actor or "", target or "", text or "", json.dumps(data or {}), action or ""))
+            if cur.lastrowid and cur.lastrowid % JOURNAL_CHECK == 0:
+                self.journal_trim()
+
+    def journal_trim(self, keep: int = JOURNAL_KEEP) -> int:
+        """Drop the oldest journal rows past `keep`. Returns how many went."""
+        with self._lock:
+            row = self._db.execute("SELECT seq FROM event_log ORDER BY seq DESC LIMIT 1 OFFSET ?", (int(keep),)).fetchone()
+            if not row:
+                return 0
+            return self._db.execute("DELETE FROM event_log WHERE seq <= ?", (row[0],)).rowcount
 
     def journal_tail(self, n: int = 30, actor: str = "", target: str = "", kind: str = "") -> list[dict]:
         """The most recent entries, oldest first, for one actor, target or kind when given."""

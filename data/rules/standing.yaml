@@ -87,6 +87,12 @@ deeds:
     carriers: [guards]
     text: "{who} brought {item} to the watch in {place}."
     twisted: "They say {who} dragged {item} to the watch in {place} in chains."
+  contract_dropped:
+    public: true
+    deltas: {guild: -2}
+    carriers: [guild]
+    text: "{who} took the guild's job, {item}, and let it drop."
+    twisted: "They say {who} takes the guild's jobs and never finishes one."
 
 # A tithe left in a temple's box counts for more the more is given: its weight is
 # base + per_doubling for each doubling of min_gold, up to cap. Less than min_gold buys nothing but a blessing.

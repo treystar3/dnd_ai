@@ -89,17 +89,16 @@ class QuirkActions:
             return
         self.habits("arrival")
         self.flaws_on_arrival()
-        if self.place.type in ("shrine", "temple"):
-            self.deed("shrine")
+        from engine.domain_events import Visited
+        self.notice(Visited(minute=self.minutes, place=loc, place_type=self.place.type))
         self.errands()
 
     def rest_quirks(self, sleeping: bool) -> None:
         """At the end of a rest: habits, the inn's cost, a late morning, something told, and Maren's small attentions."""
         self.habits("rest")
-        if sleeping and self.place.type == "inn":
-            self.deed("inn")
-        if sleeping and clock.period(self.minutes) in ("midday", "afternoon", "evening"):
-            self.deed("sleep_late")
+        from engine.domain_events import Rested
+        self.notice(Rested(minute=self.minutes, place=self.player.location, inn=sleeping and self.place.type == "inn",
+                           late=sleeping and clock.period(self.minutes) in ("midday", "afternoon", "evening"), slept=sleeping))
         self.flaws_at_rest(sleeping)
         self.secrets()
         self.mentor_rest_habit()

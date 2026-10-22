@@ -113,7 +113,7 @@ def report(store, world, player, kind: str, town: str, place_name: str, who: str
     entry = {"text": told if twisted else true_text, "origin": town, "minute": minute, "groups": carriers(world, witnesses or [], kind),
              "deed": {"id": nid, "kind": kind, "weight": weight, "twisted": twisted, "true": true_text, "who": who}}
     news.append(entry)
-    state["news"] = news[-300:]
+    state["news"] = pulse.cap_news(news)
     store.save_world_state(state)
     for group, delta in rule["deltas"].items():
         add(player, town, group, delta * weight, day)

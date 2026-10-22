@@ -9,7 +9,6 @@ from engine import clock, leveling, money
 from engine import lessons
 from llm.gateway import LLMError
 from scenes import lesson_ask
-from npc.models import Memory
 from ui import console
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -191,9 +190,8 @@ class TrainingActions:
         self.advance(a["hours"] * 60 // (2 if (not passive and self.owns("spell_scholar")) else 1))
         (c.passives if passive else c.actives).append(pick)
         self.learn_options = None
-        teacher.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                       text=f"Taught the stranger {pick.name}."))
-        self.store.save_npc(teacher)
+        from engine.domain_events import Trained
+        self.notice(Trained(minute=self.minutes, place=self.player.location, witnesses=(teacher.id,), npc=teacher.id, name=teacher.label(), ability=pick.name), teacher)
         self.store.save_player(self.player)
         uses = f" (uses {pick.attribute})" if not passive and pick.attribute else ""
         console.note(f"Learned {pick.name}{uses}. Paid {money.fmt(fee)}.")

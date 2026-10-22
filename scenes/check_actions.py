@@ -4,7 +4,6 @@ import random
 
 from engine import checks, clock, money
 from npc.life import promote
-from npc.models import Memory
 from ui import console
 
 R = checks.RULES
@@ -131,17 +130,11 @@ class CheckActions:
         if trust:
             npc.trust = max(0, min(100, npc.trust + trust))
             self.store.save_npc(npc)
-        if check == "intimidation":
-            self.reputation_change("threat")
+        from engine.domain_events import LieCaught, Persuaded
+        if check in ("persuasion", "intimidation"):
+            self.notice(Persuaded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), how=check, degree=degree), npc)
         if (check, degree) == ("deception", "failure"):
-            self.reputation_change("lie_caught")
-            npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                       text="Caught the stranger in a lie."))
-            self.store.save_npc(npc)
-        if check in ("persuasion", "intimidation") and degree in ("strong success", "success"):
-            from engine import deeds, events
-            events.after_deed(self, deeds.log(self.store, "persuade", self.minutes, self.player.location, npc=npc.id,
-                                              npc_name=npc.name, how=check, degree=degree))
+            self.notice(LieCaught(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label()), npc)
         return f"[THE GAME HAS DECIDED: they are trying to {what}. {effect} Act on this.]"
 
     SCALE_TELLS = (" Match the tells to how serious the worry really is: an everyday worry (weather, prices, a bad crop, a sore back, "
@@ -167,11 +160,8 @@ class CheckActions:
         if degree == "partial":
             return "The player is nearly spotted - a glance their way, a moment of doubt - but not quite."
         if npc:
-            npc.trust = max(0, npc.trust - 3)
-            self.reputation_change("caught_spying")
-            npc.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
-                                       text="Caught the stranger watching me from hiding."))
-            self.store.save_npc(npc)
+            from engine.domain_events import CaughtSpying
+            self.notice(CaughtSpying(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label()), npc)
             return f"{npc.label()} notices the player watching and is unsettled by it."
         return "The player is noticed - someone or something turns their way."
 
