@@ -24,6 +24,7 @@ caps:
 
 sets:
   # ---- metal
+  copper:        {two: {effects: [[defense, while_defending, 3]]}, four: {fight: {plating: 5}}}
   bronze:        {two: {effects: [[defense, while_defending, 4]]}, four: {fight: {plating: 6}}}
   bog_iron:      {two: {effects: [[max_health, always, 4]]},       four: {fight: {aegis: 8}}}
   iron:          {two: {effects: [[defense, always, 3]]},          four: {fight: {plating: 7}}}

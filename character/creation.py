@@ -230,7 +230,8 @@ def draw_mechanics(interp: ClassInterpretation, rng: random.Random | None = None
         for mech in {o.mechanic for o in f.options}:
             shared[mech] = shared.get(mech, 0) + 1
     ring = {o.key: rings["own"] if o.mechanic in own else rings["kin"] if o.mechanic in kin else rings["foreign"] for o in pool}
-    weight = {o.key: (1 / shared.get(o.mechanic, 1)) ** 0.8 * ring[o.key] for o in pool}
+    power = DRAW.get("shared_power", 0.8)                     # how much a perk one family owns outweighs one many share (perks.yaml draw)
+    weight = {o.key: (1 / shared.get(o.mechanic, 1)) ** power * ring[o.key] for o in pool}
 
     def pick(cands, n):
         cands, out = list(cands), []

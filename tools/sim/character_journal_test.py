@@ -54,6 +54,7 @@ check("a fresh note is not due again", not ws.note_due(m))
 m.trust = min(100, m.trust + 20) if m.trust < 80 else m.trust - 20
 check("a big change of heart makes it due", ws.note_due(m))
 m.trust = m.note_trust; m.memories += [Memory(day=1, turn=1, text="a"), Memory(day=1, turn=2, text="b")]
+store.save_npc(m); m = store.load_npc(m.id)                       # memories are rows: the count the note is judged by is read on load
 check("new memories make it due", ws.note_due(m))
 m.name_known_to_player = False
 check("an unnamed person is never due", not ws.note_due(m))

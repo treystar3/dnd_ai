@@ -96,6 +96,7 @@ check("the party pane row carries trust, temperament, the line they hold and hea
 said = []
 _say = console.say
 console.say = lambda t, who=None, *a, **k: said.append((who, t))
+console.dialogue = lambda before, who, speech, after="": said.append((who, speech))      # a hire's reply comes framed (console.dialogue)
 ws.player.party = [P.new_hire({**offer, "name": "Tavi Harl"}, 30, 0)]
 ws.player.party[0]["bond"] = 10
 before = ws.player.party[0]["bond"]

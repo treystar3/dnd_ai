@@ -40,8 +40,19 @@ class Bench:
 
     def __init__(self, live: bool = False):
         import simlib
+        from llm import gateway as gw
+        real = gw._client                                      # the real Ollama client, before the stand-in takes its place
         self.stub = simlib.Stub("warrior", 5)
         simlib.install(self.stub)
+        if live:                                               # --live: the interpreter's own calls reach the model; the rest of the scene stays stubbed
+            import types
+            stub_chat = self.stub.chat
+
+            def chat(**k):
+                if (k.get("format") or {}).get("title") == "ActionPlan":
+                    return real.chat(**k)
+                return stub_chat(**k)
+            gw._client = types.SimpleNamespace(chat=chat)
         import config
         from engine import actions
         from npc.traits import load_traits
