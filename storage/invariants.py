@@ -2,7 +2,12 @@
 must be a real person, that the player must stand somewhere that exists, or that a hire's opinions must be of someone. validate_campaign()
 lists every such problem it can find and repairs nothing: detection is the point, and an ambiguous repair would hide the bug that caused it.
 
-Used by the tests, the long-campaign fixture, after a migration, and the #check command."""
+Used by the tests, the long-campaign fixture, after a migration, and the #check command.
+
+What counts as a place: the authored world plus the places the game makes itself and keeps in the save - discovered places
+(engine/discovery.py, x_*), the stop on the road (engine/roads.py, road_*; a stop left behind keeps its record), bought houses
+(engine/property.py, home_<town>) and dungeon entrances (engine/dungeons.py). What a place's roster holds: creatures of the bestiary
+(engine/encounters.py), never people - its residents are the people."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,12 +22,33 @@ class Problem:
         return f"{self.where}: {self.what}"
 
 
+def known_places(store, world) -> set[str] | None:
+    """Every id a record may stand in: the world's places and the game's own (see the module note). None when no world was given."""
+    if world is None:
+        return None
+    known = set(world.places)
+    try:
+        known |= {d["place"]["id"] for d in (store.load_discoveries() or {}).get("places", []) if isinstance(d, dict) and d.get("place")}
+    except Exception:                                   # a save from before discoveries had a record
+        pass
+    for d in store.load_dungeons() or []:
+        known |= {x for x in (d.get("entrance"), d.get("id")) if x}
+    if store.player_exists():
+        p = store.load_player()
+        known |= {f"home_{t}" for t in p.homes}
+        if p.road and p.road.get("id"):
+            known.add(p.road["id"])
+    known |= {pid for pid in store.list_places() if pid.startswith("road_")}        # stops left behind on earlier journeys
+    return known
+
+
 def validate_campaign(store, world=None) -> list[Problem]:
     out: list[Problem] = []
     rows = store.npc_rows()
     ids = {r.id for r in rows}
     by_id = {r.id: r for r in rows}
-    places = set(world.places) if world is not None else None
+    places = known_places(store, world)
+    creatures = set(world.bestiary) if world is not None else None
     place_ids = store.list_places()
 
     # ---- people
@@ -54,8 +80,8 @@ def validate_campaign(store, world=None) -> list[Problem]:
             elif by_id[rid].location != pid and not by_id[rid].gone:
                 out.append(Problem(f"place {pid}", f"lists {by_id[rid].name} ({rid}) as resident, but they stand in '{by_id[rid].location}'"))
         for rid in ps.roster:
-            if rid not in ids:
-                out.append(Problem(f"place {pid}", f"roster entry '{rid}' is not a person in the save"))
+            if creatures is not None and rid not in creatures:
+                out.append(Problem(f"place {pid}", f"roster entry '{rid}' is not a creature of the bestiary"))
 
     # ---- the player
     if not store.player_exists():
@@ -100,9 +126,9 @@ def validate_campaign(store, world=None) -> list[Problem]:
     # ---- the world's own state
     st = store.load_world_state() or {}
     thread_ids = {t.get("id") for t in st.get("threads", [])}
-    for s in st.get("spawns", []):
-        if s.get("thread") and s["thread"] not in thread_ids:
-            out.append(Problem("world.spawns", f"spawn '{s.get('id', '?')}' belongs to thread '{s['thread']}', which is gone"))
+    for s in st.get("spawns", []):                   # a defeated spawn of a finished thread is a record kept, not a creature loose
+        if s.get("thread") and s["thread"] not in thread_ids and not s.get("defeated"):
+            out.append(Problem("world.spawns", f"spawn '{s.get('id', '?')}' of thread '{s['thread']}', which is gone, is still abroad"))
     if st.get("campaign") and st["campaign"] not in thread_ids:
         out.append(Problem("world", f"the running campaign '{st['campaign']}' is not among the threads"))
     for t in st.get("threads", []):

@@ -168,6 +168,42 @@ matters.on_arrival(ws)
 t3 = next(t for t in store.load_world_state()["threads"] if t["id"] == "t3")
 check("when the player is in the town, a situation the engine built there is re-told before any door opens", t3["told"] and t3["stages"][1]["description"].startswith("(retold) "), t3["stages"][1]["description"][:40])
 
+# ---- 8. every ending lifts what the situation laid; the same news twice is one tale told again; a title is not worn twice at a place
+state = store.load_world_state()
+t9 = {"id": "x9", "title": "Lifted", "tier": "normal", "place": "parth", "kind": "threat", "pressure": "", "stage": 0, "status": "active", "made": now,
+      "stages": [{"description": "s", "effects": []}], "fallout": {"description": "f", "effects": [{"kind": "danger", "place": "greywood", "value": 10, "days": 3}]},
+      "times": [now, now + 10], "groups": ["everyone"], "paths": [], "contract": None, "made_by": "engine", "told": False, "door": ""}
+state["threads"] = [t9]
+state["effects"] = [{"kind": "danger", "place": "greywood", "value": 30, "until": now + 99999, "cause": "Lifted", "thread": "x9"}]
+state["spawns"] = [{"id": "sp9", "thread": "x9", "place": "greywood", "creature": "wolf", "boss": True, "level": 3, "name": "the wolf", "need": 1, "kills": 0, "defeated": False, "from": now, "until": now + 99999}]
+state["camps"] = [{"id": "c9", "thread": "x9", "place": "greywood", "until": now + 99999}]
+pulse.tick_threads(store, world, ws.catalog, state, now + 20, random.Random(3))       # past its last stage: settled by others or left alone, either way it ends
+check("a situation that ends without the player lifts its own effects, spawns and camps",
+      t9["status"] != "active" and state["spawns"][0]["defeated"] and state["camps"][0]["until"] <= now + 20 + 2 * 1440
+      and all(e["until"] <= now + 20 for e in state["effects"] if e.get("thread") == "x9" and e["value"] == 30),
+      (t9["status"], state["spawns"][0]["defeated"], state["camps"][0]["until"], state["effects"]))
+if t9["result"] == "ignored":
+    check("...while the fallout it leaves behind stays", any(e["value"] == 10 and e["until"] > now + 20 for e in state["effects"]), state["effects"])
+state["news"] = []
+for k in range(3):
+    pulse.add_news(state, "A traveler spared a captured outlaw.", "parth", now + k * 60, ["outlaws"])
+pulse.add_news(state, "A traveler spared a captured outlaw.", "willowmead", now, ["outlaws"])
+tales = [n for n in state["news"] if n["text"].startswith("A traveler spared")]
+check("the same news from the same place is one tale told again, counted; from another place it is its own",
+      len(tales) == 2 and sorted(n.get("times", 1) for n in tales) == [1, 3], [(n["origin"], n.get("times")) for n in tales])
+check("...and it is told as such", pulse.news_text(max(tales, key=lambda n: n.get("times", 1))).endswith("That makes three times."), pulse.news_text(tales[0]))
+state["threads"] = []
+titles = []
+for i in range(6):
+    prop_i, _ = threads.build(store, world, state, parth, world.pressures["inn_trouble"], "normal", random.Random(100 + i), now)
+    titles.append(prop_i.title)
+    state["threads"].append({"id": f"tt{i}", "title": prop_i.title, "place": "parth", "status": "active"})
+check("six situations of one kind at one town wear six different titles", len(set(titles)) == 6, titles)
+tpl = threads.T["templates"][threads.template_for(world.pressures["inn_trouble"], world.pressures["inn_trouble"].kind, threads.words_for(store, world, parth, world.pressures["inn_trouble"], random.Random(1), now))[0]]
+state["threads"] = [{"id": f"u{i}", "title": threads.fill(l, threads.words_for(store, world, parth, world.pressures["inn_trouble"], random.Random(1), now)), "place": "parth", "status": "active"} for i, l in enumerate(tpl["titles"])]
+prop_x, _ = threads.build(store, world, state, parth, world.pressures["inn_trouble"], "normal", random.Random(7), now)
+check("...and when every title is taken, the next says so", prop_x.title.endswith(" again"), prop_x.title)
+
 shutil.rmtree("saves/threads_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)

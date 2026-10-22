@@ -2,6 +2,10 @@
   --bg: #14110f; --panel: #1c1815; --panel2: #231e1a; --ink: #e8e0d4; --ink2: #cfc4b4; --dim: #9a8f80; --line: #3a322b;
   --accent: #d4a24c; --echo: #8fb8d8; --speech: #f0c36a; --note: #7fb3a3; --combat: #e08a6a; --wait: #8d8478; --hp: #c0504d; --mp: #4f81c7; --sp: #6aa84f; --xp: #b38f2e;
   --r-uncommon: #8fd18f; --r-rare: #6fa8ff; --r-epic: #b784f5;
+  --dialogue: #d4a24c;          /* spoken words: the speaker's gold in the dark theme, ink in the light one */
+  /* the window's text by kind - size and colour - each a variable the Settings pane may override (app.js applyText) */
+  --fs-narration: 17px; --fs-speech: 17px; --fs-speaker: 12px; --fs-note: 13px; --fs-wait: 14px; --fs-combat: 13.5px; --fs-echo: 14px; --fs-pane: 13px;
+  --c-narration: var(--ink); --c-speech: var(--dialogue); --c-speaker: var(--accent); --c-note: var(--dim); --c-wait: var(--dim); --c-combat: var(--combat); --c-echo: var(--echo); --c-pane: var(--ink);
   --serif: "Literata", Georgia, "Palatino Linotype", "Book Antiqua", serif;
   --mono: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
   --measure: 720px; --gutter: 28px;
@@ -11,12 +15,14 @@
     --bg: #f4efe6; --panel: #fbf8f2; --panel2: #ede6d8; --ink: #2a241d; --ink2: #4a4036; --dim: #756a5a; --line: #cfc4b0;
     --accent: #8a5a12; --echo: #2f6690; --speech: #8a5200; --note: #2f7a67; --combat: #b04a25; --wait: #7a6f60; --hp: #b23a37; --mp: #2f5fb0; --sp: #4a8a2f; --xp: #99771a;
     --r-uncommon: #2f7a2f; --r-rare: #2458b8; --r-epic: #6a35b8;
+    --dialogue: #2a241d;
   }
 }
 :root[data-theme="light"] {
     --bg: #f4efe6; --panel: #fbf8f2; --panel2: #ede6d8; --ink: #2a241d; --ink2: #4a4036; --dim: #756a5a; --line: #cfc4b0;
     --accent: #8a5a12; --echo: #2f6690; --speech: #8a5200; --note: #2f7a67; --combat: #b04a25; --wait: #7a6f60; --hp: #b23a37; --mp: #2f5fb0; --sp: #4a8a2f; --xp: #99771a;
     --r-uncommon: #2f7a2f; --r-rare: #2458b8; --r-epic: #6a35b8;
+    --dialogue: #2a241d;
   }
 @font-face { font-family: "Literata"; font-weight: 400; font-style: normal; font-display: swap; src: url(/fonts/literata-latin-400-normal.woff2) format("woff2"); }
 @font-face { font-family: "Literata"; font-weight: 400; font-style: italic; font-display: swap; src: url(/fonts/literata-latin-400-italic.woff2) format("woff2"); }
@@ -54,24 +60,36 @@ body { background: var(--bg); color: var(--ink); display: flex; flex-direction: 
 
 /* ---------- (f326) the story column: a book's measure; the fiction in a reading face (Literata, OFL, ui/gui/web/fonts), everything else in the machine's ---------- */
 #log { flex: 1; overflow-y: auto; padding: 16px var(--gutter) 32px; }
+/* Scrollbars in the app's own colours, thin and without arrow buttons: the thumb is the panel's rule colour, the track is the panel.
+   WebView2 and every other Chromium honour the WebKit parts only while the standard properties are unset, so those are kept for the
+   engines that lack the parts (Firefox). */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--dim); background-clip: padding-box; }
+*::-webkit-scrollbar-button { display: none; width: 0; height: 0; background: transparent; }
+*::-webkit-scrollbar-corner { background: transparent; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+}
 #log > * { max-width: var(--measure); margin-left: auto; margin-right: auto; }
 #log .ln, #sidebody .ln { white-space: pre-wrap; overflow-wrap: anywhere; }
 .blank { height: .5em; }
-.k-narration .ln { font: 17px/1.62 var(--serif); color: var(--ink); }
+.k-narration .ln { font: var(--fs-narration)/1.62 var(--serif); color: var(--c-narration); }
 .k-narration .ln + .ln { margin-top: .55em; }
 .k-speech { margin: 14px 0; padding: 1px 0 1px 16px; border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
-.k-speech .spk { font: 600 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
-.k-speech .ln { font: 17px/1.6 var(--serif); color: var(--ink); padding-left: 0 !important; text-indent: 0 !important; }
+.k-speech .spk { font: 600 var(--fs-speaker) var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--c-speaker); margin: 0 0 4px; }
+.k-speech .ln { font: var(--fs-speech)/1.6 var(--serif); color: var(--c-speech); padding-left: 0 !important; text-indent: 0 !important; }   /* the speaker's gold in the dark theme, ink in the light: --dialogue above */
 .k-speech .ln + .ln { margin-top: .5em; }
 .k-speech .ln + .spk { margin-top: 10px; }
 .k-speech .beat, .k-narration .beat { font-style: italic; color: var(--dim); }
-.k-note .ln { font: 13px/1.5 var(--mono); color: var(--dim); margin: 8px 0; padding-left: 1.4em !important; text-indent: -1.4em !important; }
+.k-note .ln { font: var(--fs-note)/1.5 var(--mono); color: var(--c-note); margin: 8px 0; padding-left: 1.4em !important; text-indent: -1.4em !important; }
 .k-note .ln::before { content: "◇ "; color: var(--note); }
-.k-wait .ln { text-align: center; font: italic 14px var(--serif); color: var(--dim); margin: 14px 0; padding: 0 !important; text-indent: 0 !important; }
+.k-wait .ln { text-align: center; font: italic var(--fs-wait) var(--serif); color: var(--c-wait); margin: 14px 0; padding: 0 !important; text-indent: 0 !important; }
 .k-wait .ln::before { content: "— "; } .k-wait .ln::after { content: " —"; }
 .k-debug .ln { font: 12.5px var(--mono); color: var(--wait); font-style: italic; }
-.k-combat .ln { font-size: 13.5px; color: var(--combat); }
-#log .echo { margin-top: 28px; padding: 12px 0 8px; border-top: 1px solid var(--line); color: var(--echo); display: flex; gap: 10px; align-items: baseline; }
+.k-combat .ln { font-size: var(--fs-combat); color: var(--c-combat); }
+#log .echo, .sample .echo { margin-top: 28px; padding: 12px 0 8px; border-top: 1px solid var(--line); color: var(--c-echo); font-size: var(--fs-echo); display: flex; gap: 10px; align-items: baseline; }
 #log .echo:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
 #log .echo .pc { color: var(--accent); }
 #log .echo .stamp { margin-left: auto; color: var(--dim); font-size: 11.5px; white-space: nowrap; }
@@ -106,7 +124,7 @@ button.on { background: var(--accent); color: var(--bg); border-color: var(--acc
 #sidetools button { padding: 2px 7px; border: 0; background: none; color: var(--dim); font-size: 13px; }
 #sidetools button:hover:not(:disabled) { color: var(--ink); }
 #sidetools button.on { color: var(--accent); background: none; }
-#sidebody { white-space: normal; flex: 1; overflow: auto; margin: 0; padding: 4px 14px 16px; font-size: 13px; }
+#sidebody { white-space: normal; flex: 1; overflow: auto; margin: 0; padding: 4px 14px 16px; font-size: var(--fs-pane); color: var(--c-pane); }
 #sidebody .h1:first-of-type { font-size: 16px; }
 #sidebody .h1 { font-size: 15px; font-weight: 700; letter-spacing: .04em; color: var(--ink); margin: 4px 0 2px; }
 #sidebody .h1 + .h1 { font-size: 12.5px; font-weight: 400; letter-spacing: 0; color: var(--dim); }
@@ -315,3 +333,21 @@ button.locked:disabled { opacity: .25; }
 #buttons button[draggable="true"] { cursor: grab; }
 #buttons button.dragging { opacity: .45; }
 #buttons button.dropat { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- the Settings pane: theme, and the size and colour of each kind of text, with a live sample of each (app.js renderSettings) ---------- */
+.settings { font: 13px/1.5 var(--mono); white-space: normal; }
+.settings h3 { font: 600 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin: 14px 0 6px; }
+.settings .hint { color: var(--dim); font-size: 12px; margin: 0 0 10px; }
+.settings .themes { display: flex; gap: 6px; flex-wrap: wrap; }
+.settings .kind { border-top: 1px solid var(--line); padding: 9px 0 10px; }
+.settings .kind .hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.settings .kind .nm { flex: 1; min-width: 110px; color: var(--ink2); }
+.settings .kind input[type=range] { width: 108px; accent-color: var(--accent); margin: 0; }
+.settings .kind .px { width: 46px; color: var(--dim); font-size: 12px; text-align: right; }
+.settings .kind input[type=color] { width: 28px; height: 22px; padding: 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel2); cursor: pointer; }
+.settings .kind button { padding: 2px 8px; font-size: 12px; }
+.settings .sample { margin-top: 8px; padding: 6px 10px; background: var(--bg); border-radius: 6px; }
+.settings .sample .k-speech { margin: 0; }
+.settings .sample .k-note .ln, .settings .sample .k-wait .ln, .settings .sample .echo { margin: 0; }
+.settings .sample .echo { border-top: 0; padding: 0; }
+.settings .all { margin-top: 12px; }

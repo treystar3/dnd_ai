@@ -129,6 +129,7 @@ def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, pla
             npc.anchor, npc.protected = anchor, True
         if catalog:
             assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
+        inner_life(npc, store, world)                        # (f334) the engine's share of a person, from birth
         store.save_npc(npc)
         npcs.append(npc)
     console.debug(f"populated {place_id}: {', '.join(f'{n.name} ({n.role})' for n in npcs)}")
@@ -176,24 +177,47 @@ def motive_roll(npc: NPC, store: CampaignStore) -> bool:
     return npc_rng(store.meta.seed, npc.id + ":motive").random() < max(0.0, min(0.9, chance))
 
 
+def inner_life(npc: NPC, store: CampaignStore, world: World) -> None:
+    """(f334) The engine's share of a person, given at birth so a town has texture before anyone in it is spoken to: the circles they
+    hear news from, and - for the share their traits allow (motive_roll) - a goal in the engine's words (data/rules/pulse.yaml
+    drift.motives.seeds). The rest start the clock by which the drift (engine/drift.py) may hand them one later. The model's share -
+    personality, voice, concern, the goal in their own words - still waits for the first real conversation (promote). Once only."""
+    from engine import drift
+    if not npc.knowledge_groups:
+        groups = ["everyone", world.locals_group(npc.location), *world.roles[npc.role].knowledge_groups]
+        npc.knowledge_groups = list(dict.fromkeys(g for g in groups if g))
+    if npc.motive or npc.motive_done_at >= 0 or npc.motive_since:
+        return
+    now = store.meta.minutes
+    if motive_roll(npc, store):
+        npc.motive = drift.motive_for(npc, world, drift.rules().get("motives") or {}, npc_rng(store.meta.seed, npc.id + ":goal"))
+        npc.motive_since = now
+    else:
+        npc.motive_done_at = now
+
+
 def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog) -> None:
-    """First real interaction: roll traits, set knowledge, and generate personality. Once only."""
+    """First real interaction: roll traits, set knowledge, and generate personality. Once only. (f334) The engine's goal, when they
+    have one, is kept in meaning: the profile restates it in their own words."""
     if npc.tier != "background":
         return
-    assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
-    groups = ["everyone", world.locals_group(npc.location), *world.roles[npc.role].knowledge_groups]
-    npc.knowledge_groups = list(dict.fromkeys(g for g in groups if g))
-    has_motive = motive_roll(npc, store)
+    if not npc.traits:
+        assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
+    inner_life(npc, store, world)                            # an older save's person, or one made without a catalogue
+    has_motive = bool(npc.motive) or motive_roll(npc, store)
     profile = generate(
         "npc_profile", prompts.PROFILE_SYSTEM,
         prompts.profile_request(npc, world.places[npc.location].name, catalog.describe(npc.traits), has_motive,
-                                town_lines(store, world, npc.location) + ([f"WHO THEY ARE IN THIS TOWN: {npc.anchor}"] if npc.anchor else [])),
+                                town_lines(store, world, npc.location) + ([f"WHO THEY ARE IN THIS TOWN: {npc.anchor}"] if npc.anchor else []),
+                                motive_so_far=npc.motive),
         NPCProfile, temperature=0.8,
     )
     npc.personality, npc.voice = profile.personality, profile.voice
     if not npc.concern_from:                                 # (f317) a concern a matter gave them stays
         npc.concern = profile.concern
-    npc.motive = profile.motive.strip() if has_motive else ""
+    npc.motive = (profile.motive.strip() or npc.motive) if has_motive else ""
+    if npc.motive and not npc.motive_since:
+        npc.motive_since = store.meta.minutes
     npc.tier = "known"
     store.save_npc(npc)
     console.debug(f"promoted {npc.name}: traits {npc.traits}; knows {npc.knowledge_groups}")

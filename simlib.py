@@ -282,7 +282,9 @@ class Stub:
         status = r.choices(["continuing", "achieved", "abandoned"], weights=[7, 2, 1])[0]
         eff = [{"kind": "mood", "npc": pid, "text": "restless"}]
         return {"happened": "They made a small step.", "effects": eff, "status": status,
-                "next_motive": "keep going" if status == "continuing" else "", "gossip": "People talk."}
+                "next_motive": "keep going" if status == "continuing" else "",
+                "gossip": self.rng.choice(["People talk.", "There is a new tale at the well.", "The market has it one way, the inn another.",
+                                           "Somebody saw something on the road.", "The old ones say it was always coming.", "Nobody will say it to their face."])}
 
     # ---- character creation (used by setup only)
     def a_DiscoveryProposal(self, u, k):
@@ -347,7 +349,8 @@ class Stub:
         stopped = "THE PLAYER IS STOPPED HERE" in u
         kind = "ambush" if hostile else self.rng.choice(["find", "meeting", "hazard", "sight", "aid"])
         out = {"title": f"Event {self.rng.randrange(10**5)}", "scene": "You see something on the road.", "kind": kind,
-               "detail": "d", "check": "perception" if kind == "hazard" else "", "news": "Word spreads of trouble on the road." if self.rng.random() < 0.3 else "",
+               "detail": "d", "check": "perception" if kind == "hazard" else "", "news": self.rng.choice(["Word spreads of trouble on the road.", "A cart came in late and its driver would not say why.",
+                                        "Travellers are going in company now.", "The watch rode out along the road at dawn."]) if self.rng.random() < 0.3 else "",
                "meets_role": "merchant" if stopped and not hostile else "", "effects": []}
         if self.rng.random() < 0.25:
             out["effects"] = [{"kind": "danger", "place": "kings_road", "value": 30, "days": 5}]

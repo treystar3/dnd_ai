@@ -4,10 +4,10 @@ const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
 const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"], ["Places", "#exits"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
-  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["New game", "#newgame"]];
+  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"]];
 
 const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
-const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [] } };
+const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [], text: {} } };
 
 async function api(path, body) {
   try {
@@ -867,6 +867,7 @@ function renderButtons() {
 }
 async function runView(cmd) {
   if (!(state.prompt && state.atMain)) return;
+  if (cmd === "#settings") { showSettings(); return; }           // the window's own view: nothing for the game to do
   combat.mode = "view";
   state.prompt = false; updateInput();
   await api("/input", { text: cmd });
@@ -889,6 +890,97 @@ function applyTheme() {
   const t = state.prefs.theme;
   if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t);
   $("theme").title = "Colour theme: " + t + (t === "auto" ? " (follows Windows)" : "") + " - click to change";
+  applyText();
+}
+
+// ---------- settings: the size and colour of each kind of text, kept with the other preferences (saves/gui_prefs.json) ----------
+// Each kind is a pair of variables in style.css (--fs-<kind>, --c-<kind>) with the theme's own value as the default; a setting here
+// overrides them on the root. Size is shared by both themes; a colour is kept for the theme it was chosen in.
+const TEXT_KINDS = [["narration", "Narration", 17], ["speech", "Spoken words", 17], ["speaker", "Speaker's name", 12], ["note", "Notes and the ledger", 13],
+  ["wait", "Time passing", 14], ["combat", "Combat", 13.5], ["echo", "Your own line", 14], ["pane", "This pane", 13]];
+function activeTheme() {
+  return document.documentElement.getAttribute("data-theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+}
+function applyText() {
+  const root = document.documentElement.style, theme = activeTheme(), text = state.prefs.text || {};
+  for (const [k, , dflt] of TEXT_KINDS) {
+    const spec = text[k] || {};
+    if (spec.size && spec.size !== dflt) root.setProperty(`--fs-${k}`, spec.size + "px"); else root.removeProperty(`--fs-${k}`);
+    if (spec[theme]) root.setProperty(`--c-${k}`, spec[theme]); else root.removeProperty(`--c-${k}`);
+  }
+}
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { applyText(); if (state.current === "#settings") paintSide(); });
+let prefsTimer = null;
+function setPrefsSoon(p) {                                    // a slider sends many values a second: the last one is saved
+  Object.assign(state.prefs, p);
+  clearTimeout(prefsTimer);
+  prefsTimer = setTimeout(() => api("/prefs", p), 300);
+}
+function showSettings() {
+  combat.mode = "view";
+  lastView = { raw: "", panel: { name: "settings", data: {} }, cmd: "#settings" };
+  state.current = "#settings";
+  paintSide();
+}
+function currentColour(kind) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(`--c-${kind}`).trim();
+  return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : "#888888";
+}
+function sampleOf(kind) {
+  const w = el("div", "sample");
+  const block = (cls, txt) => { const x = el("div", cls); x.appendChild(el("div", "ln", txt)); return x; };
+  if (kind === "narration") w.appendChild(block("k-narration", "The square is loud with carts and the smell of wet straw."));
+  else if (kind === "speech") { const s = el("div", "k-speech"); s.append(el("div", "spk", "Hollis"), el("div", "ln", "Two silver for the room, and I'll want it now.")); w.appendChild(s); }
+  else if (kind === "speaker") { const s = el("div", "k-speech"); s.append(el("div", "spk", "Hollis"), el("div", "ln", "Mind the step.")); w.appendChild(s); }
+  else if (kind === "note") w.appendChild(block("k-note", "You hand over 2 silver. Purse: 1 gold 8 silver."));
+  else if (kind === "wait") w.appendChild(block("k-wait", "an hour passes"));
+  else if (kind === "combat") w.appendChild(block("k-combat", "The wolf lunges and bites you for 6."));
+  else if (kind === "echo") { const e = el("div", "echo"); e.append(el("span", "pc", "›"), el("span", "", "I ask Hollis about a room")); w.appendChild(e); }
+  else w.appendChild(el("div", "", "Inventory · 3 healing draughts · a copper longsword"));
+  return w;
+}
+function kindRow(kind, text) {
+  const [, label, dflt] = TEXT_KINDS.find((x) => x[0] === kind);
+  const theme = activeTheme(), spec = text[kind] || {};
+  const row = el("div", "kind"), hd = el("div", "hd");
+  hd.appendChild(el("span", "nm", label));
+  const range = document.createElement("input"); range.type = "range"; range.min = 10; range.max = 28; range.step = 0.5; range.value = spec.size || dflt;
+  range.title = "Size";
+  const px = el("span", "px", `${range.value}px`);
+  const colour = document.createElement("input"); colour.type = "color"; colour.value = currentColour(kind); colour.title = `Colour in the ${theme} theme`;
+  const reset = el("button", "", "↺"); reset.title = "Back to the theme's own size and colour";
+  const tidy = () => { if (text[kind] && !Object.keys(text[kind]).length) delete text[kind]; };
+  const save = () => { state.prefs.text = text; applyText(); setPrefsSoon({ text }); };
+  range.oninput = () => {
+    const v = Number(range.value); px.textContent = `${v}px`;
+    text[kind] = { ...(text[kind] || {}) }; if (v === dflt) delete text[kind].size; else text[kind].size = v; tidy(); save();
+  };
+  colour.oninput = () => { text[kind] = { ...(text[kind] || {}), [theme]: colour.value }; save(); };
+  reset.onclick = () => { if (text[kind]) { delete text[kind].size; delete text[kind][theme]; tidy(); } save(); paintSide(); };
+  hd.append(range, px, colour, reset);
+  row.append(hd, sampleOf(kind));
+  return row;
+}
+function renderSettings() {
+  const box = el("div", "settings");
+  box.appendChild(el("h3", "", "Theme"));
+  const themes = el("div", "themes");
+  for (const [t, label] of [["auto", "Auto (follows Windows)"], ["dark", "Dark"], ["light", "Light"]]) {
+    const b = el("button", state.prefs.theme === t ? "on" : "", label);
+    b.onclick = () => { state.prefs.theme = t; applyTheme(); setPrefs({ theme: t }); paintSide(); };
+    themes.appendChild(b);
+  }
+  box.appendChild(themes);
+  box.appendChild(el("h3", "", "Text"));
+  box.appendChild(el("div", "hint", `Size is shared by both themes. A colour is kept for the ${activeTheme()} theme you are in now; ↺ puts back the theme's own.`));
+  const text = state.prefs.text || {};
+  for (const [k] of TEXT_KINDS) box.appendChild(kindRow(k, text));
+  const all = el("div", "all");
+  const reset = el("button", "", "Reset all text settings");
+  reset.onclick = () => { state.prefs.text = {}; applyText(); setPrefs({ text: {} }); paintSide(); };
+  all.appendChild(reset);
+  box.appendChild(all);
+  side.appendChild(box);
 }
 $("theme").onclick = () => {
   const next = { auto: "dark", dark: "light", light: "auto" }[state.prefs.theme] || "auto";
@@ -1135,6 +1227,7 @@ function paintSide() {
     else if (pn === "places") renderPlaces(lastView.panel.data);
     else if (pn === "map") renderMap(lastView.panel.data);
     else if (pn === "pulse") renderPulse(lastView.panel.data);
+    else if (pn === "settings") renderSettings();
     else if (pn === "character" && lastView.raw.includes(ATTR_MARK)) {
       const [before, after] = lastView.raw.split(ATTR_MARK + "\n");
       renderInto(side, before, "pane", false);

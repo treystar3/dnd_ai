@@ -254,7 +254,8 @@ def _present_people(ws) -> list[Present]:
         note = (f"Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
                 "and 'taking the pay' once it is done is part of that work." if n.work_offer else "")
         out.append(Present(id=n.id, name=n.name or n.label(), label=n.label(), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
-                           desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}.", note=note, plain=n.description or "",
+                           desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}." + (f" Lately: {n.mood}." if n.mood else ""),   # (f334) a mood shows
+                           note=note, plain=n.description or "",
                            local=ws.world.locals_group(n.location) or ""))
     her = ws.mentor_person()
     if her:
@@ -422,7 +423,7 @@ def _news(scene: Scene):
         if ws.minutes - n["minute"] > keep:
             continue
         if n["minute"] + pulse.travel_delay(ws.world, n["origin"], ws.player.location) <= ws.minutes:
-            out.append(Fact("news", n["text"], frozenset(f"groups:{g}" for g in n["groups"])))
+            out.append(Fact("news", pulse.news_text(n), frozenset(f"groups:{g}" for g in n["groups"])))
         if len(out) >= 8:
             break
     return out

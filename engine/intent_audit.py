@@ -81,7 +81,9 @@ def problems(plan: list, sit: Situation) -> list[str]:
 
 
 def fix(plan: list) -> list:
-    """Drop exact repeats, and an 'other' that only restates another step."""
+    """Drop exact repeats, an 'other' that only restates another step, and a later step with nothing of its own (no target, item,
+    ware, words...) whose summary is an earlier step's summary word for word ("I put 2 silver in the tithe box" as a give and again
+    as a pray)."""
     seen, out = set(), []
     for s in plan:
         k = _key(s)
@@ -91,7 +93,15 @@ def fix(plan: list) -> list:
         out.append(s)
     said = {re.sub(r"\W+", " ", s.summary.lower()).strip() for s in out if s.kind != "other" and s.summary.strip()}
     kept = [s for s in out if not (s.kind == "other" and re.sub(r"\W+", " ", s.summary.lower()).strip() in said)]
-    return kept or out
+    bare = lambda s: not any(getattr(s, f, "") for f in ("destination", "target", "speech", "seek", "ware", "ability", "item"))
+    told, final = set(), []
+    for s in kept:
+        summary = re.sub(r"\W+", " ", s.summary.lower()).strip()
+        if summary and summary in told and bare(s):
+            continue
+        told.add(summary)
+        final.append(s)
+    return final or kept or out
 
 
 def _words(text: str) -> set[str]:

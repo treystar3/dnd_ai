@@ -75,7 +75,6 @@ from npc.traits import load_traits
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
 from world.loader import load_world
-import os
 LAST_DANGER = [("?", 0.5)]
 _orig_danger = combat.danger
 
@@ -122,8 +121,9 @@ class Bot:
     def __init__(self):
         self.rng = random.Random(SEED)
         self.world = load_world()
-        shutil.rmtree(f"saves/sim_{CLS}", ignore_errors=True)
-        self.store = CampaignStore.open_or_create(f"sim_{CLS}")
+        save = os.environ.get("SIMBOT_SAVE") or f"sim_{CLS}"          # a soak run names its own folder, so the tests' bots do not wipe it
+        shutil.rmtree(f"saves/{save}", ignore_errors=True)
+        self.store = CampaignStore.open_or_create(save)
         self.store.meta.seed = SEED
         self.store.meta.turn = 1
         self.store.meta.minutes = 8 * 60

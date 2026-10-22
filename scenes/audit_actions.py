@@ -70,6 +70,9 @@ class AuditActions:
             res = ia.audit(text, plan, sit, self.audit_asker())
         else:
             res = ia.Result("skipped", ia.fix(plan))              # the model calls are off; the plain repairs (repeats, an 'other' restating a step) still run
+        if res.status in ("skipped", "unchanged") and len(res.plan) != len(plan):   # the audit's own repair (intent_audit.fix) is recorded like the others
+            from scenes import plan_repairs
+            self.__dict__.setdefault("repairs", []).append({"rule": "audit_fix", "before": plan_repairs.brief(plan), "after": plan_repairs.brief(res.plan)})
         self.log_turn(text, sit, raw_plan, res, time.perf_counter() - start)
         if res.status == "changed":
             console.debug(f"audit changed the plan: {res.verdict or res.reason}")
@@ -122,4 +125,4 @@ class AuditActions:
                      raw=raw_plan, final=[s.model_dump(exclude_defaults=True) for s in res.plan],
                      risk=res.risk, audit=res.status, meaning=res.meaning, described=res.described,
                      verdict=res.verdict, reason=res.reason, calls=res.calls, seconds=round(seconds, 2),
-                     interpreter=list(getattr(self, "interpret_calls", [])))
+                     repairs=list(getattr(self, "repairs", [])), interpreter=list(getattr(self, "interpret_calls", [])))

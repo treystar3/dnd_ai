@@ -71,7 +71,7 @@ check("the panes draw the pack, box, contracts, dungeon, house and standing from
 check("a whole-line [note] in a pane loses its brackets; a help line becomes two columns (f327)", "a whole-line [note] in a pane is a note" in js and '"hrow"' in js and ".hrow .hc" in css and ".row2 .val" in css and ".meter.sym" in css)
 check("item names take their rarity's colour in every pane (f328)", "const RARE = " in js and js.count("named(") >= 5 and all(f".r-{r} {{ color: var(--r-{r}); }}" in css for r in ("uncommon", "rare", "epic")) and css.count("--r-epic:") == 3)
 check("the map frame follows the known world and stays on the painted map (f327)", "svg.style.aspectRatio" in js and "stays on the painted map" in js and "height: 520px" not in css)
-check("the fiction has its own face and measure; the rest keeps the machine's (f326)", "--serif" in css and "--measure" in css and ".k-narration .ln { font: 17px/1.62 var(--serif)" in css and "body { background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font: 14px/1.45 var(--mono); }" in css)
+check("the fiction has its own face and measure; the rest keeps the machine's (f326)", "--serif" in css and "--measure" in css and ".k-narration .ln { font: var(--fs-narration)/1.62 var(--serif)" in css and "--fs-narration: 17px" in css and "body { background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font: 14px/1.45 var(--mono); }" in css)
 
 def wait_for(pred, t=5):
     end = time.time() + t
@@ -133,8 +133,13 @@ got = sse(1, after=last_id - 1)
 check("SSE resumes after Last-Event-ID", got[0] == b.log[-1][1])
 
 # ---- prefs ----
-check("prefs default", json.loads(req("/prefs")[1]) == {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": []})
-check("prefs saved", json.loads(req("/prefs", {"width": 520, "hidden": True, "pinned": None, "junk": 1})[1]) == {"pinned": None, "width": 520, "hidden": True, "theme": "auto", "order": []})
+check("prefs default", json.loads(req("/prefs")[1]) == {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}})
+check("prefs saved", json.loads(req("/prefs", {"width": 520, "hidden": True, "pinned": None, "junk": 1})[1]) == {"pinned": None, "width": 520, "hidden": True, "theme": "auto", "order": [], "text": {}})
+text = {"speech": {"size": 19, "dark": "#aabbcc"}, "pane": {"light": "#112233"}}
+check("text settings (size and colour by kind, colour per theme) are saved and come back", json.loads(req("/prefs", {"text": text})[1])["text"] == text and server.load_prefs()["text"] == text)
+check("...and a size out of range, a colour that is not #rrggbb or a kind the window lacks are refused",
+      req("/prefs", {"text": {"speech": {"size": 99}}})[0] == 400 and req("/prefs", {"text": {"speech": {"dark": "red"}}})[0] == 400 and req("/prefs", {"text": {"menu": {"size": 14}}})[0] == 400)
+check("...and an empty text setting clears them", json.loads(req("/prefs", {"text": {}})[1])["text"] == {})
 check("prefs persist to disk", server.load_prefs()["width"] == 520)
 check("prefs clamp", json.loads(req("/prefs", {"width": 99999})[1])["width"] == 900)
 

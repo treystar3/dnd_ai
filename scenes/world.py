@@ -50,6 +50,8 @@ from scenes.audit_actions import AuditActions
 from scenes.standing_actions import StandingActions
 from scenes.law_actions import LawActions
 from scenes.pastime_actions import PastimeActions
+from scenes import plan_repairs
+from scenes.plan_repairs import PlanRepairs
 from scenes import markup
 from engine import mapview, mentor, needs, pulse, pulselog, quests
 from engine import inventory as inv
@@ -75,7 +77,7 @@ SEARCH = encounters.E
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
-                 PastimeActions):
+                 PastimeActions, PlanRepairs):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -852,53 +854,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         else:
             plan = self.interpret(text)
         raw_plan = [a.model_dump(exclude_defaults=True) for a in plan]
-        if markup.has_markup(text):
-            for a in plan:
-                if a.speech:
-                    a.speech = markup.scrub_speech(a.speech, text)
-            plan = [a for a in plan if not (a.kind == "talk" and not a.speech)] or plan
-        plan = [a for k, a in enumerate(plan)              # (f299) "...and I talk to the clerk": a wordless talk to whoever the line already spoke to adds nothing
-                if not (k and a.kind == "talk" and not (a.speech or "").strip() and any(b.kind == "talk" and b.target == a.target for b in plan[:k]))] or plan
-        self.buffering, self.pending, self.halted = len(plan) > 1, [], False
-        here_ids = {n.id for n in self.present}
-        plan = [a for k, a in enumerate(plan)
-                if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
-                                                 and b.target in here_ids for b in plan[k + 1:]))] or plan
-        plan = self.drop_narrated_talk(text, plan)  # (f333) "I show Maren the pelts" read as show + a talk whose 'speech' is that very line: the talk is narration
-        self.local_building(text, plan)             # (f333) "the inn" with no town named is this town's inn, not a far one the model happened to pick
-        if not self.rank and self.clerk_here() and not NEGATED.search(text.lower()):     # paying or asking to join the guild, said to the clerk, is joining - and only once
-            asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
-            for a in plan:
-                low = f"{text} {a.summary}".lower()
-                at_desk = mentor.stage(self.player) == "sign"   # at the clerk's desk with Maren, 'I pay' can only mean one thing (f271)
-                about_guild = at_desk or any(w in low for w in ("guild", "registry", "register", "registration", "membership"))
-                if about_guild and (at_desk or a.kind in ("talk", "buy", "give", "other")) and not asking \
-                        and (any(w in low for w in ("join", "fee", "pay", "sign", "enrol", "enroll", "register"))
-                             or (at_desk and (a.kind == "give" or any(w in low for w in ("hand", "give", "silver", "coin"))))):   # at the desk, handing the coin over is paying (f282)
-                    a.kind, a.target, a.ware, a.item = "join_guild", "", "", ""
-            seen_join = False
-            kept = []
-            for a in plan:
-                if a.kind == "join_guild":
-                    if seen_join:
-                        continue
-                    seen_join = True
-                kept.append(a)
-            plan = kept
-        coin_given = any(b.kind == "give" and self.coin_amount(b.item or "") for b in plan)
-        for a in plan:                              # "I offer the guard 5 silver to look the other way" is giving coin, whatever it was read as
-            if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) and not coin_given \
-                    and not NEGATED.search(text.lower()) and not PAST.search(text.lower()) \
-                    and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
-                m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
-                a.kind, a.item = "give", (m.group(0) if m else "coins")
-                coin_given = True
-            if a.kind == "give" and not a.target and self.coin_amount(a.item or ""):      # (f333) coin handed to nobody in particular: the one the line names
-                a.target = self.named_here(text) or (self.partner.id if self.partner else "") or (self.present[0].id if len(self.present) == 1 else "")
-        HARVEST_WORDS = ("harvest", "skin", "butcher", "gut", "carcass", "hide", "meat", "parts", "gather")
-        plan = [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
-                if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
-                        and any(w in f"{a.summary} {a.item}".lower() for w in HARVEST_WORDS))] or plan
+        self.pending, self.halted = [], False
+        plan = self.repair(text, plan)              # (f333) every repair the scene declares, in its declared order (scenes/plan_repairs.py)
+        self.buffering = len(plan) > 1
         plan = self.audit_plan(text, plan, raw_plan)
         if plan is None:                            # the audit could not make sense of it: nothing happens, no time passes; the world has asked (f321)
             self.buffering = False
@@ -947,33 +905,128 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.law_check()
         self.store.meta.turn += 1
 
+    REPAIRS = (
+        plan_repairs.Repair("scrub_markup", 10, "scrub_markup", "words in *asterisks* are never speech; a talk left wordless by that goes"),
+        plan_repairs.Repair("wordless_talk", 20, "wordless_talk", "a second, wordless talk to the one the line already spoke to adds nothing (f299)"),
+        plan_repairs.Repair("move_to_present", 30, "move_to_present", "a move before a word or a deal with someone already here is no journey"),
+        plan_repairs.Repair("narrated_talk", 40, "drop_narrated_talk", "a talk whose words narrate another step is not speech; the one it named gets the deed (f333)"),
+        plan_repairs.Repair("local_building", 50, "local_building", "'the inn' with no town named is this town's inn, not a far one (f333)"),
+        plan_repairs.Repair("join_guild", 150, "join_guild_rewrite", "paying or asking to join, said to the clerk, is joining - once (f271, f282)"),
+        plan_repairs.Repair("coin_offered", 160, "coin_offered", "coin offered to someone here is a give, whatever it was read as; coin to nobody goes to the one named"),
+        plan_repairs.Repair("one_harvest", 170, "one_harvest", "skinning and harvesting is one action: a second step restating it goes"),
+    )
+
+    def scrub_markup(self, text: str, plan: list) -> list | None:
+        if not markup.has_markup(text):
+            return None
+        for a in plan:
+            if a.speech:
+                a.speech = markup.scrub_speech(a.speech, text)
+        return [a for a in plan if not (a.kind == "talk" and not a.speech)] or plan
+
     @staticmethod
-    def drop_narrated_talk(text: str, plan: list) -> list:
+    def wordless_talk(text: str, plan: list) -> list:
+        return [a for k, a in enumerate(plan)              # (f299) "...and I talk to the clerk": a wordless talk to whoever the line already spoke to adds nothing
+                if not (k and a.kind == "talk" and not (a.speech or "").strip() and any(b.kind == "talk" and b.target == a.target for b in plan[:k]))] or plan
+
+    def move_to_present(self, text: str, plan: list) -> list:
+        here_ids = {n.id for n in self.present}
+        return [a for k, a in enumerate(plan)
+                if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
+                                                 and b.target in here_ids for b in plan[k + 1:]))] or plan
+
+    def join_guild_rewrite(self, text: str, plan: list) -> list | None:
+        """Paying or asking to join the guild, said to the clerk, is joining - and only once."""
+        if self.rank or not self.clerk_here() or NEGATED.search(text.lower()):
+            return None
+        asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
+        for a in plan:
+            low = f"{text} {a.summary}".lower()
+            at_desk = mentor.stage(self.player) == "sign"   # at the clerk's desk with Maren, 'I pay' can only mean one thing (f271)
+            about_guild = at_desk or any(w in low for w in ("guild", "registry", "register", "registration", "membership"))
+            if about_guild and (at_desk or a.kind in ("talk", "buy", "give", "other")) and not asking \
+                    and (any(w in low for w in ("join", "fee", "pay", "sign", "enrol", "enroll", "register"))
+                         or (at_desk and (a.kind == "give" or any(w in low for w in ("hand", "give", "silver", "coin"))))):   # at the desk, handing the coin over is paying (f282)
+                a.kind, a.target, a.ware, a.item = "join_guild", "", "", ""
+        seen_join = False
+        kept = []
+        for a in plan:
+            if a.kind == "join_guild":
+                if seen_join:
+                    continue
+                seen_join = True
+            kept.append(a)
+        return kept
+
+    def coin_offered(self, text: str, plan: list) -> None:
+        """"I offer the guard 5 silver to look the other way" is giving coin, whatever it was read as; coin handed to nobody in
+        particular goes to the one the line names (f333)."""
+        here_ids = {n.id for n in self.present}
+        coin_given = any(b.kind == "give" and self.coin_amount(b.item or "") for b in plan)
+        for a in plan:
+            if a.kind in ("talk", "other") and a.target in here_ids and self.coin_amount(text) and not coin_given \
+                    and not NEGATED.search(text.lower()) and not PAST.search(text.lower()) \
+                    and any(w in f"{text} {a.summary}".lower() for w in self.BRIBE_WORDS):
+                m = re.search(r"(?:\d+|[a-z]+)\s+(?:gold|silver|copper)(?:\s+(?:and\s+)?(?:\d+|[a-z]+)\s+(?:gold|silver|copper))*", text.lower())
+                a.kind, a.item = "give", (m.group(0) if m else "coins")
+                coin_given = True
+            if a.kind == "give" and not a.target and self.coin_amount(a.item or ""):
+                a.target = self.named_here(text) or (self.partner.id if self.partner else "") or (self.present[0].id if len(self.present) == 1 else "")
+
+    HARVEST_WORDS = ("harvest", "skin", "butcher", "gut", "carcass", "hide", "meat", "parts", "gather")
+
+    def one_harvest(self, text: str, plan: list) -> list:
+        return [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
+                if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
+                        and any(w in f"{a.summary} {a.item}".lower() for w in self.HARVEST_WORDS))] or plan
+
+    def drop_narrated_talk(self, text: str, plan: list) -> list:
         """(f333) A talk step whose 'speech' is the player describing an action the plan already has ("I give Bram a healing draught" beside
-        a give) is not words said: it is dropped. Spoken words in quotes are never touched, and a talk that is the only step stays."""
+        a give) is not words said: it is dropped, and the person it named is given to the deed when that lacks one. Spoken words in quotes
+        are never touched, and a talk that is the only step stays. When every step was handed the whole line as its speech and the line
+        has as many clauses as the plan has steps, each step's words are its own clause ("I buy a meal, then ask Hollis about the roads")."""
         from engine import actions
         if len(plan) < 2 or markup.has_markup(text) or '"' in text:
             return plan
-        kept = []
-        for a in plan:
+        whole = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", text.lower())).strip()
+        clauses = [c.strip() for c in re.split(r",?\s+(?:and then|then|and)\s+|;\s*", text.strip()) if c.strip()]
+        kept, lost = [], []
+        for k, a in enumerate(plan):
             if a.kind == "talk" and a.speech.strip():
-                said = re.sub(r"^\W*(?:i|we)\s+(?:try to |go to |will |'ll )?", "", a.speech.strip().lower())
+                speech = a.speech.strip()
+                same = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", speech.lower())).strip() == whole
+                if same and len(clauses) == len(plan) > 1:
+                    speech = a.speech = clauses[k]
+                    same = False
+                said = re.sub(r"^\W*(?:i|we)\s+(?:try to |go to |will |'ll )?", "", speech.lower())
                 verbs = {w for b in plan if b is not a and b.kind != "talk" for w in actions.BY_KIND[b.kind].verbs + actions.BY_KIND[b.kind].words}
                 lead = re.findall(r"[a-z']+", said)[:2]                  # "give bram", "throw dice", "offer the": the action is in the first two words
-                if any(w in verbs for w in lead) or any(" ".join(lead).startswith(v + " ") for v in verbs if " " in v):
+                narrated = any(w in verbs for w in lead) or any(" ".join(lead).startswith(v + " ") for v in verbs if " " in v)
+                first_person = re.match(r"^\W*(?:i|we)\b", speech.lower()) is not None and any(b.kind != "talk" for b in plan)
+                to_someone = re.search(r"\b(you|your|yours|you're|you've|you'll|please|thanks|thank you)\b", speech.lower()) is not None
+                if narrated or (same and first_person and not to_someone):   # the whole line, told in the first person to nobody, is the player narrating
                     console.debug(f"dropped a talk narrating the {[b.kind for b in plan if b is not a]} step: {a.speech[:60]!r}")
+                    lost.append(a.target)
                     continue
             kept.append(a)
+        for t in [t for t in lost if t]:                                 # the one the talk named is who the deed is for
+            for b in kept:
+                if b.kind in actions.TARGETED and not b.target:
+                    b.target = t
         return kept or plan
 
     def named_here(self, text: str) -> str:
-        """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several."""
+        """The id of the one person here the line names, by name or by trade ("the guard", "Bram"); '' when none or several. A hire in
+        the party counts as here."""
         low = text.lower()
         hits = []
         for n in self.present:
             words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if n.name_known_to_player and n.name else set())
             if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):
                 hits.append(n.id)
+        for m in self.player.party:
+            if m.get("permanent") and m.get("name") and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low):
+                hits.append(f"hire:{m['id']}")
         return hits[0] if len(hits) == 1 else ""
 
     def local_building(self, text: str, plan: list) -> None:
@@ -1343,9 +1396,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
-        wares_all = [f"{w.id} from {n.id}: {w.name} - {money.words(w.price)} (sold by {n.label()})"
+        wares_all = [f"{w.id}: {w.name} - {money.words(w.price)} (sold by {n.label()}, id {n.id})"               # (f333) the id alone first: the model copies the label it is shown
                      for n in self.present for w in self.world.roles[n.role].sells] \
-            + [f"{i.name} from {n.id}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock)" for n, i, p in self.stock_here()]
+            + [f"{i.name}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock of {n.label()}, id {n.id})" for n, i, p in self.stock_here()]
         from engine import loadout
         abilities_all = [f"{a.id}: {a.name} ({a.field_use or a.effect.value}{', in a fight' if a.context.value == 'combat' else ''})"
                          for a in loadout.prepared(self.player.character)]
@@ -2078,3 +2131,4 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
 from scenes import intercepts as _intercepts                                     # noqa: E402
 WorldScene.INTERCEPT_TABLE = _intercepts.gather(WorldScene)                     # declared by the mixins, run in order by handle()
+WorldScene.REPAIR_TABLE = plan_repairs.gather(WorldScene)                        # the plan repairs, declared the same way, run in order by repair()

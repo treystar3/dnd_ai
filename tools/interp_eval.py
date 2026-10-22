@@ -183,7 +183,8 @@ class Bench:
         ws.player.delve = None
         if sc.get("dungeon"):
             ws.ensure_dungeons()
-            d = next((x for x in self.store.load_dungeons() if x["place"] == sc["dungeon"]), None)
+            ds = self.store.load_dungeons()
+            d = next((x for x in ds if x["place"] == sc["dungeon"]), None) or (ds[0] if ds else None)   # a place with no dungeon beneath it: any one will do
             if d:
                 ws.player.location = d["entrance"]
                 if sc.get("delve"):
@@ -206,6 +207,7 @@ class Bench:
         return {"handled_by": last.get("handled_by", "nothing"), "kinds": [k for k, _ in self.ran], "first": first,
                 "steps": [i.model_dump(exclude_defaults=True) for _, i in self.ran],
                 "moves": list(self.moves), "talked": list(self.talked), "hire": [n for n, _ in self.hire],
+                "repairs": [r.get("rule", "?") for r in (last.get("repairs") or [])] if last else [],
                 "read": (last.get("interpreter") or [{}])[0].get("plan") if last else None}
 
 
@@ -265,12 +267,17 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict
         row = by_kind.setdefault(group_of(case), [0, 0])
         row[1] += 1
         row[0] += not bad
+    fired: dict[str, int] = {}
+    for _, got, _ in results:
+        for r in got.get("repairs") or []:
+            fired[r] = fired.get(r, 0) + 1
     summary = {"cases": n, "right": n - len(wrong), "wrong": wrong, "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
-               "by_kind": {k: f"{r}/{t}" for k, (r, t) in sorted(by_kind.items())}}
+               "by_kind": {k: f"{r}/{t}" for k, (r, t) in sorted(by_kind.items())}, "repairs": dict(sorted(fired.items(), key=lambda x: -x[1]))}
     if not quiet:
         print(f"\n{summary['right']}/{n} right; intercepts took {taken_wrong} line(s) that were not theirs and missed {missed} that were"
               + (" (live: the model's reading counted)" if live else " (offline: the model's reading is the case's own)"))
         print("by kind: " + ", ".join(f"{k} {v}" for k, v in summary["by_kind"].items()))
+        print("repairs fired: " + (", ".join(f"{k} {v}" for k, v in summary["repairs"].items()) or "none"))
         if wrong:
             print("wrong: " + ", ".join(wrong))
     return summary

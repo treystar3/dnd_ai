@@ -96,7 +96,7 @@ def news_for(store, world, npc, now: int, limit: int = 5) -> list[str]:
         if now - n["minute"] > keep or not (set(n["groups"]) & groups):
             continue
         if n["minute"] + travel_delay(world, n["origin"], npc.location) <= now:
-            heard.append(n["text"])
+            heard.append(news_text(n))
         if len(heard) >= limit:
             break
     return heard
@@ -338,8 +338,8 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             else:
                 fall = th["fallout"]
                 row = pulselog.note("end", f"{th['title']} - left alone, so the fallout lands: {fall['description'][:140]}")
-                apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
-                end_thread(store, state, th, "ended", f"{th['title']} - {fall['description']}", t)
+                end_thread(store, state, th, "ended", f"{th['title']} - {fall['description']}", t)        # lifts what the stages laid...
+                apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)   # ...and the fallout stays
                 th["result"] = "ignored"
                 if (th.get("summons") == "met" or th.get("answered")) and store.player_exists():      # (f317) they were asked, and let it be
                     pl = store.load_player()
@@ -376,7 +376,24 @@ def resolver(store, world, th, rng) -> str:
         f"the people of {place.name}"
 
 
+def lift(state: dict, th: dict, t: int) -> None:
+    """What a situation laid on the world goes with it when it ends, however it ends: its danger, closures and prices end now, its
+    creatures stop appearing, its camps break up within two days. By the thread's id (f331); by title for effects from before ids were
+    kept. Called by end_thread, so a thread settled by others or left to run out is lifted like one the player ended (events.finish)."""
+    for e in state.get("effects", []):
+        mine = e.get("thread") == th["id"] if e.get("thread") else e.get("cause") == th["title"]
+        if mine and e["kind"] in ("danger", "closed", "prices"):
+            e["until"] = min(e["until"], t)
+    for s in state.get("spawns", []):
+        if s.get("thread") == th["id"]:
+            s["defeated"] = True
+    for camp in state.get("camps", []):
+        if camp.get("thread") == th["id"]:
+            camp["until"] = min(camp["until"], t + 2 * 1440)
+
+
 def end_thread(store, state, th, status: str, line: str, t: int) -> None:
+    lift(state, th, t)
     th["status"] = status
     if state.get("campaign") == th["id"]:
         state["campaign"] = ""
@@ -610,13 +627,41 @@ def cap_news(news: list) -> list:
 
 
 def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: str = "") -> None:
-    """A piece of news. `thread` (f331) ties it to the situation it is about, so arrival can find a situation's own news."""
-    if text and text.strip():
-        row = {"text": text.strip(), "origin": origin, "minute": t, "groups": groups}
-        if thread:
-            row["thread"] = thread
-        state.setdefault("news", []).append(row)
-        state["news"] = cap_news(state["news"])
+    """A piece of news. `thread` (f331) ties it to the situation it is about, so arrival can find a situation's own news. The same
+    news from the same place while the first telling is still news is one tale told again, not a second row: the row counts its
+    tellings (`times`, read by news_text) and becomes the newest. A tale of the player's deeds (engine/standing.py, `deed`) is never
+    folded: each one moves standing where it arrives."""
+    if not (text and text.strip()):
+        return
+    text = text.strip()
+    news = state.setdefault("news", [])
+    keep = P["news"]["keep_days"] * 1440
+    for i, n in enumerate(news):
+        if n["text"] == text and n["origin"] == origin and not n.get("deed") and t - n["minute"] <= keep:
+            n["times"] = int(n.get("times", 1)) + 1
+            n["minute"] = t
+            n["groups"] = list(dict.fromkeys(list(n["groups"]) + list(groups)))
+            if thread:
+                n["thread"] = thread
+            news.append(news.pop(i))
+            state["news"] = cap_news(news)
+            return
+    row = {"text": text, "origin": origin, "minute": t, "groups": groups}
+    if thread:
+        row["thread"] = thread
+    news.append(row)
+    state["news"] = cap_news(news)
+
+
+COUNTS = {3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+
+
+def news_text(n: dict) -> str:
+    """A news row as it is told: a tale told more than once says so."""
+    times = int(n.get("times", 1) or 1)
+    if times < 2:
+        return n["text"]
+    return f"{n['text']} Again." if times == 2 else f"{n['text']} That makes {COUNTS.get(times, str(times))} times."
 
 
 # ---------- context for the model ----------

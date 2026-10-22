@@ -48,13 +48,14 @@ ACTIONS: tuple[Action, ...] = (
     Action("look", "look around, or at something here", clock.LOOK_MINUTES, words=("look", "examine", "inspect"),
            prompt="""they look around or take in their surroundings, or think aloud with no one to answer"""),
     Action("search", "search this place", words=("search",),
-           prompt="""they search, hunt, track, explore, scout or look for creatures, game, enemies or signs of them"""),
+           prompt="""they search, hunt, track, explore, scout or look for creatures, game, enemies or signs of them
+               (fishing is other; herbs are forage)"""),
     Action("talk", "speak to someone here", clock.TALK_MINUTES, targeted=True,
            prompt="""they speak to, ask, whisper to, greet, approach or look for a PERSON in PEOPLE HERE,
                or keep talking in the current conversation. Any spoken words count as talk."""),
     Action("leave_conversation", "end the conversation", 0,
            prompt="""they end the current conversation without going anywhere (a goodbye can include spoken words)"""),
-    Action("buy", "buy a ware from someone here", targeted=True, verbs=("buy", "purchase", "sleep", "rest"),
+    Action("buy", "buy a ware from someone here", targeted=True, verbs=("buy", "purchase", "sleep", "rest"), words=("order", "rent"),
            prompt="""they pay for, buy, rent, order or accept the price of something listed under FOR SALE.
                Handing someone money for something they offered ("I hand him the silver") is buy, not give."""),       # sleep, rest: a room
     Action("sell", "sell something to someone here", targeted=True, verbs=("sell", "give", "hand"),
@@ -70,7 +71,7 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they pick up or take something listed ON THE GROUND HERE"""),
     Action("give", "give an item or coin to someone here", targeted=True, verbs=("give", "hand", "bribe"), words=("offer",),
            prompt="""they give or hand something from YOUR PACK or KEY ITEMS to a person here"""),
-    Action("show", "show someone an item or key item", targeted=True, verbs=("give", "hand", "show"),
+    Action("show", "show someone an item or key item", targeted=True, verbs=("give", "hand", "show"), words=("present",),
            prompt="""they show, present or display something (usually from KEY ITEMS) to a person here"""),
     Action("discard", "throw an item away for good", verbs=("discard", "drop"),
            prompt="""they throw away, get rid of, burn or destroy something from KEY ITEMS"""),
@@ -85,9 +86,9 @@ ACTIONS: tuple[Action, ...] = (
     Action("craft", "make something from materials", verbs=("craft", "forge"),
            prompt="""they make, brew, cook, forge, sew or craft something themselves - a RECIPE, or gear such as a
                jerkin, helm, spear or shield from materials in YOUR PACK"""),
-    Action("work", "take, do or finish paid work for someone", targeted=True,
+    Action("work", "take, do or finish paid work for someone", targeted=True, words=("haul", "labour", "labor", "chop", "dig"),
            prompt="""they do work or labor for or with a person here: help them, haul, load, carry, dig, chop,
-               tend - including taking up a job that person offered"""),
+               tend - including taking up a job that person offered ("I'll take the job you mentioned")"""),
     Action("harvest", "skin or butcher a carcass", verbs=("harvest", "skin", "butcher"),
            prompt="""they skin, butcher, gut or harvest the bodies of creatures they killed. "Skin it and harvest what I can"
                is ONE harvest, never a harvest plus an other"""),
@@ -143,7 +144,9 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they haggle, bargain or try to beat down the price of something listed under FOR SALE before buying it:
                ware and target as for buy. A plain purchase is buy."""),
     Action("other", "anything else: narrated as an attempt", clock.OTHER_MINUTES, verbs=("bribe",),
-           prompt="""anything else they attempt"""),
+           prompt="""anything else they attempt, done where they stand: fishing, climbing onto a roof or a wall, barring a door,
+               rigging a snare, swimming, carving a mark. Never a journey (move) or a hunt for creatures (search), and
+               never a restatement of another action in the same line."""),
 )
 
 BY_KIND: dict[str, Action] = {a.kind: a for a in ACTIONS}

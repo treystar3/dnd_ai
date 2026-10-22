@@ -6,3 +6,10 @@ rarity_weight:
   uncommon: 4
   rare: 1
   legendary: 0.05
+
+# fit: a creature whose level range sits where the zone's band sits is likelier on the roster than one that merely overlaps it. The
+# rarity weight is scaled by how much of the band the creature covers times how much of the creature's own range lies in the band,
+# down to `floor`. Before this any overlap counted the same, so a level 120-200 zone drew as many level 50-130 stragglers as peers
+# (sim_report.md: the content ceiling), and the Greywood drew a level 1-60 bandit as readily as a wolf.
+fit:
+  floor: 0.05
