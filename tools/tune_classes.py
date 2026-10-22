@@ -31,7 +31,7 @@ _BASE = {}
 def base_character(cls: str):
     if cls not in _BASE:
         simlib.install(simlib.Stub(cls, 1))              # the stand-in for the language model answers for one class at a time
-        _BASE[cls] = simlib.make_character(cls, random.Random(1, perks=True))
+        _BASE[cls] = simlib.make_character(cls, random.Random(1), perks=True)       # the balance bots draw creation perks
     c, spec = _BASE[cls]
     return c.model_copy(deep=True), spec
 
@@ -89,7 +89,7 @@ def fight(world, cls, level, rank, pack, per_level=14, runs=4, seed=3):
                 if shape:
                     allies.append(combat.companion_fighter(shape, level, f"ally_{comp.id}", comp.name))
             allies = taming.strongest(allies, level)
-            foes = [combat.fighter_from_creature(cr, level, rank, f"e{i}", band="near") for i in range(pack_size(cr, level, rng) if pack else 1)]
+            foes = [combat.fighter_from_creature(cr, level, rank, f"e{i}", start="near") for i in range(pack_size(cr, level, rng) if pack else 1)]
             out = combat.simulate(combat.Combat(fighters=[p] + allies + foes), rng)
             n += 1; rounds += out.round - 1
             wins += out.over == "victory"
