@@ -126,9 +126,9 @@ def validate_campaign(store, world=None) -> list[Problem]:
     # ---- the world's own state
     st = store.load_world_state() or {}
     thread_ids = {t.get("id") for t in st.get("threads", [])}
-    for s in st.get("spawns", []):
-        if s.get("thread") and s["thread"] not in thread_ids:
-            out.append(Problem("world.spawns", f"spawn '{s.get('id', '?')}' belongs to thread '{s['thread']}', which is gone"))
+    for s in st.get("spawns", []):                   # a defeated spawn of a finished thread is a record kept, not a creature loose
+        if s.get("thread") and s["thread"] not in thread_ids and not s.get("defeated"):
+            out.append(Problem("world.spawns", f"spawn '{s.get('id', '?')}' of thread '{s['thread']}', which is gone, is still abroad"))
     if st.get("campaign") and st["campaign"] not in thread_ids:
         out.append(Problem("world", f"the running campaign '{st['campaign']}' is not among the threads"))
     for t in st.get("threads", []):
