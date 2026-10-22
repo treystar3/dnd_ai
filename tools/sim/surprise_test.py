@@ -88,7 +88,10 @@ check("a buff named alone with something hostile near is readied, not refused", 
 ws.on_attack(ActionIntent(kind="attack"), "Keen Sight")
 check("...and goes up when the fight starts that turn", ws.combat and "t_precision" in ws.combat.fight.player.buffs)
 
-sc = start(f"I sneak up and use {strike.name}", ActionIntent(kind="ability", ability=strike.id), sneaking=True, roll="success")
+for _ in range(8):                                   # the opening blow can miss on the fight's own dice: then nothing is recorded; try until it lands
+    sc = start(f"I sneak up and use {strike.name}", ActionIntent(kind="ability", ability=strike.id), sneaking=True, roll="success")
+    if sc and any(h.get("steps") for h in sc.fight.hits):
+        break
 e = sc.fight.enemies()[0] if sc and sc.fight.enemies() else None
 check("a fighting ability named at something hostile starts the fight", sc is not None)
 check("...and is the opening action", sc and sc.fight.player_acted, sc and sc.fight.log)
