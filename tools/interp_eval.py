@@ -122,7 +122,9 @@ class Bench:
         self.plan = [dict(p) for p in (case.get("plan") or [{"kind": "look"}])]
         self.ran.clear(); self.moves.clear(); self.talked.clear(); self.hire.clear(); self.notes.clear()
         text = case["text"]
-        self.ws.handle(text)
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):                 # the game's own printing stays off the report
+            self.ws.handle(text)
         rows = [json.loads(l) for l in open(config.TURN_LOG_PATH, encoding="utf-8")] if Path(config.TURN_LOG_PATH).exists() else []
         last = rows[-1] if rows and rows[-1].get("text") == text else {}
         first = self.ran[0][1].model_dump(exclude_defaults=True) if self.ran else {}
