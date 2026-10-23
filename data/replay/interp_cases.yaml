@@ -848,3 +848,17 @@
   plan: [{kind: other, summary: I light a candle for my mother}]
   expect: {handled_by: interpret, kinds: [pray]}
   note: "as the model read lighting_a_candle_is_pray"
+# ---- (f342) two readings from a tester's first hour in Parth: a move the player named, dropped beside a talk to someone here; and a bow
+# bought for a player who asked for arrows the town does not sell
+- name: a_move_to_the_named_square_stands
+  text: "i walk out of the building to the the trading square and aproach the chandler. i ask \"do you have arrows for sale?\""
+  scene: {place: guild_house, present: [{id: q1, name: Quill Sweetwater, role: guild_contractor}]}
+  plan: [{kind: move, destination: trading_square, summary: I walk out of the building to the trading square.}, {kind: talk, target: q1, speech: "do you have arrows for sale?", summary: I approach the chandler and ask if they have arrows for sale.}]
+  expect: {handled_by: interpret, kinds: [move, talk]}
+  note: "as the model read it live, resolving 'the chandler' to someone present; the move stands because the square is named"
+- name: arrows_asked_for_do_not_buy_a_bow
+  text: "i aproach the tinker the and ask to buy arrows"
+  scene: {place: trading_square, present: [{id: t1, name: Denholm Saltmarsh, role: tinker}]}
+  plan: [{kind: talk, target: t1, speech: "I approach the tinker and ask to buy arrows", summary: Approaching the tinker and asking to buy arrows}, {kind: buy, target: t1, ware: crude ash shortbow, summary: Attempting to buy arrows from the tinker}]
+  expect: {handled_by: interpret, kinds: [talk]}
+  note: "as the model read it live: no arrows on the shelf, so it reached for the bow; the asking stands and the tinker answers"

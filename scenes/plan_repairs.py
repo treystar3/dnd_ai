@@ -112,6 +112,7 @@ class PlanRepairs:
         Repair("move_elsewhere", 110, "move_elsewhere", "out of a delve is leave_dungeon; a roof is a climb (other); upstairs or the bar is look"),
         Repair("fishing", 120, "fishing", "fishing is one attempt where they stand, not a hunt for fish or a journey to the water"),
         Repair("drop_restatements", 130, "drop_restatements", "a step that only says again what another does goes: the attack after the spell, the ingredient beside the craft, a look nobody asked for"),
+        Repair("buy_what_was_named", 135, "buy_what_was_named", "a piece of stock the line never named, bought beside the asking for something else, goes: the asking stands (f342)"),
         Repair("name_the_target", 140, "name_the_target", "a step aimed at someone, with nobody named in it, is for the one person the line names"),
     )
 
@@ -313,6 +314,29 @@ class PlanRepairs:
         return kept or plan
 
     # ---------- who it is for
+
+    def buy_what_was_named(self, text: str, plan: list) -> list | None:
+        """"I ask to buy arrows" read as a talk and a buy of a crude shortbow: the model, finding no arrows, reached for the nearest thing
+        on the shelf. A buy of stock (gear, not a good off a role's list) whose name shares no word with the line, in a plan that also
+        asks the same seller, is dropped; the asking stands, and the seller answers in their own words. A good (food, a draught, a
+        room) is left alone: "something to eat" names no ware and still means the loaf."""
+        from engine import inventory
+        said = {w for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 3}
+
+        def plain(name: str) -> str:                              # "Trail Rations" and trail_ration are one good
+            return re.sub(r"[^a-z]+", "_", (name or "").lower()).strip("_").rstrip("s")
+        goods = {plain(g.id) for g in inventory.GOODS.values()} | {plain(g.name) for g in inventory.GOODS.values()}
+        for role in self.world.roles.values():                    # and so is anything on a trade's own list: a room, a draught, a meal
+            goods |= {plain(w.id) for w in role.sells} | {plain(w.name) for w in role.sells}
+        out = []
+        for a in plan:
+            if a.kind == "buy" and a.ware and plain(a.ware) not in goods \
+                    and any(b.kind == "talk" and b is not a and (not a.target or not b.target or b.target == a.target) for b in plan):
+                ware_words = {w for w in re.findall(r"[a-z]+", a.ware.lower()) if len(w) >= 3}
+                if not any(w == v or (len(v) >= 3 and (w.endswith(v) or v.endswith(w))) for w in said for v in ware_words):
+                    continue
+            out.append(a)
+        return out if len(out) != len(plan) else None
 
     def name_the_target(self, text: str, plan: list) -> None:
         """A step aimed at someone, with nobody named in it, is for the one person the line names ("I hand the guard a silver")."""

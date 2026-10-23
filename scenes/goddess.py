@@ -280,7 +280,7 @@ class ThresholdScene:
     def finish(self) -> None:
         self.character = creation.build_character(
             self.name, self.interp, self.actives, self.passives,
-            Attributes(**self.values), None,
+            Attributes(**self.values), None, concept=self.concept,
         )
         path = creation.save_character(self.character)
         self.step = Step.DONE

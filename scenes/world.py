@@ -908,7 +908,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     REPAIRS = (
         plan_repairs.Repair("scrub_markup", 10, "scrub_markup", "words in *asterisks* are never speech; a talk left wordless by that goes"),
         plan_repairs.Repair("wordless_talk", 20, "wordless_talk", "a second, wordless talk to the one the line already spoke to adds nothing (f299)"),
-        plan_repairs.Repair("move_to_present", 30, "move_to_present", "a move before a word or a deal with someone already here is no journey"),
+        plan_repairs.Repair("move_to_present", 30, "move_to_present", "a move before a word or a deal with someone already here is no journey - unless the line names the place"),
         plan_repairs.Repair("narrated_talk", 40, "drop_narrated_talk", "a talk whose words narrate another step is not speech; the one it named gets the deed (f333)"),
         plan_repairs.Repair("local_building", 50, "local_building", "'the inn' with no town named is this town's inn, not a far one (f333)"),
         plan_repairs.Repair("join_guild", 150, "join_guild_rewrite", "paying or asking to join, said to the clerk, is joining - once (f271, f282)"),
@@ -942,9 +942,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def move_to_present(self, text: str, plan: list) -> list:
         here_ids = {n.id for n in self.present}
+        said = {w for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 3}
+
+        def named(dest: str) -> bool:                              # (f342) "to the trading square": the player named where; the move stands
+            pl = self.world.places.get(dest)
+            return bool(pl) and bool({w for w in re.findall(r"[a-z]+", pl.name.lower()) if len(w) > 3 and w not in ("the", "and")} & said)
         return [a for k, a in enumerate(plan)
-                if not (a.kind == "move" and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission")
-                                                 and b.target in here_ids for b in plan[k + 1:]))] or plan
+                if not (a.kind == "move" and not named(a.destination)
+                        and any(b.kind in ("talk", "give", "show", "buy", "sell", "commission") and b.target in here_ids for b in plan[k + 1:]))] or plan
 
     def join_guild_rewrite(self, text: str, plan: list) -> list | None:
         """Paying or asking to join the guild, said to the clerk, is joining - and only once."""
@@ -1395,6 +1400,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         _sc = truth.scene_of(self)
         people = [(p.id, p.label, f"{p.role}. {p.plain} {p.doing}" + (f" {p.note}" if p.note else "")) for p in _sc.present_people() if p.kind == "npc"]
         away_rows = self.people_elsewhere()
+        away_rows = away_rows + self.town_people_named(text, {n.id for n in away_rows} | {n.id for n in self.present})   # (f342)
         shown_away = cand.people_elsewhere(away_rows, text)
         left = next((n for n in away_rows if n.id == self.last_spoken and n.location == self.player.location and n.away_until > self.minutes), None)
         if left is not None and all(n.id != left.id for n in shown_away):
@@ -1494,6 +1500,55 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.note(f"You walk over to {npc.label()}.")
         self.halted = False
 
+    @staticmethod
+    def names_person(text: str, row) -> bool:
+        """Do the words name this person: their name, their epithet, or their trade ('the smith', 'the blacksmith', 'smithy')?"""
+        said = {w for w in re.findall(r"[a-z]+", (text or "").lower()) if len(w) >= 4}
+        role = row.role.replace("_", " ")
+        theirs = {w for w in re.findall(r"[a-z]+", f"{row.name} {row.epithet or ''} {role}".lower()) if len(w) >= 4}
+        return any(w == v or w.endswith(v) or (w.startswith(v) and len(w) - len(v) <= 2) or (v.endswith(w) and len(w) >= 5)
+                   for w in said for v in theirs) or row.id in (text or "").lower().split()             # blacksmith, smithy, smiths
+
+    def town_people_named(self, text: str, exclude: set) -> list:
+        """(f342) People of this town, wherever in it they work, whom the words name - met or not. The smith of Parth works in the
+        streets, not in the square; a player who saw her at the gate and asks for 'the smith' from the square means her."""
+        from engine import mapview, retrieval
+        top = mapview.top_of(self.world, self.player.location)
+        if not top or self.world.places[top].danger:
+            return []
+        rows = retrieval.people_in_town(self.store, self.world, top)
+        return [r for r in rows if r.id not in exclude and r.location != self.player.location and self.names_person(text, r)]
+
+    def town_person(self, dest: str = "", kind: str = ""):
+        """(f342) Someone of this town, not here, who is what the player means: a trade word ('the smith'), or whoever works in that
+        kind of building ('the smithy' in a town that has a smith but no smithy). The nearest first."""
+        from engine import mapview, retrieval
+        top = mapview.top_of(self.world, self.player.location)
+        if not top or self.world.places[top].danger:
+            return None
+        here = {n.id for n in self.present}
+        rows = [r for r in retrieval.people_in_town(self.store, self.world, top) if r.id not in here and r.location != self.player.location]
+        wanted = [r for r in rows if dest and self.names_person(dest, r)] or [r for r in rows if kind and r.role in self.ROLES_OF.get(kind, ())]
+        if not wanted:
+            return None
+        def walk(r):
+            found = self.world.path(self.player.location, r.location)
+            return found[1] if found else 10 ** 9
+        return min(wanted, key=walk)
+
+    def go_to_person(self, row, text: str) -> None:
+        """(f342) Walk to where someone of this town works and over to them; when they are not about at this hour, say so."""
+        if row.location != self.player.location:
+            self.travel_route(row.location, text)
+            if self.halted:
+                return
+        npc = next((n for n in self.present if n.id == row.id), None)
+        if npc:
+            self.walk_over(npc)
+        else:
+            console.note(f"{row.label()} works here, but is not about at this hour.")
+            self.halted = True
+
     def names_far_place(self, dest: str, text: str) -> bool:
         """Do the player's own words name this place (or its town)? A bare noun like 'the smithy' does not."""
         from engine import mapview
@@ -1546,6 +1601,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if person:
                 self.walk_over(person)
                 return
+            row = self.town_person(dest)                                # (f342) 'the smith', who works across town
+            if row:
+                self.go_to_person(row, text)
+                return
             if not any(dest.lower() in pl.name.lower() or dest == pl.id for pl in self.world.places.values()):
                 if self.place.danger or self.place.type in ("hut", "camp", "grove", "spring", "shrine", "ford", "cabin", "cave",
                                                             "ruin", "hollow", "overlook") or self.looks_like_exploring(dest, text):
@@ -1565,6 +1624,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 person = self.local_person("", self.world.places[dest].type)
                 if person:                                         # this town has no such building, but it has the person who would work in one
                     self.walk_over(person)
+                    return
+                row = self.town_person(dest, self.world.places[dest].type)      # (f342) ...or has them somewhere else in town
+                if row:
+                    self.go_to_person(row, text)
                     return
                 tgt = self.world.places[dest]
                 found = self.world.path(self.player.location, dest)
@@ -1655,8 +1718,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         if not npc and self.store.npc_exists(target_id):
             away = self.store.load_npc(target_id)
-            console.note(f"{away.label()} isn't here. You last saw them at {self.where_name(away.location)}.")
-            return
+            from engine import mapview
+            same_town = (away.location in self.world.places and away.location != self.player.location
+                         and mapview.top_of(self.world, away.location) == mapview.top_of(self.world, self.player.location)
+                         and not self.world.places[away.location].danger and away.away_until <= self.minutes)
+            if not same_town:
+                console.note(f"{away.label()} isn't here. You last saw them at {self.where_name(away.location)}.")
+                return
+            self.travel_route(away.location, text)                 # (f342) someone of this town: walk to where they work
+            if self.halted:
+                return
+            npc = next((n for n in self.present if n.id == target_id), None)
+            if not npc:
+                console.note(f"{away.label()} is not about at this hour.")
+                self.halted = True
+                return
         if not npc and not self.present:
             self.narrate("The player says or thinks this aloud, but no one is here to answer. Reflect the silence "
                          "of the place back at them in a sentence or two.", text)
