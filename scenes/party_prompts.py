@@ -35,6 +35,7 @@ Also return:
   impression: only if what you think of the player has just changed, one short line of what you think of them now. Otherwise empty.
 Whatever specific thing you say about yourself becomes true of you for good, so choose it with care, and never contradict anything given
 as true of you.
+""" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
 Respond only with JSON matching the schema: {"speech": "...", "gesture": "", "remember": "", "impression": ""}.""")
 
 
