@@ -1,6 +1,6 @@
 # Playing dnd_ai (notes for testers)
 
-1. Run `dnd_ai_setup.exe`. Windows may show "Windows protected your PC" because the file is not code-signed:
+1. Run `dnd_ai_<version>_setup.exe`. Windows may show "Windows protected your PC" because the file is not code-signed:
    click **More info**, then **Run anyway**.
 2. Leave "Install Ollama" ticked if you don't already have it (a small Windows permission prompt may appear).
 3. Start the game. The first time, it downloads its AI model (roughly 9 GB) with a progress bar. This happens once.

@@ -1,7 +1,11 @@
 """Is a newer release out? Reads the newest GitHub release of config.UPDATE_REPO (public repositories only; nothing is sent but the request).
 
 Releases carry the installer as an attached file whose name ends in _setup.exe. The game shows an Update button; installing downloads that file,
-runs it quietly and closes the game so the installer can replace it. Saves live beside the exe and are left alone by the installer."""
+runs it quietly and closes the game so the installer can replace it. Saves live beside the exe and are left alone by the installer.
+
+An install is remembered (saves/update_attempt.json: which version was installed, from which). If the game comes back still reporting the
+old version and the same release is still the newest, the update did not take - the usual cause is an installer built before
+core/version.py was raised, so the release's game thinks it is older than the release - and the offer says so instead of looping."""
 
 import json
 import os
@@ -50,9 +54,39 @@ def latest_release(repo: str = "", timeout: float = 4.0) -> dict | None:
             "page": data.get("html_url") or f"https://github.com/{repo}/releases"}
 
 
+def attempt_file() -> Path:
+    from core import paths
+    return paths.APP / "saves" / "update_attempt.json"
+
+
+def note_attempt(info: dict) -> None:
+    """Remember the update being installed now, and the version it was installed over."""
+    try:
+        attempt_file().parent.mkdir(parents=True, exist_ok=True)
+        attempt_file().write_text(json.dumps({"version": info.get("version", ""), "from": VERSION,
+                                              "time": __import__("datetime").datetime.now().isoformat(timespec="minutes")}), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def attempted() -> dict | None:
+    try:
+        return json.loads(attempt_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def available(repo: str = "", timeout: float = 4.0) -> dict | None:
+    """The newest release when it is newer than this game, with `current` (this game's version) and, when this very release was already
+    installed and the game still reports the version it was installed over, `again`: {from, time} - the update did not take."""
     info = latest_release(repo, timeout)
-    return info if info and newer(info["version"]) else None
+    if not info or not newer(info["version"]):
+        return None
+    info["current"] = VERSION
+    last = attempted()
+    if last and last.get("version") == info["version"] and not newer(VERSION, last.get("from", "")):
+        info["again"] = {"from": last.get("from", ""), "time": last.get("time", "")}
+    return info
 
 
 def check_in_background(on_found) -> None:
@@ -86,6 +120,7 @@ def install(info: dict, progress, quit_game) -> str | None:
         subprocess.Popen([str(target), "/SILENT", "/CLOSEAPPLICATIONS", "/NORESTART"], close_fds=True)
     except Exception as e:
         return f"{type(e).__name__}: {e}"
+    note_attempt(info)
     quit_game()
     threading.Timer(10.0, lambda: os._exit(0)).start()       # the installer needs the exe free; the game saves after every action
     return None
