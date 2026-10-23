@@ -20,6 +20,7 @@ import os
 
 import config
 from core import paths
+from core.version import VERSION
 
 if paths.FROZEN:
     os.chdir(paths.APP)          # saves/ and logs/ live beside the exe
@@ -86,7 +87,10 @@ def play(args):
         from core import updates
         info = updates.available(timeout=3.0) if config.UPDATE_REPO else None
         if info:
-            console.note(f"A newer version ({info['version']}) is available: {info['page']}")
+            console.note(f"A newer version ({info['version']}) is available (this is {info.get('current', VERSION)}): {info['page']}")
+            if info.get("again"):
+                console.note(f"It was installed already and the game still reports {info.get('current', VERSION)}: the installer on the release was "
+                             "most likely built before its version number was raised. Installing it again will change nothing.")
 
     new_game = args.new
     while True:

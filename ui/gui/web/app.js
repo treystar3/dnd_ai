@@ -1285,8 +1285,13 @@ function showUpdateButton(info) {
   const b = $("updatebtn");
   b.textContent = `⬆ Update available (v${info.version})`; b.hidden = false;
   b.onclick = () => {
-    $("updtitle").textContent = `Version ${info.version} is available`;
+    $("updtitle").textContent = `Version ${info.version} is available` + (info.current ? ` (you have ${info.current})` : "");
     $("updnotes").textContent = info.notes || "A new version of the game is ready.";
+    if (info.again) {                                   // the same release was installed already and the game still reports the old version
+      const warn = el("p", "updwarn", `This update was already installed${info.again.time ? " on " + info.again.time.replace("T", " at ") : ""}, and the game still reports version ${info.current}. ` +
+        `The installer on the release was most likely built before its version number was raised, so installing it again will change nothing. Tell whoever makes the game.`);
+      $("updnotes").appendChild(warn);
+    }
     $("updbar").hidden = true; $("updtext").textContent = "";
     const btns = $("updbtns"); btns.textContent = "";
     const go = el("button", "primary", "Update now"), later = el("button", "", "Later");

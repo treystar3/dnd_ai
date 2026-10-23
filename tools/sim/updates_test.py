@@ -29,6 +29,21 @@ check("a release is read, with its installer file", info and info["version"] == 
 check("a newer release is available", updates.available("o/r") is not None)
 payload["tag_name"] = "v0.0.1"
 check("an older release is not offered", updates.available("o/r") is None)
+# (f343) a release whose installer was built before the version was raised: installed, the game still reports the old version
+import tempfile, pathlib
+from core import paths as _paths
+_app = _paths.APP; _paths.APP = pathlib.Path(tempfile.mkdtemp())
+payload["tag_name"] = "v9.0.0"
+info = updates.available("o/r")
+check("the offer carries the version this game has", info and info["current"] == updates.VERSION and "again" not in info, info)
+updates.note_attempt(info)
+rec = updates.attempted()
+check("installing is remembered: which version, over which", rec and rec["version"] == "9.0.0" and rec["from"] == updates.VERSION and rec.get("time"), rec)
+info = updates.available("o/r")
+check("the same release offered to the same version is named as an update that did not take", info and info.get("again", {}).get("from") == updates.VERSION, info)
+payload["tag_name"] = "v9.0.1"
+check("a newer release than the one tried is a plain offer again", "again" not in (updates.available("o/r") or {}))
+updates.attempt_file().unlink(); _paths.APP = _app
 def boom(req, timeout=0): raise OSError("offline")
 urllib.request.urlopen = boom
 check("offline is silent", updates.latest_release("o/r") is None)
