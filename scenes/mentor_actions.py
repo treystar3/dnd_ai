@@ -48,10 +48,15 @@ class MentorActions:
             manner = M["frame"]["manner_warm"] if introduced else M["frame"]["manner_cold"]
             doing = M["frame"]["doing"].get(mentor.stage(self.player) or "meeting", M["frame"]["doing"]["meeting"])
             others = [f"{n.label()}: {n.activity}" for n in self.present][:5]
+            from engine import reach                         # (f344) her own gear and the place's things; tense while she weighs a stranger
+            within = reach.within("", self.place.type, carries=M["frame"].get("carries", []))
+            moment = reach.moment(wary="" if introduced else M["frame"].get("wary", "she does not yet know whether the stranger is a bandit"),
+                                  fight=bool(self.combat))
             try:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, label, looks, doing, manner, not introduced,
-                                                  reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["length"]),
+                                                  reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["length"],
+                                                  reach=within, moment=moment),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=400)
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either

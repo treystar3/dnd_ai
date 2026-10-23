@@ -212,6 +212,9 @@ def check() -> list[str]:
         from scenes import plan_repairs as _pr                 # (f333) the plan repairs, declared like the intercepts
         for p_ in _pr.problems(_WS):
             need(False, p_)
+    from engine import reach as _rc                          # (f344) what is within reach: real trades with tools, real place types
+    for p_ in _rc.problems({r_["id"] for r_ in _load("data/world/roles.yaml")}, {p_.get("type", "") for p_ in _load("data/world/places.yaml")}):
+        need(False, p_)
     from engine import threads as _th                        # (f331) the engine's own situations: templates, effect kinds, slots, the pressures that use them
     from llm.contracts import WorldEffect as _WE
     import typing as _ty

@@ -159,9 +159,11 @@ class BanterActions:
         others = [f"{n.label()}: {n.activity}" for n in self.present if n.name not in speaking and n.label() not in speaking][:4]
         spoken = [t for _, t in merged if not t.startswith("(")] or [t for _, t in merged]
         try:
+            from engine import reach                            # (f344) what the place offers the party; tense in a fight
             frame = fresh("dialogue_frame", wp.EXCHANGE_SYSTEM,
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
-                                              P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name),
+                                              P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
+                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight)),
                           DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 420)
             after = "" if in_fight else frame.after
             self.remember_narration(" ".join(t for t in (frame.before, after) if t.strip()),

@@ -10,9 +10,11 @@ name: Maren Holt
 unnamed: An armored woman        # what her lines are shown under until she gives her name (f273)
 frame:                           # how the narrator frames her words with what she is doing as she speaks (f274, scenes/world.py narrate_dialogue)
   looks: "A broad-shouldered woman in her middle years in dark plate with gold detailing, a greatsword on her back and an enamelled A on her shoulder."
+  carries: [her greatsword, the A crest on her shoulder, her gauntlets]     # (f344) what is within her reach wherever she stands (engine/reach.py)
+  wary: "she does not yet know whether this armed stranger is a bandit"   # the moment, until the stranger has settled her
   manner_cold: "cold, guarded and still; she gives nothing away and watches the player's hands and face"
   manner_warm: "warm and wry, self-assured, observant, gently teasing, with a soft spot for newcomers she does not make a thing of"
-  length: "one or two short sentences before, at most one after: only small things she does as she speaks (a look, a shift of weight, a hand resting on her sword hilt, a glance at the street). She does not touch the player or anything of theirs, hand anything over, go anywhere, or do anything that changes the scene; never her words or their meaning"
+  length: "one or two short sentences before, at most one after: how she listens and what she does as she speaks - often only a look or a pause, sometimes nothing. She handles her gear only when the moment gives her a reason. She does not touch the player or anything of theirs, hand anything over, go anywhere, or do anything that changes the scene; never her words or their meaning"
   doing:
     meeting: "standing in the player's path in the street, having just crossed to them"
     invite: "standing with the player in Parth, talking the guild through with them"
