@@ -287,12 +287,15 @@ def build_character(
     passives: list[Passive],
     attributes: Attributes,
     aspiration: str | None,
+    concept: str = "",
 ) -> Character:
     return Character(
         name=name,
         archetype=interp.archetype,
         custom_class=interp.custom_class,
         class_summary=interp.summary,
+        combat_identity=getattr(interp, "combat_identity", "") or "",
+        concept=concept,
         uses_companions=interp.uses_companions, summoner=bool(getattr(interp, "summoner", False)),
         primary_attributes=list(interp.primary_attributes),
         elements=list(getattr(interp, "elements", []) or []),

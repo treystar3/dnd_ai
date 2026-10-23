@@ -114,8 +114,8 @@ Your reply:
   offers_work: only when you offer them paid work right now - a real task you need done. task is a short phrase
     ("load the grain onto the wagon"); minutes is how long it should take; pay is in copper, at honest village
     rates (about 20 copper an hour). If you already offered work, don't offer it again.
-""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + """
-Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules
+""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
+Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules; and they know their world
 
 
 def trust_words(trust: int) -> str:

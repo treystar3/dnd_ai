@@ -44,6 +44,28 @@ txt = K.give_starting_kit(c, "summoner", False, world)
 check("a summoner who keeps no companions carries a weapon", any(items.base_of(i).is_weapon for i in c.equipment.values()) and not c.companions, list(c.equipment))
 check("...and the narrator hears of its Bound summon", bound and "the summon they made" in txt, txt)
 
+# (f342) a spearman hunter carries a spear: the class's own words choose, and the model is not asked when they leave one weapon
+c, _ = simlib.make_character("warrior", random.Random(1))
+c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0
+c.actives = [a for a in c.actives if not getattr(a, "channel", False)]
+c.concept, c.combat_identity, c.custom_class = "a centaur lancer hunter", "Lance and mobility", "Centaur Hunter"
+before = stub.calls.get("StartingKit", 0)
+txt = K.give_starting_kit(c, "Centaur Hunter (warrior): a hunter who skirmishes", False, world)
+weapon = next(i for i in c.equipment.values() if items.base_of(i).is_weapon)
+check("a lancer hunter is handed a lance, not a bow for the hunter in them", items.base_of(weapon).id == "lance", items.base_of(weapon).id)
+check("...with no model call, the words having left one weapon", stub.calls.get("StartingKit", 0) == before)
+c, _ = simlib.make_character("warrior", random.Random(1))
+c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0
+c.actives = [a for a in c.actives if not getattr(a, "channel", False)]
+c.concept, c.combat_identity = "a wandering archer", "Arrows from cover"
+before = stub.calls.get("StartingKit", 0)
+K.give_starting_kit(c, "Archer (ranger)", False, world)
+weapon = next(i for i in c.equipment.values() if items.base_of(i).is_weapon)
+check("an archer is offered only bows, and the model picks among them", "bow" in items.base_of(weapon).tags or items.base_of(weapon).id == "crossbow", items.base_of(weapon).id)
+check("...one call, among the bows", stub.calls.get("StartingKit", 0) == before + 1)
+check("words that name no weapon leave the choice whole", len(K.named_weapons("a hunter of beasts in the wild", K.weapon_options())) == 0
+      and "wand" not in [b.id for b in K.named_weapons("a wandering healer", K.weapon_options())])
+
 ctx = {"needs_companion": True, "weapons": ["dagger"], "companions": ["wolf"]}
 try:
     StartingKit.model_validate({"weapon": "", "companion": "wolf", "companion_name": "Rook"}, context=ctx)

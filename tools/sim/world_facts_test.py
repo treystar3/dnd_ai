@@ -27,6 +27,17 @@ _b = dict(archetype="warrior", custom_class="x", combat_identity="y", themes=["a
 check("'none' written for nothing adapted is empty, so the line stays hidden", all(_CI(**_b, adapted=v).adapted == "" for v in ("none", "None.", "N/A", "\"none\"", "none\",  ", " ,\"", "")))
 check("a real adaptation is kept", _CI(**_b, adapted="asked for a gun; made a crossbow").adapted == "asked for a gun; made a crossbow")
 check("clockwork and alchemy stay allowed", "do exist" in prompts.WORLD_FACTS)
+# (f342) a tester's archer was told they had no arrows, then spent five turns trying to buy some: every speaker now knows bows need none
+check("the world rules say bows need no arrows and nobody sells them", "need no arrows" in prompts.WORLD_RULES and "nobody sells arrows" in prompts.WORLD_RULES)
+from scenes import world_prompts, combat_prompts, party_prompts
+from npc import prompts as npc_prompts
+from engine import mentor
+for label, text in (("the narrator", world_prompts.NARRATOR_SYSTEM), ("the dialogue frame", world_prompts.DIALOGUE_SYSTEM), ("the fight narrator", combat_prompts.NARRATE_SYSTEM),
+                    ("townsfolk", npc_prompts.CONVERSATION_SYSTEM), ("hires", party_prompts.TALK_SYSTEM), ("Maren chatting", mentor.chat_system()),
+                    ("Maren's persona, under her scripted lines too", mentor.chat_system_persona())):
+    check(f"{label} is told the world's rules", "need no arrows" in text and "no guns, firearms" in text)
+check("the narrator is told the gear is exactly what it is given", "never name something they lack" in world_prompts.NARRATOR_SYSTEM)
+check("creation still gets the concept rule on top", "translate it to the closest thing" in prompts.WORLD_FACTS and "translate it" not in prompts.WORLD_RULES)
 check("no hard word filter was added to the interpretation", not any("gun" in str(v) for v in ClassInterpretation.model_fields.values()))
 
 heard = []

@@ -18,6 +18,7 @@ from world.loader import World
 KIT_SYSTEM = """You equip a new character in a fantasy role-playing game with the plainest possible starting gear.
 For an ordinary class, choose the one weapon id from WEAPON OPTIONS that best fits how they fight AND uses one of
   their STRONGEST ATTRIBUTES - a weapon driven by a weak attribute is nearly useless to them.
+  HOW THEY FIGHT comes first: a spearman carries a spear whatever else they are, an archer a bow, a swordsman a sword.
   Casters use a focus (wand, staff, charm), performers an instrument, archers a bow or sling,
   and martial artists who fight bare-handed use hand wraps.
 When COMPANION OPTIONS are listed, the class keeps a companion INSTEAD of a weapon: choose one creature id from them that fits
@@ -44,6 +45,35 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
+def weapon_words(b: items.BaseItem) -> set[str]:
+    """The words a weapon answers to: its id, the words of its name and label, its tags, and the plain word inside a compound id
+    (longsword: sword)."""
+    out = {b.id} | set(b.tags) | set(re.findall(r"[a-z]+", f"{b.name} {b.label}".lower()))
+    for w in list(out):
+        for tail in ("sword", "axe", "bow", "staff", "hammer"):
+            if w.endswith(tail) and w != tail:
+                out.add(tail)
+    return {w for w in out if len(w) >= 3}
+
+
+AGENT_ENDINGS = ("", "s", "man", "men", "sman", "smen", "woman", "women", "er", "r", "ers", "rs")   # spearman, lancer, swordsmen, bows
+CALLINGS = {"archer": "bow", "archers": "bow", "archery": "bow", "marksman": "bow", "knife": "dagger", "knives": "dagger"}   # a calling or a plain word that names its weapon
+
+
+def named_weapons(text: str, options: list) -> list:
+    """The weapons the class's own words name: a word of theirs that is a weapon word, or one with an agent's ending on it (spearman,
+    bowman, axeman, lancer, swordsman), or a calling that means one (archer). The engine decides this; the model only chooses among
+    what fits, so a 'spearman hunter' is never handed a bow for the hunter in them."""
+    said = {w for w in re.findall(r"[a-z]+", (text or "").lower()) if len(w) >= 3}
+    said |= {CALLINGS[w] for w in said if w in CALLINGS}
+    fits = []
+    for b in options:
+        words = weapon_words(b)
+        if any(w == v + end for w in said for v in words for end in AGENT_ENDINGS):
+            fits.append(b)
+    return fits
+
+
 def give_starting_kit(c: Character, class_text: str, uses_companions: bool, world: World) -> str:
     """Equip the character. Returns a plain description of what they received, for the narrator."""
     rules = items.RULES
@@ -67,8 +97,14 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
     options = weapon_options()
     if any(getattr(a, "channel", False) for a in c.actives):      # its channeled strikes need a melee weapon in hand (f260)
         options = [b for b in options if b.reach in ("melee", "extended") and b.damage == "physical"] or options
-    kit = _ask_kit(c, class_text, False, options, [])
-    weapon = items.make(kit.weapon, rules["starting_rarity"])
+    named = named_weapons(f"{c.concept} {c.combat_identity} {c.custom_class}", options)        # (f342) a spearman carries a spear: the words decide
+    if named:
+        options = named
+    if len(options) == 1:
+        chosen = options[0].id
+    else:
+        chosen = _ask_kit(c, class_text, False, options, []).weapon
+    weapon = items.make(chosen, rules["starting_rarity"])
     c.equipment[items.base_of(weapon).slot] = weapon
     return f"A {weapon.name} lies beside them, and they carry a small purse of {purse}.{bound}"
 

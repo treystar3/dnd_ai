@@ -392,7 +392,7 @@ def read_claims(player, said: str, asked: str, day: int):
 def chat_system() -> str:
     C = M["chat"]
     from engine import quirks
-    return (C["persona"].strip() + "\n\nHOW YOU SPEAK:\n" + "\n".join(f"- {b}" for b in quirks.Q["maren"]["blueprint"]) +
+    return (chat_system_persona() + "\n\nHOW YOU SPEAK:\n" + "\n".join(f"- {b}" for b in quirks.Q["maren"]["blueprint"]) +
             "\n\n" + quirks.style_block() +
             "\n\nRULES:\n" + "\n".join(f"- {r}" for r in C["rules"]) +
             "\n\nGESTURE: " + __import__("engine.quirks", fromlist=["GESTURE_RULE"]).GESTURE_RULE +
@@ -649,7 +649,8 @@ def voice_system(player) -> str:
 
 
 def chat_system_persona() -> str:
-    return M["chat"]["persona"].strip()
+    from llm.prompts import WORLD_RULES
+    return M["chat"]["persona"].strip() + "\n\n" + WORLD_RULES
 
 
 def voice_request(player, where: str, beat: str, lines: list[str], reply_to: str = "") -> str:

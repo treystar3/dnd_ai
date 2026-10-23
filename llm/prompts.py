@@ -13,11 +13,16 @@ def _list(values) -> str:
     return ", ".join(v.value for v in values)
 
 
-WORLD_FACTS = """THE WORLD (Rivia) - everything you write must belong to it:
+WORLD_RULES = """THE WORLD (Rivia) - everything you write must belong to it:
 - It is a medieval high-fantasy world: swords, bows, magic, faith, beasts, guilds, alchemy and clockwork.
 - Weapons that exist: clubs, daggers, spears, axes, maces, hammers, swords, lances, slings, bows, crossbows, staves, wands, charms, instruments, bare hands.
 - Nothing powered by gunpowder or engines exists: no guns, firearms, rifles, pistols, cannons, bullets, grenades, explosives, electricity,
   motors, vehicles, computers or other modern technology. Alchemy, clockwork and spring-and-gear devices do exist.
+- Bows, crossbows and slings need no arrows, bolts or stones: nobody in Rivia counts ammunition, carries a quiver or runs out, and
+  nobody sells arrows. A bow in hand is always ready to shoot. Never say a character lacks arrows or must find some."""
+
+# what every speaker is told (the narrator, townsfolk, hires, Maren); creation prompts get the concept rule below as well
+WORLD_FACTS = WORLD_RULES + """
 - If a concept needs something that does not exist (a gunslinger, a hacker, a pilot), translate it to the closest thing that does (a
   crossbow marksman, a trickster of locks and secrets, a rider) and write the translated class, never the missing thing."""
 

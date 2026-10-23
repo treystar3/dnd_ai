@@ -247,6 +247,8 @@ class Character(BaseModel):
     archetype: Archetype
     custom_class: str
     class_summary: str = ""
+    combat_identity: str = ""                  # how the class fights, in the reading's words ("Spear and mobility"): the kit answers to it
+    concept: str = ""                          # the player's own words at the Threshold ("a centaur spearman hunter")
     uses_companions: bool = False      # keeps companions: tamed, living creatures that grow with them
     summoner: bool = False             # makes summons with magic (engine/summons.py); a summon is never a companion
     bound_summon: str = ""             # the summon ability whose Bound summon walks with them now
