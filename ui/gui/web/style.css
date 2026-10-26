@@ -29,6 +29,7 @@
 @font-face { font-family: "Literata"; font-weight: 400; font-style: italic; font-display: swap; src: url(/fonts/literata-latin-400-italic.woff2) format("woff2"); }
 @font-face { font-family: "Literata"; font-weight: 600; font-style: normal; font-display: swap; src: url(/fonts/literata-latin-600-normal.woff2) format("woff2"); }
 @font-face { font-family: "Literata"; font-weight: 700; font-style: normal; font-display: swap; src: url(/fonts/literata-latin-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "Cinzel Decorative"; font-weight: 700; font-style: normal; font-display: swap; src: url(/fonts/cinzel-decorative-latin-700-normal.woff2) format("woff2"); }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); display: flex; flex-direction: column; font: 14px/1.45 var(--mono); }
@@ -365,7 +366,7 @@ button.locked:disabled { opacity: .25; }
 #homepage .home-head h1, #homepage .home-head div, #homever, .home-subhead h2, .home-menu .ask { text-shadow: 0 0 6px var(--bg), 0 0 14px var(--bg), 0 0 24px var(--bg); }   /* words that sit on the map itself */
 #homepage .home-inner { position: relative; max-width: 720px; margin: 0 auto; padding: 56px 20px 14px; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
 #homepage .home-head { text-align: center; margin-bottom: 28px; }
-#hometitle { font-family: var(--serif); font-size: 42px; letter-spacing: .06em; margin: 0; color: var(--accent); font-weight: 600; }
+#hometitle { font-family: "Cinzel Decorative", var(--serif); font-size: min(104px, 16vw); line-height: 1.1; letter-spacing: .06em; margin: 0; color: var(--accent); font-weight: 700; }   /* the full size on a desktop; a phone gets what its width allows */
 #homesub { font-family: var(--serif); font-style: italic; color: var(--ink2); margin-top: 6px; font-size: 16px; }
 #homecontinue:empty { display: none; }
 .home-continue { width: 100%; text-align: left; display: block; background: var(--panel2); border: 1px solid var(--accent); border-radius: 12px; padding: 18px 20px; }

@@ -12,3 +12,7 @@ ratings, attack names and ability-score proportions are used; game statistics ar
 The window's reading face is Literata (https://github.com/googlefonts/literata), copyright 2017 The Literata Project
 Authors, licensed under the SIL Open Font License 1.1 (ui/gui/web/fonts/OFL.txt). The four files there are the latin
 subsets packaged by Fontsource (https://fontsource.org).
+
+The game's name on the home page is set in Cinzel Decorative (https://github.com/NDISCOVER/Cinzel), copyright 2012
+Natanael Gama, with Reserved Font Name "Cinzel", licensed under the SIL Open Font License 1.1
+(ui/gui/web/fonts/OFL-CinzelDecorative.txt). The file is the bold latin subset packaged by Fontsource, unmodified.
