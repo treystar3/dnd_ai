@@ -1,4 +1,4 @@
-# Facts about Rivia, tagged by who knows them.
+# Facts about Meravia, tagged by who knows them.
 # The Taking is a southern human custom: Riverhaven and Amaranth send out Seekers who take magic-sensitive children from the smaller
 # settlements around them (Parth, Willowmead, Greyhollow, Kelpmoor). The crown at Valecourt thinks it unbecoming and takes no child
 # itself, but will not police another house's customs; its people look down on the south for it and keep that to themselves with
@@ -421,7 +421,7 @@
 
 - id: orenna_servants
   text: >
-    The peoples of Rivia were made by the gods as servants: rows of figures that worked and did not choose. The temples' gentler story is not what the First Hall says.
+    The peoples of Meravia were made by the gods as servants: rows of figures that worked and did not choose. The temples' gentler story is not what the First Hall says.
   known_by: [nobody]
 
 - id: orenna_gift

@@ -1,4 +1,4 @@
-# NAME POOLS for the people who live in Rivia.
+# NAME POOLS for the people who live in Meravia.
 #
 # The engine picks every resident's name from these lists (seeded by the campaign, so the same save always gets the same names), and
 # never gives two people the same first name in one save. The model is only told the name and gender and writes the look and the day.

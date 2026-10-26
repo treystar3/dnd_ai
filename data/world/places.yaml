@@ -1,4 +1,4 @@
-# Places in Rivia.
+# Places in Meravia.
 #
 # visible:   what anyone can see there. The narrator only describes these (plus what's happening).
 # residents: roles the engine fills with generated NPCs the first time the place is entered.
@@ -1794,7 +1794,7 @@
   region: gloaming_coast
   parent: thalassor
   visible:
-    - The largest school of magic in Rivia, on top of the Overhang and slung beneath it on chains and rope bridges.
+    - The largest school of magic in Meravia, on top of the Overhang and slung beneath it on chains and rope bridges.
     - Founded and run by elves who teach magic as a gift. Counterweighted lifts called the Tide Lifts climb the cliff and stop at slack water.
   residents: {loremaster: 1, enchanter: 1, guild_instructor: 1}
   trade_level: [83, 138]

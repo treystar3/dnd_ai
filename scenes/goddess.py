@@ -179,7 +179,7 @@ class ThresholdScene:
             "Tell them what you see in them in your own words, without game terms, as the shape their life already has, "
             "and ask whether you have seen them truly."
             + (f" The player asked for something this world does not have. {self.interp.adapted} Say, gently and in your own words, that the "
-               "thing they named has no place in Rivia and what you see in them instead." if self.interp.adapted else "")
+               "thing they named has no place in Meravia and what you see in them instead." if self.interp.adapted else "")
         )
 
     def on_confirm_class(self, turn: PlayerTurn) -> None:

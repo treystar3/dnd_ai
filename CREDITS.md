@@ -6,7 +6,7 @@ The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International
 https://creativecommons.org/licenses/by/4.0/legalcode.
 
 Creature data was read from the 5e-database project (https://github.com/5e-bits/5e-database, MIT License)
-and reclassified for Rivia in data/world/bestiary.yaml. Only creature names, types, sizes, challenge
+and reclassified for Meravia in data/world/bestiary.yaml. Only creature names, types, sizes, challenge
 ratings, attack names and ability-score proportions are used; game statistics are computed by this engine.
 
 The window's reading face is Literata (https://github.com/googlefonts/literata), copyright 2017 The Literata Project

@@ -34,7 +34,7 @@ ruin:
         - {kind: cache}
         - {kind: fight, creature: hall_guardian, count: 1, name: ""}
       mural: >
-        The first walls are carved with the peoples of Rivia as you know them: elves, dwarves, humans, goliaths, orcs, gnomes. But
+        The first walls are carved with the peoples of Meravia as you know them: elves, dwarves, humans, goliaths, orcs, gnomes. But
         they stand in rows of identical figures, hands at their sides and eyes empty, tending fires, fields and forges. Above each
         row a single large figure is carved, a god, one to each trade. Nothing here is carved as worship. Nothing here is carved as
         love. The temples teach that the gods shaped the peoples out of love. These walls say the peoples were made to work, and did.

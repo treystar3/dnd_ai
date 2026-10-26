@@ -1,10 +1,10 @@
-# RIVIA - world overview
+# MERAVIA - world overview
 #
 # Reference material for the engine and NPCs. The player never reads these files;
 # they learn everything through what they see, who they talk to, and what they find.
 # Anything marked "invented" was suggested, not decided - rename or cut freely.
 
-name: Rivia
+name: Meravia
 
 summary: >
   A traditional high-fantasy land of kingdoms, wild country and old ruins, where
@@ -17,7 +17,7 @@ start_location: south_fields
 # Who-knows-what groups. Every fact in lore.yaml says which of these know it.
 # NPCs only know facts tagged for groups they belong to.
 knowledge_groups:
-  everyone: Anyone living in Rivia.
+  everyone: Anyone living in Meravia.
   parth_locals: People who live in or around Parth.
   shepherds: Shepherds and herders.
   hunters: Hunters and trappers.

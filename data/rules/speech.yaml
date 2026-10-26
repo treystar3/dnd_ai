@@ -2,7 +2,7 @@
 # culture shows, and how they show what they feel. The engine rolls these once, when a hire appears on the guild's list, and compiles a few
 # of them into each reply's instructions (engine/voice_profile.py): never the whole profile at once, and never the same lines every time.
 #
-# DRAFT CONTENT: the cultures below (dialect lines, imagery, sayings, words) are a first pass for you to rewrite as Rivia's own.
+# DRAFT CONTENT: the cultures below (dialect lines, imagery, sayings, words) are a first pass for you to rewrite as Meravia's own.
 # The rule for writing them: dialect lines, habits, tells and expression describe BEHAVIOUR and never hold words to be said (a line the
 # model can quote, it will quote). Sayings and words are the only text that may be said as written; the engine offers them one at a time.
 

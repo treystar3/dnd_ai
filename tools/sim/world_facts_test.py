@@ -1,4 +1,4 @@
-"""Character creation knows what exists in Rivia: no firearms, a concept that needs them is translated, and the Goddess says so."""
+"""Character creation knows what exists in Meravia: no firearms, a concept that needs them is translated, and the Goddess says so."""
 import sys
 sys.path.insert(0, ".")
 import simlib
@@ -48,10 +48,10 @@ import character.creation as cr
 cr.interpret_concept = lambda c: ClassInterpretation(archetype=Archetype.ROGUE, custom_class="Crossbow Hunter", combat_identity="crossbow marksman",
                                                     themes=["Marksmanship"], summary="A patient hunter.", adapted="Firearms do not exist here; I read this as a crossbow marksman.")
 s.read_class()
-check("the Goddess is told to say that the thing asked for has no place in Rivia", s.step == Step.CONFIRM_CLASS and "no place in Rivia" in heard[-1] and "Firearms do not exist" in heard[-1], heard[-1:])
+check("the Goddess is told to say that the thing asked for has no place in Meravia", s.step == Step.CONFIRM_CLASS and "no place in Meravia" in heard[-1] and "Firearms do not exist" in heard[-1], heard[-1:])
 heard.clear()
 cr.interpret_concept = lambda c: ClassInterpretation(archetype=Archetype.ROGUE, custom_class="Shadow", combat_identity="daggers", themes=["Stealth"], summary="Quiet.")
 s.read_class()
-check("an ordinary concept gets no such note", "no place in Rivia" not in heard[-1])
+check("an ordinary concept gets no such note", "no place in Meravia" not in heard[-1])
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

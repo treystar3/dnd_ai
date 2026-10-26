@@ -236,7 +236,7 @@ document.addEventListener("mouseover", (e) => {
   if (t && tipMap[t.dataset.tip]) showLines(tipMap[t.dataset.tip], e.clientX, e.clientY);
 });
 
-// ---------- map pane: the illustrated map of Rivia with fog of war; hover or tap a place for its levels, Go to travel; drag to pan, wheel to zoom ----------
+// ---------- map pane: the illustrated map of Meravia with fog of war; hover or tap a place for its levels, Go to travel; drag to pan, wheel to zoom ----------
 let mapView = null;
 function renderMap(d) {
   const NS = "http://www.w3.org/2000/svg";

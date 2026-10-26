@@ -1,6 +1,6 @@
-# BESTIARY - every kind of creature that can exist in Rivia.
+# BESTIARY - every kind of creature that can exist in Meravia.
 #
-# Imported once from the D&D 5e System Reference Document 5.1 (see CREDITS.md) and classified for Rivia.
+# Imported once from the D&D 5e System Reference Document 5.1 (see CREDITS.md) and classified for Meravia.
 # D&D's stat blocks are NOT used: the engine builds every creature's stats from its level and profile
 # with the same rules as the player. Edit or delete freely - this file is yours now.
 #
@@ -1555,9 +1555,9 @@
   temperament: territorial
   attacks: [Bite, Claw, Tail]
   profile: {strength: 16, dexterity: 12, constitution: 15, intelligence: 4, wisdom: 11, charisma: 6}
-  source: Rivia
+  source: Meravia
   notes:
-  - 'Rivia''s own: wingless or short-winged cousins of dragons. Rare but not unheard of.'
+  - 'Meravia''s own: wingless or short-winged cousins of dragons. Rare but not unheard of.'
 - id: silver_dragon_wyrmling
   name: Silver Dragon Wyrmling
   category: dragon
@@ -1630,9 +1630,9 @@
   temperament: territorial
   attacks: [Bite, Claw, Tail]
   profile: {strength: 18, dexterity: 12, constitution: 17, intelligence: 4, wisdom: 11, charisma: 6}
-  source: Rivia
+  source: Meravia
   notes:
-  - 'Rivia''s own: wingless or short-winged cousins of dragons. Rare but not unheard of.'
+  - 'Meravia''s own: wingless or short-winged cousins of dragons. Rare but not unheard of.'
 - id: red_dragon_wyrmling
   name: Red Dragon Wyrmling
   category: dragon
@@ -1733,9 +1733,9 @@
   temperament: territorial
   attacks: [Bite, Claw, Tail]
   profile: {strength: 22, dexterity: 12, constitution: 21, intelligence: 4, wisdom: 11, charisma: 6}
-  source: Rivia
+  source: Meravia
   notes:
-  - 'Rivia''s own: wingless or short-winged cousins of dragons. Rare but not unheard of.'
+  - 'Meravia''s own: wingless or short-winged cousins of dragons. Rare but not unheard of.'
 - id: young_bronze_dragon
   name: Young Bronze Dragon
   category: dragon
@@ -7145,7 +7145,7 @@
   profile: {strength: 20, dexterity: 12, constitution: 18, intelligence: 8, wisdom: 10, charisma: 10}
   source: Far Lands
 
-# --- the uttermost reaches: creatures for levels ~100-200 (original to Rivia) ---
+# --- the uttermost reaches: creatures for levels ~100-200 (original to Meravia) ---
 - id: ice_leviathan
   name: Ice Leviathan
   category: monstrosity
@@ -7834,7 +7834,7 @@
   attacks: [Slam]
   profile: {strength: 16, dexterity: 8, constitution: 18, intelligence: 4, wisdom: 6, charisma: 2}
   unique: true
-  source: Rivia
+  source: Meravia
   notes:
   - 'unique: placed only in the First Hall (data/world/orenna.yaml)'
 - id: hall_guardian
@@ -7850,7 +7850,7 @@
   attacks: [Stone Fist, Crushing Blow]
   profile: {strength: 20, dexterity: 8, constitution: 20, intelligence: 6, wisdom: 10, charisma: 2}
   unique: true
-  source: Rivia
+  source: Meravia
   notes:
   - 'unique: placed only in the First Hall (data/world/orenna.yaml)'
 - id: forgetting_warden
@@ -7866,7 +7866,7 @@
   attacks: [Erasing Touch, Crushing Blow]
   profile: {strength: 20, dexterity: 10, constitution: 22, intelligence: 12, wisdom: 14, charisma: 2}
   unique: true
-  source: Rivia
+  source: Meravia
   notes:
   - 'unique: placed only in the First Hall (data/world/orenna.yaml)'
 - id: bound_executioner
@@ -7883,7 +7883,7 @@
   profile: {strength: 16, dexterity: 18, constitution: 14, intelligence: 12, wisdom: 14, charisma: 10}
   unique: true
   roster: false
-  source: Rivia
+  source: Meravia
   notes:
   - 'unique: the quest killer of data/world/orenna.yaml'
 - id: high_keeper
@@ -7900,6 +7900,6 @@
   profile: {strength: 10, dexterity: 10, constitution: 14, intelligence: 16, wisdom: 20, charisma: 18}
   unique: true
   roster: false
-  source: Rivia
+  source: Meravia
   notes:
   - 'unique: the quest finale of data/world/orenna.yaml'

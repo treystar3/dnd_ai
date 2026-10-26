@@ -37,10 +37,33 @@ def _v3_battlefield(store) -> None:
     store.save_combat(None)
 
 
+def _v4_meravia(store) -> None:
+    """The world was renamed: Rivia was a placeholder, and the world is Meravia. What the model wrote into a save under the old name -
+    people's memories and moods, the journal, the narration kept for the recap, thread and news lines, the player's own record - is
+    carried over to the new one, so nobody in an old campaign still speaks of a land that is no longer called that. Whole words only:
+    'trivial' is not touched."""
+    import re
+    word, upper = re.compile(r"\bRivia\b"), re.compile(r"\bRIVIA\b")
+
+    def fix(v):
+        return upper.sub("MERAVIA", word.sub("Meravia", v)) if isinstance(v, str) and v else v
+    for table, key, cols in (("kv", "key", ("json",)), ("places", "id", ("json",)), ("npcs", "id", ("json", "motive", "mood")),
+                             ("npc_memory", "id", ("text",)), ("event_log", "seq", ("text", "data", "action"))):
+        if not store._db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone():
+            continue
+        found = store._db.execute(f"SELECT {key}, {', '.join(cols)} FROM {table} WHERE "
+                                  + " OR ".join(f"{c} LIKE '%rivia%'" for c in cols)).fetchall()
+        for row in found:
+            new = [fix(v) for v in row[1:]]
+            if new != list(row[1:]):
+                store.execute(f"UPDATE {table} SET {', '.join(f'{c} = ?' for c in cols)} WHERE {key} = ?", (*new, row[0]))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
     (3, "combat on the battlefield (zones, rows, engagement); a fight in progress under range bands is discarded", _v3_battlefield),
+    (4, "the world renamed from Rivia to Meravia in everything the model wrote into the save", _v4_meravia),
 ]
 
 CURRENT = MIGRATIONS[-1][0]
