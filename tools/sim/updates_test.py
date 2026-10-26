@@ -21,7 +21,7 @@ class Resp(io.BytesIO):
     def __enter__(self): return self
     def __exit__(self, *a): return False
 payload = {"tag_name": "v9.0.0", "body": "Notes here", "html_url": "https://github.com/o/r/releases/tag/v9.0.0",
-           "assets": [{"name": "source.zip", "browser_download_url": "x"}, {"name": "dnd_ai_setup.exe", "browser_download_url": "https://dl/dnd_ai_setup.exe"}]}
+           "assets": [{"name": "source.zip", "browser_download_url": "x"}, {"name": "Meravia_0.0.6_setup.exe", "browser_download_url": "https://dl/Meravia_0.0.6_setup.exe"}]}
 real = urllib.request.urlopen
 urllib.request.urlopen = lambda req, timeout=0: Resp(json.dumps(payload).encode())
 info = updates.latest_release("o/r")

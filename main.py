@@ -4,9 +4,9 @@
     python main.py --new      start a new character straight away (every other game stays saved)
     python main.py --debug    show what the engine is deciding behind the scenes
     python main.py --gui      play in a window instead of the terminal (needs: pip install pywebview; falls back to your browser)
-    dnd_ai.exe                the built game opens its window by itself (--terminal for the text version)
+    Meravia.exe               the built game opens its window by itself (--terminal for the text version)
 
-On start the game checks for Ollama and its model and offers to install and download what is missing (DND_SKIP_SETUP=1 skips the check).
+On start the game checks for Ollama and its model and offers to install and download what is missing (MERAVIA_SKIP_SETUP=1 skips the check).
 
 Type 'quit' to save and exit.
 """

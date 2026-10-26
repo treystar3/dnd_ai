@@ -5,7 +5,7 @@
   python tools/run_suite.py --only shop,board     tests whose name contains any of these
   python tools/run_suite.py --changed DIR   only the tests that mention a file changed since DIR (a copy of the last release);
                                             a quick check while building - run the whole suite before shipping
-Output goes to <outdir>/<test>.out (default /tmp/dnd_suite); the summary lists failures and the slowest tests."""
+Output goes to <outdir>/<test>.out (default /tmp/meravia_suite); the summary lists failures and the slowest tests."""
 import argparse
 import filecmp
 import os
@@ -75,7 +75,7 @@ def main() -> int:
     ap.add_argument("-j", type=int, default=2, help="tests at a time")
     ap.add_argument("--only", default="", help="comma-separated name fragments")
     ap.add_argument("--changed", default="", metavar="DIR", help="a copy of the last release to compare against")
-    ap.add_argument("--outdir", default="/tmp/dnd_suite")
+    ap.add_argument("--outdir", default="/tmp/meravia_suite")
     ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args()
     tests = sorted(SIM.glob("*_test.py"))
