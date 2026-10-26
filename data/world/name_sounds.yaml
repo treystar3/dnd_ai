@@ -8,10 +8,12 @@
 # whole words ("Thorn" + "dale", "Kettle" + "pop").
 #
 # Every built name must then keep the rules below: its length, how many vowels or consonants may run together, the people's own
-# `avoid` patterns and the shared ones, at least `min_syllables` if the people has one, and never be one of the `taken` names.
-# Names that fail are thrown away and built again.
+# `avoid` patterns (sounds the people never makes) and the shared ones, and at least `min_syllables` if the people has one. Names
+# that fail are thrown away and built again. There is no list of names that may never be built: each kind can make thousands of
+# names, so any one name - an ordinary word, a name from another story - is very unlikely, and if one does turn up it is fine.
 #
 # These are first draft, written fresh for Meravia: add, cut or rewrite any piece. tools/name_samples.py prints what they make.
+# The one shared `avoid` that names words keeps slurs and swearing from being spelled by chance.
 
 length: [3, 10]                 # the shortest and longest name, in letters, unless a people says otherwise
 max_vowels: 2                   # vowels that may run together ("ae" yes, "aea" no)
@@ -21,278 +23,8 @@ avoid:                          # never inside any name (patterns on the lower-c
   - "q[^u]"
   - "(fuk|fuc|shit|cunt|dick|cock|piss|twat|wank|nig|fag|slut|whor|rape|anus|penis|tits|kkk|nazi)"
   - "(.{2,})\\1"                # no piece said twice running ("dordor")
-  - "ordor"                     # too near Mordor
 
-taken:                          # names another story owns, or that read as one: never built
-  # Tolkien
-  - Aragorn
-  - Arwen
-  - Balin
-  - Bilbo
-  - Bofur
-  - Bombur
-  - Boromir
-  - Celeborn
-  - Dain
-  - Dori
-  - Durin
-  - Dwalin
-  - Elendil
-  - Elrond
-  - Earendil
-  - Eowyn
-  - Faramir
-  - Fili
-  - Frodo
-  - Galadriel
-  - Gandalf
-  - Gimli
-  - Gloin
-  - Kili
-  - Legolas
-  - Luthien
-  - Meriadoc
-  - Nori
-  - Oin
-  - Peregrin
-  - Pippin
-  - Samwise
-  - Saruman
-  - Sauron
-  - Theoden
-  - Thorin
-  - Thrain
-  - Thranduil
-  - Thror
-  - Baggins
-  - Brandybuck
-  - Gamgee
-  - Took
-  - Evenstar
-  - Azog
-  - Bolg
-  - Ugluk
-  - Grishnak
-  - Grishnakh
-  - Gorbag
-  - Shagrat
-  - Snaga
-  - Gothmog
-  - Lurtz
-  - Mordor
-  - Gondor
-  - Rohan
-  - Lorien
-  - Valinor
-  - Olorin
-  # Forgotten Realms and other D&D
-  - Battlehammer
-  - Bruenor
-  - Drizzt
-  - Elminster
-  - Wulfgar
-  - Tasslehoff
-  - Raistlin
-  - Caramon
-  - Tanis
-  - Strahd
-  - Vecna
-  - Tiamat
-  - Mordenkainen
-  - Bigby
-  - Tenser
-  - Volo
-  # other well-known fantasy
-  - Geralt
-  - Ciri
-  - Yennefer
-  - Triss
-  - Dandelion
-  - Elric
-  - Kvothe
-  - Kaladin
-  - Dalinar
-  - Shallan
-  - Moiraine
-  - Egwene
-  - Rand
-  - Perrin
-  - Nynaeve
-  - Daenerys
-  - Tyrion
-  - Arya
-  - Sansa
-  - Ulfric
-  - Alduin
-  - Thrall
-  - Jaina
-  - Arthas
-  - Sylvanas
-  - Illidan
-  - Malfurion
-  - Tyrande
-  - Uther
-  - Anduin
-  - Stormborn
-  - Dobby
-  - Merlin
-  - Underhill
-  - Halo
-  - Lobo
-  # real places, peoples, faiths and brands
-  - Syria
-  - Syrian
-  - Pathan
-  - Maine
-  - Milan
-  - Sharia
-  - Mazda
-  - Volta
-  - Kali
-  - Corona
-  # plain words a name must not be (found by checking thousands of built names against a dictionary)
-  - Minor
-  - Alley
-  - Alien
-  - Agora
-  - Alias
-  - Lyric
-  - Pear
-  - Brine
-  - Serine
-  - Hollow
-  - Hobo
-  - Lobby
-  - Hobby
-  - Hobble
-  - Nobble
-  - Person
-  - Dunny
-  - Belie
-  - Belly
-  - Celery
-  - Polka
-  - Rosary
-  - Patina
-  - Pipette
-  - Molka
-  - Henry
-  - Honeypot
-  - Organ
-  - Ardor
-  - Torrid
-  - Ulna
-  - Visa
-  - Gunny
-  - Caravan
-  - Navel
-  - Sandra
-  - Moonlight
-  - Sunlight
-  - Starlight
-  - Rainfall
-  - Windfall
-  - Fondle
-  - Gimmick
-  - Grinner
-  - Loony
-  - Homo
-  - Mane
-  - Drug
-  - Shag
-  - Drag
-  - Older
-  - Order
-  - Solder
-  - Radar
-  - Rare
-  - Hare
-  - Bride
-  - Cola
-  - Cone
-  - Hummer
-  - Marine
-  - Imine
-  - Eleven
-  - Cellar
-  - Peine
-  - Pipery
-  - Willy
-  - Willie
-  - Underfoot
-  - Beluga
-  - Nasalis
-  - Havana
-  - Falasha
-  - Tiara
-  - Samen
-  - Raider
-  - Fender
-  - Saline
-  - Ashore
-  - Ainu
-  - Elven
-  - Gulash
-  # names from the D&D sourcebooks' name tables, and Warcraft's orcs
-  - Grommash
-  - Garrosh
-  - Orgrim
-  - Durotan
-  - Guldan
-  - Kilrogg
-  - Nerzhul
-  - Hellscream
-  - Doomhammer
-  - Sith
-  - Balderk
-  - Brawnanvil
-  - Dankil
-  - Fireforge
-  - Frostbeard
-  - Gorunn
-  - Holderhek
-  - Ironfist
-  - Loderr
-  - Lutgehr
-  - Rumnaheim
-  - Strakeln
-  - Torunn
-  - Ungart
-  - Amakiir
-  - Amastacia
-  - Galanodel
-  - Holimion
-  - Ilphelkiir
-  - Liadon
-  - Meliamne
-  - Nailo
-  - Siannodel
-  - Xiloscient
 
-words: [
-  # Common English words a built name must not be. Found by listing every name these sounds can make (tools/name_words.py) and
-  # checking each against the 20,000 commonest English words. Words that suit Meravia as names were left out of this list on
-  # purpose, so they can still be built: old names (Tom, Ned, Joan, Edith, Oswald), the genasi's elements (Gale, Haze, Tide,
-  # Blaze, Coral), Kai. Run tools/name_words.py again after changing the sounds.
-  Aka, Ala, Ali, Ally, Ama, Bae, Bag, Bald, Bam, Ban, Bar, Barrel, Bash, Bay, Bed, Bee, Bell, Bent, Bis, Bit, Blast, Blink,
-  Block, Bob, Bolton, Bom, Boo, Book, Bop, Born, Boss, Brag, Brain, Bran, Bred, Brenda, Brendan, Brent, Brick, Brock, Buck,
-  Bug, Bulk, Burton, Bush, Buzz, Cab, Cam, Can, Cent, Cod, Colbert, Com, Corn, Cotton, Dab, Dam, Dan, Dana, Dar, Dash, Day,
-  Dee, Dell, Den, Dent, Dim, Dip, Dis, Div, Dock, Dod, Doll, Dom, Donna, Donnie, Doo, Drain, Dress, Drum, Duck, Dude, Due,
-  Dug, Dunn, Everton, Fab, Fam, Fell, Fill, Fir, Fit, Flash, Gag, Gain, Gala, Gaze, Gee, Gen, Goo, Grade, Grain, Gram, Gran,
-  Grim, Gulf, Gum, Ham, Han, Hara, Harley, Hash, Hay, Hell, Hen, Herd, Hide, Hill, Hilton, Him, Hip, Hire, His, Hit, Horn,
-  Hue, Hulk, Imo, Italia, Jab, Jade, Jae, Jam, Jan, Jay, Jen, Jill, Jim, Job, Jock, Jordan, June, Just, Kale, Kan, Ken,
-  Kent, Kick, Kill, Kim, Kyle, Lab, Lai, Lam, Lan, Lau, Lay, Led, Lee, Len, Lent, Less, Lib, Lick, Linda, Lip, Lit, Lock,
-  Loo, Lori, Loss, Lyle, Lynn, Made, Mag, Mai, Main, Mali, Man, Manu, Mar, Marilyn, Marley, Marta, Mash, Mask, Mata, Math,
-  Max, May, Maze, Med, Megan, Mei, Men, Merely, Mesh, Mess, Meth, Mia, Mick, Middleton, Mild, Mill, Mina, Mineral, Mit, Mix,
-  Moan, Mob, Mock, Mod, Mom, Morgan, Moss, Mug, Mum, Must, Nam, Narendra, Nasa, Nash, Nay, Ness, Nick, Nip, Nod, Nude,
-  Orion, Pak, Pale, Pam, Pan, Para, Past, Path, Pay, Payne, Pee, Pen, Perkins, Pill, Pink, Pit, Pod, Poll, Poo, Pop, Porn,
-  Puck, Rag, Rain, Ram, Ramos, Ran, Rash, Ray, Red, Rent, Rib, Rick, Ride, Rim, Rip, Rita, Rivera, Rob, Rock, Rod, Roll,
-  Rom, Rosen, Rub, Rude, Rue, Rug, Rum, Rush, Rust, Sale, Sasha, Side, Sir, Sire, Sis, Six, Stain, Stan, Star, Stick, Stock,
-  Strain, Style, Tab, Tae, Tag, Tai, Tale, Tan, Tar, Task, Tau, Tea, Ted, Tee, Tell, Ten, Tent, Thai, Than, Then, Thick,
-  Thorn, Thug, Tick, Till, Tim, Time, Tip, Tire, Tis, Tit, Toll, Too, Top, Torn, Toss, Tug, Tune, Tyre, Vader, Vain, Vale,
-  Van, Var, Vast, Vis, Vivo, Wade, Walton, Wan, Warner, Warwick, Watkins, Watson, Way, Wed, Wee, Weir, Well, Went, Wick,
-  Wild, Wilde, Wilkins, Wilkinson, Wilson, Wink, Wit, With, Woo, Worn, Zip, Zoo, Nan
-]
 
 peoples:
 
@@ -301,30 +33,39 @@ peoples:
   human:
     length: [3, 9]
     male:
-      - weight: 5
+      - weight: 10
         first: [Al, Ald, Bal, Ber, Bran, Bren, Cad, Col, Cor, Dun, Ed, Fen, Gar, God, Gus, Hal, Har, Ing, Jor, Ken, Mar, Os, Ran, Rob, Sig,
                 Tam, Wal, Wil, Hum, Lam, Aug, Ced, Dor, Ever, Ul]
         middle: [a, e, i, o]
         middles: {0: 8, 1: 2}
         last: [ric, win, ram, stan, ard, mund, bert, wick, ley, mer, ton, ulf, gar, ran, rin, ford, wyn, nard, mon, rich, fred, dan, wald]
-      - weight: 1
+      - weight: 3
         first: [B, Br, C, D, Dr, G, Gr, H, J, K, L, M, N, R, St, T, Th, W]
-        last: [am, an, en, ed, ick, olm, orn, ulk, yle, ade, ock, ent, ude, ald, unn]
+        last: [am, an, en, ed, ick, olm, orn, ulk, yle, ade, eth, ock, ent, ude, ald, ess, unn, orm]
     female:
-      - weight: 5
+      - weight: 10
         first: [Ad, Al, Av, Bea, Bren, Bry, Cec, Clar, Cor, Ed, El, Em, Eu, Fen, Gis, Gwen, Hed, Hil, Hes, Im, Is, Jes, Mar, Mil, Ros, Win,
                 Mat, Ag, Ber, Mer, Od, Sib]
         middle: [a, e, i, o, li, ri]
         middles: {0: 6, 1: 4}
         last: [a, la, ella, ine, ys, ith, ly, da, wyn, ora, ice, beth, en, ette, ina, sa, na, ilde, ana, lyn, wen, ta]
-      - weight: 1
+      - weight: 3
         first: [B, Br, D, G, Gw, H, J, M, N, R, T, W]
         last: [ess, ell, aud, oan, enn, ys, eth, ild, ane, ith, ynn, ilde]
     family:
-      - weight: 1
+      - weight: 5
         first: [Ash, Black, Bright, Brook, Fair, Green, Hay, Hart, Lang, Mill, Moor, North, Red, Rush, Thorn, West, White, Wood, Cole, Hol,
-                Ald, Brad, Crom, Dun, Har, Pen, Stan, Thorp, Wick, Ling]
-        last: [by, ford, wood, well, ton, ley, more, field, ham, worth, dale, wick, ridge, shaw, combe, low, stead, cote, wright, mere]
+                Ald, Brad, Crom, Dun, Har, Pen, Stan, Thorp, Wick, Ling, Bar, Brom, Elm, Fen, Hamp, Lock, Mar, Oak, Rad, Sal, Wal, Wyn, Bur,
+                Kings, Shep, Ather, Hey, Lin, Mor, Ox]
+        last: [by, ford, wood, well, ton, ley, more, field, ham, worth, dale, wick, ridge, shaw, combe, low, stead, cote, wright, mere,
+               hurst, bury, borne, thwaite, croft, gate, hope, stow, thorpe, ster, den, ling, wade, hold]
+      - weight: 2 # short English surnames, whole
+        first: [Kemp, Crane, Hart, Marsh, Wolfe, Gale, Stone, Wood, Lamb, Bell, Cross, Ford, Fox, Hale, Hill, Hunt, Lane, Moss, Nash, Page,
+                Pike, Reed, Rowe, Shaw, Webb, West, Wren, Brook, Cole, Frost, Grey, Keane, Lowe, Mead, Pratt, Rook, Thorpe, Vane, Burke,
+                Clay, Dale, Finch, Birch, Kerr, Tull, Voss, Platt, Fenn, Ames, Bain, Blythe, Bond, Booth, Bray, Brett, Bryce, Burr, Cade, Carr,
+                Chase, Cope, Croft, Dove, Dunn, Flint, Gage, Garth, Glass, Hayes, Holme, Hoyle, Hume, Knox, Lisle, Lyle, Mott, Neale, Nye,
+                Orme, Pell, Penn, Poole, Rhodes, Royce, Sharpe, Stroud, Tate, Trask, Vail, Wace, Weir, Yorke, Blake, Brand, Locke]
+        last: [""]
 
   # Half-elves sit between their parents: human shapes with an elven lilt, short ones like Rhys or Faye. Their family names are human.
   half_elf:
@@ -360,7 +101,7 @@ peoples:
         middle: [a, e, i]
         middles: {0: 9, 1: 1}
         last: [o, in, ny, by, kin, ric, wick, bert, ard, ley, ie, lo, mo, ble, roy, win, kins, rey, son]
-      - weight: 2
+      - weight: 1
         first: [B, Br, C, D, F, H, J, K, M, N, P, R, T, W]
         last: [ob, ip, uck, om, ill, am, od, ent, ogg, ab, im]
     female:
@@ -369,21 +110,24 @@ peoples:
         middle: [a, e, i]
         middles: {0: 8, 1: 2}
         last: [ly, ie, ina, belle, sa, la, ette, da, wise, bet, sy, ney, ry, bie, lie, ka]
-      - weight: 2
-        first: [B, D, F, H, J, K, L, M, N, P, R, T, W]
-        last: [ess, ell, ue, oll, it, ay, ib, ab]
-    family:
       - weight: 1
+        first: [B, D, F, H, J, K, L, M, N, P, R, T, W]
+        last: [ess, ell, ue, oll, it, ay, en, oss, ib, ab, ina, ix]
+    family:
+      - weight: 6
         first: [Bur, Dum, Fen, Gam, Hob, Mug, Nob, Pud, Tod, Wim, Bol, Cot, Dib, Hap, Lum, Tum, Wob, Bram, Fos, Hil, Mid, Nim, Rum, Sim,
                 Tib, Cob, Mer, Prim, Sand, Wil]
         middle: [ble, ber, bel, dle, ple, a, i, o, kin, wel]
         middles: {0: 5, 1: 5}
         last: [by, ton, kin, wick, ley, son, ham, worth, bury, combe, let, ock, ins, ell, ery, idge]
+      - weight: 1
+        first: [B, C, D, F, G, H, M, N, P, T, W]
+        last: [obb, umm, ugg, ott, app, ibb, ubb, ert, oll, unce]
 
   # Dwarves: hard stops and rolled R's, Norse-like endings, short ones like Brokk or Hild; clan names in the same old tongue.
   dwarf:
     length: [3, 10]
-    avoid: ["li$", "oe", "ui"]
+    avoid: ["oe", "ui"]
     male:
       - weight: 4
         first: [Bar, Brom, Dol, Dur, Far, Gar, Grim, Hor, Kil, Mor, Nor, Or, Rur, Thur, Tor, Ulf, Von, Bal, Dag, Gund, Hel, Kor, Mag, Brok,
@@ -405,18 +149,21 @@ peoples:
         first: [B, Br, D, G, H, K, R, S, T, V, ""]
         last: [ild, ynn, unn, is, erd, eid, ann, ilde, yll]
     family:
-      - weight: 1
+      - weight: 5
         first: [Bal, Brom, Dur, Gor, Hol, Kor, Lod, Mor, Rum, Stra, Tor, Ung, Bram, Dag, Grun, Hrod, Kaz, Mag, Thar, Vond, Bar, Gund, Kil,
                 Norg, Orm, Sund]
         middle: [a, e, u, o, ra, un, nar, der, gar]
         middles: {0: 5, 1: 5}
         last: [derk, heim, gart, unn, hek, gehr, nar, kald, grund, sson, mek, rakk, dal, vik, bruk, garth, rim, strom, ek, ulf, ar, in]
+      - weight: 1
+        first: [B, Br, D, G, Gr, H, Hr, K, Kr, M, R, St, Th, Thr, T, V]
+        last: [unn, akk, orn, ulf, ekk, urg, ald, ard, oth, uld, ask, ynn]
 
   # Elves: open vowels, liquid L's and R's, never fewer than two syllables; family names flowing syllables of the same tongue.
   elf:
     length: [4, 10]
     min_syllables: 2
-    avoid: ["k", "g$", "las$"]
+    avoid: ["k", "g$"]
     male:
       - weight: 1
         first: [Ae, Ael, Ca, Cael, El, Er, Fae, Gae, Hae, Il, Ith, Lor, Mi, Nai, Pae, Ri, Sy, Tha, Va, Bel, Cy, Ol, Pel, Sil, Thal, Ar,
@@ -440,7 +187,7 @@ peoples:
 
   # Gnomes: bouncy, clicky, a little silly, short ones like Zook or Nyx; family names are tinkerers' noises and parts run together.
   gnome:
-    length: [3, 10]
+    length: [3, 13]                 # room for their long compounds (Quickspindle)
     male:
       - weight: 5
         first: [Al, Bod, Bim, Dim, Fiz, Fon, Gim, Jeb, Kel, Nam, Roon, See, War, Dib, Grin, Nog, Pock, Tib, Wiz, Zan, Bop, Fib, Hob, Lum,
@@ -462,11 +209,15 @@ peoples:
         first: [N, B, D, G, J, L, M, P, T, W, Z, Tw]
         last: [yx, ix, ib, ee, oo, ip, izz, ynk]
     family:
-      - weight: 1
+      - weight: 5
         first: [Tumble, Bright, Quill, Cog, Fizz, Gear, Hum, Ink, Jumble, Kettle, Lens, Mop, Nut, Odd, Quick, Rattle, Spark, Sprocket,
-                Tinker, Whistle, Wobble, Bolt, Clock, Copper, Dazzle, Gimble, Spindle, Twist]
+                Tinker, Whistle, Wobble, Bolt, Clock, Copper, Dazzle, Gimble, Spindle, Twist, Bumble, Crinkle, Doodle, Fiddle, Giggle,
+                Jingle, Muddle, Nimble, Puzzle, Tangle, Wiggle, Zizzle]
         last: [cog, bolt, sprocket, spring, whistle, wick, gig, bang, clank, grind, spindle, box, snap, wheel, fizzle, pop, gadget, sprout,
-               ratchet, tock, widget, crank, nozzle, puff]
+               ratchet, tock, widget, crank, nozzle, puff, bonk, whirl, jig, flick, buckle, tinker, toggle, whizz]
+      - weight: 1 # a single noise
+        first: [F, B, P, Z, W, Sn, Cl, Gl, T, D, Pl, Wh]
+        last: [izz, onk, op, ang, ix, ump, ink, oof, uzz, ip]
 
   # Goliaths: open, rolling syllables of the high peaks, short ones like Kau or Lok; clan names long and chanted.
   goliath:
@@ -487,46 +238,53 @@ peoples:
         first: [Ga, I, Ko, Lu, Ma, Ne, O, Pa, Sa, Te, Va, Ya, A, He, Il, Ka, "No", Tu, Ri, Ae, Mi]
         middle: [la, ka, li, ta, ma, ve, nu, ai]
         middles: {0: 4, 1: 5, 2: 1}
-        last: [la, ka, ra, ai, ti, mu, ku, li, ta, ya, sha, ia, lei, a, nu]
+        last: [la, ka, ra, ai, ti, mu, ku, li, ta, ya, sha, ia, ne, lei, a, nu]
       - weight: 1
-        first: [K, L, M, N, P, T, V, Y, ""]
-        last: [ai, au, ei, ae, aya]
+        first: [K, L, M, N, P, T, V, Y, Th, R, G, H, ""]
+        last: [ai, au, ei, ae, aya, aun, ail, eil, aul]
     family:
-      - weight: 1
+      - weight: 7
         first: [Ana, Ela, Ga, Ka, Ko, O, Thu, Va, Ke, Ma, Lo, Ta]
         middle: [ka, la, li, tha, ga, nu, ma, ve]
         middles: {1: 5, 2: 5}
         last: [thi, kan, ano, avi, gi, aga, ala, lag, mei, ri, kai, tho]
+      - weight: 1
+        first: [K, L, M, N, P, T, Th, V, G, R]
+        last: [au, ai, ak, ul, ok, an, um, ath, auk, ei]
 
   # Orcs: short and hard, often one syllable (Grom, Krag), -a / -ha / -za for women; clan names harsh syllables, not words.
   orc:
     length: [3, 9]
     avoid: ["^[aeiou]{2}", "ua", "^[^aeiou]{3}"]
     male:
-      - weight: 3
+      - weight: 4
         first: [Gr, Kr, Br, Dr, Ur, Ug, Mog, Gor, Rag, Skar, Thrak, Zug, Durz, Gh, Hr, Kh, Mag, Naz, Org, Rok, Sh, Tor, Vrak, Yag, Az,
                 Bol, Gul, Lug]
         middle: [a, o, u]
         middles: {0: 9, 1: 1}
         last: [ug, ak, ok, um, uk, ash, ag, uz, og, rak, gul, nar, rok, zug, mash, dak, gar, ruk, ur, osh, kk]
-      - weight: 2
+      - weight: 1
         first: [Gr, Kr, Br, Dr, Th, Sk, Z, G, M, N, R, Sh, Gh, Y, V]
         last: [om, ug, ag, ak, ash, uk, orz, ul, og, ar, ub, akk, urk]
     female:
       - weight: 4
-        first: [Ar, Bul, Ghar, Har, Maz, Rak, Ush, Zur, Dur, Gor, Lag, Mur, Nag, Og, Shag, Brak, Dag, Ek, Gruz, Kra, Sha, Ur, Vol, Yaz]
+        first: [Ar, Bul, Ghar, Har, Maz, Rak, Ush, Zur, Dur, Gor, Lag, Mur, Nag, Og, Shag, Brak, Dag, Ek, Gruz, Kra, Sha, Ur, Vol, Yaz,
+                Bur, Gash, Krug, Mog, Rath, Shar, Thur, Grish]
         middle: [a, u]
         middles: {0: 9, 1: 1}
-        last: [ha, ga, za, kha, na, ra, ka, sha, zha, gra, da, gha, ma, ta]
+        last: [ha, ga, za, kha, na, ra, ka, sha, zha, gra, da, gha, ma, ta, zza, gga, rka, dha, ska, lga]
       - weight: 1
-        first: [Gh, Sh, Y, Z, M, B, D, G, R, N]
-        last: [az, ash, ul, ush, ozh, agh, urz]
+        first: [Gh, Sh, Y, Z, M, B, D, G, R, N, Kh, Vr, Gr, L, H]
+        last: [az, ash, ul, ush, ozh, agh, urz, ugh, ark, ogh, uzz]
     family:
-      - weight: 1
+      - weight: 4
         first: [Ghor, Kul, Mog, Thrak, Uz, Grish, Bar, Dush, Gor, Krug, Naz, Rag, Skor, Zul, Yag, Hruk, Lug, Mor, Shak, Vrog]
         middle: [a, u, o, ub, ar, ag]
         middles: {0: 6, 1: 4}
         last: [gash, nak, ruk, dush, mok, zag, garth, tuk, rakh, goth, zog, mash, gul, bur, kar, thak, zud]
+      - weight: 1
+        first: [Gr, Kr, Br, Dr, Th, Sk, Z, G, M, N, R, Sh, Gh, Vr]
+        last: [akk, ash, ug, orz, ukk, agh, oth, urz, ogg, uth]
 
   # Dragonborn: rasping, regal names with the hiss and growl of their ancestors, short ones like Ghesh now and then; clan names long
   # and ancient.
@@ -549,14 +307,17 @@ peoples:
         middles: {0: 4, 1: 6}
         last: [rya, sa, ra, na, ria, ka, ya, sha, dira, khara, rith, vash, nis, ssa, thra, lyx]
       - weight: 1
-        first: [Z, S, V, Th, Rh, Ny, K, Jh, Sh]
-        last: [yx, ash, ith, ess, yrr, ael]
+        first: [Z, S, V, Th, Rh, Ny, K, Jh, Sh, X, Zh, Vr, Kh]
+        last: [yx, ash, ith, ess, yrr, ael, yss, eth, ax, yth]
     family:
-      - weight: 1
+      - weight: 7
         first: [Ash, Bael, Cor, Dra, Esh, Gor, Hyr, Ix, Jar, Kael, Mor, Qir, Rhy, Sev, Thar, Vex, Zor, Uld, Kesh, Nyx, Orr, Pyr]
         middle: [a, e, i, o, an, ex, ir, ul, ar]
         middles: {0: 3, 1: 5, 2: 2}
         last: [thar, rax, kar, dion, mir, ion, xar, thul, das, rix, thon, ruth, vax, nar, ghast, zhul, vyre, tor, dras]
+      - weight: 1
+        first: [Gh, Kr, Dh, Rh, Sh, V, Z, Th, K, D, M, X]
+        last: [aar, esh, ax, orr, ix, yrr, ath, ul, yx, oss]
 
   # Genasi: names of weather and stone and flame, sometimes a word outright (Gale, Haze); family names in an older, desert-tongued
   # speech of the elements.
@@ -576,13 +337,16 @@ peoples:
         first: [Ae, Bri, Co, Da, Fu, Io, Ka, Lu, Mis, Na, Py, Ri, Sa, Ti, Zeph, Ve, Ny, Al, Ce, Ha, Mae, Sol, Ul, Yr]
         middle: [a, e, i, o, la, ri]
         middles: {0: 6, 1: 4}
-        last: [lis, sa, ral, lia, mara, la, men, tral, ia, ria, ra, yra, ssa, lune, ris, phi, lith, wen, nyx]
+        last: [lis, sa, ral, lia, mara, ne, la, men, tral, ia, ria, ra, de, yra, ssa, lune, ris, ze, phi, lith, wen, nyx]
       - weight: 1
         first: [G, H, J, M, N, R, S, T, V, Z, Bl]
         last: [ust, aze, ide, ime, yss, une, ae, ire, yn]
     family:
-      - weight: 1
+      - weight: 6
         first: [Al, Ash, Bar, Cen, Dar, Esh, Far, Ha, Ir, Ka, Lu, Mar, Na, Or, Ra, Sa, Ta, Va, Zar, Sol, Yr, Kas, Nur]
         middle: [a, i, o, ri, za, la, mi]
         middles: {0: 5, 1: 5}
-        last: [zir, hid, mun, rad, sim, var, dar, kesh, nun, lis, ros, phar, bek, vash, rel, zad, kir, mir, sah]
+        last: [zir, hid, mun, rah, sim, var, dar, kesh, nun, lis, ros, phar, bek, vash, rel, zad, kir, mir, sah, rad]
+      - weight: 1
+        first: [Kh, Z, S, R, N, F, H, B, D, M, Sh, Y]
+        last: [ir, ad, ar, ash, ul, ez, im, os, uz, al]

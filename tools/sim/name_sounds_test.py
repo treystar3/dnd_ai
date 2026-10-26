@@ -1,7 +1,9 @@
 """(f346) Names built from each people's sounds: every people can build men's, women's and family names; every name keeps its
-people's rules (length, how many vowels or consonants run together) and the shared ones (no rude or repeated pieces, never a name
-another story owns); the same seed gives the same names; there is variety; half-elves take human family names."""
+people's rules (length, how many vowels or consonants run together) and the shared ones (no piece said twice running); the same seed
+gives the same names; half-elves take human family names. There is no list of forbidden names - variety keeps any one name rare - so
+the test pins the variety: thousands of possible names for every kind, and no name drawn often."""
 import random, re, subprocess, sys
+from collections import Counter
 sys.path.insert(0, ".")
 from npc import names
 from world.loader import load_world
@@ -13,7 +15,6 @@ def check(n, ok, x=""):
 
 world = load_world()
 S = names.sounds()
-taken = {t.lower() for t in S["taken"]}
 check("every people of the world has sounds", set(world.peoples) <= set(S["peoples"]), set(world.peoples) - set(S["peoples"]))
 for people in world.peoples:
     rules = S["peoples"][people]
@@ -24,7 +25,6 @@ for people in world.peoples:
         r = names._rules(people, kind)
         lo, hi = r.get("length", S["length"])
         check(f"{people} {kind}: every name keeps its length", all(lo <= len(n) <= hi for n in made), [n for n in made if not lo <= len(n) <= hi][:5])
-        check(f"{people} {kind}: none is a name another story owns or a blocked word", not [n for n in made if n.lower() in taken])
         check(f"{people} {kind}: no letter three times running, no piece said twice running",
               not [n for n in made if re.search(r"(.)\1\1", n.lower()) or re.search(r"(.{2,})\1", n.lower())])
         check(f"{people} {kind}: capitalised, letters only", all(n[0].isupper() and n[1:].islower() and n.isalpha() for n in made), made[:5])
@@ -40,6 +40,16 @@ for people in world.peoples:
         check("an elf's name is never one syllable", not ones, ones[:5])
     else:
         check(f"{people}: some first names are one syllable", len(ones) >= 10, (len(ones), made[:6]))
+    fams = [names.build(people, "family", random.Random(f"onefam:{people}:{i}")) for i in range(400)]
+    short = [n for n in fams if names.syllables(n) == 1]
+    if people == "elf":
+        check("an elf's family name is never one syllable", not short, short[:5])
+    else:
+        check(f"{people}: some family names are one syllable", len(short) >= 10, (len(short), fams[:6]))
+for kind in ("male", "female", "family"):
+    made = [names.build("human", kind, random.Random(f"share:{kind}:{i}")) for i in range(3000)]
+    share = sum(names.syllables(n) == 1 for n in made) / len(made)
+    check(f"about 2 in 10 human {kind} names are one syllable ({share:.0%})", 0.15 <= share <= 0.25, share)
 
 # family names are syllables, not English words run together - except humans' (and half-elves', which are human) and gnomes'
 WORDS = ("stone", "iron", "doom", "hide", "fist", "beard", "skull", "moon", "star", "storm", "walker", "apple", "under", "foot",
@@ -51,9 +61,17 @@ for people in ("dwarf", "elf", "halfling", "orc", "genasi", "goliath", "dragonbo
 gfam = [names.build("gnome", "family", random.Random(f"fam:gnome:{i}")) for i in range(50)]
 check("gnome family names are still tinkers' words run together", any(f.startswith(("Tumble", "Kettle", "Gear", "Cog", "Whistle")) for f in gfam), gfam[:5])
 
+# variety, which is what keeps any one name rare
+for people in world.peoples:
+    for kind in ("male", "female", "family"):
+        room = len(names.possible(people, kind))
+        drawn = Counter(names.build(people, kind, random.Random(f"v:{people}:{kind}:{i}")) for i in range(3000)).most_common(1)[0]
+        check(f"{people} {kind}: at least 1000 possible names ({room})", room >= 1000, room)
+        check(f"{people} {kind}: no name drawn more than 1.5% of the time ({drawn[0]} {drawn[1] / 30:.2f}%)", drawn[1] <= 45, drawn)
+
 # the shared rules on hand-picked cases
 h = S["peoples"]["human"]
-for name, ok in (("Thorin", False), ("Legolas", False), ("Dordor", False), ("Aaaron", False), ("Wilfred", True), ("Brenna", True)):
+for name, ok in (("Dordor", False), ("Aaaron", False), ("Wilfred", True), ("Brenna", True), ("Thorin", True)):
     check(f"'{name}' is {'kept' if ok else 'refused'}", names.acceptable(name, h) is ok)
 
 # the sampler the sounds are tuned with runs

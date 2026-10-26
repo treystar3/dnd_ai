@@ -4,7 +4,8 @@ name and writes only the look and the day.
 
 build() makes new names instead of picking them (f346): each people has its own sounds in data/world/name_sounds.yaml - the pieces
 its names begin, continue and end with - and a name is those pieces joined, checked against the people's rules (length, how many
-vowels or consonants may run together, what never to produce) and against a list of names other stories own."""
+vowels or consonants may run together, sounds it never makes). There is no list of forbidden names: each kind can make thousands,
+so any one name is rare."""
 from __future__ import annotations
 
 import random
@@ -93,7 +94,7 @@ def _join(a: str, b: str) -> str:
 
 
 def acceptable(name: str, rules: dict) -> bool:
-    """Does a built name keep its people's rules and the shared ones (data/world/name_sounds.yaml: length, runs, avoid, taken)?"""
+    """Does a built name keep its people's rules and the shared ones (data/world/name_sounds.yaml: length, runs, avoid, syllables)?"""
     shared = sounds()
     low = name.lower()
     lo, hi = rules.get("length", shared["length"])
@@ -107,9 +108,7 @@ def acceptable(name: str, rules: dict) -> bool:
         return False
     if any(re.search(pat, low) for pat in shared["avoid"] + rules.get("avoid", [])):
         return False
-    if syllables(low) < rules.get("min_syllables", 1):
-        return False
-    return low not in _taken()
+    return syllables(low) >= rules.get("min_syllables", 1)
 
 
 def syllables(name: str) -> int:
@@ -117,14 +116,8 @@ def syllables(name: str) -> int:
     return len(re.findall(f"[{VOWELS}]+", name.lower()))
 
 
-@lru_cache(maxsize=1)
-def _taken() -> frozenset[str]:
-    """Names never built: those another story owns, and common English words (name_sounds.yaml `taken` and `words`)."""
-    return frozenset(n.lower() for n in sounds()["taken"] + sounds().get("words", []))
-
-
 def possible(people: str, kind: str) -> set[str]:
-    """Every name the people's sounds can make for a kind, each kept only if it keeps the rules (for checking the sounds whole)."""
+    """Every name the people's sounds can make for a kind that keeps its rules: how much room there is, so no one name comes up often."""
     import itertools
     rules = _rules(people, kind)
     out = set()
