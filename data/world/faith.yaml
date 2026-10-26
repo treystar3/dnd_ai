@@ -2,7 +2,7 @@
 # These are tone notes for the model, never lines to repeat. `cares` = what the god stands for; `imagery` = what the faithful reach for
 # when they speak; `habits` = how belief shows in ordinary speech; `swears` = what they swear by, loosely.
 gods:
-  valecourt:
+  lethoria:
     name: Aurelan the Sun Warden
     cares: oaths kept, the crown's mandate, light against dark
     imagery: sunrise, flame, gold, the warden at the gate

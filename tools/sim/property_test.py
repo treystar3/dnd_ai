@@ -38,7 +38,7 @@ P = prop.P
 buy = lambda what: ws.property_buy(ActionIntent(kind="buy", ware=what), f"buy {what}")
 
 # ---- the old towns sell nothing; the far lands do, through the agent
-ws.enter("valecourt")
+ws.enter("lethoria")
 ws.halted = False
 check("a house is not for sale in an older town, though its entry stands for houses already owned", buy("a house") and ws.halted and any("No houses are for sale" in n for n in notes), notes[-1:])
 town = "cinderhold"

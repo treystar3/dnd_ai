@@ -85,9 +85,9 @@ ws.enter("trading_square")
 ws.enter("guild_house")
 ws.store.meta.minutes = 2 * 60                     # two hours after waking at eight: mid-morning
 check("Parth at mid-morning is a busy town", any("busy" in l for l in truth.scene_of(ws).view(truth.NARRATOR, "narrator").streets()), truth.scene_of(ws).view(truth.NARRATOR, "narrator").streets())
-cap = world.places["valecourt"]
-check("a place's own scale wins over its type (Valecourt is the capital, places.yaml)", truth.scale_of(world, cap) == "capital" and cap.type == "city")
-check("...and its places take the town's", truth.scale_of(world, world.places["valecourt_inn"]) == "capital")
+cap = world.places["lethoria"]
+check("a place's own scale wins over its type (Lethoria is the capital, places.yaml)", truth.scale_of(world, cap) == "capital" and cap.type == "city")
+check("...and its places take the town's", truth.scale_of(world, world.places["lethoria_inn"]) == "capital")
 cap.scale = ""
 check("...without one, the type decides", truth.scale_of(world, cap) == "city")
 cap.scale = "capital"
@@ -120,7 +120,7 @@ check("...and people of the scene pass", truth.coined(f"{clerk.name} will see yo
 check("...as do the party, the player and places", truth.coined(f"I'll take {char.name} to Kelpmoor myself.", given, known) == "")
 check("a building the town lacks, spoken of as here, is caught", "smithy" in truth.absent_here("Try the smithy by the square.", given), given[:0])
 check("...not when it is said to be missing", truth.absent_here("There's no smithy here, more's the pity.", given) == "")
-check("...nor elsewhere", truth.absent_here("The smithy in Valecourt would do it.", given) == "")
+check("...nor elsewhere", truth.absent_here("The smithy in Lethoria would do it.", given) == "")
 check("...and the complaint names the town's line", "the town has none" in truth.check_speech("Head for the forge.", given, known))
 
 shutil.rmtree("saves/truth_test", ignore_errors=True)

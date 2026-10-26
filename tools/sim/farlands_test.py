@@ -36,7 +36,7 @@ for h in ["cinderhold_guild", "hrimgard_guild", "dunmarrow_guild"]:
     t = quests.hall_tier(world, h)
     check(f"{h} is a top-tier hall", t["tier"] >= 3 and t["reward_mult"] > 1.5, str(t["reward_mult"]))
 check("old halls unchanged", [quests.hall_tier(world, h)["tier"] for h in
-      ["ironvein_guild", "frostholm_guild", "sunspire_guild", "valecourt_guild", "eldervale_guild", "riverhaven_guild"]] == [1, 2, 2, 1, 0, 0])
+      ["ironvein_guild", "frostholm_guild", "sunspire_guild", "lethoria_guild", "eldervale_guild", "riverhaven_guild"]] == [1, 2, 2, 1, 0, 0])
 check("dealer per city", len(P.dealer_towns(world)) == 13, str(len(P.dealer_towns(world))))
 check("relic shelves filled", len(set(P.stock(world, 7).values())) == 13)
 print("FAILED" if bad else "ALL PASS", bad)

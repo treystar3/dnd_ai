@@ -59,11 +59,41 @@ def _v4_meravia(store) -> None:
                 store.execute(f"UPDATE {table} SET {', '.join(f'{c} = ?' for c in cols)} WHERE {key} = ?", (*new, row[0]))
 
 
+def _v5_lethoria(store) -> None:
+    """The capital was renamed: Valecourt is Lethoria. Unlike the world's name (v4), the capital's name is also an id - the city and
+    the places inside it (lethoria_guild, lethoria_palace...), the knowledge group of its people, its lore facts, a home there - so
+    every text column of every table is carried over, ids and index columns included: where the player stands, where people live,
+    what they know, whose memories are whose, the journal's actors and targets, what the model wrote. Whole words only; a prefix of
+    an id ('valecourt_guild', 'home_valecourt') counts as a word."""
+    import re
+    rules = ((re.compile(r"(?<![A-Za-z])Valecourt(?![a-z])"), "Lethoria"), (re.compile(r"(?<![A-Za-z])valecourt(?![a-z])"), "lethoria"),
+             (re.compile(r"VALECOURT"), "LETHORIA"))
+
+    def fix(v):
+        if not isinstance(v, str) or not v:
+            return v
+        for rx, to in rules:
+            v = rx.sub(to, v)
+        return v
+    tables = [r[0] for r in store._db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+    for table in tables:
+        cols = [r[1] for r in store._db.execute(f"PRAGMA table_info({table})") if (r[2] or "").upper() == "TEXT"]
+        if not cols:
+            continue
+        found = store._db.execute(f"SELECT rowid, {', '.join(cols)} FROM {table} WHERE "          # LIKE ignores case, so every form is found
+                                  + " OR ".join(f"{c} LIKE '%valecourt%'" for c in cols)).fetchall()
+        for row in found:
+            new = [fix(v) for v in row[1:]]
+            if new != list(row[1:]):
+                store.execute(f"UPDATE {table} SET {', '.join(f'{c} = ?' for c in cols)} WHERE rowid = ?", (*new, row[0]))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
     (3, "combat on the battlefield (zones, rows, engagement); a fight in progress under range bands is discarded", _v3_battlefield),
     (4, "the world renamed from Rivia to Meravia in everything the model wrote into the save", _v4_meravia),
+    (5, "the capital renamed from Valecourt to Lethoria, its ids with it", _v5_lethoria),
 ]
 
 CURRENT = MIGRATIONS[-1][0]

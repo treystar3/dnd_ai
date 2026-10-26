@@ -1,6 +1,6 @@
 """Which god a place follows, and how its people sound when they speak of the faith. Lore only: no gameplay effect.
 
-A city follows its own god. Everywhere else follows the god of the realm it sits in: the crown's lands follow Valecourt's Sun Warden,
+A city follows its own god. Everywhere else follows the god of the realm it sits in: the crown's lands follow Lethoria's Sun Warden,
 a city's own lands follow that city. A place with no ruler follows the nearest city by walking time. The tone notes are suggestions
 for the narrator, never lines to repeat (data/world/faith.yaml)."""
 from __future__ import annotations
@@ -27,7 +27,7 @@ def seat(world, place_id: str) -> str | None:
     region = world.regions.get(p.region)
     ruler = (region.ruled_by or "").lower() if region else ""
     if "crown" in ruler:
-        return "valecourt"
+        return "lethoria"
     for city in GODS:
         if city in world.places and world.places[city].name.lower() == ruler:
             return city

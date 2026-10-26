@@ -220,7 +220,7 @@ check("a matter that ends keeps its record though it was the oldest made; the ea
 state = pulse.empty_state(now)
 check("every kind has at least two shapes, the base one first", all(len(threads.shapes(k)) >= 2 and threads.shapes(k)[0] == k for k in threads.T["kind_weights"]),
       {k: threads.shapes(k) for k in threads.T["kind_weights"]})
-sample = {"threat": "greywood_predators", "nature": "willowmead_floods", "mystery": "the_hollow_stirs", "social": "inn_trouble", "politics": "valecourt_court",
+sample = {"threat": "greywood_predators", "nature": "willowmead_floods", "mystery": "the_hollow_stirs", "social": "inn_trouble", "politics": "lethoria_court",
           "trade": "riverhaven_trade", "economic": "caravan_trouble", "work": "greyhollow_mines", "natural": "harvest_and_weather", "fortune": "far_wonder"}
 broken = []
 for kind, pid in sample.items():

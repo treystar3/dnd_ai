@@ -19,7 +19,7 @@ top = world.places["kelpmoor"]
 req = dt.request(world, top, truth, pulse)
 check("the request gives the town's places, roles, pressures, lore, size and the calendar", "THE TOWN'S PLACES" in req and "ROLES THE TOWN HAS" in req
       and "SEASONS: spring" in req and "kelpmoor - Kelpmoor" in req and "SIZE: its scale is" in req, req[:300])
-vreq = dt.request(world, world.places["valecourt"], truth, pulse)
+vreq = dt.request(world, world.places["lethoria"], truth, pulse)
 check("the capital's size is the capital's (places.yaml scale), with the quarters that means, and the writer is told it is the capital",
       "SIZE: its scale is capital" in vreq and "DISTRICTS: 6 to 9 quarters" in vreq and "ANCHORS: 6 to 8 people" in vreq and "THIS IS THE CAPITAL" in vreq
       and "DISTRICTS: 1 to 2 quarters" in one if (one := dt.request(world, world.places["willowmead"], truth, pulse)) else False)
@@ -56,13 +56,13 @@ check("a file the loader would refuse is caught by the same check", any("anchor 
 out.unlink(missing_ok=True)
 
 # the capital's anchors include the one who rules
-vtop = world.places["valecourt"]
+vtop = world.places["lethoria"]
 vd = dt.ProfileDraft(character=d.character, anchors=[{"role": "guild_master", "note": "x"}, {"role": "chamberlain", "note": "keeps the door"}, {"role": "guild_master", "note": "again"}], scale="capital")
 vdata, vdropped = dt.fit(world, vtop, vd, truth, pulse)
 check("the capital's anchors always include the monarch, and a role is an anchor once", vdata["anchors"][0]["role"] == "monarch"
       and [a["role"] for a in vdata["anchors"]] == ["monarch", "guild_master", "chamberlain"] and any("given twice" in x for x in vdropped), (vdata["anchors"], vdropped))
-check("the palace is a place of the capital with the crown in it", "valecourt_palace" in [p.id for p in dt.town_places(world, "valecourt")]
-      and world.places["valecourt_palace"].residents.get("monarch") == 1 and "monarch" in world.roles)
+check("the palace is a place of the capital with the crown in it", "lethoria_palace" in [p.id for p in dt.town_places(world, "lethoria")]
+      and world.places["lethoria_palace"].residents.get("monarch") == 1 and "monarch" in world.roles)
 
 # the tool end to end, with a stand-in for the model
 calls = []

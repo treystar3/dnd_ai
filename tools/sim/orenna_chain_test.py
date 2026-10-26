@@ -53,7 +53,7 @@ check("nothing is ever offered unprompted", orenna.stage(player) == "" and not S
 ws.orenna_named("Have you ever heard the name Orenna?")
 check("saying the name at 50 starts it", orenna.stage(player) == "named")
 o = player.orenna
-check("four different great cities, never the capital", len({o["meeting"], *o["trails"]}) == 4 and "valecourt" not in {o["meeting"], *o["trails"]}, o)
+check("four different great cities, never the capital", len({o["meeting"], *o["trails"]}) == 4 and "lethoria" not in {o["meeting"], *o["trails"]}, o)
 ws.orenna_tick()
 check("the contact does not come at once", orenna.stage(player) == "named" and not SAID)
 store.meta.minutes = o["due"] + 1
@@ -124,7 +124,7 @@ check("the narrator is told of the flash", any("flash of pale light" in x for x 
 
 # the register, then the High Keeper
 FIGHTS.clear()
-player.location = "valecourt"
+player.location = "lethoria"
 ws.orenna_tick()
 check("the register leads straight to the confrontation", orenna.stage(player) == "confront" and "orenna_registry" in c.knowledge)
 check("the finale is the High Keeper with the Executioner beside him", FIGHTS and FIGHTS[-1][0] == "high_keeper" and len(FIGHTS[-1][1]) == 2)

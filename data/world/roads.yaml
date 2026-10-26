@@ -27,7 +27,7 @@
    description: "A giants' road of enormous stone steps climbing through the snow into the clouds, worn by weather and left by something far bigger than people."}
 - {id: deep_stair, name: the Deep Stair, from: ironvein_mines, to: deep_roads_tunnels,
    description: "A dwarven stair down through the mountain's roots, lit by crystal lamps and guarded at every landing. The air thickens and the sound of the world above fades."}
-- {id: sunken_road, name: the Sunken Road, from: valecourt, to: brinewatch,
+- {id: sunken_road, name: the Sunken Road, from: lethoria, to: brinewatch,
    description: "Runs west from the royal vales to a cold, stony coast, past farms, then wreck-timber fences, then salt marsh and the smell of the sea."}
 - {id: jade_way, name: the Jade Way, from: riverhaven, to: amaranth,
    description: "Follows a southern river into a heat that thickens by the day, from farmland to bamboo to jungle roots lifting the paving stones."}
@@ -58,11 +58,11 @@
    description: "A cliff road above a retreating sea, with the drowned capital's towers showing a little more with every visit."}
 
 # --- the new lands ---
-- {id: valley_road, name: the Valley Road, from: riverhaven, to: valecourt,
+- {id: valley_road, name: the Valley Road, from: riverhaven, to: lethoria,
    description: "Follows the broad river valley north from the Great River lands into vineyards and royal estates, the busiest road in the kingdom."}
-- {id: marrow_road, name: the Marrow Road, from: valecourt, to: dunmarrow,
+- {id: marrow_road, name: the Marrow Road, from: lethoria, to: dunmarrow,
    description: "Climbs from the royal vales into the broken hills of the Deep Roads country, a long road with few inns and a toll at every bridge."}
-- {id: north_road, name: the North Road, from: valecourt, to: frostholm,
+- {id: north_road, name: the North Road, from: lethoria, to: frostholm,
    description: "Runs north from the capital across rolling hills and high moor, the snow arriving a little sooner every year."}
 - {id: gull_road, name: the Gull Road, from: brinewatch, to: thalassor,
    description: "A cold coast road of shingle and shell, shrouded in sea-fog, where bells hang from the milestones so travellers can find their way."}
@@ -84,7 +84,7 @@
    description: "A track along the tide-line that is half mud and half boardwalk, rebuilt after every Drag."}
 - {id: coast_road, name: the Coast Road, from: kelpmoor, to: riverhaven,
    description: "Follows the southern coast east to the mouth of the Great River, past salt pans and fishing hamlets."}
-- {id: tithe_road, name: the Tithe Road, from: harrowgate, to: valecourt,
+- {id: tithe_road, name: the Tithe Road, from: harrowgate, to: lethoria,
    description: "A broad royal road of wagon ruts, built to carry grain to the capital and kept in repair by the crown."}
 - {id: lakeshore_road, name: the Lakeshore Road, from: kingsmere, to: riverhaven,
    description: "Skirts the lake and then runs south through vineyards and orchards to the river, rolling between summer villas."}

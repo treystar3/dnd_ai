@@ -237,7 +237,7 @@
   visible:
     - A hard northern city in a valley of snow and ice, built for endurance against the cold.
     - Goliaths, humans, orcs and dwarves share long halls and fires; the community is everything here.
-    - The Frostpass leads east to Dunmarrow; the North Road runs south to Valecourt; the Old Forest Trail leads southwest toward Eldervale.
+    - The Frostpass leads east to Dunmarrow; the North Road runs south to Lethoria; the Old Forest Trail leads southwest toward Eldervale.
     - Within the Frostholm streets you can find the Frostholm guild hall, the Frozen Flagon, the Frostholm forge, the Frostholm curio house and the hearth-hall of the marshal.
   peoples: {goliath: 30, human: 30, orc: 25, dwarf: 15}
   biome: urban
@@ -334,8 +334,8 @@
   visible:
     - Sand, salt flats and mesas to every horizon; heat that shimmers the air.
 
-- id: valecourt
-  name: Valecourt
+- id: lethoria
+  name: Lethoria
   type: city
   scale: capital                   # the royal capital: the truth layer's crowds and the town profile's quarters are the capital's (f318)
   region: royal_vales
@@ -344,11 +344,11 @@
     - Everything is grander, cleaner and better kept than in the countryside; the gap is plain to see.
     - Magic is everywhere in the great houses and nearly nowhere in the streets below them.
     - The Valley Road runs south to Riverhaven, the North Road to Frostholm, the Marrow Road to Dunmarrow and the Sunken Road west to Brinewatch.
-    - Within the Valecourt streets you can find the palace, the Valecourt guild hall, the Gilded Stag, the Valecourt mercantile, the court atelier, the Royal Curiosity House and the royal chapel.
+    - Within the Lethoria streets you can find the palace, the Lethoria guild hall, the Gilded Stag, the Lethoria mercantile, the court atelier, the Royal Curiosity House and the royal chapel.
   peoples: {human: 85, half_elf: 8, elf: 4, dwarf: 3}
   biome: urban
   connects: {howling_downs: 130, riverhaven: 600, dunmarrow: 3200, frostholm: 1800}
-  locals_group: valecourt_locals
+  locals_group: lethoria_locals
   residents: {courtier: 1, land_agent: 1, noble: 2, royal_guard: 2}
   storage: true
   trade_level: [20, 60]
@@ -433,22 +433,22 @@
     - Inside, a board of pinned contracts and a clerk's desk.
   residents: {guild_clerk: 1, guild_master: 1, guild_instructor: 1, guild_contractor: 2, quartermaster: 1}
 
-- id: valecourt_palace
+- id: lethoria_palace
   name: the palace
   type: palace
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - The crown's house - pale stone, a great gate with the royal guard on it, and courts within courts beyond.
     - A hall where petitioners wait on benches under the eye of the chamberlain's clerks; the throne room lies past doors that do not open for everyone.
   residents: {monarch: 1, chamberlain: 1, courtier: 2, royal_guard: 2}
   audience: {keeper: chamberlain, sees: [monarch]}      # (f320) the crown is seen only when admitted; the chamberlain keeps the door
 
-- id: valecourt_guild
-  name: the Valecourt guild hall
+- id: lethoria_guild
+  name: the Lethoria guild hall
   type: guild
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - A grand hall of the guild, with the guild's sign in gilt over great doors.
     - Inside, a board of pinned contracts and a clerk's desk.
@@ -645,7 +645,7 @@
   peoples: {human: 45, half_elf: 15, dragonborn: 10, halfling: 10, orc: 10, gnome: 10}
   biome: urban
   locals_group: brinewatch_locals
-  connects: {valecourt: 3300, drowned_shore: 80, sepulchre_fields: 1700, wreck_coast: 110}
+  connects: {lethoria: 3300, drowned_shore: 80, sepulchre_fields: 1700, wreck_coast: 110}
   residents: {dockhand: 2, fisher: 2, guard: 2, land_agent: 1}
   storage: true
   trade_level: [85, 140]
@@ -1248,55 +1248,55 @@
     - Every visitor leaves a cup of water at the door, and is offered bread.
   residents: {water_priest: 2}
 
-- id: valecourt_inn
+- id: lethoria_inn
   name: the Gilded Stag
   type: inn
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - A fine inn for travelling nobles, with liveried servers and quiet rooms.
     - The prices are on the board, and no one haggles.
   residents: {innkeeper: 1}
   storage: true
 
-- id: valecourt_mercantile
-  name: the Valecourt mercantile
+- id: lethoria_mercantile
+  name: the Lethoria mercantile
   type: shop
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - A grand shop of fine goods under painted glass, run by liveried clerks.
     - The royal seal hangs over the door.
   residents: {merchant: 1}
   trade_level: [20, 60]
 
-- id: valecourt_workshop
+- id: lethoria_workshop
   name: the court atelier
   type: workshop
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - A bright atelier where the court's enchanter takes private commissions.
     - Silks and silver wire cover every bench.
   residents: {enchanter: 1}
   trade_level: [20, 60]
 
-- id: valecourt_curios
+- id: lethoria_curios
   name: the Royal Curiosity House
   type: shop
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - A dim shop of old things behind a heavy door.
     - Everything here has a story, and a price.
   residents: {relic_dealer: 1}
   trade_level: [20, 60]
 
-- id: valecourt_temple
+- id: lethoria_temple
   name: the royal chapel
   type: temple
   region: royal_vales
-  parent: valecourt
+  parent: lethoria
   visible:
     - A white-stone chapel beside the palace gardens, carved with the royal line.
     - Bells mark every hour, and a sunburst of gold crowns the altar of the Sun Warden.
@@ -2103,12 +2103,12 @@
   visible:
     - The kingdom's granary village, built in rings around the great Tithe-Barn where the crown stores its grain.
     - Royal inspectors come and go. The village's gate is made from a giant iron harrow.
-    - Valecourt has never practised the Taking, and Seekers from the south hold no writ on crown grain land.
-    - The Tithe Road runs west to Valecourt.
+    - Lethoria has never practised the Taking, and Seekers from the south hold no writ on crown grain land.
+    - The Tithe Road runs west to Lethoria.
   peoples: {human: 80, halfling: 12, half_elf: 8}
   biome: urban
-  locals_group: valecourt_locals
-  connects: {valecourt: 700}
+  locals_group: lethoria_locals
+  connects: {lethoria: 700}
   residents: {farmer: 3, miller: 1, royal_guard: 1, innkeeper: 1, baker: 1}
   storage: true
   trade_level: [29, 48]
@@ -2124,8 +2124,8 @@
     - Within the Kingsmere streets you can find the Lakeview Rest and the Mirror Glassworks.
   peoples: {human: 70, half_elf: 15, elf: 5, gnome: 10}
   biome: urban
-  locals_group: valecourt_locals
-  connects: {riverhaven: 900, valecourt: 700}
+  locals_group: lethoria_locals
+  connects: {riverhaven: 900, lethoria: 700}
   residents: {courtier: 1, fisher: 2, guard: 1, land_agent: 1}
   storage: true
   trade_level: [24, 39]
@@ -2205,7 +2205,7 @@
   region: eastern_frontier
   visible:
     - "A vast war camp on the western edge of the Cracked Plains: pavilions of every city's colours behind a stake palisade, with catapults and trebuchets between the tents."
-    - Banners from Valecourt, Ironvein, Eldervale, Frostholm, Sunspire and more hang side by side, and the old rivalries show in every mess line.
+    - Banners from Lethoria, Ironvein, Eldervale, Frostholm, Sunspire and more hang side by side, and the old rivalries show in every mess line.
     - At dusk the camp reads the Frontier Rolls aloud, the names of the dead since the last season.
     - The Frontier Road runs north to Redstone; the Supply Road runs west to Riverhaven. A dashed track leads into the Cracked Plains.
     - Within the camp you can find the garrison guild post, the Soldiers' Mess, the quartermaster's tent and the siege smithy.

@@ -13,7 +13,7 @@ homes:
   frostholm:  {name: "a longhouse by the east gate",    price: 1200000}
   riverhaven: {name: "a quayside house",                price: 2000000}
   sunspire:   {name: "a terraced villa",                price: 2500000}
-  valecourt:  {name: "a townhouse near the court",      price: 4000000}
+  lethoria:  {name: "a townhouse near the court",      price: 4000000}
   cinderhold: {name: "a basalt house above the forges", price: 22000000}
   hrimgard:   {name: "a timbered hall on the ridge",     price: 20000000}
   dunmarrow:  {name: "a terrace house on the Deep Stair", price: 24000000}

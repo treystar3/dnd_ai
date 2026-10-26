@@ -30,7 +30,7 @@ src = open("scenes/world.py").read()
 check("npc blank-look line", "Orenna" in src)
 import yaml
 P={p["id"]:p for p in yaml.safe_load(pl)}
-for c in ("eldervale","ironvein","frostholm","riverhaven","sunspire","valecourt","cinderhold","hrimgard","dunmarrow","brinewatch","amaranth"):
+for c in ("eldervale","ironvein","frostholm","riverhaven","sunspire","lethoria","cinderhold","hrimgard","dunmarrow","brinewatch","amaranth"):
     check("city temple "+c, any(p.get("type")=="temple" and p.get("parent")==c for p in P.values()))
 check("no Morrowen temple", not any("Morrowen" in " ".join(p.get("visible",[])) for p in P.values()))
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
