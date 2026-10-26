@@ -78,18 +78,20 @@ c = data["continue"]
 check("the continue card says who, where and when", c["line"].startswith(c["character"]) and c["where"] and c["when"].startswith("day "), c)
 other = next(x for x in data["saves"] if x["name"] != c["name"])
 for typed, want in (("", ("load", c["name"])), ("home:continue", ("load", c["name"])), ("n", ("new", "")), ("home:new", ("new", "")),
-                    ("q", ("quit", "")), ("home:quit", ("quit", "")), ("2", ("load", data["saves"][1]["name"])),
+                    ("q", ("ask_quit", "")), ("home:quit", ("quit", "")), ("l", ("list", "")), ("2", ("load", data["saves"][1]["name"])),
                     (f"home:load:{other['name']}", ("load", other["name"])), ("d2", ("ask_delete", data["saves"][1]["name"])),
                     (f"home:delete:{other['name']}", ("delete", other["name"])), ("home:load:no_such_game", ("bad", "")), ("dance", ("bad", "")), ("9", ("bad", ""))):
     got = home.parse(typed, data)
     check(f"'{typed}' means {want[0]}", got == want, got)
 
+check("in Load's list, Enter goes back to the menu instead of continuing", home.parse("", data, "list") == ("menu", "")
+      and home.parse("2", data, "list") == ("load", data["saves"][1]["name"]) and home.parse("n", data, "list") == ("bad", ""))
 empty = {"saves": [], "continue": None}
-check("with nothing to continue, Enter begins a new game and 'continue' is not understood",
-      home.parse("", empty) == ("new", "") and home.parse("c", empty) == ("bad", ""))
+check("with nothing to continue, Enter begins a new game, and with nothing saved there is nothing to load",
+      home.parse("", empty) == ("new", "") and home.parse("c", empty) == ("bad", "") and home.parse("l", empty) == ("bad", ""))
 
 # choose(): a delete asked in the terminal, refused, then accepted, then a load
-answers = ["d1", "n", "d1", "y", "1"]
+answers = ["l", "d1", "n", "d1", "y", "1"]
 notes, menus = [], []
 real_ask, real_note, real_out = console.ask, console.note, console.out
 console.ask = lambda main=False: answers.pop(0)
@@ -101,8 +103,17 @@ console.ask, console.note, console.out = real_ask, real_note, real_out
 check("in the terminal, a delete is asked first and 'n' keeps the game", any("Delete" in n for n in notes) and not answers, notes)
 check("...'y' moves it aside, and the page comes back", not (root / first).exists() and any("Deleted" in n for n in notes), notes)
 check("...and a number loads a game", kind == "load" and name_ != first, (kind, name_))
-check("the terminal menu offers continue, new, load, delete and quit", any("Continue as" in m for m in menus) and any("[n] New game" in m for m in menus)
-      and any("d and a number" in m for m in menus), menus[:8])
+check("the terminal menu offers continue, load, new and quit, and Load lists the games to load or delete",
+      any("Continue as" in m for m in menus) and any("[l] Load" in m for m in menus) and any("[n] New game" in m for m in menus)
+      and any("[q] Quit" in m for m in menus) and any("d and a number" in m for m in menus), menus[:8])
+answers = ["q", "n", "q", "y"]
+notes.clear()
+console.ask = lambda main=False: answers.pop(0)
+console.note = lambda m, *a, **k: notes.append(str(m))
+console.out = lambda t="": None
+got = home.choose(world)
+console.ask, console.note, console.out = real_ask, real_note, real_out
+check("Quit is asked first: 'n' stays, 'y' quits", got == ("quit", "") and not answers and sum("Quit the game?" in n for n in notes) == 2, (got, notes))
 
 # ---- 6. the window draws the page itself and never echoes the choice
 from ui.gui.bridge import Bridge, HIDDEN

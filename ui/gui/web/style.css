@@ -359,7 +359,7 @@ button.locked:disabled { opacity: .25; }
 /* ---------- (f345) the home page: continue, new game, every saved game ---------- */
 #homepage { position: fixed; inset: 0; z-index: 90; background: var(--bg); overflow-y: auto; }
 #homepage[hidden] { display: none; }
-#homepage .home-map { position: fixed; inset: 0; background: url(/map.jpg) center / cover no-repeat; opacity: .16; filter: saturate(.7) blur(1px); pointer-events: none; }
+#homepage .home-map { position: fixed; inset: 0; background: url(/map.jpg) 55% 50% / max(200vw, 200vh) no-repeat; opacity: .16; filter: saturate(.7) blur(1px); pointer-events: none; }   /* the middle of Meravia, mountains and vales: zoomed in so the coast stays off the page */
 #homepage .home-inner { position: relative; max-width: 720px; margin: 0 auto; padding: 56px 20px 40px; }
 #homepage .home-head { text-align: center; margin-bottom: 28px; }
 #hometitle { font-family: var(--serif); font-size: 42px; letter-spacing: .06em; margin: 0; color: var(--accent); font-weight: 600; }
@@ -370,11 +370,17 @@ button.locked:disabled { opacity: .25; }
 .home-continue .label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
 .home-continue .who { font-family: var(--serif); font-size: 22px; color: var(--ink); margin: 4px 0 2px; }
 .home-continue .meta, .home-row .meta { color: var(--dim); font-size: 13px; }
-.home-actions { display: flex; gap: 10px; justify-content: center; margin: 18px 0 30px; }
-.home-actions button { min-width: 140px; padding: 9px 16px; font-size: 14px; }
-#homenew { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
-#homegames h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); margin: 0 0 8px; font-weight: 700; }
-#homegames[hidden] { display: none; }
+#homecontinue:not(:empty) { margin-bottom: 22px; }
+.home-menu { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0 auto 10px; }
+.home-menu button { width: 260px; max-width: 100%; padding: 11px 16px; font-size: 15px; letter-spacing: .04em; background: color-mix(in srgb, var(--panel2) 92%, transparent); }
+.home-menu button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+.home-menu button.danger { color: var(--combat); }
+.home-menu .ask { font-family: var(--serif); font-size: 18px; color: var(--ink); margin: 4px 0 6px; text-align: center; }
+#homemain[hidden], #homegames[hidden], #homeprefs[hidden] { display: none; }
+.home-subhead { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+.home-subhead h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); margin: 0; font-weight: 700; }
+.home-back { padding: 5px 12px; font-size: 13px; }
+#homeprefsbody .settings { background: color-mix(in srgb, var(--panel2) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 4px 16px 14px; }
 .home-row { display: flex; align-items: center; gap: 12px; background: color-mix(in srgb, var(--panel2) 88%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; margin-bottom: 8px; }
 .home-row .text { flex: 1; min-width: 0; }
 .home-row .who { color: var(--ink); font-size: 15px; }

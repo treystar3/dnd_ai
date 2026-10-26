@@ -1,9 +1,10 @@
 """The home page (f345): what the game shows when it starts, and when the player asks for the main menu.
 
-Continue opens the game played last; New game starts a character in a folder of its own; every other game is listed to load or to
-delete (storage/saves.py moves a deleted game aside rather than erasing it). The window draws the page with buttons and sends back
-a key ("home:continue", "home:load:<save>", ...); the terminal prints a numbered menu and reads what is typed. Both come back
-through console.ask(), and both are read by choose() here, so the two can never disagree about what a choice means."""
+Continue opens the game played last. Below it: Load lists every game, to load or to delete (storage/saves.py moves a deleted game
+aside rather than erasing it); New game starts a character in a folder of its own; Settings is the window's own; Quit is asked
+first. The window draws the page with buttons and sends back a key ("home:continue", "home:load:<save>", ...); the terminal prints
+a menu and reads what is typed. Both come back through console.ask(), and both are read by choose() here, so the two can never
+disagree about what a choice means."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -56,27 +57,31 @@ def page(world) -> dict:
 
 
 def _terminal_menu(data: dict) -> None:
-    """The home page as text (the window replaces this with its own page)."""
+    """The home page as text (the window replaces this with its own page): Continue, then Load, New game and Quit."""
     console.out("\n" + "═" * 60)
     console.out(f"  {data['title']}" + (f"  -  {data['subtitle']}" if data.get("subtitle") else ""))
     console.out("═" * 60)
     c = data.get("continue")
     if c:
         console.out(f"  [Enter] Continue as {c['line']}" + (f", in {c['where']}" if c.get("where") else "") + (f" ({c['when']})" if c.get("when") else ""))
-    console.out("  [n] New game" if c else "  [Enter] New game")
     if data["saves"]:
-        console.out("\n  Your games:")
-        for i, s in enumerate(data["saves"], 1):
-            bits = [s["line"]] + [x for x in (s.get("where"), s.get("when")) if x] + ([f"played {s['played_label']}"] if s.get("played_label") else [])
-            console.out(f"   {i:>2}. " + " - ".join(bits))
-        console.out("\n  Type a number to load that game, d and a number to delete one (it is moved aside, not erased), q to quit.")
-    else:
-        console.out("\n  q to quit.")
+        console.out(f"  [l] Load a game ({len(data['saves'])} saved)")
+    console.out("  [n] New game" if c else "  [Enter] New game")
+    console.out("  [q] Quit")
 
 
-def parse(answer: str, data: dict) -> tuple[str, str]:
+def _terminal_games(data: dict) -> None:
+    """Load: every game, numbered."""
+    console.out("\n  Your games:")
+    for i, s in enumerate(data["saves"], 1):
+        bits = [s["line"]] + [x for x in (s.get("where"), s.get("when")) if x] + ([f"played {s['played_label']}"] if s.get("played_label") else [])
+        console.out(f"   {i:>2}. " + " - ".join(bits))
+    console.out("\n  Type a number to load that game, d and a number to delete one (it is moved aside, not erased), or Enter to go back.")
+
+
+def parse(answer: str, data: dict, view: str = "menu") -> tuple[str, str]:
     """(kind, save name) for what came back: continue, new, load, delete (confirmed in the window), ask_delete (to confirm here),
-    quit, or bad."""
+    list (the terminal's Load), menu (back from it), quit (confirmed in the window), ask_quit (to confirm here), or bad."""
     a = (answer or "").strip()
     low = a.lower()
     listed = data["saves"]
@@ -92,32 +97,46 @@ def parse(answer: str, data: dict) -> tuple[str, str]:
         if kind in ("load", "delete") and name in names:
             return kind, name
         return "bad", ""
+    num = low[1:].strip() if low.startswith("d") else low
+    if num.isdigit() and 1 <= int(num) <= len(listed):
+        return ("ask_delete" if low.startswith("d") else "load"), listed[int(num) - 1]["name"]
+    if view == "list":
+        return ("menu", "") if low in ("", "b", "back") else ("bad", "")
     if low in ("", "c", "continue"):
         if data.get("continue"):
             return "load", data["continue"]["name"]
         return ("new", "") if not low else ("bad", "")     # nothing to continue: Enter begins the first game
+    if low in ("l", "load"):
+        return ("list", "") if listed else ("bad", "")
     if low in ("n", "new", "new game"):
         return "new", ""
     if low in ("q", "quit", "exit"):
-        return "quit", ""
-    num = low[1:].strip() if low.startswith("d") else low
-    if num.isdigit() and 1 <= int(num) <= len(listed):
-        return ("ask_delete" if low.startswith("d") else "load"), listed[int(num) - 1]["name"]
+        return "ask_quit", ""
     return "bad", ""
 
 
 def choose(world) -> tuple[str, str]:
     """Show the home page until the player picks a game, a new one, or to quit. Deleting happens here and shows the page again."""
+    view = "menu"                                   # the terminal's page: the menu, or Load's list (the window keeps its own)
     while True:
         data = page(world)
-        if not console.home(data):                  # the window draws its own page; the terminal gets the menu as text
-            _terminal_menu(data)
-        kind, name = parse(console.ask(), data)
+        if not console.home(data):                  # the window draws its own page; the terminal gets it as text
+            (_terminal_games if view == "list" and data["saves"] else _terminal_menu)(data)
+        kind, name = parse(console.ask(), data, view)
         listed = {s["name"]: s for s in data["saves"]}
+        if kind in ("menu", "list"):
+            view = kind
+            continue
+        if kind == "ask_quit":
+            console.note("Quit the game? (y/n)")
+            if console.ask().strip().lower() in ("y", "yes"):
+                return "quit", ""
+            continue
         if kind == "load" and not listed.get(name, {}).get("ready"):
             console.note(f"That game can't be opened: {listed.get(name, {}).get('why') or 'it could not be read'}.")
             continue
         if kind == "ask_delete":
+            view = "list"
             console.note(f"Delete {listed[name]['line'] or name}? It is moved to the deleted folder inside saves, not erased. (y/n)")
             if console.ask().strip().lower() not in ("y", "yes"):
                 continue
@@ -127,6 +146,6 @@ def choose(world) -> tuple[str, str]:
             console.note(f"Deleted. The game was moved to {where}." if where else "That game was already gone.")
             continue
         if kind == "bad":
-            console.note("Choose Continue, New game, a game to load, or quit.")
+            console.note("Choose Continue, Load, New game, or Quit." if view == "menu" else "Type a number, d and a number, or Enter to go back.")
             continue
         return kind, name
