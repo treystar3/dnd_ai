@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
 const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"], ["Places", "#exits"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
-  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"]];
+  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"], ["Main menu", "#menu"]];
 
 const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
 const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [], text: {}, measure: "full" } };
@@ -1280,6 +1280,68 @@ function setupProgress(frac, text) {
   $("setuptext").textContent = text;
 }
 
+// ---------- (f345) the home page: Continue, New game, every saved game with Load and Delete, Quit ----------
+// Every choice goes back to the game as a hidden line ("home:load:<save>"); scenes/home.py reads it. Delete asks here first.
+function homeSend(text) {
+  document.querySelectorAll("#homepage button").forEach((b) => (b.disabled = true));
+  api("/input", { text });
+}
+function homeMeta(s) {
+  return [s.where, s.when, s.played_label ? "played " + s.played_label : ""].filter(Boolean).join(" · ");
+}
+function showHome(d) {
+  $("homepage").hidden = false;
+  $("hometitle").textContent = d.title || "";
+  if (d.title) document.title = d.title;
+  $("homesub").textContent = d.subtitle || "";
+  $("homever").textContent = d.version ? "Version " + d.version : "";
+  const cont = $("homecontinue"); cont.textContent = "";
+  if (d.continue) {
+    const b = el("button", "home-continue", "");
+    b.append(el("div", "label", "Continue"), el("div", "who", d.continue.line), el("div", "meta", homeMeta(d.continue)));
+    b.onclick = () => homeSend("home:continue");
+    cont.appendChild(b);
+  }
+  $("homenew").onclick = () => homeSend("home:new");
+  $("homequit").onclick = () => homeSend("home:quit");
+  const list = $("homelist"); list.textContent = "";
+  $("homegames").hidden = !d.saves.length;
+  for (const s of d.saves) {
+    const row = el("div", "home-row" + (s.ready ? "" : " unready"), "");
+    const text = el("div", "text", "");
+    const meta = el("div", "meta", s.ready ? homeMeta(s) : (s.played_label ? "played " + s.played_label : ""));
+    text.append(el("div", "who", s.line || s.name), meta);
+    const btns = el("div", "btns", "");
+    const load = el("button", "", "Load"); load.disabled = !s.ready; load.onclick = () => homeSend("home:load:" + s.name);
+    const del = el("button", "danger", "Delete");
+    del.onclick = () => {                                 // asked here, in the row: the game moves to the deleted folder, it is not erased
+      meta.textContent = "Delete this game? It moves to the deleted folder; nothing is erased."; meta.className = "meta confirm";
+      btns.textContent = "";
+      const yes = el("button", "danger", "Delete"), no = el("button", "", "Keep");
+      yes.onclick = () => homeSend("home:delete:" + s.name);
+      no.onclick = () => showHome(d);
+      btns.append(yes, no);
+    };
+    btns.append(load, del);
+    row.append(text, btns);
+    list.appendChild(row);
+  }
+  updateInput();
+}
+function hideHome() {
+  if ($("homepage").hidden) return;
+  $("homepage").hidden = true;
+  log.textContent = "";                                   // the story of the game left behind is not this character's
+  side.textContent = ""; lastView = null; $("sidetitle").textContent = "";
+  tickerClear();
+  input.focus();
+}
+document.addEventListener("keydown", (e) => {            // Enter on the home page continues the game played last
+  if ($("homepage").hidden || e.key !== "Enter" || e.target.tagName === "BUTTON") return;
+  const c = document.querySelector(".home-continue");
+  if (c && !c.disabled) { e.preventDefault(); c.click(); }
+});
+
 // ---------- update available: a button in the strip; it opens a card with the release notes and an Update button ----------
 function showUpdateButton(info) {
   const b = $("updatebtn");
@@ -1331,6 +1393,8 @@ function handle(ev) {
     case "setup": showSetup(ev.data); break;
     case "setup_progress": setupProgress(ev.frac, ev.text); break;
     case "setup_end": $("setup").hidden = true; break;
+    case "home": showHome(ev.data); break;
+    case "home_end": hideHome(); break;
   }
 }
 

@@ -21,6 +21,8 @@ REFUSALS_LOG = True
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
 AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)
 
+GAME_TITLE = "dnd_ai"                       # (f345) the name the home page and the window show; a placeholder until the game is named
+GAME_SUBTITLE = "A tale of Meravia"
 UPDATE_REPO = "treystar3/dnd_ai"            # "owner/repo" of the public GitHub repository whose releases carry the installer; empty turns the update check off
 
 VOICED_MENTOR = True        # Maren says her written lines in her own words (False: exactly as written)

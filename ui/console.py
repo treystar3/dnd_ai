@@ -100,6 +100,15 @@ def setup(data: dict) -> None:
         print("\n  Type one of: " + ", ".join(key for _, key in data["buttons"]))
 
 
+def home(data: dict) -> bool:
+    """(f345) The home page: True when something drew it (the window); the terminal returns False and scenes/home.py prints a menu."""
+    return False
+
+
+def home_done() -> None:
+    """The home page is finished and a game is opening."""
+
+
 def setup_progress(frac: float, text: str) -> None:
     print(f"\r  {text}  {int(frac * 100):>3}%   ", end="", flush=True)
     if frac >= 1:
@@ -550,7 +559,8 @@ def show_help() -> None:
     print("  #dungeon  the floors of the dungeon here, what you've cleared, and when it will be remade")
     print("  #dialogue switch conversations between narrated and plain dialogue")
     print("  #numbers  show or hide the numbers under each round of combat")
-    print("  #newgame  start a new character (this game is kept as a backup)")
+    print("  #menu     save and go back to the main menu: continue, load another game, or start a new one")
+    print("  #newgame  start a new character (this game stays saved; load it again from the main menu)")
     print("  #debug    toggle debug mode (shows what the engine decides)")
     if config.DEBUG:
         print("  #levelup [n]  (debug) gain n levels")
