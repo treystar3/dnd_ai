@@ -309,6 +309,34 @@ def check() -> list[str]:
         f = _bb.build(fam, _random.Random(7))
         probs = _bf.validate(type("F", (), {"battlefield": f, "fighters": []})())
         need(not probs, f"battlefields.yaml {fam}: a built field has problems: {probs}")
+
+    # ---- (f346) the sounds names are built from (name_sounds.yaml): every people has them, every piece is letters, every kind builds
+    from npc import names as _names
+    sounds = (_load("data/world/name_sounds.yaml") or {}).get("peoples") or {}
+    need(set(sounds) <= peoples_file, f"name_sounds.yaml: sounds for unknown peoples {sorted(set(sounds) - peoples_file)}")
+    for people in sorted(peoples_file):
+        r = sounds.get(people)
+        need(r is not None, f"name_sounds.yaml: no sounds for the people '{people}'")
+        if r is None:
+            continue
+        need(not r.get("family_from") or r["family_from"] in sounds, f"name_sounds.yaml {people}: family_from names an unknown people")
+        for kind in ("male", "female") + (() if r.get("family_from") else ("family",)):
+            forms = r.get(kind) or []
+            need(bool(forms), f"name_sounds.yaml {people}: needs {kind} forms")
+            for i, form in enumerate(forms):
+                where = f"name_sounds.yaml {people} {kind} form {i + 1}"
+                uses_middle = any(int(n) > 0 for n in (form.get("middles") or {0: 1}))
+                for slot in ("first", "last") + (("middle",) if uses_middle else ()):
+                    pieces = form.get(slot) or []
+                    need(bool(pieces) and all(isinstance(x, str) and x.isalpha() for x in pieces),
+                         f"{where}: {slot} must be pieces of letters (quote On, No, Yes and Off, or YAML reads them as true/false)")
+                    need(len({x.lower() for x in pieces if isinstance(x, str)}) == len(pieces), f"{where}: {slot} lists a piece twice")
+            try:
+                rng = _random.Random(f"check:{people}:{kind}")
+                for _ in range(30):
+                    _names.build(people, kind, rng)
+            except Exception as e:
+                need(False, f"name_sounds.yaml {people} {kind}: {e}")
     return bad
 
 
