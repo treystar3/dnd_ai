@@ -9,7 +9,7 @@ from ui.gui.bridge import Bridge
 from ui.gui import server
 
 
-def launch(game, title: str = "dnd_ai") -> None:
+def launch(game, title: str = "Meravia") -> None:
     """Run game() on a background thread behind a local server and show the page in a window (or the default browser)."""
     bridge = Bridge()
     real_out = sys.stdout

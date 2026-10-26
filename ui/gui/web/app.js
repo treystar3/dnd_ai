@@ -1330,10 +1330,8 @@ function drawHomeMenu(d) {
     return;
   }
   const item = (label, go, cls) => { const b = el("button", cls || "", label); b.onclick = go; menu.appendChild(b); return b; };
-  const load = item("Load", () => homeGo("load"));
-  load.disabled = !d.saves.length;
-  if (!d.saves.length) load.title = "No saved games yet";
   item("New game", () => homeSend("home:new"), d.continue ? "" : "primary");     // with nothing to continue, New game is the way in
+  if (d.saves.length) item("Load", () => homeGo("load"));                         // only when there is a game to load
   item("Settings", () => homeGo("settings"));
   item("Quit", () => homeGo("quit"));
 }

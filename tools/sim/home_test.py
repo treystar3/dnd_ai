@@ -106,6 +106,15 @@ check("...and a number loads a game", kind == "load" and name_ != first, (kind, 
 check("the terminal menu offers continue, load, new and quit, and Load lists the games to load or delete",
       any("Continue as" in m for m in menus) and any("[l] Load" in m for m in menus) and any("[n] New game" in m for m in menus)
       and any("[q] Quit" in m for m in menus) and any("d and a number" in m for m in menus), menus[:8])
+shown = []
+console.out = lambda t="": shown.append(str(t))
+home._terminal_menu(data)
+lines = [m for m in shown if "[n]" in m or "[l]" in m]
+check("New game comes before Load", [("[n]" in m) for m in lines] == [True, False], lines)
+shown.clear()
+home._terminal_menu({"title": "t", "subtitle": "", "continue": None, "saves": []})
+check("with nothing saved there is no Load at all, and Enter is New game", not any("Load" in m for m in shown) and any("[Enter] New game" in m for m in shown), shown)
+console.out = real_out
 answers = ["q", "n", "q", "y"]
 notes.clear()
 console.ask = lambda main=False: answers.pop(0)

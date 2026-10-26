@@ -1,8 +1,8 @@
 """The home page (f345): what the game shows when it starts, and when the player asks for the main menu.
 
-Continue opens the game played last. Below it: Load lists every game, to load or to delete (storage/saves.py moves a deleted game
-aside rather than erasing it); New game starts a character in a folder of its own; Settings is the window's own; Quit is asked
-first. The window draws the page with buttons and sends back a key ("home:continue", "home:load:<save>", ...); the terminal prints
+Continue opens the game played last. Below it: New game starts a character in a folder of its own; Load (shown only when there is
+a game to load) lists every game, to load or to delete (storage/saves.py moves a deleted game aside rather than erasing it);
+Settings is the window's own; Quit is asked first. The window draws the page with buttons and sends back a key ("home:continue", "home:load:<save>", ...); the terminal prints
 a menu and reads what is typed. Both come back through console.ask(), and both are read by choose() here, so the two can never
 disagree about what a choice means."""
 from __future__ import annotations
@@ -57,16 +57,16 @@ def page(world) -> dict:
 
 
 def _terminal_menu(data: dict) -> None:
-    """The home page as text (the window replaces this with its own page): Continue, then Load, New game and Quit."""
+    """The home page as text (the window replaces this with its own page): Continue, then New game, Load (when there is a game) and Quit."""
     console.out("\n" + "═" * 60)
     console.out(f"  {data['title']}" + (f"  -  {data['subtitle']}" if data.get("subtitle") else ""))
     console.out("═" * 60)
     c = data.get("continue")
     if c:
         console.out(f"  [Enter] Continue as {c['line']}" + (f", in {c['where']}" if c.get("where") else "") + (f" ({c['when']})" if c.get("when") else ""))
+    console.out("  [n] New game" if c else "  [Enter] New game")
     if data["saves"]:
         console.out(f"  [l] Load a game ({len(data['saves'])} saved)")
-    console.out("  [n] New game" if c else "  [Enter] New game")
     console.out("  [q] Quit")
 
 
