@@ -359,7 +359,10 @@ button.locked:disabled { opacity: .25; }
 /* ---------- (f345) the home page: continue, new game, every saved game ---------- */
 #homepage { position: fixed; inset: 0; z-index: 90; background: var(--bg); overflow-y: auto; }
 #homepage[hidden] { display: none; }
-#homepage .home-map { position: fixed; inset: 0; background: url(/map.jpg) 55% 50% / max(200vw, 200vh) no-repeat; opacity: .16; filter: saturate(.7) blur(1px); pointer-events: none; }   /* the middle of Meravia, mountains and vales: zoomed in so the coast stays off the page */
+#homepage .home-map { position: fixed; inset: 0; background: url(/home_bg.jpg) 50% 45% / cover no-repeat; opacity: .5; filter: saturate(.9); pointer-events: none; }   /* the map without its names, cropped just past the west coast: as much of Meravia as the window's shape allows */
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) #homepage .home-map { opacity: .62; } }
+:root[data-theme="light"] #homepage .home-map { opacity: .62; }
+#homepage .home-head h1, #homepage .home-head div, #homever, .home-subhead h2, .home-menu .ask { text-shadow: 0 0 6px var(--bg), 0 0 14px var(--bg), 0 0 24px var(--bg); }   /* words that sit on the map itself */
 #homepage .home-inner { position: relative; max-width: 720px; margin: 0 auto; padding: 56px 20px 40px; }
 #homepage .home-head { text-align: center; margin-bottom: 28px; }
 #hometitle { font-family: var(--serif); font-size: 42px; letter-spacing: .06em; margin: 0; color: var(--accent); font-weight: 600; }
@@ -388,4 +391,4 @@ button.locked:disabled { opacity: .25; }
 .home-row .btns { display: flex; gap: 6px; flex-shrink: 0; }
 .home-row .danger { color: var(--combat); }
 .home-row .meta.confirm { color: var(--combat); }
-#homever { text-align: center; color: var(--dim); font-size: 12px; margin-top: 28px; }
+#homever { text-align: center; color: var(--ink2); font-size: 12px; margin-top: 28px; }

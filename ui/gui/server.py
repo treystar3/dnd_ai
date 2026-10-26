@@ -15,7 +15,8 @@ from urllib.parse import parse_qs, urlparse
 from ui.gui.bridge import PINNABLE
 
 WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).resolve().parent / "web"
-STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg"}
+STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg",
+          "/home_bg.jpg": "image/jpeg"}     # (f345) the home page's backdrop: the map without its names, cropped past the west coast
 for _f in ("literata-latin-400-normal", "literata-latin-400-italic", "literata-latin-600-normal", "literata-latin-700-normal"):
     STATIC[f"/fonts/{_f}.woff2"] = "font/woff2"                       # (f326) the reading face for the story column
 PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}, "measure": "full"}
