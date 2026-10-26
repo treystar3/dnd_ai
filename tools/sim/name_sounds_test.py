@@ -32,6 +32,25 @@ for people in world.peoples:
         check(f"{people} {kind}: the same seed gives the same name", again[0] == made[0], (again[0], made[0]))
 check("half-elves take human family names", names._rules("half_elf", "family") is S["peoples"]["human"])
 
+# one-syllable first names for every people but the elves; elves never have one
+for people in world.peoples:
+    made = [names.build(people, g, random.Random(f"one:{people}:{g}:{i}")) for g in ("male", "female") for i in range(400)]
+    ones = [n for n in made if names.syllables(n) == 1]
+    if people == "elf":
+        check("an elf's name is never one syllable", not ones, ones[:5])
+    else:
+        check(f"{people}: some first names are one syllable", len(ones) >= 10, (len(ones), made[:6]))
+
+# family names are syllables, not English words run together - except humans' (and half-elves', which are human) and gnomes'
+WORDS = ("stone", "iron", "doom", "hide", "fist", "beard", "skull", "moon", "star", "storm", "walker", "apple", "under", "foot",
+         "bone", "blood", "fire", "frost", "wind", "flame", "tide", "dawn", "song", "brow", "helm", "fang", "jaw", "axe", "leaf")
+for people in ("dwarf", "elf", "halfling", "orc", "genasi", "goliath", "dragonborn"):
+    fams = [names.build(people, "family", random.Random(f"fam:{people}:{i}")) for i in range(400)]
+    worded = [f for f in fams if any(f.lower().startswith(w) or f.lower().endswith(w) for w in WORDS)]      # a compound begins or ends in a word
+    check(f"{people} family names are built from syllables, not words", len(worded) <= 4, worded[:8])
+gfam = [names.build("gnome", "family", random.Random(f"fam:gnome:{i}")) for i in range(50)]
+check("gnome family names are still tinkers' words run together", any(f.startswith(("Tumble", "Kettle", "Gear", "Cog", "Whistle")) for f in gfam), gfam[:5])
+
 # the shared rules on hand-picked cases
 h = S["peoples"]["human"]
 for name, ok in (("Thorin", False), ("Legolas", False), ("Dordor", False), ("Aaaron", False), ("Wilfred", True), ("Brenna", True)):

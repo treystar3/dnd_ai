@@ -107,12 +107,40 @@ def acceptable(name: str, rules: dict) -> bool:
         return False
     if any(re.search(pat, low) for pat in shared["avoid"] + rules.get("avoid", [])):
         return False
+    if syllables(low) < rules.get("min_syllables", 1):
+        return False
     return low not in _taken()
+
+
+def syllables(name: str) -> int:
+    """How many syllables a name has, counted as runs of vowels ('Cael' one, 'Aeris' two). Close enough to tell Brom from Brommek."""
+    return len(re.findall(f"[{VOWELS}]+", name.lower()))
 
 
 @lru_cache(maxsize=1)
 def _taken() -> frozenset[str]:
-    return frozenset(n.lower() for n in sounds()["taken"])
+    """Names never built: those another story owns, and common English words (name_sounds.yaml `taken` and `words`)."""
+    return frozenset(n.lower() for n in sounds()["taken"] + sounds().get("words", []))
+
+
+def possible(people: str, kind: str) -> set[str]:
+    """Every name the people's sounds can make for a kind, each kept only if it keeps the rules (for checking the sounds whole)."""
+    import itertools
+    rules = _rules(people, kind)
+    out = set()
+    for form in rules[kind]:
+        for count in (int(c) for c, w in (form.get("middles") or {0: 1}).items() if w > 0):
+            for first in form["first"]:
+                for middles in itertools.product(form.get("middle") or [""], repeat=count):
+                    for last in form["last"]:
+                        name = (first or "").lower()
+                        for m in middles:
+                            name = _join(name, (m or "").lower())
+                        name = _join(name, (last or "").lower())
+                        name = name[:1].upper() + name[1:]
+                        if acceptable(name, rules):
+                            out.add(name)
+    return out
 
 
 def build(people: str, kind: str, rng: random.Random) -> str:
@@ -123,10 +151,10 @@ def build(people: str, kind: str, rng: random.Random) -> str:
         form = rng.choices(forms, weights=[f.get("weight", 1) for f in forms])[0]
         middles = form.get("middles", {0: 1})
         n = rng.choices(list(middles), weights=list(middles.values()))[0]
-        name = rng.choice(form["first"]).lower()
+        name = (rng.choice(form["first"]) or "").lower()                # a piece may be "" (a name with no opening sound)
         for _ in range(int(n)):
-            name = _join(name, rng.choice(form["middle"]).lower())
-        name = _join(name, rng.choice(form["last"]).lower())
+            name = _join(name, (rng.choice(form["middle"]) or "").lower())
+        name = _join(name, (rng.choice(form["last"]) or "").lower())
         name = name[:1].upper() + name[1:]
         if acceptable(name, rules):
             return name

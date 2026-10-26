@@ -328,8 +328,8 @@ def check() -> list[str]:
                 uses_middle = any(int(n) > 0 for n in (form.get("middles") or {0: 1}))
                 for slot in ("first", "last") + (("middle",) if uses_middle else ()):
                     pieces = form.get(slot) or []
-                    need(bool(pieces) and all(isinstance(x, str) and x.isalpha() for x in pieces),
-                         f"{where}: {slot} must be pieces of letters (quote On, No, Yes and Off, or YAML reads them as true/false)")
+                    need(bool(pieces) and all(isinstance(x, str) and (x == "" or x.isalpha()) for x in pieces),
+                         f"{where}: {slot} must be pieces of letters, or \"\" (quote On, No, Yes and Off, or YAML reads them as true/false)")
                     need(len({x.lower() for x in pieces if isinstance(x, str)}) == len(pieces), f"{where}: {slot} lists a piece twice")
             try:
                 rng = _random.Random(f"check:{people}:{kind}")
