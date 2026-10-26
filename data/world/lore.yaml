@@ -559,7 +559,7 @@
 - id: frontier_garrison
   text: >
     The Cracked Plains are a constant battlefield. Every major city keeps a standing company at the Frontier Garrison, rotated each season, to hold the line
-    against what comes across the cracks.
+    against what comes out of the red haze.
   known_by: [everyone]
 
 - id: frontier_rolls
