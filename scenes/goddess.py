@@ -65,15 +65,19 @@ class ThresholdScene:
         self.values: dict[str, int] = {}
         self.character: Character | None = None
 
-    def run(self) -> Character:
+    def run(self) -> Character | None:
+        """The character made, or None when the player goes back to the main menu (#menu) before it is finished."""
         self.opening()
         while self.step != Step.DONE:
-            text = console.ask()
+            text = console.ask(menu=True)
             from llm import audit
             audit.note_turn(-1, f"(creation) {text}")      # the Threshold's calls, filed under what the player answered (f314)
             if text.lower() in {"quit", "exit", "/quit", "/exit"}:
                 console.out("\nYou leave the Threshold. No character was saved - run main.py to begin again.")
                 raise SystemExit(0)
+            if text.lower() in {"#menu", "#mainmenu", "#saves"}:
+                console.note("No character was made. Back to the main menu.")
+                return None
             if not text:
                 continue
             self.transcript.append(("Player", text))

@@ -133,11 +133,12 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             continue
         raw = (response.message.content or "").replace("\ufffd", "-")      # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start
+        usage = _usage(response)
 
         if response.done_reason == "length":
             last_error = LLMError("cut off at the length limit")
             reason = "the answer was cut off because it was far too long. Keep every field short."
-            _log(task, attempt, elapsed, messages, raw[:2000], reason)
+            _log(task, attempt, elapsed, messages, raw[:2000], reason, usage)
             audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
             messages = messages[:2] + [{"role": "user", "content": f"Your last answer was rejected: {reason} Respond again with the complete JSON."}]
             continue
@@ -160,7 +161,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                         reason = f"{(who + ': ') if who else ''}{wrong}"
                         break
             if not reason:
-                _log(task, attempt, elapsed, messages, raw, None)
+                _log(task, attempt, elapsed, messages, raw, None, usage)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)
                 _tally(task, True, attempt + 1)
                 return result
@@ -168,7 +169,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         except ValidationError as e:
             last_error = e
             reason = _summarize(e)
-        _log(task, attempt, elapsed, messages, raw, reason)
+        _log(task, attempt, elapsed, messages, raw, reason, usage)
         audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
         _debug(f"rejected {task} (attempt {attempt + 1}): {reason[:200]}")
         messages = messages[:2] + [
@@ -231,7 +232,18 @@ def trim_log(path: Path | None = None) -> None:
 _log_lock = threading.Lock()
 
 
-def _log(task, attempt, elapsed, messages, raw, error):
+def _usage(response) -> dict | None:
+    """Ollama's own counts for one answer: tokens read and written, and the milliseconds each took (plus a model load, if one happened).
+    None under a stand-in model, which reports none."""
+    count = getattr(response, "prompt_eval_count", None)
+    if count is None:
+        return None
+    ms = lambda name: round((getattr(response, name, 0) or 0) / 1e6)
+    return {"prompt": count, "out": getattr(response, "eval_count", 0) or 0, "read_ms": ms("prompt_eval_duration"),
+            "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
+
+
+def _log(task, attempt, elapsed, messages, raw, error, usage=None):
     global _writes
     path = Path(config.LOG_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -247,6 +259,8 @@ def _log(task, attempt, elapsed, messages, raw, error):
         "raw": raw,
         "error": error,
     }
+    if usage:
+        entry["tokens"] = usage                         # what the call cost the model (tools/latency.py reads these)
     with _log_lock:
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")

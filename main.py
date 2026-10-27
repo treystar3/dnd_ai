@@ -114,6 +114,11 @@ def play(args):
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")
         else:
             character = ThresholdScene().run()
+            if character is None:                      # Main menu during creation: there is no game yet, so a new one is not kept
+                store.close()
+                if kind == "new":
+                    saves.discard(name)
+                continue
             player = PlayerState(character=character, location=world.start_location)
             store.save_player(player)
 
@@ -123,10 +128,8 @@ def play(args):
         finally:
             store.close()                              # the database is written through as it goes; closing folds the write-ahead log in
             backfill.drop(store)                       # people still being written for this game must never reach the next one
-        if getattr(scene, "restart", False):
-            choice = ("new", "")                       # New game: a new character in a folder of its own; this game stays saved
-        elif getattr(scene, "to_menu", False):
-            choice = None                              # the main menu
+        if getattr(scene, "to_menu", False):
+            choice = None                              # the main menu: New game, Load and the rest are there
         else:
             return
 

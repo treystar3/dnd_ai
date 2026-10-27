@@ -1,11 +1,11 @@
-"""Who gets which name. The engine picks every resident's name from data/world/names.yaml, seeded by the campaign, and never gives
-two people the same first name in one save (unless a people's list has run dry, and then never the same full name). The model is told the
-name and writes only the look and the day.
+"""Who gets which name. The engine builds every resident's name from their people's sounds (f346), seeded by the campaign, and never
+gives two people the same first name in one save, nor ever the same full name. The model is told the name and writes only the look
+and the day.
 
-build() makes new names instead of picking them (f346): each people has its own sounds in data/world/name_sounds.yaml - the pieces
-its names begin, continue and end with - and a name is those pieces joined, checked against the people's rules (length, how many
-vowels or consonants may run together, sounds it never makes). A people may also say how many of its names have one syllable, two,
-three or more (`syllables`). There is no list of forbidden names: each kind can make thousands, so any one name is rare."""
+build() makes a name from data/world/name_sounds.yaml: each people has the pieces its names begin, continue and end with, and a name
+is those pieces joined, checked against the people's rules (length, how many vowels or consonants may run together, sounds it never
+makes). A people may also say how many of its names have one syllable, two, three or more (`syllables`). There is no list of
+forbidden names, and no list of names at all: each kind can make thousands, so any one name is rare."""
 from __future__ import annotations
 
 import random
@@ -16,18 +16,6 @@ from pathlib import Path
 import yaml
 
 _DATA = Path(__file__).resolve().parent.parent / "data" / "world"
-
-
-@lru_cache(maxsize=1)
-def pools() -> dict:
-    raw = yaml.safe_load((_DATA / "names.yaml").read_text(encoding="utf-8"))
-    out = {}
-    for people, p in raw.items():
-        fam = p.get("family")
-        if p.get("family_from"):
-            fam = raw[p["family_from"]]["family"]
-        out[people] = {"male": list(p["male"]), "female": list(p["female"]), "family": list(fam or [])}
-    return out
 
 
 @lru_cache(maxsize=1)
@@ -42,29 +30,20 @@ def first_of(full: str) -> str:
 
 
 def pick(people: str, taken: list[str], rng: random.Random) -> tuple[str, str]:
-    """-> (full name, gender). `taken` holds the full names already in the save."""
-    pool = pools().get(people) or pools()["human"]
+    """-> (full name, gender), built from the people's sounds. `taken` holds the full names already in the save: a first name already
+    given is passed over while a fresh one can be built, and a full name already given is never used again."""
+    gender = rng.choice(["male", "female"])
     firsts = {first_of(n) for n in taken} | {w.lower() for w in reserved()}
     fulls = {n.strip().lower() for n in taken}
-    for _ in range(2):                                   # second pass only if every unused first name is gone
-        gender = rng.choice(["male", "female"])
-        for g in (gender, "female" if gender == "male" else "male"):
-            free = [n for n in pool[g] if n.lower() not in firsts]
-            if free:
-                first = rng.choice(free)
-                break
-        else:
-            firsts = set()                               # pools exhausted: repeats of a first name are allowed now
+    spare = ""
+    for _ in range(400):
+        full = f"{build(people, gender, rng)} {build(people, 'family', rng)}".strip()
+        if full.lower() in fulls:
             continue
-        fam = pool["family"] or [""]
-        open_fams = [f for f in fam if f"{first} {f}".strip().lower() not in fulls]
-        if open_fams:
-            return f"{first} {rng.choice(open_fams)}".strip(), g
-        firsts.add(first.lower())                        # every family name is used with this one: try another first name
-    gender = rng.choice(["male", "female"])
-    left = [(f, x) for f in pool[gender] for x in (pool["family"] or [""]) if f"{f} {x}".strip().lower() not in fulls]
-    f, x = rng.choice(left) if left else (rng.choice(pool[gender]), rng.choice(pool["family"] or [""]))
-    return f"{f} {x}".strip(), gender
+        if first_of(full) not in firsts:
+            return full, gender
+        spare = spare or full                            # a first name the save has: used only if no fresh one turns up
+    return spare or full, gender
 
 
 # ---- (f346) names built from each people's sounds

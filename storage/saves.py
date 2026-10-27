@@ -157,6 +157,22 @@ def last(saves_dir: Path | None = None) -> dict | None:
     return next((s for s in saves if s["name"] == want and s["ready"]), None) or next((s for s in saves if s["ready"]), None)
 
 
+def discard(name: str, saves_dir: Path | None = None) -> bool:
+    """Forget a game left before it had a character (Main menu during creation): its folder goes and so does its place in the index.
+    A game with a character is never discarded - delete() keeps a copy of those. Returns whether it was."""
+    saves_dir = Path(saves_dir or SAVES_DIR)
+    s = summary(name, saves_dir)
+    if s is not None and s["ready"]:
+        return False
+    shutil.rmtree(Path(saves_dir) / name, ignore_errors=True)
+    index = load_index(saves_dir)
+    index["saves"].pop(name, None)
+    if index["last"] == name:
+        index["last"] = ""
+    _write_index(index, saves_dir)
+    return True
+
+
 def delete(name: str, saves_dir: Path | None = None) -> Path | None:
     """Move a game to saves/_deleted/ and take it out of the index. Returns where it went, or None when there was nothing to move."""
     saves_dir = Path(saves_dir or SAVES_DIR)

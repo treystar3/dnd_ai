@@ -1,7 +1,8 @@
 """(f345) Saves and the home page. Every game is a folder of its own, listed in saves/index.json with when it was last played; the
 old single save and New game's old backups are adopted; Continue opens the game played last; New game makes a new folder and leaves
 every other game alone; Delete moves a game aside, not away. The home page's choices mean the same typed in the terminal or sent by
-the window, and the main menu and New game in the game leave the save as it was."""
+the window, the main menu in the game leaves the save as it was, and the main menu during character creation leaves without a
+character and keeps no empty game."""
 import json, random, shutil, sqlite3, sys, tempfile, time, types
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -145,18 +146,58 @@ ws = WorldScene(st, world, load_traits(), st.load_player()); ws.enter("parth")
 said = []
 console.note = lambda m, *a, **k: said.append(str(m))
 ws.command("#menu")
-check("#menu saves and asks main.py for the home page", ws.to_menu and not ws.restart)
+check("#menu saves and asks main.py for the home page", ws.to_menu)
 ws.to_menu = False
 ws.combat = types.SimpleNamespace(show=lambda: None)
 ws.command("#menu")
 check("...but not in the middle of a fight", not ws.to_menu and any("fight" in s for s in said), said[-1:])
 ws.combat = None
-console.ask = lambda main=False: "y"
 ws.command("#newgame")
 console.ask, console.note = real_ask, real_note
-check("New game asks for a new character and says this game stays saved", ws.restart and any("stays saved" in s for s in said), said[-2:])
+check("New game is on the main menu only: in the game #newgame is no command", not ws.to_menu and "Unknown command" in said[-1], said[-1:])
 st.close()
 check("...and the game's folder is still there for the main menu", (root / "game_play" / "campaign.db").exists() and any(x["name"] == "game_play" for x in saves.list_saves()))
+
+# ---- 8. Main menu during character creation: no character, and a new game begun there is not kept
+import threading
+from scenes.goddess import ThresholdScene
+asked = []
+console.ask = lambda main=False, menu=False: (asked.append(menu), "#menu")[1]
+console.note = lambda m, *a, **k: said.append(str(m))
+real_say, real_narrate = console.say, console.narrate
+console.say = console.narrate = lambda *a, **k: None
+made = ThresholdScene().run()
+console.ask, console.note, console.say, console.narrate = real_ask, real_note, real_say, real_narrate
+check("creation's prompt lets the window offer Main menu", asked == [True], asked)
+check("Main menu during creation leaves it with no character", made is None and "main menu" in said[-1].lower(), said[-1:])
+fresh = saves.new_name(); make(fresh, "", player=False); saves.touch(fresh)
+check("a new game left before it had a character is discarded, folder and all",
+      saves.discard(fresh) and not (root / fresh).exists() and fresh not in saves.load_index()["saves"] and saves.load_index()["last"] != fresh)
+check("...but a game with a character never is", not saves.discard("game_play") and (root / "game_play" / "campaign.db").exists())
+import urllib.request
+from ui.gui import server
+b = Bridge(); b.install()
+srv = server.make_server(b); server.serve(srv)
+def post(text):
+    req = urllib.request.Request(srv.url.split("/?")[0] + "/input", data=json.dumps({"text": text}).encode(),
+                                 headers={"X-Token": srv.token}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+got = []
+t = threading.Thread(target=lambda: got.append(console.ask(menu=True)), daemon=True); t.start()
+for _ in range(100):
+    if b.waiting:
+        break
+    time.sleep(0.02)
+prompt = [e for _, e in b.log if e.get("k") == "prompt"][-1:]
+refused, taken = post("#journal"), post("#menu")
+t.join(2); srv.shutdown(); b.uninstall()
+check("...and the window is told Main menu works at that prompt though the game loop is not asking",
+      prompt and prompt[0].get("menu") is True and prompt[0].get("main") is False, prompt)
+check("...where the window takes Main menu from the panel but no other view", refused == 409 and taken == 200 and got == ["#menu"], (refused, taken, got))
 
 shutil.rmtree(root, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")

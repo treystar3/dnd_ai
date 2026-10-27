@@ -3,6 +3,7 @@ and a plain HTTP client plays the part of the page."""
 import ast, json, os, sys, tempfile, threading, time, urllib.request, urllib.error
 from pathlib import Path
 sys.path.insert(0, ".")
+from core.version import VERSION
 ROOT = Path(".").resolve()
 tmp = tempfile.mkdtemp(); os.chdir(tmp)
 bad = []
@@ -63,6 +64,9 @@ check("static served", req("/app.js", token=None)[0] == 200 and req("/style.css"
 fnt = urllib.request.urlopen(base + "/fonts/literata-latin-400-normal.woff2", timeout=5)
 check("the reading face is served with the page (f326)", fnt.status == 200 and fnt.headers.get("Content-Type") == "font/woff2" and fnt.read()[:4] == b"wOF2")
 page = urllib.request.urlopen(srv.url).read().decode()
+check("the page opens on the home page, its title, subtitle and version written in before the game's first event",
+      '<div id="homepage">' in page and ">Meravia<" in page and "A tale of gifts unforgiven" in page and "Version " + VERSION in page
+      and "__TITLE__" not in page and "__SUBTITLE__" not in page and "__VERSION__" not in page and "Loading" in page)
 check("the pane's title row carries the tools (f326)", 'id="sidetitlerow"' in page and 'id="sidetools"' in page.split('id="sidetitlerow"')[1])
 js = req("/app.js", token=None)[1].decode()
 check("the window reads speech, notes and waits by shape, not the terminal's spaces (f326)", 'kind === "speech"' in js and 'kind === "note"' in js and 'kind === "wait"' in js and "function addEcho" in js)
@@ -112,6 +116,7 @@ req("/pin", {"command": "#character"})
 req("/input", {"text": "sub"})
 check("sub prompt not main", wait_for(lambda: b.waiting and not b.at_main))
 check("view refused at a sub prompt", req("/input", {"text": "#journal"})[0] == 409)
+check("...and so is Main menu, unless the prompt allows it", req("/input", {"text": "#menu"})[0] == 409)
 req("/input", {"text": "yes"})
 check("sub answer reached the game", wait_for(lambda: seen.get("sub") == "yes"))
 th.join(timeout=3)

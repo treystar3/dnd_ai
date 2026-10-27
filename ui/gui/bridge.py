@@ -25,6 +25,7 @@ PINNABLE = {"#character", "#stats", "#inventory", "#gear", "#journal", "#quests"
             "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse", "#book"}     # read-only views: a pin runs again after every turn
 HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname", "#boardaccept", "#boardabandon", "#boardrequest", "#boardjoin", "#boardhire", "#goto", "#mapgo",
           "#useitem", "#correct", "#questabandon", "home:")      # the panes' buttons and the home page's: run like commands, never echoed
+MENU = ("#menu", "#mainmenu", "#saves")     # back to the main menu: taken at the game loop, and at a prompt that allows it (ask(menu=True))
 WRAP_WIDTH = 2000
 
 
@@ -69,6 +70,7 @@ class Bridge:
         self.in_combat = False       # the combat pane owns the side pane until the fight ends
         self.waiting = False
         self.at_main = False
+        self.at_menu = False         # the prompt waiting now may be left for the main menu though it is not the game loop
         self.closed = False
         self.failed = False
         self.finished = threading.Event()
@@ -185,7 +187,7 @@ class Bridge:
                   coins=money.fmt(coins), xp=list(xp), needs=needs or {})
 
     # ---------- input ----------
-    def ask(self, main: bool = False) -> str:
+    def ask(self, main: bool = False, menu: bool = False) -> str:
         self.flush_text()
         if main and self.pinned in PINNABLE and self.dirty and not self.closed and not self.in_combat:
             self.dirty = False
@@ -194,8 +196,8 @@ class Bridge:
             if main:
                 return "quit"
             raise Closed()
-        self.waiting, self.at_main = True, main
-        self.emit(k="prompt", main=main)
+        self.waiting, self.at_main, self.at_menu = True, main, menu
+        self.emit(k="prompt", main=main, menu=menu)      # menu: the Main menu button works here though the others wait
         text = self.inbox.get()
         self.waiting = False
         if text is None:

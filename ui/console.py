@@ -61,8 +61,9 @@ def debug(message: str) -> None:
             print(f"  [debug] {message}")
 
 
-def ask(main: bool = False) -> str:
-    """The player's next line. main=True marks the top-level game loop (the GUI uses that to refresh its pinned view)."""
+def ask(main: bool = False, menu: bool = False) -> str:
+    """The player's next line. main=True marks the top-level game loop (the GUI uses that to refresh its pinned view); menu=True a
+    prompt that is not the game loop but may still be left for the main menu (#menu), such as character creation's."""
     return input("> ").strip()
 
 
@@ -560,7 +561,6 @@ def show_help() -> None:
     print("  #dialogue switch conversations between narrated and plain dialogue")
     print("  #numbers  show or hide the numbers under each round of combat")
     print("  #menu     save and go back to the main menu: continue, load another game, or start a new one")
-    print("  #newgame  start a new character (this game stays saved; load it again from the main menu)")
     print("  #debug    toggle debug mode (shows what the engine decides)")
     if config.DEBUG:
         print("  #levelup [n]  (debug) gain n levels")

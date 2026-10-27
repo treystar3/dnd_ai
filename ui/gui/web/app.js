@@ -4,10 +4,10 @@ const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
 const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"], ["Places", "#exits"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
-  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"], ["Main menu", "#menu"]];
+  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["Main menu", "#menu"]];
 
-const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
-const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "dark", order: [], text: {}, measure: "full" } };
+const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; Settings and the main menu are never pinned
+const state = { prompt: false, atMain: false, menuOk: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "dark", order: [], text: {}, measure: "full" } };
 
 async function api(path, body) {
   try {
@@ -837,6 +837,9 @@ function moveButton(from, to) {
   cmds.splice(cmds.indexOf(to), 0, from);
   setPrefs({ order: cmds });
 }
+function canRun(cmd) {                      // the panel's buttons work at the game's own prompt; Main menu also where the game allows it
+  return state.prompt && (state.atMain || (cmd === "#menu" && state.menuOk));
+}
 function renderButtons() {
   const box = $("buttons"); box.textContent = "";
   for (const [label, cmd] of orderedCommands()) {
@@ -844,7 +847,7 @@ function renderButtons() {
     b.textContent = label + (state.prefs.pinned === cmd ? " 📌" : "");
     b.dataset.cmd = cmd;
     b.className = state.current === cmd ? "on" : "";
-    b.disabled = !(state.prompt && state.atMain);
+    b.disabled = !canRun(cmd);
     b.onclick = () => runView(cmd);
     b.draggable = true;
     b.ondragstart = (e) => { dragCmd = cmd; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", cmd); } catch (x) {} b.classList.add("dragging"); };
@@ -866,7 +869,7 @@ function renderButtons() {
   pin.disabled = !state.current || !PINNABLE.has(state.current);
 }
 async function runView(cmd) {
-  if (!(state.prompt && state.atMain)) return;
+  if (!canRun(cmd)) return;
   if (cmd === "#settings") { showSettings(); return; }           // the window's own view: nothing for the game to do
   combat.mode = "view";
   state.prompt = false; updateInput();
@@ -1365,6 +1368,12 @@ function homeEnded() {                                      // Quit: the window 
   const menu = $("homebtns"); menu.textContent = "";
   menu.appendChild(el("div", "ask", "The game has closed. You can close this window."));
 }
+function homeFatal(text) {                                   // the game failed before, or while, the home page was up
+  homeView = "menu";
+  $("homemain").hidden = false; $("homegames").hidden = true; $("homeprefs").hidden = true;
+  const menu = $("homebtns"); menu.textContent = "";
+  menu.appendChild(el("div", "ask", text));
+}
 document.querySelectorAll("#homepage .home-back").forEach((b) => (b.onclick = () => homeGo("menu")));
 function hideHome() {
   if ($("homepage").hidden) return;
@@ -1425,10 +1434,10 @@ function handle(ev) {
     case "combat": onCombat(ev.data); break;
     case "combat_end": combat.active = false; combat.mode = "view"; paintSide(); break;
     case "status": Strip.update(ev); if (!!ev.debug !== !!state.debug) { state.debug = !!ev.debug; renderButtons(); } break;
-    case "prompt": state.prompt = true; state.atMain = !!ev.main; updateInput(); break;
+    case "prompt": state.prompt = true; state.atMain = !!ev.main; state.menuOk = !!ev.menu; updateInput(); break;
     case "busy": $("busy").hidden = !ev.on; if (ev.on && nearBottom()) log.scrollTop = log.scrollHeight; break;
     case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); if (!$("homepage").hidden) homeEnded(); break;
-    case "fatal": addBlock("sys", ev.text); break;
+    case "fatal": addBlock("sys", ev.text); if (!$("homepage").hidden) homeFatal(ev.text); break;
     case "update": showUpdateButton(ev.data); break;
     case "update_progress": updateProgress(ev); break;
     case "setup": showSetup(ev.data); break;

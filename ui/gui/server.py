@@ -7,12 +7,15 @@ import json
 import re
 import secrets
 import threading
+from html import escape as html_escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from core import paths
+from core.version import VERSION
 from urllib.parse import parse_qs, urlparse
 
-from ui.gui.bridge import PINNABLE
+import config
+from ui.gui.bridge import MENU, PINNABLE
 
 WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).resolve().parent / "web"
 STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg",
@@ -157,6 +160,8 @@ def make_server(bridge, token: str | None = None):
                 return self._send(403, b"forbidden", "text/plain")
             if u.path == "/":
                 html = (WEB / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", token)
+                for mark, value in (("__TITLE__", config.GAME_TITLE), ("__SUBTITLE__", getattr(config, "GAME_SUBTITLE", "")), ("__VERSION__", VERSION)):
+                    html = html.replace(mark, html_escape(value))         # the home page is on screen before the game's first event
                 return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
             if u.path == "/prefs":
                 return self._json(200, load_prefs())
@@ -209,7 +214,7 @@ def make_server(bridge, token: str | None = None):
                 text = data.get("text")
                 if not isinstance(text, str):
                     return self._json(400, {"error": "text"})
-                if text.startswith("#") and not bridge.at_main:
+                if text.startswith("#") and not bridge.at_main and not (bridge.at_menu and text.strip().lower() in MENU):
                     return self._json(409, {"error": "not at the main prompt"})
                 return self._json(200, {"ok": True}) if bridge.submit(text[:2000]) else self._json(409, {"error": "not waiting"})
             if u.path == "/update":

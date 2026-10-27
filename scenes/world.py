@@ -88,7 +88,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner: NPC | None = None
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
-        self.restart = False          # #newgame: the run loop ends and main.py starts a new character in a save of its own
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.recent_narration: list[str] = []
         self.last_text = ""
@@ -506,7 +505,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
                     console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
-                if self.restart or self.to_menu:
+                if self.to_menu:
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
@@ -1148,12 +1147,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(loadout.change(c, loadout.by_number(c, tokens), clock.day(self.minutes), bool(self.combat)))
             self.store.save_player(self.player)
             console.note("\n".join(loadout.lines(c, clock.day(self.minutes), bool(self.combat))))
-        elif name == "newgame":
-            console.note("Start a new character? This game stays saved, and you can come back to it from the main menu. (y/n)")
-            if console.ask().lower() in ("y", "yes"):
-                self.restart = True
-            else:
-                console.note("Cancelled.")
         elif name in ("menu", "mainmenu", "saves"):
             if self.combat:                                         # (f345) a fight is saved every round, but it is not left mid-blow
                 console.note("Not in the middle of a fight. Finish it, or flee, first.")
