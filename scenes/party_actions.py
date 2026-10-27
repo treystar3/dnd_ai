@@ -506,9 +506,9 @@ class PartyActions:
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
-                                                  why=why, already=self.shown_lines()),
+                                                  why=why, already=self.shown_lines(), worn=self.worn_words("prose")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400,
-                              context={"speaker": [name], "others": self.other_names(name)})
+                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
                 self.note_shown(f"{frame.before} {after}")
@@ -557,9 +557,10 @@ class PartyActions:
                                              notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place), leaned=quirks.leaned_on(m),
                                              subtext=self.hire_subtext(m, text), offers=self.material_for(m),
                                              again=convo.again_fact(before) if before else "",
-                                             again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text()),
+                                             again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
+                                             worn=self.worn_words("speech")),
                              CompanionReply, temperature=0.8, max_tokens=320, retries=1, validation_context=ctx,
-                             relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None))
+                             relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False))
             except LLMError:
                 reply = P["temperaments"][(m.get("temper") or ["dry"])[0]].get("quip", "")
                 break

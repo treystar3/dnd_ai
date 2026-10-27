@@ -38,6 +38,10 @@ check("a moment too like one already seen is sent back", "seen already" in prop(
 check("a title used before is sent back", "seen in this game already" in prop(ctx, title="The Card Game"))
 check("a stranger given a name is sent back", "no one and nowhere" in prop(ctx, line="Old Tobin Marsh has let his pig loose under the well."))
 check("a doing for nobody here is sent back", "nobody here" in prop(ctx, doings=[{"who": "innkeeper", "doing": "shouting"}]))
+m = MomentProposal.model_validate({"title": "the pig under the well", "line": "A pig has got loose under the well.", "memory": "the pig",
+                                   "doings": [{"who": "the stooped baker", "doing": "cornering the pig"}]}, context=dict(ctx, labels={"the stooped baker": "baker"}))
+check("a doing given by how someone is known lands on their role", m.doings[0].who == "baker", m.doings[0].who)
+check("a stock phrase in the line is sent back", "stock phrase" in prop(ctx, line="A thick fog clings to the branches while the scent of damp earth hangs heavy in the air."))
 check("a doing with a subject is sent back", "no subject" in prop(ctx, doings=[{"who": "baker", "doing": "the baker shouts at the pig"}]))
 check("a visitor is required when the shape brings one, and refused when it does not",
       "needs an epithet" in prop(dict(ctx, visitor=True)) and "leave visitor_epithet" in prop(ctx, visitor_epithet="a dusty stranger"))
@@ -93,6 +97,9 @@ st = store.load_place("tilted_plough")
 check("after its minutes it ends", not st.moment, st.moment)
 check("the visitor took the road", store.load_npc(visitor.id).gone and not any(n.id == visitor.id for n in ws.present))
 check("the town remembers it in the model's words", any(r["text"].startswith("The stir that was") for r in store.load_place("parth").memory), store.load_place("parth").memory[-2:])
+from engine import matters
+check("...and its people bring it up for a few days, then let it go", any("stir" in x for x in matters.town_memory(store, world, "parth", ws.minutes))
+      and not any("stir" in x for x in matters.town_memory(store, world, "parth", ws.minutes + 4 * 1440)))
 check("the people are back to their own doings", not any(n.activity.startswith("watching the stir") for n in ws.present), [n.activity for n in ws.present])
 # the written fallback, when the model fails
 from llm import gateway

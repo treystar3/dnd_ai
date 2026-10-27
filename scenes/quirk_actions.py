@@ -42,9 +42,9 @@ class QuirkActions:
     def quirked(self, m: dict) -> dict:
         if not m.get("quirks") or m["quirks"].get("voice") not in quirks.Q["voices"]:
             quirks.roll(m, random.Random(f"{self.store.meta.seed}:{m['id']}"))
-        if m.get("permanent") and not m.get("story") and not m.get("speech"):
-            from engine import voice_profile                 # who they are and where they come from, before anything is written about them
-            voice_profile.ensure(m, random.Random(f"{self.store.meta.seed}:{m['id']}:speech"))
+        if m.get("permanent") and not m.get("story") and (not m.get("speech") or not m["speech"].get("kit")):
+            from engine import voice_profile, voices         # who they are and where they come from, before anything is written about them
+            voice_profile.ensure(m, random.Random(f"{self.store.meta.seed}:{m['id']}:speech"), voices.kits_in_party(self.player.party, m))   # (f350)
         if "details" not in m and m.get("permanent") and not m.get("story"):
             m["details"] = []                               # set first, so a failure is not retried on every line
             m["details"] = self.persona_details(m)

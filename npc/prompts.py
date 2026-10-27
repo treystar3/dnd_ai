@@ -31,7 +31,8 @@ def residents_request(place, world_summary: str, slots: list[tuple[str, str, str
 PROFILE_SYSTEM = """You deepen an ordinary person in a fantasy village the first time someone talks to them.
 Their personality traits were rolled by the game and are fixed. Build on them; do not contradict them.
   personality: one or two sentences describing who they are, blending their traits with their role and life. Do not just list the traits.
-  voice: one sentence on how they speak (pace, warmth, favorite turns of phrase, accent of manner).
+    HOW THEY TALK, when given, is fixed by the game: the personality must agree with it, and never describes their voice or its sound.
+  voice: leave empty; the game decides how they talk.
   concern: one thing on their mind lately. Personal and local: family, work, money, health, a neighbor, the weather.
     It may involve their own small life, but must not invent world events, factions, monsters or magic.
 Respond only with JSON matching the schema.
@@ -41,7 +42,9 @@ Respond only with JSON matching the schema.
 """
 
 
-def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = (), motive_so_far: str = "") -> str:
+def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = (), motive_so_far: str = "",
+                    how: list[str] = ()) -> str:
+    """how (f350): the voice kit's lines, fixed by the engine, so the written personality agrees with how they talk."""
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     motive = (f"THEIR MOTIVE, as the town knows it: {motive_so_far}. Write it in their own words, keeping its meaning." if motive_so_far
               else "THEY HAVE A MOTIVE: write one." if has_motive else "THEY HAVE NO MOTIVE: leave motive empty.")
@@ -50,6 +53,7 @@ def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bo
         f"WHERE: {place_name}\nLOOKS: {npc.description}\nDOING: {npc.activity}\n"
         + "".join(f"{t}\n" for t in town_lines)
         + f"TRAITS:\n{traits}\n"
+        + (("HOW THEY TALK (fixed by the game):\n" + "\n".join(f"  - {h}" for h in how) + "\n") if how else "")
         + motive
     )
 
@@ -88,7 +92,9 @@ Your reply:
   speech: what you say aloud, within the room LENGTH gives (room, not a target: a short answer is often the true one), in your
     voice. Small talk stays brief; when someone asks about something that matters to you or that you know well, answer the way a
     real person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
-    No narration inside speech.
+    No narration inside speech. Open on what you have to say, not on a stock word: "Well", "Oh", "Aye" and the like are for when
+    they carry something, and never two lines running. Trailing dots at most once in a reply, and only where a thought is really
+    dropped; otherwise finish the sentence.
   gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
   intent: what you are doing with this reply. refuse only when you decline outright - no help, no answer; answering the part you
     care about and leaving the rest is small_talk or share, not refusing. Use leave only if you actually walk away or flatly refuse to keep
@@ -140,17 +146,19 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                          player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                          length: str = "a line or two, up to about 35 words", land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
-                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "") -> str:
+                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
+                         worn: list[str] = ()) -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
-                               length, land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid).render()
+                               length, land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn).render()
 
 
 def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                         player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                         length: str = "a line or two, up to about 35 words", land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
-                        stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = ""):
+                        stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
+                        worn: list[str] = ()):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
     voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
@@ -168,6 +176,8 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
         p.material("\n".join(f"- {m}" for m in material), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
     p.fact(_knowledge(npc, facts, convo, wares, extra))
     p.history(unsaid)
+    if worn:
+        p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     p.history(so_far, "THIS CONVERSATION SO FAR")
     p.fact(f'THEY SAY: "{player_text}"\nLENGTH: {length}')
@@ -178,8 +188,9 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     return (
         f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
-        f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\nVOICE: {npc.voice}\n"
-        f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
+        f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
+        + (f"VOICE: {npc.voice}\n" if npc.voice and not (getattr(npc, "speech", None) or {}).get("kit") else "")      # (f350) a kit under HOW YOU TALK is the voice
+        + f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
         f"TRAITS (how you decide and react; never a subject you bring up):\n{traits}\n\n"
         f"TIME: {time_label}\n"
         f"YOUR PLACE: {place.name}\n" + "\n".join(f"  - {v}" for v in place.visible) + "\n"

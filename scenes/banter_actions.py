@@ -101,7 +101,7 @@ class BanterActions:
                                   for n, h in holders.items()}}
         try:
             r = generate("exchange", system, P_, Exchange, temperature=0.9, max_tokens=420, retries=1, validation_context=ctx,
-                         relaxed_context=dict(ctx, recent={n: l[-1:] for n, l in (recent or {}).items()}))
+                         relaxed_context=dict(ctx, recent={n: l[-1:] for n, l in (recent or {}).items()}, kit=False))
         except LLMError:
             return None
         self._last_claims = [(l.speaker, l.text) for l in r.lines if l.text]     # what was said, for canon and for what they remember saying
@@ -419,8 +419,10 @@ class BanterActions:
         speak = quirks.blueprint(m, rng_v if query is not None else None)
         v = quirks.voice_prompt(m, rng_v if query is not None else None)
         g = quirks.growth(m)
-        mine = ([f"In speech, {v}."] if v else []) + ([f"With the player, they have changed: {g}; let it show, never say it."] if g else [])
-        room = self.HOW_BUDGET - len(speak) - len(mine)              # at most HOW_BUDGET lines on how they speak, in any one reply
+        from engine import voices
+        kit = [f"{k[0].upper()}{k[1:]}." for k in voices.lines(voices.kit_of(m))]            # (f350) their kit: always, it is the voice
+        mine = kit + ([f"In speech, {v}."] if v else []) + ([f"With the player, they have changed: {g}; let it show, never say it."] if g else [])
+        room = self.HOW_BUDGET - len(speak) - len(mine) + len(kit)   # at most HOW_BUDGET lines on how they speak besides the kit, in any one reply
         profile = voice_profile.compile(m, rng_v, emotion, relation, toward, budget=room, feature=self.culture_now(m)) if query is not None else []
         how = " ".join(([struck] if struck else []) + speak + mine + profile)
         facts = f"A hired {m['role']}, {m.get('blurb', '')}." + (" " + voice_profile.who(m) if voice_profile.who(m) else "")

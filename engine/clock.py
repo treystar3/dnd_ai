@@ -80,6 +80,28 @@ def describe_duration(m: int) -> str:
     return text + (f" {rest} minutes" if rest else "")
 
 
+def walk_words(m: int) -> str:
+    """(f349) A distance the way a local says it: 'an hour's walk', 'a morning's walk', 'two days on the road'. The player's own map keeps
+    its figures (describe_duration); nobody who lives here counts minutes."""
+    if m < 20:
+        return "a few minutes' walk"
+    if m < 45:
+        return "a short walk"
+    if m < 90:
+        return "an hour's walk"
+    if m < 150:
+        return "a couple of hours on foot"
+    if m < 330:
+        return "a morning's walk"
+    if m < 480:
+        return "half a day on foot"
+    if m < 900:
+        return "a day on the road"
+    days = max(2, round(m / 600))
+    names = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+    return f"{names[days - 2]} days on the road" if days - 2 < len(names) else "a fortnight or more on the road"
+
+
 def ordinal(n: int) -> str:
     suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"

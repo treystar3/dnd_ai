@@ -92,6 +92,7 @@ class PlayerState(BaseModel):
     party_relations: dict = {}     # how two hires are with each other: "idA|idB" -> {"score", "dynamic", "day"} (engine/party.py)
     party_last_fight: dict = {}    # the last fight the party was in: {"minute", "won", "hard", "hurt": [names], "carried": [names]}
     titles: list[str] = []         # honorifics earned by ending campaigns and cataclysms
+    goddess_said: list[str] = []   # (f349) what Orenna said on each return to the Threshold, so she never opens the same way twice
     mounts: list[dict] = []        # mounts owned: {"id", "name", "speed", "stamina"} (see data/rules/events.yaml)
     mount: str = ""                # id of the mount ridden, if any
     field: dict = {}               # field-ability state (scenes/field_actions.py): cd, camp, haste, edge, shadow, scouted, lit, shows

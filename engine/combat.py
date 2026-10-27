@@ -236,6 +236,7 @@ class Combat(BaseModel):
     mentor_guard_line: str = ""    # how she guards the player, told to the narrator
     mentor_saved: int = 0          # how many times the floor has held
     mentor_beats: list[str] = []   # lessons already given
+    burn_told: bool = False        # (f349) the element on the player's blade has been told to the narrator once; after that it is a figure, not a sentence
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
@@ -1480,7 +1481,9 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             combat.log.append(f"{att.name}'s {el} damage burns {dfn.name}: {dealt}")
             if rec is not None:
                 rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
-            tell(combat, f"{el} damage follows the blow into {who(dfn)}" + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+            if not combat.burn_told or not dfn.alive:           # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
+                tell(combat, f"{el} damage follows the blow into {who(dfn)}" + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+                combat.burn_told = True
     if "acid_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
         cap = AT.BUFFS.get("acidcoat", {}).get("cap", 75)
         cut = min(cap, dfn.corroded + A["acid_weapon"] * (ATTUNE["acid"] if attuned(att, "acid") else 1))   # Acid Coating

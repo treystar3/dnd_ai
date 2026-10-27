@@ -194,6 +194,27 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if text.strip():
             self.recent_narration = (self.recent_narration + [text])[-6:]
             self.store.save_story(self.recent_narration, shown or {"type": "narration", "text": text})
+        self.note_worn(text, shown)
+
+    # ---- (f349) the worn-word watch: which words the writing has leaned on lately (engine/worn.py)
+
+    def note_worn(self, text: str, shown: dict | None = None) -> None:
+        """Every passage feeds the prose watch; every line of speech feeds the speech watch; a frame feeds both."""
+        from engine import worn
+        w = self.__dict__.setdefault("_worn", {"prose": worn.Watch(), "speech": worn.Watch()})
+        if shown and shown.get("speech"):
+            w["speech"].add(shown["speech"])
+            w["prose"].add(" ".join(x for x in (shown.get("before", ""), shown.get("after", "")) if x))
+        else:
+            w["prose"].add(text)
+
+    def worn_words(self, kind: str = "prose") -> list[str]:
+        """The words to hand over as WORDS YOU HAVE WORN OUT, less the nouns of this scene (names, labels, the place)."""
+        w = self.__dict__.get("_worn")
+        if not w:
+            return []
+        keep = [self.place.name] + [l for l, _, _ in self.people_view()] + [m.get("name", "") for m in self.player.party]
+        return w[kind].worn(keep)
 
     def narrate_with(self, system: str, event: str) -> None:
         self.flush(self.last_text)
@@ -443,6 +464,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
 
+    def quiet_return(self, log=(), text: str = "") -> bool:
+        """(f349) Back somewhere already peopled with nothing new to tell: nobody has moved on to something else, nothing is happening here
+        the player has not read, no news has come, nothing was met on the way and the player asked nothing. Then the engine says so in a
+        line and the narrator is not called: a passage that says nothing has changed is worse than none."""
+        if not getattr(self, "revisit", False) or getattr(self, "first_arrival", False) or log or "?" in (text or ""):
+            return False
+        if self.__dict__.get("_arrival_lines"):
+            return False
+        from engine import truth
+        here = truth.scene_of(self).view(truth.NARRATOR, "narrator")
+        seen = self.__dict__.setdefault("_happenings_seen", set())
+        if any((self.player.location, h) not in seen for h in here.lines("happenings")):
+            return False
+        news_seen = self.__dict__.setdefault("_news_seen", set())
+        return not any(h not in news_seen for h in here.lines("news")[:3])
+
     def brevity(self) -> str:
         if getattr(self, "revisit", False):
             return (" The player has been here before: the place and its people have been seen. In a sentence or two, say what the "
@@ -461,12 +498,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         low = text.lower()
         if any(re.search(rf"\b{w}\w*", low) for w in voice_rules.V.get("weather_words", [])):
             s["weather"] = True
+        paused = bool(voice_rules.PAUSE.search(low))
         for label, _desc, doing in self.people_view():
             key = re.sub(r"^(the|a|an) ", "", label.lower()).strip()
             head = key.split()[-1] if key else ""
             work = [w for w in re.findall(r"[a-z]{7,}", (doing or "").lower())]
             if key and (key in low or (len(head) >= 4 and re.search(rf"\b{re.escape(head)}s?\b", low)) or any(w in low for w in work)):
                 s["people"].add(label)                   # the narrator paraphrases an epithet ('a muscular guard'): the noun or their work is enough
+                if paused:
+                    s.setdefault("paused", set()).add(label)     # (f349) they stopped what they were doing on the page: that is shown once a visit
 
     def shown_lines(self) -> list[str]:
         """The ALREADY SHOWN THIS VISIT list for the prompts, as plain lines."""
@@ -477,6 +517,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if s.get("weather"):
             out.append("the weather and the light")
         out += [f"{p}, and what they are doing" for p in sorted(s.get("people", ()))]
+        out += [f"{p} pausing their work to speak: shown once already; from now on the words come while the hands keep at it"
+                for p in sorted(s.get("paused", ()))]
         return out
 
     def run(self) -> None:
@@ -1292,9 +1334,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.save_meta()
 
     def people_view(self) -> list[tuple[str, str, str]]:
-        """Who is here, as the player knows them: one list for the narrator, the interpreter and the audit (engine/truth.py, f313)."""
+        """Who is here, as the player knows them, for the narrator (engine/truth.py, f313). The hires travelling with the player are not
+        scenery (f349): they are left out, and the narrator hears of one only when the GAME EVENT has them act (companions_in)."""
         from engine import truth
-        return [(p.label, p.desc, p.doing) for p in truth.scene_of(self).present_people() if p.kind != "wildlife"]
+        return [(p.label, p.desc, p.doing) for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+
+    def companions_in(self, event: str) -> list[str]:
+        """(f349) The hires the GAME EVENT names, so the narrator may show what one of them does; the rest go unmentioned."""
+        low = (event or "").lower()
+        return [m["name"] for m in self.player.party if m.get("permanent") and not m.get("story") and m.get("name")
+                and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low)]
 
     def narrate(self, event: str, player_text: str = "") -> None:
         if self.buffering:
@@ -1318,15 +1367,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         unseen = [h for h in here.lines("happenings") if (self.player.location, h) not in seen]    # (f323) told once, and again when it changes
         seen.update((self.player.location, h) for h in unseen)
         unseen = self.__dict__.pop("_arrival_lines", []) + unseen                                  # (f331) what changed here while the player was away, once
+        self.__dict__.setdefault("_news_seen", set()).update(here.lines("news")[:3])              # (f349) news the narrator has been handed once
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
                                        unseen, rule["length"], streets=here.streets(),
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
-                                       already=self.shown_lines())                                  # (f347) ...and what the player has read here already
+                                       already=self.shown_lines(),                                  # (f347) ...and what the player has read here already
+                                       companions=self.companions_in(event),                        # (f349) ...and of a companion only when the event has them act
+                                       worn=self.worn_words("prose"))                               # (f349) ...and which words it has worn out lately
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=rule["tokens"],
-                       temperature=0.4 if strict else 0.9)
+                       temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"))
         shown = self.unnamed(result.text)
         if strict and voice_rules.contradicts_nothing(shown):
             console.debug("narration claimed a gain the engine did not give - rewriting once")
@@ -1828,14 +1880,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         ctx = ctx + secret_lines
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
-        level = voice_rules.npc_level(npc, speech, self.convo, ctx, first_time)
+        from engine import voices
+        level = voices.room(voices.kit_of(npc.speech), voice_rules.npc_level(npc, speech, self.convo, ctx, first_time))   # (f350) a terse person gets less room
         self.npc_level = level
+        town = pulse.town_of(self.world, self.player.location)
         from engine import truth
         view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk")
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words(),
-                                   stance=getattr(self, "stance", ""), rng=self.rng)
+                                   stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"),
+                                   house=voices.house_phrases(self, town, npc.id))          # (f350) what everyone else here has been saying
+        voices.heard(self, town, npc.id, reply.speech)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]
@@ -1972,9 +2028,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
                                     getattr(reply, "intent", "") == "leave", self.recent_narration,
                                     voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment,
-                                    why=reasons, already=self.shown_lines()),
+                                    why=reasons, already=self.shown_lines(), worn=self.worn_words("prose")),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
-                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)},
+                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"),
             )
         except LLMError:
             self.show_speech(speaker, reply, npc)

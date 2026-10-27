@@ -21,6 +21,7 @@ chance: {inn: 0.18, square: 0.15, guild: 0.15, guardpost: 0.15, temple: 0.12, to
 cooldown_hours: 36
 town_gap_hours: 12
 remember: 40                 # how many past moments the model is shown (all of them count for the repeat check)
+memory_days: 3               # how long the town's people bring a moment up afterwards (a matter's memory keeps its own term, doors.yaml)
 
 shapes:
   - id: performer

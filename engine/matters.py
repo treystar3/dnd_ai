@@ -472,7 +472,7 @@ def town_memory(store, world, place_id: str, now: int) -> list[str]:
     if town not in world.places or world.places[town].danger:
         return []
     keep = D["memory"]["keep_days"] * 1440
-    return [m["text"] for m in store.load_place(town).memory if now - m["minute"] <= keep]
+    return [m["text"] for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]   # a moment's memory fades sooner (engine/moments.py)
 
 
 # ---------- the journal

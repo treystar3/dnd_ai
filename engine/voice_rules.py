@@ -99,6 +99,11 @@ def written_parting(npc, rng, said=()) -> str:
     return rng.choice(opts or V.get("partings", {}).get(band, ["Aye."]))
 
 
+# (f349) A person stopping what they were doing, on the page: the frame's favourite opening, allowed once per person per visit.
+PAUSE = re.compile(r"\b(pauses?|pausing|stops?|stopping|halts?|looks? up|glances? up|lifts? (his|her|their) (head|eyes|gaze)|"
+                   r"sets? (it|the \w+|down)|straightens?|lowers? the|turns? from)\b")
+
+
 def exemplar_block(kind: str) -> str:
     """(f347) The voice shown rather than described: a few passages (kind 'passages', for the narrator) or replies (kind 'speech', for
     everyone who speaks) from data/rules/voice.yaml, as the register of this game. Never lines to reuse."""
@@ -107,6 +112,8 @@ def exemplar_block(kind: str) -> str:
         return ""
     head = ("HOW NARRATION SOUNDS HERE (the register of this game; never lines to reuse, and nothing in them is a fact of this moment):"
             if kind == "passages" else
+            "HOW A FIGHT SOUNDS HERE (the register of this game; never lines to reuse, and nothing in them is a fact of this fight):"
+            if kind == "fight" else
             "HOW PEOPLE SOUND HERE (the register of this game; never lines to reuse, and nothing in them is about you or this moment):")
     return head + "\n" + "\n".join(f"  - {e}" for e in ex)
 

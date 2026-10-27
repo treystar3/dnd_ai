@@ -49,10 +49,11 @@ def interpret_request(abilities: list[str], enemies: list[str], text: str, usabl
 
 
 NARRATE_SYSTEM = DM_VOICE + """
-You are narrating one exchange of a fight, like a DM describing what the dice just decided. Three to six sentences.
+You are narrating one exchange of a fight, like a DM describing what the dice just decided. Write within the room LENGTH gives: it
+is room, not a target, and less is allowed; an exchange of two blows can be two sentences.
 
-Make it feel dangerous and alive: momentum, breath, sound, the weight of weapons, the ground underfoot, the
-weather and the place. Vary the rhythm - short hard sentences for impacts, longer ones for movement.
+Make it feel dangerous and alive: momentum, breath, sound, the weight of weapons, the ground underfoot. A blow is a short sentence;
+movement can run longer. One sentence tells one blow, never two.
 Build the player's part around what THE PLAYER SAID they do, but the outcome is only what the EVENTS say.
 
 Rules:
@@ -60,6 +61,9 @@ Rules:
   and never skip an event.
 - Several foes doing the same thing (closing in, swinging) can be told together. Lead with what matters most:
   a kill, a wound that changes the fight, a near miss on the player.
+- ALREADY SHOWN IN THIS FIGHT lists what the player has read in this fight: the ground, the light, the look of a foe, the gleam of a
+  blade. Do not describe them again; the fight has moved on, and so do you. WORDS YOU HAVE WORN OUT are words recent passages leaned
+  on: find other words.
 - Describe only the armor and gear given under THE PLAYER. If they wear no armor, blows land on cloth and skin.
 - How hard a blow lands and how hurt someone is come from the EVENTS: honor "barely a scratch" versus
   "a devastating blow", "barely touched" versus "barely standing".
@@ -73,20 +77,26 @@ Rules:
   Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
 - Some events end with a marker such as [h2]. It stands for that blow's damage figure, which the game fills in. Copy each marker
-  exactly once, right after the sentence that tells that event, in the same form ([h2]). Never explain it and write no numbers yourself.
+  exactly once, in the same form ([h2]), as the last thing in the sentence that tells that blow, just before its full stop: never in
+  the middle of a sentence, and never two markers in one sentence. Never explain it and write no numbers yourself.
 - No numbers, no game words (damage, health, round, critical, status, ability, legendary, phase). No lists or markdown.
-For a boss fight you may write up to eight sentences.
+""" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("fight") + """
 Respond only with JSON matching the schema, with the prose in "text"."""
 
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
-                    you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "") -> str:
+                    you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
+                    length: str = "up to about 90 words", shown: list[str] = (), worn: list[str] = ()) -> str:
+    """length (f349): room in words, by the weight of the fight (voice.yaml narration.fight / fight_boss); shown: what the player has read
+    in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on."""
     return (
         f"PLACE: {place}\nTIME AND WEATHER: {time_label}\nTHE PLAYER FIGHTS WITH: {weapon}\n"
         f"THE PLAYER: {gear}\n"
         + (f"THE GROUND NOW (who stands where; never move anyone elsewhere):\n{ground}\n" if ground else "")
+        + (("ALREADY SHOWN IN THIS FIGHT (do not describe these again):\n" + "\n".join(f"  - {s}" for s in shown) + "\n") if shown else "")
+        + (f"WORDS YOU HAVE WORN OUT (find other words): {', '.join(worn)}\n" if worn else "")
         + "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
-        f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\n"
+        f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\nLENGTH: {length}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
         f'THE PLAYER SAID: "{player_words}"\n'
         "EVENTS:\n" + "\n".join(f"  - {e}" for e in events)

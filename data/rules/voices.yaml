@@ -1,0 +1,77 @@
+# (f350) HOW ONE PERSON TALKS, drawn by the engine: a kit of a few audible habits, one option per axis, rolled once when the person is
+# made (a hire on the guild's list, a townsperson the first time they are spoken to) and kept on them (speech["kit"]).
+#
+# Why: the model wrote every voice as "slow, measured, gravelly, steady", a sound text cannot act, and a person was no more like themselves
+# than like a stranger (a five-hour run: vocabulary overlap 0.20 with themselves, 0.18 with anyone else). A kit is behaviour the model can
+# act and, where the engine can hear it, a check the reply must pass: a terse person's reply over the word cap is sent back, a person who
+# never asks back cannot end on a question. Nobody needs to be memorable; two people need to sound different. So no two people in one
+# town, and no two hires on one list, share a kit, and the engine prefers kits that differ on what is most audible (the axis weights).
+#
+# Rules for writing options: text is BEHAVIOUR, never words to say and never a sound (no "gravelly", "measured", "cadence", "tone",
+# "drawl", "lilt"). An empty text is the unmarked case: most people are unmarked on most axes. check is what the engine tests on the reply.
+# room moves the reply's length level (voice.yaml npc short/medium/long) by that many steps.
+
+sound_words: [gravelly, measured, cadence, tone, drawl, lilt, rumble, rasp, pace, accent, timbre, husky, warm, low-pitched, melodic, lyrical]
+
+axes:
+  length:                      # how much they say
+    weight: 3
+    options:
+      terse: {weight: 25, text: "says the least that answers: a word or one sentence where others would give three", check: {max_words: 28}, room: -1}
+      plain: {weight: 60, text: ""}
+      full:  {weight: 25, text: "gives the whole of it: the answer, the why of it and an aside besides", room: 1}
+  sentences:                   # the shape of them
+    weight: 2
+    options:
+      short: {weight: 30, text: "short sentences, one thing in each, and never one that runs on", check: {max_sentence_words: 16}}
+      mixed: {weight: 60, text: ""}
+      long:  {weight: 25, text: "one long sentence that carries the whole thought with its turns and qualifications, rather than several short ones"}
+  questions:                   # whether they want anything back
+    weight: 3
+    options:
+      never: {weight: 30, text: "never asks the stranger anything back; what they want is their own business", check: {no_question: true}}
+      after: {weight: 25, text: "answers, and then wants to know something in return: who they are, where from, what for"}
+      first: {weight: 15, text: "wants to know what the asking is for before they give an answer"}
+      none:  {weight: 60, text: ""}
+  opening:                     # how a line begins
+    weight: 2
+    options:
+      matter: {weight: 40, text: "starts on the matter itself, never on a sound or a filler word", check: {no_stock_opener: true}}
+      echo:   {weight: 15, text: "repeats the gist of what was asked before answering it, flat or as a question"}
+      hands:  {weight: 15, text: "names what is in their hands or what they were doing before they answer"}
+      none:   {weight: 65, text: ""}
+  contractions:
+    weight: 1
+    options:
+      full:  {weight: 15, text: "says every word in full and never a contraction", check: {no_contractions: true}}
+      usual: {weight: 85, text: ""}
+  address:                     # what they call the stranger
+    weight: 1
+    options:
+      none:   {weight: 40, text: "never addresses the stranger by any word: no 'friend', no 'stranger', no 'you there'", check: {no_address: true}}
+      taken:  {weight: 15, text: "addresses the stranger by what they take them for: traveller, sellsword, guild hand"}
+      kindly: {weight: 15, text: "calls them lad, lass or child whatever their age"}
+      formal: {weight: 10, text: "says sir or madam to anyone they have not known for years"}
+      usual:  {weight: 60, text: ""}
+  refusing:                    # how a no comes out
+    weight: 1
+    options:
+      flat:   {weight: 25, text: "a refusal is one word and no reason"}
+      excuse: {weight: 25, text: "refuses by way of an excuse about the work or the hour, never with a plain no"}
+      turn:   {weight: 25, text: "refuses by asking why they should"}
+      usual:  {weight: 70, text: ""}
+  words:                       # where their words come from
+    weight: 2
+    options:
+      trade:   {weight: 25, text: "reaches for the words of their own trade for anything, even what has nothing to do with it"}
+      plain:   {weight: 25, text: "plain short words, nothing anyone would call a fine word", check: {max_long_words: 1}}
+      exact:   {weight: 15, text: "exact about names, counts and times: never 'a few', always the number"}
+      figures: {weight: 15, text: "says things by way of a comparison to something ordinary; not every line, but their way"}
+      usual:   {weight: 60, text: ""}
+
+draw_tries: 12               # candidate kits drawn for one person; the one farthest from the kits already in use here is kept
+
+# (f350) The house-phrase guard. A run of four words with two content words in it, said by this many OTHER people in the same town in the
+# last `window` lines, is how everyone here talks: a reply that uses it is sent back. The five-hour run had "if you're looking for" in 64
+# mouths and "a bit of a" in 62.
+house: {others: 2, window: 60}

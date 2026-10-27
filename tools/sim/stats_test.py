@@ -62,7 +62,9 @@ check("the hover sheet is plain lines of [class, text]", all(len(l) == 2 for l i
 theirs = P.fighter(m)
 check("their sheet is the fighter combat builds for them", f"Health: {statsheet._n(theirs.max_hp)}" in [l[1] for l in adv["tip"]])
 ws.player.party_mode = "with"
-check("a hire travelling with you is one of the people here for the narrator", any(v[0] == "Test Hire" and "hired" in v[1] for v in ws.people_view()), ws.people_view())
+from engine import truth as _truth
+check("a hire travelling with you is one of the people here for the interpreter, and not scenery for the narrator",
+      any(p.name == "Test Hire" and p.kind == "hire" and "hired" in p.desc for p in _truth._present_people(ws)) and not any(v[0] == "Test Hire" for v in ws.people_view()), ws.people_view())
 TALK = []
 ws.hire_talk = lambda mm, t: TALK.append((mm["name"], t))
 from llm.contracts import ActionIntent

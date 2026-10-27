@@ -378,7 +378,7 @@ def _town(scene: Scene):
             if r and (best is None or r[1] < best[1]):
                 best = (p, r[1])
         out.append(Fact("town", f"{t}: none in {town}" + (f"; the nearest is {best[0].name} in {world.places[mapview.top_of(world, best[0].id)].name}, "
-                                                           f"{clock.describe_duration(best[1])} away" if best else "")))
+                                                           f"{clock.walk_words(best[1])} away" if best else "")))        # (f349) as a local says it
     return out
 
 

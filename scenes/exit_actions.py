@@ -191,6 +191,6 @@ class ExitActions:
         for pid, minutes in near:
             m = next((m for gp in exits.groups(self.world, top) for m in gp["members"] if m["to"] == pid), None)
             way = f"to the {exits.sector_of(m['bearing'])}, " if m else ""
-            bits.append(f"{self.world.places[pid].name} ({way}about {clock.describe_duration(minutes)} on foot)")
+            bits.append(f"{self.world.places[pid].name} ({way}{clock.walk_words(minutes)})")            # (f349) as a local says it
         return ["PLACES AROUND HERE THAT YOU KNOW OF (mention them only if the player asks about the area, the roads, or where to go; "
                 "never add places that are not listed): " + "; ".join(bits)]

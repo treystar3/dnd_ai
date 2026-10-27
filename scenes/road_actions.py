@@ -73,9 +73,16 @@ class RoadActions:
             passing = f" They travel by {', then '.join(r.name for r in named)}: " + \
                 " ".join(r.description for r in named[:2]) + (passing or "")
         happened = f" On the way: {' '.join(log[-4:])}" if log else ""
-        self.narrate(f"After {clock.describe_duration(walk)} on foot, the player arrives at {self.place.name}.{passing}{happened} "
-                     f"Give the place in a sentence or two and one person doing one thing; the rest waits until they look. "
-                     f"Mention the road only briefly.{self.brevity()}", text)
+        if self.quiet_return(log, text):                                   # (f349) back somewhere seen, nothing new: a line, and no narrator
+            self.weight_hint = None
+            line = f"You are back at {self.place.name}." if walk < 15 else f"After {clock.walk_words(walk)}, you are back at {self.place.name}."
+            self.flush(text)                                                # anything held back from earlier actions goes first, in order
+            console.narrate(line)
+            self.remember_narration(line)
+        else:
+            self.narrate(f"After {clock.describe_duration(walk)} on foot, the player arrives at {self.place.name}.{passing}{happened} "
+                         f"Give the place in a sentence or two and one person doing one thing; the rest waits until they look. "
+                         f"Mention the road only briefly.{self.brevity()}", text)
         self.show_exits()
         if self.arc_arrival():
             return

@@ -148,7 +148,9 @@ m["hp_frac"], m["hp_at"] = 0.3, st.meta.minutes
 w.hire_talk(m, "How is the wound?")
 check("talking to a hurt dwarf: their people is a fact", "A dwarf;" in reqs[-1] and "Ironvein" not in reqs[-1].split("HOW YOU SPEAK")[0], reqs[-1][:500])
 how = reqs[-1].split("HOW YOU SPEAK:")[1].split("\n\n")[0]
-check("how they speak holds at most six lines in any one reply", how.count(". ") + 1 <= 9 and len(re.findall(r"(?<=[.;])\s+(?=[A-Z])", how)) + 1 <= 9, how)
+from engine import voices as _voices
+_k = len(_voices.lines(_voices.kit_of(m)))
+check("how they speak holds at most six lines in any one reply, besides the kit", how.count(". ") + 1 <= 9 + _k and len(re.findall(r"(?<=[.;])\s+(?=[A-Z])", how)) + 1 <= 9 + _k, how)
 check("...and how they show hurt is in how they speak", m["speech"]["tells"]["hurting"] in reqs[-1].split("HOW YOU SPEAK:")[1].split("\n\n")[0], reqs[-1][-1500:])
 check("the details request knows where they come from", "Ironvein" in quirks.details_request(m, w.companion_core(m)))
 _dr = quirks.details_request(m)

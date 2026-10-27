@@ -118,7 +118,7 @@ class Stub:
     def a_CompanionReply(self, u, k):
         if getattr(self, "companion", None):
             return self.companion(u)
-        return {"speech": "Aye. That is how it is with me.", "gesture": "", "remember": "", "impression": ""}
+        return {"speech": "That is how it is with me.", "gesture": "", "remember": "", "impression": ""}
 
     def a_CanonCheck(self, u, k):
         if getattr(self, "canon", None):
@@ -163,7 +163,7 @@ class Stub:
         return {"personality": "Plain.", "voice": "Plain.", "concern": "A small worry.", "motive": motive}
 
     def a_NPCReply(self, u, k):
-        out = {"speech": "Aye.", "intent": "small_talk"}
+        out = {"speech": "It is as it is.", "intent": "small_talk"}
         if self.ask_help and "WORK YOU HAVE OFFERED" not in u:
             r = self.rng.random()
             if r < 0.5:

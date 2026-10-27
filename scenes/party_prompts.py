@@ -52,7 +52,7 @@ def talk_request(core: str, relation: str, now: list[str], memories: list[str], 
 
 def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: list[str], recent: list, player: str, text: str, unsaid: str = "",
                 notes: str = "", props: str = "", leaned: str = "", subtext: str = "", offers: list[str] | None = None, again: str = "",
-                again_how: str = "", fix: str = "", truth_text: str = ""):
+                again_how: str = "", fix: str = "", truth_text: str = "", worn: list[str] = ()):
     """The same request as talk_request, built from typed parts (engine/prompt.py) so the gateway knows instruction from fact. truth_text is
     their view of the moment from the truth layer (engine/truth.py, f315): where they are, who is here, what the town has, the board."""
     from engine.prompt import Prompt
@@ -78,5 +78,7 @@ def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: li
         from engine import quirks
         p.material(quirks.material_block(offers), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
     p.history(talk, "WHAT WAS SAID LATELY")
+    if worn:
+        p.instruction(", ".join(worn), "WORDS EVERYONE HAS WORN OUT LATELY (find other words)")       # (f349)
     p.fact(text, f"{player.upper()} SAYS TO YOU")
     return p
