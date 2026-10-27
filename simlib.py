@@ -179,10 +179,10 @@ class Stub:
         """(f348) A moment of the shape asked for, different each time, with the visitor and the mishap when they are asked for."""
         MOMENT_COUNTER[0] += 1
         n = MOMENT_COUNTER[0]
-        roles = re.findall(r"\(([a-z_ ]+)\): ", u)
+        roles = re.findall(r"^  - ([a-z_]+): ", u, re.M)
         out = {"title": f"the stir number {n}".replace(str(n), ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][(n - 1) % 10]),
                "line": f"Stir {['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][(n - 1) % 10]}: a small thing has the place's attention, and the {roles[0] if roles else 'people'} most of all.",
-               "doings": [{"who": "everyone", "doing": "watching the stir with arms folded"}] + ([{"who": roles[0].replace(" ", "_"), "doing": "being in the middle of the stir"}] if roles else []),
+               "doings": [{"who": "everyone", "doing": "watching the stir with arms folded"}] + ([{"who": roles[0], "doing": "being in the middle of the stir"}] if roles else []),
                "memory": f"the stir that was number {['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][(n - 1) % 10]}"}
         if "A VISITOR comes with it" in u:
             out.update(visitor_epithet="a dusty stranger", visitor_look="A stranger in a dusty coat.", visitor_doing="standing in the middle of it")

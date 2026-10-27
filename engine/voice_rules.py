@@ -35,6 +35,16 @@ def npc(level: str) -> dict:
     return V["npc"][level]
 
 
+_REFUSAL = re.compile(r"\b(no\.|i won'?t|i will not|i'?ll not|not (?:for|to) (?:you|strangers|the likes)|nothing (?:for|to) (?:you|say)|get out|"
+                      r"leave me|none of your|mind your own|not your (?:business|concern|affair)|i(?:'m| am) not (?:telling|saying|giving)|"
+                      r"ask (?:someone|somebody) else|go (?:away|elsewhere)|not (?:another|one more) word|keep (?:it|that) to myself)\b", re.I)
+
+
+def refuses(speech: str) -> bool:
+    """(f347) Do the words refuse: a no, a won't, a mind-your-own? The model's intent says 'refuse' on most ordinary answers."""
+    return bool(_REFUSAL.search(speech or ""))
+
+
 def short_gesture(gesture: str) -> str:
     """(f347) A gesture short enough to print beside bare speech: kept whole when it is within gesture_words, cut at its first clause when
     that is, otherwise dropped. 'wipes her hands on her apron' stays; 'glances at the door, then back to the ledger with a sigh' becomes
@@ -45,7 +55,11 @@ def short_gesture(gesture: str) -> str:
     cap = V.get("gesture_words", 6)
     if len(g.split()) <= cap:
         return g
-    head = re.split(r";|, then |, and |, before |, while |, as |,\s+(?=\w+ing\b)| and then | and | then | before | while | as ", g, maxsplit=1)[0].strip()
+    head = re.split(r";|, then |, and |, before |, while |, as |,\s+(?=(?:turning|looking|glancing|leaning|resting|setting|wiping|nodding|"
+                    r"shaking|pulling|returning|going|letting|watching|reaching|folding|crossing|rubbing|brushing|picking|putting|"
+                    r"settling|straightening|dropping|lowering|raising|lifting|leaving|smiling|laughing|frowning|sighing|squinting|pausing|"
+                    r"stepping|moving|tucking|tapping|giving|holding|keeping|casting|shifting|scratching|running|waving|pointing|"
+                    r"sweeping|wrapping|tightening|loosening|closing|opening)\b)| and then | and | then | before | while | as ", g, maxsplit=1)[0].strip()
     return head if head and len(head.split()) <= cap else ""
 
 

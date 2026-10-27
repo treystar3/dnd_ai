@@ -90,7 +90,8 @@ Your reply:
     real person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
     No narration inside speech.
   gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
-  intent: what you are doing with this reply. Use leave only if you actually walk away or flatly refuse to keep
+  intent: what you are doing with this reply. refuse only when you decline outright - no help, no answer; answering the part you
+    care about and leaving the rest is small_talk or share, not refusing. Use leave only if you actually walk away or flatly refuse to keep
     talking, and then your speech must itself say so aloud - a goodbye, an excuse, or a flat dismissal.
     Nobody walks off in silence. Answering a question and finishing the topic is not leaving: if your speech holds no goodbye or
     refusal, the intent is not leave. You never leave in a reply that asks them a question.

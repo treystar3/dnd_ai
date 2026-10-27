@@ -21,7 +21,8 @@ Give:
   line: what is going on, one or two sentences, for the narrator and for everyone in the place: what the player sees and hears as
     they come in. Concrete; one or two particulars that could only be here.
   doings: what the people here are doing meanwhile, as short phrases with no subject ("pulling ale as fast as the mugs come back"):
-    one for everyone, and one for any role under PEOPLE HERE whose part is different. Never a name.
+    one with who "everyone", and one for any person whose part is different, with who = their role word exactly as it stands before
+    the colon under PEOPLE HERE (innkeeper, smith...), never how they are known and never a name.
   visitor_epithet, visitor_look, visitor_doing: only when A VISITOR is given: how the player would name them before learning their
     name (two to four words), one sentence of how they look, and what they are doing. Otherwise leave all three empty.
   mishap: only when MISHAP is asked for: one sentence of how the player is caught in it as they come in (a knock, a splash, a
@@ -37,7 +38,7 @@ def moment_request(ws, shape: dict, visitor_role: str, seen: list[dict]) -> str:
     from npc import life
     place = ws.place
     visible = "\n".join(f"  - {v}" for v in place.visible) or "  (nothing in particular)"
-    people = "\n".join(f"  - {n.label()} ({n.role.replace('_', ' ')}): {n.description} Doing now: {n.activity}" for n in ws.present) or "  (no one)"
+    people = "\n".join(f"  - {n.role}: {n.label()}. {n.description} Doing now: {n.activity}" for n in ws.present) or "  (no one)"
     town = "\n".join(life.town_lines(ws.store, ws.world, ws.player.location))
     from engine import truth
     here = truth.scene_of(ws).view(truth.NARRATOR, "narrator")
@@ -48,7 +49,7 @@ def moment_request(ws, shape: dict, visitor_role: str, seen: list[dict]) -> str:
         f"PLACE: {place.name} ({place.type})\n{visible}\n"
         + (f"{town}\n" if town else "")
         + f"TIME: {ws.time_label()}, weather {weather.describe(ws.store.meta.seed, ws.minutes)[1].lower()}\n"
-        f"PEOPLE HERE (name them only as given; their roles are what doings may be given to):\n{people}\n"
+        f"PEOPLE HERE (each is 'role: how they are known'; doings.who is that role word exactly as it stands, or everyone; in the line, name them only as they are known):\n{people}\n"
         + (("ALREADY GOING ON HERE (do not contradict it):\n" + "\n".join(f"  - {a}" for a in already) + "\n") if already else "")
         + f"\nTHE SHAPE: {shape['brief']}\n"
         + (f"A VISITOR comes with it, a {visitor_role.replace('_', ' ')} from the road: give their epithet, look and doing.\n" if visitor_role else "No visitor: no one new of any account; leave the visitor fields empty.\n")

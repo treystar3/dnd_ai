@@ -112,7 +112,7 @@ class QuirkActions:
         crew = [self.quirked(m) for m in self.player.party if m.get("permanent") and not m.get("story")] if when in ("fight_start", "fight_end") else self.quirk_crew()
         for m in crew:
             weapon = (rules.P["roles"].get(m["role"], {}).get("attacks") or ["blade"])[0]
-            line = quirks.habit_line(m, when, self.quirk_rng(m["id"]), weapon=weapon, danger=bool(self.place.danger))
+            line = quirks.habit_line(m, when, self.quirk_rng(m["id"]), weapon=weapon, danger=bool(self.place.danger), day=clock.day(self.minutes))
             if line:
                 console.narrate(line)
 

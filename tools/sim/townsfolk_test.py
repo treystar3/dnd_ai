@@ -97,6 +97,14 @@ try:
 except ValidationError as e:
     check("a parting is a few words, not a speech", "not a speech" in str(e))
 check("a parting may be a word and a gesture", Parting.model_validate({"speech": "Aye.", "gesture": "nods"}).gesture == "nods")
+from llm.contracts import parting_like
+check("a parting another person here said lately is sent back: no chorus of safe travels", parting_like("Safe travels.", ["Right then. Safe travels, friend."]) and parting_like("Safe travels to you then.", ["Safe travels."])
+      and not parting_like("Mind the ruts.", ["Safe travels.", "Right then. Watch your step."]) and not parting_like("Aye.", ["Safe travels."]))
+try:
+    Parting.model_validate({"speech": "Safe travels, then."}, context={"heard": ["Safe travels."]})
+    check("...through the contract", False)
+except ValidationError as e:
+    check("...through the contract", "much the same when the player left" in str(e))
 w = types.SimpleNamespace(trust=80); c = types.SimpleNamespace(trust=20)
 check("the written parting follows how they are with the player", voice_rules.written_parting(w, random.Random(1)) in voice_rules.V["partings"]["warm"]
       and voice_rules.written_parting(c, random.Random(1)) in voice_rules.V["partings"]["wary"])
@@ -139,6 +147,7 @@ ws.turn("Thanks, that's all. Goodbye.")
 check("a goodbye never reaches the interpreter", stub.calls.get("ActionPlan", 0) == plans, (plans, stub.calls.get("ActionPlan")))
 check("the person answers with one bare line, and the talk ends", printed and printed[-1][0] == "says" and printed[-1][1] == smith.label() and ws.partner is None, printed[-1:])
 check("the parting is on their record", len(store.load_npc(smith.id).said) == 2, store.load_npc(smith.id).said)
+check("...and on the town's list of partings heard", len(ws._partings_heard) == 1, getattr(ws, "_partings_heard", None))
 ws.turn("I ask the smith what she makes")
 stub.plan = [{"kind": "leave_conversation", "target": smith.id, "speech": "Good day to you."}]
 n = len(printed)

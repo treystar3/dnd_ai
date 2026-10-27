@@ -47,6 +47,10 @@ check("a long one is cut at its first clause", sg("glances at the door, then bac
 check("...or dropped when even that is long", sg("turns the whetstone slowly in her scarred hands without looking up") == "")
 check("nothing stays nothing", sg("") == "" and sg("  ") == "")
 check("a pair of adjectives is never cut apart", sg("gives a slow, deliberate nod") == "gives a slow, deliberate nod" and sg("offers a sharp, curt nod.") == "offers a sharp, curt nod")
+check("an adjective ending in -ing is not a clause break either", sg("gives a subtle, knowing wink and leans back against the counter") == "gives a subtle, knowing wink", sg("gives a subtle, knowing wink and leans back against the counter"))
+check("a comma before a gesture's participle is", sg("nods, turning back to the ledger with a sigh") == "nods")
+from engine import voice_rules as _vr
+check("the words decide a refusal, not the model's intent", _vr.refuses("No. Not for you, and not today.") and _vr.refuses("Mind your own business, stranger.") and not _vr.refuses("The mill is past the bridge, on the left."))
 check("a long gesture with only a bare comma is dropped whole", sg("gives a slow, deliberate nod toward the door of the inn") == "")
 
 # ---- the frame contract holds what the instruction alone could not
@@ -94,7 +98,8 @@ check("trust nudged by one is not a moment", ws.frame_reasons(npc, nudged) == []
 moved = types.SimpleNamespace(speech="Fine. Two copper, and that's a favour.", gesture="", intent="bargain", trust_change=2, gives=None)
 ws.narrate_dialogue(npc, npc.label(), npc.label(), "i haggle", moved, False, reasons=ws.frame_reasons(npc, moved))
 check("trust that moved earns a frame", printed[-1][0] == "frame" and "trust in the player has just moved" in asked[-1])
-check("a refusal, a gift, a leaving and a judged attempt do too", voice_rules.V["frame_when"]["refuse"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="refuse", trust_change=0, gives=None))
+check("an intent of 'refuse' on an ordinary answer is not a moment", ws.frame_reasons(npc, types.SimpleNamespace(intent="refuse", speech="The mill is past the bridge.", trust_change=0, gives=None)) == [])
+check("a refusal, a gift, a leaving and a judged attempt do too", voice_rules.V["frame_when"]["refuse"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="refuse", speech="No. Not for you.", trust_change=0, gives=None))
       and voice_rules.V["frame_when"]["gift"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="help", trust_change=0, gives=types.SimpleNamespace(name="a pendant")))
       and voice_rules.V["frame_when"]["leave"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="leave", trust_change=0, gives=None))
       and voice_rules.V["frame_when"]["decided"] in ws.frame_reasons(npc, reply, [], "[THE GAME HAS DECIDED: it worked]")
