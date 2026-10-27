@@ -23,6 +23,7 @@ avoid:                          # never inside any name (patterns on the lower-c
   - "q[^u]"
   - "(fuk|fuc|shit|cunt|dick|cock|piss|twat|wank|nig|fag|slut|whor|rape|anus|penis|tits|kkk|nazi|porn)"
   - "(.{2,})\\1"                # no piece said twice running ("dordor")
+  - "^(wop|homo|nude)$"        # only as the whole name: inside a longer one they are just sounds ("Thomo")
 
 
 
