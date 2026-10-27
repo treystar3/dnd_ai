@@ -1880,14 +1880,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         ctx = ctx + secret_lines
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
-        level = voice_rules.npc_level(npc, speech, self.convo, ctx, first_time)
+        from engine import voices
+        level = voices.room(voices.kit_of(npc.speech), voice_rules.npc_level(npc, speech, self.convo, ctx, first_time))   # (f350) a terse person gets less room
         self.npc_level = level
+        town = pulse.town_of(self.world, self.player.location)
         from engine import truth
         view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk")
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words(),
-                                   stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"))
+                                   stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"),
+                                   house=voices.house_phrases(self, town, npc.id))          # (f350) what everyone else here has been saying
+        voices.heard(self, town, npc.id, reply.speech)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]

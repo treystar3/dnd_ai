@@ -31,7 +31,8 @@ def residents_request(place, world_summary: str, slots: list[tuple[str, str, str
 PROFILE_SYSTEM = """You deepen an ordinary person in a fantasy village the first time someone talks to them.
 Their personality traits were rolled by the game and are fixed. Build on them; do not contradict them.
   personality: one or two sentences describing who they are, blending their traits with their role and life. Do not just list the traits.
-  voice: one sentence on how they speak (pace, warmth, favorite turns of phrase, accent of manner).
+    HOW THEY TALK, when given, is fixed by the game: the personality must agree with it, and never describes their voice or its sound.
+  voice: leave empty; the game decides how they talk.
   concern: one thing on their mind lately. Personal and local: family, work, money, health, a neighbor, the weather.
     It may involve their own small life, but must not invent world events, factions, monsters or magic.
 Respond only with JSON matching the schema.
@@ -41,7 +42,9 @@ Respond only with JSON matching the schema.
 """
 
 
-def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = (), motive_so_far: str = "") -> str:
+def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bool = False, town_lines: list[str] = (), motive_so_far: str = "",
+                    how: list[str] = ()) -> str:
+    """how (f350): the voice kit's lines, fixed by the engine, so the written personality agrees with how they talk."""
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     motive = (f"THEIR MOTIVE, as the town knows it: {motive_so_far}. Write it in their own words, keeping its meaning." if motive_so_far
               else "THEY HAVE A MOTIVE: write one." if has_motive else "THEY HAVE NO MOTIVE: leave motive empty.")
@@ -50,6 +53,7 @@ def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bo
         f"WHERE: {place_name}\nLOOKS: {npc.description}\nDOING: {npc.activity}\n"
         + "".join(f"{t}\n" for t in town_lines)
         + f"TRAITS:\n{traits}\n"
+        + (("HOW THEY TALK (fixed by the game):\n" + "\n".join(f"  - {h}" for h in how) + "\n") if how else "")
         + motive
     )
 
@@ -184,8 +188,9 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     return (
         f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
-        f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\nVOICE: {npc.voice}\n"
-        f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
+        f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
+        + (f"VOICE: {npc.voice}\n" if npc.voice and not (getattr(npc, "speech", None) or {}).get("kit") else "")      # (f350) a kit under HOW YOU TALK is the voice
+        + f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
         f"TRAITS (how you decide and react; never a subject you bring up):\n{traits}\n\n"
         f"TIME: {time_label}\n"
         f"YOUR PLACE: {place.name}\n" + "\n".join(f"  - {v}" for v in place.visible) + "\n"

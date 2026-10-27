@@ -35,7 +35,10 @@ same = dict(npc.speech)
 vp.ensure_npc(npc, random.Random(99), "rimelands")
 check("...and keeps it", npc.speech == same)
 fact, lines, material = vp.resident_lines(npc, random.Random(2))
-check("the reply is told the plain fact of their people, and a few lines on how they talk at most", fact.startswith("A halfling") and len(lines) <= 2, (fact, lines))
+from engine import voices as _voices
+_kit = _voices.lines(_voices.kit_of(npc.speech))
+check("the reply is told the plain fact of their people, their kit first, and a few lines on how they talk besides",
+      fact.startswith("A halfling") and lines[:len(_kit)] == _kit and len(lines) - len(_kit) <= 2, (fact, lines))
 runs = [vp.resident_lines(npc, random.Random(k))[1] for k in range(200)]
 check("their culture shows in some replies, never all", 0.1 < sum(1 for r in runs if any("way of talking" in l or "comparison" in l or "home shows" in l for l in r)) / 200 < 0.7)
 

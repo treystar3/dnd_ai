@@ -680,8 +680,9 @@ class CompanionReply(BaseModel):
         if hit:
             raise ValueError(f"you have said something very like '{hit}' lately: say it differently, or say something else")
         if ctx.get("member"):
-            from engine import quirks
-            why = quirks.voice_check(ctx["member"], self.speech, ctx.get("player", ""), ctx.get("recent", []))
+            from engine import quirks, voices
+            why = quirks.voice_check(ctx["member"], self.speech, ctx.get("player", ""), ctx.get("recent", [])) or \
+                ("" if ctx.get("kit") is False else voices.check_member(ctx["member"], self.speech))     # (f350) their kit; let go on the relaxed pass
             if why:
                 raise ValueError(why)
         why = answers_first(self.speech, ctx.get("answer_to"))
@@ -779,7 +780,7 @@ class MentorSpeech(BaseModel):
 
 class NPCProfile(BaseModel):
     personality: str
-    voice: str
+    voice: str = ""                 # (f350) unused now: how they talk is the engine's voice kit
     concern: str
     motive: str = ""
 
@@ -881,6 +882,13 @@ class NPCReply(BaseModel):
         if "*" in self.speech or "_" in self.speech:
             raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _no_tics(self.speech, _ctx(info).get("last") or "")
+        from engine import voices
+        why = voices.check(_ctx(info).get("kit") or {}, self.speech)                         # (f350) their own way of talking
+        if why:
+            raise ValueError(why)
+        hit = voices.house_hit(self.speech, _ctx(info).get("house") or ())
+        if hit:
+            raise ValueError(f"'{hit}' is how everyone in this town has been talking lately; say it your own way")
         _not_said_again(self.speech, info)
         return self
 

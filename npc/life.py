@@ -208,11 +208,13 @@ def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog)
         assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
     inner_life(npc, store, world)                            # an older save's person, or one made without a catalogue
     has_motive = bool(npc.motive) or motive_roll(npc, store)
+    from engine import voices
+    ensure_speech(npc, store, world)                         # (f350) how they talk is the engine's: the profile is written to agree with it
     profile = generate(
         "npc_profile", prompts.PROFILE_SYSTEM,
         prompts.profile_request(npc, world.places[npc.location].name, catalog.describe(npc.traits), has_motive,
                                 town_lines(store, world, npc.location) + ([f"WHO THEY ARE IN THIS TOWN: {npc.anchor}"] if npc.anchor else []),
-                                motive_so_far=npc.motive),
+                                motive_so_far=npc.motive, how=voices.lines(voices.kit_of(npc.speech))),
         NPCProfile, temperature=0.8,
     )
     npc.personality, npc.voice = profile.personality, profile.voice
@@ -225,6 +227,14 @@ def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog)
     store.save_npc(npc)
     console.debug(f"promoted {npc.name}: traits {npc.traits}; knows {npc.knowledge_groups}")
     console.debug(f"  personality: {npc.personality} | concern: {npc.concern}")
+
+
+def ensure_speech(npc: NPC, store: CampaignStore, world: World) -> dict:
+    """(f350) Their speech profile and voice kit, once: the kit drawn to differ from everyone else's in their town (engine/voices.py). The
+    town's kits are only read when theirs is still to be drawn."""
+    from engine import voice_profile, voices
+    taken = () if voices.kit_of(npc.speech) else voices.kits_in_town(store, world, npc)
+    return voice_profile.ensure_npc(npc, npc_rng(store.meta.seed, npc.id), world.places[npc.location].region, taken)
 
 
 def social_circle(npc: NPC, store: CampaignStore, world: World) -> tuple[list[str], list[str]]:
@@ -292,6 +302,7 @@ def converse(
     stance: str = "",
     rng: random.Random | None = None,
     worn: list[str] = (),
+    house: set[str] | list[str] = (),
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -302,7 +313,8 @@ def converse(
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
     rng = rng or random.Random()
-    voice_profile.ensure_npc(npc, npc_rng(store.meta.seed, npc.id), world.places[npc.location].region)      # (f347) where they were raised
+    from engine import voices
+    ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
     voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng)
     recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
     reply = generate(
@@ -322,7 +334,8 @@ def converse(
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn),
         ),
         NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"],
-        validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else ""},      # (f349) last: no opener twice running
+        validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
+                            "kit": voices.kit_of(npc.speech), "house": set(house)},                          # (f350) their kit; how everyone here talks
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
     from engine import partings

@@ -245,6 +245,8 @@ def check() -> list[str]:
     _types = {p_.get("type", "") for p_ in _load("data/world/places.yaml")}
     bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES))
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
+    from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
+    bad += _voices.problems()
     _degrees = set(_load("data/rules/checks.yaml")["degrees"])
     need(set((PT_.get("gamble") or {}).get("payout") or {}) == _degrees, "pastimes.yaml gamble.payout: one entry per degree in checks.yaml")
     need(all(r_ in _roles for r_ in (PT_.get("gamble") or {}).get("roles") or []), "pastimes.yaml gamble.roles: every role must be in roles.yaml")

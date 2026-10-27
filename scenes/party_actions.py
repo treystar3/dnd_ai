@@ -560,7 +560,7 @@ class PartyActions:
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
                                              worn=self.worn_words("speech")),
                              CompanionReply, temperature=0.8, max_tokens=320, retries=1, validation_context=ctx,
-                             relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None))
+                             relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False))
             except LLMError:
                 reply = P["temperaments"][(m.get("temper") or ["dry"])[0]].get("quip", "")
                 break

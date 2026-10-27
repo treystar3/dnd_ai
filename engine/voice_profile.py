@@ -48,13 +48,15 @@ def resident_culture(people: str, region: str, rng: random.Random) -> str:
     return _pick({c: w + pull * rw.get(c, 0) for c, w in pw.items()}, rng)
 
 
-def ensure_npc(npc, rng: random.Random, region: str = "") -> dict:
+def ensure_npc(npc, rng: random.Random, region: str = "", taken: list[dict] | tuple = ()) -> dict:
     """(f347) Every townsperson spoken to has a speech profile, rolled once from their people and their town's region and kept on the record
-    (npc.speech); an older save's person gets one the first time they are spoken to."""
-    if npc.speech:
-        return npc.speech
-    npc.speech = roll(rng, npc.people or "human", resident_culture(npc.people or "human", region, rng))
-    npc.speech["background"] = ""                      # a townsperson's family is not written here; their profile and concern already say who they are
+    (npc.speech); an older save's person gets one the first time they are spoken to. (f350) And a voice kit, drawn to differ from `taken`,
+    the kits of the rest of their town (engine/voices.py)."""
+    from engine import voices
+    if not npc.speech:
+        npc.speech = roll(rng, npc.people or "human", resident_culture(npc.people or "human", region, rng))
+        npc.speech["background"] = ""                  # a townsperson's family is not written here; their profile and concern already say who they are
+    voices.ensure(npc.speech, rng, taken)
     return npc.speech
 
 
@@ -62,10 +64,11 @@ def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tup
     """(f347) What a townsperson's reply is told about how they talk: the plain fact of their people and tongue (who), this reply's
     instructions (how their regard shows, and at most one feature of their culture on the culture budget), and any material offered to be
     said as it is (a saying). The same engine as a hire's, on a record instead of a party row."""
+    from engine import voices
     member = {"id": npc.id, "name": npc.name, "speech": npc.speech, "said": list(npc.said), "people": npc.people}
     relation = relation_kind(score=getattr(npc, "trust", 50) - 50)
     feature = culture_feature(member, rng)
-    lines = compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)
+    lines = voices.lines(voices.kit_of(npc.speech)) + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice
     return who(member), lines, material_for_feature(member, feature)
 
 
@@ -81,10 +84,13 @@ def family(member: dict) -> str:
     return S.get("backgrounds", {}).get(sp.get("background", ""), {}).get("family", "")
 
 
-def ensure(member: dict, rng: random.Random) -> dict:
+def ensure(member: dict, rng: random.Random, taken: list[dict] | tuple = ()) -> dict:
     """Every hire has a profile. An old save's hire, or one whose voice was 'English is not their first language', gets one that agrees
-    with what is already true of them: their old tongue's culture, or the heartland if they already have a past of their own."""
+    with what is already true of them: their old tongue's culture, or the heartland if they already have a past of their own. (f350) And
+    a voice kit, drawn to differ from `taken`, the kits of the rest of the party."""
+    from engine import voices
     if member.get("speech"):
+        voices.ensure(member["speech"], rng, taken)
         return member["speech"]
     q = member.get("quirks") or {}
     old_tongue = q.get("tongue", "") if q.get("voice") == "second_tongue" else ""
@@ -97,6 +103,7 @@ def ensure(member: dict, rng: random.Random) -> dict:
     if member.get("details"):                             # their life is already written; a family trade rolled now could contradict it
         member["speech"]["background"] = ""
     member.setdefault("people", member["speech"]["people"])
+    voices.ensure(member["speech"], rng, taken)
     return member["speech"]
 
 
