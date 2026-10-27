@@ -286,17 +286,24 @@ def converse(
     level: str = "short",
     truth_text: str = "",
     known=frozenset(),
+    stance: str = "",
+    rng: random.Random | None = None,
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
-    names the scene allows (f315) - the gateway sends back a reply that names anyone or anywhere else."""
-    from engine import matters
+    names the scene allows (f315) - the gateway sends back a reply that names anyone or anywhere else. stance (f347) is how they are for
+    this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk."""
+    from engine import banter, matters, voice_profile
     facts = world.facts_known_by(set(npc.knowledge_groups)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
+    rng = rng or random.Random()
+    voice_profile.ensure_npc(npc, npc_rng(store.meta.seed, npc.id), world.places[npc.location].region)      # (f347) where they were raised
+    voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng)
+    recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
     reply = generate(
         "npc_conversation", prompts.CONVERSATION_SYSTEM,
-        prompts.conversation_request(
+        prompts.conversation_prompt(
             npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
             [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
             f"day {clock.day(store.meta.minutes)}, {clock.period(store.meta.minutes)}, "
@@ -307,9 +314,14 @@ def converse(
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
                if world.roles[npc.role].commissions else []),
             extra, voice_rules.npc(level)["length"], land.land_lines(world, npc.location), truth_text=truth_text,
+            stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
+            unsaid=banter.unsaid_rule(list(npc.said), player_text),
         ),
-        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"], validation_context={"known": known},
+        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"], validation_context={"known": known, "recent": recent},
+        relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
+    from engine import partings
+    partings.remember(npc, player_text, reply.speech)       # (f347) kept for the repeat guard and the written parting
 
     known_ids = {f.id for f in facts}
     import re as _re

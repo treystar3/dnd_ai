@@ -47,6 +47,23 @@ exemplars:
     - "If it isn't raining it's about to. Hand me that. No, the other one. Were you wanting something, or did you come in to drip?"
     - "Later. I've a cart to get under cover before the hay's ruined. Ask me when it's done, or ask her."
 
+# (f347) A STANCE FOR THE CONVERSATION. Rolled once by the engine when a talk begins (engine/voice_rules.roll_stance) and told plainly
+# to the person as RIGHT NOW YOU ARE, with the rule that they answer the part they care about. Most talks have none: the person is
+# simply themselves. wary needs trust under 50, grievance a concern, after a motive; tired is twice as likely after dark.
+stances:
+  none:      {weight: 40, text: ""}
+  busy:      {weight: 18, text: "busy: {activity}. The work comes first, and the stranger gets what attention is left over"}
+  wary:      {weight: 12, text: "wary of strangers today, and giving this one nothing for free"}
+  tired:     {weight: 10, text: "tired; it has been a long day and you would sooner be done with it"}
+  grievance: {weight: 12, text: "nursing a grievance, and it keeps coming up whatever they ask: {concern}"}
+  after:     {weight: 8,  text: "after something, and this stranger might be useful for it: {motive}"}
+
+# (f347) A written parting line, used when the model's own fails, by how they are with the player; never one they said lately.
+partings:
+  warm:  ["Mind how you go.", "Go on, then. Come back when there's something to tell.", "Don't be a stranger."]
+  plain: ["Aye.", "Good day to you.", "Right. Mind the road.", "Go well."]
+  wary:  ["Hm.", "Go on, then.", "Mind yourself."]
+
 # Points toward a longer reply. 0 = short, 1-2 = medium, 3+ = long. Guarded or laconic people stay shorter regardless.
 points:
   long_player_message_words: 18

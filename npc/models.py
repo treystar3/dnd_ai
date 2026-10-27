@@ -72,6 +72,9 @@ class NPC(BaseModel):
     work_offer: dict | None = None  # paid work offered to the player: {task, pay, minutes}
     quest_offer: dict | None = None # a personal request offered to the player, waiting for a yes          # game minute until which they've stepped away (after ending a conversation)
     heard_of: dict = {}           # someone else named them to the player before they met: {"by": speaker, "day": n, "line": what was said}
+    speech: dict = {}             # (f347) who they are when they speak: the culture that raised them and how it shows (engine/voice_profile.py); rolled when first spoken to
+    said: list[str] = []          # (f347) their last few replies to the player, so they do not say the same thing twice (llm/contracts.py NPCReply)
+    heard: list[str] = []         # (f347) what the player said to draw each of those, so the same question may get much the same answer
     memories: list[Memory] = []   # the window of what they remember (see Memory); the table npc_memory holds all of it
     memory_total: int = 0         # how many they hold in all (read from the table on load; not saved in the record)
 

@@ -36,6 +36,39 @@ def roll(rng: random.Random, people: str, culture: str = "", fluency: str = "") 
             "expression": {k: rng.choice(opts) for k, opts in S["expression"].items()}}
 
 
+def resident_culture(people: str, region: str, rng: random.Random) -> str:
+    """(f347) The culture a resident of this people was raised in, in a town of this region: their people's weight for each culture plus
+    regions_pull times the region's weight for it. A culture the people is never raised in stays impossible; a region not listed leaves
+    the people's weights alone."""
+    pw = S["peoples"].get(people, S["peoples"]["human"])
+    rw = S.get("regions", {}).get(region)
+    if not rw:
+        return _pick(pw, rng)
+    pull = S.get("regions_pull", 2)
+    return _pick({c: w + pull * rw.get(c, 0) for c, w in pw.items()}, rng)
+
+
+def ensure_npc(npc, rng: random.Random, region: str = "") -> dict:
+    """(f347) Every townsperson spoken to has a speech profile, rolled once from their people and their town's region and kept on the record
+    (npc.speech); an older save's person gets one the first time they are spoken to."""
+    if npc.speech:
+        return npc.speech
+    npc.speech = roll(rng, npc.people or "human", resident_culture(npc.people or "human", region, rng))
+    npc.speech["background"] = ""                      # a townsperson's family is not written here; their profile and concern already say who they are
+    return npc.speech
+
+
+def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tuple[str, list[str], list[str]]:
+    """(f347) What a townsperson's reply is told about how they talk: the plain fact of their people and tongue (who), this reply's
+    instructions (how their regard shows, and at most one feature of their culture on the culture budget), and any material offered to be
+    said as it is (a saying). The same engine as a hire's, on a record instead of a party row."""
+    member = {"id": npc.id, "name": npc.name, "speech": npc.speech, "said": list(npc.said), "people": npc.people}
+    relation = relation_kind(score=getattr(npc, "trust", 50) - 50)
+    feature = culture_feature(member, rng)
+    lines = compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)
+    return who(member), lines, material_for_feature(member, feature)
+
+
 def roll_background(rng: random.Random, culture: str) -> str:
     """Who their family were, apart from where: the place only shifts the odds."""
     mult = S.get("culture_backgrounds", {}).get(culture, {})

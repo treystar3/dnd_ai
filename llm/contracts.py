@@ -702,6 +702,19 @@ class QuestOffer(BaseModel):
     _blank = blank_placeholders("what", "to", "item")
 
 
+def _not_said_again(speech: str, info: ValidationInfo) -> None:
+    """(f347) A townsperson does not say the same thing twice. The context's `recent` holds their last few replies (less any drawn by the
+    same question, which may fairly get much the same answer); a reply that means what one of them meant is sent back. By meaning when the
+    helper model is there (engine/banter.repeats), else by a shared run of words. A reply of a few words ('Aye.') is let be."""
+    recent = _ctx(info).get("recent") or []
+    if not recent or len((speech or "").split()) < 5:
+        return
+    from engine import banter
+    hit = banter.repeats(speech, list(recent))
+    if hit:
+        raise ValueError(f"you have said something very like '{hit}' lately; say something new, or say less")
+
+
 class NPCReply(BaseModel):
     speech: str
     gesture: str = ""
@@ -730,6 +743,31 @@ class NPCReply(BaseModel):
         if "[" in n or "]" in n or _re.search(r"\b(I|I'm|I've|I'll|my|me|myself)\b", n):
             n = ""
         self.journal_note = n
+        return self
+
+    @model_validator(mode="after")
+    def said_again(self, info: ValidationInfo):
+        _not_said_again(self.speech, info)
+        return self
+
+
+class Parting(BaseModel):
+    """(f347) One short line said by the person the player is leaving, in answer to a goodbye. No frame follows it."""
+    speech: str
+    gesture: str = ""
+
+    _blank = blank_placeholders("gesture")
+
+    def spoken(self):
+        return [("", self.speech)]
+
+    @model_validator(mode="after")
+    def short_and_new(self, info: ValidationInfo):
+        if not self.speech.strip():
+            raise ValueError("say something, even a word")
+        if len(self.speech.split()) > 25:
+            raise ValueError("one short parting line: a few words, not a speech")
+        _not_said_again(self.speech, info)
         return self
 
 

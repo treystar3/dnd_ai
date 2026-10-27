@@ -1499,6 +1499,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def end_conversation(self) -> None:
         self.partner = None
         self.convo = []
+        self.stance = ""
 
     @staticmethod
     def looks_like_exploring(dest: str, text: str) -> bool:
@@ -1779,6 +1780,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not self.partner or self.partner.id != npc.id:
             self.end_conversation()
             self.partner = npc
+            self.stance = voice_rules.roll_stance(npc, self.minutes, self.rng)        # (f347) how they are for this conversation
+            if self.stance:
+                console.debug(f"{npc.name} is, this talk: {self.stance}")
         self.last_spoken = npc.id
         self.player.mentor["last_voice"] = False
         promote(npc, self.store, self.world, self.catalog)
@@ -1818,7 +1822,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk")
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
-                                   f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words())
+                                   f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words(),
+                                   stance=getattr(self, "stance", ""), rng=self.rng)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]
@@ -1952,7 +1957,41 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.remember_narration(" ".join(t for t in (before, after) if t.strip()),
                                 {"type": "dialogue", "before": before, "speaker": speaker, "speech": reply.speech, "after": after})
 
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("farewell", 85, "farewell_intercept", "a plain goodbye to the person they are talking with: one short parting line, no frame"),)
+
+    def farewell_intercept(self, text: str) -> bool:
+        """(f347) A line that is nothing but a goodbye to the person they are talking with is answered with one short parting line through a
+        small call (engine/partings.py), with no frame, and the talk ends; the interpreter never sees it."""
+        from engine import partings
+        npc = self.partner
+        if not npc or not partings.is_goodbye(text, (npc.name, npc.label())):
+            return False
+        self.part_from(npc, text)
+        return True
+
+    def part_from(self, npc, text: str) -> None:
+        """(f347) The player's goodbye: a word's worth of time passes, the person answers with one short parting line (a written one if
+        the model fails), the words are printed alone, and the talk ends."""
+        from engine import partings
+        self.advance(clock.TALK_MINUTES)
+        self.last_spoken = npc.id
+        speech, gesture = partings.line(self, npc, text)
+        self.convo += [("Stranger", text), (npc.name, speech)]
+        partings.remember(npc, text, speech)
+        self.store.save_npc(npc)
+        self.hear_names(speech)
+        speaker = npc.label()
+        import types
+        self.show_speech(speaker, types.SimpleNamespace(speech=speech, gesture=gesture), npc)
+        console.narrate(f"You step away from {speaker}.")
+        self.end_conversation()
+
     def on_leave_conversation(self, intent: ActionIntent, text: str) -> None:
+        from engine import partings
+        if self.partner and intent.speech.strip() and partings.is_goodbye(intent.speech, (self.partner.name, self.partner.label())):
+            self.part_from(self.partner, intent.speech.strip())            # (f347) a goodbye read by the interpreter is still a goodbye: two words back
+            return
         if self.partner and intent.speech.strip():
             partner = self.partner
             intent.target = partner.id
