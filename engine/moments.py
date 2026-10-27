@@ -1,11 +1,13 @@
-"""(f348) Moments: something going on when the player walks in, chosen by the engine with no model call. data/rules/moments.yaml.
+"""(f348) Moments: something going on when the player walks in. data/rules/moments.yaml holds the shapes; the model writes the moment.
 
 A possibility, not a habit. On arriving somewhere the engine rolls once for that place and period of the day, at the chance for the
-kind of place, after the place's own cooldown and the town's gap; a moment then lasts its minutes and ends by itself. While it is on,
-its line sits under HAPPENING HERE for the narrator (told once, as any happening) and for everyone who speaks; the people here do what
-the moment has them doing (engine/doings.py); a visitor, if it brings one, is a real person who can be spoken to and leaves when it
-ends; an effect may land on the player as they come in; the town keeps a memory of it. Nothing here waits on the model: the narrator
-dresses the arrival, the townsfolk answer in the middle of it."""
+kind of place, after the place's own cooldown and the town's gap; it draws a shape (a performer, a quarrel, a gathering, a crowd...),
+seen shapes less often, and makes one model call (engine/moment_prompts.py, llm/contracts.py MomentProposal) for what the moment is:
+this place, this hour, these people, and never like any moment this playthrough has seen (world_state moments_seen). A moment then
+lasts its minutes and ends by itself. While it is on, its line sits under HAPPENING HERE for the narrator (told once, as any happening)
+and for everyone who speaks; the people here do what the moment has them doing (engine/doings.py); a visitor, if the shape brings one,
+is a real person who can be spoken to and leaves when it ends; a mishap may land on the player as they come in; the town keeps the
+memory the model wrote. The written moment under each shape is the fallback when the model fails."""
 from __future__ import annotations
 
 import random
@@ -56,13 +58,20 @@ def _within(now: int, last: int, hours: float) -> bool:
     return last >= 0 and now - last < hours * 60
 
 
+def seen_list(store) -> list[dict]:
+    """Every moment this playthrough has had: {"shape", "title", "line", "place", "minute"}."""
+    return list((store.load_world_state() or {}).get("moments_seen") or [])
+
+
 def choose(ws, rng: random.Random, present: int) -> dict | None:
-    """A moment that fits this place, this period, this many people, and the player's standing."""
+    """A shape that fits this place, this period, this many people, and the player's standing; one seen before draws less often."""
+    import collections
     from engine import clock, law, pulse
     period = clock.period(ws.minutes)
     town = pulse.town_of(ws.world, ws.player.location)
+    times = collections.Counter(s.get("shape") for s in seen_list(ws.store))
     opts = []
-    for spec in M.get("moments") or []:
+    for spec in M.get("shapes") or []:
         if ws.place.type not in spec.get("where", []) or (spec.get("when") and period not in spec["when"]):
             continue
         if present < spec.get("needs_people", 1):
@@ -77,7 +86,7 @@ def choose(ws, rng: random.Random, present: int) -> dict | None:
         opts.append(spec)
     if not opts:
         return None
-    return rng.choices(opts, weights=[float(s.get("weight", 1)) for s in opts])[0]
+    return rng.choices(opts, weights=[float(s.get("weight", 1)) / (1 + times[s["id"]]) for s in opts])[0]
 
 
 def on_enter(ws) -> None:
@@ -115,37 +124,85 @@ def on_enter(ws) -> None:
         start(ws, spec, rng)
 
 
-def start(ws, spec: dict, rng: random.Random | None = None) -> dict:
-    """Begin a moment here now: the record on the place, the visitor made, the people's doings and mood, the effect on the player."""
+def compose(ws, shape: dict, visitor_role: str, rng: random.Random):
+    """The model's moment for this shape, here and now, or None when it fails every try (the caller falls back to the written one)."""
+    from engine import moment_prompts as mp, truth
+    from llm.contracts import MomentProposal
+    from llm.gateway import LLMError, generate
+    seen = seen_list(ws.store)
+    known = truth.scene_of(ws).known_words()
+    request = mp.moment_request(ws, shape, visitor_role, seen[-int(M.get("remember", 40)):])
+    ctx = {"roles": sorted({n.role for n in ws.present}), "visitor": bool(visitor_role),
+           "mishap": any(e.get("kind") == "hurt" for e in shape.get("effects") or []),
+           "given": mp.MOMENT_SYSTEM + "\n" + request, "known": known,
+           "seen": [s.get("line", "") for s in seen], "titles": [s.get("title", "") for s in seen]}
+    try:
+        return generate("moment", mp.MOMENT_SYSTEM, request, MomentProposal, temperature=0.9, max_tokens=700, retries=2,
+                        validation_context=ctx, relaxed_context=dict(ctx, seen=[], titles=[]))
+    except LLMError:
+        return None
+
+
+def written(shape: dict):
+    """The shape's written moment, in the proposal's form, for when the model fails."""
+    import types
+    w = shape.get("written") or {}
+    v = w.get("visitor") or {}
+    return types.SimpleNamespace(title=w.get("title", shape["id"]), line=w.get("line", shape.get("brief", "")),
+                                 doings=[types.SimpleNamespace(who=d["who"], doing=d["doing"]) for d in w.get("doings") or []],
+                                 visitor_epithet=v.get("epithet", ""), visitor_look=v.get("look", ""), visitor_doing=v.get("doing", ""),
+                                 mishap=w.get("mishap", ""), memory=w.get("memory", ""), written=True)
+
+
+def start(ws, shape: dict, rng: random.Random | None = None, use_model: bool = True) -> dict:
+    """Begin a moment of this shape here now: the model's moment (or the written one), the record on the place, the visitor made, the
+    people's doings and mood, the mishap on the player, and the moment added to what this playthrough has seen."""
     from engine import pools
     rng = rng or random.Random()
     pid = ws.player.location
     st = ws.store.load_place(pid)
     now = ws.minutes
-    until = now + int(spec["lasts"])
-    visitor, label = None, ""
-    if spec.get("visitor"):
-        visitor = make_visitor(ws, st, spec["visitor"], rng)
-        label = visitor.label()
-    m = {"id": spec["id"], "title": spec["title"], "since": now, "until": until, "line": _fmt(spec["line"], ws, label),
-         "doings": spec.get("doings") or {}, "visitor": visitor.id if visitor else "", "end": spec.get("end") or {}}
+    until = now + int(shape["lasts"])
+    visitor_role = rng.choice(list(shape["visitor"].get("roles") or ["traveling_player"])) if shape.get("visitor") else ""
+    prop = compose(ws, shape, visitor_role, rng) if use_model else None
+    if prop is None:
+        prop = written(shape)
+    visitor = None
+    if visitor_role:
+        visitor = make_visitor(ws, st, {"role": visitor_role, "epithet": prop.visitor_epithet, "description": prop.visitor_look,
+                                        "doing": prop.visitor_doing, "people": (shape.get("visitor") or {}).get("people", "any")}, rng)
+    doings = {"roles": {}}
+    for d in prop.doings:
+        if d.who == "everyone":
+            doings["all"] = d.doing.strip().rstrip(".")
+        else:
+            doings["roles"][d.who] = d.doing.strip().rstrip(".")
+    if visitor_role and (prop.visitor_doing or "").strip():
+        doings["roles"][visitor_role] = prop.visitor_doing.strip().rstrip(".")      # the visitor does their own thing, not the room's
+    line = _fmt(prop.line.strip(), ws)
+    m = {"id": shape["id"], "title": prop.title.strip(), "since": now, "until": until, "line": line, "doings": doings,
+         "visitor": visitor.id if visitor else "", "end": {"memory": prop.memory.strip()}, "written": bool(getattr(prop, "written", False))}
     st.moment, st.moment_last = m, now
     ws.store.save_place(st)
-    if spec.get("mood"):
+    state = ws.store.load_world_state() or {}
+    state["moments_seen"] = (state.get("moments_seen") or []) + [{"shape": shape["id"], "title": m["title"], "line": line, "place": pid, "minute": now}]
+    ws.store.save_world_state(state)
+    if shape.get("mood"):
         for n in ws.present:
-            n.mood, n.mood_until = spec["mood"], until
+            n.mood, n.mood_until = shape["mood"], until
             ws.store.save_npc(n)
     ws.refresh_present()                                           # the doings the moment gives everyone
     c = ws.player.character
-    for e in spec.get("effects") or []:
+    for e in shape.get("effects") or []:
         if e.get("kind") == "hurt" and rng.random() < float(e.get("chance", 0)):
             top = pools.maximum(c, "health")
             c.health = max(1.0, pools.current(c, "health") - top * float(e.get("pct", 0)) / 100)
-            ws.__dict__.setdefault("_arrival_lines", []).append(e.get("line", "Something hits the player as they come in."))
+            ws.__dict__.setdefault("_arrival_lines", []).append(prop.mishap.strip() or "Something hits the player as they come in.")
             console.ledger("You come in at the wrong moment and come away bruised.")
     if ws.weight_hint in (None, "brief", "normal"):
         ws.weight_hint = "rich"                                    # a moment is worth room, even on a return visit
-    console.debug(f"moment at {pid}: {spec['id']} until minute {until}" + (f", visitor {visitor.name}" if visitor else ""))
+    console.debug(f"moment at {pid}: {shape['id']} '{m['title']}'{' (written)' if m['written'] else ''} until minute {until}"
+                  + (f", visitor {visitor.name}" if visitor else ""))
     return m
 
 
@@ -210,11 +267,23 @@ def problems(roles: set[str], place_types: set[str], periods: set[str]) -> list[
     for k in ("cooldown_hours", "town_gap_hours"):
         if not isinstance(M.get(k), (int, float)) or M[k] < 0:
             bad.append(f"moments.yaml {k}: needs a number of hours")
-    ids = [s.get("id") for s in M.get("moments") or []]
+    ids = [s.get("id") for s in M.get("shapes") or []]
     if len(ids) != len(set(ids)):
-        bad.append("moments.yaml: a moment id is used twice")
-    for s in M.get("moments") or []:
+        bad.append("moments.yaml: a shape id is used twice")
+    for s in M.get("shapes") or []:
         n = s.get("id", "?")
+        if not str(s.get("brief", "")).strip():
+            bad.append(f"moments.yaml {n}: needs a brief for the model")
+        w = s.get("written") or {}
+        if not (w.get("title") and w.get("line") and w.get("memory")):
+            bad.append(f"moments.yaml {n}: needs a written moment (title, line, memory) to fall back on")
+        for d in w.get("doings") or []:
+            if d.get("who") != "everyone" and d.get("who") not in roles:
+                bad.append(f"moments.yaml {n}: written doings.who '{d.get('who')}' is not a role in roles.yaml")
+        if s.get("visitor") and not (w.get("visitor") or {}).get("epithet"):
+            bad.append(f"moments.yaml {n}: a shape with a visitor needs a written visitor to fall back on")
+        if any(e.get("kind") == "hurt" for e in s.get("effects") or []) and not w.get("mishap"):
+            bad.append(f"moments.yaml {n}: a shape that can hurt needs a written mishap to fall back on")
         for t in s.get("where") or []:
             if t not in place_types:
                 bad.append(f"moments.yaml {n}: where '{t}' is no place's type")
@@ -223,14 +292,11 @@ def problems(roles: set[str], place_types: set[str], periods: set[str]) -> list[
                 bad.append(f"moments.yaml {n}: when '{w}' is not a period of the day")
         if not isinstance(s.get("lasts"), int) or s["lasts"] <= 0:
             bad.append(f"moments.yaml {n}: lasts must be minutes above zero")
-        if not str(s.get("line", "")).strip():
-            bad.append(f"moments.yaml {n}: needs a line")
         v = s.get("visitor")
-        if v and v.get("role") not in roles:
-            bad.append(f"moments.yaml {n}: visitor role '{v.get('role')}' is not a role in roles.yaml")
-        for r in ((s.get("doings") or {}).get("roles") or {}):
-            if r not in roles:
-                bad.append(f"moments.yaml {n}: doings.roles '{r}' is not a role in roles.yaml")
+        if v and not all(r in roles for r in (v.get("roles") or [])):
+            bad.append(f"moments.yaml {n}: a visitor role is not a role in roles.yaml")
+        if v and not v.get("roles"):
+            bad.append(f"moments.yaml {n}: visitor needs roles")
         for e in s.get("effects") or []:
             if e.get("kind") not in ("hurt",):
                 bad.append(f"moments.yaml {n}: effect kind '{e.get('kind')}' is not one the engine applies")

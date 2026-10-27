@@ -484,6 +484,86 @@ class ActionPlan(BaseModel):
     def dropped(self) -> list:
         return list(self._dropped)
 
+class MomentDoing(BaseModel):
+    who: str                        # a role present ("innkeeper"), or "everyone"
+    doing: str                      # a short phrase with no subject: "pulling ale as fast as the mugs come back"
+
+
+def _like_seen(line: str, seen: list[str]) -> str:
+    """A past moment this line is too like, by meaning when the helper model is there (config.SIM_RESTATE), else by a shared run of
+    five words; or ''."""
+    seen = [s for s in seen if s and s.strip()]
+    if not seen:
+        return ""
+    import config
+    from llm import embed
+    sims = embed.whole(line, seen)
+    if sims is not None:
+        best = max(range(len(sims)), key=lambda i: sims[i]) if sims else None
+        return seen[best] if best is not None and sims[best] >= config.SIM_RESTATE else ""
+    from engine import banter
+    mine = banter.grams(line, 5)
+    for old in seen:
+        if mine & banter.grams(old, 5):
+            return old
+    return ""
+
+
+class MomentProposal(BaseModel):
+    """(f348) A moment as the model writes it (engine/moments.py): the engine has set the shape, the place, the people and whether
+    anyone comes with it; the model makes it particular, and never like one this playthrough has seen (the context's `seen`)."""
+    title: str
+    line: str
+    doings: list[MomentDoing] = []
+    visitor_epithet: str = ""
+    visitor_look: str = ""
+    visitor_doing: str = ""
+    mishap: str = ""
+    memory: str
+
+    _blank = blank_placeholders("visitor_epithet", "visitor_look", "visitor_doing", "mishap")
+
+    @model_validator(mode="after")
+    def particular(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        if not 1 <= len(self.title.split()) <= 8:
+            raise ValueError("title: two to six words, the way the town will name it")
+        if not self.line.strip() or len(self.line.split()) > 70:
+            raise ValueError("line: one or two sentences, under about sixty words")
+        if not self.memory.strip():
+            raise ValueError("memory: one line the town will keep of it")
+        if re.search(r"\d", self.title + self.line + self.memory):
+            raise ValueError("no figures: say it in words, or leave the number out")
+        roles = set(ctx.get("roles") or []) | {"everyone"}
+        for d in self.doings:
+            if d.who not in roles:
+                raise ValueError(f"doings.who '{d.who}' is nobody here: one of {', '.join(sorted(roles))}")
+            if not d.doing.strip() or len(d.doing.split()) > 14:
+                raise ValueError("a doing is a short phrase, under fourteen words")
+            if re.match(r"^(he|she|they|the|a|an|i|we|you)\b", d.doing.strip(), re.I):
+                raise ValueError("a doing has no subject: 'pulling ale as fast as the mugs come back', not 'the innkeeper pulls ale'")
+        if ctx.get("visitor"):
+            if not (self.visitor_epithet.strip() and self.visitor_look.strip() and self.visitor_doing.strip()):
+                raise ValueError("the visitor needs an epithet, a look and a doing")
+            if len(self.visitor_epithet.split()) > 5:
+                raise ValueError("visitor_epithet: two to four words, how the player would name them before learning their name")
+        elif self.visitor_epithet.strip() or self.visitor_look.strip() or self.visitor_doing.strip():
+            raise ValueError("no visitor comes with this: leave visitor_epithet, visitor_look and visitor_doing empty")
+        if ctx.get("mishap") and not self.mishap.strip():
+            raise ValueError("say how the player is caught in it as they come in (mishap)")
+        if self.title.strip().lower() in {t.strip().lower() for t in ctx.get("titles") or []}:
+            raise ValueError(f"'{self.title}' has been seen in this game already: something new")
+        hit = _like_seen(self.line, list(ctx.get("seen") or []))
+        if hit:
+            raise ValueError(f"too like a moment this game has seen already ('{hit[:80]}'): something new, of a different kind")
+        from engine import truth
+        for text in (self.title, self.line, self.memory, self.visitor_look, self.visitor_doing, self.mishap):
+            run = truth.coined(text, ctx.get("given", ""), ctx.get("known", frozenset()))
+            if run:
+                raise ValueError(f"'{run}' is no one and nowhere you were given: name only the people and places given, and describe anyone else without a name")
+        return self
+
+
 class ResidentProposal(BaseModel):
     slot: int
     name: str
