@@ -51,15 +51,45 @@ def stale_phrases(text: str, recent: list[str]) -> list[str]:
     return repeats[:6] + [s for s in STALE if s in lower]
 
 
+_ING_NOUNS = {"nothing", "something", "anything", "everything", "morning", "evening", "thing", "king", "ring", "string", "spring", "wing",
+              "sling", "sting", "bring", "ceiling", "building", "during", "sibling", "clothing", "lightning", "wedding", "shilling", "darling",
+              "mooring", "bedding", "landing", "footing", "opening", "meaning", "feeling", "being", "living", "dwelling", "lodging", "railing",
+              "stocking", "blessing", "warning", "offering", "fling", "cling", "swing", "thing"}
+_TAIL = re.compile(r",\s*(?:(?:his|her|their|its|the|a|an|one|each|every|both|all|my|your|our|that|this|those|these)\s+)?(?:[a-z'-]+\s+){0,2}([a-z]+ing)\b[^,]*$")
+
+
+def participle_tails(text: str) -> list[str]:
+    """(f349) The sentences that end on a trailing participle clause (', his gaze returning to the road'): the five-hour run ended one
+    sentence in six that way. The DM voice names the habit; this finds it in a draft so the rewrite can be asked to undo it."""
+    out = []
+    for s in re.split(r"(?<=[.!?])\s+", (text or "").strip()):
+        core = s.rstrip(".!?\"'\u201d ").lower()
+        m = _TAIL.search(core)
+        if m and m.group(1) not in _ING_NOUNS and len(m.group(1)) > 5:
+            out.append(s.strip())
+    return out
+
+
 def fresh(task: str, system: str, request: str, schema, recent: list[str], fields=("text",),
-          temperature: float = 0.9, max_tokens: int = 600, context: dict | None = None):
-    """Generate narration; if it repeats recent phrasing or stock phrases, rewrite once with them called out. `context` is the schema's
-    validation context (a frame's speaker and the others present, f347)."""
+          temperature: float = 0.9, max_tokens: int = 600, context: dict | None = None, worn: list[str] | None = None):
+    """Generate narration; if it repeats recent phrasing or stock phrases, leans on words the writing has worn out (f349, `worn` from the
+    scene's watch) or ends two or more sentences on a trailing participle, rewrite once with the habit called out. `context` is the
+    schema's validation context (a frame's speaker and the others present, f347)."""
+    from engine import worn as _worn
     result = generate(task, system, request, schema, temperature=temperature, max_tokens=max_tokens, validation_context=context)
     text = " ".join(getattr(result, f, "") or "" for f in fields)
+    parts = []
     hits = stale_phrases(text, recent)
-    if not hits:
+    if hits:
+        parts.append("REUSED STALE PHRASING. Do not use any of these again: " + "; ".join(f'"{h}"' for h in hits))
+    lean = _worn.leaned_on(text, worn or [])
+    if len(lean) >= 2:
+        parts.append("LEANED ON WORDS YOU HAVE WORN OUT: " + ", ".join(lean) + ". Find other words, or leave the thing unsaid")
+    tails = participle_tails(text)
+    if len(tails) >= 2:
+        parts.append("ENDED SENTENCES ON A TRAILING PARTICIPLE (" + "; ".join(f'"{t[-50:]}"' for t in tails[:2])
+                     + "). End each sentence on its verb or its noun: a thing done, not a thing going on")
+    if not parts:
         return result
-    nudge = ("\n\nYOUR DRAFT REUSED STALE PHRASING. Do not use any of these again: "
-             + "; ".join(f'"{h}"' for h in hits) + ". Write it fresh, with the same events.")
+    nudge = "\n\nYOUR DRAFT " + ". YOUR DRAFT ALSO ".join(parts) + ". Write it fresh, with the same events."
     return generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens, validation_context=context)

@@ -68,6 +68,30 @@ class CombatScene:
         self.creature_name = creature_name
         self.rng = random.Random()
         self.tamed: list[str] = []
+        self.fight_shown: list[str] = []            # (f349) what the player has read in this fight: the ground, the light, each foe's look
+
+    def note_fight_shown(self, text: str) -> None:
+        """(f349) After a passage: the ground and the place are given; the light if it was described; the look of each foe it described;
+        the blade once it has gleamed. The next passage is told not to describe them again."""
+        import re
+        from engine import voice_rules
+        low = (text or "").lower()
+        if not low.strip():
+            return
+        def add(line):
+            if line not in self.fight_shown:
+                self.fight_shown.append(line)
+        add("the ground and the place: given; name only what changes")
+        if any(re.search(rf"\b{w}\w*", low) for w in voice_rules.V.get("weather_words", [])) or re.search(r"\b(light|dark|shadow|glow|gleam|dim)\w*", low):
+            add("the light and the weather")
+        if re.search(r"\b(blade|edge|steel|sword|axe|spear|knife|dagger|mace|hammer|bow|arrow|staff)\b", low) and re.search(r"\b(gleam|glint|catch|flash|shine|bright|silver)\w*", low):
+            add("the gleam of a blade")
+        for e in self.fight.fighters:
+            if e.side != "enemy":
+                continue
+            head = combat.who(e).split()[-1].lower()
+            if len(head) >= 4 and re.search(rf"\b{re.escape(head)}s?\b", low):
+                add(f"the look of {combat.who(e)}: what it is, its size and bearing")
 
     # ---------- setup ----------
 
@@ -170,6 +194,7 @@ class CombatScene:
         if opening_events:
             event += " As the fight begins: " + "; ".join(opening_events)
         ws.narrate_with(cp.START_SYSTEM, event)
+        scene.note_fight_shown(ws.recent_narration[-1] if ws.recent_narration else "")      # (f349) the opening passage is read
         for line in prep + tether_notes:
             console.note(line)
         if pools.mechanic(c, "keen_judge") is not None:
@@ -686,15 +711,19 @@ class CombatScene:
         p = f.player
         foes = [f"{combat.who(e)}, {combat.condition(e)}" for e in f.fighters if e.side == "enemy" and e.alive]
         you = combat.condition(p) + (", up on high ground" if "elevated" in p.position_tags else "")
-        from engine import battlefield as bfm
+        from engine import battlefield as bfm, voice_rules
+        boss = any(e.boss for e in f.fighters if e.side == "enemy" and e.alive) or any(e.startswith("BOSS") for e in f.story)
+        rule = voice_rules.V["narration"].get("fight_boss" if boss else "fight", voice_rules.V["narration"]["normal"])
         result = fresh("combat_narrate", cp.NARRATE_SYSTEM,
                        cp.narrate_request(self.ws.place.name, self.ws.time_label(), text, f.story,
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
-                                          self.ws.recent_narration, ground=bfm.narrative_snapshot(f)),
-                       Narration, self.ws.recent_narration, max_tokens=600)
+                                          self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
+                                          length=rule["length"], shown=self.fight_shown, worn=self.ws.worn_words("prose")),    # (f349)
+                       Narration, self.ws.recent_narration, max_tokens=rule["tokens"], worn=self.ws.worn_words("prose"))
         text_out = place_figures(result.text, f.hits, console.damage_tags)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
+        self.note_fight_shown(result.text)
         if config.COMBAT_NUMBERS and not console.damage_tags:
             console.combat_numbers(f.log)
 
@@ -1166,9 +1195,15 @@ class CombatScene:
         lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
         console.note("You have died.")
         console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
+        said = list(getattr(ws.player, "goddess_said", []))                        # (f349) she remembers what she said on earlier returns
+        event = cp.THRESHOLD_EVENT.format(deaths=c.deaths, losses="; ".join(lost))
+        if said:
+            event += (" She remembers every earlier return and what she said then (below, as RECENT CONVERSATION): this time she begins"
+                      " elsewhere, on a different image, and never repeats an opening.")
         line = generate("goddess_line", gp.goddess_system(ws.goddess_knowledge()),
-                        gp.narration_request("death", cp.THRESHOLD_EVENT.format(deaths=c.deaths, losses="; ".join(lost)), []),
-                        GoddessLine, temperature=0.9)
+                        gp.narration_request("death", event, [("Orenna, on an earlier return", s) for s in said[-4:]]),
+                        GoddessLine, temperature=0.9, validation_context={"said": said})
+        ws.player.goddess_said = (said + [line.speech])[-8:]
         console.say(line.speech, "The Goddess")
         console.ledger("Lost: " + " · ".join(lost))
         days = combat.RULES["death"]["days_pass"]

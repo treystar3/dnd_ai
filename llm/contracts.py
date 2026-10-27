@@ -357,6 +357,21 @@ class PlayerTurn(BaseModel):
 class GoddessLine(BaseModel):
     speech: str
 
+    @model_validator(mode="after")
+    def not_as_before(self, info: ValidationInfo):
+        """(f349) She has said things on earlier returns (the context's `said`): this line opens on none of their openings. Four of five
+        deaths in one run began 'Again...'."""
+        said = [s for s in (_ctx(info).get("said") or []) if s]
+        if not said:
+            return self
+        def head(t: str) -> str:
+            return " ".join(re.findall(r"[a-z']+", (t or "").lower())[:3])
+        mine = head(self.speech)
+        first = mine.split()[:1]
+        if any(mine and mine == head(s) for s in said) or (first and first[0] in ("again", "so", "back") and any(head(s).split()[:1] == first for s in said)):
+            raise ValueError("you have opened that way on an earlier return; she remembers every one, and this time begins elsewhere")
+        return self
+
 
 PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody"}
 
@@ -649,6 +664,8 @@ class CompanionReply(BaseModel):
             raise ValueError("speech is plain words: no asterisks or quotation marks")
         from engine import quirks
         member = _ctx(info).get("member") or {}
+        if self.speech:
+            _no_tics(self.speech, (member.get("said") or [""])[-1])          # (f349) no opener twice running, one trailing-off at most
         st = _ctx(info).get("gesture_state", {})
         kept = quirks.keep_gesture(self.gesture, dict(st, gesture_now=True) if (quiet and not self.speech) else st, member.get("name", ""))
         if self.gesture and not kept and not self.speech and not quiet:
@@ -807,6 +824,28 @@ def _not_said_again(speech: str, info: ValidationInfo) -> None:
         raise ValueError(f"you have said something very like '{hit}' lately; say something new, or say less")
 
 
+_OPENERS = ("well", "oh", "ah", "aye", "hm", "hmm", "hmph", "right", "now", "look", "see", "ha", "heh", "so", "listen", "mm", "mhm", "eh", "huh")
+
+
+def opener_of(speech: str) -> str:
+    """(f349) The stock word a line opens on ('Well, ...', 'Well now, ...', 'Oh. ...', 'Aye, ...'), or '' when it opens on its matter. A
+    plain yes or no is an answer, not a tic."""
+    low = re.sub(r"^[\s\"\u201c']+", "", (speech or "").lower())
+    m = re.match(r"([a-z]+)\b[\s,.!?;:-]", low + " ")
+    return m.group(1) if m and m.group(1) in _OPENERS else ""
+
+
+def _no_tics(speech: str, last: str = "") -> None:
+    """(f349) A speaker does not open two lines running on the same stock word, and trails off at most once in a line: the five-hour run
+    had one mouth in five opening 'Well...' twice running, and a reply in four with the dots doing the work the words should. `last` is
+    the line they said before this one."""
+    if (speech or "").count("...") + (speech or "").count("\u2026") >= 2:
+        raise ValueError("at most one trailing-off in a reply: say the rest in words, or end the sentence")
+    o = opener_of(speech)
+    if o and last and opener_of(last) == o:
+        raise ValueError(f"you opened your last line on '{o.capitalize()}' too; open this one on what you have to say")
+
+
 class NPCReply(BaseModel):
     speech: str
     gesture: str = ""
@@ -841,6 +880,7 @@ class NPCReply(BaseModel):
     def said_again(self, info: ValidationInfo):
         if "*" in self.speech or "_" in self.speech:
             raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
+        _no_tics(self.speech, _ctx(info).get("last") or "")
         _not_said_again(self.speech, info)
         return self
 

@@ -110,13 +110,17 @@ Rules:
 - Say what is new. ALREADY SHOWN THIS VISIT lists what the player has read here already: do not describe it again. On an arrival,
   the place in a sentence or two and one person doing one thing; the rest waits until the player looks. When they look, answer what
   they look at, describing at most four people individually and summing up the rest as a group.
+- The player's companions are with them and are not scenery: say nothing of them unless the GAME EVENT says what one of them does,
+  and then show only that. Never their posture, their mood or where they stand as a way of filling a passage.
+- WORDS YOU HAVE WORN OUT lists words your recent passages leaned on: find other words, or leave the thing unsaid.
 - Respect the TIME and its weather: light, sky, temperature and activity should fit them. In the dark, describe what can still be seen and heard.
   If PEOPLE HERE is "no one", the place is empty of people.
 - You may add small sensory touches (sounds, smells, light, air), but never add people, creatures, items of value,
   exits or events that are not in the GAME STATE.
 - Refer to people the player has not been introduced to by their description, never by a name you were not given.
 - Each person's people (human, halfling, dwarf, half-elf...) is given in brackets. Describe them as that people -
-  never give a human pointed ears or a halfling a tall frame. Their manner shows in posture, expression and pace.
+  never give a human pointed ears or a halfling a tall frame. Their manner shows in what their hands and body do and in their pace:
+  never name an expression, and never call a face unreadable, a mask, or weary.
 - If the PLAYER'S WORDS ask about something specific, answer that first and directly.
 - Never speak for anyone. Never invent dialogue.
 - Never decide outcomes. Only describe what the GAME EVENT says happened.
@@ -127,8 +131,9 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), length: str = "up to about 70 words", streets: list[str] = (), town: str = "",
-                      news: list[str] = (), already: list[str] = ()) -> str:
-    """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new."""
+                      news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = ()) -> str:
+    """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
+    companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on."""
     visible = "\n".join(f"  - {v}" for v in list(place.visible) + list(streets))       # (f313) the crowd, the watch, the town's state and landmarks, from the truth layer
     present = "\n".join(f"  - {label}: {desc} Right now: {activity}" for label, desc, activity in people) or "  (no one)"
     said = f'\nPLAYER\'S WORDS: "{player_text}"' if player_text else ""
@@ -137,7 +142,9 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (f"THE TOWN (its character; let it colour the scene, never recite it): {town}\n" if town else "")
         + f"VISIBLE:\n{visible}\nPEOPLE HERE:\n{present}\n"
         + (("ALREADY SHOWN THIS VISIT (the player has read these here; do not describe them again - say what is new, or say less):\n"
-            + "\n".join(f"  - {x}" for x in already) + "\n") if already else "") + "\n"
+            + "\n".join(f"  - {x}" for x in already) + "\n") if already else "")
+        + (f"WITH THE PLAYER (companions the event has act; show only what the event says they do): {', '.join(companions)}\n" if companions else "")
+        + (f"WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): {', '.join(worn)}\n" if worn else "") + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
         + (f"LYING ON THE GROUND HERE: {', '.join(ground)}\n" if ground else "")
@@ -156,13 +163,17 @@ exactly as given - you never repeat it, quote it, paraphrase it or add to it. Th
 one: WHY THIS LINE GETS A FRAME says what that is, and the frame is about that.
 
 before: only if the player would see something before the words: the player's own manner, built only from what THE PLAYER DID
-  (never invent words for the player), and the character's look or pause. Otherwise leave it empty.
+  (never invent words for the player), and the character's look or pause. Otherwise leave it empty. A pause, a look up or a tool
+  set down is shown once for a person in a visit; after that (ALREADY SHOWN THIS VISIT says so) the words come while the hands keep
+  at the work, or there is no before at all.
 after: what the words change: a look, a hand, a step, a silence. Never the character going back to what they were doing, and never
   the room, the light, the weather or the other people as a closing shot. Leave it empty when the words are the end.
 
 Keep it proportionate:
 - FRAME LENGTH is the most you may write; it is room, not a target. Less is usually better, and empty is allowed.
 - Never repeat anything under ALREADY SHOWN THIS VISIT or RECENT NARRATION. Say what is new, or say less.
+- A manner shows in what the hands and the body do. Never name an expression, and never call a face unreadable, a mask, or weary.
+- WORDS YOU HAVE WORN OUT, when given, are words your recent frames leaned on: find other words, or leave the thing unsaid.
 
 Rules:
 - Describe only what the SCENE contains. Small sensory touches are fine, but never add people, items, events or
@@ -207,15 +218,19 @@ def exchange_request(time_label: str, place, speakers: list[str], others: list[s
 def dialogue_request(time_label: str, place, others: list[str], who: str, looks: str, doing: str,
                      manner: str, first: bool, player_did: str, speech: str, gesture: str, leaving: bool,
                      recent: list[str], frame: str = "up to about 40 words before, or nothing; up to about 25 after, or nothing",
-                     reach: list[str] | None = None, moment: str = "easy", why: list[str] | None = None, already: list[str] | None = None) -> str:
-    """why (f347): the engine's reasons this line gets a frame at all; already: what the player has read about this place this visit."""
+                     reach: list[str] | None = None, moment: str = "easy", why: list[str] | None = None, already: list[str] | None = None,
+                     worn: list[str] | None = None) -> str:
+    """why (f347): the engine's reasons this line gets a frame at all; already: what the player has read about this place this visit;
+    worn (f349): words recent passages leaned on."""
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
         f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\nFRAME LENGTH: {frame}\nTHE MOMENT: {moment}\n"
         + (f"WHY THIS LINE GETS A FRAME: {'; '.join(why)}\n" if why else "")
-        + (("ALREADY SHOWN THIS VISIT (do not describe these again): " + "; ".join(already) + "\n") if already else "") + "\n"
-        f"THE CHARACTER\nHOW THE PLAYER KNOWS THEM: {who}\nLOOKS: {looks}\nWAS DOING: {doing}\nMANNER: {manner}\n"
+        + (("ALREADY SHOWN THIS VISIT (do not describe these again): " + "; ".join(already) + "\n") if already else "")
+        + (("WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): " + ", ".join(worn) + "\n") if worn else "") + "\n"
+        f"THE CHARACTER\nHOW THE PLAYER KNOWS THEM: {who}\nLOOKS: {looks}\nWAS DOING: {doing}\n"
+        f"MANNER (it shows in what the hands and the body do; never name an expression, never a face unreadable or a mask): {manner}\n"
         f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n"
         f"{'This is the first time the player has spoken to them.' if first else 'They are already talking.'}\n\n"
         f'THE PLAYER DID: "{player_did}"\n'

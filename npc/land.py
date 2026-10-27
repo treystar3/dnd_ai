@@ -22,7 +22,7 @@ def _where(world, ids: list[str], near: dict[str, int], here_top: str) -> str:
     names = []
     for i in sorted(ids, key=lambda i: near[i])[:3]:
         t = near[i]
-        names.append(f"{world.places[i].name} ({'right here' if mapview.top_of(world, i) == here_top else clock.describe_duration(t) + ' away'})")
+        names.append(f"{world.places[i].name} ({'right here' if mapview.top_of(world, i) == here_top else clock.walk_words(t) + ' away'})")   # (f349)
     return ", ".join(names)
 
 

@@ -291,6 +291,7 @@ def converse(
     known=frozenset(),
     stance: str = "",
     rng: random.Random | None = None,
+    worn: list[str] = (),
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -318,9 +319,10 @@ def converse(
                if world.roles[npc.role].commissions else []),
             extra, voice_rules.npc(level)["length"], land.land_lines(world, npc.location), truth_text=truth_text,
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
-            unsaid=banter.unsaid_rule(list(npc.said), player_text),
+            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn),
         ),
-        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"], validation_context={"known": known, "recent": recent},
+        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"],
+        validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else ""},      # (f349) last: no opener twice running
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
     from engine import partings

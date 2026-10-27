@@ -30,7 +30,7 @@ ws.enter("trading_square")
 sc = truth.scene_of(ws)
 pres = sc.present_people()
 check("the scene lists the people here", [p.id for p in pres if p.kind == "npc"] == [n.id for n in ws.present])
-check("the narrator's people are the scene's, as the player knows them", ws.people_view() == [(p.label, p.desc, p.doing) for p in pres if p.kind != "wildlife"])
+check("the narrator's people are the scene's, as the player knows them, less the companions", ws.people_view() == [(p.label, p.desc, p.doing) for p in pres if p.kind not in ("wildlife", "hire")])
 check("the audit's present set is the scene's", ws.situation().present == sc.present_ids())
 check("the same scene is handed back within a turn", truth.scene_of(ws) is sc)
 

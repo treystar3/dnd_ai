@@ -8,6 +8,8 @@ narration:                   # the narrator, by the weight of the moment. length
   normal: {length: "up to about 70 words", tokens: 600}
   rich:   {length: "up to about 120 words, one paragraph", tokens: 950}
   major:  {length: "up to about 170 words, in one or two paragraphs", tokens: 1300}
+  fight:  {length: "up to about 90 words, often far fewer", tokens: 600}                     # (f349) one exchange of a fight
+  fight_boss: {length: "up to about 140 words, in one paragraph", tokens: 800}               # a set-piece beat in a boss fight
 
 npc:                         # what a person says, by how much the conversation calls for; frame is the room for the narrator's beat, when the engine asks for one
   short:  {length: "a line or two, up to about 35 words", tokens: 800, frame: "up to about 25 words before, or nothing; up to about 15 after, or nothing"}
@@ -28,6 +30,18 @@ frame_when:
   fight: "a beat in the press of a fight"
   feeling: "they are {feeling} right now, and it shows"
 gesture_words: 6             # a gesture printed with bare speech is kept only when it is this short (a longer one is cut at its first clause, or dropped)
+
+# (f349) The worn-word watch (engine/worn.py): the last `keep` passages are kept; a seed word or a suffixed manner word that appears in at
+# least `least` of them is worn, and the `top` most worn are handed to the narrator, the frames, the fight and everyone who speaks as
+# WORDS YOU HAVE WORN OUT. Found, never banned: the list is whatever the writing has actually leaned on lately.
+worn:
+  keep: 30
+  least: 6
+  top: 8
+  suffixes: [ly, ness, less, ful, ous, ible, able, ive, ish, some]
+  seed: [expression, unreadable, mask, weary, steady, gaze, glance, flicker, hint, trace, faint, slight, grim, tight, quiet, soft, sharp,
+         heavy, pale, rough, calm, wary, tired, careful, brief, slow, quick, small, dull, flat, bare, rhythmic, rhythm, cadence, measured,
+         folk, folks, aye, stranger, friend, trouble, lad, lass, reckon, suppose]
 weather_words: [rain, snow, fog, mist, wind, cloud, sun, sky, drizzle, storm, frost, sleet, hail, overcast, breeze, gale, moon, stars, dusk, dawn]
 
 # THE VOICE, SHOWN. A model given rules writes in the rules' vocabulary; given a few passages, it writes like them. These are the register
@@ -39,6 +53,10 @@ exemplars:
     - "Night. The fire has gone to coals and somebody's horse is shifting in its sleep. You lie with a hand on the sword and listen to the river, which has nothing to say."
     - "The axe comes down where your head was. You are already moving. Splinters sting your cheek, and then the thing is on you, all weight and stink, and the world narrows to its teeth."
     - "He does not see you off. He has turned back to the nets before you reach the door, and the only farewell is the shuttle going on without you."
+  fight:
+    - "The first one comes in low. You take it on the shield and the shock goes up your arm to the teeth. The second is already behind you."
+    - "It misses. The claw takes bark off the tree where your shoulder was and you are inside its reach now, close enough to smell it, and you put the knife in."
+    - "She goes down hard and does not get up. The one with the spear sees it and stops. Nobody moves. Then he runs."
   speech:
     - "Horseshoes. Nails. If you want a sword you want the city, and more coin than you've got."
     - "Keep walking, you. No, I mean it kindly. The gate shuts at dark and I'd sooner you were inside it than out."

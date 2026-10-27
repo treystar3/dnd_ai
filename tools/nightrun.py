@@ -213,6 +213,7 @@ class Bot:
         self.spoken_to: collections.deque = collections.deque(maxlen=6)
         self.been: collections.deque = collections.deque(maxlen=8)
         self.here_for = 0                            # turns spent at this place
+        self.asked_hires: dict = {}                  # companion name -> the game day they were last asked how they are
         self.last_loc = ""
         self.last_text = ""
         from engine import actions
@@ -286,8 +287,11 @@ class Bot:
         if p.type in ("shop", "smithy", "workshop", "inn"):
             options.append((15, "shop"))
         options += [(10, "improv"), (8 if in_town else 20, "search"), (5, "wait")]
-        if ws.player.party:
-            options.append((8, "hire"))
+        from engine import clock as _clock
+        today = _clock.day(ws.minutes)
+        unasked = [m for m in ws.player.party if self.asked_hires.get(m.get("name")) != today]
+        if unasked:
+            options.append((8, "hire"))                 # a check-in at most once a game day per companion: a real player does not nag
         pick = rng.choices([o[1] for o in options], weights=[o[0] for o in options])[0]
         if pick == "talk":
             n = rng.choice(present)
@@ -311,7 +315,8 @@ class Bot:
             text = rng.choice(self.SEARCH)
             return text, self.intend("search" if "search" in text else "look"), "search"
         if pick == "hire":
-            m = rng.choice(ws.player.party)
+            m = rng.choice(unasked)
+            self.asked_hires[m.get("name")] = today
             return f"I ask {m.get('name', 'my companion')} how they're holding up.", self.intend("look"), "hire"
         return "I wait an hour.", self.intend("wait", wait_minutes=60), "wait"
 
