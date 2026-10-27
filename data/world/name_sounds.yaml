@@ -47,7 +47,7 @@ peoples:
         last: [ric, win, ram, stan, ard, mund, bert, wick, ley, mer, ton, ulf, gar, ran, rin, ford, wyn, nard, mon, rich, fred, dan, wald]
       - weight: 3
         first: [B, Br, C, D, Dr, G, Gr, H, J, K, L, M, N, R, St, T, Th, W]
-        last: [am, an, en, ed, ick, olm, orn, ulk, yle, ade, eth, ock, ent, ude, ald, ess, unn, orm]
+        last: [am, an, en, ed, ick, olm, orn, ulk, yle, ade, ock, ent, ude, ald, ess, unn, orm]
       - weight: 1 # old long names: Amalaric, Theodemar, Adalbert
         first: [Ama, Atha, Erma, Theo, Ada, Ala, Hilde, Ode, Wili, Gunde, Ebe, Wala, Sige, Ere, Ever]
         middle: [la, na, de, do, ri, le, ra]
