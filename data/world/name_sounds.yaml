@@ -21,7 +21,7 @@ max_consonants: 3               # consonants that may run together ("ldr" in Bal
 
 avoid:                          # never inside any name (patterns on the lower-case name)
   - "q[^u]"
-  - "(fuk|fuc|shit|cunt|dick|cock|piss|twat|wank|nig|fag|slut|whor|rape|anus|penis|tits|kkk|nazi)"
+  - "(fuk|fuc|shit|cunt|dick|cock|piss|twat|wank|nig|fag|slut|whor|rape|anus|penis|tits|kkk|nazi|porn)"
   - "(.{2,})\\1"                # no piece said twice running ("dordor")
 
 
