@@ -1,23 +1,23 @@
-# Regions of Rivia. Add more as you write them.
+# Regions of Meravia. Add more as you write them.
 
 - id: wend_vale
   name: the Wend Vale          # invented
   description: >
     Farmland and low sheep hills along the river Wend, crossed by an old trade road.
     Far from the seats of power and largely ignored by them.
-  ruled_by: the crown at Valecourt
+  ruled_by: the crown at Lethoria
 
 - id: cracked_plains_region
   name: the Cracked Plains          # invented
   description: >
-    A shattered wasteland very far from the known kingdoms. It is said that fiends and
+    A dead lakebed of red, sun-baked earth very far from the known kingdoms. It is said that fiends and
     the hosts that oppose them use it as their battlefield. Few who go there come back.
   ruled_by: null
 
 - id: northern_hills
   name: the northern hills
   description: Rolling hills, mixed woodland and rocky foothills north of Parth - mining and timber country.
-  ruled_by: the crown at Valecourt
+  ruled_by: the crown at Lethoria
 
 - id: blackpine
   name: the Blackpine
@@ -37,7 +37,7 @@
 - id: great_river
   name: the Great River lands
   description: Fertile plains, wetlands and river valleys along the Great River - the kingdom's busiest country.
-  ruled_by: the crown at Valecourt
+  ruled_by: the crown at Lethoria
 
 - id: eastern_frontier
   name: the eastern frontier
@@ -52,7 +52,7 @@
 - id: royal_vales
   name: the royal vales
   description: Fertile valleys, vineyards, managed forests and great estates around the royal capital.
-  ruled_by: the crown at Valecourt
+  ruled_by: the crown at Lethoria
 
 # --- the far lands: beyond the settled map, reached by long roads. Levels roughly 75-160. ---
 
@@ -108,4 +108,4 @@
 - id: saltmarches
   name: the Saltmarches
   description: A soft, windy coast of tidal flats and kelp beds just south-west of Parth, the gentlest country on the map.
-  ruled_by: the crown at Valecourt
+  ruled_by: the crown at Lethoria

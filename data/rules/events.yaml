@@ -141,7 +141,7 @@ cataclysm:
       boss_chance: 0.85
     war:
       weight: 2
-      origin: [valecourt, hrimgard, cinderhold, sunspire, ironvein, riverhaven, dunmarrow]
+      origin: [lethoria, hrimgard, cinderhold, sunspire, ironvein, riverhaven, dunmarrow]
       about: "two powers go to war over land, honour or gold, and the towns between them are caught"
       boss_categories: [humanoid, hostile people, giant]
       towns: 6

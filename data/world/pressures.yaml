@@ -145,8 +145,8 @@
   severity: [1, 5]
   scope: regional
 
-- id: valecourt_court
-  place: valecourt
+- id: lethoria_court
+  place: lethoria
   kind: politics
   description: The court - noble houses rising and falling, a marriage, a scandal, a new decree that reaches the countryside.
   weight: 3
@@ -332,7 +332,7 @@
 - id: far_lands_war
   place: hrimgard
   kind: threat
-  description: War brews along the far borders - a giant host gathers, a deep-road kingdom closes its gates, refugees from the ash arrive in Valecourt's markets.
+  description: War brews along the far borders - a giant host gathers, a deep-road kingdom closes its gates, refugees from the ash arrive in Lethoria's markets.
   weight: 1
   severity: [3, 5]
   scope: kingdom

@@ -219,7 +219,7 @@ def _progress_runner(title: str, work) -> str | None:
 
 def ensure_ready() -> bool:
     """True when the game can start; False when the player chose to quit. Fixes what it can along the way."""
-    if os.environ.get("DND_SKIP_SETUP"):
+    if os.environ.get("MERAVIA_SKIP_SETUP"):
         return True
     try:
         while True:

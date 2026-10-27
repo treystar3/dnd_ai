@@ -160,7 +160,7 @@ class OrennaActions:
             self.orenna_executioner()
         if len(o["trails_done"]) >= 3 and o["executioner"] and orenna.stage(self.player) == "trails":
             orenna.set_stage(self.player, "registry")
-            console.note("The dead point one way. Valecourt keeps the register of bound services.")
+            console.note("The dead point one way. Lethoria keeps the register of bound services.")
         self.store.save_player(self.player)
 
     def orenna_executioner(self) -> None:

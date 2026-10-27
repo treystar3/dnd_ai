@@ -1,20 +1,18 @@
 """Play the game.
 
-    python main.py            continue your saved game, or start a new one
-    python main.py --new      start over (the old save is kept as a backup)
+    python main.py            the home page: continue, load another game, or start a new one
+    python main.py --new      start a new character straight away (every other game stays saved)
     python main.py --debug    show what the engine is deciding behind the scenes
     python main.py --gui      play in a window instead of the terminal (needs: pip install pywebview; falls back to your browser)
-    dnd_ai.exe                the built game opens its window by itself (--terminal for the text version)
+    Meravia.exe               the built game opens its window by itself (--terminal for the text version)
 
-On start the game checks for Ollama and its model and offers to install and download what is missing (DND_SKIP_SETUP=1 skips the check).
+On start the game checks for Ollama and its model and offers to install and download what is missing (MERAVIA_SKIP_SETUP=1 skips the check).
 
 Type 'quit' to save and exit.
 """
 
 import argparse
-import shutil
 import sys
-from datetime import datetime
 
 import os
 
@@ -27,12 +25,11 @@ if paths.FROZEN:
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
 from scenes.world import WorldScene
-from storage.campaign import SAVES_DIR, CampaignStore, PlayerState
+from storage.campaign import CampaignStore, PlayerState, SaveTooNew
+from storage import saves
 from ui import console
 from llm.gateway import LLMError, unload, warm
 from world.loader import WorldError, load_world
-
-CAMPAIGN = "main"
 
 
 def main():
@@ -53,7 +50,7 @@ def main():
     try:
         if args.gui or (paths.FROZEN and not args.terminal):
             from ui import gui
-            gui.launch(lambda bridge: guarded(lambda: play(args), bridge))
+            gui.launch(lambda bridge: guarded(lambda: play(args), bridge), title=config.GAME_TITLE)
         else:
             guarded(lambda: play(args), None)
     finally:
@@ -92,17 +89,26 @@ def play(args):
                 console.note(f"It was installed already and the game still reports {info.get('current', VERSION)}: the installer on the release was "
                              "most likely built before its version number was raised. Installing it again will change nothing.")
 
-    new_game = args.new
+    from scenes import home
+    from npc import backfill
+    choice = ("new", "") if args.new else None
     while True:
-        folder = SAVES_DIR / CAMPAIGN
-        if new_game and folder.exists():
-            backup = SAVES_DIR / f"{CAMPAIGN}_backup_{datetime.now():%Y%m%d_%H%M%S}"
-            shutil.move(str(folder), str(backup))
-            console.note(f"Previous game moved to {backup}")
-        new_game = False
         console.combat_state(None)                 # a fight from the game just left must not linger in the window
-
-        store = CampaignStore.open_or_create(CAMPAIGN)
+        if choice is None:
+            choice = home.choose(world)            # (f345) the home page: continue, load, new, delete, or quit
+        kind, name = choice
+        choice = None
+        if kind == "quit":
+            return
+        if kind == "new":
+            name = saves.new_name()
+        try:
+            store = CampaignStore.open_or_create(name)
+        except SaveTooNew as e:
+            console.note(str(e))
+            continue
+        saves.touch(name)
+        console.home_done()
         if store.player_exists():
             player = store.load_player()
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")
@@ -116,9 +122,13 @@ def play(args):
             scene.run()
         finally:
             store.close()                              # the database is written through as it goes; closing folds the write-ahead log in
-        if not getattr(scene, "restart", False):
+            backfill.drop(store)                       # people still being written for this game must never reach the next one
+        if getattr(scene, "restart", False):
+            choice = ("new", "")                       # New game: a new character in a folder of its own; this game stays saved
+        elif getattr(scene, "to_menu", False):
+            choice = None                              # the main menu
+        else:
             return
-        new_game = True
 
 
 def guarded(run, bridge):

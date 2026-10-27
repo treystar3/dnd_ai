@@ -40,7 +40,7 @@ def latest_release(repo: str = "", timeout: float = 4.0) -> dict | None:
     if not repo:
         return None
     req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases/latest",
-                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "dnd_ai-update-check"})
+                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "meravia-update-check"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
@@ -106,7 +106,7 @@ def install(info: dict, progress, quit_game) -> str | None:
     if sys.platform != "win32" or not paths.FROZEN or not info.get("url"):
         webbrowser.open(info.get("page", ""))
         return None
-    target = Path(tempfile.gettempdir()) / "dnd_ai_setup.exe"
+    target = Path(tempfile.gettempdir()) / "Meravia_setup.exe"
     try:
         with urllib.request.urlopen(info["url"], timeout=30) as r, open(target, "wb") as f:
             total = int(r.headers.get("Content-Length") or 0)

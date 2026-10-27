@@ -486,7 +486,7 @@ warrior: 1284 trips | 48% of game time spent walking | avg trip 11.0h | longest 
    trips ending in the wild: 0 of 1284; of those - met something on arrival
    trips of 8+ hours: 262 - of which wild-bound met a fight: -; town-bound (nothing on the way): 262
    blocked by a closed route: 38 times
-   places visited: 53 | never visited: cracked_plains, drowned_shore, dunmarrow_guild, eldervale_guild, ironvein_guild, sunken_vaults, sunspire_guild, trading_square, valecourt_guild, windbreak_ridge
+   places visited: 53 | never visited: cracked_plains, drowned_shore, dunmarrow_guild, eldervale_guild, ironvein_guild, sunken_vaults, sunspire_guild, trading_square, lethoria_guild, windbreak_ridge
    first visits: guild_house(d1,L1), greywood(d1,L1), tilted_plough(d2,L4), greyhollow(d6,L5), willowmead_wetlands(d10,L5), dungeon_willowmead_wetlands(d10,L5), south_fields(d11,L5), parth(d11,L6), watch_tower(d13,L7), greyhollow_foothills(d17,L8), red_badlands(d24,L9), willowmead(d29,L9), parth_temple(d39,L12), great_river_reaches(d41,L13), dungeon_great_river_reaches(d46,L13), blackpine_forest(d53,L14), riverhaven(d89,L18), redstone(d95,L19), grey_mountains(d136,L28), ironvein(d136,L28), frostholm_guild(d172,L32), frostholm(d192,L32)
 
 mage: 445 trips | 43% of game time spent walking | avg trip 11.5h | longest 202h
@@ -500,7 +500,7 @@ summoner: 588 trips | 42% of game time spent walking | avg trip 13.0h | longest 
    trips ending in the wild: 0 of 588; of those - met something on arrival
    trips of 8+ hours: 185 - of which wild-bound met a fight: -; town-bound (nothing on the way): 185
    blocked by a closed route: 0 times
-   places visited: 53 | never visited: brinewatch, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, lightless_deep, riverhaven_guild, sepulchre_fields, sunspire_guild, trading_square, valecourt_guild
+   places visited: 53 | never visited: brinewatch, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, lightless_deep, riverhaven_guild, sepulchre_fields, sunspire_guild, trading_square, lethoria_guild
    first visits: guild_house(d1,L1), parth(d1,L1), south_fields(d1,L1), greywood(d41,L1), tilted_plough(d41,L2), willowmead_wetlands(d46,L5), willowmead(d46,L5), greyhollow_foothills(d50,L5), x_the_quiet_spot_48(d53,L5), greyhollow(d67,L9), parth_temple(d71,L10), dungeon_greywood(d78,L12), watch_tower(d88,L19), great_river_reaches(d89,L19), riverhaven(d89,L19), redstone(d96,L20), red_badlands(d100,L21), blackpine_forest(d106,L23), dungeon_blackpine_forest(d129,L28), grey_mountains(d138,L30), ironvein(d138,L30), frostholm_guild(d171,L36)
 
 priest: 882 trips | 52% of game time spent walking | avg trip 23.9h | longest 322h
@@ -521,7 +521,7 @@ bard: 1510 trips | 48% of game time spent walking | avg trip 10.1h | longest 260
    trips ending in the wild: 0 of 1510; of those - met something on arrival
    trips of 8+ hours: 235 - of which wild-bound met a fight: -; town-bound (nothing on the way): 235
    blocked by a closed route: 34 times
-   places visited: 54 | never visited: brinewatch, cracked_plains, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, riverhaven_guild, sepulchre_fields, trading_square, valecourt_guild, wreck_coast
+   places visited: 54 | never visited: brinewatch, cracked_plains, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, riverhaven_guild, sepulchre_fields, trading_square, lethoria_guild, wreck_coast
    first visits: guild_house(d1,L1), tilted_plough(d1,L1), greywood(d2,L3), watch_tower(d3,L4), willowmead_wetlands(d4,L5), willowmead(d4,L6), greyhollow(d7,L7), dungeon_willowmead_wetlands(d10,L8), greyhollow_foothills(d15,L8), parth(d25,L9), south_fields(d25,L9), x_the_quiet_spot_93(d56,L14), red_badlands(d63,L15), redstone(d63,L15), blackpine_forest(d74,L19), parth_temple(d80,L21), great_river_reaches(d81,L21), riverhaven(d81,L21), grey_mountains(d125,L30), ironvein(d125,L30), frostholm_guild(d156,L36), frostholm(d188,L44)
 
 smith: 552 trips | 31% of game time spent walking | avg trip 9.2h | longest 147h
@@ -535,21 +535,21 @@ paladin: 1161 trips | 50% of game time spent walking | avg trip 9.8h | longest 2
    trips ending in the wild: 0 of 1161; of those - met something on arrival
    trips of 8+ hours: 253 - of which wild-bound met a fight: -; town-bound (nothing on the way): 253
    blocked by a closed route: 0 times
-   places visited: 56 | never visited: cracked_plains, dunmarrow_guild, eldervale_guild, riverhaven_guild, sunspire_guild, trading_square, valecourt_guild, wreck_coast
+   places visited: 56 | never visited: cracked_plains, dunmarrow_guild, eldervale_guild, riverhaven_guild, sunspire_guild, trading_square, lethoria_guild, wreck_coast
    first visits: guild_house(d1,L1), south_fields(d1,L1), parth(d2,L1), greywood(d3,L1), tilted_plough(d3,L1), parth_temple(d17,L9), greyhollow_foothills(d18,L9), red_badlands(d26,L9), redstone(d26,L10), blackpine_forest(d32,L10), dungeon_red_badlands(d39,L11), greyhollow(d42,L11), willowmead_wetlands(d43,L11), willowmead(d43,L11), riverhaven(d55,L16), great_river_reaches(d63,L17), watch_tower(d78,L19), dungeon_greyhollow_foothills(d78,L19), dungeon_blackpine_forest(d108,L26), grey_mountains(d188,L35), ironvein(d188,L35), frostholm_guild(d199,L38)
 
 monk: 658 trips | 41% of game time spent walking | avg trip 8.5h | longest 237h
    trips ending in the wild: 0 of 658; of those - met something on arrival
    trips of 8+ hours: 131 - of which wild-bound met a fight: -; town-bound (nothing on the way): 131
    blocked by a closed route: 26 times
-   places visited: 55 | never visited: cinder_caldera, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, jade_maw_jungle, lightless_deep, riverhaven_guild, trading_square, valecourt_guild
+   places visited: 55 | never visited: cinder_caldera, cracked_plains, deep_roads_tunnels, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, ironvein_guild, jade_maw_jungle, lightless_deep, riverhaven_guild, trading_square, lethoria_guild
    first visits: guild_house(d1,L1), greywood(d1,L1), tilted_plough(d1,L1), south_fields(d2,L3), parth(d3,L4), willowmead_wetlands(d4,L4), willowmead(d4,L4), parth_temple(d16,L4), watch_tower(d17,L5), greyhollow(d18,L6), dungeon_willowmead_wetlands(d19,L6), greyhollow_foothills(d34,L9), dungeon_greywood(d47,L14), red_badlands(d51,L16), redstone(d51,L17), great_river_reaches(d61,L20), riverhaven(d61,L20), blackpine_forest(d68,L22), grey_mountains(d92,L30), ironvein(d92,L30), frostholm_guild(d96,L32), frostholm(d96,L32)
 
 warlock: 794 trips | 50% of game time spent walking | avg trip 15.0h | longest 259h
    trips ending in the wild: 0 of 794; of those - met something on arrival
    trips of 8+ hours: 158 - of which wild-bound met a fight: -; town-bound (nothing on the way): 158
    blocked by a closed route: 31 times
-   places visited: 50 | never visited: brinewatch, cracked_plains, delvers_deep, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, howling_downs, ironvein_guild, rimewind_barrens, riverhaven_guild, trading_square, valecourt, valecourt_guild
+   places visited: 50 | never visited: brinewatch, cracked_plains, delvers_deep, drowned_shore, dunmarrow_guild, eldervale_guild, emerald_mire, howling_downs, ironvein_guild, rimewind_barrens, riverhaven_guild, trading_square, lethoria, lethoria_guild
    first visits: guild_house(d1,L1), south_fields(d1,L1), parth_temple(d4,L3), greywood(d4,L3), parth(d6,L5), tilted_plough(d6,L6), greyhollow_foothills(d10,L6), watch_tower(d15,L7), willowmead_wetlands(d16,L7), willowmead(d16,L7), greyhollow(d23,L9), blackpine_forest(d36,L17), red_badlands(d49,L18), redstone(d49,L18), dungeon_willowmead_wetlands(d55,L19), great_river_reaches(d64,L21), riverhaven(d64,L21), dungeon_blackpine_forest(d73,L24), grey_mountains(d97,L28), ironvein(d97,L28), dungeon_red_badlands(d104,L29), frostholm_guild(d131,L36)
 
 ====================================================================================================
@@ -1020,7 +1020,7 @@ ironvein_guild    guild         7      6    [1, 5]    14            5   uncommon
 frostholm_guild   guild         6      5    [1, 5]     6            5   uncommon           14
 riverhaven_guild  guild         7      6    [1, 5]     6            5   uncommon           47
 sunspire_guild    guild         6      5    [1, 5]     6            5     common            8
-valecourt_guild   guild         6      5    [1, 5]     6            5     common            8
+lethoria_guild   guild         6      5    [1, 5]     6            5     common            8
 cinderhold_guild  guild         6      5    [1, 5]     6            5   uncommon           43
 hrimgard_guild    guild         6      5    [1, 5]     6            4     common           15
 dunmarrow_guild   guild         6      5    [1, 5]     6            5     common           18
@@ -1052,7 +1052,7 @@ eldervale         city          8      7  [15, 40]     0            0          -
 ironvein          city         14     11  [15, 45]    16           44   uncommon          100
 frostholm         city         10      9  [20, 45]    12           45   uncommon          106
 sunspire          city         15     11  [20, 50]    16           49   uncommon           76
-valecourt         city         24     16  [20, 60]    16           59   uncommon          102
+lethoria         city         24     16  [20, 60]    16           59   uncommon          102
 brinewatch        city         14      9 [60, 100]    16           96     common          970
 amaranth          city         15     12 [65, 105]    20          100   uncommon          388
 cinderhold        city         19     12 [70, 115]    56          115   uncommon          927
@@ -1062,9 +1062,9 @@ dunmarrow         city         16     10 [90, 135]    32          135   uncommon
 Can a character find gear at their level? (best stock item level available anywhere)
    level 10: 12 towns sell gear within 80% of that level (greyhollow, ironvein, frostholm, riverhaven, redstone)
    level 25: 11 towns sell gear within 80% of that level (ironvein, frostholm, riverhaven, redstone, sunspire)
-   level 40: 10 towns sell gear within 80% of that level (ironvein, frostholm, riverhaven, sunspire, valecourt)
-   level 55: 9 towns sell gear within 80% of that level (ironvein, frostholm, sunspire, valecourt, cinderhold)
-   level 70: 6 towns sell gear within 80% of that level (valecourt, cinderhold, hrimgard, dunmarrow, brinewatch)
+   level 40: 10 towns sell gear within 80% of that level (ironvein, frostholm, riverhaven, sunspire, lethoria)
+   level 55: 9 towns sell gear within 80% of that level (ironvein, frostholm, sunspire, lethoria, cinderhold)
+   level 70: 6 towns sell gear within 80% of that level (lethoria, cinderhold, hrimgard, dunmarrow, brinewatch)
    highest-level item for sale anywhere: 135
 
 ====================================================================================================

@@ -9,18 +9,18 @@ from engine import clock
 m=0
 while not all(clock.in_hours(m+h,(9,18)) for h in (0,120,240)): m+=30
 ws.store.meta.minutes=m
-for town in ["valecourt","parth"]:
+for town in ["lethoria","parth"]:
     ws.enter(town); w(town,ws.minutes,[n.role for n in ws.residents],[n.role for n in ws.present],[ (n.role,n.away_until) for n in ws.residents if n not in ws.present])
     ws.on_buy(ActionIntent(kind="buy",ware="a house"),"buy a house"); w("coins",c.coins, ws.player.homes.keys())
-    if town=="valecourt":
+    if town=="lethoria":
         ws.show_shop()
         ws.on_buy(ActionIntent(kind="buy",ware="Kingsfall"),"buy Kingsfall"); w("pack",[i.name for i in ws.pack], ws.player.relics_bought)
         ws.show_shop()
-ws.enter("home_valecourt"); w("at",ws.place.name,ws.place.type, ws.can_store(), ws.has_room())
+ws.enter("home_lethoria"); w("at",ws.place.name,ws.place.type, ws.can_store(), ws.has_room())
 for u in ["garden","strongroom","workshop","hearth"]:
     ws.on_buy(ActionIntent(kind="buy",ware=u),f"buy a {u}")
 w(ws.player.homes, ws.stash_cap(), ws.place.stations)
-ws.enter("valecourt"); ws.enter("home_valecourt"); w("pack",len(ws.pack))
+ws.enter("lethoria"); ws.enter("home_lethoria"); w("pack",len(ws.pack))
 ws.show_home()
 # reload
 from scenes.world import WorldScene

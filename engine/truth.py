@@ -527,7 +527,7 @@ def coined(text: str, given: str, known=frozenset()) -> str:
 
 def absent_here(text: str, given: str) -> str:
     """A building the speech treats as being here when WHAT THIS TOWN HAS says the town has none: the town line, or ''. Spoken of as
-    elsewhere ('the smithy in Valecourt') or as missing ('there's no smithy') is fine."""
+    elsewhere ('the smithy in Lethoria') or as missing ('there's no smithy') is fine."""
     absent = {}
     for kind, line in re.findall(r"^\s*-?\s*(\w+): ((?:no \w+ building in|none in) .*)$", given, re.M):
         absent[kind] = f"{kind}: {line}"

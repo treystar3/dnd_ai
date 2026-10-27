@@ -1,10 +1,10 @@
-# RIVIA - world overview
+# MERAVIA - world overview
 #
 # Reference material for the engine and NPCs. The player never reads these files;
 # they learn everything through what they see, who they talk to, and what they find.
 # Anything marked "invented" was suggested, not decided - rename or cut freely.
 
-name: Rivia
+name: Meravia
 
 summary: >
   A traditional high-fantasy land of kingdoms, wild country and old ruins, where
@@ -17,7 +17,7 @@ start_location: south_fields
 # Who-knows-what groups. Every fact in lore.yaml says which of these know it.
 # NPCs only know facts tagged for groups they belong to.
 knowledge_groups:
-  everyone: Anyone living in Rivia.
+  everyone: Anyone living in Meravia.
   parth_locals: People who live in or around Parth.
   shepherds: Shepherds and herders.
   hunters: Hunters and trappers.
@@ -41,7 +41,7 @@ knowledge_groups:
   dunmarrow_locals: People of Dunmarrow and the Deep Roads.
   brinewatch_locals: People of Brinewatch and the drowned coast.
   amaranth_locals: People of Amaranth and the Jade Maw.
-  valecourt_locals: People of Valecourt and the royal vales.
+  lethoria_locals: People of Lethoria and the royal vales.
   thalassor_locals: People of Thalassor and the Gloaming Coast.
   skarnhelm_locals: People of Skarnhelm and the Rimelands.
   kelpmoor_locals: People of Kelpmoor and the Saltmarches.

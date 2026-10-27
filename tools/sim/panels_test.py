@@ -159,12 +159,12 @@ check("...away from it, what you own and nothing to build", panels[-1][0] == "ho
 
 # ---- 9. the town's regard, what is said, the other towns, the titles
 day = clock.day(ws.minutes)
-ws.player.reputation.update({"parth": 23, "valecourt": 51, "riverhaven": -26, "greywood": 40, "road_abc": 30})
+ws.player.reputation.update({"parth": 23, "lethoria": 51, "riverhaven": -26, "greywood": 40, "road_abc": 30})
 standing.add(ws.player, "parth", "guild", 35, day)
 ws.player.titles = ["Wolfsbane of Parth"]
 sd = ws.standing_data()
 check("the Standing pane gets this town's regard as a number and a word, and its groups", not sd["wild"] and sd["town"] == "Parth" and sd["value"] == 23 and sd["word"] and any(g["value"] == 35 and g["word"] for g in sd["groups"]), sd)
-check("...the other towns that have an opinion, towns only, strongest first", [e["name"] for e in sd["elsewhere"]] == ["Valecourt", "Riverhaven"], sd["elsewhere"])
+check("...the other towns that have an opinion, towns only, strongest first", [e["name"] for e in sd["elsewhere"]] == ["Lethoria", "Riverhaven"], sd["elsewhere"])
 check("...and the titles", sd["titles"] == ["Wolfsbane of Parth"])
 check("...and what is said of you here, numbered for Correct", isinstance(sd["rumors"], list) and all({"n", "text"} <= set(r) for r in sd["rumors"]))
 ws.show_standing()

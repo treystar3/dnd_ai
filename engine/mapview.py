@@ -1,4 +1,4 @@
-"""The map: the world's settlements and wild places drawn on the illustrated map of Rivia.
+"""The map: the world's settlements and wild places drawn on the illustrated map of Meravia.
 
 Where a place sits is in data/world/map.yaml (0-1000, x to the right, y down, north up); a place with no entry there falls back to its own
 x and y in places.yaml, and last to a spring layout of the travel times (always the same). The road shapes are in data/world/map_roads.json.

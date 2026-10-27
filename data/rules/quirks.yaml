@@ -50,7 +50,7 @@ curses:
   strong: ["shit", "piss", "fuck", "arse"]
   pick: 3          # how many a cursing hire has for their own
 
-# ---- English is not their first language. Each tongue has a home in Rivia, a few consistent grammar habits, and its own words, always used
+# ---- English is not their first language. Each tongue has a home in Meravia, a few consistent grammar habits, and its own words, always used
 # for the same thing. The engine supplies the words and their meanings; the model may use no others.
 tongues:
   rime:

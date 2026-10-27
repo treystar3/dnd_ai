@@ -441,10 +441,17 @@ def repeat_manner(member: dict) -> str:
 
 # ---------- gestures ----------
 
-GESTURE_RULE = ("Gesture is optional and usually blank. It is written about them, as someone watching would put it ('adjusts the strap of the "
-                "pack'), never as they would say it ('I adjust'). Use one only when body language adds meaning the words do not. Use only the character's "
-                "body, known possessions, or objects explicitly present in the scene. Never invent furniture, walls, weather, scenery, or held "
-                "objects for a gesture.")
+# (f344) A tester's Maren had a hand on her sword hilt in half her lines: her only example gesture was the hilt, and the sword her only
+# prop. The frames are now shown what is really within reach and how tense the moment is (engine/reach.py), and hands follow those.
+HANDS_RULE = ("Hands: what a character does as they speak comes from WITHIN REACH and THE MOMENT, never from habit. Many lines need "
+              "nothing, or only a look or a pause. When their hands do something, it is something within reach that fits what is said or "
+              "what they were doing: their own work, the thing being talked about, what the place offers. In a tense moment a hand may "
+              "rest on a weapon and stay there for as long as the tension lasts; in an easy one, the weapon is left alone.")
+
+GESTURE_RULE = ("Gesture is optional and usually blank. It is written about them, as someone watching would put it ('looks away down the "
+                "road'), never as they would say it ('I look away'). Use one only when body language adds meaning the words do not. Use only the "
+                "character's body, known possessions, or objects explicitly present in the scene. Never invent furniture, walls, weather, scenery, "
+                "or held objects for a gesture. They handle a possession only when the moment gives them a reason to, never as something to do.")
 GESTURE_GAP = 3          # a speaker's gesture is shown at most once in this many of their lines
 GESTURE_KEEP = 12        # the gestures remembered for each speaker, for the whole save
 

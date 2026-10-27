@@ -15,10 +15,12 @@ from urllib.parse import parse_qs, urlparse
 from ui.gui.bridge import PINNABLE
 
 WEB = (paths.BUNDLE / "ui" / "gui" / "web") if paths.FROZEN else Path(__file__).resolve().parent / "web"
-STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg"}
+STATIC = {"/app.js": "text/javascript; charset=utf-8", "/style.css": "text/css; charset=utf-8", "/map.jpg": "image/jpeg",
+          "/home_bg.jpg": "image/jpeg"}     # (f345) the home page's backdrop: the map without its names, cropped past the west coast
 for _f in ("literata-latin-400-normal", "literata-latin-400-italic", "literata-latin-600-normal", "literata-latin-700-normal"):
     STATIC[f"/fonts/{_f}.woff2"] = "font/woff2"                       # (f326) the reading face for the story column
-PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}, "measure": "full"}
+STATIC["/fonts/cinzel-decorative-latin-700-normal.woff2"] = "font/woff2"   # (f345) the game's name on the home page
+PREF_DEFAULTS = {"pinned": "#character", "width": 400, "hidden": False, "theme": "dark", "order": [], "text": {}, "measure": "full"}
 MEASURES = ("narrow", "book", "wide", "full")       # the story column's width (app.js MEASURES): full stretches to the pane's edges
 TEXT_KINDS = ("narration", "speech", "speaker", "note", "wait", "combat", "echo", "pane")   # what the Settings pane styles (app.js TEXT_KINDS)
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")

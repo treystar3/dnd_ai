@@ -3,7 +3,7 @@
 # the order of steps, the places, the fights and the reward; the model never decides what the truth is.
 
 gate: {level: 50, contact_hours: [24, 48]}
-keeper_city: valecourt
+keeper_city: lethoria
 coin: {id: order_coin, name: the half-circle coin, description: "A small coin stamped with a half-circle and a single line cut straight down through it. The mark of those who remember."}
 contact_name: Odrin Kesh
 
@@ -34,7 +34,7 @@ ruin:
         - {kind: cache}
         - {kind: fight, creature: hall_guardian, count: 1, name: ""}
       mural: >
-        The first walls are carved with the peoples of Rivia as you know them: elves, dwarves, humans, goliaths, orcs, gnomes. But
+        The first walls are carved with the peoples of Meravia as you know them: elves, dwarves, humans, goliaths, orcs, gnomes. But
         they stand in rows of identical figures, hands at their sides and eyes empty, tending fires, fields and forges. Above each
         row a single large figure is carved, a god, one to each trade. Nothing here is carved as worship. Nothing here is carved as
         love. The temples teach that the gods shaped the peoples out of love. These walls say the peoples were made to work, and did.
@@ -108,8 +108,8 @@ trails:
     arrive: "In {city}, a woman named Perrin Aldahl wrote to the temple of her city, laying out what she had read in the ruin. She died within the week."
     check: insight
     results:
-      strong success: "The temple clerk breaks and tells you everything: the letter was copied that same day and sent on to the High Keeper's office at Valecourt. The reply came back before the week was out, and it was one word: 'Proceed.'"
-      success: "The clerk admits the letter was sent on to Valecourt, to the office of the High Keeper. A reply came back in four days. He will not say what it said."
+      strong success: "The temple clerk breaks and tells you everything: the letter was copied that same day and sent on to the High Keeper's office at Lethoria. The reply came back before the week was out, and it was one word: 'Proceed.'"
+      success: "The clerk admits the letter was sent on to Lethoria, to the office of the High Keeper. A reply came back in four days. He will not say what it said."
       partial: "The clerk says only that the letter went on to a higher office. He will not say which."
       failure: "The clerk says the letter was filed, and shows you an empty drawer."
     lore: orenna_trail_letter
@@ -118,7 +118,7 @@ trails:
     arrive: "In {city}, a young man named Tessaly Murn sent a warning to a friend in a far city. He was dead before any rider could have reached it."
     check: lore
     results:
-      strong success: "You work out how it could be done: every temple of the Sun Warden keeps a ledger of what its faithful say, and sends a summary up to Valecourt on a fast relay. Whoever reads those ledgers knew before anyone else could."
+      strong success: "You work out how it could be done: every temple of the Sun Warden keeps a ledger of what its faithful say, and sends a summary up to Lethoria on a fast relay. Whoever reads those ledgers knew before anyone else could."
       success: "You find that the faith's temples report to one office, and that the reports travel faster than any ordinary rider. Someone read the warning before its own recipient."
       partial: "You learn the message arrived late. Someone else read it first, and you cannot say who."
       failure: "The courier records are missing a page, and you cannot say whose hand removed it."
@@ -145,12 +145,12 @@ executioner:
 
 registry:
   arrive: >
-    The register of bound services at Valecourt is kept in a cool archive beneath the royal chapel. The clerk who guards it owes
+    The register of bound services at Lethoria is kept in a cool archive beneath the royal chapel. The clerk who guards it owes
     you nothing and knows it. What you need is a sworn man, a champion of the Sun Warden, bound for life to the holder of a seal.
   check: lore
   results:
-    strong success: "The page has been cut and replaced with a new one, but the binder's thread is the old thread. The seal-maker's own ledger names the holder: the High Keeper of Valecourt, who has held it for twenty-two years."
-    success: "The holder's name has been scraped from the register, but the seal-maker's ledger lists it: the High Keeper of Valecourt."
+    strong success: "The page has been cut and replaced with a new one, but the binder's thread is the old thread. The seal-maker's own ledger names the holder: the High Keeper of Lethoria, who has held it for twenty-two years."
+    success: "The holder's name has been scraped from the register, but the seal-maker's ledger lists it: the High Keeper of Lethoria."
     partial: "The register is wrong in a way you can see but not read. Combined with the letters and the ledgers you already have, it can only mean one office."
     failure: "The register has been burned along one edge. You will have to confront him without it."
   lore: orenna_registry

@@ -479,11 +479,13 @@ class PartyActions:
                                                                                  if o is not m and o.get("permanent") and not o.get("story")][:3]
             looks = f"({(m.get('people') or 'human').replace('_', '-')} {m.get('role', '')}, rank {m.get('rank', 'F')}) {m.get('blurb', '')}".strip()
             doing = "in the fight beside the player" if in_fight else "travelling with the player, close at hand"
+            from engine import quirks as _q, reach              # (f344) what they carry and what the place offers; tense in a fight
+            within = reach.within("", self.place.type, carries=[x.strip() for x in _q.CARRY.get(m.get("role", ""), "").split(",") if x.strip()])
             try:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
-                                                  P["frame"]["fight" if in_fight else "talk"]),
+                                                  P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight)),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400)
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)

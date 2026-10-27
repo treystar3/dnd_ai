@@ -163,6 +163,7 @@ Rules:
   dialogue of your own. No one else speaks.
 - Call the character only by HOW THE PLAYER KNOWS THEM.
 - If the character is leaving, "after" shows them going.
+- """ + __import__("engine.quirks", fromlist=["HANDS_RULE"]).HANDS_RULE + """
 - Plain prose, no quotation marks, no markdown.
 Respond only with JSON matching the schema."""
 
@@ -171,24 +172,26 @@ EXCHANGE_SYSTEM = DM_VOICE + """
 You are framing a short exchange between several people. The game will print their spoken lines between your two pieces of prose,
 exactly as given - you never repeat them, quote them, paraphrase them or add to them, and nobody else speaks.
 
-before: how they fall into talking - where they are, what they are doing with their hands, who looks at whom - built only from the scene.
+before: how they fall into talking - where they are, what they are doing, who looks at whom - built only from the scene.
 after: how the talk ends or trails off, and when it fits, the place around them: the road, the fire, the room, the weather.
 
 Keep it proportionate: FRAME LENGTH in the scene sets the most you may write. Never repeat details already used in RECENT NARRATION.
 Rules:
 - Describe only what the SCENE contains. Never add people, items, events or dialogue of your own.
 - Call people only by the names given.
+- """ + __import__("engine.quirks", fromlist=["HANDS_RULE"]).HANDS_RULE + """
 - Plain prose, no quotation marks, no markdown.
 Respond only with JSON matching the schema."""
 
 
 def exchange_request(time_label: str, place, speakers: list[str], others: list[str], first: str, last: str, recent: list[str],
-                     frame: str, player: str = "") -> str:
+                     frame: str, player: str = "", reach: list[str] | None = None, moment: str = "easy") -> str:
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
         f"WHO IS TALKING: {'; '.join(speakers)}\nOTHERS PRESENT: {'; '.join(others) or 'no one else'}\n"
-        + (f"THE PLAYER: {player}\n" if player else "") + f"FRAME LENGTH: {frame}\n\n"
+        + (f"THE PLAYER: {player}\n" if player else "") + f"FRAME LENGTH: {frame}\nTHE MOMENT: {moment}\n"
+        f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n\n"
         f'THE FIRST LINE (printed by the game, do not repeat): "{first}"\n'
         f'THE LAST LINE (printed by the game, do not repeat): "{last}"\n'
         "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in recent[-3:]) or "  (none)")
@@ -197,12 +200,14 @@ def exchange_request(time_label: str, place, speakers: list[str], others: list[s
 
 def dialogue_request(time_label: str, place, others: list[str], who: str, looks: str, doing: str,
                      manner: str, first: bool, player_did: str, speech: str, gesture: str, leaving: bool,
-                     recent: list[str], frame: str = "up to three sentences before, two after") -> str:
+                     recent: list[str], frame: str = "up to three sentences before, two after", reach: list[str] | None = None,
+                     moment: str = "easy") -> str:
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
-        f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\nFRAME LENGTH: {frame}\n\n"
+        f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\nFRAME LENGTH: {frame}\nTHE MOMENT: {moment}\n\n"
         f"THE CHARACTER\nHOW THE PLAYER KNOWS THEM: {who}\nLOOKS: {looks}\nWAS DOING: {doing}\nMANNER: {manner}\n"
+        f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n"
         f"{'This is the first time the player has spoken to them.' if first else 'They are already talking.'}\n\n"
         f'THE PLAYER DID: "{player_did}"\n'
         f'THEY WILL SAY (printed by the game, do not repeat): "{speech}"\n'

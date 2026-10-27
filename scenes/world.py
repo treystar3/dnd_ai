@@ -88,7 +88,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner: NPC | None = None
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
-        self.restart = False          # #newgame: the run loop ends and main.py starts character creation again
+        self.restart = False          # #newgame: the run loop ends and main.py starts a new character in a save of its own
+        self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.recent_narration: list[str] = []
         self.last_text = ""
         self.buffering = False        # several actions in one message: narrate them together
@@ -421,7 +422,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def apply_backfill(self) -> None:
         """Add any people the background job has finished to the scene."""
-        if not backfill.pending():
+        if not backfill.pending(store=self.store):
             return
         if self.player.location in backfill.collect(self.store, self.world, self.catalog):
             here = self.store.load_place(self.player.location)
@@ -505,7 +506,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
                     console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
-                if self.restart:
+                if self.restart or self.to_menu:
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
@@ -1148,11 +1149,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.store.save_player(self.player)
             console.note("\n".join(loadout.lines(c, clock.day(self.minutes), bool(self.combat))))
         elif name == "newgame":
-            console.note("Start a new character? Your current game is not deleted: it is set aside as a backup in the saves folder. (y/n)")
+            console.note("Start a new character? This game stays saved, and you can come back to it from the main menu. (y/n)")
             if console.ask().lower() in ("y", "yes"):
                 self.restart = True
             else:
                 console.note("Cancelled.")
+        elif name in ("menu", "mainmenu", "saves"):
+            if self.combat:                                         # (f345) a fight is saved every round, but it is not left mid-blow
+                console.note("Not in the middle of a fight. Finish it, or flee, first.")
+            else:
+                console.note("Saved.")
+                self.to_menu = True
         elif name.split()[0] == "attradd":
             self.attribute_click(name.split()[1] if len(name.split()) > 1 else "")
         elif name.split()[0] in ("allocate", "alloc", "assign"):
@@ -1840,16 +1847,34 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         people = list(self.present) + ([self.partner] if getattr(self, "partner", None) else []) + [x for x in extra if x]
         return markup.hide_names(text, people)
 
+    def reach_of(self, npc) -> tuple[list[str], str]:
+        """(f344) What this townsperson can lay hands on now, and how tense the moment is (engine/reach.py)."""
+        from engine import law, reach
+        role = self.world.roles.get(npc.role)
+        wares = [w.name for w in role.sells] if role else []
+        wares += [i.name for n, i, _ in self.stock_here() if n.id == npc.id]
+        try:
+            ground = [inv.label(i) for i in self.ground_here()]
+        except Exception:
+            ground = []
+        try:
+            heat = law.tier(self.heat_here())
+        except Exception:
+            heat = ""
+        return (reach.within(npc.role, self.place.type, wares=wares, ground=ground),
+                reach.moment(npc.role, getattr(npc, "trust", None), heat, fight=bool(self.combat)))
+
     def narrate_dialogue(self, npc, known_as: str, speaker: str, player_did: str, reply, first: bool) -> None:
         others = [self.unnamed(f"{n.label()}: {n.activity}", npc) for n in self.present if n.id != npc.id][:5]
         manner = self.unnamed(f"{npc.personality} {npc.voice}".strip(), npc) or "unknown yet"
+        within, moment = self.reach_of(npc)
         try:
             frame = fresh(
                 "dialogue_frame", wp.DIALOGUE_SYSTEM,
                 wp.dialogue_request(self.time_label(), self.place, others, known_as, self.unnamed(npc.description, npc), self.unnamed(npc.activity, npc),
                                     manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
                                     reply.intent == "leave", self.recent_narration,
-                                    voice_rules.npc(getattr(self, "npc_level", "short"))["frame"]),
+                                    voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
             )
         except LLMError:

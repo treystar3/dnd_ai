@@ -9,7 +9,7 @@ from ui.gui.bridge import Bridge
 from ui.gui import server
 
 
-def launch(game, title: str = "dnd_ai") -> None:
+def launch(game, title: str = "Meravia") -> None:
     """Run game() on a background thread behind a local server and show the page in a window (or the default browser)."""
     bridge = Bridge()
     real_out = sys.stdout
@@ -47,7 +47,8 @@ def launch(game, title: str = "dnd_ai") -> None:
 def _window(bridge, url, title, game_thread) -> None:
     try:
         import webview
-        window = webview.create_window(title, url, width=1320, height=860, min_size=(900, 560), text_select=True)
+        window = webview.create_window(title, url, width=1320, height=860, min_size=(900, 560), text_select=True,
+                                       background_color="#14110f")      # the dark theme's ground, so the window opens dark
         window.events.closed += bridge.close
 
         def watch():

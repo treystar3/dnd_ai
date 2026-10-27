@@ -123,7 +123,7 @@ cracked_plains:
   main:
     - {name: the cracked flat, tags: [open]}
   side:
-    - {name: a fissure lip, tags: [cover, hazardous]}
+    - {name: a heaved ridge of baked crust, tags: [cover, hazardous]}
     - {name: a tilted slab, tags: [elevated], way: climb}
     - {name: a dust gully, tags: [cover, difficult]}
 

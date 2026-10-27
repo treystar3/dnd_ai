@@ -71,6 +71,6 @@ if sys.platform == "win32":
     check("install runs the installer and goes on", sc.ensure_ready() is True and installed["n"] == 1, shown)
 else:
     print("note: the install button is Windows-only; skipped on this system")
-os.environ["DND_SKIP_SETUP"] = "1"; state.update(up=False, path="", model=False)
+os.environ["MERAVIA_SKIP_SETUP"] = "1"; state.update(up=False, path="", model=False)
 check("the skip switch passes straight through", sc.ensure_ready() is True)
 print("FAILED" if bad else "ALL PASS", bad); sys.exit(1 if bad else 0)

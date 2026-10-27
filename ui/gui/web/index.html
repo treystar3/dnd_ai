@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>dnd_ai</title>
+<title>Meravia</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -30,7 +30,7 @@
       <div id="sidetitle"></div>
       <div id="sidetools">
         <button id="pin" title="Pin this view: it refreshes after every turn">📌</button>
-        <button id="theme" title="Colour theme: auto follows Windows">◐</button>
+        <button id="theme" title="Colour theme: dark">◐</button>
         <button id="hide" title="Hide this pane">▸</button>
       </div>
     </div>
@@ -39,6 +39,16 @@
   <button id="show" hidden title="Show the info pane">◂ Info</button>
 </div>
 <div id="update" hidden><div class="card"><h2 id="updtitle"></h2><div id="updnotes"></div><div id="updbar" hidden><div id="updfill"></div></div><div id="updtext"></div><div id="updbtns"></div></div></div>
+<div id="homepage" hidden>   <!-- (f345) the home page: app.js showHome; the game sends it before any game is open, and on #menu -->
+  <div class="home-map" aria-hidden="true"></div>
+  <div class="home-inner">
+    <header class="home-head"><h1 id="hometitle"></h1><div id="homesub"></div></header>
+    <section id="homemain"><div id="homecontinue"></div><nav id="homebtns" class="home-menu"></nav></section>
+    <section id="homegames" hidden><div class="home-subhead"><button class="home-back">‹ Back</button><h2>Your games</h2></div><div id="homelist"></div></section>
+    <section id="homeprefs" hidden><div class="home-subhead"><button class="home-back">‹ Back</button><h2>Settings</h2></div><div id="homeprefsbody"></div></section>
+    <footer id="homever"></footer>
+  </div>
+</div>
 <div id="setup" hidden><div class="card"><h2 id="setuptitle"></h2><div id="setuplines"></div><div id="setupbar" hidden><div id="setupfill"></div></div><div id="setuptext"></div><div id="setupbtns"></div></div></div>
 <script>window.TOKEN = "__TOKEN__";</script>
 <script src="/app.js"></script>

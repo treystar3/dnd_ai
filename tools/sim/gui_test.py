@@ -133,8 +133,8 @@ got = sse(1, after=last_id - 1)
 check("SSE resumes after Last-Event-ID", got[0] == b.log[-1][1])
 
 # ---- prefs ----
-check("prefs default", json.loads(req("/prefs")[1]) == {"pinned": "#character", "width": 400, "hidden": False, "theme": "auto", "order": [], "text": {}, "measure": "full"})
-check("prefs saved", json.loads(req("/prefs", {"width": 520, "hidden": True, "pinned": None, "junk": 1})[1]) == {"pinned": None, "width": 520, "hidden": True, "theme": "auto", "order": [], "text": {}, "measure": "full"})
+check("prefs default", json.loads(req("/prefs")[1]) == {"pinned": "#character", "width": 400, "hidden": False, "theme": "dark", "order": [], "text": {}, "measure": "full"})
+check("prefs saved", json.loads(req("/prefs", {"width": 520, "hidden": True, "pinned": None, "junk": 1})[1]) == {"pinned": None, "width": 520, "hidden": True, "theme": "dark", "order": [], "text": {}, "measure": "full"})
 check("the story column's width is a preference, and only a known one", json.loads(req("/prefs", {"measure": "book"})[1])["measure"] == "book" and req("/prefs", {"measure": "huge"})[0] == 400 and json.loads(req("/prefs", {"measure": "full"})[1])["measure"] == "full")
 text = {"speech": {"size": 19, "dark": "#aabbcc"}, "pane": {"light": "#112233"}}
 check("text settings (size and colour by kind, colour per theme) are saved and come back", json.loads(req("/prefs", {"text": text})[1])["text"] == text and server.load_prefs()["text"] == text)

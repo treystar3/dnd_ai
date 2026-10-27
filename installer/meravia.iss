@@ -2,7 +2,8 @@
 ; Installs the game for the current user (no administrator needed), adds shortcuts, and offers to install Ollama (and Microsoft's WebView2
 ; window component) when they are missing. The AI model itself is downloaded by the game on first launch, with a progress bar.
 
-#define AppName "dnd_ai"
+#define AppName "Meravia"
+#define AppExe "Meravia.exe"
 #ifndef AppVersion
   #define AppVersion "0.0.1"
 #endif
@@ -15,34 +16,87 @@ DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputBaseFilename=dnd_ai_{#AppVersion}_setup
+OutputBaseFilename=Meravia_{#AppVersion}_setup
 OutputDir=Output
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 DisableProgramGroupPage=yes
-UninstallDisplayIcon={app}\dnd_ai.exe
+UninstallDisplayIcon={app}\{#AppExe}
 
 [Tasks]
 Name: "ollama"; Description: "Install Ollama, the free local AI program the game needs (about 1 GB; skipped if you already have it)"; Check: not OllamaInstalled
 Name: "desktopicon"; Description: "Add a desktop shortcut"; Flags: unchecked
 
 [Files]
-Source: "..\dist\dnd_ai\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
+Source: "..\dist\Meravia\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\dnd_ai.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\dnd_ai.exe"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
 Filename: "{tmp}\OllamaSetup.exe"; Parameters: "/SILENT /NORESTART"; StatusMsg: "Installing Ollama (Windows may ask for permission)..."; Check: HaveOllamaSetup
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing the window component..."; Check: HaveWebView2Setup
-Filename: "{app}\dnd_ai.exe"; Flags: nowait; Check: WizardSilent
-Filename: "{app}\dnd_ai.exe"; Description: "Start the game (it will download its AI model the first time)"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Flags: nowait; Check: WizardSilent
+Filename: "{app}\{#AppExe}"; Description: "Start the game (it will download its AI model the first time)"; Flags: nowait postinstall skipifsilent
 
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+
+{ An upgrade over a build whose exe had another name: that exe is removed, and so is any shortcut of ours in the Start menu or on
+  the desktop that still points at it, so no shortcut can start the old build (which would offer the same update for ever). The
+  uninstaller (unins*.exe) is left alone. AppId is unchanged, so an upgrade installs into the same folder and the saves in it stay. }
+procedure RemoveStaleExes;
+var
+  F: TFindRec;
+begin
+  if FindFirst(ExpandConstant('{app}\*.exe'), F) then
+  try
+    repeat
+      if (CompareText(F.Name, '{#AppExe}') <> 0) and (CompareText(Copy(F.Name, 1, 5), 'unins') <> 0) then
+        DeleteFile(ExpandConstant('{app}\') + F.Name);
+    until not FindNext(F);
+  finally
+    FindClose(F);
+  end;
+end;
+
+procedure RemoveStaleShortcuts(const Dir: String);
+var
+  F: TFindRec;
+  Shell, Link: Variant;
+  Target: String;
+begin
+  try
+    Shell := CreateOleObject('WScript.Shell');
+  except
+    Exit;
+  end;
+  if FindFirst(Dir + '\*.lnk', F) then
+  try
+    repeat
+      Link := Shell.CreateShortcut(Dir + '\' + F.Name);
+      Target := Link.TargetPath;
+      if (CompareText(ExtractFilePath(Target), AddBackslash(ExpandConstant('{app}'))) = 0)
+         and (CompareText(ExtractFileName(Target), '{#AppExe}') <> 0) then
+        DeleteFile(Dir + '\' + F.Name);
+    until not FindNext(F);
+  finally
+    FindClose(F);
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+  begin
+    RemoveStaleExes;
+    RemoveStaleShortcuts(ExpandConstant('{autoprograms}'));
+    RemoveStaleShortcuts(ExpandConstant('{autodesktop}'));
+  end;
+end;
 
 function HaveOllamaSetup: Boolean;
 begin

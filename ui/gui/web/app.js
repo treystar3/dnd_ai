@@ -4,10 +4,10 @@ const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
 const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"], ["Places", "#exits"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
-  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"]];
+  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"], ["Main menu", "#menu"]];
 
 const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
-const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [], text: {}, measure: "full" } };
+const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "dark", order: [], text: {}, measure: "full" } };
 
 async function api(path, body) {
   try {
@@ -236,7 +236,7 @@ document.addEventListener("mouseover", (e) => {
   if (t && tipMap[t.dataset.tip]) showLines(tipMap[t.dataset.tip], e.clientX, e.clientY);
 });
 
-// ---------- map pane: the illustrated map of Rivia with fog of war; hover or tap a place for its levels, Go to travel; drag to pan, wheel to zoom ----------
+// ---------- map pane: the illustrated map of Meravia with fog of war; hover or tap a place for its levels, Go to travel; drag to pan, wheel to zoom ----------
 let mapView = null;
 function renderMap(d) {
   const NS = "http://www.w3.org/2000/svg";
@@ -939,7 +939,7 @@ function sampleOf(kind) {
   else w.appendChild(el("div", "", "Inventory · 3 healing draughts · a copper longsword"));
   return w;
 }
-function kindRow(kind, text) {
+function kindRow(kind, text, repaint) {
   const [, label, dflt] = TEXT_KINDS.find((x) => x[0] === kind);
   const theme = activeTheme(), spec = text[kind] || {};
   const row = el("div", "kind"), hd = el("div", "hd");
@@ -956,18 +956,18 @@ function kindRow(kind, text) {
     text[kind] = { ...(text[kind] || {}) }; if (v === dflt) delete text[kind].size; else text[kind].size = v; tidy(); save();
   };
   colour.oninput = () => { text[kind] = { ...(text[kind] || {}), [theme]: colour.value }; save(); };
-  reset.onclick = () => { if (text[kind]) { delete text[kind].size; delete text[kind][theme]; tidy(); } save(); paintSide(); };
+  reset.onclick = () => { if (text[kind]) { delete text[kind].size; delete text[kind][theme]; tidy(); } save(); repaint(); };
   hd.append(range, px, colour, reset);
   row.append(hd, sampleOf(kind));
   return row;
 }
-function renderSettings() {
+function renderSettings(into = side, repaint = paintSide) {     // the side pane's view, and the home page's Settings
   const box = el("div", "settings");
   box.appendChild(el("h3", "", "Theme"));
   const themes = el("div", "themes");
   for (const [t, label] of [["auto", "Auto (follows Windows)"], ["dark", "Dark"], ["light", "Light"]]) {
     const b = el("button", state.prefs.theme === t ? "on" : "", label);
-    b.onclick = () => { state.prefs.theme = t; applyTheme(); setPrefs({ theme: t }); paintSide(); };
+    b.onclick = () => { state.prefs.theme = t; applyTheme(); setPrefs({ theme: t }); repaint(); };
     themes.appendChild(b);
   }
   box.appendChild(themes);
@@ -975,7 +975,7 @@ function renderSettings() {
   const widths = el("div", "themes");
   for (const [m, label] of MEASURES) {
     const b = el("button", (state.prefs.measure || "full") === m ? "on" : "", label);
-    b.onclick = () => { state.prefs.measure = m; applyMeasure(); setPrefs({ measure: m }); paintSide(); };
+    b.onclick = () => { state.prefs.measure = m; applyMeasure(); setPrefs({ measure: m }); repaint(); };
     widths.appendChild(b);
   }
   box.appendChild(widths);
@@ -983,13 +983,13 @@ function renderSettings() {
   box.appendChild(el("h3", "", "Text"));
   box.appendChild(el("div", "hint", `Size is shared by both themes. A colour is kept for the ${activeTheme()} theme you are in now; ↺ puts back the theme's own.`));
   const text = state.prefs.text || {};
-  for (const [k] of TEXT_KINDS) box.appendChild(kindRow(k, text));
+  for (const [k] of TEXT_KINDS) box.appendChild(kindRow(k, text, repaint));
   const all = el("div", "all");
   const reset = el("button", "", "Reset all text settings");
-  reset.onclick = () => { state.prefs.text = {}; applyText(); setPrefs({ text: {} }); paintSide(); };
+  reset.onclick = () => { state.prefs.text = {}; applyText(); setPrefs({ text: {} }); repaint(); };
   all.appendChild(reset);
   box.appendChild(all);
-  side.appendChild(box);
+  into.appendChild(box);
 }
 $("theme").onclick = () => {
   const next = { auto: "dark", dark: "light", light: "auto" }[state.prefs.theme] || "auto";
@@ -1280,6 +1280,109 @@ function setupProgress(frac, text) {
   $("setuptext").textContent = text;
 }
 
+// ---------- (f345) the home page: Continue, New game, every saved game with Load and Delete, Quit ----------
+// Every choice goes back to the game as a hidden line ("home:load:<save>"); scenes/home.py reads it. Delete asks here first.
+function homeSend(text) {
+  document.querySelectorAll("#homepage button").forEach((b) => (b.disabled = true));
+  api("/input", { text });
+}
+function homeMeta(s) {
+  return [s.where, s.when, s.played_label ? "played " + s.played_label : ""].filter(Boolean).join(" · ");
+}
+let homeData = null, homeView = "menu";                      // menu, quit (asked), load, settings
+function showHome(d) {
+  homeData = d;
+  $("homepage").hidden = false;
+  $("hometitle").textContent = d.title || "";
+  if (d.title) document.title = d.title;
+  $("homesub").textContent = d.subtitle || "";
+  $("homever").textContent = d.version ? "Version " + d.version : "";
+  if (homeView === "load" && !d.saves.length) homeView = "menu";   // the last game was just deleted: nothing left to list
+  document.querySelectorAll("#homepage .home-back").forEach((b) => (b.disabled = false));   // homeSend disabled them while the game answered
+  drawHome();
+}
+function homeGo(view) { homeView = view; drawHome(); }
+function drawHome() {
+  const d = homeData, onMenu = homeView === "menu" || homeView === "quit";
+  $("homemain").hidden = !onMenu;
+  $("homegames").hidden = homeView !== "load";
+  $("homeprefs").hidden = homeView !== "settings";
+  if (onMenu) drawHomeMenu(d);
+  else if (homeView === "load") drawHomeGames(d);
+  else { const box = $("homeprefsbody"); box.textContent = ""; renderSettings(box, drawHome); }
+  updateInput();
+}
+function drawHomeMenu(d) {
+  const cont = $("homecontinue"); cont.textContent = "";
+  if (d.continue) {
+    const b = el("button", "home-continue", "");
+    b.append(el("div", "label", "Continue"), el("div", "who", d.continue.line), el("div", "meta", homeMeta(d.continue)));
+    b.onclick = () => homeSend("home:continue");
+    cont.appendChild(b);
+  }
+  const menu = $("homebtns"); menu.textContent = "";
+  if (homeView === "quit") {                                // asked here, in place of the menu
+    const yes = el("button", "danger", "Quit"), no = el("button", "", "Stay");
+    yes.onclick = () => homeSend("home:quit");
+    no.onclick = () => homeGo("menu");
+    menu.append(el("div", "ask", "Quit the game?"), yes, no);
+    no.focus();
+    return;
+  }
+  const item = (label, go, cls) => { const b = el("button", cls || "", label); b.onclick = go; menu.appendChild(b); return b; };
+  item("New game", () => homeSend("home:new"), d.continue ? "" : "primary");     // with nothing to continue, New game is the way in
+  if (d.saves.length) item("Load", () => homeGo("load"));                         // only when there is a game to load
+  item("Settings", () => homeGo("settings"));
+  item("Quit", () => homeGo("quit"));
+}
+function drawHomeGames(d) {
+  const list = $("homelist"); list.textContent = "";
+  for (const s of d.saves) {
+    const row = el("div", "home-row" + (s.ready ? "" : " unready"), "");
+    const text = el("div", "text", "");
+    const meta = el("div", "meta", s.ready ? homeMeta(s) : (s.played_label ? "played " + s.played_label : ""));
+    text.append(el("div", "who", s.line || s.name), meta);
+    const btns = el("div", "btns", "");
+    const load = el("button", "", "Load"); load.disabled = !s.ready; load.onclick = () => homeSend("home:load:" + s.name);
+    const del = el("button", "danger", "Delete");
+    del.onclick = () => {                                 // asked here, in the row: the game moves to the deleted folder, it is not erased
+      meta.textContent = "Delete this game? It moves to the deleted folder; nothing is erased."; meta.className = "meta confirm";
+      btns.textContent = "";
+      const yes = el("button", "danger", "Delete"), no = el("button", "", "Keep");
+      yes.onclick = () => homeSend("home:delete:" + s.name);
+      no.onclick = () => drawHome();
+      btns.append(yes, no);
+    };
+    btns.append(load, del);
+    row.append(text, btns);
+    list.appendChild(row);
+  }
+}
+function homeEnded() {                                      // Quit: the window closes itself; a browser tab cannot, so it says so
+  homeView = "menu";
+  $("homemain").hidden = false; $("homegames").hidden = true; $("homeprefs").hidden = true;
+  $("homecontinue").textContent = "";
+  const menu = $("homebtns"); menu.textContent = "";
+  menu.appendChild(el("div", "ask", "The game has closed. You can close this window."));
+}
+document.querySelectorAll("#homepage .home-back").forEach((b) => (b.onclick = () => homeGo("menu")));
+function hideHome() {
+  if ($("homepage").hidden) return;
+  $("homepage").hidden = true;
+  homeView = "menu";                                      // the next time it opens (#menu), it opens on the menu
+  log.textContent = "";                                   // the story of the game left behind is not this character's
+  side.textContent = ""; lastView = null; $("sidetitle").textContent = "";
+  tickerClear();
+  input.focus();
+}
+document.addEventListener("keydown", (e) => {            // on the home page: Enter continues the game played last, Escape goes back
+  if ($("homepage").hidden) return;
+  if (e.key === "Escape" && homeView !== "menu") { e.preventDefault(); homeGo("menu"); return; }
+  if (e.key !== "Enter" || homeView !== "menu" || ["BUTTON", "INPUT"].includes(e.target.tagName)) return;
+  const c = document.querySelector(".home-continue");
+  if (c && !c.disabled) { e.preventDefault(); c.click(); }
+});
+
 // ---------- update available: a button in the strip; it opens a card with the release notes and an Update button ----------
 function showUpdateButton(info) {
   const b = $("updatebtn");
@@ -1324,13 +1427,15 @@ function handle(ev) {
     case "status": Strip.update(ev); if (!!ev.debug !== !!state.debug) { state.debug = !!ev.debug; renderButtons(); } break;
     case "prompt": state.prompt = true; state.atMain = !!ev.main; updateInput(); break;
     case "busy": $("busy").hidden = !ev.on; if (ev.on && nearBottom()) log.scrollTop = log.scrollHeight; break;
-    case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); break;
+    case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); if (!$("homepage").hidden) homeEnded(); break;
     case "fatal": addBlock("sys", ev.text); break;
     case "update": showUpdateButton(ev.data); break;
     case "update_progress": updateProgress(ev); break;
     case "setup": showSetup(ev.data); break;
     case "setup_progress": setupProgress(ev.frac, ev.text); break;
     case "setup_end": $("setup").hidden = true; break;
+    case "home": showHome(ev.data); break;
+    case "home_end": hideHome(); break;
   }
 }
 

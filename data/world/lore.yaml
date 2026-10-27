@@ -1,6 +1,6 @@
-# Facts about Rivia, tagged by who knows them.
+# Facts about Meravia, tagged by who knows them.
 # The Taking is a southern human custom: Riverhaven and Amaranth send out Seekers who take magic-sensitive children from the smaller
-# settlements around them (Parth, Willowmead, Greyhollow, Kelpmoor). The crown at Valecourt thinks it unbecoming and takes no child
+# settlements around them (Parth, Willowmead, Greyhollow, Kelpmoor). The crown at Lethoria thinks it unbecoming and takes no child
 # itself, but will not police another house's customs; its people look down on the south for it and keep that to themselves with
 # strangers. The further north, the more open the disdain. Eldervale, Ironvein, Frostholm, Sunspire and the far lands each see magic
 # their own way, and know the Taking only as a southern custom.
@@ -26,16 +26,16 @@
   known_by: [parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals, riverhaven_locals, amaranth_locals]
 
 - id: taking_is_southern
-  text: The Taking is the south's custom - it is Riverhaven and Amaranth that send the Seekers. The crown at Valecourt has never sent one and takes no child.
-  known_by: [valecourt_locals, nobility, scholars, merchants, riverhaven_locals, amaranth_locals, parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals]
+  text: The Taking is the south's custom - it is Riverhaven and Amaranth that send the Seekers. The crown at Lethoria has never sent one and takes no child.
+  known_by: [lethoria_locals, nobility, scholars, merchants, riverhaven_locals, amaranth_locals, parth_locals, willowmead_locals, greyhollow_locals, kelpmoor_locals]
 
 - id: crown_tolerates_taking
   text: The crown thinks the Taking unbecoming and says so only in private; in public it leaves the southern houses to their own customs, for the sake of peace, and will not police them.
-  known_by: [valecourt_locals, nobility, scholars]
+  known_by: [lethoria_locals, nobility, scholars]
 
-- id: valecourt_looks_down
-  text: People of Valecourt think less of the south for the Taking, and would not say so to a traveller they had just met.
-  known_by: [valecourt_locals, nobility, merchants]
+- id: lethoria_looks_down
+  text: People of Lethoria think less of the south for the Taking, and would not say so to a traveller they had just met.
+  known_by: [lethoria_locals, nobility, merchants]
 
 - id: north_scorns_taking
   text: The further north one goes, the less patience there is for the Taking - spoken of with disgust in Greyhollow, barely believed in Ironvein and Frostholm, where a Seeker would not be made welcome.
@@ -155,13 +155,13 @@
   text: In Sunspire, magic is common and bound up with faith - seen as a gift of the natural and divine forces of the world, not a privilege of rank.
   known_by: [sunspire_locals, mages]
 
-- id: valecourt_court
-  text: Valecourt is the political heart of the kingdom - noble families, courts and institutions competing for influence.
-  known_by: [valecourt_locals, nobility, merchants]
+- id: lethoria_court
+  text: Lethoria is the political heart of the kingdom - noble families, courts and institutions competing for influence.
+  known_by: [lethoria_locals, nobility, merchants]
 
-- id: valecourt_magic
-  text: In Valecourt, magic is highly respected and almost wholly held by the nobility and institutions of power. The kingdom's magical hierarchy is plainest there.
-  known_by: [valecourt_locals, nobility, mages]
+- id: lethoria_magic
+  text: In Lethoria, magic is highly respected and almost wholly held by the nobility and institutions of power. The kingdom's magical hierarchy is plainest there.
+  known_by: [lethoria_locals, nobility, mages]
 
 - id: hollow_tales
   text: Travelers' tales speak of a place called the Hollow, somewhere beyond the known lands. A city, the remains of one, or something that only looks like one - no two tellings agree, and no road leads there.
@@ -178,7 +178,7 @@
 - id: great_halls_pay_more
   text: >
     The guild's halls are not equal. Those in the hard-edged cities (Frostholm and Sunspire above all, and Ironvein and
-    Valecourt after them) post the biggest contracts, with expeditions to far, dangerous country, and pay a good deal
+    Lethoria after them) post the biggest contracts, with expeditions to far, dangerous country, and pay a good deal
     more for the same work than the smaller halls do. The greatest halls of all are in the far lands - Cinderhold,
     Hrimgard and Dunmarrow - and they pay nearly double. Members who have outgrown the work at their home hall go there.
   known_by: [guild, merchants]
@@ -188,7 +188,7 @@
 - id: far_lands_exist
   text: >
     Beyond the settled kingdom are five far lands, each reached by one long road from one great city: the Ashen Reach beyond
-    Sunspire, the Stormcrown beyond Frostholm, the Deep Roads below Ironvein, the drowned coast west of Valecourt and the Jade Maw
+    Sunspire, the Stormcrown beyond Frostholm, the Deep Roads below Ironvein, the drowned coast west of Lethoria and the Jade Maw
     south of Riverhaven. The creatures there are not like the ones at home, and the guild's highest ranks work nowhere else.
   known_by: [guild, merchants, scholars]
 
@@ -218,7 +218,7 @@
 
 - id: brinewatch_lanterns
   text: Brinewatch keeps lanterns burning on every quay all night. The old sailors say the drowned will not climb a lit stair.
-  known_by: [brinewatch_locals, valecourt_locals, merchants]
+  known_by: [brinewatch_locals, lethoria_locals, merchants]
 
 - id: drowned_kingdom
   text: The kingdom that sank off the western coast was called Ys-Calavar. Its bells can still be heard at low tide, and its salvage makes more fortunes than the sea takes.
@@ -264,7 +264,7 @@
 
 - id: leviathan_trench_tide
   text: At the lowest tides a cleft opens off the drowned shore, a mile of black water between coral walls. Brinewatch's wreck-brokers say nothing that goes in at the ebb has ever come back before the flood.
-  known_by: [brinewatch_locals, valecourt_locals, merchants]
+  known_by: [brinewatch_locals, lethoria_locals, merchants]
   found_at: [leviathan_trench]
 
 - id: drowned_goddess
@@ -309,13 +309,13 @@
   found_at: [blackwater_deeps]
 
 - id: shattered_downs_battle
-  text: The Shattered Downs are a giants' battlefield, and the weapons are still in the ground. Valecourt's heralds note that no noble house has ever claimed the land, and that the old giants' pact says nobody may.
-  known_by: [valecourt_locals, greyhollow_locals, scholars]
+  text: The Shattered Downs are a giants' battlefield, and the weapons are still in the ground. Lethoria's heralds note that no noble house has ever claimed the land, and that the old giants' pact says nobody may.
+  known_by: [lethoria_locals, greyhollow_locals, scholars]
   found_at: [shattered_downs]
 
 - id: sunken_crown_capital
   text: The drowned capital of the lost western kingdom lies in a ring of cliffs, its towers still lit by wrecker's fires nobody lit. The tide goes out further every year.
-  known_by: [brinewatch_locals, valecourt_locals, merchants]
+  known_by: [brinewatch_locals, lethoria_locals, merchants]
   found_at: [sunken_crown]
 
 - id: orenna_name
@@ -336,13 +336,13 @@
 
 - id: kingdom_sun_warden
   text: >
-    Valecourt's kingdom honors Aurelan the Sun Warden, keeper of oaths and of the crown. Parth, Willowmead, Greyhollow and Redstone keep his rites, and the crown is sworn on his name.
-  known_by: [parth_locals, willowmead_locals, greyhollow_locals, redstone_locals, valecourt_locals, temple, scholars]
+    Lethoria's kingdom honors Aurelan the Sun Warden, keeper of oaths and of the crown. Parth, Willowmead, Greyhollow and Redstone keep his rites, and the crown is sworn on his name.
+  known_by: [parth_locals, willowmead_locals, greyhollow_locals, redstone_locals, lethoria_locals, temple, scholars]
 
 - id: god_aurelan
   text: >
     Aurelan the Sun Warden is the god of light, oaths and the crown. His faithful swear by his flame and keep their word because a broken oath is said to dim the sun a little.
-  known_by: [valecourt_locals, temple, scholars]
+  known_by: [lethoria_locals, temple, scholars]
 
 - id: god_nhaelis
   text: >
@@ -421,7 +421,7 @@
 
 - id: orenna_servants
   text: >
-    The peoples of Rivia were made by the gods as servants: rows of figures that worked and did not choose. The temples' gentler story is not what the First Hall says.
+    The peoples of Meravia were made by the gods as servants: rows of figures that worked and did not choose. The temples' gentler story is not what the First Hall says.
   known_by: [nobody]
 
 - id: orenna_gift
@@ -451,12 +451,12 @@
 
 - id: orenna_trail_letter
   text: >
-    A letter to a temple was sent on to the High Keeper's office at Valecourt, and a reply came back before the writer died.
+    A letter to a temple was sent on to the High Keeper's office at Lethoria, and a reply came back before the writer died.
   known_by: [nobody]
 
 - id: orenna_trail_warning
   text: >
-    The Sun Warden's temples report to one office at Valecourt on a fast relay. A private warning was read before its recipient ever saw it.
+    The Sun Warden's temples report to one office at Lethoria on a fast relay. A private warning was read before its recipient ever saw it.
   known_by: [nobody]
 
 - id: orenna_executioner
@@ -466,7 +466,7 @@
 
 - id: orenna_registry
   text: >
-    The register of bound services points to the High Keeper of Valecourt, who has held the seal of a champion of the Sun Warden for twenty-two years.
+    The register of bound services points to the High Keeper of Lethoria, who has held the seal of a champion of the Sun Warden for twenty-two years.
   known_by: [nobody]
 
 - id: orenna_last_breath
@@ -474,11 +474,11 @@
     Orenna's last breath is held in you. It will be spent the first time you would die.
   known_by: [nobody]
 
-- id: valecourt_tolerates_taking
+- id: lethoria_tolerates_taking
   text: >
-    Valecourt's nobles disapprove of the Taking. They say a kingdom is kept at peace by tolerating everyone's customs, even the ones
+    Lethoria's nobles disapprove of the Taking. They say a kingdom is kept at peace by tolerating everyone's customs, even the ones
     they disagree with, and the crown has never forbidden it.
-  known_by: [valecourt_locals, nobility]
+  known_by: [lethoria_locals, nobility]
 
 # --- the new lands ---
 
@@ -538,11 +538,11 @@
 
 - id: harrowgate_barn
   text: Harrowgate is built in rings around the Tithe-Barn, where the crown stores its grain. Royal inspectors come and go.
-  known_by: [valecourt_locals, merchants]
+  known_by: [lethoria_locals, merchants]
 
 - id: kingsmere_court
   text: Kingsmere triples in size when the court arrives for the summer. The old royal summer palace lies drowned at the bottom of the lake.
-  known_by: [valecourt_locals, nobility, merchants]
+  known_by: [lethoria_locals, nobility, merchants]
 
 - id: dustwell_well
   text: Dustwell's well is so deep that a dropped coin takes a long count to land. The well-keepers say voices answer from the bottom.
@@ -559,7 +559,7 @@
 - id: frontier_garrison
   text: >
     The Cracked Plains are a constant battlefield. Every major city keeps a standing company at the Frontier Garrison, rotated each season, to hold the line
-    against what comes across the cracks.
+    against what comes out of the red haze.
   known_by: [everyone]
 
 - id: frontier_rolls

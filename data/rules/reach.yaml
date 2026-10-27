@@ -1,0 +1,86 @@
+# WITHIN REACH (f344, engine/reach.py) - what a speaker can lay hands on as they speak, built by the engine each time from the world as
+# it is: their trade's own tools, the place they stand in, what they sell and keep in stock, what lies on the ground, what they carry.
+# The dialogue frames are shown this list and THE MOMENT (easy, or tense and why), and told that hands follow what is in reach and what
+# the moment is, never habit. So the smith works the iron while she talks, the clerk stamps a contract, Maren keeps a hand near the
+# hilt while she weighs a stranger who might be a bandit, and lets it be once she knows them.
+#
+# tools:  by role (data/world/roles.yaml): what that trade keeps to hand. Plain phrases, as the narrator would name them.
+# places: by place type (data/world/places.yaml): what the room or ground itself offers anyone standing there.
+# most:   the longest list a frame is shown; the speaker's own tools and carried things come first.
+# tense:  when a moment is tense. trust_below: a townsperson who distrusts the stranger this much; roles: trades that meet the player
+#         across a line (a prisoner and their captor); watch_roles: trades that face someone the watch wants (law heat at confront or above).
+
+most: 7
+
+tense:
+  trust_below: 30
+  roles: [prisoner]
+  watch_roles: [guard, watch_captain, royal_guard]
+
+tools:
+  acolyte:          [a censer, a broom for the temple steps, a stack of hymn sheets]
+  baker:            [a tray of loaves, the oven paddle, a dusting of flour]
+  bargeman:         [a coil of rope, the barge pole, a tarred hatch]
+  butcher:          [a cleaver, the chopping block, a hook of hanging meat]
+  caravan_master:   [a ledger of loads, a coiled whip, the harness of a draft horse]
+  chamberlain:      [a staff of office, a roll of names, a ring of keys]
+  chandler:         [a row of candles, a pot of tallow, a coil of wick]
+  cook:             [a ladle, a steaming pot, a knife and a board]
+  courtier:         [a fan, a folded letter, a jewelled ring]
+  dockhand:         [a hook, a crate, a coil of rope]
+  elder:            [a walking stick, a pipe, a worn shawl]
+  elven_warden:     [a longbow, a quiver, a leaf-bladed knife]
+  enchanter:        [a glowing rune-stone, a scribing stylus, a jar of powdered silver]
+  engineer:         [a set of plans, a brass rule, a box of fittings]
+  farmer:           [a hoe, a sack of seed, a mud-caked boot]
+  fisher:           [a net, a gutting knife, a basket of the day's catch]
+  guard:            [a spear, a shield, a helmet under one arm]
+  guild_clerk:      [the ledger, a quill and ink, the guild's stamp, a stack of contract slips]
+  guild_contractor: [a contract slip, a pack, a weapon at the hip]
+  guild_instructor: [a practice blade, a training dummy, a rack of wooden weapons]
+  guild_master:     [a heavy ledger, a sealed letter, the guild's seal ring]
+  herbalist:        [bundles of drying herbs, a mortar and pestle, a row of jars]
+  hunter:           [a bow, a skinning knife, a pelt]
+  innkeeper:        [a cloth, a tankard, the tap, the ledger of rooms]
+  land_agent:       [a map of plots, a deed, a seal]
+  loremaster:       [an open book, a candle, a stack of scrolls]
+  lumberjack:       [an axe, a stack of split logs, a whetstone]
+  merchant:         [the scales, a coin box, a bolt of cloth]
+  miller:           [a sack of flour, a sieve, the millstone's crank]
+  miner:            [a pick, a lamp, a chunk of ore]
+  monarch:          [the arm of the throne, a goblet, a sealed decree]
+  noble:            [a signet ring, gloves, a cane]
+  orchard_keeper:   [a basket of fruit, pruning shears, a ladder]
+  priest:           [a holy symbol, a book of rites, an offering bowl]
+  prisoner:         [the chains, a tin cup, the bars]
+  quartermaster:    [a tally board, a crate of supplies, a ring of keys]
+  relic_dealer:     [a locked case, a jeweller's glass, a velvet cloth]
+  royal_guard:      [a halberd, a polished shield, a sword at the hip]
+  scout:            [a rolled map, a spyglass, a knife at the belt]
+  server:           [a tray, a jug, a cloth]
+  shepherd:         [a crook, a sheepdog at their feet, a lamb]
+  smith:            [the hammer, a pair of tongs, a bar of iron in the coals, the anvil]
+  stonemason:       [a chisel, a mallet, a block of dressed stone]
+  tinker:           [a kettle, a tray of small tools, a coil of wire]
+  trapper:          [a snare, a pelt, a skinning knife]
+  watch_captain:    [a sword at the hip, a roster, a whistle]
+  water_priest:     [a bowl of water, a holy symbol, a brass ewer]
+
+places:
+  shop:        [the counter, the shelves]
+  inn:         [the bar, a table, the hearth]
+  temple:      [an altar, a candle, a pew]
+  guild:       [the contract board, the clerk's desk]
+  workshop:    [the workbench, a rack of tools]
+  smithy:      [the forge, the anvil, a quench barrel]
+  yard:        [a cart, a stack of crates, a hitching post]
+  square:      [the well, the notice post, a stall]
+  guardpost:   [the gate, a weapons rack, a brazier]
+  palace:      [a pillar, a tapestry, the steps of the dais]
+  city:        [a wall, a doorway, a passing cart]
+  town:        [a wall, a doorway, a passing cart]
+  village:     [a fence, a doorway, a water butt]
+  fields:      [a fence post, the grain]
+  forest:      [a tree trunk, a low branch]
+  river:       [the bank, a mooring post]
+  coast:       [the rocks, a beached boat]

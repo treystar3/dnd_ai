@@ -79,6 +79,26 @@ check("a big place gets the same small first batch", len(first) == 4, first)
 check("and fills in later", (w3.start_backfill(), [w3.apply_backfill() or time.sleep(0.05) for _ in range(60) if backfill.pending()])[0] is None
       and len(w3.store.load_place("parth").residents) == sum(world.places["parth"].residents.values()))
 
+# (f345) a job belongs to its save: another game in a place of the same name never collects it, and a closed save's jobs are dropped
+stA, wA = fresh("backfill_testA", 1800)
+stB, wB = fresh("backfill_testB", 1800)
+wA.enter("guild_house"); wA.start_backfill()
+check("a job is pending for the save that planned it", backfill.pending("guild_house", stA) and not backfill.pending("guild_house", stB))
+time.sleep(0.4)                                           # A's answer has come back, and A never collected it
+before = len(stB.load_place("guild_house").residents) if stB.load_place("guild_house").populated else 0
+check("another save collects nothing of it", backfill.collect(stB, world, wB.catalog) == [] and
+      (len(stB.load_place("guild_house").residents) if stB.load_place("guild_house").populated else 0) == before)
+check("...and the job is still there for its own save", backfill.pending("guild_house", stA))
+wB.enter("guild_house")
+names_b = {n.name for n in wB.residents}
+check("the second save makes its own first batch, with none of the first save's people", len(wB.residents) == 4, len(wB.residents))
+check("dropping a closed save forgets its jobs", backfill.drop(stA) == 1 and not backfill.pending(store=stA))
+wA.enter("guild_house"); wA.start_backfill()
+wB.start_backfill()
+check("starting a job in one save forgets a job left by another", backfill.pending(store=stB) and not backfill.pending(store=stA))
+backfill.drop()
+check("drop() with no save forgets everything", not backfill.pending())
+
 # the default does everything at once, as every other caller expects
 life.FIRST_BATCH = None
 st4, w4 = fresh("backfill_test4", 1800)
@@ -86,4 +106,6 @@ CALLS.clear()
 w4.enter("guild_house")
 check("without the split, everyone is made in one call", len(w4.residents) == want and CALLS == [want], CALLS)
 
+for n in ("backfill_testA", "backfill_testB"):
+    shutil.rmtree(f"saves/{n}", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title dnd_ai
+title Meravia
 
 where python >nul 2>nul
 if errorlevel 1 (

@@ -24,7 +24,7 @@ DEFAULT_PIN = "#character"
 PINNABLE = {"#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc",
             "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse", "#book"}     # read-only views: a pin runs again after every turn
 HIDDEN = ("#shopbuy", "#shopsell", "#gearequip", "#gearunequip", "#attradd", "#compname", "#boardaccept", "#boardabandon", "#boardrequest", "#boardjoin", "#boardhire", "#goto", "#mapgo",
-          "#useitem", "#correct", "#questabandon")      # the panes' buttons: run like commands, never echoed
+          "#useitem", "#correct", "#questabandon", "home:")      # the panes' buttons and the home page's: run like commands, never echoed
 WRAP_WIDTH = 2000
 
 
@@ -144,6 +144,17 @@ class Bridge:
     def setup_done(self) -> None:
         self.emit(k="setup_end")
 
+    def home(self, data: dict) -> bool:
+        """(f345) The home page, drawn by the page itself (web/app.js showHome)."""
+        self.emit(k="home", data=data)
+        return True
+
+    def home_done(self) -> None:
+        """A game is opening: the page hides the home page and clears the story of whatever was played before; the pinned view runs
+        again at the first prompt, for the new character."""
+        self.emit(k="home_end")
+        self.dirty = True
+
     def panel(self, name: str, data: dict) -> bool:
         """Structured data for the side pane (the shop). Only meaningful while a view is routed to the side."""
         if self.route != "side":
@@ -218,7 +229,7 @@ class Bridge:
     def install(self) -> None:
         from llm import gateway
         self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
-                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
+                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
         real_chat = gateway._client.chat
 
         def chat(*a, **kw):
@@ -239,6 +250,7 @@ class Bridge:
         console.ask, console.scope, console.status_block, console.kind = self.ask, self.scope, self.status_block, self.kind
         console.panel = self.panel
         console.setup, console.setup_progress, console.setup_done = self.setup, self.setup_progress, self.setup_done
+        console.home, console.home_done = self.home, self.home_done
         console.combat_state, console.damage_tags = self.combat_state, True
         console.WIDTH = WRAP_WIDTH      # the page wraps text to its own width, so the game must not wrap it first
 
@@ -252,6 +264,7 @@ class Bridge:
         console.ask, console.scope, console.status_block, console.kind = s["ask"], s["scope"], s["status_block"], s["kind"]
         console.panel = s["panel"]
         console.setup, console.setup_progress, console.setup_done = s["setup"], s["setup_progress"], s["setup_done"]
+        console.home, console.home_done = s["home"], s["home_done"]
         console.combat_state, console.damage_tags = s["combat_state"], s["damage_tags"]
         console.WIDTH = s["width"]
         gateway._client.chat = s["chat"]

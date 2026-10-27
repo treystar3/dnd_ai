@@ -212,6 +212,9 @@ def check() -> list[str]:
         from scenes import plan_repairs as _pr                 # (f333) the plan repairs, declared like the intercepts
         for p_ in _pr.problems(_WS):
             need(False, p_)
+    from engine import reach as _rc                          # (f344) what is within reach: real trades with tools, real place types
+    for p_ in _rc.problems({r_["id"] for r_ in _load("data/world/roles.yaml")}, {p_.get("type", "") for p_ in _load("data/world/places.yaml")}):
+        need(False, p_)
     from engine import threads as _th                        # (f331) the engine's own situations: templates, effect kinds, slots, the pressures that use them
     from llm.contracts import WorldEffect as _WE
     import typing as _ty
@@ -306,6 +309,43 @@ def check() -> list[str]:
         f = _bb.build(fam, _random.Random(7))
         probs = _bf.validate(type("F", (), {"battlefield": f, "fighters": []})())
         need(not probs, f"battlefields.yaml {fam}: a built field has problems: {probs}")
+
+    # ---- (f346) the sounds names are built from (name_sounds.yaml): every people has them, every piece is letters, every kind builds
+    from npc import names as _names
+    sounds = (_load("data/world/name_sounds.yaml") or {}).get("peoples") or {}
+    need(set(sounds) <= peoples_file, f"name_sounds.yaml: sounds for unknown peoples {sorted(set(sounds) - peoples_file)}")
+    for people in sorted(peoples_file):
+        r = sounds.get(people)
+        need(r is not None, f"name_sounds.yaml: no sounds for the people '{people}'")
+        if r is None:
+            continue
+        need(not r.get("family_from") or r["family_from"] in sounds, f"name_sounds.yaml {people}: family_from names an unknown people")
+        table = r.get("syllables")
+        if table is not None:
+            need(isinstance(table, dict) and table and all(isinstance(n, int) and n >= 1 and isinstance(w, (int, float)) and w >= 0
+                                                             for n, w in table.items()) and sum(table.values()) > 0,
+                 f"name_sounds.yaml {people}: syllables must be counts from 1 up, each with a weight")
+        for kind in ("male", "female") + (() if r.get("family_from") else ("family",)):
+            forms = r.get(kind) or []
+            need(bool(forms), f"name_sounds.yaml {people}: needs {kind} forms")
+            for i, form in enumerate(forms):
+                where = f"name_sounds.yaml {people} {kind} form {i + 1}"
+                uses_middle = any(int(n) > 0 for n in (form.get("middles") or {0: 1}))
+                for slot in ("first", "last") + (("middle",) if uses_middle else ()):
+                    pieces = form.get(slot) or []
+                    need(bool(pieces) and all(isinstance(x, str) and (x == "" or x.isalpha()) for x in pieces),
+                         f"{where}: {slot} must be pieces of letters, or \"\" (quote On, No, Yes and Off, or YAML reads them as true/false)")
+                    need(len({x.lower() for x in pieces if isinstance(x, str)}) == len(pieces), f"{where}: {slot} lists a piece twice")
+            try:
+                rng = _random.Random(f"check:{people}:{kind}")
+                for _ in range(30):
+                    _names.build(people, kind, rng)
+            except Exception as e:
+                need(False, f"name_sounds.yaml {people} {kind}: {e}")
+            if isinstance(table, dict) and table:                     # every length the table asks for can be made
+                made = {min(_names.syllables(n), max(table)) for n in _names.possible(people, kind)}
+                need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
+                     f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
     return bad
 
 

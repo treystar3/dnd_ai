@@ -1,4 +1,4 @@
-# The map of Rivia: where each place sits on a 1000 x 1000 sheet (x to the right, y downward; north is up).
+# The map of Meravia: where each place sits on a 1000 x 1000 sheet (x to the right, y downward; north is up).
 # Distances are only roughly to scale - travel times in places.yaml decide how long a walk takes, not these numbers.
 # A region is drawn as a soft shaded area around its places; a place with no entry here falls back to the old diagram layout.
 
@@ -67,7 +67,7 @@ places:
   smoulder_fields: [855, 420]
   cinder_caldera: [958, 390]
   furnace_of_ages: [975, 345]
-  valecourt: [500, 490]
+  lethoria: [500, 490]
   howling_downs: [545, 525]
   shattered_downs: [582, 560]
   first_hall: [620, 592]
