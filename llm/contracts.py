@@ -534,10 +534,22 @@ class MomentProposal(BaseModel):
             raise ValueError("memory: one line the town will keep of it")
         if re.search(r"\d", self.title + self.line + self.memory):
             raise ValueError("no figures: say it in words, or leave the number out")
+        from scenes.voice import STALE
+        low = self.line.lower()
+        worn = next((s for s in STALE if s in low), "")
+        if worn:
+            raise ValueError(f"'{worn}' is a stock phrase: say what is actually there")
         roles = set(ctx.get("roles") or []) | {"everyone"}
+        labels = {str(k).lower(): v for k, v in (ctx.get("labels") or {}).items()}          # how each is known -> their role
         for d in self.doings:
-            if d.who not in roles:
-                raise ValueError(f"doings.who '{d.who}' is nobody here: one of {', '.join(sorted(roles))}")
+            w = d.who.strip().lower().replace(" ", "_")
+            if w not in roles:
+                plain = re.sub(r"^(the|a|an)[ _]", "", w).replace("_", " ")
+                found = next((role for lab, role in labels.items() if re.sub(r"^(the|a|an) ", "", lab) == plain), "")
+                if not found:
+                    raise ValueError(f"doings.who '{d.who}' is nobody here: one of {', '.join(sorted(roles))}")
+                w = found
+            d.who = w
             if not d.doing.strip() or len(d.doing.split()) > 14:
                 raise ValueError("a doing is a short phrase, under fourteen words")
             if re.match(r"^(he|she|they|the|a|an|i|we|you)\b", d.doing.strip(), re.I):

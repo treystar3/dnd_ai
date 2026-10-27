@@ -132,7 +132,7 @@ def compose(ws, shape: dict, visitor_role: str, rng: random.Random):
     seen = seen_list(ws.store)
     known = truth.scene_of(ws).known_words()
     request = mp.moment_request(ws, shape, visitor_role, seen[-int(M.get("remember", 40)):])
-    ctx = {"roles": sorted({n.role for n in ws.present}), "visitor": bool(visitor_role),
+    ctx = {"roles": sorted({n.role for n in ws.present}), "labels": {n.label(): n.role for n in ws.present}, "visitor": bool(visitor_role),
            "mishap": any(e.get("kind") == "hurt" for e in shape.get("effects") or []),
            "given": mp.MOMENT_SYSTEM + "\n" + request, "known": known,
            "seen": [s.get("line", "") for s in seen], "titles": [s.get("title", "") for s in seen]}
@@ -250,7 +250,7 @@ def end(ws, st) -> None:
     if memory:
         town = pulse.town_of(ws.world, st.id)
         tp = ws.store.load_place(town) if town != st.id else st
-        tp.memory = (tp.memory + [{"text": _fmt(memory, ws), "minute": ws.minutes}])[-30:]
+        tp.memory = (tp.memory + [{"text": _fmt(memory, ws), "minute": ws.minutes, "until": ws.minutes + int(M.get("memory_days", 3)) * 1440}])[-30:]
         ws.store.save_place(tp)
     for n in ws.present:
         if n.mood_until and n.mood_until <= ws.minutes:
