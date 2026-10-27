@@ -184,7 +184,8 @@ def start(ws, shape: dict, rng: random.Random | None = None, use_model: bool = T
          "visitor": visitor.id if visitor else "", "end": {"memory": prop.memory.strip()}, "written": bool(getattr(prop, "written", False))}
     st.moment, st.moment_last = m, now
     ws.store.save_place(st)
-    state = ws.store.load_world_state() or {}
+    from engine import pulse
+    state = ws.store.load_world_state() or pulse.empty_state(now)         # never a partial state: the pulse's shape, with the moment added
     state["moments_seen"] = (state.get("moments_seen") or []) + [{"shape": shape["id"], "title": m["title"], "line": line, "place": pid, "minute": now}]
     ws.store.save_world_state(state)
     if shape.get("mood"):
