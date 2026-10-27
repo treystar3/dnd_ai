@@ -101,11 +101,15 @@ SCENERY_PICKUP = ("The player reaches to pick up {thing}. It is not anything the
 
 NARRATOR_SYSTEM = DM_VOICE + """
 You are narrating the world itself: places, people at a distance, the passing of time.
-Write plain prose, as long as LENGTH says (that overrides any sentence count in the GAME EVENT). No lists, no markdown, no headings.
-A longer LENGTH is room to notice more, not a reason to pad: add real detail from the GAME STATE, never invented facts.
+Write plain prose within the room LENGTH gives: it is room, not a target, it overrides any sentence count in the GAME EVENT, and
+less is always allowed. No lists, no markdown, no headings. More room is room to notice more, never a reason to pad: real detail
+from the GAME STATE, never invented facts.
 
 Rules:
 - Describe only what the GAME STATE gives you: the place's visible details, and the people present with what they are doing.
+- Say what is new. ALREADY SHOWN THIS VISIT lists what the player has read here already: do not describe it again. On an arrival,
+  the place in a sentence or two and one person doing one thing; the rest waits until the player looks. When they look, answer what
+  they look at, describing at most four people individually and summing up the rest as a group.
 - Respect the TIME and its weather: light, sky, temperature and activity should fit them. In the dark, describe what can still be seen and heard.
   If PEOPLE HERE is "no one", the place is empty of people.
 - You may add small sensory touches (sounds, smells, light, air), but never add people, creatures, items of value,
@@ -113,25 +117,27 @@ Rules:
 - Refer to people the player has not been introduced to by their description, never by a name you were not given.
 - Each person's people (human, halfling, dwarf, half-elf...) is given in brackets. Describe them as that people -
   never give a human pointed ears or a halfling a tall frame. Their manner shows in posture, expression and pace.
-- Describe at most four people individually. Sum up the rest as a group: who they are and what they're doing.
 - If the PLAYER'S WORDS ask about something specific, answer that first and directly.
 - Never speak for anyone. Never invent dialogue.
 - Never decide outcomes. Only describe what the GAME EVENT says happened.
-- Never repeat sentences or details from RECENT NARRATION. Find something new to notice, or say less.
+- Never repeat sentences, images or details from RECENT NARRATION. Find something new to notice, or say less.
 Respond only with JSON matching the schema, with the prose in "text"."""
 
 
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
-                      happenings: list[str] = (), length: str = "two to five sentences", streets: list[str] = (), town: str = "",
-                      news: list[str] = ()) -> str:
+                      happenings: list[str] = (), length: str = "up to about 70 words", streets: list[str] = (), town: str = "",
+                      news: list[str] = (), already: list[str] = ()) -> str:
+    """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new."""
     visible = "\n".join(f"  - {v}" for v in list(place.visible) + list(streets))       # (f313) the crowd, the watch, the town's state and landmarks, from the truth layer
     present = "\n".join(f"  - {label}: {desc} Right now: {activity}" for label, desc, activity in people) or "  (no one)"
     said = f'\nPLAYER\'S WORDS: "{player_text}"' if player_text else ""
     return (
         f"GAME STATE\nTIME: {time_label}\n{('THE PLAYER: ' + gear + chr(10)) if gear else ''}PLACE: {place.name} ({place.type})\n"
         + (f"THE TOWN (its character; let it colour the scene, never recite it): {town}\n" if town else "")
-        + f"VISIBLE:\n{visible}\nPEOPLE HERE:\n{present}\n\n"
+        + f"VISIBLE:\n{visible}\nPEOPLE HERE:\n{present}\n"
+        + (("ALREADY SHOWN THIS VISIT (the player has read these here; do not describe them again - say what is new, or say less):\n"
+            + "\n".join(f"  - {x}" for x in already) + "\n") if already else "") + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
         + (f"LYING ON THE GROUND HERE: {', '.join(ground)}\n" if ground else "")
@@ -146,17 +152,17 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
 
 DIALOGUE_SYSTEM = DM_VOICE + """
 You are framing one moment of conversation. The game will print the character's spoken line between your two pieces of prose,
-exactly as given - you never repeat it, quote it, paraphrase it or add to it.
+exactly as given - you never repeat it, quote it, paraphrase it or add to it. The game asks for a frame only when the moment earns
+one: WHY THIS LINE GETS A FRAME says what that is, and the frame is about that.
 
-before: what happens just before they speak. The player's own manner, built only from what THE PLAYER DID
-  (never invent words for the player), and the character's reaction - a look, a pause, what they were doing.
-after: what happens just after - their body language, what they do next, and when it fits, the place around
-  you: the room, other people present, light, sound, weather.
+before: only if the player would see something before the words: the player's own manner, built only from what THE PLAYER DID
+  (never invent words for the player), and the character's look or pause. Otherwise leave it empty.
+after: what the words change: a look, a hand, a step, a silence. Never the character going back to what they were doing, and never
+  the room, the light, the weather or the other people as a closing shot. Leave it empty when the words are the end.
 
-Keep it alive but proportionate:
-- FRAME LENGTH in the scene sets the most you may write. A first meeting, a tense moment, a secret or a refusal deserves more of it.
-- An ordinary back-and-forth needs only a short beat, or nothing at all. Leave a field empty when nothing is needed.
-- Never repeat details already used in RECENT NARRATION. Find something new or say less.
+Keep it proportionate:
+- FRAME LENGTH is the most you may write; it is room, not a target. Less is usually better, and empty is allowed.
+- Never repeat anything under ALREADY SHOWN THIS VISIT or RECENT NARRATION. Say what is new, or say less.
 
 Rules:
 - Describe only what the SCENE contains. Small sensory touches are fine, but never add people, items, events or
@@ -200,12 +206,15 @@ def exchange_request(time_label: str, place, speakers: list[str], others: list[s
 
 def dialogue_request(time_label: str, place, others: list[str], who: str, looks: str, doing: str,
                      manner: str, first: bool, player_did: str, speech: str, gesture: str, leaving: bool,
-                     recent: list[str], frame: str = "up to three sentences before, two after", reach: list[str] | None = None,
-                     moment: str = "easy") -> str:
+                     recent: list[str], frame: str = "up to about 40 words before, or nothing; up to about 25 after, or nothing",
+                     reach: list[str] | None = None, moment: str = "easy", why: list[str] | None = None, already: list[str] | None = None) -> str:
+    """why (f347): the engine's reasons this line gets a frame at all; already: what the player has read about this place this visit."""
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
-        f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\nFRAME LENGTH: {frame}\nTHE MOMENT: {moment}\n\n"
+        f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\nFRAME LENGTH: {frame}\nTHE MOMENT: {moment}\n"
+        + (f"WHY THIS LINE GETS A FRAME: {'; '.join(why)}\n" if why else "")
+        + (("ALREADY SHOWN THIS VISIT (do not describe these again): " + "; ".join(already) + "\n") if already else "") + "\n"
         f"THE CHARACTER\nHOW THE PLAYER KNOWS THEM: {who}\nLOOKS: {looks}\nWAS DOING: {doing}\nMANNER: {manner}\n"
         f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n"
         f"{'This is the first time the player has spoken to them.' if first else 'They are already talking.'}\n\n"

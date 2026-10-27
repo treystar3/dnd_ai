@@ -1,17 +1,51 @@
-# HOW LONG THE VOICES SPEAK. The engine decides how much a moment deserves; the model fills that space.
-# Quiet moments stay short. First sights, turning points and big talk get room.
+# HOW THE VOICES SPEAK. The engine decides how much a moment deserves, and whether a line of speech gets the narrator's frame at all;
+# the model fills the space. Room is given in words, never in sentences: a sentence count makes every sentence long to meet it, a word
+# budget leaves the model free to set a short sentence beside a long one. Quiet moments stay short. First sights, turning points and big
+# talk get room. (f347)
 
-narration:                   # the narrator, by the weight of the moment
-  brief:  {length: "one to three sentences", tokens: 350}
-  normal: {length: "two to five sentences", tokens: 600}
-  rich:   {length: "a full paragraph of five to eight sentences", tokens: 950}
-  major:  {length: "two short paragraphs, up to eleven sentences in all", tokens: 1300}
+narration:                   # the narrator, by the weight of the moment. length is room, not a target: less is always allowed
+  brief:  {length: "up to about 35 words", tokens: 350}
+  normal: {length: "up to about 70 words", tokens: 600}
+  rich:   {length: "up to about 120 words, one paragraph", tokens: 950}
+  major:  {length: "up to about 170 words, in one or two paragraphs", tokens: 1300}
 
-npc:                         # what a person says, by how much the conversation calls for
-  short:  {length: "one to three sentences", tokens: 800, frame: "up to two sentences before, one after"}
-  medium: {length: "two to five sentences", tokens: 900, frame: "up to three sentences before, two after"}
-  long:   {length: "a real answer: five to nine sentences, the way a person tells a story or explains something that matters to them", tokens: 1300,
-           frame: "up to four sentences before, three after"}
+npc:                         # what a person says, by how much the conversation calls for; frame is the room for the narrator's beat, when the engine asks for one
+  short:  {length: "a line or two, up to about 35 words", tokens: 800, frame: "up to about 25 words before, or nothing; up to about 15 after, or nothing"}
+  medium: {length: "up to about 80 words", tokens: 900, frame: "up to about 40 words before, or nothing; up to about 25 after, or nothing"}
+  long:   {length: "a real answer, up to about 160 words, the way a person tells a story or explains something that matters to them", tokens: 1300,
+           frame: "up to about 55 words before, or nothing; up to about 30 after, or nothing"}
+
+# When a line of speech gets the narrator's frame at all (scenes/world.py frame_reasons, party_actions.py hire_frame_reasons). Every
+# other line is the words and the speaker's own gesture. The frame is told its reason and writes to it.
+frame_when:
+  first: "the first words between them this visit"
+  trust: "their trust in the player has just moved"
+  reveal: "they have just told the player something that matters"
+  refuse: "they are refusing, or threatening"
+  gift: "they are handing something over"
+  leave: "they are ending the talk and going"
+  decided: "the game has decided how the player's attempt went, and it shows on them"
+  fight: "a beat in the press of a fight"
+  feeling: "they are {feeling} right now, and it shows"
+gesture_words: 6             # a gesture printed with bare speech is kept only when it is this short (a longer one is cut at its first clause, or dropped)
+weather_words: [rain, snow, fog, mist, wind, cloud, sun, sky, drizzle, storm, frost, sleet, hail, overcast, breeze, gale, moon, stars, dusk, dawn]
+
+# THE VOICE, SHOWN. A model given rules writes in the rules' vocabulary; given a few passages, it writes like them. These are the register
+# of this game, shown to the narrator and to everyone who speaks. They are examples of how, never lines to say: no names, no places, no
+# numbers, so nothing in them can be mistaken for a fact of the moment. Rewrite them freely; keep them short and plain.
+exemplars:
+  passages:
+    - "The gate stands open and nobody minds it. A dog looks up, decides against you, and goes back to sleep. Smoke from the chimneys leans east."
+    - "Night. The fire has gone to coals and somebody's horse is shifting in its sleep. You lie with a hand on the sword and listen to the river, which has nothing to say."
+    - "The axe comes down where your head was. You are already moving. Splinters sting your cheek, and then the thing is on you, all weight and stink, and the world narrows to its teeth."
+    - "He does not see you off. He has turned back to the nets before you reach the door, and the only farewell is the shuttle going on without you."
+  speech:
+    - "Horseshoes. Nails. If you want a sword you want the city, and more coin than you've got."
+    - "Keep walking, you. No, I mean it kindly. The gate shuts at dark and I'd sooner you were inside it than out."
+    - "You may ask. I may not answer. The dead keep their own counsel here, and so do I."
+    - "It took the ewe. Just took her. Didn't eat her, didn't drag her off, left her in the yard like a... like a message. You tell me what does that."
+    - "If it isn't raining it's about to. Hand me that. No, the other one. Were you wanting something, or did you come in to drip?"
+    - "Later. I've a cart to get under cover before the hay's ruined. Ask me when it's done, or ask her."
 
 # Points toward a longer reply. 0 = short, 1-2 = medium, 3+ = long. Guarded or laconic people stay shorter regardless.
 points:

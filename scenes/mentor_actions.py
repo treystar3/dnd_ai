@@ -56,7 +56,8 @@ class MentorActions:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, label, looks, doing, manner, not introduced,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["length"],
-                                                  reach=within, moment=moment),
+                                                  reach=within, moment=moment, already=self.shown_lines(),
+                                                  why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"]),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=400)
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either

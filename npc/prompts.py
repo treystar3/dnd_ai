@@ -80,9 +80,9 @@ What you know:
   spirits or religious practices.
 
 Your reply:
-  speech: what you say aloud, as long as LENGTH says, in your voice. Say as much as the moment calls for and no more: small talk
-    stays brief, but when someone asks about something that matters to you or that you know well, answer fully, the way a real
-    person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
+  speech: what you say aloud, within the room LENGTH gives (room, not a target: a short answer is often the true one), in your
+    voice. Small talk stays brief; when someone asks about something that matters to you or that you know well, answer the way a
+    real person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
     No narration inside speech.
   gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
   intent: what you are doing with this reply. Use leave only if you actually walk away or flatly refuse to keep
@@ -114,8 +114,8 @@ Your reply:
   offers_work: only when you offer them paid work right now - a real task you need done. task is a short phrase
     ("load the grain onto the wagon"); minutes is how long it should take; pay is in copper, at honest village
     rates (about 20 copper an hour). If you already offered work, don't offer it again.
-""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
-Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules; and they know their world
+""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("speech") + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
+Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules, the voice shown (f347); and they know their world
 
 
 def trust_words(trust: int) -> str:

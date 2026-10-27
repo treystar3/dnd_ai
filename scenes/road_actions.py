@@ -74,7 +74,8 @@ class RoadActions:
                 " ".join(r.description for r in named[:2]) + (passing or "")
         happened = f" On the way: {' '.join(log[-4:])}" if log else ""
         self.narrate(f"After {clock.describe_duration(walk)} on foot, the player arrives at {self.place.name}.{passing}{happened} "
-                     f"Describe what they find, mentioning the road only briefly.{self.brevity()}", text)
+                     f"Give the place in a sentence or two and one person doing one thing; the rest waits until they look. "
+                     f"Mention the road only briefly.{self.brevity()}", text)
         self.show_exits()
         if self.arc_arrival():
             return

@@ -35,6 +35,32 @@ def npc(level: str) -> dict:
     return V["npc"][level]
 
 
+def short_gesture(gesture: str) -> str:
+    """(f347) A gesture short enough to print beside bare speech: kept whole when it is within gesture_words, cut at its first clause when
+    that is, otherwise dropped. 'wipes her hands on her apron' stays; 'glances at the door, then back to the ledger with a sigh' becomes
+    'glances at the door'."""
+    g = " ".join((gesture or "").split()).strip().rstrip(".")
+    if not g:
+        return ""
+    cap = V.get("gesture_words", 6)
+    if len(g.split()) <= cap:
+        return g
+    head = re.split(r",|;| and | then | before | while | as ", g, maxsplit=1)[0].strip()
+    return head if head and len(head.split()) <= cap else ""
+
+
+def exemplar_block(kind: str) -> str:
+    """(f347) The voice shown rather than described: a few passages (kind 'passages', for the narrator) or replies (kind 'speech', for
+    everyone who speaks) from data/rules/voice.yaml, as the register of this game. Never lines to reuse."""
+    ex = V.get("exemplars", {}).get(kind, [])
+    if not ex:
+        return ""
+    head = ("HOW NARRATION SOUNDS HERE (the register of this game; never lines to reuse, and nothing in them is a fact of this moment):"
+            if kind == "passages" else
+            "HOW PEOPLE SOUND HERE (the register of this game; never lines to reuse, and nothing in them is about you or this moment):")
+    return head + "\n" + "\n".join(f"  - {e}" for e in ex)
+
+
 def mention_once(text: str, words: tuple[str, ...]) -> str:
     """Keep the first sentence that uses any of these words and drop later sentences that use them again
     (a narrator told to open with one breath tends to describe the same breath twice)."""
