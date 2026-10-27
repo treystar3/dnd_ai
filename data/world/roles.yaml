@@ -38,6 +38,7 @@
            {id: torch, name: a torch, price: 8, kind: item, item: torch},
            {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
    buys: [cloth, wood]}
+- {id: traveling_player, hours: [0, 24], description: A travelling player who sings for a room and a meal and carries the news of three regions., knowledge_groups: [merchants]}   # (f348) made only by a moment (data/rules/moments.yaml); no place lists them
 - {id: tinker, hours: [8, 17],        description: Mends pots and small goods; travels the road between towns., knowledge_groups: [merchants],
    buys: [any], buy_rate: 0.25,
    stock: {families: [wood], count: 4, restock_days: 5},

@@ -235,6 +235,16 @@ class Bot:
 
     def decide(self) -> tuple[str, str]:
         text, intent, kind = self.choose()
+        same = self.__dict__.setdefault("_same", collections.deque(maxlen=4))
+        same.append(text)
+        if len(same) == same.maxlen and len(set(same)) == 1:              # the same line four times running is a loop, whatever it is: break it
+            same.clear()
+            if self.ws.combat:
+                alive = [e for e in self.ws.combat.fight.enemies() if e.alive]
+                tgt = min(alive, key=lambda e: e.hp) if alive else None
+                text, intent, kind = (f"I attack {tgt.name}." if tgt else "I attack."), {"kind": "attack", "target": tgt.id if tgt else "", "summary": "bot"}, "fight"
+            else:
+                text, intent, kind = "I look around.", self.intend("look"), "look"
         if self.stub is not None:
             self.stub.plan = [intent]
         self.last_text = text
@@ -362,8 +372,8 @@ class Bot:
         tgt = min(enemies, key=lambda e: e.hp)
         hpf = p.hp / max(1, p.max_hp)
         base = {"target": tgt.id, "summary": "bot"}
-        if hpf < 0.5 and any(i.good == "healing_draught" for i in self.c.inventory):
-            return dict(base, kind="item", item="healing draught")
+        if hpf < 0.5 and f.item_round != f.round and any(i.good == "healing_draught" for i in self.c.inventory):
+            return dict(base, kind="item", item="healing draught")           # one a round: the game refuses a second, and the bot once drank 1,155 times running
         if (hpf < 0.35 and f.round > 1) or (len(enemies) >= 3 and f.round == 1 and any(e.rank != "normal" for e in enemies)):
             return dict(base, kind="flee")
         usable = [m for m in p.moves if not combat.can_use(p, m, f)]

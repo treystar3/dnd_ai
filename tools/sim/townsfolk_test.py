@@ -78,6 +78,11 @@ try:
     check("a reply said again is sent back", False)
 except ValidationError as e:
     check("a reply said again is sent back", "said something very like" in str(e), str(e)[:200])
+try:
+    NPCReply.model_validate({"speech": "*By the Warden's flame*, it's bad enough.", "intent": "small_talk"})
+    check("asterisks in speech are sent back", False)
+except ValidationError as e:
+    check("asterisks in speech are sent back", "no asterisks" in str(e))
 ok = NPCReply.model_validate({"speech": "Aye.", "intent": "small_talk"}, context={"recent": ["Aye."]})
 check("a word or two is let be", ok.speech == "Aye.")
 ok = NPCReply.model_validate({"speech": "Horseshoes and nails, mostly, and the odd hinge when the carpenter asks.", "intent": "small_talk"}, context={"recent": recent})

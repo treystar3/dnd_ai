@@ -241,6 +241,10 @@ def check() -> list[str]:
         need(False, p_)
     PT_ = _load("data/rules/pastimes.yaml")
     _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
+    from engine import clock as _clock, doings as _doings, moments as _moments                 # (f348) doings by role and period; moments by place and period
+    _types = {p_.get("type", "") for p_ in _load("data/world/places.yaml")}
+    bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES))
+    bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
     _degrees = set(_load("data/rules/checks.yaml")["degrees"])
     need(set((PT_.get("gamble") or {}).get("payout") or {}) == _degrees, "pastimes.yaml gamble.payout: one entry per degree in checks.yaml")
     need(all(r_ in _roles for r_ in (PT_.get("gamble") or {}).get("roles") or []), "pastimes.yaml gamble.roles: every role must be in roles.yaml")

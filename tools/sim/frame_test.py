@@ -46,6 +46,24 @@ check("a short gesture is kept", sg("wipes her hands on her apron.") == "wipes h
 check("a long one is cut at its first clause", sg("glances at the door, then back to the ledger with a sigh") == "glances at the door", sg("glances at the door, then back to the ledger with a sigh"))
 check("...or dropped when even that is long", sg("turns the whetstone slowly in her scarred hands without looking up") == "")
 check("nothing stays nothing", sg("") == "" and sg("  ") == "")
+check("a pair of adjectives is never cut apart", sg("gives a slow, deliberate nod") == "gives a slow, deliberate nod" and sg("offers a sharp, curt nod.") == "offers a sharp, curt nod")
+check("a long gesture with only a bare comma is dropped whole", sg("gives a slow, deliberate nod toward the door of the inn") == "")
+
+# ---- the frame contract holds what the instruction alone could not
+from pydantic import ValidationError
+def frame(before, after, speaker=("Mabry Wilins",), others=("Tuckwin Fosell", "Heth Bradton", "the stout watchman")):
+    try:
+        DialogueFrame.model_validate({"before": before, "after": after}, context={"speaker": list(speaker), "others": list(others)})
+        return ""
+    except ValidationError as e:
+        return str(e)
+check("a frame that sends them back to their work is sent back", "going back to what they were doing" in frame("", "He returns to his whetstone with a slow nod, the rhythmic scrape resuming.")
+      and frame("", "She turns back to the stove.") and frame("", "He lets his shoulders drop, the steady slide of stone over metal resuming its pace."))
+check("a frame that ends on what the words changed passes", frame("", "His shoulders drop an inch.") == "" and frame("He looks up.", "") == "")
+check("a frame that opens on another person's name is sent back", "opens on Tuckwin Fosell" in frame("Tuckwin leans into the warmth of the stove.", "")
+      and "Heth Bradton" in frame("", "Heth stops the whetstone mid-stroke."))
+check("...but one about the speaker, by name, a pronoun or how they are known, passes", frame("Mabry leans into the stove.", "") == "" and frame("She looks away.", "") == ""
+      and frame("The watchman sets the rag aside.", "", speaker=("the stout watchman",), others=("Tuckwin Fosell",)) == "")
 
 # ---- the engine's decision, in a scene
 shutil.rmtree("saves/frame_test", ignore_errors=True)
@@ -71,6 +89,8 @@ n = len(asked)
 ws.narrate_dialogue(npc, npc.label(), npc.label(), "and nails?", reply, False)
 check("an ordinary second line is the words alone: no frame call, a gesture cut to its first clause",
       len(asked) == n and printed[-1] == ("says", npc.label(), "Horseshoes, a copper apiece.", "wipes her hands on her apron"), printed[-1])
+nudged = types.SimpleNamespace(speech="Aye, a copper.", gesture="", intent="small_talk", trust_change=1, gives=None)
+check("trust nudged by one is not a moment", ws.frame_reasons(npc, nudged) == [], ws.frame_reasons(npc, nudged))
 moved = types.SimpleNamespace(speech="Fine. Two copper, and that's a favour.", gesture="", intent="bargain", trust_change=2, gives=None)
 ws.narrate_dialogue(npc, npc.label(), npc.label(), "i haggle", moved, False, reasons=ws.frame_reasons(npc, moved))
 check("trust that moved earns a frame", printed[-1][0] == "frame" and "trust in the player has just moved" in asked[-1])
@@ -78,10 +98,17 @@ check("a refusal, a gift, a leaving and a judged attempt do too", voice_rules.V[
       and voice_rules.V["frame_when"]["gift"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="help", trust_change=0, gives=types.SimpleNamespace(name="a pendant")))
       and voice_rules.V["frame_when"]["leave"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="leave", trust_change=0, gives=None))
       and voice_rules.V["frame_when"]["decided"] in ws.frame_reasons(npc, reply, [], "[THE GAME HAS DECIDED: it worked]")
-      and voice_rules.V["frame_when"]["reveal"] in ws.frame_reasons(npc, reply, ["fact1"]))
+      and voice_rules.V["frame_when"]["reveal"] in ws.frame_reasons(npc, reply, ["clue:thread1:0"]))
+check("an ordinary fact of the town conveyed is not a moment; a clue is", ws.frame_reasons(npc, reply, ["lore_parth_river"]) == [])
 check("an ordinary line has no reason", ws.frame_reasons(npc, reply) == [])
 ws.enter("parth")
 check("a new visit starts the count over", voice_rules.V["frame_when"]["first"] in ws.frame_reasons(npc, reply))
+ws._framed_hires = {"Tuckwin Fosell"}
+ws.enter("guild_house")
+check("a hire's frame count holds across the buildings of one town", ws._framed_hires == {"Tuckwin Fosell"})
+ws.enter(next(p.id for p in world.places.values() if p.type == "town" and p.id != "parth"))
+check("...and starts over in a new town", ws._framed_hires == set())
+check("no stance text is a line to quote back", not any(w in t["text"] for t in voice_rules.V["stances"].values() for w in ("long day", "I am busy", "I'm busy")))
 
 # ---- what was shown this visit
 ws.enter("parth"); ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
@@ -93,20 +120,25 @@ check("after a passage: the place, the weather and the person it described are o
       any("place itself" in l for l in lines) and any("weather" in l for l in lines) and any(label in l for l in lines), lines)
 others = [n for n in ws.present if n.id != npc.id]
 check("a person the passage did not describe is not", not others or not any(others[0].label() in l for l in lines), lines)
+ws.enter("parth"); ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
+head = npc.label().split()[-1]
+ws.note_shown(f"A muscular {head} strikes a glowing rod of iron.")
+check("a person described by a paraphrase of their epithet counts as shown", any(npc.label() in l for l in ws.shown_lines()), (npc.label(), ws.shown_lines()))
+check("the revisit line never invents a change", "never invent a change" in ws.brevity() or not ws.revisit)
 ws.narrate_dialogue(npc, label, label, "hello", reply, False, reasons=["test"])
 check("a frame is told the list", "ALREADY SHOWN THIS VISIT" in asked[-1] and label in asked[-1], asked[-1][:400])
 
 # ---- the weight of an arrival
 ws.weight_hint = None
-ws.enter("guild_house")
+ws.enter("tilted_plough")
 check("a first visit to a building inside a town is not a first sight: no extra room", ws.weight_hint is None, ws.weight_hint)
-fresh_town = next(p for p in world.places.values() if p.type == "town" and p.id != "parth")
+fresh_town = next(p for p in world.places.values() if p.type == "town" and p.id not in ws.player.visited)
 ws.enter(fresh_town.id)
 check("a first arrival in a town earns a rich passage", ws.weight_hint == "rich", ws.weight_hint)
 ws.weight_hint = None
 ws.enter("parth")
 check("a return to a place already peopled is brief", ws.weight_hint == "brief", ws.weight_hint)
-check("the revisit note says what has changed, in a sentence or two", "what has changed" in ws.brevity())
+check("the revisit note says what has changed, in a sentence or two, and never invents it", "has changed since" in ws.brevity() and "never invent" in ws.brevity())
 
 shutil.rmtree("saves/frame_test", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

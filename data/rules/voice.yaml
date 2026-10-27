@@ -52,10 +52,10 @@ exemplars:
 # simply themselves. wary needs trust under 50, grievance a concern, after a motive; tired is twice as likely after dark.
 stances:
   none:      {weight: 40, text: ""}
-  busy:      {weight: 18, text: "busy: {activity}. The work comes first, and the stranger gets what attention is left over"}
-  wary:      {weight: 12, text: "wary of strangers today, and giving this one nothing for free"}
-  tired:     {weight: 10, text: "tired; it has been a long day and you would sooner be done with it"}
-  grievance: {weight: 12, text: "nursing a grievance, and it keeps coming up whatever they ask: {concern}"}
+  busy:      {weight: 18, text: "busy ({activity}): you answer with half your attention and your hands do not stop; you never say that you are busy"}
+  wary:      {weight: 12, text: "wary of strangers today: you ask what they want before you give anything, and give little"}
+  tired:     {weight: 10, text: "tired: you answer shorter than you would, and take any excuse to end it; you never say that you are tired"}
+  grievance: {weight: 12, text: "nursing a grievance that keeps coming up whatever they ask: {concern}"}
   after:     {weight: 8,  text: "after something, and this stranger might be useful for it: {motive}"}
 
 # (f347) A written parting line, used when the model's own fails, by how they are with the player; never one they said lately.

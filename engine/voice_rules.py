@@ -38,14 +38,14 @@ def npc(level: str) -> dict:
 def short_gesture(gesture: str) -> str:
     """(f347) A gesture short enough to print beside bare speech: kept whole when it is within gesture_words, cut at its first clause when
     that is, otherwise dropped. 'wipes her hands on her apron' stays; 'glances at the door, then back to the ledger with a sigh' becomes
-    'glances at the door'."""
+    'glances at the door'; 'gives a slow, deliberate nod' is never cut inside its pair of adjectives."""
     g = " ".join((gesture or "").split()).strip().rstrip(".")
     if not g:
         return ""
     cap = V.get("gesture_words", 6)
     if len(g.split()) <= cap:
         return g
-    head = re.split(r",|;| and | then | before | while | as ", g, maxsplit=1)[0].strip()
+    head = re.split(r";|, then |, and |, before |, while |, as |,\s+(?=\w+ing\b)| and then | and | then | before | while | as ", g, maxsplit=1)[0].strip()
     return head if head and len(head.split()) <= cap else ""
 
 

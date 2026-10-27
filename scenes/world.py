@@ -308,6 +308,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             fresh_copy = next((n for n in self.present if n.id == self.partner.id), None)
             if fresh_copy:
                 self.partner = fresh_copy
+        from engine import doings, moments                                                    # (f348) what each of them is doing now: the engine's
+        self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes))
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here."""
@@ -319,6 +321,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if here.populated:
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
+        from engine import moments
+        moments.tick(self)                                                                    # (f348) a moment that has run its minutes ends
 
     def pulse_data(self) -> dict:
         """The debug pane: the pulse log of this session, newest first, and what is live now."""
@@ -393,6 +397,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         new_town, old_town = pulse.town_of(self.world, place_id), pulse.town_of(self.world, self.player.location)
         if new_town != old_town:
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
+            self._framed_hires = set()                                            # (f347) a hire's first words in a new town earn a frame; each shop in it does not
             from engine import ambient
             if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
                 self.player.last_in[old_town] = self.minutes                       # (f331) when the player last left a town
@@ -413,6 +418,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.weight_hint = "brief"                                   # (f347) seen before: what has changed, in a sentence or two
         self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
         self.refresh_present()
+        if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
+            from engine import doings
+            self.__dict__.setdefault("_arrival_lines", []).extend(doings.changed_lines(getattr(self, "_doing_changes", [])))
+        from engine import moments
+        moments.on_enter(self)                                                                # (f348) a possibility: something going on as they walk in
         self.home_arrival()
         self.arc_enter(place_id)
         self.bring_prisoners(place_id)
@@ -435,8 +445,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def brevity(self) -> str:
         if getattr(self, "revisit", False):
-            return (" The player has been here before: the place and its people have been seen. Say what has changed since, "
-                    "in a sentence or two, and name at most one person.")
+            return (" The player has been here before: the place and its people have been seen. In a sentence or two, say what the "
+                    "GAME STATE shows has changed since; if nothing has, say only that they are back, and never invent a change.")
         return ""
 
     # ---- (f347) what the player has read about this place this visit, so the narrator and the frames say what is new
@@ -451,10 +461,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         low = text.lower()
         if any(re.search(rf"\b{w}\w*", low) for w in voice_rules.V.get("weather_words", [])):
             s["weather"] = True
-        for label, _desc, _doing in self.people_view():
+        for label, _desc, doing in self.people_view():
             key = re.sub(r"^(the|a|an) ", "", label.lower()).strip()
-            if key and key in low:
-                s["people"].add(label)
+            head = key.split()[-1] if key else ""
+            work = [w for w in re.findall(r"[a-z]{7,}", (doing or "").lower())]
+            if key and (key in low or (len(head) >= 4 and re.search(rf"\b{re.escape(head)}s?\b", low)) or any(w in low for w in work)):
+                s["people"].add(label)                   # the narrator paraphrases an epithet ('a muscular guard'): the noun or their work is enough
 
     def shown_lines(self) -> list[str]:
         """The ALREADY SHOWN THIS VISIT list for the prompts, as plain lines."""
@@ -1897,15 +1909,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def frame_reasons(self, npc, reply, revealed=(), note: str = "") -> list[str]:
         """(f347) Why this line of speech earns the narrator's frame, as the engine sees it: the first words between them this visit, trust
-        that moved, a reveal, a refusal or threat, a gift, a leaving, an attempt the game has judged. Empty for an ordinary line, which is
-        then printed as the words alone. data/rules/voice.yaml frame_when holds the wording the frame is given."""
+        that moved by two or more, a clue given, a refusal or threat, a gift, a leaving, an attempt the game has judged. Empty for an
+        ordinary line (most of them), which is then printed as the words alone. data/rules/voice.yaml frame_when holds the wording the
+        frame is given."""
         W = voice_rules.V["frame_when"]
         out = []
         if npc.id not in self.__dict__.setdefault("_framed_here", set()):
             out.append(W["first"])
-        if getattr(reply, "trust_change", 0):
+        if abs(getattr(reply, "trust_change", 0) or 0) >= 2:                  # a nudge of one is the model being polite, not a moment
             out.append(W["trust"])
-        if revealed:
+        if any(str(r).startswith("clue:") for r in revealed):                   # a clue to a matter; an ordinary fact of the town is not a moment
             out.append(W["reveal"])
         intent = getattr(reply, "intent", "")
         if intent in ("refuse", "threaten"):
@@ -1917,6 +1930,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             out.append(W["leave"])
         if note:
             out.append(W["decided"])
+        return out
+
+    def other_names(self, who=None) -> list[str]:
+        """(f347) Everyone present but `who` (an NPC record or a hire's name), by name and as the player knows them: a frame must not open
+        on one of them."""
+        skip = {getattr(who, "id", None), who if isinstance(who, str) else None}
+        out = [x for n in self.present if n.id not in skip for x in (n.name, n.label())]
+        out += [m["name"] for m in self.player.party if m.get("name") and m["name"] not in skip]
+        if getattr(self, "partner", None) and self.partner.id not in skip:
+            out += [self.partner.name, self.partner.label()]
+        from engine import mentor
+        if self.mentor_with_you() and who is not mentor.NAME:
+            out.append(mentor.NAME)
         return out
 
     def show_speech(self, speaker: str, reply, npc) -> None:
@@ -1947,6 +1973,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines()),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
+                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)},
             )
         except LLMError:
             self.show_speech(speaker, reply, npc)

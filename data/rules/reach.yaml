@@ -62,6 +62,7 @@ tools:
   smith:            [the hammer, a pair of tongs, a bar of iron in the coals, the anvil]
   stonemason:       [a chisel, a mallet, a block of dressed stone]
   tinker:           [a kettle, a tray of small tools, a coil of wire]
+  traveling_player: [a lute, a cap for coins, a pack]
   trapper:          [a snare, a pelt, a skinning knife]
   watch_captain:    [a sword at the hip, a roster, a whistle]
   water_priest:     [a bowl of water, a holy symbol, a brass ewer]

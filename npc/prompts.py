@@ -1,11 +1,12 @@
 """Prompts for generating NPCs and voicing them in conversation."""
 
 RESIDENTS_SYSTEM = """You create the ordinary people who live and work in one place in a fantasy world.
-The game has already decided how many people there are, their names, genders, roles and peoples. You give each one:
+The game has already decided how many people there are, their names, genders, roles and peoples, and it decides what each of them
+is doing from moment to moment. You give each one:
   name: copy the NAME given for the slot exactly. Never invent or change a name.
   epithet: 2 to 4 words someone would use for them before learning their name, e.g. "the stooped baker", "a red-bearded guard".
-  description: one sentence on how they look. Appearance only, no personality.
-  activity: one sentence, present tense, on what they are doing at this moment. Ordinary, specific, suited to the place.
+  description: one sentence on how they look. Appearance only: their build, face, hair, clothes, marks of their trade; never what they
+    are doing right now, which changes.
 Make them visibly different from one another. Do not invent other people, places, or events.
 If the request says why they are here, let their look, manner and activity fit that story (a hermit-herbalist at a shrine may
 look and dress like a wanderer of the woods). Their role still decides what they do for the player; do not change it.
