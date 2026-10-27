@@ -1921,8 +1921,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if any(str(r).startswith("clue:") for r in revealed):                   # a clue to a matter; an ordinary fact of the town is not a moment
             out.append(W["reveal"])
         intent = getattr(reply, "intent", "")
-        if intent in ("refuse", "threaten"):
-            out.append(W["refuse"])
+        if intent == "threaten" or (intent == "refuse" and voice_rules.refuses(getattr(reply, "speech", ""))):
+            out.append(W["refuse"])                                              # the model marks 'refuse' on most answers; the words decide
         gift = getattr(reply, "gives", None)
         if gift is not None and getattr(gift, "name", "").strip():
             out.append(W["gift"])
@@ -1947,7 +1947,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def show_speech(self, speaker: str, reply, npc) -> None:
         """(f347) The words alone, with the person's own gesture when it is short enough to read as one (voice_rules.short_gesture)."""
-        gesture = voice_rules.short_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc))
+        from engine import quirks
+        gesture = voice_rules.short_gesture(quirks.bare_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc), npc.name))   # no 'Rossy gives...': the label is printed
         console.npc_says(speaker, reply.speech, gesture)
         self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
 

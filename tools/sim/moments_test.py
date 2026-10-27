@@ -79,8 +79,8 @@ seen = moments.seen_list(store)
 check("the playthrough remembers it", len(seen) == 1 and seen[0]["shape"] == "performer" and seen[0]["place"] == "tilted_plough", seen)
 from engine import moment_prompts as mp
 req = mp.moment_request(ws, specs["quarrel"], "", seen)
-check("the next moment's request lists what was seen, the people with their roles, and the shape", "ALREADY SEEN IN THIS GAME" in req and seen[0]["title"] in req
-      and "(innkeeper)" in req and specs["quarrel"]["brief"] in req and "MISHAP:" in req and "No visitor" in req, req[-700:])
+check("the next moment's request lists what was seen, the people role first, and the shape", "ALREADY SEEN IN THIS GAME" in req and seen[0]["title"] in req
+      and "- innkeeper: " in req and specs["quarrel"]["brief"] in req and "MISHAP:" in req and "No visitor" in req, req[-700:])
 check("a moment earns the narrator room", ws.weight_hint == "rich", ws.weight_hint)
 ws.weight_hint = None
 # stepping out and back in: the moment carries on, nothing new is rolled

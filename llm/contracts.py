@@ -833,8 +833,30 @@ class NPCReply(BaseModel):
         return self
 
 
+_PARTING_STOP = {"you", "then", "the", "a", "and", "to", "of", "your", "on", "in", "now", "well", "right", "good", "day", "go", "be", "it", "that",
+                 "with", "for", "there", "out", "off", "all", "so", "do", "my", "me", "i"}
+
+
+def _parting_words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z']+", (text or "").lower()) if w not in _PARTING_STOP and len(w) > 2}
+
+
+def parting_like(speech: str, heard: list[str]) -> str:
+    """(f347) A parting heard lately in this town that this one is the same as: two content words shared, or all of this one's inside
+    it ('Safe travels.' after 'Safe travels, friend.'). The ordinary repeat guard skips lines this short, and the chorus was across people."""
+    mine = _parting_words(speech)
+    if not mine:
+        return ""
+    for old in heard:
+        theirs = _parting_words(old)
+        if theirs and (len(mine & theirs) >= 2 or mine <= theirs):
+            return old
+    return ""
+
+
 class Parting(BaseModel):
-    """(f347) One short line said by the person the player is leaving, in answer to a goodbye. No frame follows it."""
+    """(f347) One short line said by the person the player is leaving, in answer to a goodbye. No frame follows it. The context's
+    `heard` holds the partings said lately by anyone in this town: a chorus of 'safe travels' across people is sent back."""
     speech: str
     gesture: str = ""
 
@@ -852,6 +874,9 @@ class Parting(BaseModel):
         if "*" in self.speech or "_" in self.speech:
             raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _not_said_again(self.speech, info)
+        hit = parting_like(self.speech, list(_ctx(info).get("heard") or []))
+        if hit:
+            raise ValueError(f"someone here said much the same when the player left lately ('{hit}'): part your own way, in other words, or with only a nod")
         return self
 
 

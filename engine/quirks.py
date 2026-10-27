@@ -247,11 +247,14 @@ def voice_check(member: dict, speech: str, player_name: str = "", recent: list[s
 
 # ---------- habits ----------
 
-def habit_line(member: dict, when: str, rng: random.Random, weapon: str = "", danger: bool = False) -> str:
-    """The habit shown at its moment, or ''. Always the first time; then most of the time."""
+def habit_line(member: dict, when: str, rng: random.Random, weapon: str = "", danger: bool = False, day: int | None = None) -> str:
+    """The habit shown at its moment, or ''. Always the first time; then most of the time, and never twice in one day (a night run saw
+    'takes the first watch' on every hour's wait)."""
     q = member.get("quirks") or {}
     spec = Q["habits"].get(q.get("habit", ""))
     if not spec:
+        return ""
+    if day is not None and q.get("habit_day") == day:
         return ""
     want = spec["when"]
     if want == "arrival_danger":
@@ -262,6 +265,8 @@ def habit_line(member: dict, when: str, rng: random.Random, weapon: str = "", da
     if q.get("habit_shown", 0) and rng.randrange(100) >= Q["habit_chance"]:
         return ""
     q["habit_shown"] = q.get("habit_shown", 0) + 1
+    if day is not None:
+        q["habit_day"] = day
     p = pronouns(member)
     return spec["line"].format(name=member["name"].split()[0], weapon=weapon or "blade", count=member.get("fights_total", 0), **p)
 

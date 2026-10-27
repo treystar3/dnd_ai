@@ -76,6 +76,9 @@ def request(ws, npc, text: str):
         p.history(so_far, "THIS CONVERSATION, LATELY")
     from engine import banter
     p.history(banter.unsaid_rule(list(npc.said)))
+    heard = getattr(ws, "_partings_heard", [])
+    if heard:
+        p.history("\n".join(f"  - {h}" for h in heard[-6:]), "WHAT OTHERS HERE SAID LATELY WHEN THE PLAYER LEFT (not these, nor the like of them)")
     p.fact(f'"{text}"', "THEY SAY, LEAVING")
     return p
 
@@ -88,12 +91,15 @@ def line(ws, npc, text: str) -> tuple[str, str]:
     from llm.gateway import LLMError, generate
     view = truth.scene_of(ws).view(truth.viewer_for_npc(npc, ws.world), "townsfolk")
     known = view.scene.known_words()
+    heard = list(getattr(ws, "_partings_heard", []))
     try:
-        r = generate("npc_parting", PARTING_SYSTEM, request(ws, npc, text), Parting, temperature=0.9, max_tokens=120, retries=1,
-                     validation_context={"known": known, "recent": list(npc.said[-6:])}, relaxed_context={"known": known})
-        return r.speech.strip(), (r.gesture or "").strip()
+        r = generate("npc_parting", PARTING_SYSTEM, request(ws, npc, text), Parting, temperature=0.9, max_tokens=120, retries=2,
+                     validation_context={"known": known, "recent": list(npc.said[-6:]), "heard": heard}, relaxed_context={"known": known})
+        speech, gesture = r.speech.strip(), (r.gesture or "").strip()
     except LLMError:
-        return voice_rules.written_parting(npc, ws.rng, npc.said), ""
+        speech, gesture = voice_rules.written_parting(npc, ws.rng, list(npc.said) + heard), ""
+    ws._partings_heard = (heard + [speech])[-10:]                   # (f347) the town's partings lately: no chorus across people
+    return speech, gesture
 
 
 def remember(npc, heard: str, said: str, keep: int = 8) -> None:
