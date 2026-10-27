@@ -624,6 +624,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.banter_tick()
                 self.note_hire_spoke(heard)
                 self.collapse_check()
+                self.heard_flush()                         # the places first heard of this turn, in one quiet line
                 self.store.save_player(self.player)
             return True
         except LLMError as e:
@@ -657,6 +658,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.banter_tick()
         except LLMError:
             pass
+        self.heard_flush()
         self.store.save_player(self.player)
 
     def collapse_check(self) -> None:

@@ -105,7 +105,8 @@ check("#goroad walks that way", P.location == "greywood", P.location)
 store, ws = fresh("roads_test2"); P = ws.player
 NOTES.clear()
 ws.hear_names("You could try Willowmead, a day's walk east. Or the Greywood, if you like trees.")
-check("a place someone names becomes known", "willowmead" in P.heard and "greywood" in P.heard and any("heard of the Greywood" in n or "heard of Willowmead" in n for n in NOTES), (P.heard, NOTES))
+check("a place someone names becomes known, with no note in the story's column (one ledger line comes at the turn's end)",
+      "willowmead" in P.heard and "greywood" in P.heard and not any("heard of" in n.lower() for n in NOTES), (P.heard, NOTES))
 check("...and appears further afield", {"willowmead", "greywood"} <= {r["id"] for r in ws.places_data()["far"]})
 n = len(NOTES); ws.hear_names("Willowmead again.")
 check("hearing it twice says nothing", len(NOTES) == n and P.heard.count("willowmead") == 1)
