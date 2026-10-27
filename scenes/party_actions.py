@@ -459,11 +459,11 @@ class PartyActions:
         return words + (f". {m['impression']}" if m.get("impression") else "")
 
     def hire_frame_reasons(self, m: dict, text: str, in_fight: bool) -> list[str]:
-        """(f347) Why a hire's line earns the narrator's frame: the first words with them this visit, a beat in a fight, a feeling the
+        """(f347) Why a hire's line earns the narrator's frame: the first words with them in this town, a beat in a fight, a feeling the
         engine knows they have right now. Empty for an ordinary line, which is printed as the words and their gesture."""
         from engine import voice_profile, voice_rules
         W = voice_rules.V["frame_when"]
-        framed = self.__dict__.setdefault("_framed_here", set())
+        framed = self.__dict__.setdefault("_framed_hires", set())               # reset when the town changes (scenes/world.py enter)
         out = []
         if m["name"] not in framed:
             out.append(W["first"])
@@ -507,7 +507,8 @@ class PartyActions:
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
                                                   why=why, already=self.shown_lines()),
-                              DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400)
+                              DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400,
+                              context={"speaker": [name], "others": self.other_names(name)})
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
                 self.note_shown(f"{frame.before} {after}")

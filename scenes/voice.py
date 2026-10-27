@@ -52,13 +52,14 @@ def stale_phrases(text: str, recent: list[str]) -> list[str]:
 
 
 def fresh(task: str, system: str, request: str, schema, recent: list[str], fields=("text",),
-          temperature: float = 0.9, max_tokens: int = 600):
-    """Generate narration; if it repeats recent phrasing or stock phrases, rewrite once with them called out."""
-    result = generate(task, system, request, schema, temperature=temperature, max_tokens=max_tokens)
+          temperature: float = 0.9, max_tokens: int = 600, context: dict | None = None):
+    """Generate narration; if it repeats recent phrasing or stock phrases, rewrite once with them called out. `context` is the schema's
+    validation context (a frame's speaker and the others present, f347)."""
+    result = generate(task, system, request, schema, temperature=temperature, max_tokens=max_tokens, validation_context=context)
     text = " ".join(getattr(result, f, "") or "" for f in fields)
     hits = stale_phrases(text, recent)
     if not hits:
         return result
     nudge = ("\n\nYOUR DRAFT REUSED STALE PHRASING. Do not use any of these again: "
              + "; ".join(f'"{h}"' for h in hits) + ". Write it fresh, with the same events.")
-    return generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens)
+    return generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens, validation_context=context)

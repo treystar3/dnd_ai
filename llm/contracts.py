@@ -747,6 +747,8 @@ class NPCReply(BaseModel):
 
     @model_validator(mode="after")
     def said_again(self, info: ValidationInfo):
+        if "*" in self.speech or "_" in self.speech:
+            raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _not_said_again(self.speech, info)
         return self
 
@@ -767,6 +769,8 @@ class Parting(BaseModel):
             raise ValueError("say something, even a word")
         if len(self.speech.split()) > 25:
             raise ValueError("one short parting line: a few words, not a speech")
+        if "*" in self.speech or "_" in self.speech:
+            raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _not_said_again(self.speech, info)
         return self
 
@@ -849,10 +853,35 @@ class LegendaryName(BaseModel):
         return self
 
 
+_BACK_TO_WORK = re.compile(r"\b(returns?|returning|turns? back|turning back|goes back|going back|gets? back|getting back|resum\w*|"
+                           r"picks? up (?:the|his|her|their) \w+ again|back to (?:his|her|their|the) (?:work|task|tasks|ledger|net|nets|forge|anvil|"
+                           r"whetstone|pot|stew|polishing|sharpening|sweeping|mending|counter|parchment|bench)|"
+                           r"continues? (?:his|her|their) (?:work|sharpening|polishing|sweeping|mending|scrubbing))\b", re.I)
+
+
 class DialogueFrame(BaseModel):
-    """Narration around one line of NPC speech. The speech itself is printed by the engine, unchanged."""
+    """Narration around one line of NPC speech. The speech itself is printed by the engine, unchanged. (f347) Two things the model
+    will not hold to when merely told: the frame never shows the character going back to what they were doing, and it never opens on
+    another person's name (the context's `speaker` are the speaker's names; `others`, everyone else present)."""
     before: str = ""
     after: str = ""
+
+    @model_validator(mode="after")
+    def about_them_and_not_their_work(self, info: ValidationInfo):
+        m = _BACK_TO_WORK.search(self.after or "")
+        if m:
+            raise ValueError(f"after shows them going back to what they were doing ('{m.group(0)}'): end on what the words changed, "
+                             "or leave after empty")
+        ctx = _ctx(info)
+        mine = {str(s).split()[0].lower() for s in ctx.get("speaker", ()) if str(s).strip()}
+        theirs = {str(o).split()[0].lower(): str(o) for o in ctx.get("others", ()) if str(o).strip()}
+        for field in (self.before, self.after):
+            first = (field or "").strip().split(" ")[0].strip(",.;:'\"").lower()
+            first = re.sub(r"['’]s$", "", first)
+            if first in theirs and first not in mine and first not in ("the", "a", "an"):
+                who = ctx.get("speaker", ["the speaker"])[0]
+                raise ValueError(f"the frame is about {who}, but it opens on {theirs[first]}: write it about {who}, by name or as they are known")
+        return self
 
 
 class MechanicChoice(BaseModel):
