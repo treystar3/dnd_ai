@@ -229,11 +229,15 @@ def on_arrival(ws) -> None:
                 continue
             _play_moment(ws, state, th)
             _note(state, town, "scene", ws.minutes)
+            from engine import pulselog
+            pulselog.mark("scene", th["title"], ws.minutes, place=ws.player.location)                  # (f355)
             changed = True
             break
         if th.get("summons") == "pending" and _cooldown_ok(state, town, "summons", ws.minutes):
             if _send_someone(ws, state, th):
                 _note(state, town, "summons", ws.minutes)
+                from engine import pulselog
+                pulselog.mark("summons", th["title"], ws.minutes, place=ws.player.location)            # (f355)
                 changed = True
                 break
     if changed:

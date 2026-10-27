@@ -10,6 +10,16 @@ max_engine_events_per_action: 8 # (f353) the engine's own situations cost no cal
 # What an eventful pulse does, by weight.
 kinds: {motive: 4, thread: 4}
 
+# (f354) THE ENGINE'S OWN ROLL. The roll above was priced when every situation cost a model call; nineteen in twenty now cost nothing, and
+# at that rate there was half a situation at the player's town at any time. Each tick the engine may also start one within reach of the
+# player (the here and near bands), and after a quiet day within reach it starts one whether the roll said so or not; never more than
+# most_live within reach at once.
+engine_roll:
+  chance: 0.4
+  bands: {here: 55, near: 45}
+  quiet_hours: 24
+  most_live: 2
+
 # Tiers of new situations (threads). Odds are for an eventful pulse that starts a thread.
 # engine: true (f331): the engine builds the situation itself from data/rules/threads.yaml, with no model call; the model may re-tell its
 # lines when the player comes where it is. A tier without it is written by the model; with fallback: engine it is the engine's when the

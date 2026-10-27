@@ -484,6 +484,7 @@ def main() -> None:
 
     import config
     config.LOG_PATH = str(out / "llm_calls.jsonl")          # the run's own logs, kept whole: the game's trimming never touches them
+    config.PULSE_LOG_PATH = str(out / "pulse.jsonl")        # (f355) what the world did, and what of it the player met
     config.TURN_LOG_PATH = str(out / "turns_game.jsonl")
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
@@ -584,6 +585,14 @@ def main() -> None:
             unload()
     import latency
     summary = latency.summarise(out)
+    try:
+        import world_report                                     # (f355) the world's side of the run, appended to summary.md
+        world = world_report.summarise(out / "pulse.jsonl")
+        if world:
+            (out / "summary.md").write_text(summary + "\n" + world, encoding="utf-8")
+            summary += "\n" + world
+    except Exception as e:                                      # the summary is a convenience; a missing world log never fails the run
+        print(f"world report skipped: {e}")
     print()
     print(summary)
     print(f"\nLogs: {out.resolve()}")

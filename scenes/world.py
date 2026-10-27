@@ -341,6 +341,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if not v.gone and v.away_until <= self.minutes and court.visible(self, v):
                     self.present.append(v)
                     self._routine_here.add(v.id)
+        if self._routine_here and self.__dict__.get("_routine_marked") != key:
+            self.__dict__["_routine_marked"] = key
+            pulselog.mark("routine", f"{len(self._routine_here)} here on their routine", self.minutes, place=self.player.location)   # (f355)
         if getattr(self, "partner", None):          # residents are reloaded from disk each turn: keep pointing at the same person's fresh copy
             fresh_copy = next((n for n in self.present if n.id == self.partner.id), None)
             if fresh_copy:
@@ -506,6 +509,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if line:
             console.narrate(line)
             self.remember_narration(line)
+            pulselog.mark("stay", line, self.minutes, place=self.player.location)                      # (f355)
 
     def brevity(self) -> str:
         if getattr(self, "revisit", False):

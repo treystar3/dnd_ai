@@ -1,8 +1,32 @@
-"""A developer's record of what the world pulse did this session: when it fired and what it changed. Shown by #pulse when the game runs with --debug.
-Nothing here is saved, and nothing reads it back into the game."""
+"""A record of what the world did: when the pulse fired and what it changed, and (f355) what of it the player met - a moment, a scene, a
+summons, a line about the room changing, people met on their routine. Shown by #pulse when the game runs with --debug, and appended as
+one JSON row per event to config.PULSE_LOG_PATH (tools/world_report.py reads it, per game day). Nothing reads it back into the game."""
+import json
 from collections import deque
+from pathlib import Path
 
 LOG: deque = deque(maxlen=400)
+
+
+def _write(row: dict) -> None:
+    import config
+    path = getattr(config, "PULSE_LOG_PATH", "")
+    if not path:
+        return
+    try:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def mark(kind: str, text: str, t: int, **data) -> dict:
+    """(f355) Something the player met: kind moment | scene | summons | stay | routine | retold | board. Logged at once."""
+    row = {"t": t, "kind": kind, "text": text, "effects": [], **data}
+    LOG.append(row)
+    _write(row)
+    return row
 _tick = {"t": 0, "fired": False}
 
 
@@ -26,11 +50,13 @@ def close() -> None:
     _tick["t"] = 0
 
 
-def note(kind: str, text: str, effects: list | None = None) -> dict:
-    """kind: thread | stage | end | motive | effect | miss. effects: [{"text", "result"}] applied by this event."""
-    row = {"t": _tick["t"], "kind": kind, "text": text, "effects": effects or []}
+def note(kind: str, text: str, effects: list | None = None, **data) -> dict:
+    """kind: thread | stage | end | motive | effect | miss | drift. effects: [{"text", "result"}] applied by this event. Extra fields
+    (tier, place, how...) ride along into the saved row."""
+    row = {"t": _tick["t"], "kind": kind, "text": text, "effects": effects or [], **data}
     LOG.append(row)
     _tick["fired"] = True
+    _write(row)
     return row
 
 

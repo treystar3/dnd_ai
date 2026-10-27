@@ -1,11 +1,17 @@
 """(f353) Two things the five-hour run showed about the pulse: the re-telling call failed every time (the model left the stage list out), so
 its lists are required and the request ends with the exact shape to fill; and the event budget counted the engine's own situations, which
-cost no call, so a long absence started at most two things in the whole world."""
+cost no call, so a long absence started at most two things in the whole world. (f354) The engine's own roll keeps a situation or two
+within reach of the player. (f355) The world log is saved, the player's meetings with it are marked, and tools/world_report.py reads it."""
 import random, re, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 1))
-from engine import pulse, threads
+import config
+LOGP = "/tmp/claude-0/-home-user-dnd-ai/8b9b3e33-6d8e-58d7-85b0-03b5c8fa35c4/scratchpad/pulse_test.jsonl"
+import os
+if os.path.exists(LOGP): os.remove(LOGP)
+config.PULSE_LOG_PATH = LOGP
+from engine import pulse, pulselog, threads
 from llm.contracts import ThreadTelling
 from npc.life import populate_place
 from npc.traits import load_traits
@@ -61,6 +67,42 @@ st = store.load_world_state()
 mine = [t for t in st["threads"] if t.get("made_by") == "engine"]
 check("ten days away: the engine's own situations are not held to the two-call budget", len(mine) > 2 and len(mine) <= pulse.P.get("max_engine_events_per_action", 8), len(mine))
 pulse.P.clear(); pulse.P.update(old)
+
+# ---- (f354) the engine's own roll: within reach of the player (who must exist, and be somewhere)
+import copy
+from storage.campaign import PlayerState
+char, _ = simlib.make_character("warrior", random.Random(2))
+store.save_player(PlayerState(character=char, location="parth"))
+old = copy.deepcopy(pulse.P)
+pulse.P["eventful_chance"] = 0.0                                  # the model-priced roll off: only the engine's own
+pulse.P["engine_roll"] = {"chance": 1.0, "bands": {"here": 55, "near": 45}, "quiet_hours": 24, "most_live": 2}
+state = pulse.empty_state(start); store.save_world_state(state)
+pulse.catch_up(store, world, catalog, start + 5 * 1440)
+st = store.load_world_state()
+live = pulse.within_reach(store, world, st, start + 5 * 1440)
+check("with the engine's roll every tick, live situations within reach of the player sit at the cap, never above", 1 <= len(live) <= 2, (len(live), [t["place"] for t in st["threads"]]))
+reach_ids = {x["id"] for x in live}
+check("...and every one it started is within reach (the here and near bands)", all(t["id"] in reach_ids or t["status"] != "active" for t in st["threads"])
+      and sum(1 for t in st["threads"] if t.get("made_by") == "engine") >= 2, [(t["place"], t["status"]) for t in st["threads"]])
+pulse.P["engine_roll"]["chance"] = 0.0                            # no roll at all: only the quiet-day floor
+state = pulse.empty_state(start); store.save_world_state(state)
+pulse.catch_up(store, world, catalog, start + 2 * 1440 + 60)
+st = store.load_world_state()
+check("with no roll, a quiet day within reach still starts one (the floor), and only one", len(pulse.within_reach(store, world, st, start + 2 * 1440 + 60)) == 1, len(st["threads"]))
+pulse.P.clear(); pulse.P.update(old)
+
+# ---- (f355) the world log
+rows = [__import__("json").loads(l) for l in open(LOGP, encoding="utf-8")]
+kinds = {r["kind"] for r in rows}
+check("every pulse event is a saved row with its kind and its place", "thread" in kinds and all("t" in r and "kind" in r for r in rows) and any(r.get("tier") and r.get("town") and "reach" in r for r in rows if r["kind"] == "thread"), sorted(kinds))
+pulselog.mark("stay", "Rain starts.", start + 10, place="parth")
+rows = [__import__("json").loads(l) for l in open(LOGP, encoding="utf-8")]
+check("what the player meets is marked and saved too", rows[-1]["kind"] == "stay" and rows[-1]["place"] == "parth")
+sys.path.insert(0, "tools")
+import world_report
+text = world_report.summarise(LOGP)
+check("the world report reads it per game day: the totals, the table, the situations", text.startswith("## The world") and "| Day |" in text and "situations started" in text and "Situations started:" in text, text[:300])
+check("...and says nothing for an empty log", world_report.summarise(LOGP + ".missing") == "")
 shutil.rmtree("saves/pulse_budget_test", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

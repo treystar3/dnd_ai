@@ -3,6 +3,7 @@ THINK = False
 NUM_CTX = 32768
 DEFAULT_TEMPERATURE = 0.8
 LOG_PATH = "logs/llm_calls.jsonl"
+PULSE_LOG_PATH = "logs/pulse.jsonl"   # (f355) what the world did: every pulse event and every one the player met (engine/pulselog.py, tools/world_report.py)
 DEBUG = False
 MAX_TOKENS = 800
 REQUEST_TIMEOUT = 120

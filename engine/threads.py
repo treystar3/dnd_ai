@@ -414,6 +414,8 @@ def tell(store, world, state: dict, th: dict, t: int) -> bool:
                         validation_context={"stages": len(u["stages"]), "clues": len(u["clues"]), "known": truth.world_words(world)})
     except LLMError as e:
         console.debug(f"threads: {th['title']} keeps its own words ({e})")
+        from engine import pulselog
+        pulselog.mark("retell_failed", th["title"], t, place=th["place"])                               # (f355)
         return False
     changed = False
     for n, i in enumerate(u["stages"]):
@@ -438,6 +440,8 @@ def tell(store, world, state: dict, th: dict, t: int) -> bool:
         changed = True
     th["told"] = True
     console.debug(f"threads: {th['title']} re-told ({len(u['stages'])} stages, {len(u['clues'])} clues)")
+    from engine import pulselog
+    pulselog.mark("retold", th["title"], t, place=th["place"], changed=changed)                         # (f355)
     return changed
 
 
