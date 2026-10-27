@@ -74,6 +74,9 @@ class EventBot(Bot):
         self.stuck: collections.Counter = collections.Counter()      # (goal, place) -> lines typed toward it with no change of place
         self.waits = 0                               # 8-hour steps passed without a line
         self.waits_here = 0
+        self.avoid_until: dict[str, int] = {}        # spawn id -> the minute a hunt that killed the character twice may resume
+        self.deaths_on: collections.Counter = collections.Counter()
+        self.deaths_seen = self.c.deaths
         self.learn_left = 3                          # questions to ask where the matter is before going after its paths; more when a stage turns
         self.zones: dict[str, str | None] = {}       # path id -> the zone where its quarry lives, once looked up
         self.snapshot = self.take()
@@ -163,6 +166,15 @@ class EventBot(Bot):
     # ---- deciding
     def decide(self) -> tuple[str, str]:
         self.watch()
+        if self.c.deaths > self.deaths_seen:         # died since the last line: the hunt that did it is left alone for a while
+            self.deaths_seen = self.c.deaths
+            goal = getattr(self, "current_goal", None)
+            if goal and goal[0] == "hunt":
+                sid = goal[1]["id"]
+                self.deaths_on[sid] += 1
+                if self.deaths_on[sid] >= 2:
+                    self.avoid_until[sid] = self.ws.minutes + 12 * DAY
+                    self.note(f"{goal[1]['name']} has killed the character twice: that hunt rests for twelve days")
         text, kind = super().decide()
         self.note(f"at {self.where()} > {text}")
         return text, kind
@@ -225,7 +237,7 @@ class EventBot(Bot):
                 self.waits_here += 1
                 return ("wait",)
             self.learn_left = 0
-        live = events.live_spawns(st, now, th["id"])
+        live = [s for s in events.live_spawns(st, now, th["id"]) if self.avoid_until.get(s["id"], 0) <= now]
         undone = [p for p in th.get("paths", []) if not p["done"] and p["id"] not in self.given_up]
         boss = [s for s in live if s.get("boss")]
         if boss:
@@ -369,7 +381,7 @@ class EventBot(Bot):
         self.tries[n.id] += 1
         ask = "make peace" if p["kind"] == "treaty" else f"help end {th['title']}"
         text = self.rng.choice([f"I try to persuade {n.label()} to {ask}.", f"I do my best to convince {n.label()} to {ask}.",
-                                f"I press {n.label()}: they must {ask}, for everyone's sake."])
+                                f"I try to talk {n.label()} round: they should {ask}, for everyone's sake."])
         return text, self.intend("talk", target=n.id, speech=text, checks=["persuasion"]), "persuade"
 
     def travel_line(self, dest: str, key: tuple) -> tuple | None:
@@ -419,7 +431,9 @@ def write_report(out: Path, info: dict, th: dict | None, state: dict, bot: Event
         lines += ["", "**Stages**", ""]
         for i, s in enumerate(th.get("stages", [])):
             eff = collections.Counter(e.get("kind", "?") for e in s.get("effects", []))
-            lines.append(f"{i + 1}. {s.get('name', '')}{': ' if s.get('name') else ''}{s.get('description', '')}" + (f" _(signs: {s['signs']})_" if s.get("signs") else "")
+            desc = s.get("description", "")
+            name = s.get("name", "") if not desc.startswith(s.get("name", "") + ":") else ""
+            lines.append(f"{i + 1}. {name}{': ' if name else ''}{desc}" + (f" _(signs: {s['signs']})_" if s.get("signs") else "")
                          + (f" [{', '.join(f'{k} x{n}' for k, n in eff.items())}]" if eff else ""))
         for key, label in (("fallout", "Fallout"), ("triumph", "Triumph")):
             v = th.get(key)
@@ -554,6 +568,12 @@ def main() -> None:
     print(f"Event run: a {args.tier}" + (f" ({args.kind})" if args.kind else "") + f" for {char.name}, {spec['name']}, level {char.level}, seed {args.seed}; "
           f"logs in {out}; stops when the event ends, after {args.days} days, {args.turns} lines or {args.hours:g} h. Ctrl+C stops it early.", flush=True)
 
+    # a character of this level is known in the towns: the doors that need a name (a summons, someone coming to find them) can open
+    from engine import events as _events
+    for p in _events.settlements(world):
+        ws.reputation_add(p.id, 15)
+    store.save_player(ws.player)
+
     # the event, forced now, as the big-event slot would start it; the model may give nothing usable, so up to three tries
     ws.enter(ws.player.location)
     th = None
@@ -624,7 +644,7 @@ def main() -> None:
         turnlog.write_session_stats()
         run.finish({"tier": args.tier, "kind": (final_th or {}).get("kind", args.kind), "title": (final_th or {}).get("title", ""), "level": level,
                     "started": True, "status": (final_th or {}).get("status", ""), "result": (final_th or {}).get("result", ""),
-                    "ending": (final_th or {}).get("ending", ""), "days": bot.day(), "deaths": char.deaths, "character": char.name,
+                    "ending": (final_th or {}).get("ending", ""), "days": bot.day(), "deaths": ws.player.character.deaths, "character": char.name,
                     "class": spec["name"], "seed": args.seed, "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
         if not args.stub:
             from llm.gateway import unload

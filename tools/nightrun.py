@@ -362,14 +362,18 @@ class Bot:
         tgt = min(enemies, key=lambda e: e.hp)
         hpf = p.hp / max(1, p.max_hp)
         base = {"target": tgt.id, "summary": "bot"}
-        if hpf < 0.4 and any(i.good == "healing_draught" for i in self.c.inventory):
+        if hpf < 0.5 and any(i.good == "healing_draught" for i in self.c.inventory):
             return dict(base, kind="item", item="healing draught")
-        if hpf < 0.2 and f.round > 2:
+        if (hpf < 0.35 and f.round > 1) or (len(enemies) >= 3 and f.round == 1 and any(e.rank != "normal" for e in enemies)):
             return dict(base, kind="flee")
         usable = [m for m in p.moves if not combat.can_use(p, m, f)]
         if hpf < 0.5:
             for m in usable:
                 if m.effect == "healing":
+                    return dict(base, kind="ability", ability=m.id)
+        if hpf < 0.6 and f.round > 1:
+            for m in usable:
+                if m.effect == "defense" and m.id not in p.buffs:
                     return dict(base, kind="ability", ability=m.id)
         damage = [m for m in usable if m.effect == "damage"]
         if damage and self.rng.random() < 0.7:
@@ -524,7 +528,7 @@ def main() -> None:
         store.close()
         backfill.drop(store)
         turnlog.write_session_stats()
-        run.finish({"character": char.name, "class": spec["name"], "level": char.level, "deaths": char.deaths, "seed": args.seed,
+        run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed,
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
         if not args.stub:
             from llm.gateway import unload
