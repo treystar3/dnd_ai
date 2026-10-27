@@ -1,0 +1,46 @@
+"""tools/nightrun.py plays turns on its own and leaves a run that tools/latency.py can read: with the stand-in model, a short run makes
+its turn rows, its call log, a transcript and a summary, and stops at the turn limit. Also: the gateway keeps Ollama's own counts when
+an answer carries them, and leaves them out when it does not."""
+import json, shutil, subprocess, sys, types
+from pathlib import Path
+sys.path.insert(0, ".")
+bad = []
+def check(n, ok, x=""):
+    print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
+    if not ok: bad.append(n)
+
+# the gateway's counts
+from llm import gateway
+full = types.SimpleNamespace(prompt_eval_count=1234, eval_count=56, prompt_eval_duration=2.5e9, eval_duration=3.0e9, load_duration=0, total_duration=5.6e9)
+u = gateway._usage(full)
+check("an answer's counts are kept: tokens and milliseconds", u == {"prompt": 1234, "out": 56, "read_ms": 2500, "write_ms": 3000, "load_ms": 0, "total_ms": 5600}, u)
+check("a stand-in's answer, which has none, gives none", gateway._usage(types.SimpleNamespace(done_reason="stop")) is None)
+
+# a short run with the stand-in model
+out = Path("saves/nightrun_test/out")
+shutil.rmtree("saves/nightrun_test", ignore_errors=True)
+shutil.rmtree("saves/nightrun_test_game", ignore_errors=True)
+r = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--turns", "12", "--seed", "3", "--hours", "1",
+                    "--out", str(out), "--save", "nightrun_test_game"], capture_output=True, text=True, timeout=900)
+check("the run finishes on its own", r.returncode == 0, (r.stdout[-1500:], r.stderr[-1500:]))
+rows = [json.loads(l) for l in (out / "turns.jsonl").read_text(encoding="utf-8").splitlines()] if (out / "turns.jsonl").exists() else []
+check("one row per turn, twelve turns", len(rows) == 12, len(rows))
+need = {"n", "kind", "text", "where", "seconds", "first_word", "chat_calls", "chat_seconds", "retries", "embed_calls", "hesitated", "level"}
+check("a row carries the line, where it was typed, its time, its first word and its calls", rows and all(need <= set(x) for x in rows), rows[:1])
+check("the lines are what a player types, in several kinds", len({x["kind"] for x in rows}) >= 3 and all(x["text"].strip() for x in rows), [x["kind"] for x in rows])
+check("the model's calls were counted against the turns", sum(x["chat_calls"] for x in rows) >= 12, [x["chat_calls"] for x in rows])
+calls = (out / "llm_calls.jsonl").exists() and [json.loads(l) for l in (out / "llm_calls.jsonl").read_text(encoding="utf-8").splitlines()]
+check("the run keeps its own call log, every attempt with its task and seconds", bool(calls) and all("task" in c and "seconds" in c for c in calls), bool(calls))
+info = json.loads((out / "run.json").read_text(encoding="utf-8")) if (out / "run.json").exists() else {}
+check("the run says why it stopped", info.get("reason") == "turn limit (12)" and info.get("turns") == 12, info)
+check("a transcript was written", (out / "transcript.md").exists() and (out / "transcript.md").stat().st_size > 500)
+summary = (out / "summary.md").read_text(encoding="utf-8") if (out / "summary.md").exists() else ""
+check("the summary has the turns and the calls by task", "## Turns" in summary and "## Calls by task" in summary and "| interpret_action |" in summary, summary[:600])
+r2 = subprocess.run([sys.executable, "tools/latency.py", str(out)], capture_output=True, text=True, timeout=120)
+check("tools/latency.py reads the folder again on its own", r2.returncode == 0 and "Calls by task" in r2.stdout, r2.stderr[-500:])
+r3 = subprocess.run([sys.executable, "tools/latency.py", "--calls", str(out / "llm_calls.jsonl")], capture_output=True, text=True, timeout=120)
+check("...and a call log on its own", r3.returncode == 0 and "| Task |" in r3.stdout, r3.stderr[-500:])
+shutil.rmtree("saves/nightrun_test", ignore_errors=True)
+shutil.rmtree("saves/nightrun_test_game", ignore_errors=True)
+print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
+sys.exit(1 if bad else 0)
