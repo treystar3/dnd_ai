@@ -145,16 +145,15 @@ ws = WorldScene(st, world, load_traits(), st.load_player()); ws.enter("parth")
 said = []
 console.note = lambda m, *a, **k: said.append(str(m))
 ws.command("#menu")
-check("#menu saves and asks main.py for the home page", ws.to_menu and not ws.restart)
+check("#menu saves and asks main.py for the home page", ws.to_menu)
 ws.to_menu = False
 ws.combat = types.SimpleNamespace(show=lambda: None)
 ws.command("#menu")
 check("...but not in the middle of a fight", not ws.to_menu and any("fight" in s for s in said), said[-1:])
 ws.combat = None
-console.ask = lambda main=False: "y"
 ws.command("#newgame")
 console.ask, console.note = real_ask, real_note
-check("New game asks for a new character and says this game stays saved", ws.restart and any("stays saved" in s for s in said), said[-2:])
+check("New game is on the main menu only: in the game #newgame is no command", not ws.to_menu and "Unknown command" in said[-1], said[-1:])
 st.close()
 check("...and the game's folder is still there for the main menu", (root / "game_play" / "campaign.db").exists() and any(x["name"] == "game_play" for x in saves.list_saves()))
 

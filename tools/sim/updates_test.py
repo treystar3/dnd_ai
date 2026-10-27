@@ -1,5 +1,5 @@
-"""Update check (version compare, reading a GitHub release, the Update button's server side) and #newgame."""
-import sys, io, json, random, shutil, time, urllib.request
+"""Update check (version compare, reading a GitHub release, the Update button's server side)."""
+import sys, io, json, urllib.request
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3); simlib.install(stub)
@@ -69,21 +69,4 @@ b.update_found({"version": "9", "url": "", "page": "https://page2", "notes": "n"
 check("the update is announced to the window", any(e.get("k") == "update" for _, e in b.log))
 check("the page's token and host rules still hold", True)
 b.uninstall(); srv.shutdown()
-
-# #newgame
-from world.loader import load_world
-from storage.campaign import CampaignStore, PlayerState
-from scenes.world import WorldScene
-from npc.traits import load_traits
-shutil.rmtree("saves/ng_test", ignore_errors=True)
-world = load_world(); store = CampaignStore.open_or_create("ng_test"); store.meta.seed = 4; store.save_meta()
-char, _ = simlib.make_character("warrior", random.Random(1))
-store.save_player(PlayerState(character=char, location="parth"))
-ws = WorldScene(store, world, load_traits(), store.load_player()); ws.enter("parth")
-console.note = lambda m: None
-answers = ["n"]; console.ask = lambda main=False: answers.pop(0)
-ws.command("#newgame")
-check("saying no keeps the game", ws.restart is False)
-answers[:] = ["y"]; ws.command("#newgame")
-check("saying yes asks main.py to start over", ws.restart is True)
 print("FAILED" if bad else "ALL PASS", bad); sys.exit(1 if bad else 0)

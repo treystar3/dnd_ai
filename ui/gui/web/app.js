@@ -4,9 +4,9 @@ const $ = (id) => document.getElementById(id);
 const log = $("log"), side = $("sidebody"), input = $("input");
 const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory", "#inventory"], ["Gear", "#gear"], ["Journal", "#journal"], ["Quests", "#quests"], ["Map", "#map"], ["Places", "#exits"],
   ["Party", "#party"], ["Standing", "#standing"], ["Story", "#arc"],
-  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"], ["Main menu", "#menu"]];
+  ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["Main menu", "#menu"]];
 
-const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
+const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; Settings and the main menu are never pinned
 const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "dark", order: [], text: {}, measure: "full" } };
 
 async function api(path, body) {
