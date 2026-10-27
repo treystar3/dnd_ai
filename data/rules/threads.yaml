@@ -32,6 +32,12 @@
 # value and days are [low, high]; value is then scaled by severity_scale[severity] and tier_scale[tier], and clamped by pulse.yaml.
 # Effect kinds are the ones the pulse applies (llm/contracts.py WorldEffect); engine/data_check.py refuses any other.
 #
+# (f358) WHAT FOLLOWS. A template's `then` says what may come of a situation at the same place once it ends: `ignored` (left to its
+# fallout) and `settled` (by the town's own people, or by the player), each a weighted list of templates with a severity shift. The
+# pulse queues one by pulse.yaml chains (a chance, a delay) and starts it at the next tick after the delay, with the pressure's heat
+# (up one each time it is ignored, down one when settled) added to the severity. Ignore the wolves and the deep sends something larger;
+# settle a feud and a fair follows.
+#
 # (f357) THE STREETS. A stage may also say what it looks like where the player walks (engine/threads.py street_now, scenes/world.py
 # refresh_present): `doings` sets what people are doing while the stage runs, as a moment does (all: everyone at the situation's own
 # place; role / role2: the cast, anywhere in the town); `at` puts a cast person at a kind of place in the town for the stage (the
@@ -101,6 +107,7 @@ telling: {retry_hours: 12}        # a re-telling the model failed is tried again
 
 templates:
   threat:
+    then: {ignored: [{template: threat_tribute, weight: 2, severity: 1}, {template: threat, weight: 1, severity: 1}, {template: nature, weight: 1, severity: 1}], settled: [{template: fortune, weight: 1, severity: -1}, {template: social, weight: 1}]}
     needs: [wild, creature]
     fallback: social
     abouts: ["{creatures} have been taking stock", "something has been killing in {wild}", "travellers on {road} have been set upon"]
@@ -155,6 +162,7 @@ templates:
              "One of the {creatures} wears a collar of braided cord. Someone keeps them."]
 
   nature:
+    then: {ignored: [{template: threat, weight: 2, severity: 1}, {template: mystery, weight: 1}], settled: [{template: nature_bounty, weight: 1}]}
     needs: [wild]
     fallback: natural
     abouts: ["{wild} is not what it was", "the land itself has turned", "the {season} has been strange in {wild}"]
@@ -203,6 +211,7 @@ templates:
              "The {creatures} are not gone: they are dead, in heaps, killed by something that did not eat them."]
 
   natural:
+    then: {ignored: [{template: economic, weight: 2, severity: 1}], settled: [{template: fortune, weight: 1}]}
     needs: []
     fallback: social
     abouts: ["the weather has turned against the fields", "the {season} came hard and early", "the harvest is in doubt"]
@@ -247,6 +256,7 @@ templates:
     reveal: []
 
   social:
+    then: {ignored: [{template: politics, weight: 2}, {template: social, weight: 1, severity: 1}], settled: [{template: fortune, weight: 1}]}
     needs: []
     fallback: economic
     abouts: ["a quarrel has split {town}", "an old grievance has come up again", "a wedding has set the town talking"]
@@ -291,6 +301,7 @@ templates:
     reveal: []
 
   economic:
+    then: {ignored: [{template: economic, weight: 1, severity: 1}, {template: politics, weight: 1}], settled: [{template: trade, weight: 1}]}
     needs: []
     fallback: social
     abouts: ["a merchant's coin has gone missing", "the market has turned", "a debt has come due"]
@@ -334,6 +345,7 @@ templates:
     reveal: []
 
   trade:
+    then: {ignored: [{template: threat_road, weight: 1}, {template: economic, weight: 1}], settled: [{template: economic_fair, weight: 1}]}
     needs: []
     fallback: economic
     abouts: ["a rich cargo has come in", "a trade house is squeezing the market", "the road has brought strange goods"]
@@ -377,6 +389,7 @@ templates:
     reveal: []
 
   work:
+    then: {ignored: [{template: economic, weight: 2}], settled: [{template: work_rush, weight: 1}]}
     needs: [wild]
     fallback: economic
     abouts: ["the work has stopped", "a rich find has set everyone digging", "there has been an accident at the works"]
@@ -424,6 +437,7 @@ templates:
              "The accident was staged: the props were cut, not broken."]
 
   politics:
+    then: {ignored: [{template: politics_succession, weight: 1}, {template: social, weight: 1}], settled: [{template: fortune, weight: 1}]}
     needs: []
     fallback: social
     abouts: ["two houses are at odds", "a new decree has reached the town", "an office has fallen vacant"]
@@ -466,6 +480,7 @@ templates:
     reveal: []
 
   mystery:
+    then: {ignored: [{template: mystery_changed, weight: 1}, {template: mystery_dead, weight: 1, severity: 1}], settled: [{template: social, weight: 1}]}
     needs: [wild]
     fallback: social
     abouts: ["lights have been seen where there should be none", "someone has gone missing", "an old story has started coming true"]
@@ -512,6 +527,7 @@ templates:
              "The den is a camp, and the camp has a bed in it, slept in last night."]
 
   fortune:
+    then: {ignored: [{template: social, weight: 1}], settled: []}
     needs: []
     fallback: social
     abouts: ["a windfall has come to {town}", "a wedding is to be held", "a rich find has been made"]
@@ -557,6 +573,7 @@ templates:
   # ---------- the other shapes of each kind (f341): drawn by weight among those the place can fill
 
   threat_tribute:
+    then: {ignored: [{template: economic, weight: 2, severity: 1}], settled: [{template: fortune, weight: 1}]}
     kind: threat
     needs: [wild, creature]
     fallback: threat
@@ -609,6 +626,7 @@ templates:
              "Among the {creatures} you killed, one wore a strip of cloth in {town}'s colours: a token, given, not taken."]
 
   threat_missing:
+    then: {ignored: [{template: mystery, weight: 2}], settled: [{template: social, weight: 1}]}
     kind: threat
     needs: [wild]
     fallback: threat
@@ -659,6 +677,7 @@ templates:
              "The den is lined with gear from {town}, and some of it is warm."]
 
   threat_road:
+    then: {ignored: [{template: trade, weight: 2}, {template: threat_road, weight: 1, severity: 1}], settled: [{template: economic_fair, weight: 1}]}
     kind: threat
     needs: [road, creature]
     fallback: threat

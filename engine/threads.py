@@ -197,9 +197,12 @@ def shapes(kind: str) -> list[str]:
     return sorted(keys, key=lambda k: k != kind)
 
 
-def template_for(pressure, kind: str, words: dict, rng: random.Random | None = None) -> tuple[str, dict] | None:
+def template_for(pressure, kind: str, words: dict, rng: random.Random | None = None, force: str = "") -> tuple[str, dict] | None:
     """The template named by the pressure, else one of its kind's shapes the place can fill, drawn by weight (f341; the base shape when
-    no rng is given); when none fits, the kind's base template falls back, until one fits."""
+    no rng is given); when none fits, the kind's base template falls back, until one fits. `force` (f358): a follow-on's template, taken
+    when the place can fill it."""
+    if force and force in T["templates"] and all(words.get(n) for n in T["templates"][force].get("needs", [])):
+        return force, T["templates"][force]
     key = pressure.template if pressure and pressure.template else ""
     if not key:
         fits = [k for k in shapes(kind or "social") if all(words.get(n) for n in T["templates"][k].get("needs", []))]
@@ -280,21 +283,26 @@ def _effect(spec: dict, words: dict, rng: random.Random, scale: float):
         return None
 
 
-def build(store, world, state: dict, place, pressure, tier: str, rng: random.Random, t: int):
+def build(store, world, state: dict, place, pressure, tier: str, rng: random.Random, t: int, template: str = "", severity_shift: int = 0):
     """A complete proposal for a situation at this place, at this tier, or None when no template can be filled here.
-    Returns (proposal, info) where info carries the template key, the severity and the words used, for the thread record."""
+    Returns (proposal, info) where info carries the template key, the severity and the words used, for the thread record. template and
+    severity_shift (f358): a follow-on's shape and how much worse (or better) it is; the pressure's heat is added to the severity too."""
     from engine import pulse
     from llm.contracts import ClueProposal, PathProposal, QuestOffer, StageProposal, ThreadProposal
-    kind = pressure.kind if pressure else rng.choices(list(T["kind_weights"]), weights=list(T["kind_weights"].values()))[0]
+    kind = kind_of(template) if template in T["templates"] else (pressure.kind if pressure else rng.choices(list(T["kind_weights"]), weights=list(T["kind_weights"].values()))[0])
     words = words_for(store, world, place, pressure, rng, t, T["templates"].get(kind))
-    found = template_for(pressure, kind, words, rng)
+    found = template_for(pressure, kind, words, rng, force=template)
     if not found:
         return None
     key, tpl = found
-    if not pressure or not words.get("about"):                   # no description to take a clause from: the shape's own abouts
-        words["about"] = fill(rng.choice(tpl.get("abouts") or ["a quiet trouble"]), words) or "a quiet trouble"
+    if template and key == template:
+        kind = kind_of(key)
+    if not pressure or not words.get("about") or template:      # no description to take a clause from: the shape's own abouts
+        words["about"] = fill(rng.choice(tpl.get("abouts") or ["a quiet trouble"]), words) or words.get("about") or "a quiet trouble"
     words["groups_locals"] = world.locals_group(place.id) or "everyone"
     severity = rng.randint(*pressure.severity) if pressure else rng.randint(1, 3)
+    heat = int((state.get("pressure_heat") or {}).get(pressure.id, 0)) if pressure else 0
+    severity = max(0, min(5, severity + int(severity_shift) + heat))
     scale = T["severity_scale"][severity] * T["tier_scale"].get(tier, 1.0)
     n = pulse.P["tiers"][tier]["stages"]
     specs = list(tpl["stages"])
@@ -354,6 +362,30 @@ def build(store, world, state: dict, place, pressure, tier: str, rng: random.Ran
         truth=_line(tpl.get("truth"), words, rng), clues=clues, reveal=_line(tpl.get("reveal"), words, rng) if contract else "")
     info = {"template": key, "severity": severity, "words": {k: v for k, v in words.items() if k != "ids" and v}, "ids": ids, "streets": streets}
     return proposal, info
+
+
+# ---------- (f358) what follows: a situation ended queues what may come of it, and heats its pressure
+
+def follow_up(state: dict, th: dict, how: str, rng: random.Random, t: int) -> dict | None:
+    """When a situation ends: the pressure's heat moves (up when ignored, down when settled by anyone), and by the chain's chance one
+    of the template's `then` entries for how it ended is queued at the same place, to start after the delay. Returns the queued row."""
+    from engine import pulse
+    C = pulse.P.get("chains") or {}
+    ended = "ignored" if how == "ignored" else "settled"
+    pid = th.get("pressure") or ""
+    if pid:
+        heat = state.setdefault("pressure_heat", {})
+        heat[pid] = max(0, min(int(C.get("heat_max", 3)), int(heat.get(pid, 0)) + (1 if ended == "ignored" else -1)))
+    tpl = T["templates"].get(th.get("template") or "")
+    opts = [o for o in ((tpl or {}).get("then") or {}).get(ended, []) if o.get("template") in T["templates"]]
+    if not opts or rng.random() >= float(C.get(ended, 0)):
+        return None
+    o = rng.choices(opts, weights=[float(x.get("weight", 1) or 1) for x in opts])[0]
+    lo, hi = C.get("delay_days", [1, 3])
+    row = {"place": th["place"], "pressure": pid, "template": o["template"], "severity": int(o.get("severity", 0)),
+           "after": t + rng.randint(int(lo), int(hi)) * 1440, "from": th["title"], "tier": th.get("tier", "normal")}
+    state.setdefault("queued", []).append(row)
+    return row
 
 
 # ---------- (f357) the streets: what a stage looks like where the player walks
@@ -573,6 +605,14 @@ def problems(pressures: dict | None = None, effect_kinds=(), place_ids=(), creat
     except Exception:
         pass
     for key, tpl in tpls.items():
+        for how, opts in (tpl.get("then") or {}).items():                                    # (f358) what follows
+            if how not in ("ignored", "settled"):
+                bad.append(f"threads.yaml {key} then: '{how}' is not ignored or settled")
+            for o in opts or []:
+                if o.get("template") not in tpls:
+                    bad.append(f"threads.yaml {key} then: '{o.get('template')}' is not a template")
+                if not isinstance(o.get("severity", 0), int):
+                    bad.append(f"threads.yaml {key} then: severity is a whole number")
         for part in ("titles", "news", "stages", "fallout"):
             if not tpl.get(part):
                 bad.append(f"threads.yaml {key}: needs {part}")

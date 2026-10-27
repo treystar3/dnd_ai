@@ -186,6 +186,9 @@ def catch_up(store, world, catalog, now: int) -> dict:
         changed |= tick_threads(store, world, catalog, state, t, rng)
         if state.get("camps"):
             events.expire_camps(store, world, state, t)
+        if engine_budget > 0 and start_queued(store, world, catalog, state, t, rng):          # (f358) what follows from an ending
+            engine_budget -= 1
+            changed = True
         if engine_budget > 0 and engine_roll(store, world, catalog, state, t, rng):          # (f354) the engine's own, within reach
             engine_budget -= 1
             changed = True
@@ -235,7 +238,7 @@ LAST = {"made_by": ""}            # who made the situation start_thread started 
 # ---------- threads ----------
 
 def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "",
-                 allow: tuple[bool, bool] = (True, True), band_weights: dict | None = None) -> bool:
+                 allow: tuple[bool, bool] = (True, True), band_weights: dict | None = None, template: str = "", severity_shift: int = 0) -> bool:
     """Start a situation. pressure_id / place_id force the seed and the place (used by tools/pulse_preview.py). made_by forces who writes it:
     'engine' (data/rules/threads.yaml) or 'model'; by default the tier decides (pulse.yaml tiers engine: true), and a tier the model writes
     falls back to the engine's own when the model gives nothing usable (f331). allow (f353): (the model may be called, the engine may build),
@@ -294,7 +297,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
                 return False
             console.debug(f"pulse: the model gave nothing usable ({e}); the engine builds the situation itself")
     if proposal is None:                                             # (f331) the engine's own
-        built = threads.build(store, world, state, place, pressure, tier, rng, t)
+        built = threads.build(store, world, state, place, pressure, tier, rng, t, template=template, severity_shift=severity_shift)
         if not built:
             pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: no template fits the place")
             return False
@@ -397,9 +400,26 @@ def region_town(world, region_id: str, rng):
     return rng.choice(towns) if towns else None
 
 
+def start_queued(store, world, catalog, state: dict, t: int, rng: random.Random) -> bool:
+    """(f358) A follow-on whose delay has run starts now, at its place, from its template, with its severity shift (and the pressure's heat)."""
+    due = [q for q in state.get("queued", []) if q.get("after", 0) <= t]
+    if not due:
+        return False
+    q = due[0]
+    state["queued"] = [x for x in state.get("queued", []) if x is not q]
+    LAST["made_by"] = ""
+    ok = start_thread(store, world, catalog, state, t, rng, tier=q.get("tier") if q.get("tier") in P["tiers"] and q.get("tier") not in events.BIG else None,
+                      pressure_id=q.get("pressure") or "", place_id="" if q.get("pressure") else q.get("place", ""), made_by="engine",
+                      template=q.get("template", ""), severity_shift=int(q.get("severity", 0)))
+    if ok and state.get("threads"):
+        state["threads"][-1]["follows"] = q.get("from", "")
+        pulselog.note("chain", f"{state['threads'][-1]['title']} follows from {q.get('from', '')}", place=q.get("place", ""))
+    return ok
+
+
 def tick_threads(store, world, catalog, state, t, rng) -> bool:
     changed = False
-    from engine import matters
+    from engine import matters, threads
     for th in [x for x in state["threads"] if x["status"] == "active"]:
         if th.get("door") and matters.reopen(store, world, state, th, t):
             changed = True
@@ -420,6 +440,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
                 pulselog.note("end", f"{th['title']} - settled by {who}", how="settled", place=th["place"], tier=th["tier"])
                 end_thread(store, state, th, "resolved", f"{th['title']} - settled by {who}.", t)
                 th["result"] = "others"
+                threads.follow_up(state, th, "settled", rng, t)                                 # (f358) what may come of it
                 matters.town_note(store, world, th["place"], f"{th['title']}: settled by {who}", t)       # (f323) the town's own history
             else:
                 fall = th["fallout"]
@@ -427,6 +448,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
                 end_thread(store, state, th, "ended", f"{th['title']} - {fall['description']}", t)        # lifts what the stages laid...
                 apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)   # ...and the fallout stays
                 th["result"] = "ignored"
+                threads.follow_up(state, th, "ignored", rng, t)                                 # (f358) ignored, it may get worse
                 if (th.get("summons") == "met" or th.get("answered")) and store.player_exists():      # (f317) they were asked, and let it be
                     pl = store.load_player()
                     matters.remember(store, world, th, "ignored", pl.character.name, t, store.meta.turn)

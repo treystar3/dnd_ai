@@ -476,6 +476,8 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
     th["result"] = "player"
     th["ending"] = ending
+    from engine import threads as _threads
+    _threads.follow_up(state, th, "settled", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)     # (f358) what may come of it
     if th["tier"] == "cataclysm":
         state["cataclysm_end"] = t
     from engine import matters
