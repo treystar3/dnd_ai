@@ -7,7 +7,7 @@ const COMMANDS = [["Character", "#character"], ["Stats", "#stats"], ["Inventory"
   ["Dungeon", "#dungeon"], ["Home", "#home"], ["Shop", "#shop"], ["Stash", "#stash"], ["Board", "#board"], ["Help", "#help"], ["Settings", "#settings"], ["New game", "#newgame"], ["Main menu", "#menu"]];
 
 const PINNABLE = new Set(["#character", "#stats", "#inventory", "#gear", "#journal", "#quests", "#map", "#places", "#exits", "#party", "#standing", "#arc", "#dungeon", "#home", "#shop", "#stash", "#board", "#help", "#pulse"]);   // read-only views; New game and the rest are never pinned
-const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "auto", order: [], text: {}, measure: "full" } };
+const state = { prompt: false, atMain: false, current: null, prefs: { pinned: "#character", width: 400, hidden: false, theme: "dark", order: [], text: {}, measure: "full" } };
 
 async function api(path, body) {
   try {
