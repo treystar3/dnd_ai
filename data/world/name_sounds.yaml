@@ -19,11 +19,12 @@ length: [3, 10]                 # the shortest and longest name, in letters, unl
 max_vowels: 2                   # vowels that may run together ("ae" yes, "aea" no)
 max_consonants: 3               # consonants that may run together ("ldr" in Baldric yes, four no)
 
-avoid:                          # never inside any name (patterns on the lower-case name)
+avoid:                          # a name that matches any of these is drawn again (patterns on the lower-case name)
   - "q[^u]"
   - "(fuk|fuc|shit|cunt|dick|cock|piss|twat|wank|nig|fag|slut|whor|rape|anus|penis|tits|kkk|nazi|porn)"
   - "(.{2,})\\1"                # no piece said twice running ("dordor")
-  - "^(wop|homo|nude)$"        # only as the whole name: inside a longer one they are just sounds ("Thomo")
+  - "^(wop|homo|nude|dago)$"    # only as the whole name: inside a longer one they are just sounds ("Thomo")
+  - "^(anal|shag)"              # never to open a name; later in one they are fine ("Vanalith", "Dushagmok")
 
 
 

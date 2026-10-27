@@ -72,7 +72,8 @@ for people in world.peoples:
 # the shared rules on hand-picked cases
 h = S["peoples"]["human"]
 for name, ok in (("Dordor", False), ("Aaaron", False), ("Wilfred", True), ("Brenna", True), ("Thorin", True),
-                 ("Homo", False), ("Thomo", True)):
+                 ("Homo", False), ("Thomo", True), ("Shagga", False), ("Dushagmok", True),
+                 ("Analiaga", False), ("Vanalith", True), ("Dago", False), ("Dagorakk", True)):
     check(f"'{name}' is {'kept' if ok else 'refused'}", names.acceptable(name, h) is ok)
 
 # the sampler the sounds are tuned with runs
