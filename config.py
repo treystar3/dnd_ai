@@ -43,10 +43,18 @@ PROFANITY = "strong"
 # How freely the model writes, by job. Characters talking use Google's suggested settings for Gemma (warm, varied); jobs that decide facts or
 # summarise what happened run colder. A task not listed uses the temperature its caller gives and the model's other defaults.
 DIALOGUE_SAMPLING = {"temperature": 1.0, "top_p": 0.95, "top_k": 64}
+# (f347) Ollama's own guard against worn words: a token already used within the last repeat_last_n tokens is made less likely by
+# repeat_penalty (Ollama's defaults: 1.1 over the last 64 tokens). An hour's transcript leaned on the same few words passage after passage
+# ("steady" 258 times, "rhythmic" 178), so prose gets a firmer penalty over a window that covers a whole passage, and speech a gentler one.
+# Measured by a night run (tools/nightrun.py) before any word list is added on top.
+PROSE_REPEAT = {"repeat_penalty": 1.15, "repeat_last_n": 256}
+SPEECH_REPEAT = {"repeat_penalty": 1.12, "repeat_last_n": 192}
 SAMPLING = {
-    "hire_chat": DIALOGUE_SAMPLING,                 # a companion answering the player
-    "mentor_chat": DIALOGUE_SAMPLING,               # Maren answering the player
-    "exchange": DIALOGUE_SAMPLING,                  # banter, and Maren with the clerk
+    "hire_chat": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},      # a companion answering the player
+    "mentor_chat": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},    # Maren answering the player
+    "exchange": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},       # banter, and Maren with the clerk
+    "npc_conversation": SPEECH_REPEAT,              # a townsperson answering the player (its temperature comes from the caller)
+    "narrate": PROSE_REPEAT, "dialogue_frame": PROSE_REPEAT, "combat_narrate": PROSE_REPEAT,   # the narrator, the frames, the fight
     "mentor_speech": {"temperature": 0.85, "top_p": 0.95, "top_k": 64},   # Maren's lessons: warm, but they carry the guild's rules
     "pair_dynamic": {"temperature": 0.5, "top_p": 0.9},                   # a summary of how two people are with each other
     "persona_details": {"temperature": 0.8, "top_p": 0.95, "top_k": 64},  # a hire's small personal details, written once
