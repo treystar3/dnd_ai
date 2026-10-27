@@ -10,7 +10,11 @@
 # none, or few.
 
 chance: 0.45                 # a townsperson has a routine this often
-roles:                       # by role, instead of chance; 0 = never
+roles:                       # by role, instead of chance; 0 = never (the hall's people keep the hall: the board, the register, the lessons)
+  guild_clerk: 0
+  guild_master: 0
+  quartermaster: 0
+  guild_instructor: 0
   innkeeper: 0
   server: 0
   cook: 0
