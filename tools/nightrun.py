@@ -59,12 +59,13 @@ class Run:
         self.sub_answers = 0
         self.hesitations = 0                         # turns in a row the model failed
         self.reason = ""
+        self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
 
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
     def install_console(self) -> None:
         from ui import console
         self.real = {k: getattr(console, k) for k in ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "out",
-                                                     "combat_numbers", "combat_panel", "debug", "ask")}
+                                                     "combat_numbers", "combat_panel", "debug", "ask", "status_block", "header")}
         console.narrate = lambda text: self.seen("", text)
         console.say = lambda text, speaker="": self.seen(speaker or "says", text)
         console.npc_says = lambda label, speech, gesture="": self.seen(label, speech + (f" ({gesture})" if gesture else ""))
@@ -75,6 +76,8 @@ class Run:
         console.out = lambda text="": self.noted(str(text))
         console.combat_numbers = lambda lines: self.noted("\n".join(f"    {l}" for l in lines))
         console.combat_panel = lambda lines: None
+        console.status_block = lambda *a, **k: None
+        console.header = lambda text: None
         console.debug = lambda message: None
         console.ask = self.ask
 
@@ -167,6 +170,10 @@ class Run:
         self.current = None
 
     def done(self) -> str:
+        if self.stop_when is not None:
+            why = self.stop_when()
+            if why:
+                return why
         if self.max_turns and len(self.rows) >= self.max_turns:
             return f"turn limit ({self.max_turns})"
         if time.time() - self.started >= self.hours * 3600:
@@ -386,6 +393,27 @@ def spend_points(c, spec) -> None:
         leveling.allocate(c, spend)
 
 
+def outfit(c, spec: dict, level: int, rng: random.Random) -> None:
+    """Gear and supplies for a character of this level, as one who reached it would carry: the class's weapon and armour at the level,
+    a piece for the other slots, a stack of healing draughts and coin for rooms. The test helper's character has a level-one kit."""
+    from engine import inventory, items, loot
+
+    def piece(base_id: str, rarity: str):
+        it = items.make(base_id, rarity, level, rng=rng)
+        loot.roll_gear(it, rng)
+        return it
+
+    c.equipment["main_hand"] = piece(spec["weapon"], "epic")
+    if spec.get("armor"):
+        c.equipment[spec["armor"][1]] = piece(spec["armor"][0], "epic")
+    for slot in ("head", "hands", "feet"):
+        bases = [b for b in items.CATALOG.values() if b.slot == slot and b.min_level <= level]
+        if bases and slot not in c.equipment:
+            c.equipment[slot] = piece(rng.choice(bases).id, "rare")
+    inventory.add(c.inventory, inventory.make_good("healing_draught", 8), 99)
+    c.coins = max(c.coins, level * 2000)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Play a campaign with the real model for hours and log what every turn cost.")
     ap.add_argument("--hours", type=float, default=6.0, help="stop after this many hours (default 6)")
@@ -449,6 +477,7 @@ def main() -> None:
     if args.level > 1:
         leveling.level_up(char, args.level - 1)
         spend_points(char, spec)
+        outfit(char, spec, args.level, rng)
     store.save_player(PlayerState(character=char, location=world.start_location))
     ws = WorldScene(store, world, load_traits(), store.load_player())
 
