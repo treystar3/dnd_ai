@@ -254,6 +254,16 @@ def _play_moment(ws, state: dict, th: dict) -> None:
             if free:
                 c["npc"] = free[0].id
     holders = [n.label() for n in ws.present if n.id in {c["npc"] for c in th["clues"]}]
+    from engine import moments, threads
+    shape = threads.scene_shape(th)
+    if shape and not moments.active(ws.store, ws.player.location, ws.minutes):                     # (f357) the situation's own moment, played by the moments machinery
+        m = moments.start(ws, shape, random.Random(f"{ws.store.meta.seed}:scene:{th['id']}"))
+        ws.__dict__.setdefault("_arrival_lines", []).append("A MOMENT THE PLAYER WALKS INTO, happening now in front of them: " + m["line"]
+                                                             + (f" The people here are part of it ({', '.join(holders)} most of all)." if holders else ""))
+        th["moment"] = "shown"
+        th["touched"] = True
+        console.debug(f"matter: moment shown as a {shape['id']} - {th['title']}")
+        return
     ws.weight_hint = "rich"
     ws.narrate("A MOMENT THE PLAYER WALKS INTO, happening now in front of them: " + stage
                + (f" The people here are part of it ({', '.join(holders)} most of all)." if holders else "")

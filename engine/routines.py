@@ -48,19 +48,22 @@ def routine_for(world, seed, npc) -> dict | None:
     return {"when": s["when"], "place": rng.choice(_places(world, town, s["where"], npc.location))}
 
 
-def where_now(world, seed, npc, minutes: int) -> str:
-    """Where this person is at this minute: their routine place in its period, else their work."""
+def where_now(world, seed, npc, minutes: int, cast: dict | None = None) -> str:
+    """Where this person is at this minute: where a running situation has placed them (f357, `cast`: npc id -> place id), else their
+    routine place in its period, else their work."""
     from engine import clock
+    if cast and cast.get(npc.id) in world.places:
+        return cast[npc.id]
     r = routine_for(world, seed, npc)
     return r["place"] if r and clock.period(minutes) == r["when"] else npc.location
 
 
-def away(world, seed, npc, minutes: int) -> bool:
-    return where_now(world, seed, npc, minutes) != npc.location
+def away(world, seed, npc, minutes: int, cast: dict | None = None) -> bool:
+    return where_now(world, seed, npc, minutes, cast) != npc.location
 
 
-def visitor_ids(store, world, seed, place_id: str, minutes: int) -> list[str]:
-    """Who of the town is at this place now on their routine (ids; load_npc for the records)."""
+def visitor_ids(store, world, seed, place_id: str, minutes: int, cast: dict | None = None) -> list[str]:
+    """Who of the town is at this place now on their routine, or placed here by a running situation (ids; load_npc for the records)."""
     from engine import clock, pulse, retrieval
     if place_id not in world.places or world.places[place_id].danger:
         return []
@@ -69,6 +72,11 @@ def visitor_ids(store, world, seed, place_id: str, minutes: int) -> list[str]:
     out = []
     for row in retrieval.people_in_town(store, world, town):
         if row.location == place_id or row.away_until > minutes:
+            continue
+        if cast and cast.get(row.id) == place_id:
+            out.append(row.id)
+            continue
+        if cast and row.id in cast:
             continue
         r = routine_for(world, seed, row)
         if r and r["when"] == period and r["place"] == place_id:

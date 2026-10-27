@@ -418,16 +418,8 @@ def _news(scene: Scene):
     from engine import pulse
     ws = scene.ws
     state = ws.store.load_world_state()
-    keep = pulse.P["news"]["keep_days"] * 1440
-    out = []
-    for n in reversed(state.get("news", [])):
-        if ws.minutes - n["minute"] > keep:
-            continue
-        if n["minute"] + pulse.travel_delay(ws.world, n["origin"], ws.player.location) <= ws.minutes:
-            out.append(Fact("news", pulse.news_text(n), frozenset(f"groups:{g}" for g in n["groups"])))
-        if len(out) >= 8:
-            break
-    return out
+    return [Fact("news", pulse.news_text(n, ws.minutes), frozenset(f"groups:{g}" for g in n["groups"]))                      # (f356) a window that turns over by the day
+            for n in pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed))]
 
 
 @facet("lately")

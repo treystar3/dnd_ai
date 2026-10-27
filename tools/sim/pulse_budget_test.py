@@ -103,6 +103,29 @@ import world_report
 text = world_report.summarise(LOGP)
 check("the world report reads it per game day: the totals, the table, the situations", text.startswith("## The world") and "| Day |" in text and "situations started" in text and "Situations started:" in text, text[:300])
 check("...and says nothing for an empty log", world_report.summarise(LOGP + ".missing") == "")
+
+# ---- (f356) the window turns over: a sign a day, and news drawn by freshness
+from engine import clock as _clock
+th2 = {"id": "t2", "title": "Wolves out of the Greywood", "place": "parth", "tier": "normal", "kind": "threat", "template": "threat", "stage": 0, "status": "active",
+       "stages": [{"description": "Wolves at the pens.", "effects": []}], "fallout": {"description": "x", "effects": []}, "made_by": "engine", "told": True,
+       "words": {"town": "Parth", "wild": "the Greywood", "creatures": "wolves", "role": "shepherd"}, "times": [start, start + 4 * 1440], "groups": ["everyone"], "made": start}
+state = pulse.empty_state(start); state["threads"].append(th2); store.save_world_state(state)
+d1 = pulse.happenings_at(store, world, "parth", start + 60)
+d2 = pulse.happenings_at(store, world, "parth", start + 1440 + 60)
+d3 = pulse.happenings_at(store, world, "parth", start + 2 * 1440 + 60)
+check("on a situation's first day the happening is its stage line alone; from the second a sign of it joins, a different one each day",
+      d1 == ["Wolves at the pens."] and len(d2) == 2 and len(d3) == 2 and d2[1] != d3[1] and "Parth" in d2[1] + d3[1], (d1, d2, d3))
+check("every kind has signs, and the signs pass the data check", threads.problems() == [] and all(threads.T["signs"].get(k) for k in threads.T["kind_weights"]), threads.problems()[:3])
+news = [{"text": f"News item {i}.", "origin": "parth", "minute": start - i * 600, "groups": ["everyone"]} for i in range(30)]
+state["news"] = list(reversed(news)); store.save_world_state(state)
+w1 = pulse.news_window(state, world, "parth", start, 8, key="a")
+w2 = pulse.news_window(state, world, "parth", start + 1440, 8, key="a")
+w3 = pulse.news_window(state, world, "parth", start, 8, key="b")
+check("the news window holds the newest two always, and the rest drawn by freshness, differently by the day and by the speaker",
+      len(w1) == 8 and w1[0]["text"] == "News item 0." and w1[1]["text"] == "News item 1." and [n["text"] for n in w1] != [n["text"] for n in w2]
+      and [n["text"] for n in w1] != [n["text"] for n in w3] and all(n["minute"] >= w1[i + 1]["minute"] for i, n in enumerate(w1[2:-1], 2)), [n["text"] for n in w1])
+check("a tale told twice says so for two days, then is just the tale", pulse.news_text({"text": "T.", "times": 2, "minute": start}, start + 600) == "T. Again."
+      and pulse.news_text({"text": "T.", "times": 2, "minute": start}, start + 3 * 1440) == "T.")
 shutil.rmtree("saves/pulse_budget_test", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

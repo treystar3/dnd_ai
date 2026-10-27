@@ -77,29 +77,49 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
     state = store.load_world_state()
     town = town_of(world, place_id)
     out = []
+    from engine import threads
     for t in state.get("threads", []):
-        if t["status"] == "active" and t["place"] in (place_id, town):
+        if t["status"] == "active" and (t["place"] in (place_id, town) or (t.get("town") and t["town"] == town)):   # (f357) a threat at the wild is about its town
             out.append(t["stages"][t["stage"]]["description"])
+            since = t["times"][t["stage"]] if t.get("times") and t["stage"] < len(t["times"]) else t.get("made", now)
+            sign = threads.signs_for(t, (now - since) // 1440)                                # (f356) on its second day and after, a sign in turn
+            if sign:
+                out.append(sign)
     for e in state.get("effects", []):
         if e["kind"] == "closed" and e["place"] == place_id and e["until"] > now:
             out.append(f"The way is closed: {e['text']}")
     return out
 
 
+def news_window(state: dict, world, place_id: str, now: int, limit: int = 8, key: str = "", groups: set | None = None) -> list[dict]:
+    """(f356) The news to show at this place now: the newest two that have reached it, then a draw by freshness (and this town's own
+    news first) among the rest, seeded by the day and `key` so the window turns over each day and differs between speakers, instead of
+    the same five newest lines for a day or more. `groups`: only news those circles carry."""
+    keep = P["news"]["keep_days"] * 1440
+    reached = [n for n in state.get("news", []) if now - n["minute"] <= keep and (groups is None or set(n["groups"]) & groups)
+               and n["minute"] + travel_delay(world, n["origin"], place_id) <= now]
+    if len(reached) <= limit:
+        return list(reversed(reached))
+    newest = reached[-2:]
+    rest = reached[:-2]
+    town = town_of(world, place_id)
+    rng = random.Random(f"{key}:news:{place_id}:{clock.day(now)}")
+    picked = []
+    pool = list(rest)
+    while pool and len(picked) < limit - 2:
+        weights = [(1.0 / (1 + (now - n["minute"]) / 1440)) * (1.5 if town_of(world, n["origin"]) == town else 1.0) for n in pool]
+        n = rng.choices(pool, weights=weights)[0]
+        picked.append(n)
+        pool.remove(n)
+    return list(reversed(newest)) + sorted(picked, key=lambda n: -n["minute"])
+
+
 def news_for(store, world, npc, now: int, limit: int = 5) -> list[str]:
-    """News this person has heard: it must have reached where they are, and be news their circles would carry."""
+    """News this person has heard: it must have reached where they are, and be news their circles would carry; the window turns over
+    by the day (news_window)."""
     state = store.load_world_state()
     groups = set(npc.knowledge_groups) | {"everyone"}
-    keep = P["news"]["keep_days"] * 1440
-    heard = []
-    for n in reversed(state.get("news", [])):
-        if now - n["minute"] > keep or not (set(n["groups"]) & groups):
-            continue
-        if n["minute"] + travel_delay(world, n["origin"], npc.location) <= now:
-            heard.append(news_text(n))
-        if len(heard) >= limit:
-            break
-    return heard
+    return [news_text(n, now) for n in news_window(state, world, npc.location, now, limit, key=f"{store.meta.seed}:{getattr(npc, 'id', 'here')}", groups=groups)]
 
 
 def travel_delay(world, origin: str, where: str) -> int:
@@ -295,7 +315,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
               "made_by": "engine" if info else "model", "told": not info}                 # (f331) who wrote it; an engine-built one is re-told when met
     LAST["made_by"] = thread["made_by"]
     if info:
-        thread.update(template=info["template"], severity=info["severity"], words=info["words"])
+        thread.update(template=info["template"], severity=info["severity"], words=info["words"], streets=info.get("streets") or [],   # (f357)
+                      town=(info.get("ids") or {}).get("town", ""))                               # the town it is about (a threat sits at the wild)
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
     state["threads"].append(thread)
     if pressure:
@@ -722,10 +743,10 @@ def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: s
 COUNTS = {3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
 
-def news_text(n: dict) -> str:
-    """A news row as it is told: a tale told more than once says so."""
+def news_text(n: dict, now: int | None = None) -> str:
+    """A news row as it is told: a tale told more than once says so, for two days after the last telling (f356); then it is just the tale."""
     times = int(n.get("times", 1) or 1)
-    if times < 2:
+    if times < 2 or (now is not None and now - n.get("minute", now) > 2 * 1440):
         return n["text"]
     return f"{n['text']} Again." if times == 2 else f"{n['text']} That makes {COUNTS.get(times, str(times))} times."
 

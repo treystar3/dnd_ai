@@ -31,6 +31,13 @@
 #
 # value and days are [low, high]; value is then scaled by severity_scale[severity] and tier_scale[tier], and clamped by pulse.yaml.
 # Effect kinds are the ones the pulse applies (llm/contracts.py WorldEffect); engine/data_check.py refuses any other.
+#
+# (f357) THE STREETS. A stage may also say what it looks like where the player walks (engine/threads.py street_now, scenes/world.py
+# refresh_present): `doings` sets what people are doing while the stage runs, as a moment does (all: everyone at the situation's own
+# place; role / role2: the cast, anywhere in the town); `at` puts a cast person at a kind of place in the town for the stage (the
+# shepherd at the square, asking who will come) through the routines (engine/routines.py); `scene` names a moment shape
+# (data/rules/moments.yaml) the moments machinery plays, owned by this situation, when the player walks in while the stage is on and
+# the situation's door is a scene. All slots as above; what the place cannot fill is simply not done.
 
 severity_scale: {0: 0.4, 1: 0.6, 2: 0.8, 3: 1.0, 4: 1.3, 5: 1.6}
 tier_scale: {normal: 1.0, uncommon: 1.25, rare: 1.5}
@@ -43,6 +50,51 @@ scope:
   kingdom:    {groups: [everyone]}
   global:     {groups: [everyone]}
 kind_weights: {threat: 4, social: 4, economic: 2, natural: 2, nature: 2, trade: 2, work: 2, politics: 1, mystery: 2, fortune: 2}
+
+# (f356) SIGNS, by kind: what a situation looks like in the streets on its second day and after, one line a day in turn, so HAPPENING HERE
+# is not the stage's first line for two days running. Slots as above; a line a place cannot fill is skipped.
+signs:
+  threat:
+    - "The outlying pens of {town} stand empty, and the talk is all of the hunt."
+    - "Nobody from {town} goes toward {wild} alone now; they wait at the gate for company."
+    - "A {role} of {town} has been asking round for anyone who will go into {wild} with them."
+    - "The {creatures} were heard again last night, nearer than before."
+  social:
+    - "The talk at {town} has gone round to the same thing again, and people take sides over it."
+    - "Two of {town}'s people were heard arguing it out in the street, and neither gave way."
+    - "The {role} of {town} will not say what they think of it, which everyone takes as an answer."
+  economic:
+    - "Shutters are down early in {town}; coin is short and everybody knows whose."
+    - "The {role} of {town} is counting stock twice and selling none of it on credit."
+    - "People in {town} are trading favours instead of coin this week."
+  natural:
+    - "The fields about {town} are being watched the way people watch a sick child."
+    - "{Town} smells of smoke and wet ash, and nobody says why."
+    - "The {role} of {town} has been up since before light, and it shows."
+  nature:
+    - "Those who go toward {wild} from {town} come back early and say little."
+    - "The game has gone quiet about {town}; the {role} says so to anyone who asks."
+    - "There is a new path worn to the edge of {wild}, and nobody will say who made it."
+  trade:
+    - "Carts stand loaded in {town} with nowhere to go, and the drivers play dice on the tailboards."
+    - "The {role} of {town} is asking every traveller what they saw on {road}."
+    - "Prices in {town} have gone the way they go when a road is bad."
+  work:
+    - "Every pair of hands in {town} is wanted, and the {role} is paying for them."
+    - "{Town} is up before dawn and does not stop; the inn is empty until dark."
+    - "The {role} of {town} has taken on more than they can do and is saying so."
+  politics:
+    - "The notable people of {town} are being seen together more than they like."
+    - "There is a notice on the door of {town}'s hall that everyone has read and nobody discusses."
+    - "The {role} of {town} has started choosing their words with care."
+  mystery:
+    - "People in {town} look twice at a stranger now, and at each other."
+    - "Someone has been leaving a lamp lit all night in {town}, and the talk is why."
+    - "The {role} of {town} has a theory about it and will tell it to anyone who stands still."
+  fortune:
+    - "{Town} is in a good humour; the inn is loud by afternoon."
+    - "The {role} of {town} has new boots and a way of mentioning it."
+    - "There is a feast being talked of in {town}, and the arguing is only over the day."
 clues_most: 3
 never_roles: [prisoner, guild_clerk, guild_master, monarch, chamberlain, royal_guard]   # trades that are nobody's quarrel: the protected and the kept
 telling: {retry_hours: 12}        # a re-telling the model failed is tried again after this long
@@ -63,15 +115,21 @@ templates:
         effects:
           - {kind: danger, place: wild, value: [20, 40], days: [3, 6]}
           - {kind: mood, npc: role, text: ["uneasy since the {creatures} came down from {wild}", "short of sleep; the {creatures} keep coming"]}
+        doings: {all: "talking in twos and threes about the {creatures}, and looking toward {wild}", role: "asking anyone who will listen to come and look at the tracks"}
+        at: {role: square}
+        scene: commotion
       - lines: ["The {creatures} have grown bold: a {role2} was hurt on {road}, and {town} is talking of a hunt.",
                 "A pack of {creatures} was driven off the very edge of {town} at dawn; the watch wants it dealt with.",
                 "Two more losses to the {creatures}, and the people of {town} are arguing over who should go into {wild}."]
+        doings: {all: "arguing over who should go into {wild} after the {creatures}", role2: "showing anyone who asks where the {creatures} got them"}
+        scene: quarrel
         effects:
           - {kind: danger, place: wild, value: [20, 40], days: [4, 8]}
           - {kind: prices, place: town, value: [5, 15], days: [4, 8]}
           - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["blames them for doing nothing about the {creatures}"]}
       - lines: ["The {creatures} rule {road} by night now; carts wait for daylight and go in company.",
                 "{Town} has drawn in on itself: gates shut early, flocks penned in the yards, the {creatures} heard from the walls."]
+        doings: {all: "keeping close to the walls and listening for the {creatures}"}
         effects:
           - {kind: danger, place: road, value: [30, 60], days: [5, 10]}
           - {kind: closed, place: wild, days: [2, 4], text: ["the {creatures}: nobody goes in"]}
@@ -108,6 +166,9 @@ templates:
       - lines: ["Something is wrong in {wild}: the game has gone quiet, the water runs the wrong colour, and the people of {town} keep to {road}.",
                 "{Wild} has turned strange this {season}; a {role} from {town} says the paths they know are not where they were.",
                 "Those who go into {wild} from {town} come back uneasy: the {creatures} are gone from their usual haunts, and something else is there."]
+        doings: {all: "looking toward {wild} more than at their work", role: "telling anyone who will listen what they saw in {wild}"}
+        at: {role: inn}
+        scene: gathering
         effects:
           - {kind: danger, place: wild, value: [15, 35], days: [3, 7]}
           - {kind: mark, place: wild, text: ["the trees at the edge stripped bare on one side", "a dead stretch of water, nothing moving in it"]}
@@ -152,6 +213,8 @@ templates:
     stages:
       - lines: ["The weather has gone against {town}: the fields are hurt, and a {role} is counting what is left.",
                 "A hard turn of {season} weather at {town}; the roads are heavy and the stores are being watched."]
+        doings: {all: "out in the fields seeing what can be saved", role: "counting what is left and not liking the count"}
+        scene: commotion
         effects:
           - {kind: prices, place: town, value: [8, 20], days: [4, 10]}
           - {kind: mood, npc: role, text: ["worried about the stores", "grim about the {season}"]}
@@ -194,6 +257,8 @@ templates:
     stages:
       - lines: ["A quarrel has broken out in {town} between the {role} and the {role2}; what began over a small thing has the whole place taking sides.",
                 "The {role} of {town} has accused the {role2} of a wrong, in public, and the town is talking of nothing else."]
+        doings: {all: "taking sides over the quarrel between the {role} and the {role2}", role: "telling their side of it to whoever is nearest", role2: "pointedly not looking across the street"}
+        scene: quarrel
         effects:
           - {kind: relation, npc: role, other: role2, value: [-20, -8], text: ["wronged, and says so to anyone"]}
           - {kind: relation, npc: role2, other: role, value: [-15, -6], text: ["will not forgive the accusation"]}
@@ -235,6 +300,8 @@ templates:
     stages:
       - lines: ["Coin is tight in {town}: a {role} cannot pay what is owed, and the ones owed are getting loud.",
                 "Something has gone wrong with the money in {town}; the {role} says they were cheated, and the {role2} says they were not."]
+        doings: {all: "talking of debts, and who owes whom", role: "avoiding the people they owe"}
+        scene: quarrel
         effects:
           - {kind: prices, place: town, value: [5, 15], days: [4, 8]}
           - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["is owed, and says so"]}
@@ -277,6 +344,8 @@ templates:
     stages:
       - lines: ["Trade in {town} has shifted: a {role} has got hold of a supply nobody else can match, and the {role2} is undercut.",
                 "A rich run of goods along {road} has filled {town}'s market; prices are falling, and the old traders are angry."]
+        doings: {all: "comparing prices and talking of the {role}'s luck", role2: "standing by an empty counter with a face like a shut door"}
+        scene: crowd
         effects:
           - {kind: prices, place: town, value: [-15, -5], days: [4, 8]}
           - {kind: relation, npc: role2, other: role, value: [-12, -4], text: ["resents being undercut"]}
@@ -318,6 +387,9 @@ templates:
     stages:
       - lines: ["Work has stopped at the diggings by {wild}: an accident, a quarrel over pay, and the {role} who runs it saying nothing.",
                 "The workers from {town} who go to {wild} have come back with a story: something in the workings, and no one willing to go deepest."]
+        doings: {all: "standing idle in knots, with nothing to do and no wages", role: "saying nothing to anyone about the diggings"}
+        at: {role: inn}
+        scene: gathering
         effects:
           - {kind: danger, place: wild, value: [15, 30], days: [3, 6]}
           - {kind: mood, npc: role, text: ["harried about the works", "grim since the accident"]}
@@ -361,6 +433,8 @@ templates:
     stages:
       - lines: ["A quarrel of rank has reached {town}: the {role} speaks for one side, the {role2} for the other, and the watch does not know whose orders to take.",
                 "A new ruling has come down on {town}; the {role} is to enforce it and the {role2} is refusing it, and the town watches."]
+        doings: {all: "keeping out of it, and watching who stands where", role: "speaking for their side to anyone who will hear it"}
+        scene: gathering
         effects:
           - {kind: relation, npc: role, other: role2, value: [-15, -6], text: ["a matter of rank; neither will yield"]}
           - {kind: mood, npc: role2, text: ["stiff-necked about the ruling"]}
@@ -402,6 +476,9 @@ templates:
     stages:
       - lines: ["There are lights in {wild} at night, seen from {town}, and footprints in the morning that lead nowhere; a {role} will not go out after dark.",
                 "Something has been taken from {town}, something nobody would want, and the tracks lead toward {wild}."]
+        doings: {all: "glancing toward {wild} and keeping near the lamps", role: "refusing to go out after dark, and saying so"}
+        at: {role: inn}
+        scene: gathering
         effects:
           - {kind: mark, place: wild, text: ["a ring of stones at the edge, newly set", "scorch marks where no fire was built"]}
           - {kind: mood, npc: role, text: ["frightened, and not saying of what"]}
@@ -445,6 +522,9 @@ templates:
     stages:
       - lines: ["Good fortune has come to {town}: a {role} has come into money, and is spending it on the whole street.",
                 "A wedding is to be held in {town} between the {role}'s house and the {role2}'s; the ovens have not been cold in days."]
+        doings: {all: "drinking at the {role}'s expense and saying so", role: "standing drinks for the whole street"}
+        at: {role: inn}
+        scene: gathering
         effects:
           - {kind: prices, place: town, value: [-12, -4], days: [3, 7]}
           - {kind: mood, npc: role, text: ["flush with good fortune", "happier than anyone has seen them"]}
@@ -488,6 +568,9 @@ templates:
     stages:
       - lines: ["A demand has come to {town} out of {wild}: the {creatures} want tribute, and a {role} who went to argue came back with the message burned into a board.",
                 "{Town} woke to a mark cut into its gate: the {creatures} of {wild} want paying, and the {role} is for paying them."]
+        doings: {all: "arguing over whether {town} should pay the {creatures}", role: "showing the burned board to anyone who will look"}
+        at: {role: inn}
+        scene: quarrel
         effects:
           - {kind: danger, place: wild, value: [15, 35], days: [3, 6]}
           - {kind: mood, npc: role, text: ["for paying, and ashamed of it", "sick with worry over the demand"]}
@@ -537,6 +620,9 @@ templates:
     stages:
       - lines: ["A party out of {town} went into {wild} and did not come back when they said; a {role} who sent them is sitting at the gate.",
                 "Somebody {town} needs went into {wild} three days ago, and the {role} who waited has stopped waiting and started asking."]
+        doings: {all: "looking toward {wild} and not saying what they fear", role: "sitting at the gate, watching the road from {wild}"}
+        at: {role: square}
+        scene: searching
         effects:
           - {kind: mood, npc: role, text: ["sick with waiting", "not sleeping until they come back"]}
           - {kind: danger, place: wild, value: [10, 25], days: [3, 6]}
@@ -584,6 +670,9 @@ templates:
     stages:
       - lines: ["The {creatures} have taken to {road}: two carts turned back, one not seen again, and the {role} of {town} waiting on goods that will not come.",
                 "{Road} has gone bad between {town} and {neighbour}; a {role} who tried it met the {creatures} and came home on foot."]
+        doings: {all: "watching {road} and counting the carts that have not come in", role: "waiting at the gate for goods that will not come"}
+        at: {role: square}
+        scene: crowd
         effects:
           - {kind: danger, place: road, value: [25, 50], days: [3, 7]}
           - {kind: prices, place: town, value: [5, 12], days: [3, 7]}
@@ -825,6 +914,8 @@ templates:
     stages:
       - lines: ["A stranger has come to {town} and lodged with the {role}; by the second night the {role2} had a crowd at the door asking who they were.",
                 "Someone new is in {town}, with a way of speaking and a reason for coming that nobody quite believes, and the {role} has taken their part."]
+        doings: {all: "talking of the stranger and watching the {role}'s door", role2: "asking everyone what they know of the stranger"}
+        scene: crowd
         effects:
           - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["took in the stranger; they want them gone"]}
           - {kind: mood, npc: role, text: ["protective of the stranger", "stubborn about their guest"]}
@@ -869,6 +960,8 @@ templates:
     stages:
       - lines: ["Something was seen at {town} that the {role} calls a sign and the {role2} calls a trick of the {season}, and the town is lining up behind one or the other.",
                 "A rite is to be held at {town} that has not been held in living memory, and the {role} is for it and the {role2} is against it, loudly."]
+        doings: {all: "talking of the sign in low voices", role: "pointing out the spot to anyone who asks"}
+        scene: gathering
         effects:
           - {kind: relation, npc: role, other: role2, value: [-12, -5], text: ["a quarrel over the sign"]}
           - {kind: mood, npc: role, text: ["exalted, since the sign", "sure of the gods this week"]}
