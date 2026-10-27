@@ -61,8 +61,9 @@ def debug(message: str) -> None:
             print(f"  [debug] {message}")
 
 
-def ask(main: bool = False) -> str:
-    """The player's next line. main=True marks the top-level game loop (the GUI uses that to refresh its pinned view)."""
+def ask(main: bool = False, menu: bool = False) -> str:
+    """The player's next line. main=True marks the top-level game loop (the GUI uses that to refresh its pinned view); menu=True a
+    prompt that is not the game loop but may still be left for the main menu (#menu), such as character creation's."""
     return input("> ").strip()
 
 

@@ -114,6 +114,11 @@ def play(args):
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")
         else:
             character = ThresholdScene().run()
+            if character is None:                      # Main menu during creation: there is no game yet, so a new one is not kept
+                store.close()
+                if kind == "new":
+                    saves.discard(name)
+                continue
             player = PlayerState(character=character, location=world.start_location)
             store.save_player(player)
 
