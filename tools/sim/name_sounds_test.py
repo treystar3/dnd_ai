@@ -46,10 +46,21 @@ for people in world.peoples:
         check("an elf's family name is never one syllable", not short, short[:5])
     else:
         check(f"{people}: some family names are one syllable", len(short) >= 10, (len(short), fams[:6]))
+
+# syllables are counted as they are said, near enough
+for name, n in (("Brom", 1), ("Crane", 1), ("Lyle", 1), ("Aldric", 2), ("Gable", 2), ("Everard", 3), ("Cecilia", 4), ("Theodoric", 4)):
+    check(f"'{name}' has {n} syllable{'s' if n > 1 else ''}", names.syllables(name) == n, names.syllables(name))
+
+# humans' names keep the share of short and long names their table sets: 30 in 100 one syllable, 60 two, 8 three, 2 four or more
+table = S["peoples"]["human"]["syllables"]
+top = max(table)
 for kind in ("male", "female", "family"):
-    made = [names.build("human", kind, random.Random(f"share:{kind}:{i}")) for i in range(3000)]
-    share = sum(names.syllables(n) == 1 for n in made) / len(made)
-    check(f"about 2 in 10 human {kind} names are one syllable ({share:.0%})", 0.15 <= share <= 0.25, share)
+    rng = random.Random(f"share:{kind}")
+    counts = Counter(min(names.syllables(names.build("human", kind, rng)), top) for _ in range(8000))
+    for n, weight in table.items():
+        share, want = 100 * counts[n] / 8000, 100 * weight / sum(table.values())
+        check(f"human {kind}: {want:.0f} in 100 have {n}{'+' if n == top else ''} syllable{'s' if n > 1 else ''} ({share:.1f})",
+              abs(share - want) <= 2, share)
 
 # family names are syllables, not English words run together - except humans' (and half-elves', which are human) and gnomes'
 WORDS = ("stone", "iron", "doom", "hide", "fist", "beard", "skull", "moon", "star", "storm", "walker", "apple", "under", "foot",

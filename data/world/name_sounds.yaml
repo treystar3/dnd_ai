@@ -9,8 +9,11 @@
 #
 # Every built name must then keep the rules below: its length, how many vowels or consonants may run together, the people's own
 # `avoid` patterns (sounds the people never makes) and the shared ones, and at least `min_syllables` if the people has one. Names
-# that fail are thrown away and built again. There is no list of names that may never be built: each kind can make thousands of
-# names, so any one name - an ordinary word, a name from another story - is very unlikely, and if one does turn up it is fine.
+# that fail are thrown away and built again. A people with a `syllables` table (count: weight, the last count meaning that many or
+# more) draws how many syllables a name will have first and builds until a name has that many: its share of short and long names
+# is set there, and the forms' weights only shape which names of that length come up. There is no list of names that may never be
+# built: each kind can make thousands of names, so any one name - an ordinary word, a name from another story - is very unlikely,
+# and if one does turn up it is fine.
 #
 # These are first draft, written fresh for Meravia: add, cut or rewrite any piece. tools/name_samples.py prints what they make.
 # The one shared `avoid` that names words keeps slurs and swearing from being spelled by chance.
@@ -34,6 +37,7 @@ peoples:
   # and family names from trades and places.
   human:
     length: [3, 9]
+    syllables: {1: 30, 2: 60, 3: 8, 4: 2}   # in 100 names: 30 like Brom, 60 like Aldric, 8 like Everard, 2 like Amalaric or longer
     male:
       - weight: 10
         first: [Al, Ald, Bal, Ber, Bran, Bren, Cad, Col, Cor, Dun, Ed, Fen, Gar, God, Gus, Hal, Har, Ing, Jor, Ken, Mar, Os, Ran, Rob, Sig,
@@ -44,6 +48,11 @@ peoples:
       - weight: 3
         first: [B, Br, C, D, Dr, G, Gr, H, J, K, L, M, N, R, St, T, Th, W]
         last: [am, an, en, ed, ick, olm, orn, ulk, yle, ade, eth, ock, ent, ude, ald, ess, unn, orm]
+      - weight: 1 # old long names: Amalaric, Theodemar, Adalbert
+        first: [Ama, Atha, Erma, Theo, Ada, Ala, Hilde, Ode, Wili, Gunde, Ebe, Wala, Sige, Ere, Ever]
+        middle: [la, na, de, do, ri, le, ra]
+        middles: {1: 1}
+        last: [ric, mar, mund, bert, win, gar, hard, wulf, wald]
     female:
       - weight: 10
         first: [Ad, Al, Av, Bea, Bren, Bry, Cec, Clar, Cor, Ed, El, Em, Eu, Fen, Gis, Gwen, Hed, Hil, Hes, Im, Is, Jes, Mar, Mil, Ros, Win,
@@ -54,6 +63,11 @@ peoples:
       - weight: 3
         first: [B, Br, D, G, Gw, H, J, M, N, R, T, W]
         last: [ess, ell, aud, oan, enn, ys, eth, ild, ane, ith, ynn, ilde]
+      - weight: 1 # long names: Adelina, Aurelia, Isabella
+        first: [Ade, Ame, Ange, Ceci, Eme, Rosa, Isa, Vale, Aure, Gise, Mari, Ota, Leo, Ama, Ali, Ele]
+        middle: [li, ri, ne, la, na, le]
+        middles: {1: 1}
+        last: [a, na, ne, lla, tta, sa]
     family:
       - weight: 5
         first: [Ash, Black, Bright, Brook, Fair, Green, Hay, Hart, Lang, Mill, Moor, North, Red, Rush, Thorn, West, White, Wood, Cole, Hol,
@@ -68,6 +82,9 @@ peoples:
                 Chase, Cope, Croft, Dove, Dunn, Flint, Gage, Garth, Glass, Hayes, Holme, Hoyle, Hume, Knox, Lisle, Lyle, Mott, Neale, Nye,
                 Orme, Pell, Penn, Poole, Rhodes, Royce, Sharpe, Stroud, Tate, Trask, Vail, Wace, Weir, Yorke, Blake, Brand, Locke]
         last: [""]
+      - weight: 1 # longer ones: Amberley, Osterby, Waterbury
+        first: [Water, Otter, Haver, Amber, Elder, Ever, Ather, Ember, Under, Hazel, Ellis, Ashen, Alder, Raven, Oster, Aber]
+        last: [bury, ley, by, ton]
 
   # Half-elves sit between their parents: human shapes with an elven lilt, short ones like Rhys or Faye. Their family names are human.
   half_elf:

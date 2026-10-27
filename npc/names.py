@@ -4,8 +4,8 @@ name and writes only the look and the day.
 
 build() makes new names instead of picking them (f346): each people has its own sounds in data/world/name_sounds.yaml - the pieces
 its names begin, continue and end with - and a name is those pieces joined, checked against the people's rules (length, how many
-vowels or consonants may run together, sounds it never makes). There is no list of forbidden names: each kind can make thousands,
-so any one name is rare."""
+vowels or consonants may run together, sounds it never makes). A people may also say how many of its names have one syllable, two,
+three or more (`syllables`). There is no list of forbidden names: each kind can make thousands, so any one name is rare."""
 from __future__ import annotations
 
 import random
@@ -112,8 +112,13 @@ def acceptable(name: str, rules: dict) -> bool:
 
 
 def syllables(name: str) -> int:
-    """How many syllables a name has, counted as runs of vowels ('Cael' one, 'Aeris' two). Close enough to tell Brom from Brommek."""
-    return len(re.findall(f"[{VOWELS}]+", name.lower()))
+    """How many syllables a name has, near enough: runs of vowels ('Cael' one, 'Aeris' two), a pair said apart counting twice
+    ('Cecilia', 'Theodoric'), and an e at the end not counting when it is silent ('Crane', 'Lyle'; 'Gable' keeps it)."""
+    low = name.lower()
+    n = len(re.findall(f"[{VOWELS}]+", low)) + len(re.findall("(?=ia|io|eo|ua|iu)", low))
+    if n > 1 and re.search(f"[^{VOWELS}]e$", low) and not re.search(f"[^{VOWELS}l]le$", low):
+        n -= 1
+    return n
 
 
 def possible(people: str, kind: str) -> set[str]:
@@ -137,10 +142,14 @@ def possible(people: str, kind: str) -> set[str]:
 
 
 def build(people: str, kind: str, rng: random.Random) -> str:
-    """A new name of `kind` (male, female or family) for `people`, made from its sounds. Same rng, same name."""
+    """A new name of `kind` (male, female or family) for `people`, made from its sounds. Same rng, same name. When the people has
+    a `syllables` table, how many syllables the name has is drawn from it first, and names are built until one has that many."""
     rules = _rules(people, kind)
     forms = rules[kind]
-    for _ in range(400):
+    table = rules.get("syllables")                                      # count: weight; the last count means that many or more
+    want = rng.choices(list(table), weights=list(table.values()))[0] if table else None
+    spare = None
+    for _ in range(2000):
         form = rng.choices(forms, weights=[f.get("weight", 1) for f in forms])[0]
         middles = form.get("middles", {0: 1})
         n = rng.choices(list(middles), weights=list(middles.values()))[0]
@@ -149,6 +158,11 @@ def build(people: str, kind: str, rng: random.Random) -> str:
             name = _join(name, (rng.choice(form["middle"]) or "").lower())
         name = _join(name, (rng.choice(form["last"]) or "").lower())
         name = name[:1].upper() + name[1:]
-        if acceptable(name, rules):
+        if not acceptable(name, rules):
+            continue
+        if want is None or syllables(name) == want or (want == max(table) and syllables(name) > want):
             return name
+        spare = spare or name
+    if spare:                                                           # no name that long came up: the sounds can hardly make one
+        return spare
     raise ValueError(f"name_sounds.yaml: {people} {kind} names cannot be built within their rules")

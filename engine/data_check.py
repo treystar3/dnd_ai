@@ -320,6 +320,11 @@ def check() -> list[str]:
         if r is None:
             continue
         need(not r.get("family_from") or r["family_from"] in sounds, f"name_sounds.yaml {people}: family_from names an unknown people")
+        table = r.get("syllables")
+        if table is not None:
+            need(isinstance(table, dict) and table and all(isinstance(n, int) and n >= 1 and isinstance(w, (int, float)) and w >= 0
+                                                             for n, w in table.items()) and sum(table.values()) > 0,
+                 f"name_sounds.yaml {people}: syllables must be counts from 1 up, each with a weight")
         for kind in ("male", "female") + (() if r.get("family_from") else ("family",)):
             forms = r.get(kind) or []
             need(bool(forms), f"name_sounds.yaml {people}: needs {kind} forms")
@@ -337,6 +342,10 @@ def check() -> list[str]:
                     _names.build(people, kind, rng)
             except Exception as e:
                 need(False, f"name_sounds.yaml {people} {kind}: {e}")
+            if isinstance(table, dict) and table:                     # every length the table asks for can be made
+                made = {min(_names.syllables(n), max(table)) for n in _names.possible(people, kind)}
+                need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
+                     f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
     return bad
 
 
