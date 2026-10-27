@@ -119,9 +119,13 @@ inn = next((n for n in ws2.present if n.role == "farmer"), None)
 class Fake: pass
 f = Fake(); f.role = "innkeeper"; f.location = "parth"
 line = ws2.local_knowledge(f)[0]
-check("an innkeeper knows the four nearest places, with direction and time", line.count("on foot") == 5 or line.count("on foot") == 4, line)
+import re as _re
+def places_named(l):
+    return len(_re.findall(r"\(to the \w+, ", l))
+check("an innkeeper knows the four nearest places, with direction and the time as a local says it (no minutes)",
+      places_named(line) in (4, 5) and "walk" in line and not _re.search(r"\d", line.split(": ", 1)[1]), line)
 f.role = "farmer"; l2 = ws2.local_knowledge(f)[0]
-check("a farmer knows only the nearest two", l2.count("on foot") == 2, l2)
+check("a farmer knows only the nearest two", places_named(l2) == 2, l2)
 check("they are told not to volunteer them", "only if the player asks" in l2)
 
 # ---- the smithy bug: Parth has no smithy, only a smith

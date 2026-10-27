@@ -76,6 +76,7 @@ class RoadActions:
         if self.quiet_return(log, text):                                   # (f349) back somewhere seen, nothing new: a line, and no narrator
             self.weight_hint = None
             line = f"You are back at {self.place.name}." if walk < 15 else f"After {clock.walk_words(walk)}, you are back at {self.place.name}."
+            self.flush(text)                                                # anything held back from earlier actions goes first, in order
             console.narrate(line)
             self.remember_narration(line)
         else:
