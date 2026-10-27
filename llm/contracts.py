@@ -489,7 +489,7 @@ class ResidentProposal(BaseModel):
     name: str
     epithet: str
     description: str
-    activity: str
+    activity: str = ""              # (f348) ignored: the engine decides what they are doing (engine/doings.py)
 
 
 class ResidentSet(BaseModel):

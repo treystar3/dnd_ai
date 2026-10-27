@@ -60,6 +60,9 @@ class PlaceState(BaseModel):
     bodies: list[dict] = []        # the fallen here, for Speak with a Corpse: {"creature", "name", "level", "category", "minute", "carried", "asked"}
     board_day: int = -1
     memory: list[dict] = []        # (f317) a town's memory of the matters that ended here: {"text", "minute"}; the truth layer gives it to every speaker
+    moment: dict = {}              # (f348) something going on here now (engine/moments.py): {"id", "title", "since", "until", "line", "doings", "visitor", "end"}
+    moment_last: int = -1          # (f348) the minute the last moment here began (the cooldown counts from it)
+    moment_roll: str = ""          # (f348) "day:period" of the last roll here: stepping out and back in rolls nothing new
 
 
 class PlayerState(BaseModel):

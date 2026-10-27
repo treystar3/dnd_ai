@@ -404,9 +404,10 @@ def _board(scene: Scene):
 @facet("happenings")
 def _happenings(scene: Scene):
     """The situations' own happenings here, and the ordinary day's (engine/ambient.py, f331): market day, a funeral, the watch out."""
-    from engine import ambient, pulse
+    from engine import ambient, moments, pulse
     ws = scene.ws
     out = [Fact("happenings", h) for h in pulse.happenings_at(ws.store, ws.world, ws.player.location, ws.minutes)]
+    out += [Fact("happenings", h) for h in moments.lines_at(ws.store, ws.player.location, ws.minutes)]       # (f348) a moment under way here
     out += [Fact("ambient", h) for h in ambient.lines(ws.store, ws.world, ws.player.location, ws.minutes, ws.player)]
     return out
 

@@ -1,0 +1,166 @@
+# MOMENTS (f348, engine/moments.py): something going on when the player walks in. A possibility, not a habit: on arriving somewhere the
+# engine rolls once for that place, that period of the day (stepping out and back in rolls nothing new), at the chance for the kind of
+# place; a place that had one waits cooldown_hours before another, and a town waits town_gap_hours after any of its places had one.
+# A moment lasts its minutes and then ends by itself, whatever the player does; the town remembers it.
+#
+# What a moment can carry:
+#   line         what is going on, in plain words for the narrator (it dresses the scene) and for everyone here (HAPPENING HERE);
+#                {place} and {town} are filled in, and {visitor} with how the visitor is known
+#   where/when   the place types and periods of the day it can happen in; needs_people: at least so many present
+#   needs        heat: H - only when the player's heat in the town is at least H
+#   doings       what the people here are doing meanwhile: all, roles: {role: ...}, except: [roles left to their own]
+#   visitor      someone from elsewhere, made as a real person for the while: role (roles.yaml), epithet, description, doing,
+#                people (or any). They can be spoken to like anyone, and leave when the moment ends
+#   mood         a mood the people here carry till it ends (engine/drift.py knows it)
+#   effects      hurt: {chance, pct, line} - the player comes in and something hits them, for pct of their health
+#   end          memory: what the town keeps of it (engine/truth.py gives a town's memory to every speaker)
+
+chance: {inn: 0.18, square: 0.15, guild: 0.15, guardpost: 0.15, temple: 0.12, town: 0.1, city: 0.1, village: 0.1, yard: 0.1, smithy: 0.1, shop: 0.08, workshop: 0.08}
+cooldown_hours: 36
+town_gap_hours: 12
+
+moments:
+  - id: music
+    title: a travelling player
+    where: [inn]
+    when: [evening, night]
+    weight: 3
+    lasts: 180
+    needs_people: 2
+    line: "{visitor} has the room: a lute by the fire, the tables pushed back, and half of {place} dancing or stamping the time"
+    visitor: {role: traveling_player, epithet: "a travelling player", description: "A lean, road-worn figure with a lute case on a strap and boots that have seen three regions.", doing: "playing by the fire with the room clapping the time", people: any}
+    doings: {all: "dancing, or stamping the time from a bench", roles: {innkeeper: "pulling ale as fast as the mugs come back", server: "dodging through the dancers with a tray", cook: "leaning in the kitchen door to watch"}}
+    mood: merry
+    end: {memory: "the night a travelling player had {place} dancing"}
+  - id: brawl
+    title: a brawl
+    where: [inn]
+    when: [afternoon, evening, night]
+    weight: 2
+    lasts: 25
+    needs_people: 2
+    line: "a brawl: two men at each other across an overturned table, a third hanging on one of them, and the rest of {place} backed to the walls"
+    doings: {all: "keeping out of the fight with a back to the wall", roles: {innkeeper: "shouting at the brawlers to take it outside", server: "rescuing mugs from the next table over"}}
+    effects: [{kind: hurt, chance: 0.35, pct: 4, line: "As the player comes in, a thrown stool catches them across the shoulder."}]
+    end: {memory: "the brawl at {place}, which ended with the watch dragging two men out"}
+  - id: wake
+    title: a wake
+    where: [inn]
+    when: [evening, night]
+    weight: 1
+    lasts: 240
+    needs_people: 2
+    line: "a wake: the long table laid, {town}'s people drinking to someone gone, and the stories getting louder as the evening goes"
+    doings: {all: "drinking to the dead at the long table", roles: {innkeeper: "filling mugs for the mourners and not taking coin for it"}}
+    end: {memory: "a wake held at {place}"}
+  - id: cards
+    title: a card game
+    where: [inn]
+    when: [night, deep night]
+    weight: 2
+    lasts: 120
+    needs_people: 2
+    line: "a card game has the corner table and most of the room's attention: coin stacked, someone losing badly and saying so"
+    doings: {all: "watching the card game over someone's shoulder", roles: {innkeeper: "keeping half an eye on the corner table", server: "carrying drinks to the card players"}}
+    end: {memory: "a card game at {place} that went on till the small hours"}
+  - id: auction
+    title: an auction
+    where: [square, town, city, village]
+    when: [morning, midday]
+    weight: 2
+    lasts: 120
+    needs_people: 2
+    line: "an auction in the square: a dead man's goods going lot by lot off the tail of a cart, the crier calling the bids"
+    doings: {all: "bidding, or watching the bidding with arms folded"}
+    end: {memory: "the auction of a dead man's goods in the square"}
+  - id: chase
+    title: a chase
+    where: [square, town, city, village]
+    when: [morning, midday, afternoon]
+    weight: 2
+    lasts: 10
+    needs_people: 1
+    line: "a chase: a boy with a stolen loaf running the length of the street, the baker's lad after him, and everyone shouting one way or the other"
+    doings: {all: "shouting after the chase"}
+    end: {memory: "the day a boy stole a loaf and outran the baker's lad"}
+  - id: crier
+    title: a crier
+    where: [square, town, city, village]
+    when: [morning, afternoon]
+    weight: 2
+    lasts: 30
+    needs_people: 1
+    line: "a crier reading a notice from the steps - a lost child, a reward, a word from the lord - and a crowd stopped to hear it"
+    doings: {all: "listening to the crier"}
+    end: {memory: "a crier's notice read in the square"}
+  - id: procession
+    title: a procession
+    where: [temple, square]
+    when: [morning, afternoon]
+    weight: 1
+    lasts: 60
+    needs_people: 2
+    line: "a procession: the priest at the head with the god's sign held high, singing, and half of {town} behind in their good clothes"
+    doings: {all: "walking in the procession, singing"}
+    end: {memory: "a procession through {town}"}
+  - id: returning_party
+    title: a party back from a contract
+    where: [guild]
+    when: [afternoon, evening]
+    weight: 2
+    lasts: 90
+    needs_people: 1
+    line: "a party just back from a contract: mud to the thigh, one of them carried in, and a kill laid on the floor for the clerk to see"
+    doings: {all: "crowding round the party just back", roles: {guild_clerk: "writing up a kill with a wet pen", guild_master: "looking the returned party over from the stair"}}
+    end: {memory: "a party coming back to {place} with a kill and one of them carried"}
+  - id: rite
+    title: a rite
+    where: [temple]
+    when: [dawn, evening]
+    weight: 2
+    lasts: 40
+    needs_people: 1
+    line: "a rite under way: the lamps lit, the people kneeling, the priest's voice carrying, and nobody to be spoken to until it ends"
+    doings: {all: "kneeling at the rite", roles: {priest: "leading the rite with the god's sign raised", acolyte: "holding the book open for the priest"}}
+    end: {memory: "a rite at {place}"}
+  - id: search
+    title: the watch searching packs
+    where: [guardpost, town, city, village, square]
+    when: [morning, midday, afternoon, evening]
+    weight: 2
+    lasts: 60
+    needs_people: 1
+    needs: {heat: 30}
+    line: "the watch searching packs at the gate, two by two, and a queue of travellers waiting with their hands in sight"
+    doings: {all: "waiting in the queue with a pack open", roles: {guard: "turning out a traveller's pack onto a board", watch_captain: "watching the faces in the queue"}}
+    end: {memory: "the day the watch searched every pack at the gate"}
+  - id: drunk
+    title: a drunk across the door
+    where: [inn, square]
+    when: [night, deep night]
+    weight: 1
+    lasts: 180
+    needs_people: 1
+    line: "a drunk asleep across the doorway, snoring, and nobody willing to be the one to move him"
+    doings: {all: "stepping over the drunk in the doorway"}
+    end: {memory: "the night nobody would move the drunk from the door of {place}"}
+  - id: forge_rush
+    title: a broken axle at the forge
+    where: [smithy]
+    when: [morning, midday, afternoon]
+    weight: 2
+    lasts: 60
+    needs_people: 1
+    line: "a rush at the forge: a cart with a broken axle in the yard, the carter in the way, and the smith shouting for the bellows"
+    doings: {all: "working the bellows for the smith, or being in the way", roles: {smith: "hammering an axle-iron with the carter at an elbow"}}
+    end: {memory: "the carter whose axle broke outside {place}"}
+  - id: delivery
+    title: a delivery just in
+    where: [shop, workshop, yard]
+    when: [morning, midday]
+    weight: 2
+    lasts: 45
+    needs_people: 1
+    line: "a delivery just in: crates across the floor, a carter waiting to be paid, and the shopkeeper counting against a list"
+    doings: {all: "counting crates against a list, or carrying one"}
+    end: {memory: "a delivery that filled the floor of {place}"}

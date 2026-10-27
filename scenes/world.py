@@ -308,6 +308,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             fresh_copy = next((n for n in self.present if n.id == self.partner.id), None)
             if fresh_copy:
                 self.partner = fresh_copy
+        from engine import doings, moments                                                    # (f348) what each of them is doing now: the engine's
+        self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes))
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here."""
@@ -319,6 +321,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if here.populated:
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
+        from engine import moments
+        moments.tick(self)                                                                    # (f348) a moment that has run its minutes ends
 
     def pulse_data(self) -> dict:
         """The debug pane: the pulse log of this session, newest first, and what is live now."""
@@ -414,6 +418,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.weight_hint = "brief"                                   # (f347) seen before: what has changed, in a sentence or two
         self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
         self.refresh_present()
+        if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
+            from engine import doings
+            self.__dict__.setdefault("_arrival_lines", []).extend(doings.changed_lines(getattr(self, "_doing_changes", [])))
+        from engine import moments
+        moments.on_enter(self)                                                                # (f348) a possibility: something going on as they walk in
         self.home_arrival()
         self.arc_enter(place_id)
         self.bring_prisoners(place_id)

@@ -112,9 +112,11 @@ def _ask(place, world: World, slots: list, town: list[str] = ()) -> ResidentSet:
 
 def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, place_id: str, slots: list, result: ResidentSet) -> list[NPC]:
     """Turn the model's answer into saved people and add them to the place."""
+    from engine import doings
     state = store.load_place(place_id)
     existing = [n for n in (store.load_npc(i) for i in state.residents) if not n.gone]
     npcs = []
+    taken = {n.activity for n in existing}
     for r in sorted(result.residents, key=lambda r: r.slot):
         role, _, people, name, gender = slots[r.slot - 1]
         if name in store.npc_names():
@@ -122,8 +124,9 @@ def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, pla
         npc = NPC(
             id=_unique_id(store, name), name=name, gender=gender, people=people, role=role,
             location=place_id, epithet=r.epithet.strip(), description=r.description.strip(),
-            activity=r.activity.strip(),
         )
+        npc.activity = doings.doing_for(npc, store.meta.seed, store.meta.minutes, taken)      # (f348) the engine's, from birth; it turns with the day
+        taken.add(npc.activity)
         anchor = _ANCHOR_SLOTS.pop((place_id, name), "")
         if anchor:                                           # (f317) one of the town's anchors: named for what they are, never removed by the world
             npc.anchor, npc.protected = anchor, True
