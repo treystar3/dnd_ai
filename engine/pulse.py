@@ -121,7 +121,8 @@ def catch_up(store, world, catalog, now: int) -> dict:
     state = store.load_world_state() or empty_state(now)
     if "last" not in state:
         state["last"] = now
-    budget = P["max_new_events_per_action"]
+    budget = P["max_new_events_per_action"]                             # model calls the pulse may make while the player does one thing
+    engine_budget = P.get("max_engine_events_per_action", 8)            # (f353) the engine's own situations cost no call: a looser cap of their own
     rng = random.Random(f"{store.meta.seed}:pulse:{state['last']}")
     changed = False
     while state["last"] + INTERVAL <= now:
@@ -131,11 +132,11 @@ def catch_up(store, world, catalog, now: int) -> dict:
         changed |= tick_threads(store, world, catalog, state, t, rng)
         if state.get("camps"):
             events.expire_camps(store, world, state, t)
-        if budget <= 0:
+        if budget <= 0 and engine_budget <= 0:
             continue
         # one big-event slot (a campaign, or at high level a cataclysm) opens now and then; one at a time
         slot_chance = P["interval_hours"] / (events.E["campaign"]["every_days"] * 24)
-        if not state.get("campaign") and rng.random() < slot_chance:
+        if not state.get("campaign") and rng.random() < slot_chance and budget > 0:
             done = False
             if events.cataclysm_due(state, t, events.player_level(store), rng):
                 done = events.start_cataclysm(store, world, catalog, state, t, rng)
@@ -149,11 +150,19 @@ def catch_up(store, world, catalog, now: int) -> dict:
             continue
         kind = rng.choices(list(P["kinds"]), weights=list(P["kinds"].values()))[0]
         if kind == "motive":
+            if budget <= 0:
+                continue
             done = move_motive(store, world, catalog, state, t, rng)
+            if done:
+                budget -= 1
         else:
-            done = start_thread(store, world, catalog, state, t, rng)
+            LAST["made_by"] = ""
+            done = start_thread(store, world, catalog, state, t, rng, allow=(budget > 0, engine_budget > 0))
+            if done and LAST["made_by"] == "engine":
+                engine_budget -= 1
+            elif done:
+                budget -= 1
         if done:
-            budget -= 1
             changed = True
     from engine import drift
     deltas = drift.catch_up(store, world, state, now, random.Random(f"{store.meta.seed}:drift:{state.get('drift_last', now)}"))
@@ -163,17 +172,29 @@ def catch_up(store, world, catalog, now: int) -> dict:
 
 
 FINISHED_KEPT = 30
+LAST = {"made_by": ""}            # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget)
 
 
 # ---------- threads ----------
 
-def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "") -> bool:
+def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "",
+                 allow: tuple[bool, bool] = (True, True)) -> bool:
     """Start a situation. pressure_id / place_id force the seed and the place (used by tools/pulse_preview.py). made_by forces who writes it:
     'engine' (data/rules/threads.yaml) or 'model'; by default the tier decides (pulse.yaml tiers engine: true), and a tier the model writes
-    falls back to the engine's own when the model gives nothing usable (f331)."""
+    falls back to the engine's own when the model gives nothing usable (f331). allow (f353): (the model may be called, the engine may build),
+    from the two budgets; a tier whose maker is not allowed this action does not start (a model tier falls back to the engine when it may)."""
     plain = [k for k in P["tiers"] if k not in ("campaign", "cataclysm")]
     tier = tier or rng.choices(plain, weights=[P["tiers"][k]["weight"] for k in plain])[0]
     rule = P["tiers"][tier]
+    may_model, may_engine = allow
+    if not made_by:
+        if rule.get("engine") and not may_engine:
+            return False
+        if not rule.get("engine") and not may_model:
+            if rule.get("fallback") == "engine" and may_engine:
+                made_by = "engine"
+            else:
+                return False
     cooldown = P["pressure_cooldown_days"] * 1440
     pressures = [p for p in world.pressures.values() if t - state["cooldowns"].get(p.id, -10 ** 9) > cooldown]
     if tier == "campaign" and events.E["campaign"]["prefer_marked"]:
@@ -235,6 +256,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
               "triumph": proposal.triumph.model_dump() if proposal.triumph else None,
               "boss_lines": proposal.boss_lines.model_dump(exclude={"captain_intro"}) if proposal.boss_lines and tier == "campaign" else None,
               "made_by": "engine" if info else "model", "told": not info}                 # (f331) who wrote it; an engine-built one is re-told when met
+    LAST["made_by"] = thread["made_by"]
     if info:
         thread.update(template=info["template"], severity=info["severity"], words=info["words"])
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None

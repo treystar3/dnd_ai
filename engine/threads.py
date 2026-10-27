@@ -404,6 +404,11 @@ def tell(store, world, state: dict, th: dict, t: int) -> bool:
         parts.append(f"RESOLUTION: {th['resolution']}")
     parts.append("PLACES: " + ", ".join(sorted(k for k, v in world.places.items() if v.type != "road")))
     parts.append("CREATURES: " + ", ".join(sorted({c.name for c in world.bestiary.values()}))[:3000])
+    shape = {"stages": [f"<STAGE {n + 1} re-told>" for n in range(len(u["stages"]))], "fallout": "<FALLOUT re-told>" if u["fallout"] else "",
+             "truth": "<TRUTH re-told>" if u["truth"] and th.get("truth") else "", "clues": [f"<CLUE {n + 1} re-told>" for n in range(len(u["clues"]))],
+             "reveal": "<REVEAL re-told>" if u["reveal"] else "", "resolution": "<RESOLUTION re-told>" if th.get("resolution") else ""}
+    import json as _json
+    parts.append("WRITE EXACTLY THIS SHAPE, every key present, one string per line given and nothing else inside any string: " + _json.dumps(shape))
     try:
         told = generate("thread_telling", pp.TELLING_SYSTEM, "\n".join(p for p in parts if p), ThreadTelling, temperature=0.9, max_tokens=900,
                         validation_context={"stages": len(u["stages"]), "clues": len(u["clues"]), "known": truth.world_words(world)})

@@ -5,6 +5,7 @@ interval_hours: 8               # the world pulses this often
 eventful_chance: 0.35           # chance a pulse does anything at all (the rest are quiet)
 max_new_events_per_action: 2    # model calls the pulse may make while the player does one thing
                                 # (long stretches of time are compressed: timers still run, fewer new events)
+max_engine_events_per_action: 8 # (f353) the engine's own situations cost no call, so a long absence may start this many of them
 
 # What an eventful pulse does, by weight.
 kinds: {motive: 4, thread: 4}

@@ -1,0 +1,77 @@
+# (f352) WHERE PEOPLE ARE WHEN THEY ARE NOT AT WORK.
+#
+# Why: a townsperson was at their work in their role's hours and nowhere at all outside them. Now some of them have a routine: one period
+# of the day at one other place in their town (the inn of an evening, the square at midday, the temple at dawn), drawn once by the engine
+# from their id and kept nowhere (it is the same every time it is asked for). In that period they are not at their work and are at the
+# routine place instead, doing what people do there; the inn fills of an evening with people the player met elsewhere; and anyone of the
+# town can say where the smith is at this hour, because the engine knows (engine/routines.py).
+#
+# A routine place must be of a kind the town has and never the person's own work place. Roles whose work is the place people go to have
+# none, or few.
+
+chance: 0.45                 # a townsperson has a routine this often
+roles:                       # by role, instead of chance; 0 = never
+  innkeeper: 0
+  server: 0
+  cook: 0
+  priest: 0.1
+  acolyte: 0.1
+  water_priest: 0.1
+  guard: 0.15
+  royal_guard: 0
+  watch_captain: 0.15
+  prisoner: 0
+  traveling_player: 0
+  monarch: 0
+  chamberlain: 0
+  courtier: 0.2
+  noble: 0.3
+  scout: 0.2
+  elven_warden: 0.15
+
+slots:                       # when (a period of the day), where (a kind of place in the town), weight
+  - {when: evening, where: inn, weight: 40}
+  - {when: night, where: inn, weight: 15}
+  - {when: midday, where: inn, weight: 10}
+  - {when: midday, where: square, weight: 12}
+  - {when: evening, where: square, weight: 10}
+  - {when: morning, where: square, weight: 8}
+  - {when: dawn, where: temple, weight: 10}
+  - {when: afternoon, where: temple, weight: 5}
+
+usual:                       # how a routine is told: "at the Tilted Plough most evenings"
+  dawn: at dawn most days
+  morning: most mornings
+  midday: around midday most days
+  afternoon: most afternoons
+  evening: most evenings
+  night: most nights
+
+doings:                      # what someone does at their routine place, by the kind of place; no two people alike
+  inn:
+    - at a table with a cup, in no hurry
+    - waiting on a bowl of stew
+    - in a game of dice by the hearth
+    - half asleep by the fire with their boots off
+    - arguing prices with whoever will listen
+    - at the counter, talking the innkeeper's ear off
+    - alone at the end of a bench with a pie
+    - watching the door over a cup
+  square:
+    - sitting on the well's rim, watching who passes
+    - talking across a cart with a neighbour
+    - haggling over a basket of something
+    - letting a child run rings round them
+    - leaning on a post with nothing to do and content with it
+    - looking over what the stalls have left
+  temple:
+    - kneeling at the back, eyes shut
+    - lighting a candle and standing a while
+    - in low talk with the priest by the door
+    - sitting alone on the last bench
+    - sweeping the step without being asked
+  default:
+    - passing the time with whoever is near
+    - standing about with nothing pressing
+    - sitting on a step, looking at nothing in particular
+    - talking with a neighbour about the weather

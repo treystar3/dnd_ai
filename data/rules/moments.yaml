@@ -25,6 +25,7 @@ memory_days: 3               # how long the town's people bring a moment up afte
 
 shapes:
   - id: performer
+    ends: "The music stops; the player packs the lute away and the room finds its tables again."
     where: [inn, square]
     when: [evening, night]
     weight: 3
@@ -40,6 +41,7 @@ shapes:
       visitor: {epithet: "a travelling player", look: "A lean, road-worn figure with a lute case on a strap and boots that have seen three regions.", doing: "playing by the fire with the room clapping the time"}
       memory: "the night a travelling player had the room dancing"
   - id: quarrel
+    ends: "The quarrel is over, or moved outside; people go back to their own business."
     where: [inn, square, yard, guild]
     when: [afternoon, evening, night]
     weight: 2
@@ -54,6 +56,7 @@ shapes:
       mishap: "As the player comes in, a thrown stool catches them across the shoulder."
       memory: "the brawl that ended with the watch dragging two men out"
   - id: gathering
+    ends: "The gathering breaks up; people drift back to what they were doing."
     where: [inn, temple, square]
     when: [afternoon, evening, night]
     weight: 2
@@ -66,6 +69,7 @@ shapes:
       doings: [{who: everyone, doing: "drinking to the dead at the long table"}, {who: innkeeper, doing: "filling mugs for the mourners and not taking coin for it"}]
       memory: "a wake held here"
   - id: game
+    ends: "The game breaks up, coin changes hands, and the table is just a table again."
     where: [inn]
     when: [night, deep night]
     weight: 2
@@ -78,6 +82,7 @@ shapes:
       doings: [{who: everyone, doing: "watching the card game over someone's shoulder"}, {who: innkeeper, doing: "keeping half an eye on the corner table"}]
       memory: "a card game that went on till the small hours"
   - id: crowd
+    ends: "The crowd thins and is gone, and the place is its ordinary self."
     where: [square, town, city, village]
     when: [morning, midday, afternoon]
     weight: 2
@@ -90,6 +95,7 @@ shapes:
       doings: [{who: everyone, doing: "bidding, or watching the bidding with arms folded"}]
       memory: "the auction of a dead man's goods in the square"
   - id: commotion
+    ends: "The commotion dies down; whatever it was, it is over."
     where: [square, town, city, village, yard]
     when: [morning, midday, afternoon]
     weight: 2
@@ -102,6 +108,7 @@ shapes:
       doings: [{who: everyone, doing: "shouting after the chase"}]
       memory: "the day a boy stole a loaf and outran the baker's lad"
   - id: observance
+    ends: "The observance ends and people go their ways, quieter than they came."
     where: [temple]
     when: [dawn, evening]
     weight: 2
@@ -114,6 +121,7 @@ shapes:
       doings: [{who: everyone, doing: "kneeling at the rite"}, {who: priest, doing: "leading the rite with the god's sign raised"}]
       memory: "a rite held here"
   - id: homecoming
+    ends: "The welcome is done; the one who came home has been taken off somewhere to rest."
     where: [guild]
     when: [afternoon, evening]
     weight: 2
@@ -126,6 +134,7 @@ shapes:
       doings: [{who: everyone, doing: "crowding round the party just back"}, {who: guild_clerk, doing: "writing up a kill with a wet pen"}]
       memory: "a party coming back with a kill and one of them carried"
   - id: searching
+    ends: "The searching stops, found or given up; the place settles."
     where: [guardpost, town, city, village, square]
     when: [morning, midday, afternoon, evening]
     weight: 2
@@ -139,6 +148,7 @@ shapes:
       doings: [{who: everyone, doing: "waiting in the queue with a pack open"}, {who: guard, doing: "turning out a traveller's pack onto a board"}]
       memory: "the day the watch searched every pack at the gate"
   - id: nuisance
+    ends: "The nuisance is dealt with, and the place goes back to normal."
     where: [inn, square]
     when: [night, deep night]
     weight: 1
@@ -151,6 +161,7 @@ shapes:
       doings: [{who: everyone, doing: "stepping over the drunk in the doorway"}]
       memory: "the night nobody would move the drunk from the door"
   - id: rush
+    ends: "The rush is over; the place is suddenly slack and tired."
     where: [smithy, workshop, shop, yard]
     when: [morning, midday, afternoon]
     weight: 2
@@ -163,6 +174,7 @@ shapes:
       doings: [{who: everyone, doing: "working the bellows for the smith, or being in the way"}, {who: smith, doing: "hammering an axle-iron with the carter at an elbow"}]
       memory: "the carter whose axle broke outside"
   - id: arrival
+    ends: "The new arrivals have been seen to, and the place is itself again."
     where: [shop, yard, square, inn]
     when: [morning, midday]
     weight: 2
