@@ -117,6 +117,7 @@ def people(store, world, state: dict, t: int, rng: random.Random) -> str:
                 npc.motive = motive_for(npc, world, V, rng)
                 npc.motive_done_at = -1
                 npc.motive_since = t
+                npc.motive_step = 0                                  # (f360) a new goal starts its steps over
                 moved += 1
             else:
                 npc.motive_done_at = t

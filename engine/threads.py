@@ -192,8 +192,9 @@ def kind_of(key: str) -> str:
 
 
 def shapes(kind: str) -> list[str]:
-    """Every template that tells a situation of this kind: the base one first, then the other shapes in the order written."""
-    keys = [k for k in T["templates"] if kind_of(k) == kind]
+    """Every template that tells a situation of this kind: the base one first, then the other shapes in the order written. A template
+    marked consequence (f359) is never drawn by chance."""
+    keys = [k for k in T["templates"] if kind_of(k) == kind and not T["templates"][k].get("consequence")]
     return sorted(keys, key=lambda k: k != kind)
 
 

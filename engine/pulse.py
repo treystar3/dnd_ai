@@ -189,6 +189,10 @@ def catch_up(store, world, catalog, now: int) -> dict:
         if engine_budget > 0 and start_queued(store, world, catalog, state, t, rng):          # (f358) what follows from an ending
             engine_budget -= 1
             changed = True
+        from engine import consequences
+        if engine_budget > 0 and consequences.tick(store, world, catalog, state, t, rng):    # (f359) the town answers the stranger's deeds
+            engine_budget -= 1
+            changed = True
         if engine_budget > 0 and engine_roll(store, world, catalog, state, t, rng):          # (f354) the engine's own, within reach
             engine_budget -= 1
             changed = True
@@ -210,10 +214,14 @@ def catch_up(store, world, catalog, now: int) -> dict:
             continue
         kind = rng.choices(list(P["kinds"]), weights=list(P["kinds"].values()))[0]
         if kind == "motive":
-            if budget <= 0:
+            from engine import motives
+            engine_made = bool(motives.M.get("engine", True))
+            if (budget <= 0 and not engine_made) or (engine_budget <= 0 and engine_made):
                 continue
             done = move_motive(store, world, catalog, state, t, rng)
-            if done:
+            if done and engine_made:
+                engine_budget -= 1
+            elif done:
                 budget -= 1
         else:
             LAST["made_by"] = ""
@@ -238,7 +246,8 @@ LAST = {"made_by": ""}            # who made the situation start_thread started 
 # ---------- threads ----------
 
 def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "",
-                 allow: tuple[bool, bool] = (True, True), band_weights: dict | None = None, template: str = "", severity_shift: int = 0) -> bool:
+                 allow: tuple[bool, bool] = (True, True), band_weights: dict | None = None, template: str = "", severity_shift: int = 0,
+                 pressure=None, door: str = "") -> bool:
     """Start a situation. pressure_id / place_id force the seed and the place (used by tools/pulse_preview.py). made_by forces who writes it:
     'engine' (data/rules/threads.yaml) or 'model'; by default the tier decides (pulse.yaml tiers engine: true), and a tier the model writes
     falls back to the engine's own when the model gives nothing usable (f331). allow (f353): (the model may be called, the engine may build),
@@ -260,7 +269,10 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if tier == "campaign" and events.E["campaign"]["prefer_marked"]:
         marked = [p for p in pressures if p.campaign]
         pressures = marked or pressures
-    if pressure_id:
+    if pressure is not None:                                         # (f359) a pressure-shaped record of the engine's own (a consequence of the player's deeds)
+        place = world.places.get(pressure.place)
+        template = template or pressure.template
+    elif pressure_id:
         pressure = world.pressures[pressure_id]
         place = world.places.get(pressure.place) or region_town(world, pressure.place, rng)
     elif place_id:
@@ -322,7 +334,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
                       town=(info.get("ids") or {}).get("town", ""))                               # the town it is about (a threat sits at the wild)
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
     state["threads"].append(thread)
-    if pressure:
+    if pressure and pressure.id in world.pressures:
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
         state["campaign"] = thread["id"]
@@ -334,7 +346,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)
     from engine import matters                                      # (f317) the door the player meets it through, and what it carries
     reputation = store.load_player().reputation.get(town_of(world, proposal.place), 0) if store.player_exists() else 0
-    matters.attach(store, world, state, thread, proposal, reputation, rng, t)
+    matters.attach(store, world, state, thread, proposal, reputation, rng, t, door=door)
     posted = False
     if thread["contract"] and thread["door"] in ("board", "board_more"):
         posted = post_contract(store, world, proposal.contract, thread, t, plain=thread["hidden"])
@@ -547,6 +559,10 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     if not movers:
         return False
     npc = rng.choice(movers)
+    from engine import motives
+    if motives.M.get("engine", True):                                   # (f360) the engine's own step: no call
+        last[npc.id] = t
+        return motives.move(store, world, state, npc, t, rng)
     place = world.places[npc.location]
     request = (f"PERSON: {npc.id} - {npc.name}, {npc.people} {npc.role.replace('_', ' ')}\n"
                f"PERSONALITY: {npc.personality}\nTRAITS: {', '.join(npc.traits)}\nWORRY: {npc.concern}\n"

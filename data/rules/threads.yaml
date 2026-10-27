@@ -32,6 +32,9 @@
 # value and days are [low, high]; value is then scaled by severity_scale[severity] and tier_scale[tier], and clamped by pulse.yaml.
 # Effect kinds are the ones the pulse applies (llm/contracts.py WorldEffect); engine/data_check.py refuses any other.
 #
+# (f359) THE TOWN ANSWERS THE STRANGER. Templates marked `consequence: true` are never drawn by chance: engine/consequences.py builds
+# them from data/rules/consequences.yaml when the player's own deeds call for them.
+#
 # (f358) WHAT FOLLOWS. A template's `then` says what may come of a situation at the same place once it ends: `ignored` (left to its
 # fallout) and `settled` (by the town's own people, or by the player), each a weighted list of templates with a severity shift. The
 # pulse queues one by pulse.yaml chains (a chance, a delay) and starts it at the next tick after the delay, with the pressure's heat
@@ -1293,3 +1296,78 @@ templates:
       - {kind: persuade, target: role, name: "Make the {role} say it", how: "Get the {role} to say where the wonder came from."}
     contract: null
     reveal: []
+
+  social_hunters:
+    kind: social
+    consequence: true
+    needs: [creature]
+    fallback: social
+    abouts: ["the stranger who has been at the {creatures}"]
+    titles: ["The {creature}-killer at {town}", "Word of the stranger and the {creatures}", "The hunters of {town} and the stranger"]
+    news: ["Word in {town}: a stranger has been thinning the {creatures}, and the hunters want to know who.", "They say in {town} the {creatures} have a new enemy, and the hunters mean to meet them."]
+    stages:
+      - lines: ["The hunters of {town} have heard of the stranger who has been killing {creatures}, and want them: to hire, to warn off, or to drink with, depending who you ask.",
+                "{Town} is talking of the stranger and the {creatures}; the {role} has asked after them twice today."]
+        effects:
+          - {kind: mood, npc: role, text: ["curious about the stranger who has been at the {creatures}"]}
+        doings: {all: "talking of the stranger who has been killing {creatures}", role: "asking everyone whether they have seen the stranger"}
+    fallout:
+      lines: ["The talk of the {creature}-killer died down in {town}; the hunters found other work."]
+      effects: []
+    resolution: ["Hear the {role} of {town} out about the {creatures}."]
+    truth: ["The {role} of {town} wants the stranger to lead the next hunt into {wild}, and means to pay for it."]
+    clues:
+      - {holder: role, lines: ["You're the one who's been at the {creatures}. Good. There's work in it, if you want it, and a drink either way."]}
+    paths:
+      - {kind: persuade, target: role, name: "Hear the hunters out", how: "Speak with the {role} of {town} about the {creatures}."}
+      - {kind: contract}
+    contract: {kind: hunt, what: creature, count: [3, 5]}
+    reveal: ["The {role} knows where the {creatures} den, and has known for a season."]
+
+  social_watch:
+    kind: social
+    consequence: true
+    abouts: ["a stranger the watch wants a word with"]
+    titles: ["The watch asks after a stranger", "Questions at {town}", "A stranger under the watch's eye"]
+    news: ["The watch of {town} is asking after a stranger: what they were seen doing, and where they lodge."]
+    stages:
+      - lines: ["The watch of {town} is asking after a stranger: what they were seen doing lately, and where they are lodging; the {role} was asked, and said little.",
+                "Two of the watch of {town} have been going door to door with a description; the {role} thinks it fits someone they have served."]
+        effects:
+          - {kind: mood, npc: role, text: ["wary of strangers since the watch came asking"]}
+        doings: {all: "watching strangers with a little more care than usual", role: "telling anyone who asks that the watch has been round"}
+    fallout:
+      lines: ["The watch of {town} gave up asking; whoever it was, they were not found, or not worth the finding."]
+      effects: []
+    resolution: ["Leave {town} for a while, or make a friend of the watch."]
+    truth: ["The watch has a description and a grudge, and the {role} could put a name to both."]
+    clues:
+      - {holder: role, lines: ["They came asking about a stranger. I said I'd not seen one. I'd keep your head down, if I were you."]}
+    paths:
+      - {kind: persuade, target: role, name: "Make a friend", how: "Persuade the {role} of {town} that the watch has the wrong idea."}
+
+  work_hall:
+    kind: work
+    consequence: true
+    fallback: work
+    abouts: ["a stranger with a run of finished jobs"]
+    titles: ["The hall takes notice", "A name on the board at {town}", "The stranger the hall talks of"]
+    news: ["The guild hall at {town} has noticed a stranger's run of finished jobs, and the {role} is asking after them."]
+    stages:
+      - lines: ["The guild hall at {town} has noticed the stranger's run of finished jobs: the {role} wants a word, and the board has a posting kept back for them.",
+                "There is talk at {town}'s hall of a stranger who finishes what they take; the {role} has been asking who they are."]
+        effects:
+          - {kind: mood, npc: role, text: ["pleased with a stranger who finishes jobs"]}
+        doings: {role: "asking after the stranger with the run of finished jobs"}
+    fallout:
+      lines: ["The hall at {town} stopped talking of the stranger; a run of jobs is a run of jobs."]
+      effects: []
+    resolution: ["Go and hear what the {role} of {town} has kept back."]
+    truth: ["The {role} has a job the board never saw, for someone who does not need watching."]
+    clues:
+      - {holder: role, lines: ["You're the one who's been clearing the board. I've something that never went up on it. Interested?"]}
+    paths:
+      - {kind: persuade, target: role, name: "Hear the hall out", how: "Speak with the {role} of {town}."}
+      - {kind: contract}
+    contract: {kind: gather, what: good, count: [2, 4]}
+

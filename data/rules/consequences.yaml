@@ -1,0 +1,27 @@
+# (f359) THE PLAYER AS A CAUSE, without the model. What the player has done lately (the deeds ledger, engine/deeds.py) can start a
+# situation at their town: kill enough of one creature and the hunters send for you; be seen breaking the law twice and the watch starts
+# asking; finish a run of guild jobs and the hall takes notice. The engine checks these each pulse tick (engine/consequences.py), builds
+# the situation from the named template (threads.yaml, marked consequence: true so it is never drawn by chance) with the deeds' own
+# words in it, and opens it through the named door.
+#
+#   deeds   kind: a ledger kind (kill, offense, quest_done, persuade, deliver...); count: how many within `days`; same: group by this
+#           field and count the biggest group (creature, offense); where: town (done in the player's town) or region
+#   door    summons (someone comes to find the player, whatever the town thinks of them) or word (a concern in someone's mouth)
+#   cooldown_days   the same rule does not fire again at the same town this soon
+
+rules:
+  - id: hunters_want_you
+    deeds: {kind: kill, count: 6, days: 7, same: creature, where: region}
+    template: social_hunters
+    door: summons
+    cooldown_days: 12
+  - id: watch_asking
+    deeds: {kind: offense, count: 2, days: 5, where: town}
+    template: social_watch
+    door: word
+    cooldown_days: 8
+  - id: hall_notices
+    deeds: {kind: quest_done, count: 3, days: 12, where: region}
+    template: work_hall
+    door: summons
+    cooldown_days: 15

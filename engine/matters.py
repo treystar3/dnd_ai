@@ -45,15 +45,17 @@ def choose_door(state: dict, th: dict, has_contract: bool, has_reveal: bool, rep
     return door
 
 
-def attach(store, world, state: dict, th: dict, proposal, reputation: int, rng: random.Random, t: int) -> None:
+def attach(store, world, state: dict, th: dict, proposal, reputation: int, rng: random.Random, t: int, door: str = "") -> None:
     """Give a new thread its truth, clues, door and standing; open the door that opens at once (word). The contract, when the door is
-    the board, is posted by the pulse with hidden set for board_more."""
+    the board, is posted by the pulse with hidden set for board_more. `door` (f359): forced, for a situation that answers the player's
+    own deeds; a summons forced this way comes whatever the town thinks of the player."""
     th["truth"] = proposal.truth.strip()
     th["clues"] = [{"text": c.text.strip(), "holder": c.holder.strip(), "npc": "", "found": False} for c in proposal.clues]
     th["reveal"] = proposal.reveal.strip() if proposal.contract else ""
     th["revealed"] = False
     th["touched"] = False
-    th["door"] = choose_door(state, th, bool(proposal.contract and proposal.contract.what), bool(th["reveal"]), reputation, rng)
+    th["door"] = door if door in ("summons", "word", "scene", "board") else choose_door(state, th, bool(proposal.contract and proposal.contract.what), bool(th["reveal"]), reputation, rng)
+    th["summons_force"] = door == "summons"
     th["hidden"] = th["door"] == "board_more"
     th["opened"] = t
     th["answered"] = False
@@ -280,6 +282,8 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
     S = D["summons"]
     town = _town(ws.world, ws.player.location)
     rep = ws.player.reputation.get(town, 0)
+    if th.get("summons_force"):
+        rep = max(rep, S["known_by_all"])                  # (f359) the town answers the stranger's deeds whatever it thinks of them
     if rep < S["reputation"]:
         return False
     rows = retrieval.people_in_town(ws.store, ws.world, town)

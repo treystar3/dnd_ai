@@ -249,6 +249,10 @@ def check() -> list[str]:
     bad += _voices.problems()
     from engine import routines as _routines                                                  # (f352) routines by period and kind of place
     bad += _routines.problems(_types, set(_clock.PERIOD_NAMES), _roles)
+    from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
+    bad += _mo.problems(set(((_pulse_rules.get("drift") or {}).get("motives") or {}).get("seeds") or {}))
+    from engine import consequences as _cq                                                   # (f359) the town answers the stranger's deeds
+    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend"))
     from engine import stay as _stay                                                          # (f351) the room changing mid-stay
     _wx = {c_["id"] for c_ in _load("data/rules/weather.yaml")["conditions"]}
     bad += _stay.problems(_wx, set(_clock.PERIOD_NAMES), _types)

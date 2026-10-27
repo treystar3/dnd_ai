@@ -1,0 +1,55 @@
+# (f360) KNOWN PEOPLE'S LIVES, WITHOUT A MODEL CALL. A person the player has met who has a goal (npc.motive: the engine's from their traits,
+# pulse.yaml drift.motives.seeds, or the profile's own words) moves it a step forward at a pulse; the step used to be a model call, so
+# the people the player liked moved about once every three hours of play. Now the step is the engine's: a line from the table for the
+# trait their goal came from (else default), in the first person, kept as their memory of it and as what is on their mind, so the next
+# talk brings it up; a line of gossip for the town's news; a mood for a while. After steps_most steps the goal ends, made or not, as
+# drift's rules decide (pulse.yaml drift.motives), and the town remembers. {name} {role} {town} {motive} are filled in.
+
+engine: true
+steps_most: 3
+
+by_seed:
+  ambitious:
+    - {line: "I have been making myself useful to the people who matter in {town}, and letting it be seen.", gossip: "{name}, the {role}, has been keeping company above a {role}'s station.", mood: "watchful, with an eye on who is watching"}
+    - {line: "A door opened a crack in {town} and I put my foot in it; it has cost me an old friend.", gossip: "{name} and an old friend are not speaking, and nobody will say why.", mood: "short with old friends"}
+    - {line: "It is close now: one more favour owed to me, one more I owe.", gossip: "They say {name}, the {role}, is owed favours by half of {town}.", mood: ""}
+  greedy:
+    - {line: "I have found where the coin in {town} goes, and I have put myself in its way.", gossip: "{name}, the {role}, has taken an interest in other people's business.", mood: "sharp-eyed about every coin"}
+    - {line: "I lent at a hard rate to someone who could not say no; they will not thank me for it.", gossip: "Somebody in {town} owes {name} more than they can pay.", mood: "pleased with a bargain nobody else liked"}
+    - {line: "The money is nearly in hand; the only question left is who notices.", gossip: "{name}, the {role}, is spending like someone who expects more.", mood: ""}
+  vengeful:
+    - {line: "I have found out where the one who wronged me drinks, and when.", gossip: "{name}, the {role}, has been asking odd questions about someone.", mood: "quiet in a way that worries their friends"}
+    - {line: "I said a thing to their face in {town} that cannot be unsaid, and I am glad.", gossip: "There were hard words in {town} between {name} and someone they have a grudge against.", mood: "grimly satisfied"}
+    - {line: "It is nearly done; whatever comes of it, I will not be sorry.", gossip: "People in {town} are keeping clear of {name} this week.", mood: ""}
+  anxious:
+    - {line: "I have gone over everything in {town} twice that could go wrong, and fixed what I could.", gossip: "{name}, the {role}, has been checking doors and counting stock at odd hours.", mood: "tired from not sleeping"}
+    - {line: "I asked for help and was laughed at, kindly; I am still afraid.", gossip: "{name} has been fretting at anyone who will listen.", mood: "fretful"}
+    - {line: "Nothing has gone wrong yet. I do not trust it.", gossip: "They say {name} has calmed down a little, or given up.", mood: ""}
+  competitive:
+    - {line: "I have let it be known in {town} that my work is the best to be had, and dared anyone to say otherwise.", gossip: "{name}, the {role}, has been boasting, and somebody is bound to take it up.", mood: "spoiling for a contest"}
+    - {line: "Somebody took the dare; we have each had a piece of the other's custom this week.", gossip: "There is a rivalry on in {town} over who is the better {role}.", mood: "working harder than is good for them"}
+    - {line: "It comes down to one more job; the whole of {town} is watching, or I think it is.", gossip: "The rivalry in {town} is near its end, and people have money on it.", mood: ""}
+  obsessive:
+    - {line: "I have put everything else aside for the one piece of work that matters.", gossip: "{name}, the {role}, has shut the door on everyone and is at something.", mood: "absent, thinking of the work"}
+    - {line: "It went wrong and I began again; nobody understands why it has to be right.", gossip: "{name} was heard breaking something and starting over.", mood: "raw from a setback"}
+    - {line: "It is nearly finished. I have not slept.", gossip: "They say {name} has not been seen outside for days.", mood: ""}
+  envious:
+    - {line: "I have been watching how the better-off in {town} get what they get, and taking notes.", gossip: "{name}, the {role}, has been asking what things cost that a {role} cannot afford.", mood: "sour about other people's luck"}
+    - {line: "I bought a thing I could not afford, to have one thing they have; it did not help.", gossip: "{name} has been seen with something fine and new, and people wonder how.", mood: "defensive about a purchase"}
+    - {line: "I know now what it would take, and I am not sure I want it after all.", gossip: "{name} seems easier in themselves lately, or has stopped trying.", mood: ""}
+  rebellious:
+    - {line: "I said in the open what everyone in {town} says behind doors.", gossip: "{name}, the {role}, spoke out in {town} and some cheered and some did not.", mood: "lit up by an argument"}
+    - {line: "They tried to make me take it back; I did not, and it has cost me custom.", gossip: "{name} is being cold-shouldered by some in {town} for what they said.", mood: "stubborn, and a little lonely"}
+    - {line: "Others have started saying it too; whatever happens to me, that is done.", gossip: "There is more talk in {town} of the kind {name} started.", mood: ""}
+  manipulative:
+    - {line: "I have found the one in {town} who can do what I want done, and found what they want.", gossip: "{name}, the {role}, has been very friendly with someone lately.", mood: "pleasant, with something behind it"}
+    - {line: "A favour done, a favour owed; they do not see the shape of it yet.", gossip: "Somebody in {town} is running errands for {name} and does not know why.", mood: "pleased with themselves"}
+    - {line: "They will do it now, and think it was their own idea.", gossip: "They say {name} always gets their way in the end, and nobody can say how.", mood: ""}
+  curious:
+    - {line: "I have been listening at doors in {town}, and there is more going on than people say.", gossip: "{name}, the {role}, has been asking a great many questions.", mood: "bright-eyed with a secret"}
+    - {line: "I found a thread and pulled it, and someone has told me to stop.", gossip: "{name} was warned off something, and is not saying what.", mood: "cautious, for once"}
+    - {line: "I know now what is really going on in {town}, or most of it; the rest I can guess.", gossip: "They say {name} knows something about {town} and is enjoying not telling.", mood: ""}
+  default:
+    - {line: "I have been quietly at work on something of my own, and it is going.", gossip: "{name}, the {role}, has had something on their mind lately.", mood: "preoccupied"}
+    - {line: "It went wrong once; I have started again and said nothing about it.", gossip: "{name} has been short with people and will not say why.", mood: "short with people"}
+    - {line: "It is nearly where I wanted it; one more good week.", gossip: "They say {name}, the {role}, is near the end of something.", mood: ""}
