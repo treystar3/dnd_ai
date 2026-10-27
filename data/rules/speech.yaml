@@ -20,6 +20,32 @@ peoples:                     # people -> the cultures they are raised in, by wei
   dragonborn: {cinderhold: 75, sunscar: 25}
   genasi:     {cinderhold: 50, sunscar: 25, saltmarches: 25}
 
+# (f347) Residents too: the region a town lies in shifts where its people were raised. A culture's weight for someone is their people's
+# weight for it plus regions_pull times the region's weight for it (a culture their people is never raised in stays impossible), so a
+# human of the Wend Vale is nearly always heartland-raised, a human of the Rimelands mostly Rimelands-raised, and a dwarf in the Wend
+# Vale more often heartland than Ironvein. A region not listed leaves the people's weights as they are.
+regions:
+  wend_vale:   {heartland: 80, saltmarches: 10, frontier: 10}
+  great_river: {heartland: 75, gloaming: 15, saltmarches: 10}
+  royal_vales: {heartland: 85, sunscar: 15}
+  northern_hills: {heartland: 50, rimelands: 30, ironvein: 20}
+  cracked_plains_region: {frontier: 70, heartland: 20, sunscar: 10}
+  eastern_frontier: {frontier: 80, heartland: 20}
+  gloaming_coast: {gloaming: 80, saltmarches: 20}
+  drowned_coast: {gloaming: 50, saltmarches: 50}
+  sepulchre:   {gloaming: 70, heartland: 30}
+  rimelands:   {rimelands: 85, hrimgard: 15}
+  far_north:   {rimelands: 60, hrimgard: 40}
+  stormcrown:  {hrimgard: 80, rimelands: 20}
+  sunscar:     {sunscar: 85, cinderhold: 15}
+  saltmarches: {saltmarches: 85, heartland: 15}
+  grey_mountains: {ironvein: 75, heartland: 25}
+  deep_roads:  {ironvein: 90, cinderhold: 10}
+  blackpine:   {eldervale: 80, heartland: 20}
+  ashen_reach: {cinderhold: 85, sunscar: 15}
+  jade_maw:    {sunscar: 50, saltmarches: 30, heartland: 20}
+regions_pull: 2
+
 fluency:                     # how well they speak Common, for anyone raised with a tongue of their own
   weights: {native: 15, fluent: 60, learner: 25}
   baseline: "Common is their second language. They speak it well and plainly, in normal English word order; most lines are fully correct. Never broken, never comic, never a caricature: a capable adult speaking a second language."

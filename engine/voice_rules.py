@@ -35,6 +35,68 @@ def npc(level: str) -> dict:
     return V["npc"][level]
 
 
+def short_gesture(gesture: str) -> str:
+    """(f347) A gesture short enough to print beside bare speech: kept whole when it is within gesture_words, cut at its first clause when
+    that is, otherwise dropped. 'wipes her hands on her apron' stays; 'glances at the door, then back to the ledger with a sigh' becomes
+    'glances at the door'."""
+    g = " ".join((gesture or "").split()).strip().rstrip(".")
+    if not g:
+        return ""
+    cap = V.get("gesture_words", 6)
+    if len(g.split()) <= cap:
+        return g
+    head = re.split(r",|;| and | then | before | while | as ", g, maxsplit=1)[0].strip()
+    return head if head and len(head.split()) <= cap else ""
+
+
+def roll_stance(npc, minutes: int, rng) -> str:
+    """(f347) How this person is for the conversation that is starting, as a plain line for RIGHT NOW YOU ARE, or '' (most talks: they are
+    simply themselves). Weights in data/rules/voice.yaml stances; wary needs trust under 50, grievance a concern, after a motive, and
+    tired is twice as likely after dark."""
+    from engine import clock
+    S = V.get("stances", {})
+    opts = {}
+    for k, spec in S.items():
+        w = spec.get("weight", 0)
+        if k == "wary" and getattr(npc, "trust", 50) >= 50:
+            continue
+        if k == "grievance" and not getattr(npc, "concern", ""):
+            continue
+        if k == "after" and not getattr(npc, "motive", ""):
+            continue
+        if k == "busy" and not getattr(npc, "activity", ""):
+            continue
+        if k == "tired" and clock.is_dark(minutes):
+            w *= 2
+        if w > 0:
+            opts[k] = w
+    if not opts:
+        return ""
+    k = rng.choices(list(opts), weights=list(opts.values()))[0]
+    return S[k]["text"].format(activity=(getattr(npc, "activity", "") or "").rstrip("."), concern=getattr(npc, "concern", ""),
+                               motive=getattr(npc, "motive", ""))
+
+
+def written_parting(npc, rng, said=()) -> str:
+    """(f347) A parting line from the table, by how they are with the player, not one they said lately."""
+    trust = getattr(npc, "trust", 50)
+    band = "warm" if trust >= 65 else "plain" if trust >= 45 else "wary"
+    opts = [l for l in V.get("partings", {}).get(band, ["Aye."]) if l.lower() not in {s.lower() for s in said}]
+    return rng.choice(opts or V.get("partings", {}).get(band, ["Aye."]))
+
+
+def exemplar_block(kind: str) -> str:
+    """(f347) The voice shown rather than described: a few passages (kind 'passages', for the narrator) or replies (kind 'speech', for
+    everyone who speaks) from data/rules/voice.yaml, as the register of this game. Never lines to reuse."""
+    ex = V.get("exemplars", {}).get(kind, [])
+    if not ex:
+        return ""
+    head = ("HOW NARRATION SOUNDS HERE (the register of this game; never lines to reuse, and nothing in them is a fact of this moment):"
+            if kind == "passages" else
+            "HOW PEOPLE SOUND HERE (the register of this game; never lines to reuse, and nothing in them is about you or this moment):")
+    return head + "\n" + "\n".join(f"  - {e}" for e in ex)
+
+
 def mention_once(text: str, words: tuple[str, ...]) -> str:
     """Keep the first sentence that uses any of these words and drop later sentences that use them again
     (a narrator told to open with one breath tends to describe the same breath twice)."""

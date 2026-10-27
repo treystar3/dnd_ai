@@ -283,7 +283,13 @@
   text: "Thanks, that's all I needed. Goodbye."
   scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], partner: i1}
   plan: [{kind: leave_conversation, speech: "Thanks, that's all I needed. Goodbye."}]
-  expect: {handled_by: interpret, kinds: [leave_conversation]}
+  expect: {handled_by: farewell, kinds: []}
+  note: "(f347) a plain goodbye never reaches the interpreter: the farewell intercept answers it with one parting line"
+- name: a_goodbye_that_carries_a_question_is_still_read
+  text: "Goodbye, but first: where is the mill?"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}], partner: i1}
+  plan: [{kind: talk, target: i1, speech: "Goodbye, but first: where is the mill?"}]
+  expect: {handled_by: interpret, kinds: [talk]}
 - name: turning_away_ends_the_conversation
   text: "I turn away from Osric and say nothing more"
   scene: {place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}], partner: m1}
@@ -658,8 +664,8 @@
   text: "Thanks, that's all I needed. Goodbye."
   scene: {partner: i1, place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
   plan: [{kind: talk, target: i1, speech: 'Thanks, that''s all I needed. Goodbye.', summary: Saying goodbye to the innkeeper}, {kind: leave_conversation, summary: Ending the conversation}]
-  expect: {handled_by: interpret, kinds: [leave_conversation]}
-  note: "as the model read a_goodbye_ends_the_conversation"
+  expect: {handled_by: farewell, kinds: []}
+  note: "as the model read a_goodbye_ends_the_conversation; (f347) the farewell intercept now takes the line before any reading"
 - name: turning_away_narrated_as_speech_with_a_look_added
   text: "I turn away from Osric and say nothing more"
   scene: {partner: m1, place: trading_square, present: [{id: m1, name: Osric Vane, role: merchant}]}

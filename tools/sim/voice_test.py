@@ -48,7 +48,10 @@ offers = rules.roster(7, "parth", 3, 5, 10, [])
 check("hires on the list have a people and a speech profile", all(o.get("people") and o.get("speech") for o in offers))
 many = [o for d in range(0, 400, 7) for o in rules.roster(7, "parth", d, 5, 10, [])]
 dw = [o for o in many if o["people"] == "dwarf"]
-check("a dwarf on the list has a dwarf's name", dw and all(o["name"].split()[0] in ("Durgan", "Hilde", "Brokk") for o in dw), [o["name"] for o in dw][:5])
+from npc import names as _names
+check("a dwarf on the list has a dwarf's name, built from dwarf sounds", dw and all(len(o["name"].split()) == 2 and (
+    _names.acceptable(o["name"].split()[0], _names._rules("dwarf", "male")) or _names.acceptable(o["name"].split()[0], _names._rules("dwarf", "female")))
+    for o in dw), [o["name"] for o in dw][:5])
 check("humans are the most common, but others turn up", collections.Counter(o["people"] for o in many).most_common(1)[0][0] == "human" and len({o["people"] for o in many}) >= 6)
 h = rules.new_hire(offers[0], 5, 3)
 check("a new hire keeps their people and profile", h["people"] == offers[0]["people"] and h["speech"]["culture"] == offers[0]["speech"]["culture"])

@@ -65,6 +65,7 @@ req = asked[-1]
 check("a townsperson's frame is shown their trade's tools within reach", "WITHIN REACH: the hammer; a pair of tongs" in req, req[req.find("WITHIN"):][:160])
 check("...and that the moment is easy", "THE MOMENT: easy" in req)
 smith_npc.trust = 15
+ws._framed_here = set()                     # (f347) an ordinary second line gets no frame; start the visit over so this one is framed
 ws.narrate_dialogue(smith_npc, smith_npc.label(), smith_npc.label(), "i ask what she makes", reply, False)
 check("...and tense when they distrust the stranger", "THE MOMENT: tense - they distrust the stranger" in asked[-1])
 smith_npc.trust = 50

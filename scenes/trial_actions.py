@@ -98,7 +98,7 @@ class TrialActions:
         if master:
             gm = next((n for n in self.present if n.role == "guild_master"), None)
             name = gm.name if gm else None
-        name = name or f"{rng.choice(party.P['names']['first'])} {rng.choice(party.P['names']['last'])}"
+        name = name or party.hire_name("human", rng)
         member = {"id": f"trial-{nxt}", "name": name, "role": role, "level": level}
         f = combat.fighter_from_creature(party.Shape(member), level, T["rank"], "e1", name, "engaged")
         f.side = "enemy"

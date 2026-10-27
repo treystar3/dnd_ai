@@ -362,14 +362,18 @@ class Bot:
         tgt = min(enemies, key=lambda e: e.hp)
         hpf = p.hp / max(1, p.max_hp)
         base = {"target": tgt.id, "summary": "bot"}
-        if hpf < 0.4 and any(i.good == "healing_draught" for i in self.c.inventory):
+        if hpf < 0.5 and any(i.good == "healing_draught" for i in self.c.inventory):
             return dict(base, kind="item", item="healing draught")
-        if hpf < 0.2 and f.round > 2:
+        if (hpf < 0.35 and f.round > 1) or (len(enemies) >= 3 and f.round == 1 and any(e.rank != "normal" for e in enemies)):
             return dict(base, kind="flee")
         usable = [m for m in p.moves if not combat.can_use(p, m, f)]
         if hpf < 0.5:
             for m in usable:
                 if m.effect == "healing":
+                    return dict(base, kind="ability", ability=m.id)
+        if hpf < 0.6 and f.round > 1:
+            for m in usable:
+                if m.effect == "defense" and m.id not in p.buffs:
                     return dict(base, kind="ability", ability=m.id)
         damage = [m for m in usable if m.effect == "damage"]
         if damage and self.rng.random() < 0.7:
@@ -414,6 +418,37 @@ def outfit(c, spec: dict, level: int, rng: random.Random) -> None:
     c.coins = max(c.coins, level * 2000)
 
 
+def hire_party(ws, n: int) -> list[dict]:
+    """Take on `n` adventurers from the home hall's roster, as a player of this level would have before setting out: the fee paid,
+    the quirks rolled, the mix of roles the hall offers. Nothing is written by the model until they speak."""
+    if n <= 0:
+        return []
+    from engine import party as rules
+    hall = ws.guild_place_id()
+    if not hall:
+        return []
+    c = ws.player.character
+    was = ws.player.location
+    ws.player.location = hall                        # the roster is the hall's
+    try:
+        offers = ws.party_roster()
+    finally:
+        ws.player.location = was
+    picks, roles = [], set()
+    for m in offers:                                 # one of each role first, then whoever is left
+        if m["role"] not in roles:
+            picks.append(m); roles.add(m["role"])
+    picks += [m for m in offers if m not in picks]
+    picks = picks[:min(n, rules.P["max_party"])]
+    c.coins += sum(m["fee"] for m in picks)          # their fees are the player's past earnings, not this character's purse
+    svc = ws.party_service
+    with ws.store.transaction():
+        for m in picks:
+            svc.hire(m, c.level)
+    ws.store.save_player(ws.player)
+    return [{"name": m["name"], "role": m["role"], "level": m["level"], "people": m.get("people", "")} for m in ws.player.party]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Play a campaign with the real model for hours and log what every turn cost.")
     ap.add_argument("--hours", type=float, default=6.0, help="stop after this many hours (default 6)")
@@ -421,6 +456,7 @@ def main() -> None:
     ap.add_argument("--class", dest="cls", default="warrior", help="the character's class (a key of simlib.CLASSES; default warrior)")
     ap.add_argument("--level", type=int, default=13, help="the character's starting level (default 13, past the tutorial; 1 plays it)")
     ap.add_argument("--seed", type=int, default=1, help="the campaign's seed and the bot's")
+    ap.add_argument("--party", type=int, default=3, help="adventurers hired from the home hall before setting out (default 3, a full party; 0 for none)")
     ap.add_argument("--out", default="", help="where the logs go (default logs/nightrun/<when>)")
     ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page)")
     ap.add_argument("--stub", action="store_true", help="play with the stand-in model (measures nothing real; for the test suite)")
@@ -480,6 +516,8 @@ def main() -> None:
         outfit(char, spec, args.level, rng)
     store.save_player(PlayerState(character=char, location=world.start_location))
     ws = WorldScene(store, world, load_traits(), store.load_player())
+    ws.player.mentor["never"] = True
+    party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
     bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub)
@@ -488,7 +526,7 @@ def main() -> None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}; logs in {out}; "
+    print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
           f"stops after {args.hours:g} h" + (f" or {args.turns} turns" if args.turns else "") + ". Ctrl+C stops it early.", flush=True)
 
     restarts = 0
@@ -524,7 +562,7 @@ def main() -> None:
         store.close()
         backfill.drop(store)
         turnlog.write_session_stats()
-        run.finish({"character": char.name, "class": spec["name"], "level": char.level, "deaths": char.deaths, "seed": args.seed,
+        run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
         if not args.stub:
             from llm.gateway import unload

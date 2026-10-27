@@ -458,10 +458,28 @@ class PartyActions:
         words = P["bond"]["regard"].get(tier, tier)
         return words + (f". {m['impression']}" if m.get("impression") else "")
 
-    def companion_show(self, m: dict, shown: str, reply_to: str = "") -> None:
+    def hire_frame_reasons(self, m: dict, text: str, in_fight: bool) -> list[str]:
+        """(f347) Why a hire's line earns the narrator's frame: the first words with them this visit, a beat in a fight, a feeling the
+        engine knows they have right now. Empty for an ordinary line, which is printed as the words and their gesture."""
+        from engine import voice_profile, voice_rules
+        W = voice_rules.V["frame_when"]
+        framed = self.__dict__.setdefault("_framed_here", set())
+        out = []
+        if m["name"] not in framed:
+            out.append(W["first"])
+        framed.add(m["name"])
+        if in_fight:
+            out.append(W["fight"])
+        feeling = voice_profile.emotion_for(self.hire_feeling(m, text)) if text and not text.startswith("(") else ""
+        if feeling:
+            out.append(W["feeling"].format(feeling=feeling))
+        return out
+
+    def companion_show(self, m: dict, shown: str, reply_to: str = "", why: list[str] | None = None) -> None:
         """(f325) A companion's words on the page the way Maren's and the townsfolk's are: the narrator frames them with what they do as
-        they speak - a sentence or two before and after, a single beat in a fight - under their name. Without the narrator, the words
-        with their gesture as before. `shown` is quirks.shown's form: an optional (gesture) paragraph, then the speech."""
+        they speak - a beat before and after, a single beat in a fight - under their name, when the moment earns a frame (f347,
+        hire_frame_reasons, or `why` from the caller); otherwise, and without the narrator, the words with their gesture. `shown` is
+        quirks.shown's form: an optional (gesture) paragraph, then the speech."""
         import config
         speech, gesture = shown.strip(), ""
         if speech.startswith("(") and "\n" in speech:
@@ -470,11 +488,13 @@ class PartyActions:
         elif speech.startswith("(") and speech.endswith(")") and speech.count("(") == 1:
             gesture, speech = speech.strip("()").strip(), ""
         name = m["name"]
-        if speech and getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True):
+        in_fight = bool(self.combat)
+        if speech and why is None:
+            why = self.hire_frame_reasons(m, reply_to, in_fight)
+        if speech and why and getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True):
             from llm.contracts import DialogueFrame
             from scenes import world_prompts as wp
             from scenes.voice import fresh
-            in_fight = bool(self.combat)
             others = [f"{n.label()}: {n.activity}" for n in self.present][:4] + [f"{o['name']}: travelling with the player" for o in self.player.party
                                                                                  if o is not m and o.get("permanent") and not o.get("story")][:3]
             looks = f"({(m.get('people') or 'human').replace('_', '-')} {m.get('role', '')}, rank {m.get('rank', 'F')}) {m.get('blurb', '')}".strip()
@@ -485,10 +505,12 @@ class PartyActions:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
-                                                  P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight)),
+                                                  P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
+                                                  why=why, already=self.shown_lines()),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400)
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
+                self.note_shown(f"{frame.before} {after}")
                 self.remember_narration(" ".join(t for t in (frame.before, after) if t.strip()),
                                         {"type": "dialogue", "before": frame.before, "speaker": name, "speech": speech, "after": after})
                 return

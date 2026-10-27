@@ -56,6 +56,10 @@ def profile_request(npc, place_name: str, trait_lines: list[str], has_motive: bo
 CONVERSATION_SYSTEM = """You play one ordinary person in a fantasy role-playing game. You decide what they say and do.
 Stay true to them: their traits, personality, voice and concern decide how open, warm, guarded or honest they are.
 When THEY SAY ends with [THE GAME HAS DECIDED: ...], that outcome is fact - your reply must follow it.
+RIGHT NOW YOU ARE, when it is given, is how you are for this conversation. Answer the part you care about. You may leave the rest,
+ask them something back, or talk about your own trouble. Not everyone is helpful, and nobody drops everything for a stranger.
+HOW YOU TALK, when it is given, describes your way of speaking; it is never words to say. WORDS YOU MAY USE are the only lines given
+to you to say as they are, and only if they fit.
 
 What you know:
 - You only know the facts listed under WHAT YOU KNOW, your memories, and what is plainly around you (YOUR PLACE and the TIME,
@@ -80,13 +84,13 @@ What you know:
   spirits or religious practices.
 
 Your reply:
-  speech: what you say aloud, as long as LENGTH says, in your voice. Say as much as the moment calls for and no more: small talk
-    stays brief, but when someone asks about something that matters to you or that you know well, answer fully, the way a real
-    person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
+  speech: what you say aloud, within the room LENGTH gives (room, not a target: a short answer is often the true one), in your
+    voice. Small talk stays brief; when someone asks about something that matters to you or that you know well, answer the way a
+    real person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
     No narration inside speech.
   gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
   intent: what you are doing with this reply. Use leave only if you actually walk away or flatly refuse to keep
-    talking, and then your speech must itself say so aloud - a goodbye, an excuse, or a flat dismissal ("I've work to do. Good day.").
+    talking, and then your speech must itself say so aloud - a goodbye, an excuse, or a flat dismissal.
     Nobody walks off in silence. Answering a question and finishing the topic is not leaving: if your speech holds no goodbye or
     refusal, the intent is not leave. You never leave in a reply that asks them a question.
   reveals: ids of facts from WHAT YOU KNOW that your speech actually conveys truthfully. Empty if none.
@@ -114,8 +118,8 @@ Your reply:
   offers_work: only when you offer them paid work right now - a real task you need done. task is a short phrase
     ("load the grain onto the wagon"); minutes is how long it should take; pay is in copper, at honest village
     rates (about 20 copper an hour). If you already offered work, don't offer it again.
-""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
-Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules; and they know their world
+""" + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("speech") + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
+Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules, the voice shown (f347); and they know their world
 
 
 def trust_words(trust: int) -> str:
@@ -133,17 +137,42 @@ def trust_words(trust: int) -> str:
 def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                          player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
-                         length: str = "one to three sentences", land: list[str] = (), buildings: list[str] = (), truth_text: str = "") -> str:
-    if not npc.met_player:
-        who = "A stranger you have never met."
-    elif npc.knows_player_as:
-        who = f"Someone you have met before. They told you their name is {npc.knows_player_as}."
-    else:
-        who = "Someone you have met before, though you don't know their name."
-    shared = [m for m in npc.memories if not m.text.startswith("(my own life)")]        # their own life is given separately
-    memories = "\n".join(f"  - day {m.day}: {m.text}" for m in shared[-12:]) or "  (none)"
-    known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
+                         length: str = "a line or two, up to about 35 words", land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
+                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "") -> str:
+    """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
+    return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
+                               length, land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid).render()
+
+
+def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
+                        player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
+                        time_label: str = "", wares: list[str] = (), extra: list[str] = (),
+                        length: str = "a line or two, up to about 35 words", land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
+                        stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = ""):
+    """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
+    lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
+    voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
+    saying offered to be said as it is; unsaid: what they said lately, so they say something new."""
+    from engine.prompt import Prompt
+    p = Prompt()
+    p.fact(_identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land))
+    if stance:
+        p.instruction(stance, "RIGHT NOW YOU ARE")
+    if voice_fact:
+        p.fact(voice_fact, "YOUR PEOPLE")
+    if voice_lines:
+        p.instruction("\n".join(f"- {l}" for l in voice_lines), "HOW YOU TALK")
+    if material:
+        p.material("\n".join(f"- {m}" for m in material), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
+    p.fact(_knowledge(npc, facts, convo, wares, extra))
+    p.history(unsaid)
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
+    p.history(so_far, "THIS CONVERSATION SO FAR")
+    p.fact(f'THEY SAY: "{player_text}"\nLENGTH: {length}')
+    return p
+
+
+def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land) -> str:
     traits = "\n".join(f"  - {t}" for t in trait_lines)
     return (
         f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
@@ -158,7 +187,20 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
         + (("WHAT THIS TOWN HAS (every one there is; there are no others, and nobody here does that work):\n" + "\n".join(f"  - {x}" for x in buildings) + "\n") if buildings else "")
         + (truth_text + "\n" if truth_text else "")
         + (("THE LAND AROUND YOU (what everyone here knows of where things grow and are hunted):\n" + "\n".join(f"  - {x}" for x in land) + "\n") if land else "")
-        + "\n"
+    )
+
+
+def _knowledge(npc, facts, convo, wares, extra) -> str:
+    if not npc.met_player:
+        who = "A stranger you have never met."
+    elif npc.knows_player_as:
+        who = f"Someone you have met before. They told you their name is {npc.knows_player_as}."
+    else:
+        who = "Someone you have met before, though you don't know their name."
+    shared = [m for m in npc.memories if not m.text.startswith("(my own life)")]        # their own life is given separately
+    memories = "\n".join(f"  - day {m.day}: {m.text}" for m in shared[-12:]) or "  (none)"
+    known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
+    return (
         f"THE PERSON IN FRONT OF YOU: {who} {trust_words(npc.trust).capitalize()}.\n\n"
         f"WHAT YOU KNOW:\n{known}\n\n"
         + (("WHAT YOU SELL (fixed prices - quote them exactly; the player pays through the game when they agree, so "
@@ -167,8 +209,5 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
         + (f"WORK YOU HAVE OFFERED THEM (not yet done): {npc.work_offer['task']} for {npc.work_offer['pay']} copper\n\n"
            if getattr(npc, "work_offer", None) else "")
         + (("RIGHT NOW YOU ALSO KNOW:\n" + "\n".join(f"  - {x}" for x in extra) + "\n\n") if extra else "") +
-        f"YOUR MEMORIES OF THEM:\n{memories}\n\n"
-        f"THIS CONVERSATION SO FAR:\n{so_far}\n\n"
-        f'THEY SAY: "{player_text}"\n'
-        f"LENGTH: {length}"
+        f"YOUR MEMORIES OF THEM:\n{memories}"
     )

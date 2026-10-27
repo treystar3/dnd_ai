@@ -403,9 +403,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.note_town(place_id)
         self.standing_arrive()
         self.first_arrival = place_id not in self.player.visited
+        self._framed_here, self._shown_here = set(), {}                    # (f347) a new place: nothing read about it yet, nobody framed
         if self.first_arrival:
             self.player.visited.append(place_id)
-            self.weight_hint = "major" if self.world.places[place_id].type == "city" else "rich"
+            p = self.world.places[place_id]
+            if p.type in ("city", "town", "village") or not p.parent:    # (f347) a town or the open country earns a first sight; a shop inside a town does not
+                self.weight_hint = "major" if p.type == "city" else "rich"
+        elif self.revisit:
+            self.weight_hint = "brief"                                   # (f347) seen before: what has changed, in a sentence or two
         self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
         self.refresh_present()
         self.home_arrival()
@@ -430,9 +435,37 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def brevity(self) -> str:
         if getattr(self, "revisit", False):
-            return (" The player has been here before: keep it to two or three sentences, "
-                    "and mention at most two of the people present.")
+            return (" The player has been here before: the place and its people have been seen. Say what has changed since, "
+                    "in a sentence or two, and name at most one person.")
         return ""
+
+    # ---- (f347) what the player has read about this place this visit, so the narrator and the frames say what is new
+
+    def note_shown(self, text: str) -> None:
+        """Record what a passage printed here gave the player: the place itself, the weather, each present person it described."""
+        if not (text or "").strip():
+            return
+        s = self.__dict__.setdefault("_shown_here", {})
+        s.setdefault("people", set())
+        s["place"] = True
+        low = text.lower()
+        if any(re.search(rf"\b{w}\w*", low) for w in voice_rules.V.get("weather_words", [])):
+            s["weather"] = True
+        for label, _desc, _doing in self.people_view():
+            key = re.sub(r"^(the|a|an) ", "", label.lower()).strip()
+            if key and key in low:
+                s["people"].add(label)
+
+    def shown_lines(self) -> list[str]:
+        """The ALREADY SHOWN THIS VISIT list for the prompts, as plain lines."""
+        s = self.__dict__.get("_shown_here") or {}
+        out = []
+        if s.get("place"):
+            out.append(f"the place itself: {self.place.name} has been described; name only what changes")
+        if s.get("weather"):
+            out.append("the weather and the light")
+        out += [f"{p}, and what they are doing" for p in sorted(s.get("people", ()))]
+        return out
 
     def run(self) -> None:
         self.ensure_discoveries()
@@ -443,8 +476,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.run_pulse()
         first_time = self.store.meta.turn == 0
         self.enter(self.player.location)
-        if first_time:
-            self.weight_hint = "major"
+        self.weight_hint = "major" if first_time else None                 # a reload narrates nothing on entering; the next passage is weighed on its own
         kit_text = ""
         c = self.player.character
         if not c.kit_given:
@@ -1279,7 +1311,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        [inv.label(i) for i in self.ground_here()],
                                        unseen, rule["length"], streets=here.streets(),
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
-                                       news=here.lines("news")[:3])                                 # (f331) the narrator hears what the town is talking about
+                                       news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
+                                       already=self.shown_lines())                                  # (f347) ...and what the player has read here already
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=rule["tokens"],
                        temperature=0.4 if strict else 0.9)
         shown = self.unnamed(result.text)
@@ -1295,6 +1328,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if "gasp" in event or "breath" in event:
             shown = voice_rules.mention_once(shown, ("gasp", "gasped", "gasping"))
         console.narrate(shown)
+        self.note_shown(shown)
         self.remember_narration(shown)
 
     exits_due = False
@@ -1465,6 +1499,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def end_conversation(self) -> None:
         self.partner = None
         self.convo = []
+        self.stance = ""
 
     @staticmethod
     def looks_like_exploring(dest: str, text: str) -> bool:
@@ -1684,7 +1719,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.narrate(
             room + "The player looks closely, focusing on what their words ask about. Answer that directly first, from what "
             "can actually be seen: if they ask about the people, describe their peoples, looks and manner. Mention only "
-            "the people relevant to what they are looking at. Three to five sentences.", text)
+            "the people relevant to what they are looking at.", text)
         self.show_exits()
 
     def on_talk(self, intent: ActionIntent, text: str) -> None:
@@ -1745,6 +1780,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not self.partner or self.partner.id != npc.id:
             self.end_conversation()
             self.partner = npc
+            self.stance = voice_rules.roll_stance(npc, self.minutes, self.rng)        # (f347) how they are for this conversation
+            if self.stance:
+                console.debug(f"{npc.name} is, this talk: {self.stance}")
         self.last_spoken = npc.id
         self.player.mentor["last_voice"] = False
         promote(npc, self.store, self.world, self.catalog)
@@ -1784,7 +1822,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk")
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
-                                   f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words())
+                                   f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words(),
+                                   stance=getattr(self, "stance", ""), rng=self.rng)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]
@@ -1806,11 +1845,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         speaker = npc.label() if reply.told_own_name else label_before
         self.flush(text)
         if config.NARRATED_DIALOGUE:
-            self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time)
+            self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time,
+                                  reasons=self.frame_reasons(npc, reply, revealed, check_note))     # (f347) the engine decides if there is a frame
         else:
-            gesture = self.unnamed(reply.gesture, npc)
-            console.npc_says(speaker, reply.speech, gesture)
-            self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
+            self.show_speech(speaker, reply, npc)
 
         if reply.intent == "lie" and self.has("lie_sense") is not None:
             gift = next((i for i in self.player.character.equipment.values() if "lie_sense" in (i.trait or {}).get("world", {})), None)
@@ -1857,7 +1895,46 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return (reach.within(npc.role, self.place.type, wares=wares, ground=ground),
                 reach.moment(npc.role, getattr(npc, "trust", None), heat, fight=bool(self.combat)))
 
-    def narrate_dialogue(self, npc, known_as: str, speaker: str, player_did: str, reply, first: bool) -> None:
+    def frame_reasons(self, npc, reply, revealed=(), note: str = "") -> list[str]:
+        """(f347) Why this line of speech earns the narrator's frame, as the engine sees it: the first words between them this visit, trust
+        that moved, a reveal, a refusal or threat, a gift, a leaving, an attempt the game has judged. Empty for an ordinary line, which is
+        then printed as the words alone. data/rules/voice.yaml frame_when holds the wording the frame is given."""
+        W = voice_rules.V["frame_when"]
+        out = []
+        if npc.id not in self.__dict__.setdefault("_framed_here", set()):
+            out.append(W["first"])
+        if getattr(reply, "trust_change", 0):
+            out.append(W["trust"])
+        if revealed:
+            out.append(W["reveal"])
+        intent = getattr(reply, "intent", "")
+        if intent in ("refuse", "threaten"):
+            out.append(W["refuse"])
+        gift = getattr(reply, "gives", None)
+        if gift is not None and getattr(gift, "name", "").strip():
+            out.append(W["gift"])
+        if intent == "leave":
+            out.append(W["leave"])
+        if note:
+            out.append(W["decided"])
+        return out
+
+    def show_speech(self, speaker: str, reply, npc) -> None:
+        """(f347) The words alone, with the person's own gesture when it is short enough to read as one (voice_rules.short_gesture)."""
+        gesture = voice_rules.short_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc))
+        console.npc_says(speaker, reply.speech, gesture)
+        self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
+
+    def narrate_dialogue(self, npc, known_as: str, speaker: str, player_did: str, reply, first: bool, reasons: list[str] | None = None) -> None:
+        """(f347) The words on the page. The narrator frames them only when the engine has a reason to (frame_reasons); every other line
+        is the words alone with the person's own short gesture. A frame is told why it is there and what the player has already read here,
+        so it writes to the moment rather than re-placing the whetstone."""
+        if reasons is None:
+            reasons = self.frame_reasons(npc, reply)
+        self.__dict__.setdefault("_framed_here", set()).add(npc.id)
+        if not reasons:
+            self.show_speech(speaker, reply, npc)
+            return
         others = [self.unnamed(f"{n.label()}: {n.activity}", npc) for n in self.present if n.id != npc.id][:5]
         manner = self.unnamed(f"{npc.personality} {npc.voice}".strip(), npc) or "unknown yet"
         within, moment = self.reach_of(npc)
@@ -1866,21 +1943,55 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 "dialogue_frame", wp.DIALOGUE_SYSTEM,
                 wp.dialogue_request(self.time_label(), self.place, others, known_as, self.unnamed(npc.description, npc), self.unnamed(npc.activity, npc),
                                     manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
-                                    reply.intent == "leave", self.recent_narration,
-                                    voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment),
+                                    getattr(reply, "intent", "") == "leave", self.recent_narration,
+                                    voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment,
+                                    why=reasons, already=self.shown_lines()),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
             )
         except LLMError:
-            gesture = self.unnamed(reply.gesture, npc)
-            console.npc_says(speaker, reply.speech, gesture)
-            self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
+            self.show_speech(speaker, reply, npc)
             return
         before, after = self.unnamed(frame.before, npc), self.unnamed(frame.after, npc)
         console.dialogue(before, speaker, reply.speech, after)
+        self.note_shown(f"{before} {after}")
         self.remember_narration(" ".join(t for t in (before, after) if t.strip()),
                                 {"type": "dialogue", "before": before, "speaker": speaker, "speech": reply.speech, "after": after})
 
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("farewell", 85, "farewell_intercept", "a plain goodbye to the person they are talking with: one short parting line, no frame"),)
+
+    def farewell_intercept(self, text: str) -> bool:
+        """(f347) A line that is nothing but a goodbye to the person they are talking with is answered with one short parting line through a
+        small call (engine/partings.py), with no frame, and the talk ends; the interpreter never sees it."""
+        from engine import partings
+        npc = self.partner
+        if not npc or not partings.is_goodbye(text, (npc.name, npc.label())):
+            return False
+        self.part_from(npc, text)
+        return True
+
+    def part_from(self, npc, text: str) -> None:
+        """(f347) The player's goodbye: a word's worth of time passes, the person answers with one short parting line (a written one if
+        the model fails), the words are printed alone, and the talk ends."""
+        from engine import partings
+        self.advance(clock.TALK_MINUTES)
+        self.last_spoken = npc.id
+        speech, gesture = partings.line(self, npc, text)
+        self.convo += [("Stranger", text), (npc.name, speech)]
+        partings.remember(npc, text, speech)
+        self.store.save_npc(npc)
+        self.hear_names(speech)
+        speaker = npc.label()
+        import types
+        self.show_speech(speaker, types.SimpleNamespace(speech=speech, gesture=gesture), npc)
+        console.narrate(f"You step away from {speaker}.")
+        self.end_conversation()
+
     def on_leave_conversation(self, intent: ActionIntent, text: str) -> None:
+        from engine import partings
+        if self.partner and intent.speech.strip() and partings.is_goodbye(intent.speech, (self.partner.name, self.partner.label())):
+            self.part_from(self.partner, intent.speech.strip())            # (f347) a goodbye read by the interpreter is still a goodbye: two words back
+            return
         if self.partner and intent.speech.strip():
             partner = self.partner
             intent.target = partner.id

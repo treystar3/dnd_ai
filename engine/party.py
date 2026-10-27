@@ -59,20 +59,12 @@ def roster(seed, hall: str, day: int, player_level: int, rank_coins: int, used: 
     return [m for m in out if f"{m['hall']}:{m['id']}" not in used]
 
 
-_PEOPLES = None
-
-
-def hire_name(people: str, rng: random.Random) -> str:
-    """A name in their people's style: the guild's own list for humans, the people's example names mixed for anyone else."""
-    global _PEOPLES
-    if people == "human":
-        return f"{rng.choice(P['names']['first'])} {rng.choice(P['names']['last'])}"
-    if _PEOPLES is None:
-        _PEOPLES = {p["id"]: p for p in yaml.safe_load((ROOT / "data" / "world" / "peoples.yaml").read_text(encoding="utf-8"))}
-    ex = [n.split(" ", 1) for n in _PEOPLES.get(people, {}).get("example_names", []) if " " in n]
-    if not ex:
-        return f"{rng.choice(P['names']['first'])} {rng.choice(P['names']['last'])}"
-    return f"{rng.choice(ex)[0]} {rng.choice(ex)[1]}"
+def hire_name(people: str, rng: random.Random, gender: str = "") -> str:
+    """A name built from their people's sounds (npc/names.py), the way every resident's is: a first name of the gender rolled here and a
+    family name. Never a name from a list."""
+    from npc import names
+    gender = gender or rng.choice(["male", "female"])
+    return f"{names.build(people, gender, rng)} {names.build(people, 'family', rng)}".strip()
 
 
 def roll_personality(rng: random.Random) -> dict:

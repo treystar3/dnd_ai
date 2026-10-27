@@ -33,6 +33,8 @@ calls = (out / "llm_calls.jsonl").exists() and [json.loads(l) for l in (out / "l
 check("the run keeps its own call log, every attempt with its task and seconds", bool(calls) and all("task" in c and "seconds" in c for c in calls), bool(calls))
 info = json.loads((out / "run.json").read_text(encoding="utf-8")) if (out / "run.json").exists() else {}
 check("the run says why it stopped", info.get("reason") == "turn limit (12)" and info.get("turns") == 12, info)
+check("the character set out with a full party from the home hall, of three different roles",
+      len(info.get("party", [])) == 3 and len({m["role"] for m in info["party"]}) == 3 and all(m["name"] for m in info["party"]), info.get("party"))
 check("a transcript was written", (out / "transcript.md").exists() and (out / "transcript.md").stat().st_size > 500)
 summary = (out / "summary.md").read_text(encoding="utf-8") if (out / "summary.md").exists() else ""
 check("the summary has the turns and the calls by task", "## Turns" in summary and "## Calls by task" in summary and "| interpret_action |" in summary, summary[:600])

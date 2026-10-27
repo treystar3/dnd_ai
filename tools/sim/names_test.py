@@ -41,5 +41,18 @@ for _ in range(400):
     nm, g = names.pick("orc", taken, rng); taken.append(nm)
 check("400 orcs in a row: no first name twice, no full name twice", len({names.first_of(n) for n in taken}) == 400 and len(set(taken)) == 400,
       (len({names.first_of(n) for n in taken}), len(set(taken))))
+# hires and trial examiners are named the same way: built from their people's sounds, never from a list (data/rules/party.yaml has none)
+from engine import party
+import yaml
+check("the guild keeps no name lists any more", "names" not in yaml.safe_load(open("data/rules/party.yaml", encoding="utf-8")))
+for people in ("human", "dwarf", "halfling", "elf", "orc", "dragonborn", "goliath", "genasi", "gnome", "half_elf"):
+    hr = random.Random(people)
+    built = [party.hire_name(people, hr) for _ in range(30)]
+    ok = all(len(n.split()) == 2 and names.acceptable(n.split()[0], names._rules(people, "male")) or names.acceptable(n.split()[0], names._rules(people, "female"))
+             for n in built)
+    check(f"a {people} hire's name is built from the people's sounds, first and family", ok and len(set(built)) >= 25, built[:5])
+check("the same roll gives the same hire name", party.hire_name("dwarf", random.Random(3)) == party.hire_name("dwarf", random.Random(3)))
+roster = party.roster(5, "guild_house", 3, 20, 500, [])
+check("a hall's roster is named that way too", all(len(m["name"].split()) == 2 for m in roster), [m["name"] for m in roster])
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

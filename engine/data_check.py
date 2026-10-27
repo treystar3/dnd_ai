@@ -70,6 +70,12 @@ def check() -> list[str]:
         for c, wt in (weights or {}).items():
             need(c in cultures, f"speech.yaml peoples.{p}: culture '{c}' does not exist")
             need(isinstance(wt, (int, float)) and wt > 0, f"speech.yaml peoples.{p}.{c}: weight must be above zero")
+    regions_file = {r["id"] for r in _load("data/world/regions.yaml")}
+    for r, weights in S.get("regions", {}).items():                                     # (f347) residents are raised by region too
+        need(r in regions_file, f"speech.yaml regions: '{r}' is not a region in regions.yaml")
+        for c, wt in (weights or {}).items():
+            need(c in cultures, f"speech.yaml regions.{r}: culture '{c}' does not exist")
+            need(isinstance(wt, (int, float)) and wt > 0, f"speech.yaml regions.{r}.{c}: weight must be above zero")
     for c, spec in cultures.items():
         need(isinstance(spec.get("home"), str) and spec["home"], f"speech.yaml cultures.{c}: needs a home")
         t = spec.get("tongue", "")
