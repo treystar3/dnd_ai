@@ -1368,6 +1368,12 @@ function homeEnded() {                                      // Quit: the window 
   const menu = $("homebtns"); menu.textContent = "";
   menu.appendChild(el("div", "ask", "The game has closed. You can close this window."));
 }
+function homeFatal(text) {                                   // the game failed before, or while, the home page was up
+  homeView = "menu";
+  $("homemain").hidden = false; $("homegames").hidden = true; $("homeprefs").hidden = true;
+  const menu = $("homebtns"); menu.textContent = "";
+  menu.appendChild(el("div", "ask", text));
+}
 document.querySelectorAll("#homepage .home-back").forEach((b) => (b.onclick = () => homeGo("menu")));
 function hideHome() {
   if ($("homepage").hidden) return;
@@ -1431,7 +1437,7 @@ function handle(ev) {
     case "prompt": state.prompt = true; state.atMain = !!ev.main; state.menuOk = !!ev.menu; updateInput(); break;
     case "busy": $("busy").hidden = !ev.on; if (ev.on && nearBottom()) log.scrollTop = log.scrollHeight; break;
     case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); if (!$("homepage").hidden) homeEnded(); break;
-    case "fatal": addBlock("sys", ev.text); break;
+    case "fatal": addBlock("sys", ev.text); if (!$("homepage").hidden) homeFatal(ev.text); break;
     case "update": showUpdateButton(ev.data); break;
     case "update_progress": updateProgress(ev); break;
     case "setup": showSetup(ev.data); break;

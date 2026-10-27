@@ -39,14 +39,14 @@
   <button id="show" hidden title="Show the info pane">◂ Info</button>
 </div>
 <div id="update" hidden><div class="card"><h2 id="updtitle"></h2><div id="updnotes"></div><div id="updbar" hidden><div id="updfill"></div></div><div id="updtext"></div><div id="updbtns"></div></div></div>
-<div id="homepage" hidden>   <!-- (f345) the home page: app.js showHome; the game sends it before any game is open, and on #menu -->
+<div id="homepage">   <!-- (f345) the home page: shown from the first paint, app.js showHome fills the menu when the game sends it, and again on #menu -->
   <div class="home-map" aria-hidden="true"></div>
   <div class="home-inner">
-    <header class="home-head"><h1 id="hometitle"></h1><div id="homesub"></div></header>
-    <section id="homemain"><div id="homecontinue"></div><nav id="homebtns" class="home-menu"></nav></section>
+    <header class="home-head"><h1 id="hometitle">__TITLE__</h1><div id="homesub">__SUBTITLE__</div></header>
+    <section id="homemain"><div id="homecontinue"></div><nav id="homebtns" class="home-menu"><div class="ask">Loading…</div></nav></section>
     <section id="homegames" hidden><div class="home-subhead"><button class="home-back">‹ Back</button><h2>Your games</h2></div><div id="homelist"></div></section>
     <section id="homeprefs" hidden><div class="home-subhead"><button class="home-back">‹ Back</button><h2>Settings</h2></div><div id="homeprefsbody"></div></section>
-    <footer id="homever"></footer>
+    <footer id="homever">Version __VERSION__</footer>
   </div>
 </div>
 <div id="setup" hidden><div class="card"><h2 id="setuptitle"></h2><div id="setuplines"></div><div id="setupbar" hidden><div id="setupfill"></div></div><div id="setuptext"></div><div id="setupbtns"></div></div></div>
