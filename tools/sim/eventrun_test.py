@@ -26,6 +26,7 @@ check("the bot asked about the matter by name where it is, before going after it
 check("the timeline records what the engine did: the moment, the hunt, a path met or the stages turning",
       any(k in report for k in ("PATH MET", "STAGE 2/", "moment:", "is put into")), [l for l in report.splitlines() if l.startswith("- day")][:12])
 check("the event was resolved by play, or is still going", info.get("status") in ("resolved", "active", "ended"), info.get("status"))
+check("the character set out with a full party", len(info.get("party", [])) == 3 and "| Party |" in report, info.get("party"))
 summary = (out / "summary.md").read_text(encoding="utf-8") if (out / "summary.md").exists() else ""
 check("the calls are summarised, the proposal among them", "pulse_thread" in summary, summary[-600:])
 shutil.rmtree("saves/eventrun_test", ignore_errors=True)

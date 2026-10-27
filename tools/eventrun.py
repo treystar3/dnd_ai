@@ -31,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 
 import nightrun                                      # sets the working directory and the import path
-from nightrun import Bot, Run, die, outfit, spend_points
+from nightrun import Bot, Run, die, hire_party, outfit, spend_points
 
 DAY = 24 * 60
 STEP = 8 * 60                                        # the pulse's own interval: time passes in these steps between lines
@@ -480,6 +480,8 @@ def write_report(out: Path, info: dict, th: dict | None, state: dict, bot: Event
               f"| Judge | asked {th.get('judge_calls', 0)} time(s); pushed back {th.get('partial', 0)} |",
               f"| Ending | {th.get('status', '-')} / {th.get('result') or '-'} / {th.get('ending') or '-'} |",
               f"| Play | {info.get('turns', 0)} lines, {bot.waits} eight-hour waits, {info.get('days', 0)} days; deaths {info.get('deaths', 0)} |",
+              f"| Party | set out with {', '.join(f"{m['name']} the {m['role']} (level {m['level']})" for m in info.get('party', [])) or 'nobody'}; "
+              f"at the end {', '.join(m['name'] for m in info.get('party_left', [])) or 'nobody'} |",
               f"| Model | {sum(by_task.values())} calls, {retries} retries; " + ", ".join(f"{t} {n}" for t, n in by_task.most_common(8)) + " |"]
     lines += ["", f"Every word the model narrated is in transcript.md; the calls and turns are summarised in summary.md.", ""]
     text = "\n".join(lines)
@@ -495,6 +497,7 @@ def main() -> None:
     ap.add_argument("--level", type=int, default=0, help="the character's level (default 60 for a campaign, 100 for a cataclysm)")
     ap.add_argument("--class", dest="cls", default="warrior")
     ap.add_argument("--seed", type=int, default=5)
+    ap.add_argument("--party", type=int, default=3, help="adventurers hired from the home hall before setting out (default 3, a full party; 0 for none)")
     ap.add_argument("--hours", type=float, default=4.0, help="stop after this many real hours (default 4)")
     ap.add_argument("--turns", type=int, default=400, help="stop after this many typed lines (default 400)")
     ap.add_argument("--days", type=int, default=160, help="stop after this many in-game days (default 160)")
@@ -561,11 +564,13 @@ def main() -> None:
     store.save_player(PlayerState(character=char, location="parth"))
     ws = WorldScene(store, world, catalog, store.load_player())
     ws.player.mentor["never"] = True
+    party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
     run.install_console()
     run.install_client()
-    print(f"Event run: a {args.tier}" + (f" ({args.kind})" if args.kind else "") + f" for {char.name}, {spec['name']}, level {char.level}, seed {args.seed}; "
+    print(f"Event run: a {args.tier}" + (f" ({args.kind})" if args.kind else "") + f" for {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, with "
+          + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + "; "
           f"logs in {out}; stops when the event ends, after {args.days} days, {args.turns} lines or {args.hours:g} h. Ctrl+C stops it early.", flush=True)
 
     # a character of this level is known in the towns: the doors that need a name (a summons, someone coming to find them) can open
@@ -645,7 +650,8 @@ def main() -> None:
         run.finish({"tier": args.tier, "kind": (final_th or {}).get("kind", args.kind), "title": (final_th or {}).get("title", ""), "level": level,
                     "started": True, "status": (final_th or {}).get("status", ""), "result": (final_th or {}).get("result", ""),
                     "ending": (final_th or {}).get("ending", ""), "days": bot.day(), "deaths": ws.player.character.deaths, "character": char.name,
-                    "class": spec["name"], "seed": args.seed, "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
+                    "class": spec["name"], "seed": args.seed, "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
+                    "party": party, "party_left": [{"name": m["name"], "role": m["role"]} for m in ws.player.party]})
         if not args.stub:
             from llm.gateway import unload
             unload()
