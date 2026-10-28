@@ -86,9 +86,11 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     if len(lean) >= 2:
         parts.append("LEANED ON WORDS YOU HAVE WORN OUT: " + ", ".join(lean) + ". Find other words, or leave the thing unsaid")
     tails = participle_tails(text)
-    if len(tails) >= 2:
-        parts.append("ENDED SENTENCES ON A TRAILING PARTICIPLE (" + "; ".join(f'"{t[-50:]}"' for t in tails[:2])
-                     + "). End each sentence on its verb or its noun: a thing done, not a thing going on")
+    last = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()][-1:]
+    closes = bool(last) and len(text.split()) >= 25 and participle_tails(last[0]) == last     # the closing sentence trails off: the habit at its most visible
+    if len(tails) >= 2 or closes:
+        parts.append("ENDED " + ("ITS LAST SENTENCE" if closes and len(tails) < 2 else "SENTENCES") + " ON A TRAILING PARTICIPLE (" + "; ".join(f'"{t[-50:]}"' for t in tails[:2])
+                     + "). End each sentence, and above all the last, on its verb or its noun: a thing done, not a thing going on")
     if not parts:
         return result
     nudge = "\n\nYOUR DRAFT " + ". YOUR DRAFT ALSO ".join(parts) + ". Write it fresh, with the same events."

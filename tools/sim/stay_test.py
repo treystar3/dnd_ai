@@ -68,6 +68,21 @@ check("the hour turning is told", line == stay.S["periods"][clock.period(nxt)], 
 stay.reset(ws)
 store.meta.minutes = next(m for m in range(nxt, nxt + 600, 15) if clock.period(m) != clock.period(nxt)); ws.store.meta.turn += 1
 check("when the narrator wrote this turn, its passage is the update: no line", stay.tick(ws, narrated=True, rng=rng) == "")
+# ...and the scene knows the narrator wrote by a flag the turn resets, not by a turn number (handle() moves the counter at its end: the
+# 1720 run printed 'The door goes, and it is the broker' under a passage that had already sat him at his table)
+import inspect
+src = inspect.getsource(WorldScene.turn)
+check("the turn clears the narrator's mark before handling the line", "self._wrote_turn = False" in src and src.index("_wrote_turn = False") < src.index("self.handle(text)"))
+stay.reset(ws)
+told.clear()
+store.meta.minutes = next(m for m in range(ws.minutes, ws.minutes + 600, 15) if clock.period(m) != clock.period(ws.minutes)); ws.store.meta.turn += 1
+ws._wrote_turn = True
+ws.stay_tick()
+check("the scene's own tick: nothing when the narrator wrote this turn, whatever the turn counter says", told == [], told)
+ws._wrote_turn = False                                                     # the snapshot moved on with that tick: the next change is the next hour
+store.meta.minutes = next(m for m in range(ws.minutes, ws.minutes + 600, 15) if clock.period(m) != clock.period(ws.minutes)); ws.store.meta.turn += 1
+ws.stay_tick()
+check("...and the line when the narrator did not", len(told) == 1 and told[0] == stay.S["periods"][clock.period(ws.minutes)], told)
 # a moment ending
 stay.reset(ws)
 st = store.load_place(ws.player.location)

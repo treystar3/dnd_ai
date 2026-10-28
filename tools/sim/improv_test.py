@@ -37,6 +37,7 @@ console.note = lambda t, *a, **k: notes.append(t)
 check("propping a door is read as blocking", world_improv.read_effect("I prop the door shut with the barrel") == "block")
 check("kicking a chest open is read as forcing", world_improv.read_effect("I kick the chest open") == "force")
 check("something none of the vocabulary fits is still an attempt", world_improv.read_effect("I juggle three turnips") == "attempt")
+check("running through sword forms is practice, not an examination", world_improv.read_effect("I practise sword forms for an hour") == "practise", world_improv.read_effect("I practise sword forms for an hour"))
 check("the odds come from the attribute that would do it", 10 <= world_improv.odds_for(char, "force") <= 90)
 
 # ---- a success leaves a mark; the narrator is told it worked

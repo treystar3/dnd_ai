@@ -165,21 +165,38 @@ def _grams(text: str, n: int = 4) -> set[str]:
     return out
 
 
+def _names(ws):
+    """The world's place and road names as one pattern (without 'the'): a run of words that carries one is a name, not a habit ('on the
+    Coast Road' was sent back nine times in one run as how everyone talks). Cached on the scene; None when the scene has no world."""
+    if "_house_names" not in ws.__dict__:
+        world = getattr(ws, "world", None)
+        names = set()
+        for coll in (getattr(world, "places", None) or {}, getattr(world, "roads", None) or {}):
+            for p in (coll.values() if hasattr(coll, "values") else coll):
+                n = re.sub(r"^the\s+", "", str(getattr(p, "name", "") or "").lower()).strip()
+                if len(n) >= 4:
+                    names.add(n)
+        ws.__dict__["_house_names"] = re.compile(r"\b(?:" + "|".join(sorted(map(re.escape, names), key=len, reverse=True)) + r")\b") if names else None
+    return ws.__dict__["_house_names"]
+
+
 def heard(ws, town: str, speaker: str, speech: str) -> None:
     """A line said in this town, kept for the guard (the last `window` lines of the session)."""
     H = V.get("house", {})
     log = ws.__dict__.setdefault("_said_in_town", deque(maxlen=int(H.get("window", 60))))
-    grams = _grams(speech)
+    names = _names(ws)
+    grams = {g for g in _grams(speech) if not (names and names.search(g))}
     if grams:
         log.append((town, speaker, grams))
 
 
 def house_phrases(ws, town: str, speaker: str) -> set[str]:
-    """The runs of words that `others` or more OTHER people in this town have said lately: how everyone here talks."""
+    """The runs of words that `others` or more OTHER people have said lately, in any town: how everyone talks (the habit is the
+    model's, and it travels with the player)."""
     H = V.get("house", {})
     by_gram: dict[str, set[str]] = {}
     for t, who, grams in ws.__dict__.get("_said_in_town", ()):
-        if t != town or who == speaker:
+        if who == speaker:                                        # every town's lines: the house voice is the model's, not the town's
             continue
         for g in grams:
             by_gram.setdefault(g, set()).add(who)

@@ -889,6 +889,10 @@ class NPCReply(BaseModel):
         hit = voices.house_hit(self.speech, _ctx(info).get("house") or ())
         if hit:
             raise ValueError(f"'{hit}' is how everyone in this town has been talking lately; say it your own way")
+        from engine import worn as _worn
+        lean = _worn.leaned_on(self.speech, list(_ctx(info).get("worn") or [])) if len(self.speech.split()) >= 12 else []
+        if len(lean) >= 2:                                                                     # (f349) the worn words are heard, not only told
+            raise ValueError(f"'{lean[0]}' and '{lean[1]}' are words everyone here has worn out lately; find other words")
         _not_said_again(self.speech, info)
         return self
 

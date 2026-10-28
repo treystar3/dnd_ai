@@ -22,7 +22,8 @@ def _write(row: dict) -> None:
 
 
 def mark(kind: str, text: str, t: int, **data) -> dict:
-    """(f355) Something the player met: kind moment | scene | summons | stay | routine | retold | board. Logged at once."""
+    """(f355) Something the player met or did: kind moment | scene | summons | stay | routine | retold | board, or end (how=player) for a situation the
+    player ended. Logged at once."""
     row = {"t": t, "kind": kind, "text": text, "effects": [], **data}
     LOG.append(row)
     _write(row)

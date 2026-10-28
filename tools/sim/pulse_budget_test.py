@@ -102,6 +102,11 @@ sys.path.insert(0, "tools")
 import world_report
 text = world_report.summarise(LOGP)
 check("the world report reads it per game day: the totals, the table, the situations", text.startswith("## The world") and "| Day |" in text and "situations started" in text and "Situations started:" in text, text[:300])
+check("...a started row carries its tag once", "] [" not in text, [l for l in text.splitlines() if "] [" in l][:2])
+pulselog.mark("end", "Wolves out of the Greywood - ended by Tam Reed: by way of 'Find the den'", start + 20, how="player", place="parth", tier="normal")
+check("...and the situations the player ended are counted as theirs", "1 by the player" in world_report.summarise(LOGP), world_report.summarise(LOGP)[:400])
+check("a situation's row names its place once", pulse.thread_row_text("normal", True, "A wedding at Kelpmoor", "Kelpmoor", 2, 1) == "[normal, engine-built] A wedding at Kelpmoor - starts, 2 days, 1 stages"
+      and pulse.thread_row_text("rare", False, "Wolves", "Parth", 7, 3) == "[rare] Wolves at Parth - starts, 7 days, 3 stages")
 check("...and says nothing for an empty log", world_report.summarise(LOGP + ".missing") == "")
 
 # ---- (f356) the window turns over: a sign a day, and news drawn by freshness

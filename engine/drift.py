@@ -195,7 +195,7 @@ def situations(store, world, state: dict, t: int) -> str:
     for row in lean.values():
         row["value"] = max(-cap, min(cap, row["value"]))
         state["effects"].append(row)
-    return f"{len(lean)} places lean with the situations running" if lean else ""
+    return (f"{len(lean)} place{'s lean' if len(lean) != 1 else ' leans'} with the situations running") if lean else ""
 
 
 # ---------- travellers: the trades that move

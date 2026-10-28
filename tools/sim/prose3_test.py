@@ -184,6 +184,58 @@ check("...the turn's end tells them once, together, as a ledger line and not a n
 ws.heard_flush()
 check("...and nothing when nothing new was heard", len(ledgers) == 1)
 
+# ---- what the 20261027_1334 run showed
+# a long draft whose last sentence trails off is rewritten, even when it is the only such sentence
+calls.clear()
+def fake3(task, system, request, schema, **kw):
+    calls.append(request)
+    return Narration(text="The gate is open and the yard beyond it is quiet, the carts drawn up along the wall and the dogs asleep under them. "
+                          "Berric sets his pack down by the well. He looks back the way you came, his hand resting on the hilt." if len(calls) == 1 else "Clean.")
+voice.generate = fake3
+r = voice.fresh("narrate", "sys", "req", Narration, [])
+check("a passage that ends on a trailing participle is rewritten, told it was the last sentence", len(calls) == 2 and "ITS LAST SENTENCE" in calls[1] and r.text == "Clean.", calls[-1][-200:])
+calls.clear()
+voice.generate = lambda *a, **k: (calls.append(a[2]) or Narration(text="He looks back, his hand resting on the hilt. The gate is open."))
+voice.fresh("narrate", "sys", "req", Narration, [])
+check("...a short passage with one such sentence in the middle is let be", len(calls) == 1)
+
+# the worn words are heard in speech too: a reply leaning on two of them is sent back
+def npcw(speech, worn):
+    try:
+        NPCReply.model_validate({"speech": speech, "intent": "small_talk"}, context={"worn": worn}); return ""
+    except ValidationError as e:
+        return str(e)
+check("a townsperson's reply that leans on two worn words is sent back, naming them",
+      "'steady' and 'weary' are words everyone here has worn out" in npcw("The road is steady enough past the bridge, though you look weary to me, and the mill is not far.", ["steady", "weary", "glance"]))
+check("...one worn word, or a short line, passes", npcw("The road is steady enough past the bridge, though the mill is not far from it.", ["steady", "weary"]) == ""
+      and npcw("Steady on, weary one.", ["steady", "weary"]) == "")
+
+# a hire is told of a loss, not asked how they are: 'how are you holding up?' is not a loss confided
+hire = {"id": "h2", "name": "Tam Reed", "role": "scout", "level": 3, "permanent": True, "rank": "F", "temper": ["dry"], "blurb": "Quiet.", "trust": 40}
+check("a loss confided is heard", ws.hire_feeling(hire, "My brother was killed by bandits last winter.") == "painful_told")
+check("a question about their own hurt is not one", ws.hire_feeling(hire, "Are you all right after the wolf nearly killed you?") != "painful_told"
+      and ws.hire_feeling(hire, "How are you holding up?") != "painful_told" and ws.hire_feeling(hire, "Someone died.") != "painful_told")
+
+# the model server failing (Ollama's 500 on its own repeat limit) is one failed attempt, not a crash
+import ollama
+from llm import gateway
+from llm.gateway import LLMError
+class Broken:
+    def chat(self, **kw):
+        raise ollama.ResponseError("token repeat limit reached", 500)
+_client = gateway._client
+gateway._client = Broken()
+try:
+    gateway.generate("narrate", "sys", "req", Narration, retries=1, _quiet=True)
+    got = None
+except LLMError as e:
+    got = e
+except Exception as e:
+    got = e
+gateway._client = _client
+check("a server error from the model becomes the gateway's own error, after every try, with the cause kept",
+      isinstance(got, LLMError) and isinstance(got.__cause__, ollama.ResponseError) and gateway.OUTCOMES[-1] == ("narrate", False, 2), repr(got))
+
 # the night-run bot
 src = open("tools/nightrun.py").read()
 check("the bot asks a companion how they are at most once a game day", "asked_hires" in src and "unasked" in src)

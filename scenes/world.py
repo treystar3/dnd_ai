@@ -225,7 +225,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                        Narration, self.recent_narration)
         console.narrate(result.text)
         self.remember_narration(result.text)
-        self._narrated_turn = self.store.meta.turn                                               # (f351)
+        self._wrote_turn = True                                                                  # (f351) the narrator wrote this turn
 
     def has(self, mechanic: str) -> float | None:
         return pools.mechanic(self.player.character, mechanic)
@@ -520,7 +520,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def stay_tick(self) -> None:
         """(f351) The room changes while the player is in it: one line for the one change worth telling (engine/stay.py)."""
         from engine import stay
-        line = stay.tick(self, narrated=self.__dict__.get("_narrated_turn") == self.store.meta.turn, rng=self.rng)
+        line = stay.tick(self, narrated=getattr(self, "_wrote_turn", False), rng=self.rng)
         if line:
             console.narrate(line)
             self.remember_narration(line)
@@ -661,6 +661,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.name_ids()
         try:
             with self.store.transaction():
+                self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.handle(text)
                 heard = self.hire_said_marks()
                 self.sync_heard()
@@ -1443,7 +1444,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.narrate(shown)
         self.note_shown(shown)
         self.remember_narration(shown)
-        self._narrated_turn = self.store.meta.turn                                               # (f351) the narrator wrote this turn
+        self._wrote_turn = True                                                                  # (f351) the narrator wrote this turn: its passage is the room's update
 
     exits_due = False
 

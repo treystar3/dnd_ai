@@ -45,7 +45,7 @@ check("never addressing the stranger means no 'friend'", "drop 'friend'" in voic
 check("plain words means no fine ones", "not 'extraordinarily'" in voices.check(terse, "It is extraordinarily and remarkably and unquestionably far."))
 check("a line that keeps to the kit passes", voices.check(terse, "Past the bridge. Left at the oak.") == "")
 short = dict(terse, length="plain", sentences="short")
-check("short sentences means none that runs on", "no sentence over 16 words" in voices.check(short, "The mill is past the bridge and you take the left fork at the oak and then it is a mile or so on from there."))
+check("short sentences means none that runs on", "no sentence over 20 words" in voices.check(short, "The mill is past the bridge and you take the left fork at the oak and then it is a mile or so on from there."))
 check("an unmarked kit hears nothing", voices.check({a: "plain" if a == "length" else ("mixed" if a == "sentences" else "none" if a in ("questions", "opening") else "usual") for a in voices.AXES}, "Well, isn't it far, friend? Extraordinarily.") == "")
 check("the kit's room: a terse person a step down, a full one a step up, within the levels", voices.room(terse, "long") == "medium" and voices.room(dict(terse, length="full"), "short") == "medium"
       and voices.room(terse, "short") == "short" and voices.room(dict(terse, length="full"), "long") == "long")
@@ -78,9 +78,17 @@ house = voices.house_phrases(ws, "parth", "d")
 check("a run of words two other people in the town have said lately is a house phrase", "if you're looking for" in house, house)
 check("...and one person's own refrain is not (that is the per-person guard's)", "if you're looking for" not in voices.house_phrases(ws, "parth", "a") or True)
 voices.heard(ws, "parth", "a", "If you're looking for the mill, go left.")
-check("a phrase two people said is still two people, not three lines", "if you're looking for" in voices.house_phrases(ws, "parth", "d") and "if you're looking for" not in voices.house_phrases(ws, "elsewhere", "d"))
+check("a phrase two people said is still two people, not three lines", "if you're looking for" in voices.house_phrases(ws, "parth", "d"))
+check("...and it follows the player to the next town: the habit is the model's, not the town's", "if you're looking for" in voices.house_phrases(ws, "elsewhere", "d"))
 check("a reply that uses a house phrase is sent back, naming it", "how everyone in this town has been talking" in npc("Aye, if you're looking for a drink, try the Plough.", None, house) and npc("Try the Plough for a drink.", None, house) == "")
 check("a run of stop words is never a house phrase", not voices._grams("and it is the one that"))
+ws2 = types.SimpleNamespace(world=types.SimpleNamespace(places={"k": types.SimpleNamespace(name="Kelpmoor")}, roads={"r": types.SimpleNamespace(name="the Coast Road")}))
+for who, line in (("a", "The toll on the Coast Road is a headache for everyone."), ("b", "Wagons held on the Coast Road again, and stay away from the thickets."),
+                  ("c", "Stay away from the thickets by the creek.")):
+    voices.heard(ws2, "kelpmoor", who, line)
+house2 = voices.house_phrases(ws2, "kelpmoor", "d")
+check("a road or a place named by two people is a name, not a habit", not any("coast road" in g for g in house2), house2)
+check("...while the run of words around it still counts", "stay away from the" in house2, house2)
 
 # ---- in a scene: townsfolk and hires get kits that differ
 shutil.rmtree("saves/voices_test", ignore_errors=True)
