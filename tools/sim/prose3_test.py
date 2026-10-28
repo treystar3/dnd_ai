@@ -237,7 +237,7 @@ check("a server error from the model becomes the gateway's own error, after ever
       isinstance(got, LLMError) and isinstance(got.__cause__, ollama.ResponseError) and gateway.OUTCOMES[-1] == ("narrate", False, 2), repr(got))
 
 # the night-run bot
-src = open("tools/nightrun.py").read()
+src = open("tools/nightbot.py").read()                       # (f368) the bot lives in its own module
 check("the bot asks a companion how they are at most once a game day", "asked_hires" in src and "unasked" in src)
 
 shutil.rmtree("saves/prose3_test", ignore_errors=True)

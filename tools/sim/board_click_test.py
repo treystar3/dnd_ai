@@ -111,6 +111,10 @@ import scenes.world_prompts as wp
 text = wp.interpret_request("noon", "Guild", [], [], [], None, None, "I want to do this", board=["1. [F] Deliver the parcel"], contracts=["[F] Hunt rats"])
 check("the interpreter sees the board and your contracts", "CONTRACT BOARD" in text and "1. [F] Deliver the parcel" in text and "Hunt rats" in text)
 check("pick_posting matches 'delivery' to a Deliver posting", ws2.pick_posting([{"title": "Deliver the parcel to Bo", "id": "x"}, {"title": "Hunt rats", "id": "y"}], "the delivery one")["id"] == "x")
+_board = [{"title": "Gather 8 yarrow", "id": "a"}, {"title": "Bring 3 griffon down", "id": "b"}, {"title": "Hunt 4 ogres in the red badlands", "id": "c"}, {"title": "Hunt 3 wisps in the wetlands", "id": "d"}]
+check("(f368) a count in a posting's title is the posting named, not the posting's number: 'Hunt 4 ogres' is the ogres, not the fourth",
+      ws2.pick_posting(_board, "I take the contract: Hunt 4 ogres in the red badlands.")["id"] == "c" and ws2.pick_posting(_board, "I take 2")["id"] == "b"
+      and ws2.pick_posting(_board, "number 3")["id"] == "c")
 
 # each hall keeps its own board, and you read the one in your town
 parth_board = [q["id"] for q in ws2.ensure_board()]

@@ -372,7 +372,7 @@ class PartyActions:
         if not last or last[1] != self.store.meta.turn - 1:
             return None
         low = text.strip().lower()
-        if self.TALK_ACTIONS.search(low) or any(self.npc_addressed(text, n) for n in self.present):
+        if self.TALK_ACTIONS.search(low) or actions.first_person_action(text) or any(self.npc_addressed(text, n) for n in self.present):
             return None
         return next((m for m in self.player.party if m.get("permanent") and m.get("name") == last[0]), None)
 
@@ -398,7 +398,7 @@ class PartyActions:
         first = m["name"].split()[0].lower()
         low = text.strip().lower()
         direct = "?" in text or low.startswith((first, f"ask {first}", f"tell {first}", f"say to {first}"))
-        return m if direct or not self.TALK_ACTIONS.search(low) else None
+        return m if direct or not (self.TALK_ACTIONS.search(low) or actions.first_person_action(text)) else None
 
     @staticmethod
     def hurt_words(h: float) -> str:

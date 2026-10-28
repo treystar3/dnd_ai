@@ -117,11 +117,17 @@ PLAN[:] = [A(kind="look")]
 check("'Bram, how are you holding up?' is for Bram", who("Bram, how are you holding up?") == "hire" and HIRE, HIRE)
 check("'I give Bram a healing draught' is a give", who("I give Bram a healing draught") == "interpret" and not HIRE)
 check("'I heal Bram with Mending Light' is an ability", who("I heal Bram with Mending Light") == "interpret" and not HIRE)
-for line in ("I wait an hour", "I look around", "I drink a healing draught", "I pick up the rope"):
+for line in ("I wait an hour", "I look around", "I drink a healing draught", "I pick up the rope",
+             "I take the contract: Hunt 4 ogres in the red badlands", "I listen for anything unusual",      # (f368) the night bot's lines after banter
+             "I whistle an old marching tune.", "I practise sword forms for an hour.", "I take the road to Eldervale."):     # (f369) first person doing
     ws._hire_last = ("Bram Tollis", ws.store.meta.turn - 1)
     check(f"'{line}' after Bram spoke is an action, not an answer to him", who(line) == "interpret" and not HIRE, HIRE)
 ws._hire_last = ("Bram Tollis", ws.store.meta.turn - 1)
 check("'where are you from?' after Bram spoke goes on with him", who("where are you from?") == "hire" and HIRE, HIRE)
+for line in ("I think so.", "I don't know, honestly.", "I'm fine, thanks.", "I know what you mean", "I'll think about it."):
+    ws._hire_last = ("Bram Tollis", ws.store.meta.turn - 1)
+    check(f"(f369) '{line}' after Bram spoke is an answer to him: it opens on what the player thinks or is", who(line) == "hire" and HIRE, HIRE)
+check("(f369) 'I whistle a tune for Bram' names him and is still a thing done", who("I whistle a tune for Bram") == "interpret" and not HIRE, HIRE)
 
 # ---- an errand: only an answer is an answer
 quirk_actions.quirks.errand_text = lambda *a, **k: "x"

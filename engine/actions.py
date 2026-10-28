@@ -45,7 +45,7 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they set out to find somewhere NOT on the PLACES list: follow a stream or trail to see where it leads,
                look for a shortcut or a hidden way, hunt for a cave, ruin or spring, wander off the path.
                Put what they look for in seek. Naming a place from PLACES is move, never explore."""),
-    Action("look", "look around, or at something here", clock.LOOK_MINUTES, words=("look", "examine", "inspect"),
+    Action("look", "look around, or at something here", clock.LOOK_MINUTES, words=("look", "examine", "inspect", "listen"),
            prompt="""they look around or take in their surroundings, or think aloud with no one to answer"""),
     Action("search", "search this place", words=("search",),
            prompt="""they search, hunt, track, explore, scout or look for creatures, game, enemies or signs of them
@@ -97,7 +97,7 @@ ACTIONS: tuple[Action, ...] = (
                or its register (not a question about how)"""),
     Action("board", "read or ask about the contract board", targeted=True, verbs=("buy", "join", "board"),
            prompt="""they read or look over the guild's contract board"""),
-    Action("accept_quest", "take a contract or request", verbs=("join",),
+    Action("accept_quest", "take a contract or request", verbs=("join",), words=("accept", "contract"),
            prompt="""they take a contract from the board (item = its number or name; "the delivery one", "I'll do this" and
                "I want to take this job" all count, with the CONTRACT BOARD below to pick from), or say yes to a request
                a person here just asked of them"""),
@@ -159,6 +159,24 @@ for _a in ACTIONS:
     for _v in _a.verbs:
         VERB_KINDS[_v] = VERB_KINDS.get(_v, ()) + (_a.kind,)
 ACTION_WORDS: frozenset[str] = frozenset(w for _a in ACTIONS for w in _a.verbs + _a.words)
+
+
+STATIVE = ("am", "'m", "was", "were", "do", "don't", "did", "didn't", "have", "'ve", "had", "haven't", "hadn't", "will", "'ll", "won't", "would", "wouldn't",
+           "'d", "can", "can't", "cannot", "could", "couldn't", "should", "shouldn't", "might", "may", "must", "think", "thought", "know", "knew", "guess",
+           "suppose", "hope", "see", "saw", "understand", "mean", "meant", "want", "wanted", "need", "reckon", "agree", "disagree", "like", "feel", "felt",
+           "remember", "believe", "trust", "owe", "hear", "heard", "wonder", "doubt", "bet", "got", "get", "prefer", "expect", "imagine", "figure", "say",
+           "said", "tell", "told", "thank", "promise", "swear", "admit", "confess", "apologise", "apologize", "hate", "love", "miss", "appreciate", "wish",
+           "fear", "suspect", "assume", "insist", "mind", "care", "dare", "intend", "plan", "forgot", "forget", "wasn't", "weren't", "ain't", "hadn't")
+FIRST_PERSON = re.compile(r"^(?:i|we)\s+(?!(?:" + "|".join(re.escape(w) for w in STATIVE) + r")\b)([a-z]+)\b")
+
+
+def first_person_action(text: str) -> bool:
+    """(f369) 'I whistle an old tune', 'I take the road to Eldervale', 'I practise sword forms': a line that opens on the player doing
+    something is an action, whatever words follow, and never an answer to the hire who spoke last. 'I think so', 'I don't know, Bram' and
+    'I'm fine' open on what the player thinks or is, and stay answers."""
+    low = (text or "").strip().lower().lstrip("\"'")
+    m = FIRST_PERSON.match(low)
+    return bool(m) and not low.rstrip().endswith("?")
 
 
 def action_re(extra: tuple[str, ...] = ()) -> re.Pattern:
