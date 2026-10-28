@@ -57,11 +57,11 @@ kinds:
     memory: {victim: {importance: 1}}
     hire: gambling
   deliver:
-    memory: {victim: {importance: 2}}
+    memory: {victim: {importance: 2, trust: 2}}             # (f362) a thing brought as asked: the one it was brought to warms a little
     ledger: true
   contract_taken: {}                                       # the issuer's own memory is engine/stakes.py's (taken)
   contract_done:
-    memory: {victim: {importance: 1}}
+    memory: {victim: {importance: 1, trust: 3}}             # (f362) the issuer: a job done for them is the surest way to their trust
     standing: {kind: contract_done, only: guild}
     reputation: {guild: contract_done, request: request_done}
     ledger: true

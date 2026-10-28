@@ -17,7 +17,6 @@ from core.models import Item
 from ui import console
 from world.loader import World
 
-TRUST_STEP_LIMIT = 5
 
 
 def _unique_id(store: CampaignStore, name: str) -> str:
@@ -361,8 +360,8 @@ def converse(
     if dropped:
         console.debug(f"ignored reveals {npc.name} does not know: {dropped}")
 
-    step = max(-TRUST_STEP_LIMIT, min(TRUST_STEP_LIMIT, reply.trust_change))
-    npc.trust = max(0, min(100, npc.trust + step))
+    from engine import trust as _trust
+    step = _trust.after_talk(npc, reply, clock.day(store.meta.minutes))      # (f362) the engine moves trust from what happened; the model's say counts within its limit
     if step:
         from engine import canon
         canon.journal("trust", "player", npc.id, f"{npc.name}'s trust moved {step:+d} to {npc.trust}", step=step, trust=npc.trust)

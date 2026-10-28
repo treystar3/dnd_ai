@@ -8,6 +8,11 @@
 #           field and count the biggest group (creature, offense); where: town (done in the player's town) or region
 #   door    summons (someone comes to find the player, whatever the town thinks of them) or word (a concern in someone's mouth)
 #   cooldown_days   the same rule does not fire again at the same town this soon
+#   tier: campaign  (f363) instead of a template: a campaign earned by play. Until now a campaign began on a roll (events.yaml campaign.every_days);
+#           this starts one because of what the player has done - situations they settled in the region - near them, written by the model as
+#           every campaign is, through the door named. One campaign runs at a time; when the model gives nothing usable the rule is tried
+#           again after retry_days rather than waiting out its cooldown.
+retry_days: 1
 
 rules:
   - id: hunters_want_you
@@ -25,3 +30,8 @@ rules:
     template: work_hall
     door: summons
     cooldown_days: 15
+  - id: renown_campaign                      # (f363) two matters settled in the region within six weeks: someone with a bigger matter comes looking
+    deeds: {kind: settled, count: 2, days: 42, where: region}
+    tier: campaign
+    door: summons
+    cooldown_days: 120
