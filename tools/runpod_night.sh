@@ -34,9 +34,23 @@ if ! command -v ollama >/dev/null 2>&1; then
     echo "Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
 fi
+# A container may see every core of the host (nproc 128) while its quota is a dozen; the model runner then spawns a thread per core
+# seen and they fight over the quota, and a 5090 ran at a tenth of its speed. Pinning the server to as many cores as the quota allows
+# (the runner inherits the pinning) gave the card its full speed: 4,700 tokens/s read, 200 written, up from 580 and 25.
+PIN=""
+if command -v taskset >/dev/null 2>&1 && [ -r /sys/fs/cgroup/cpu.max ]; then
+    read -r QUOTA PERIOD < /sys/fs/cgroup/cpu.max
+    if [ "$QUOTA" != "max" ] && [ "$QUOTA" -gt 0 ] 2>/dev/null; then
+        CORES=$(( (QUOTA + PERIOD - 1) / PERIOD ))
+        if [ "$CORES" -lt "$(nproc)" ]; then
+            PIN="taskset -c 0-$((CORES - 1))"
+            echo "Pinning Ollama to $CORES cores (the container's quota; nproc says $(nproc))."
+        fi
+    fi
+fi
 if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     echo "Starting Ollama with room for $PARALLEL request(s) at once..."
-    (OLLAMA_NUM_PARALLEL="$PARALLEL" OLLAMA_KEEP_ALIVE=30m setsid nohup ollama serve > logs/ollama.log 2>&1 < /dev/null &)   # its own session: outlives the shell that started it
+    (OLLAMA_NUM_PARALLEL="$PARALLEL" OLLAMA_KEEP_ALIVE=30m setsid nohup $PIN ollama serve > logs/ollama.log 2>&1 < /dev/null &)   # its own session: outlives the shell that started it
     for _ in $(seq 1 60); do
         curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break
         sleep 1
