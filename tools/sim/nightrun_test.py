@@ -57,11 +57,11 @@ import glob
 for d in glob.glob("saves/nightrun_batch_test*"):
     shutil.rmtree(d, ignore_errors=True)
 base = Path("saves/nightrun_test/night")
-r4 = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--turns", "4", "--hours", "1", "--seed", "5", "--classes", "warrior,mage",
+r4 = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--parallel", "2", "--turns", "4", "--hours", "1", "--seed", "5", "--classes", "warrior,mage",
                      "--starts", "green,known", "--personas", "careful,talker", "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
 runs = sorted((p for p in base.iterdir() if p.is_dir()), key=lambda p: int(p.name.rsplit("_", 1)[1])) if base.exists() else []   # by seed: two runs can share a minute
 infos = [json.loads((p / "run.json").read_text(encoding="utf-8")) for p in runs if (p / "run.json").exists()]
-check("two runs from one command, each in its own folder named by its class and seed", r4.returncode == 0 and len(runs) == 2
+check("two runs from one command (f370: both at once), each in its own folder named by its class and seed", r4.returncode == 0 and len(runs) == 2 and "2 at a time" in r4.stdout
       and runs[0].name.endswith("_warrior_5") and runs[1].name.endswith("_mage_6"), (r4.stdout[-800:], r4.stderr[-800:], [p.name for p in runs]))
 check("...each a whole run of its own: its seed, its class, its turns", len(infos) == 2 and [i["seed"] for i in infos] == [5, 6] and all(i["turns"] == 4 for i in infos)
       and infos[0]["class"] != infos[1]["class"], infos)

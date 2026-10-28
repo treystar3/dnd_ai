@@ -5,6 +5,7 @@
     nightrun.bat --runs 4 --hours 2        a night of four runs one after another, each its own process, seed and class (f361)
     nightrun.bat --start veteran            begin as someone with a past (f367, data/rules/starts.yaml); a night rotates through them
     nightrun.bat --persona hunter           play as one kind of player (f368, tools/nightbot.py PERSONAS); a night rotates through them too
+    nightrun.bat --runs 6 --parallel 3      three runs at once on a card with the memory for them (f370; a rented one: tools/HOSTED.md)
 
 A bot plays the way a player plays (tools/nightbot.py, f368): with goals it keeps across turns (a contract taken, done and reported;
 a situation the world brought to it followed to one of its endings; a place it has not seen), a persona that weights what it cares
@@ -323,7 +324,11 @@ def batch(args) -> None:
     print(f"A night of {args.runs} runs, {args.hours:g} hours each ({args.runs * args.hours:g} in all): "
           + ", ".join(f"{c} seed {s} ({st}, {pe})" for c, s, st, pe in plan), flush=True)
     rows, stopped = [], False
-    for i, (cls, seed, start, persona) in enumerate(plan, 1):
+    width = max(1, int(getattr(args, "parallel", 1) or 1))              # (f370) runs at once: a rented card with the memory for them
+    queue = list(enumerate(plan, 1))
+    running: list[tuple[subprocess.Popen, dict]] = []
+
+    def launch(i: int, cls: str, seed: int, start: str, persona: str) -> tuple[subprocess.Popen, dict]:
         when = datetime.now().strftime("%Y%m%d_%H%M")
         out = base / f"{when}_{cls}_{seed}"
         save = f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}"
@@ -331,31 +336,47 @@ def batch(args) -> None:
                "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start, "--persona", persona] \
             + (["--stub"] if args.stub else [])
         print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start}, playing as {persona} -> {out}", flush=True)
-        started = time.time()
-        proc = subprocess.Popen(cmd)
+        return subprocess.Popen(cmd), {"cls": cls, "seed": seed, "start": start, "persona": persona, "out": out, "started": time.time()}
+
+    def collect(r: dict, code: int) -> None:
+        info = {}
         try:
-            code = proc.wait()
-        except KeyboardInterrupt:                                     # the run has it too, and writes its summary before it goes
-            print("\nstopping after this run writes its logs...", flush=True)
+            info = json.loads((r["out"] / "run.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        bot = info.get("bot") or {}
+        rows.append({"run": r["out"].name, "class": r["cls"], "seed": r["seed"], "start": r["start"], "persona": r["persona"], "exit": code,
+                     "minutes": round((time.time() - r["started"]) / 60, 1),
+                     "distinct": f"{round(100 * info['distinct'])}%" if isinstance(info.get("distinct"), (int, float)) else "",
+                     "done": bot.get("contracts_done", ""), "ended": info.get("ended_by_player", ""),
+                     **{k: info.get(k, "") for k in ("turns", "hours", "level", "deaths", "reason")}})
+
+    try:
+        while queue or running:
+            while queue and len(running) < width:
+                i, (cls, seed, start, persona) = queue.pop(0)
+                running.append(launch(i, cls, seed, start, persona))
+            for proc, r in list(running):
+                code = proc.poll()
+                if code is not None:
+                    running.remove((proc, r))
+                    collect(r, code)
+            if running:
+                time.sleep(2)
+    except KeyboardInterrupt:                                         # the runs have it too, and write their summaries before they go
+        print("\nstopping after the running run(s) write their logs...", flush=True)
+        stopped = True
+        queue.clear()
+        for proc, r in running:
             try:
                 code = proc.wait(timeout=180)
             except Exception:
                 proc.kill()
                 code = -1
-            stopped = True
-        info = {}
-        try:
-            info = json.loads((out / "run.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            pass
-        bot = info.get("bot") or {}
-        rows.append({"run": out.name, "class": cls, "seed": seed, "start": start, "persona": persona, "exit": code, "minutes": round((time.time() - started) / 60, 1),
-                     "distinct": f"{round(100 * info['distinct'])}%" if isinstance(info.get("distinct"), (int, float)) else "",
-                     "done": bot.get("contracts_done", ""), "ended": info.get("ended_by_player", ""),
-                     **{k: info.get(k, "") for k in ("turns", "hours", "level", "deaths", "reason")}})
-        if stopped:
-            break
-    lines = [f"# A night of {len(rows)} run(s), started {stamp}", "",
+            collect(r, code)
+        running = []
+    rows.sort(key=lambda r: r["seed"])
+    lines = [f"# A night of {len(rows)} run(s), started {stamp}" + (f", {width} at a time" if width > 1 else "") + ("; stopped by hand" if stopped else ""), "",
              "| Run | Class | Seed | Start | Persona | Turns | Hours | Level | Deaths | Distinct lines | Contracts done | Ended by player | Stopped | Exit |",
              "| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |"]
     for r in rows:
@@ -385,6 +406,8 @@ def main() -> None:
     ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
     ap.add_argument("--persona", default="", help=f"(f368) the kind of player the bot is: {', '.join(PERSONAS)} (default: by the seed, in that order)")
     ap.add_argument("--personas", default="", help="with --runs: the personas to rotate through, comma-separated (default: all, in order)")
+    ap.add_argument("--parallel", type=int, default=1, help="(f370) with --runs: play this many runs at once, for a card with the memory for them (the Ollama server "
+                                                             "must allow it: OLLAMA_NUM_PARALLEL, see tools/HOSTED.md)")
     args = ap.parse_args()
     if args.runs > 1:
         batch(args)
