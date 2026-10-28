@@ -1330,9 +1330,13 @@ class ThreadTelling(BaseModel):
     def counted(self, info: ValidationInfo):
         ctx = _ctx(info)
         need_s, need_c = ctx.get("stages"), ctx.get("clues")
-        if need_s is not None and len(self.stages) != need_s:
+        if need_s == 0:
+            self.stages = []                       # nothing was asked for: the model writes one anyway, and that is not a reason to refuse the rest (f369)
+        elif need_s is not None and len(self.stages) != need_s:
             raise ValueError(f"write exactly {need_s} stages, one for each STAGE given, in order (an empty string keeps one as it is)")
-        if need_c is not None and len(self.clues) != need_c:
+        if need_c == 0:
+            self.clues = []
+        elif need_c is not None and len(self.clues) != need_c:
             raise ValueError(f"write exactly {need_c} clues, one for each CLUE given, in order (an empty string keeps one as it is)")
         return self
 

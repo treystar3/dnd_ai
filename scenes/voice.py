@@ -33,7 +33,7 @@ great DM does: present tense, second person, vivid and specific, but economical 
 
 STALE = ["the air hangs heavy", "hangs heavy", "scent of damp earth", "smell of damp earth", "cool morning air",
          "a sense of", "can't help but", "little do you know", "send shivers down", "sends a shiver",
-         "nothing has changed since", "nothing had changed since"]            # a revisit passage that says so after describing a change
+         "nothing has changed", "nothing had changed", "unchanged since", "exactly as it was"]     # a revisit passage that says so after describing a change
 
 
 def _shingles(text: str, n: int = 5) -> set[str]:

@@ -144,6 +144,15 @@ th["stage"] = 0
 u = threads.untold(th)
 check("while the first stage is current nothing has copied it, so it may be re-told, and so may the later one", u["stages"] == [0, 1])
 check("a word door's first clue is in its holder's head and stays; the second may be re-told", u["clues"] == [1], u["clues"])
+from llm.contracts import ThreadTelling
+_zero = ThreadTelling.model_validate({"stages": ["an extra stage the model wrote anyway"], "clues": ["x"], "truth": "The mill wheel is jammed."},
+                                     context={"stages": 0, "clues": 1, "known": []})
+check("(f369) a re-telling asked for no stages drops whatever the model writes for them instead of refusing the whole answer", _zero.stages == [] and _zero.clues == ["x"])
+try:
+    ThreadTelling.model_validate({"stages": ["one"], "clues": []}, context={"stages": 2, "clues": 0})
+    check("...while a wrong count where stages were asked for is still refused", False)
+except Exception:
+    check("...while a wrong count where stages were asked for is still refused", True)
 told = threads.tell(store, world, state, th, now)
 check("the re-telling rewrites exactly those, in the world's words, and marks the thread told",
       told and th["told"] and th["stages"][0]["description"].startswith("(retold) ") and th["stages"][1]["description"].startswith("(retold) ")

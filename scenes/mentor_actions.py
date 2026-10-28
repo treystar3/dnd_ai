@@ -580,7 +580,8 @@ class MentorActions:
     def mentor_named_turn(self, text: str) -> bool:
         """Her name in the line and no action in it (or a question): said to her. An action with her name in it is an action."""
         low = text.strip().lower()
-        if not (self.mentor_with_you() and mentor.named(text) and ("?" in text or not self.TALK_ACTIONS.search(low))):
+        from engine import actions as _actions
+        if not (self.mentor_with_you() and mentor.named(text) and ("?" in text or not (self.TALK_ACTIONS.search(low) or _actions.first_person_action(text)))):
             return False
         from engine import clock
         self.advance(clock.TALK_MINUTES)
