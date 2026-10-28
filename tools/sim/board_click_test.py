@@ -176,5 +176,25 @@ if out_spot:
     ws.board_click(f"#boardhire {d['hires'][0]['id']}")
     check("...and a click there hires no one", len(ws.player.party) == n0)
 
+# (f372) a button that moves the purse redraws the top bar: the hire goes through the game's own loop, as a click in the window does
+ws.enter(gid)
+ws.player.character.coins += 50_000
+ws.player.mentor["never"] = True
+for k in [k for k in ws.player.mentor if k != "never"]:
+    ws.player.mentor.pop(k, None)
+store.save_player(ws.player)
+offer = next((h for h in ws.board_data()["hires"] if h["ok"]), None)
+bars, script = [], [f"#boardhire {offer['id']}" if offer else "#stats", "#stats", "quit"]
+_ask, _bar = console.ask, console.status_block
+console.ask = lambda *a, **k: script.pop(0) if script else "quit"
+console.status_block = lambda *a, **k: bars.append(a[7])                       # the coins, as the bar shows them
+try:
+    ws.run()
+finally:
+    console.ask, console.status_block = _ask, _bar
+check("after a Hire on the board the top bar is drawn again with the purse the fee left", offer is not None and len(bars) >= 2 and bars[-1] < bars[0]
+      and bars[-1] == ws.player.character.coins, (bars, offer and offer["fee"]))
+check("...and a button that changes nothing on it does not redraw it", len(bars) == 2, bars)
+
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)

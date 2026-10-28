@@ -634,6 +634,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return
             if text.startswith("#"):
                 before = self.player.location
+                bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
                         self.command(text)
@@ -645,6 +646,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
+                if self.header_key() != bar:
+                    self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
             if not self.turn(text):
                 console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
@@ -945,6 +948,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.save_player(self.player)
         console.note(f"Done. {c.unspent_points} points left.")
         self.show_header()
+
+    def header_key(self) -> tuple:
+        """(f372) Everything the top bar shows, so a pane button that changed any of it redraws the bar."""
+        c = self.player.character
+        return (self.player.location, self.minutes, c.coins, c.xp, c.level, c.unspent_points,
+                tuple(round(pools.current(c, p)) for p in pools.POOLS), tuple(pools.maximum(c, p) for p in pools.POOLS))
 
     def show_header(self) -> None:
         c = self.player.character
