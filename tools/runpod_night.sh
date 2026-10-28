@@ -24,12 +24,13 @@ if ! command -v ollama >/dev/null 2>&1; then
 fi
 if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     echo "Starting Ollama with room for $PARALLEL request(s) at once..."
-    OLLAMA_NUM_PARALLEL="$PARALLEL" OLLAMA_KEEP_ALIVE=30m nohup ollama serve > logs/ollama.log 2>&1 &
+    (OLLAMA_NUM_PARALLEL="$PARALLEL" OLLAMA_KEEP_ALIVE=30m setsid nohup ollama serve > logs/ollama.log 2>&1 < /dev/null &)   # its own session: outlives the shell that started it
     for _ in $(seq 1 60); do
         curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break
         sleep 1
     done
 fi
+nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true
 ollama pull "$MODEL"
 ollama pull "$EMBED"
 python3 -m pip install -q -r requirements.txt
