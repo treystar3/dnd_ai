@@ -322,7 +322,7 @@ def new_hit(combat: Combat, att: Fighter, dfn: Fighter, label: str) -> dict | No
         return None
     if not combat.serial:
         combat.serial = f"{random.randrange(16 ** 4):04x}"
-    n = len(combat.hits) + 1
+    n = 1 + max((int(h["tag"][1:]) for h in combat.hits if str(h.get("tag", "")).startswith("h")), default=0)   # (f371) not the count: merged records leave gaps
     rec = {"id": f"{combat.serial}-{combat.round}-{n}", "tag": f"h{n}", "round": combat.round, "att": att.name, "dfn": dfn.name,
            "att_side": att.side, "dfn_side": dfn.side, "label": label, "outcome": "", "chance": 0.0, "roll": 0.0,
            "note": "", "base": {}, "steps": [], "defence": {}, "extras": [], "final": 0, "figure": ""}

@@ -1079,6 +1079,17 @@ function hitLines(h) {
     R.push(["h", h.final ? `Restored: ${h.final}` : h.figure.slice(1, -1)]);
     return R;
   }
+  if ((h.parts || []).length) {                                     // (f371) a flurry: one attack of several strikes
+    const word = { miss: "miss", graze: "glancing blow", hit: "hit", crit: "critical hit", phase: "passes through" };
+    const R = [["h", `${h.att} ${h.label} ${h.dfn}: ${h.parts.length} strike${h.parts.length === 1 ? "" : "s"}`]];
+    h.parts.forEach((p, i) => R.push(["", `  Strike ${i + 1}: ${word[p.outcome] || p.outcome}` + (p.final ? `, ${p.final} damage` : "")
+      + (p.bleed ? ` +${p.bleed} from the open wound` : "") + (p.chance ? `  (needed ${p.need}, rolled ${p.roll})` : "")]));
+    if ((h.planned || 0) > h.parts.length) R.push(["dim", `  ${h.planned - h.parts.length} more never came: the target was down`]);
+    R.push(["h", `Dealt: ${h.final}`]);
+    const first = h.parts.find((p) => p.base && p.base.base !== undefined);
+    if (first) { R.push(["dim", `How strike ${h.parts.indexOf(first) + 1} was worked out:`]); for (const x of hitLines(first).slice(1)) R.push(x); }
+    return R;
+  }
   const L = [], b = h.base || {}, d = h.defence || {};
   const outcome = { miss: "miss", graze: "glancing blow", hit: "hit", crit: "critical hit", phase: "passes through" }[h.outcome] || h.outcome;
   L.push(["h", `${h.att} ${h.label} ${h.dfn}`]);
