@@ -91,6 +91,22 @@ ws.ask_back("talk_whom", "hello there", "said to no one in particular")
 check("with no question to ask, the old note stands", any("not sure what you meant" in n for n in notes[-2:]))
 check("#refusals sums the session", "refusal(s) this session" in refusals.summary() and "audit_failed" in refusals.summary())
 
+# ---- (f342) a talk aimed at someone of this town who is not about at this hour: the engine says so, no question asked back
+ws.pending_clarify = None
+ws.enter("guild_house")
+clerk_row = next((r for r in store.npc_rows(location="guild_house") if r.role == "guild_clerk"), None)
+if clerk_row:
+    store.meta.minutes = (store.meta.minutes // 1440) * 1440 + 23 * 60 + 1440           # eleven at night: the clerk's hours are 8 to 18
+    ws.enter("guild_house")
+    check("after hours the clerk is not about", all(n.id != clerk_row.id for n in ws.present))
+    notes.clear(); before = len(refusals.LOG) if hasattr(refusals, "LOG") else None
+    calls_before = stub.calls.get("Clarify", 0)
+    r = ws.audit_plan("I ask the clerk what contracts are open for my rank.", [ActionIntent(kind="talk", target=clerk_row.id)])
+    check("...so asking the clerk is answered by the engine: not about at this hour, and no question asked back",
+          r is None and any("not about at this hour" in n for n in notes) and stub.calls.get("Clarify", 0) == calls_before, (r, notes[-2:]))
+else:
+    check("the guild house has a clerk to be out of hours", False, [(r.id, r.role) for r in store.npc_rows(location="guild_house")])
+
 shutil.rmtree("saves/improv_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")
 sys.exit(1 if bad else 0)

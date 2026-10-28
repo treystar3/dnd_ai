@@ -23,7 +23,7 @@ axes:
   sentences:                   # the shape of them
     weight: 2
     options:
-      short: {weight: 30, text: "short sentences, one thing in each, and never one that runs on", check: {max_sentence_words: 20}}
+      short: {weight: 30, text: "short sentences, one thing in each, none past twenty words, and never one that runs on", check: {max_sentence_words: 20}}
       mixed: {weight: 60, text: ""}
       long:  {weight: 25, text: "one long sentence that carries the whole thought with its turns and qualifications, rather than several short ones"}
   questions:                   # whether they want anything back
