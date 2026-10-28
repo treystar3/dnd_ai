@@ -11,12 +11,11 @@ Plain HTTP (the Ubuntu archive) is proxied too. No logging, no filtering, loopba
 from __future__ import annotations
 
 import argparse
-import select
 import socket
 import threading
 
 MSS = 1200
-TIMEOUT = 120
+TIMEOUT = 600                  # idle seconds before a tunnel is dropped: a model pull may pause that long between blobs
 
 
 def upstream(host: str, port: int) -> socket.socket:
@@ -27,37 +26,36 @@ def upstream(host: str, port: int) -> socket.socket:
     return s
 
 
-def splice(a: socket.socket, b: socket.socket) -> None:
-    """Bytes both ways until one side closes."""
-    a.setblocking(False)
-    b.setblocking(False)
-    pairs = {a: b, b: a}
+def pump(src: socket.socket, dst: socket.socket) -> None:
+    """One direction, blocking: a slow reader on one side only slows the other, never breaks it."""
     try:
-        while pairs:
-            readable, _, errored = select.select(list(pairs), [], list(pairs), TIMEOUT)
-            if not readable and not errored:
+        while True:
+            data = src.recv(65536)
+            if not data:
                 break
-            for s in errored:
-                return
-            for s in readable:
-                try:
-                    data = s.recv(65536)
-                except (BlockingIOError, InterruptedError):
-                    continue
-                except OSError:
-                    return
-                if not data:
-                    return
-                try:
-                    pairs[s].sendall(data)
-                except OSError:
-                    return
+            dst.sendall(data)
+    except OSError:
+        pass
     finally:
-        for s in (a, b):
-            try:
-                s.close()
-            except OSError:
-                pass
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+
+def splice(a: socket.socket, b: socket.socket) -> None:
+    """Bytes both ways until both sides are done."""
+    a.settimeout(TIMEOUT)
+    b.settimeout(TIMEOUT)
+    t = threading.Thread(target=pump, args=(b, a), daemon=True)
+    t.start()
+    pump(a, b)
+    t.join()
+    for s in (a, b):
+        try:
+            s.close()
+        except OSError:
+            pass
 
 
 def handle(client: socket.socket) -> None:
