@@ -233,6 +233,19 @@ except LLMError as e:
 except Exception as e:
     got = e
 gateway._client = _client
+class Away:
+    def chat(self, **kw):
+        raise ConnectionError("Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible.")
+gateway._client = Away()
+try:
+    gateway.generate("narrate", "sys", "req", Narration, retries=1, _quiet=True)
+    away = None
+except LLMError as e:
+    away = e
+except Exception as e:
+    away = e
+gateway._client = _client
+check("(f370) a server that cannot be reached at all is the gateway's own error too, not a crash through the turn", isinstance(away, LLMError) and isinstance(away.__cause__, ConnectionError), repr(away))
 check("a server error from the model becomes the gateway's own error, after every try, with the cause kept",
       isinstance(got, LLMError) and isinstance(got.__cause__, ollama.ResponseError) and gateway.OUTCOMES[-1] == ("narrate", False, 2), repr(got))
 

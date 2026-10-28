@@ -126,9 +126,10 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                          "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **tuned},
                 keep_alive=config.KEEP_ALIVE,
             )
-        except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError) as e:
-            # A timeout, a dropped connection or a server error (Ollama answers 500 when the model hits its own repeat limit) is one
-            # failed attempt, not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails.
+        except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError, ConnectionError) as e:
+            # A timeout, a dropped connection, a server error (Ollama answers 500 when the model hits its own repeat limit) or a server
+            # that cannot be reached at all (the client raises Python's own ConnectionError while Ollama restarts) is one failed attempt,
+            # not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails (f370).
             last_error = e
             what = (f"timed out after {config.REQUEST_TIMEOUT}s" if isinstance(e, httpx.TimeoutException)
                     else f"the model server failed: {str(e)[:200] or type(e).__name__}")
