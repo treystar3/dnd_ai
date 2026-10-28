@@ -6,6 +6,7 @@ through the real intercepts and plan rewrites (scenes/world.py handle()) on a re
     python tools/interp_eval.py --live                the real model reads every line (needs Ollama); its reading is measured too
     python tools/interp_eval.py --only road,bram      only the cases whose name contains one of these
     python tools/interp_eval.py --promote logs/turns.jsonl -1     a case stub from a logged turn (engine/turnlog.py rows; edit `expect`)
+    python tools/interp_eval.py --corpus data/replay/interp_corpus.yaml --live    the corpus built from night runs (tools/interp_corpus.py)
 
 Cases live in data/replay/interp_cases.yaml:
     name, text          the line as typed
@@ -45,7 +46,8 @@ def load_cases(path=CASES) -> list[dict]:
 class Bench:
     """One scene, re-dressed for each case: who is here, who travels with the player, where they stand, what the mentor is up to."""
 
-    def __init__(self, live: bool = False):
+    def __init__(self, live: bool = False, save: str = SAVE):
+        self.save = save                                       # (f365) its own save folder, so two benches may run at once (the suite runs tests in parallel)
         import simlib
         from llm import gateway as gw
         real = gw._client                                      # the real Ollama client, before the stand-in takes its place
@@ -71,14 +73,14 @@ class Bench:
         self.notes: list[str] = []
         uc.note = lambda m, *a, **k: self.notes.append(str(m))
         self.world = load_world()
-        shutil.rmtree(f"saves/{SAVE}", ignore_errors=True)
-        self.store = CampaignStore.open_or_create(SAVE)
+        shutil.rmtree(f"saves/{save}", ignore_errors=True)
+        self.store = CampaignStore.open_or_create(save)
         self.store.meta.seed = 3; self.store.meta.turn = 1; self.store.meta.minutes = 120; self.store.save_meta()
         char, _ = simlib.make_character("warrior", random.Random(1))
         self.store.save_player(PlayerState(character=char, location="trading_square"))
         self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
-        config.TURN_LOG_PATH = f"saves/{SAVE}/turns.jsonl"
+        config.TURN_LOG_PATH = f"saves/{save}/turns.jsonl"
         config.AUDIT_ENABLED = False
         self.live = live
         self.ran: list = []
@@ -119,7 +121,10 @@ class Bench:
         mentor.set_stage(ws.player, sc.get("mentor_stage", ""))
         people = []
         for p in sc.get("present", []):
-            n = NPC(id=p["id"], name=p.get("name", p["id"]), people="human", role=p.get("role", "merchant"), location=ws.player.location, traits=[], trust=50)
+            role = p.get("role", "merchant")
+            if role not in self.world.roles:                                        # (f365) a corpus row's role the world has no record of
+                role = "merchant"
+            n = NPC(id=p["id"], name=p.get("name", p["id"]), people="human", role=role, location=ws.player.location, traits=[], trust=50)
             self.store.save_npc(n)
             people.append(n)
         for pr in sc.get("prisoners", []):                                    # a captive, bound and present
@@ -194,6 +199,8 @@ class Bench:
 
     def run(self, case: dict) -> dict:
         import config
+        if (case.get("scene") or {}).get("place", "trading_square") not in self.world.places:      # (f365) nowhere to stage it
+            return {"handled_by": "unknown place", "kinds": [], "first": {}, "steps": [], "moves": [], "talked": [], "hire": [], "repairs": [], "read": None}
         self.dress(case.get("scene", {}))
         self.plan = [dict(p) for p in (case.get("plan") or [{"kind": "look"}])]
         self.ran.clear(); self.moves.clear(); self.talked.clear(); self.hire.clear(); self.notes.clear()
@@ -245,8 +252,8 @@ def group_of(case: dict) -> str:
     return kinds[0] if kinds else ("move" if e.get("moves") else "other")
 
 
-def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict:
-    bench = Bench(live=live)
+def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE) -> dict:
+    bench = Bench(live=live, save=save)
     results, wrong = [], []
     taken_wrong = missed = 0
     for case in cases:
@@ -301,12 +308,13 @@ if __name__ == "__main__":
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--only", default="")
     ap.add_argument("--promote", nargs=2, metavar=("LOG", "INDEX"))
+    ap.add_argument("--corpus", default="", help="(f365) another case file, e.g. data/replay/interp_corpus.yaml from tools/interp_corpus.py")
     a = ap.parse_args()
     if a.promote:
         lines = [l for l in Path(a.promote[0]).read_text(encoding="utf-8").splitlines() if l.strip()]
         print(yaml.safe_dump([promote_case(json.loads(lines[int(a.promote[1])]))], sort_keys=False, allow_unicode=True))
         sys.exit(0)
-    cases = load_cases()
+    cases = load_cases(Path(a.corpus)) if a.corpus else load_cases()
     if a.only:
         frags = [f.strip() for f in a.only.split(",") if f.strip()]
         cases = [c for c in cases if any(f in c["name"] for f in frags)]

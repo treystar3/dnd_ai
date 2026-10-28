@@ -10,7 +10,7 @@ from typing import Literal
 import functools
 
 import yaml
-from pydantic import Field, BaseModel, ValidationError, field_validator
+from pydantic import Field, BaseModel, PrivateAttr, ValidationError, field_validator
 
 from core.paths import BUNDLE
 WORLD_DIR = BUNDLE / "data" / "world"
@@ -255,7 +255,28 @@ class World(BaseModel):
                 return place.locals_group
         return None
 
+    _routes: dict = PrivateAttr(default_factory=dict)     # (f362) neighbours and paths, kept while the map stands (see _route_cache)
+
+    def _route_cache(self) -> dict:
+        """(f362) The route cache. Neighbours and paths are asked for thousands of times a session (every board, every route, every band
+        of the pulse) and the map changes only when a place is added or taken away: a home bought, a road found or lost. So both are kept
+        until the count of places or of roads moves, and a Dijkstra that cost a fifth of a second costs nothing the second time."""
+        sig = (len(self.places), sum(len(p.connects) for p in self.places.values()))
+        c = self._routes
+        if c.get("sig") != sig:
+            c.clear()
+            c.update(sig=sig, nbr={}, path={})
+        return c
+
     def neighbors(self, place_id: str) -> list[str]:
+        c = self._route_cache()
+        hit = c["nbr"].get(place_id)
+        if hit is not None:
+            return list(hit)
+        c["nbr"][place_id] = found = self._neighbors(place_id)
+        return list(found)
+
+    def _neighbors(self, place_id: str) -> list[str]:
         here = self.places[place_id]
         found = set(here.connects)
         if here.parent:
@@ -280,6 +301,14 @@ class World(BaseModel):
 
     def path(self, start: str, goal: str) -> tuple[list[str], int] | None:
         """Quickest route between two places (both ends included) and its walking time. None if unreachable."""
+        c = self._route_cache()
+        key = (start, goal)
+        if key not in c["path"]:
+            c["path"][key] = self._path(start, goal)
+        hit = c["path"][key]
+        return (list(hit[0]), hit[1]) if hit else None
+
+    def _path(self, start: str, goal: str) -> tuple[list[str], int] | None:
         import heapq
         best = {start: 0}
         came_from = {start: None}

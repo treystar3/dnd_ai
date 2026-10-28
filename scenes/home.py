@@ -52,8 +52,10 @@ def page(world) -> dict:
     """Everything the home page shows."""
     listed = [describe(s, world) for s in saves.list_saves()]
     cont = saves.last()
+    from core import credits
     return {"title": config.GAME_TITLE, "subtitle": getattr(config, "GAME_SUBTITLE", ""), "version": VERSION,
-            "continue": next((s for s in listed if cont and s["name"] == cont["name"]), None), "saves": listed}
+            "continue": next((s for s in listed if cont and s["name"] == cont["name"]), None), "saves": listed,
+            "credits": credits.text()}                                                          # (f364) shown from the home page
 
 
 def _terminal_menu(data: dict) -> None:

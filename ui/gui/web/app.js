@@ -1292,7 +1292,7 @@ function homeSend(text) {
 function homeMeta(s) {
   return [s.where, s.when, s.played_label ? "played " + s.played_label : ""].filter(Boolean).join(" · ");
 }
-let homeData = null, homeView = "menu";                      // menu, quit (asked), load, settings
+let homeData = null, homeView = "menu";                      // menu, quit (asked), load, settings, credits
 function showHome(d) {
   homeData = d;
   $("homepage").hidden = false;
@@ -1310,8 +1310,10 @@ function drawHome() {
   $("homemain").hidden = !onMenu;
   $("homegames").hidden = homeView !== "load";
   $("homeprefs").hidden = homeView !== "settings";
+  $("homecredits").hidden = homeView !== "credits";
   if (onMenu) drawHomeMenu(d);
   else if (homeView === "load") drawHomeGames(d);
+  else if (homeView === "credits") $("homecreditsbody").textContent = d.credits || "";      // (f364) who made what the game is built from
   else { const box = $("homeprefsbody"); box.textContent = ""; renderSettings(box, drawHome); }
   updateInput();
 }
@@ -1336,6 +1338,7 @@ function drawHomeMenu(d) {
   item("New game", () => homeSend("home:new"), d.continue ? "" : "primary");     // with nothing to continue, New game is the way in
   if (d.saves.length) item("Load", () => homeGo("load"));                         // only when there is a game to load
   item("Settings", () => homeGo("settings"));
+  if (d.credits) item("Credits", () => homeGo("credits"));
   item("Quit", () => homeGo("quit"));
 }
 function drawHomeGames(d) {

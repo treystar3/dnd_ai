@@ -252,7 +252,15 @@ def check() -> list[str]:
     from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
     bad += _mo.problems(set(((_pulse_rules.get("drift") or {}).get("motives") or {}).get("seeds") or {}))
     from engine import consequences as _cq                                                   # (f359) the town answers the stranger's deeds
-    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend"))
+    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend", "settled"))
+    from engine import starts as _starts                                                      # (f367) starting points for the night run
+    bad += _starts.problems(set(_load("data/rules/standing.yaml")["groups"]), set(_pulse_rules["tiers"]), set(_load("data/rules/guild.yaml")["ranks"]))
+    from engine import guard as _guard                                                        # (f364) the content guard's categories
+    bad += _guard.problems()
+    from engine import trust as _trust                                                        # (f362) trust moved by the engine, by a reply's intent
+    import typing as _typing
+    from llm.contracts import NPCReply as _NPCReply
+    bad += _trust.problems(set(_typing.get_args(_NPCReply.model_fields["intent"].annotation)))
     from engine import stay as _stay                                                          # (f351) the room changing mid-stay
     _wx = {c_["id"] for c_ in _load("data/rules/weather.yaml")["conditions"]}
     bad += _stay.problems(_wx, set(_clock.PERIOD_NAMES), _types)

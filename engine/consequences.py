@@ -76,6 +76,19 @@ def tick(store, world, catalog, state: dict, t: int, rng: random.Random) -> bool
         return False
     for rule, words in met(state, world, town, t):
         pulse.LAST["made_by"] = ""
+        if rule.get("tier") == "campaign":                                # (f363) a campaign earned by play, the model's as every campaign is
+            if state.get("campaign"):
+                continue
+            ok = pulse.start_campaign_for(store, world, catalog, state, t, rng, town, rule.get("door", ""))
+            retry = int(rule.get("cooldown_days", 10)) * 1440 - int(C.get("retry_days", 1)) * 1440
+            state.setdefault("consequence_last", {})[f"{rule['id']}:{town}"] = t if ok else t - retry
+            if ok:
+                th = state["threads"][-1]
+                th["consequence"], th["earned"] = rule["id"], True
+                from engine import pulselog
+                pulselog.note("consequence", f"{th['title']} - a campaign earned by the stranger's deeds ({rule['id']})", place=town, tier="campaign")
+                return True
+            continue
         ok = pulse.start_thread(store, world, catalog, state, t, rng, tier="normal", made_by="engine",
                                 pressure=pressure_for(rule, town, words), door=rule.get("door", ""))
         state.setdefault("consequence_last", {})[f"{rule['id']}:{town}"] = t
@@ -90,6 +103,14 @@ def tick(store, world, catalog, state: dict, t: int, rng: random.Random) -> bool
 def problems(templates: dict, deed_kinds=()) -> list[str]:
     bad = []
     for r in C.get("rules") or []:
+        if r.get("tier") == "campaign":                                                  # (f363) no template: the model writes a campaign
+            if r.get("template"):
+                bad.append(f"consequences.yaml {r.get('id')}: a campaign rule names no template")
+            if r.get("door") not in ("summons", "word", ""):
+                bad.append(f"consequences.yaml {r.get('id')}: door is summons or word")
+            if (r.get("deeds") or {}).get("kind") not in (deed_kinds or ((r.get("deeds") or {}).get("kind"),)):
+                bad.append(f"consequences.yaml {r.get('id')}: '{(r.get('deeds') or {}).get('kind')}' is not a kind of deed")
+            continue
         if r.get("template") not in templates:
             bad.append(f"consequences.yaml {r.get('id')}: '{r.get('template')}' is not a template")
         elif not templates[r["template"]].get("consequence"):

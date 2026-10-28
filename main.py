@@ -82,7 +82,7 @@ def play(args):
 
     if not paths.FROZEN or args.terminal:
         from core import updates
-        info = updates.available(timeout=3.0) if config.UPDATE_REPO else None
+        info = updates.available(timeout=3.0) if config.UPDATE_REPO and getattr(config, "UPDATE_CHECK", True) else None
         if info:
             console.note(f"A newer version ({info['version']}) is available (this is {info.get('current', VERSION)}): {info['page']}")
             if info.get("again"):

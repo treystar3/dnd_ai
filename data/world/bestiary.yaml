@@ -5003,10 +5003,10 @@
   attacks: [Warhammer, Crossbow]
   profile: {strength: 16, dexterity: 14, constitution: 16, intelligence: 10, wisdom: 12, charisma: 12}
   source: Far Lands
-- id: mind_flayer_brood
-  name: Mind Flayer Thrall
+- id: mindrender_thrall
+  name: Mindrender Thrall
   category: aberration
-  family: mind_flayer
+  family: mindrender
   size: Medium
   challenge: 22.2
   levels: [100, 150]
@@ -7092,10 +7092,10 @@
   attacks: [Gaping Bite, Warp Bolt, Gravity Crush]
   profile: {strength: 20, dexterity: 8, constitution: 22, intelligence: 16, wisdom: 14, charisma: 6}
   source: Far Lands
-- id: elder_mind_flayer
-  name: Elder Mind Flayer
+- id: elder_mindrender
+  name: Elder Mindrender
   category: aberration
-  family: mind_flayer
+  family: mindrender
   size: Large
   challenge: 27.0
   levels: [125, 170]

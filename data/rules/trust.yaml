@@ -1,0 +1,15 @@
+# (f362) TRUST THAT MOVES (engine/trust.py). A townsperson's trust in the player (npc.trust, 0 to 100, shown to them as words:
+# "you distrust them" ... "you trust them deeply") used to move only when the model said so in a reply's trust_change, and the model,
+# told that ordinary conversation is 0, said 0 every time: 548 of 548 replies in one two-hour run. So nobody ever came to trust the
+# player through talk. Now the engine moves it from what actually happened, as it does everything else:
+#
+#   talk.new_day   the first conversation with them on a day: they are getting to know the player (familiarity). Talk alone never takes
+#                  trust past talk.cap; deeds do the rest (reactions.yaml: a contract finished for them, a gift, a delivery, a theft).
+#   talk.intents   how they chose to answer, by the reply's intent: helping or sharing something is a small step toward the player,
+#                  refusing or threatening a step away. Intents not listed move nothing.
+#   talk.model_limit  the model's own trust_change still counts, clipped to this, when it says anything.
+talk:
+  new_day: 1
+  cap: 60
+  intents: {help: 1, share: 1, refuse: -1, threaten: -3}
+  model_limit: 5

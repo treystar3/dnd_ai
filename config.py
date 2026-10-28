@@ -25,6 +25,7 @@ AUDIT_LOG = True           # a readable record of every model call, one file per
 GAME_TITLE = "Meravia"                      # (f345) the name the home page, the window, the exe and the installer carry
 GAME_SUBTITLE = "A tale of gifts unforgiven"
 UPDATE_REPO = "treystar3/dnd_ai"            # "owner/repo" of the public GitHub repository whose releases carry the installer; empty turns the update check off
+UPDATE_CHECK = True                          # (f364) False for a build whose updates come another way (a store): no release is looked for
 
 VOICED_MENTOR = True        # Maren says her written lines in her own words (False: exactly as written)
 UNLOAD_ON_EXIT = True                        # free the model from memory when the game closes

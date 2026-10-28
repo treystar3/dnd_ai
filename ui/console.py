@@ -539,6 +539,8 @@ def show_help() -> None:
     print("  #events   what has happened, in order")
     print("  #audit    where this session's record of every model call is kept")
     print("  #refusals the lines the game could not act on this session, and what it asked")
+    print("  #report [note]  flag what you just read: it is saved with the calls behind it under logs/reports, and sent nowhere")
+    print("  #credits  who made what the game is built from")
     print("  #inventory  what you carry and wear (#equip / #unequip to change it)")
     print("  #book     your abilities: what you bring (5 spells and 5 techniques at first) and what stays in your book")
     print("  #prepare  change what you bring, out of a fight and once a day, e.g. #prepare 1 3 4 or #prepare Firebolt, Ice Wall")

@@ -47,6 +47,16 @@ def known(world, place_id) -> bool:
     return bool(p) and p.type != "road"
 
 
+def home_town(world, place_id: str) -> str:
+    """(f366) The town the pulse measures from: a place's town, or for a road made for one journey (type road, no parent) the end it is
+    nearer. A night run's player was on such roads at three ticks in a row, and each tick tried to start a situation at the road itself,
+    which no template fits."""
+    p = world.places.get(place_id)
+    if p is not None and p.type == "road" and not p.parent and p.connects:
+        return town_of(world, min(p.connects, key=lambda k: p.connects[k]))
+    return town_of(world, place_id)
+
+
 def town_of(world, place_id: str) -> str:
     """The settlement a place belongs to (its top parent), or the place itself."""
     p = world.places.get(place_id)
@@ -137,7 +147,7 @@ def within_reach(store, world, state: dict, t: int) -> list[dict]:
     """(f354) The live situations at the player's town or within near_minutes' walk of it."""
     if not store.player_exists():
         return []
-    here = town_of(world, store.load_player().location)
+    here = home_town(world, store.load_player().location)
     if here not in world.places:
         return []
     PL = P.get("placement", {})
@@ -345,7 +355,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if tier == "campaign":
         state["campaign"] = thread["id"]
     add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
-    here = town_of(world, store.load_player().location) if store.player_exists() else ""
+    here = home_town(world, store.load_player().location) if store.player_exists() else ""
     row = pulselog.note("thread", thread_row_text(tier, bool(info), proposal.title, world.places[proposal.place].name, days, rule["stages"]),
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
                         reach=any(x["id"] == thread_id for x in within_reach(store, world, state, t)))
@@ -366,6 +376,34 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     return True
 
 
+def start_campaign_for(store, world, catalog, state, t, rng, town: str, door: str = "") -> bool:
+    """(f363) A campaign earned by play: of the scenarios not on cooldown, the marked ones first (events.yaml prefer_marked), those of the
+    player's own region first and the nearest of those, written by the model as every campaign is, through the door given. False when
+    none can start (nothing to draw, or the model gave nothing usable: a campaign has no engine fallback)."""
+    if town not in world.places:
+        return False
+    cooldown = P["pressure_cooldown_days"] * 1440
+    pressures = [p for p in world.pressures.values() if t - state["cooldowns"].get(p.id, -10 ** 9) > cooldown]
+    marked = [p for p in pressures if p.campaign] or pressures
+    if not marked:
+        return False
+    region = world.places[town].region
+
+    def place_of(p) -> str:
+        if p.place in world.places:
+            return p.place
+        rt = region_town(world, p.place, rng) if p.place in world.regions else None
+        return rt.id if rt else ""
+
+    def dist(p) -> int:
+        pid = place_of(p)
+        found = world.path(town, pid) if pid and pid != town else (([town], 0) if pid == town else None)
+        return found[1] if found else 10 ** 9
+    mine = [p for p in marked if (p.place in world.places and world.places[p.place].region == region) or p.place == region]
+    best = min(mine or marked, key=dist)
+    return start_thread(store, world, catalog, state, t, rng, tier="campaign", pressure_id=best.id, door=door)
+
+
 def place_by_band(store, world, pressures: list, rng: random.Random, must_pressure: bool = False, band_weights: dict | None = None):
     """(f323) Where a new situation goes: a band drawn by pulse.yaml placement - the player's own town, its neighbours, its region, or
     anywhere - then a pressure in that band when there is one (most of the time), else one of its towns. The world keeps moving where
@@ -373,7 +411,7 @@ def place_by_band(store, world, pressures: list, rng: random.Random, must_pressu
     must hold a pressure, else the next band out is tried, so the biggest events are the likeliest to be met."""
     PL = P.get("placement", {})
     towns = [p for p in world.places.values() if not p.parent and p.type not in ("dungeon", "road") and known(world, p.id) and not p.danger]
-    here = town_of(world, store.load_player().location) if store.player_exists() else ""
+    here = home_town(world, store.load_player().location) if store.player_exists() else ""
     if here not in world.places or not PL:
         pressure = rng.choices(pressures, weights=[p.weight for p in pressures])[0] if pressures and rng.random() < 0.75 else None
         return pressure, (world.places.get(pressure.place) or region_town(world, pressure.place, rng)) if pressure else rng.choice(towns)

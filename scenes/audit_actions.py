@@ -109,6 +109,40 @@ class AuditActions:
             return None
         return next((r for r in retrieval.people_in_town(self.store, self.world, top) if r.id == m.group(1)), None)
 
+    def report_content(self, note: str) -> str:
+        """(f364) The player flags what they just read: the last passages and lines shown, the player's note, and the model calls of the last
+        few turns are saved together under REPORTS_PATH, and nothing is sent anywhere. The file is theirs to send, and the record a store
+        asks for. Returns the path."""
+        import json
+        from datetime import datetime
+        from pathlib import Path
+        from engine import refusals
+        folder = Path(getattr(config, "REPORTS_PATH", "logs/reports"))
+        folder.mkdir(parents=True, exist_ok=True)
+        turn = self.store.meta.turn
+        calls = []
+        try:
+            lines = Path(config.LOG_PATH).read_text(encoding="utf-8").splitlines()[-400:]
+            for line in lines:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row.get("turn"), int) and row["turn"] >= turn - 3:
+                    calls.append({k: row.get(k) for k in ("turn", "task", "attempt", "error", "raw")})
+        except OSError:
+            pass
+        report = {"time": datetime.now().isoformat(timespec="seconds"), "save": getattr(self.store, "name", ""), "turn": turn,
+                  "place": self.player.location, "note": note,
+                  "shown": list(getattr(self, "recent_narration", [])[-6:]),
+                  "said": list(getattr(self.partner, "said", [])[-3:]) if getattr(self, "partner", None) else [],
+                  "calls": calls[-24:]}
+        path = folder / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_turn{turn}.json"
+        path.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+        refusals.note("reported", note or "(no note)", "the player flagged what was shown", self.player.location, turn)
+        console.note(f"Reported. What you just read, your note and the calls behind it are saved in {path}. Nothing is sent anywhere.")
+        return str(path)
+
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "") -> None:
         """(f321) A line that could not be read is answered with one question in character - from the one being spoken to, or a beat from
         the narrator - and the player's next line is read together with this one. Every one is logged as a refusal."""

@@ -165,6 +165,17 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                     if wrong:
                         reason = f"{(who + ': ') if who else ''}{wrong}"
                         break
+            if not reason:                                                       # (f364) the content guard: the line the game draws
+                from engine import guard
+                if guard.guarded(task):
+                    cat, hit = guard.check(guard.strings_of(result))
+                    if cat:
+                        reason = guard.reason(cat)
+                        try:
+                            from engine import refusals
+                            refusals.note("guarded", task, f"{cat}: {hit}")
+                        except Exception:
+                            pass
             if not reason:
                 _log(task, attempt, elapsed, messages, raw, None, usage)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)

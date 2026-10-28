@@ -131,6 +131,14 @@ check("the news window holds the newest two always, and the rest drawn by freshn
       and [n["text"] for n in w1] != [n["text"] for n in w3] and all(n["minute"] >= w1[i + 1]["minute"] for i, n in enumerate(w1[2:-1], 2)), [n["text"] for n in w1])
 check("a tale told twice says so for two days, then is just the tale", pulse.news_text({"text": "T.", "times": 2, "minute": start}, start + 600) == "T. Again."
       and pulse.news_text({"text": "T.", "times": 2, "minute": start}, start + 3 * 1440) == "T.")
+# ---- (f366) a tick while the player stands on a road made for one journey measures from the road's nearer town
+from engine import roads as _roads
+stop = _roads.make_stop(world, "parth", "greywood", 0.3, 100, "a fallen tree", "", "a fallen tree")
+world.places[stop["id"]] = type(world.places["parth"])(**stop["place"])
+check("the pulse's town for a road stop is the end it is nearer", pulse.home_town(world, stop["id"]) == "parth" and pulse.home_town(world, "greywood") == pulse.town_of(world, "greywood"))
+stop2 = _roads.make_stop(world, stop["id"], "greywood", 0.5, 60, "a ford", "", "a ford")
+check("a stop made from a stop is named after the towns", "between the way" not in stop2["place"]["name"] and "Parth" in stop2["place"]["name"] and "Greywood" in stop2["place"]["name"], stop2["place"]["name"])
+del world.places[stop["id"]]
 shutil.rmtree("saves/pulse_budget_test", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

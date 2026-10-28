@@ -78,8 +78,15 @@ def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role
     near = a if frac < 0.5 else b
     ta = max(1, round(minutes * frac))
     tb = max(1, minutes - ta)
-    r = world.road_between(a, b)
-    name = name or f"{r.name if r else 'the way'} between {world.places[a].name} and {world.places[b].name}"
+
+    def anchor(pid: str) -> str:                      # (f366) a journey begun from a stop names the towns, not 'the way between the way between...'
+        p = world.places.get(pid)
+        if p is not None and p.type == "road" and not p.parent and p.connects:
+            return anchor(min(p.connects, key=lambda k: p.connects[k]))
+        return pid
+    aa, bb = anchor(a), anchor(b)
+    r = world.road_between(aa, bb)
+    name = name or f"{r.name if r else 'the way'} between {world.places[aa].name} and {world.places[bb].name}"
     pid = f"road_{uuid.uuid4().hex[:8]}"
     place = Place(id=pid, name=name, type="road", region=world.places[a].region, biome=world.places[near].biome,
                   connects={a: ta, b: tb}, peoples=dict(world.places[near].peoples), residents={role: 1} if role else {},

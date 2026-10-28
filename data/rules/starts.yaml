@@ -1,0 +1,75 @@
+# (f367) STARTING POINTS: a character who begins somewhere other than the beginning. The night run's --start names one (and a night of
+# runs rotates through `rotation`), so the bots do not all walk the same first season: one is nobody, one is known in Parth, one has a
+# campaign behind them and a name every town has heard, one is remembered for the wrong things. engine/starts.py shapes the save.
+#
+#   level           the character's level (the night run's --level applies to a start without one); the guild rank follows the level
+#                   unless `rank` says otherwise
+#   days            game days already passed when play begins: the clock, and how far back `past` may reach
+#   contracts_done  guild contracts finished, by rank letter (what promotion looks at)
+#   reputation      how towns regard them, by town: home (the start's town), near (the nearest other town), region (every other town of
+#                   the home region), or a town id; -100..100
+#   standing        hidden standing with a town's groups (standing.yaml groups), the same town keys
+#   heat            how wanted they are, by town
+#   met             people already met in a town: people (how many), trust (their trust in the player, about)
+#   titles          honorifics already earned
+#   past            situations already over before play begins, built by the engine from the town's own pressures and remembered by the
+#                   town: tier (normal, uncommon, rare, campaign, cataclysm), how (settled: ended by the player's hand; ignored: they were
+#                   asked and let it be), days_ago (within `days`), where (a town key). A settled one is a deed in the ledger and
+#                   reputation in the town; a cataclysm settled is one survived.
+
+starts:
+  green:
+    text: "past the tutorial, and nobody knows them"
+    level: 13
+    days: 0
+  known:
+    text: "a season in the Wend Vale: a few jobs done, a name in Parth"
+    level: 22
+    days: 40
+    contracts_done: {F: 4, E: 3}
+    reputation: {home: 9}
+    standing: {home: {guild: 20, merchants: 8}}
+    met: {home: {people: 6, trust: 62}}
+    past:
+      - {tier: uncommon, how: settled, days_ago: 20, where: home}
+      - {tier: normal, how: settled, days_ago: 32, where: home}
+  veteran:
+    text: "a year on the roads; a campaign ended by their hand; known by name across the vale"
+    level: 48
+    days: 160
+    contracts_done: {F: 6, E: 6, D: 6, C: 5, B: 2}
+    reputation: {home: 30, near: 14}
+    standing: {home: {guild: 45, merchants: 20, guards: 15, temple: 10}, near: {guild: 15}}
+    met: {home: {people: 10, trust: 70}, near: {people: 4, trust: 58}}
+    titles: ["Warden of the Wend"]
+    past:
+      - {tier: campaign, how: settled, days_ago: 70, where: home}
+      - {tier: rare, how: settled, days_ago: 110, where: near}
+      - {tier: uncommon, how: ignored, days_ago: 30, where: near}
+  scarred:
+    text: "a name, but not a good one: a theft remembered, a matter let go"
+    level: 36
+    days: 100
+    contracts_done: {F: 5, E: 4, D: 2}
+    reputation: {home: -6, near: 7}
+    standing: {home: {guards: -25, merchants: -10}, near: {guild: 12}}
+    heat: {home: 2}
+    met: {home: {people: 6, trust: 36}}
+    past:
+      - {tier: rare, how: ignored, days_ago: 45, where: home}
+      - {tier: uncommon, how: settled, days_ago: 60, where: near}
+  legend:
+    text: "a cataclysm survived and ended; two campaigns; every town knows the name"
+    level: 95
+    days: 400
+    contracts_done: {F: 8, E: 8, D: 8, C: 8, B: 6, A: 4}
+    reputation: {home: 40, near: 30, region: 20}
+    standing: {home: {guild: 70, merchants: 40, guards: 30, temple: 25, nobility: 20}, near: {guild: 40, merchants: 15}}
+    met: {home: {people: 12, trust: 80}, near: {people: 8, trust: 66}}
+    titles: ["Warden of the Wend", "Breaker of the Long Night"]
+    past:
+      - {tier: cataclysm, how: settled, days_ago: 120, where: home}
+      - {tier: campaign, how: settled, days_ago: 250, where: near}
+      - {tier: campaign, how: settled, days_ago: 330, where: home}
+
+rotation: [green, known, veteran, scarred, legend]     # a night of runs takes these in turn (nightrun.bat --runs N, --starts to choose)
