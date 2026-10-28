@@ -245,6 +245,12 @@ LAST = {"made_by": ""}            # who made the situation start_thread started 
 
 # ---------- threads ----------
 
+def thread_row_text(tier: str, engine: bool, title: str, place_name: str, days: int, stages: int) -> str:
+    """The world log's line for a situation starting: the place named once (most engine titles already carry it)."""
+    where = "" if place_name.lower() in title.lower() else f" at {place_name}"
+    return f"[{tier}{', engine-built' if engine else ''}] {title}{where} - starts, {days} days, {stages} stages"
+
+
 def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "",
                  allow: tuple[bool, bool] = (True, True), band_weights: dict | None = None, template: str = "", severity_shift: int = 0,
                  pressure=None, door: str = "") -> bool:
@@ -340,7 +346,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         state["campaign"] = thread["id"]
     add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
     here = town_of(world, store.load_player().location) if store.player_exists() else ""
-    row = pulselog.note("thread", f"[{tier}{', engine-built' if info else ''}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages",
+    row = pulselog.note("thread", thread_row_text(tier, bool(info), proposal.title, world.places[proposal.place].name, days, rule["stages"]),
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
                         reach=any(x["id"] == thread_id for x in within_reach(store, world, state, t)))
     apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)

@@ -476,6 +476,8 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
     th["result"] = "player"
     th["ending"] = ending
+    from engine import pulselog
+    pulselog.mark("end", f"{th['title']} - ended by {name}: {how}", t, how="player", place=th["place"], tier=th["tier"])   # (f355) the player's own endings: the log's best rows
     from engine import threads as _threads
     _threads.follow_up(state, th, "settled", random.Random(f"{store.meta.seed}:chain:{th['id']}"), t)     # (f358) what may come of it
     if th["tier"] == "cataclysm":

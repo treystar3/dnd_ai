@@ -123,6 +123,8 @@ pulse.tick_threads(store, world, ws.catalog, state, now + 700, random.Random(0))
 check("a stage the thread advances to is news with the thread's id", t1["stage"] == 1 and any(n.get("thread") == "x1" and "copied" in n["text"] for n in state["news"]))
 store.save_world_state(state)
 events.finish(ws, state, t1, "by test", "victory")
+from engine import pulselog as _plog
+check("the player ending a situation is a row of the world log, marked as theirs", any(r["kind"] == "end" and r.get("how") == "player" and r["text"].startswith("Same name - ended by") for r in _plog.LOG), [r for r in _plog.LOG if r["kind"] == "end"][-2:])
 lifted = {(e["thread"] if e.get("thread") else "old"): e["until"] <= ws.minutes for e in state["effects"]}
 check("ending a thread lifts its own effects by id, and the old ones by title, and leaves another thread's alone", lifted == {"x1": True, "old": True, "x2": False}, lifted)
 

@@ -36,6 +36,8 @@ effects:
   signal:  {about: "shouting, ringing a bell, lighting a fire or a lamp, waving, making a signal or a noise on purpose",
             attr: [charisma, strength], odds: 10, mark: "", fail: noise,
             changes: [{kind: news, text: "A signal was raised at {place}: {what}.", groups: [locals]}]}
+  practise: {about: "practice: practising, drilling, training, rehearsing, sparring alone, running through forms or exercises to keep a skill sharp",
+             attr: [dexterity, wisdom], odds: 15, mark: "", fail: time}
   examine: {about: "testing, tasting, listening at, tapping, measuring, taking apart, working something out by hand",
             attr: [wisdom, intelligence], odds: 10, mark: "", fail: time}
   attempt: {about: "", attr: [dexterity, intelligence, strength], odds: -5, mark: "", fail: time}      # what none of the above fits

@@ -77,7 +77,7 @@ def summarise(path: Path) -> str:
     n_days = max(1, days[-1] - days[0] + 1) if days else 1
     lines = ["## The world", ""]
     lines.append(f"Over {n_days} game days: {tot['started']} situations started ({tot['reach']} within reach of the player), {tot['stage']} stages advanced, "
-                 f"{tot['ended']} ended ({ended['settled']} settled by others, {ended['ignored']} left to their fallout), {tot['motive']} motive steps; "
+                 f"{tot['ended']} ended ({ended['player']} by the player, {ended['settled']} settled by others, {ended['ignored']} left to their fallout), {tot['motive']} motive steps; "
                  f"the player met {tot['doors']} doors (a scene or a summons), {tot['moment']} moments, {tot['stay']} lines of the room changing, "
                  f"{tot['routine']} times people on their routine; re-tellings {tot['retold']} succeeded, {tot['retell_failed']} failed.")
     lines.append("")
@@ -90,8 +90,9 @@ def summarise(path: Path) -> str:
     if started:
         lines += ["", "Situations started:"]
         for r in started[-40:]:
-            lines.append(f"- day {day_of(r.get('t', 0))}: [{r.get('tier', '?')}{'' if r.get('made_by') != 'engine' else ', engine'}] {r.get('text', '')[:110]}"
-                         + (" (within reach)" if r.get("reach") else ""))
+            text = r.get("text", "")[:110]
+            tag = "" if text.startswith("[") else f"[{r.get('tier', '?')}{'' if r.get('made_by') != 'engine' else ', engine'}] "     # the row's own tag, once
+            lines.append(f"- day {day_of(r.get('t', 0))}: {tag}{text}" + (" (within reach)" if r.get("reach") else ""))
     return "\n".join(lines) + "\n"
 
 
