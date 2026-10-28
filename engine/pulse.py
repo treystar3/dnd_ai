@@ -47,6 +47,16 @@ def known(world, place_id) -> bool:
     return bool(p) and p.type != "road"
 
 
+def home_town(world, place_id: str) -> str:
+    """(f366) The town the pulse measures from: a place's town, or for a road made for one journey (type road, no parent) the end it is
+    nearer. A night run's player was on such roads at three ticks in a row, and each tick tried to start a situation at the road itself,
+    which no template fits."""
+    p = world.places.get(place_id)
+    if p is not None and p.type == "road" and not p.parent and p.connects:
+        return town_of(world, min(p.connects, key=lambda k: p.connects[k]))
+    return town_of(world, place_id)
+
+
 def town_of(world, place_id: str) -> str:
     """The settlement a place belongs to (its top parent), or the place itself."""
     p = world.places.get(place_id)
@@ -137,7 +147,7 @@ def within_reach(store, world, state: dict, t: int) -> list[dict]:
     """(f354) The live situations at the player's town or within near_minutes' walk of it."""
     if not store.player_exists():
         return []
-    here = town_of(world, store.load_player().location)
+    here = home_town(world, store.load_player().location)
     if here not in world.places:
         return []
     PL = P.get("placement", {})
@@ -345,7 +355,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if tier == "campaign":
         state["campaign"] = thread["id"]
     add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
-    here = town_of(world, store.load_player().location) if store.player_exists() else ""
+    here = home_town(world, store.load_player().location) if store.player_exists() else ""
     row = pulselog.note("thread", thread_row_text(tier, bool(info), proposal.title, world.places[proposal.place].name, days, rule["stages"]),
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
                         reach=any(x["id"] == thread_id for x in within_reach(store, world, state, t)))
@@ -401,7 +411,7 @@ def place_by_band(store, world, pressures: list, rng: random.Random, must_pressu
     must hold a pressure, else the next band out is tried, so the biggest events are the likeliest to be met."""
     PL = P.get("placement", {})
     towns = [p for p in world.places.values() if not p.parent and p.type not in ("dungeon", "road") and known(world, p.id) and not p.danger]
-    here = town_of(world, store.load_player().location) if store.player_exists() else ""
+    here = home_town(world, store.load_player().location) if store.player_exists() else ""
     if here not in world.places or not PL:
         pressure = rng.choices(pressures, weights=[p.weight for p in pressures])[0] if pressures and rng.random() < 0.75 else None
         return pressure, (world.places.get(pressure.place) or region_town(world, pressure.place, rng)) if pressure else rng.choice(towns)

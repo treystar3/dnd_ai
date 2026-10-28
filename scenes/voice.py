@@ -32,7 +32,8 @@ great DM does: present tense, second person, vivid and specific, but economical 
 """ + WORLD_RULES + "\n\n" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("passages") + "\n"
 
 STALE = ["the air hangs heavy", "hangs heavy", "scent of damp earth", "smell of damp earth", "cool morning air",
-         "a sense of", "can't help but", "little do you know", "send shivers down", "sends a shiver"]
+         "a sense of", "can't help but", "little do you know", "send shivers down", "sends a shiver",
+         "nothing has changed since", "nothing had changed since"]            # a revisit passage that says so after describing a change
 
 
 def _shingles(text: str, n: int = 5) -> set[str]:

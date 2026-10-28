@@ -36,6 +36,9 @@ check("the run says why it stopped", info.get("reason") == "turn limit (12)" and
 check("the character set out with a full party from the home hall, of three different roles",
       len(info.get("party", [])) == 3 and len({m["role"] for m in info["party"]}) == 3 and all(m["name"] for m in info["party"]), info.get("party"))
 check("a transcript was written", (out / "transcript.md").exists() and (out / "transcript.md").stat().st_size > 500)
+from storage.campaign import CampaignStore as _CS
+_st = _CS.open_or_create("nightrun_test_game"); _pl = _st.load_player(); _st.close()
+check("the character past the tutorial is a guild member of a rank fitting its level, so contracts are play", _pl.guild_rank and _pl.guild_rank != "F", _pl.guild_rank)
 summary = (out / "summary.md").read_text(encoding="utf-8") if (out / "summary.md").exists() else ""
 check("the summary has the turns and the calls by task", "## Turns" in summary and "## Calls by task" in summary and "| interpret_action |" in summary, summary[:600])
 r2 = subprocess.run([sys.executable, "tools/latency.py", str(out)], capture_output=True, text=True, timeout=120)

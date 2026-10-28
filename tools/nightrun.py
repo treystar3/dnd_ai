@@ -232,6 +232,20 @@ class Bot:
     def where(self) -> str:
         return self.world.places[self.ws.player.location].name
 
+    def contract_to_take(self) -> dict | None:
+        """(f366) A posting of the player's rank or below they do not already hold, when they hold fewer than two; None otherwise."""
+        from engine import quests
+        ws = self.ws
+        if not ws.player.guild_rank or sum(1 for q in ws.player.quests if q.get("guild")) >= 2:
+            return None
+        try:
+            board = ws.ensure_board()
+        except Exception:
+            return None
+        held = {q.get("title") for q in ws.player.quests}
+        fits = [q for q in board if quests.at_or_below(q["letter"], ws.player.guild_rank) and q["title"] not in held and q["kind"] in ("hunt", "bounty", "gather", "materials")]
+        return self.rng.choice(fits) if fits else None
+
     def intend(self, kind: str, **fields) -> dict:
         """The plan the stand-in interpreter answers with (the real model reads the words); an unknown kind becomes a look."""
         return {"kind": kind if kind in self.kinds else "look", **fields}
@@ -305,6 +319,9 @@ class Bot:
         if pick == "move":
             return self.move_line(p)
         if pick == "board":
+            take = self.contract_to_take()                                # (f366) a member takes work it can do, one or two at a time
+            if take and rng.random() < 0.6:
+                return f"I take the contract: {take['title']}.", self.intend("accept_quest", item=take["title"]), "board"
             text = rng.choice(["I read the contract board.", "I ask the clerk what contracts are open for my rank.", "I look over the board for a job I can take."])
             return text, self.intend("look"), "board"
         if pick == "shop":
@@ -596,7 +613,11 @@ def main() -> None:
         leveling.level_up(char, args.level - 1)
         spend_points(char, spec)
         outfit(char, spec, args.level, rng)
-    store.save_player(PlayerState(character=char, location=world.start_location))
+    player = PlayerState(character=char, location=world.start_location)
+    if args.level > 1:
+        from engine import quests
+        player.guild_rank = quests.letter_for_level(args.level)         # (f366) past the tutorial means a member: the board, contracts and the hall's notice are play
+    store.save_player(player)
     ws = WorldScene(store, world, load_traits(), store.load_player())
     ws.player.mentor["never"] = True
     party = hire_party(ws, args.party)
