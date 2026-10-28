@@ -2,6 +2,7 @@
 
     python tools/nightrun.py [--hours 6] [--turns 0] [--class warrior] [--level 13] [--seed 1] [--out DIR] [--stub]
     nightrun.bat --hours 6                 (Windows: the same, through the game's own Python environment)
+    nightrun.bat --runs 4 --hours 2        a night of four runs one after another, each its own process, seed and class (f361)
 
 A bot plays the way a player types - a word with whoever is here, a walk to the next place, a look at the board, an improvised
 try, a fight when one comes - choosing its lines from the scene's state with a seed, and the real model reads them. The run keeps
@@ -21,6 +22,7 @@ import json
 import os
 import random
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -464,6 +466,63 @@ def hire_party(ws, n: int) -> list[dict]:
     return [{"name": m["name"], "role": m["role"], "level": m["level"], "people": m.get("people", "")} for m in ws.player.party]
 
 
+def batch(args) -> None:
+    """(f361) Several runs one after another, each a process of its own (a fresh game, a fresh save, nothing carried over in memory), the
+    seed counting up from --seed and the class rotating through --classes (default: every class, from --class on). A run that dies does
+    not end the night: the next starts. Each run's logs are a folder of their own under the out folder, named by when it started, its
+    class and its seed, so tools/lora_dataset.py --runs-dir reads the whole night; batch_<when>.md there lists the runs when it is over."""
+    import simlib
+    classes = [c.strip() for c in args.classes.split(",") if c.strip()] or list(simlib.CLASSES)
+    unknown = [c for c in classes if c not in simlib.CLASSES]
+    if unknown:
+        die(f"--classes must be of: {', '.join(simlib.CLASSES)} (not {', '.join(unknown)})")
+    if not args.classes and args.cls in classes:
+        classes = classes[classes.index(args.cls):] + classes[:classes.index(args.cls)]
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    base = Path(args.out or "logs/nightrun")
+    base.mkdir(parents=True, exist_ok=True)
+    plan = [(classes[i % len(classes)], args.seed + i) for i in range(args.runs)]
+    print(f"A night of {args.runs} runs, {args.hours:g} hours each ({args.runs * args.hours:g} in all): "
+          + ", ".join(f"{c} seed {s}" for c, s in plan), flush=True)
+    rows, stopped = [], False
+    for i, (cls, seed) in enumerate(plan, 1):
+        when = datetime.now().strftime("%Y%m%d_%H%M")
+        out = base / f"{when}_{cls}_{seed}"
+        save = f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}"
+        cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
+               "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save] + (["--stub"] if args.stub else [])
+        print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed} -> {out}", flush=True)
+        started = time.time()
+        proc = subprocess.Popen(cmd)
+        try:
+            code = proc.wait()
+        except KeyboardInterrupt:                                     # the run has it too, and writes its summary before it goes
+            print("\nstopping after this run writes its logs...", flush=True)
+            try:
+                code = proc.wait(timeout=180)
+            except Exception:
+                proc.kill()
+                code = -1
+            stopped = True
+        info = {}
+        try:
+            info = json.loads((out / "run.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        rows.append({"run": out.name, "class": cls, "seed": seed, "exit": code, "minutes": round((time.time() - started) / 60, 1),
+                     **{k: info.get(k, "") for k in ("turns", "hours", "level", "deaths", "reason")}})
+        if stopped:
+            break
+    lines = [f"# A night of {len(rows)} run(s), started {stamp}", "", "| Run | Class | Seed | Turns | Hours | Level | Deaths | Ended | Exit |",
+             "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |"]
+    for r in rows:
+        lines.append(f"| {r['run']} | {r['class']} | {r['seed']} | {r['turns']} | {r['hours']} | {r['level']} | {r['deaths']} | {r['reason']} | {r['exit']} |")
+    text = "\n".join(lines) + "\n"
+    (base / f"batch_{stamp}.md").write_text(text, encoding="utf-8")
+    print("\n" + text)
+    print(f"Logs: {base.resolve()}  (every folder above is a run; tools/lora_dataset.py --runs-dir {base} reads them all)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Play a campaign with the real model for hours and log what every turn cost.")
     ap.add_argument("--hours", type=float, default=6.0, help="stop after this many hours (default 6)")
@@ -475,7 +534,13 @@ def main() -> None:
     ap.add_argument("--out", default="", help="where the logs go (default logs/nightrun/<when>)")
     ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page)")
     ap.add_argument("--stub", action="store_true", help="play with the stand-in model (measures nothing real; for the test suite)")
+    ap.add_argument("--runs", type=int, default=1, help="(f361) play this many runs one after another, each its own process with the seed counting up from --seed "
+                                                        "and the class rotating; --hours is per run. A night left alone (default 1)")
+    ap.add_argument("--classes", default="", help="with --runs: the classes to rotate through, comma-separated (default: every class, from --class on)")
     args = ap.parse_args()
+    if args.runs > 1:
+        batch(args)
+        return
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     out = Path(args.out or f"logs/nightrun/{stamp}")
@@ -489,6 +554,7 @@ def main() -> None:
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
     config.LOG_MAX_MB = 10 ** 6
+    config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
 
     import simlib
     if args.cls not in simlib.CLASSES:
