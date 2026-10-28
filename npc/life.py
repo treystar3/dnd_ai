@@ -340,7 +340,7 @@ def converse(
         ),
         NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"],
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
-                            "kit": voices.kit_of(npc.speech), "house": set(house)},                          # (f350) their kit; how everyone here talks
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
     from engine import partings

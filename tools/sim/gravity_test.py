@@ -165,7 +165,7 @@ from engine import relevance as _rel
 _seen = []
 _pick = _rel.pick
 _rel.pick = lambda q, items, k=2, floor=None: (_seen.append(items), [])[1]
-w.hire_feeling(bram, "How is the wound?")
+w.hire_feeling(bram, "My sister died of the fever last winter.")        # told, not asked: a question is never a loss confided
 _rel.pick = _pick
 check("'painful' is judged against news of a loss in the player's own life, from the data", _seen and _seen[0] == [quirks.Q["answer_told"]["about"]] and "player's own life" in _seen[0][0])
 calls = []

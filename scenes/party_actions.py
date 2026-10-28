@@ -436,7 +436,9 @@ class PartyActions:
         from engine import relevance
         h = rules.health_now(m, self.minutes)
         from engine import quirks
-        if relevance.pick(text, [quirks.Q["answer_told"]["about"]], 1, floor=0.6):
+        low = (text or "").lower()
+        telling = "?" not in low and len(low.split()) >= 6 and not re.search(r"\bhow (are|'re) you\b|holding up|how do you feel|you all right|you alright", low)
+        if telling and relevance.pick(text, [quirks.Q["answer_told"]["about"]], 1, floor=0.7):    # told, not asked: 'how are you holding up?' is not a loss confided (189 'sad' frames in one run)
             return "painful_told"
         if h < 0.6:
             return "hurt_self"

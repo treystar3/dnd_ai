@@ -175,11 +175,12 @@ def heard(ws, town: str, speaker: str, speech: str) -> None:
 
 
 def house_phrases(ws, town: str, speaker: str) -> set[str]:
-    """The runs of words that `others` or more OTHER people in this town have said lately: how everyone here talks."""
+    """The runs of words that `others` or more OTHER people have said lately, in any town: how everyone talks (the habit is the
+    model's, and it travels with the player)."""
     H = V.get("house", {})
     by_gram: dict[str, set[str]] = {}
     for t, who, grams in ws.__dict__.get("_said_in_town", ()):
-        if t != town or who == speaker:
+        if who == speaker:                                        # every town's lines: the house voice is the model's, not the town's
             continue
         for g in grams:
             by_gram.setdefault(g, set()).add(who)

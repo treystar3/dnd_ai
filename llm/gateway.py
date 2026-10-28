@@ -126,10 +126,15 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                          "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **tuned},
                 keep_alive=config.KEEP_ALIVE,
             )
-        except httpx.TimeoutException as e:
+        except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError) as e:
+            # A timeout, a dropped connection or a server error (Ollama answers 500 when the model hits its own repeat limit) is one
+            # failed attempt, not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails.
             last_error = e
-            _log(task, attempt, time.perf_counter() - start, messages, "", f"timed out after {config.REQUEST_TIMEOUT}s")
-            audit.record(task, attempt, time.perf_counter() - start, messages, "", f"timed out after {config.REQUEST_TIMEOUT}s", typed, config.MODEL)
+            what = (f"timed out after {config.REQUEST_TIMEOUT}s" if isinstance(e, httpx.TimeoutException)
+                    else f"the model server failed: {str(e)[:200] or type(e).__name__}")
+            _log(task, attempt, time.perf_counter() - start, messages, "", what)
+            audit.record(task, attempt, time.perf_counter() - start, messages, "", what, typed, config.MODEL)
+            _debug(f"{task} (attempt {attempt + 1}): {what}")
             continue
         raw = (response.message.content or "").replace("\ufffd", "-")      # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start

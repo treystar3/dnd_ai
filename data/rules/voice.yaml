@@ -36,7 +36,7 @@ gesture_words: 6             # a gesture printed with bare speech is kept only w
 # WORDS YOU HAVE WORN OUT. Found, never banned: the list is whatever the writing has actually leaned on lately.
 worn:
   keep: 30
-  least: 6
+  least: 4
   top: 8
   suffixes: [ly, ness, less, ful, ous, ible, able, ive, ish, some]
   seed: [expression, unreadable, mask, weary, steady, gaze, glance, flicker, hint, trace, faint, slight, grim, tight, quiet, soft, sharp,
