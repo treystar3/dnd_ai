@@ -66,6 +66,13 @@ gw._client = real
 check("with engine off in motives.yaml the step is the model's again", calls, calls)
 motives.M["engine"] = True
 pulse.P.clear(); pulse.P.update(old)
+# the tables cover the traits that push people toward a goal, and more: half the steps in one run were the default's one line
+import re as _re, yaml as _yaml
+tables = motives.M["by_seed"]
+seeds = (_yaml.safe_load(open("data/rules/pulse.yaml", encoding="utf-8"))["drift"]["motives"]["seeds"])
+check("every seed in pulse.yaml has steps of its own, and many traits do", set(seeds) <= set(tables) and len(tables) >= 27, (sorted(set(seeds) - set(tables)), len(tables)))
+holes = {m for rows in tables.values() for r in rows for m in _re.findall(r"\{(\w+)\}", r["line"] + r["gossip"] + r.get("mood", ""))}
+check("...and their lines use only the names the engine fills", holes <= {"name", "role", "town"}, holes)
 shutil.rmtree("saves/motives_test", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

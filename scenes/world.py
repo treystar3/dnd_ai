@@ -333,6 +333,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.present = [n for n in self.residents
                         if clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
                         and not routines.away(self.world, seed, n, self.minutes, cast)]                 # (f352) at the inn this evening, not here
+        mine = getattr(self.player, "prisoners", None) or {}
+        for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
+            if n.id in mine and (mine[n.id] or {}).get("escort") and not n.gone and all(p.id != n.id for p in self.present):
+                self.present.append(n)
         here = {n.id for n in self.present}
         self.visitors = [v for v in getattr(self, "visitors", []) if v[1] > self.minutes and v[2] == self.player.location and self.store.npc_exists(v[0])]
         for vid, _, _ in self.visitors:

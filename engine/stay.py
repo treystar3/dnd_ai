@@ -24,7 +24,8 @@ def snapshot(ws) -> dict:
     loc = ws.player.location
     m = moments.active(ws.store, loc, ws.minutes) if loc in ws.world.places else None
     return {"place": loc, "turn": ws.store.meta.turn,
-            "present": {n.id: (n.label(), n.activity or "") for n in ws.present},
+            "present": {n.id: (n.label(), n.activity or "") for n in ws.present
+                        if n.id not in (getattr(ws.player, "prisoners", None) or {})},      # the player's prisoners move with the player: not the room's
             "partner": getattr(ws, "partner", None).id if getattr(ws, "partner", None) else "",
             "weather": weather.condition(ws.store.meta.seed, ws.minutes)["id"], "period": clock.period(ws.minutes),
             "moment": (m or {}).get("id", ""), "moment_title": (m or {}).get("title", "")}

@@ -49,6 +49,74 @@ by_seed:
     - {line: "I have been listening at doors in {town}, and there is more going on than people say.", gossip: "{name}, the {role}, has been asking a great many questions.", mood: "bright-eyed with a secret"}
     - {line: "I found a thread and pulled it, and someone has told me to stop.", gossip: "{name} was warned off something, and is not saying what.", mood: "cautious, for once"}
     - {line: "I know now what is really going on in {town}, or most of it; the rest I can guess.", gossip: "They say {name} knows something about {town} and is enjoying not telling.", mood: ""}
+  bitter:
+    - {line: "I have been saying out loud what {town} owes me, to anyone who will stand still for it.", gossip: "{name}, the {role}, has been airing an old grievance again.", mood: "sour, and looking for an ear"}
+    - {line: "Someone told me to let it go. I have not, and I told them so.", gossip: "{name} and a neighbour had words over something years old.", mood: "wounded, and stiff about it"}
+    - {line: "I have what I was owed, or the nearest thing to it; it tastes of less than I thought.", gossip: "They say {name} got back something that was owed them, and is no happier for it.", mood: ""}
+  proud:
+    - {line: "I have refused work in {town} that was beneath me, and let it be known why.", gossip: "{name}, the {role}, turned down a job and made sure everyone heard.", mood: "stiff-backed"}
+    - {line: "I was slighted in front of people, and I answered it; it may cost me.", gossip: "There was a scene in {town} over {name}'s good name.", mood: "burning over a slight"}
+    - {line: "They came round, or enough of them did. I did not bend.", gossip: "They say {name} has had an apology out of someone, and is dining on it.", mood: ""}
+  loyal:
+    - {line: "A friend in {town} is in a hole, and I have put my own name next to theirs.", gossip: "{name}, the {role}, has been seen a great deal with someone the town is talking about.", mood: "braced, and not saying for whom"}
+    - {line: "It has cost me custom to stand where I stand; I am still standing there.", gossip: "Some in {town} have stopped dealing with {name} over the company they keep.", mood: "set, with a tired face"}
+    - {line: "It is over, one way or the other, and I was there for the whole of it.", gossip: "Whatever was wrong with {name}'s friend, {name} saw it through with them.", mood: ""}
+  pious:
+    - {line: "I have been at the temple before anyone else is up, and I have given more than I can spare.", gossip: "{name}, the {role}, has taken to the temple of a morning, and it is noticed.", mood: "quiet, with a far look"}
+    - {line: "I asked the priest a thing I should have asked years ago, and the answer was not a comfort.", gossip: "{name} came away from the temple looking older.", mood: "chastened"}
+    - {line: "I have done what was asked of me. Whether it is enough is not mine to say.", gossip: "They say {name} has made some peace with the temple, or with themselves.", mood: ""}
+  secretive:
+    - {line: "Somebody in {town} knows a thing about me, and I have been finding out who.", gossip: "{name}, the {role}, has been oddly careful about who they talk to.", mood: "watchful"}
+    - {line: "I paid for a silence; I do not know yet whether I bought it.", gossip: "Money changed hands in {town} between {name} and someone, and neither will say for what.", mood: "tight, listening for their own name"}
+    - {line: "It is buried again, deeper than before. I will sleep now.", gossip: "Whatever people were about to say about {name}, they have stopped.", mood: ""}
+  suspicious:
+    - {line: "Somebody in {town} is not what they say, and I have been counting what they take and what they give.", gossip: "{name}, the {role}, has been watching someone and not hiding it.", mood: "narrow-eyed"}
+    - {line: "I said it to their face, and they laughed; I was not wrong, and I will show it.", gossip: "{name} accused someone in {town} and has been laughed at for it.", mood: "stung, and surer than ever"}
+    - {line: "I was right, or right enough; the town can make of it what it likes.", gossip: "They say {name} was on to something after all, and will not let anyone forget it.", mood: ""}
+  gossipy:
+    - {line: "There is a story going round {town} and I have had three versions of it; I mean to have the true one.", gossip: "{name}, the {role}, has been asking everyone the same thing and comparing the answers.", mood: "lit up with news"}
+    - {line: "I told it to the wrong person, and it came back to the one it was about.", gossip: "Something {name} said got back to the person it concerned, and there was a row.", mood: "sheepish, for a day"}
+    - {line: "I have the whole of it now, and I am sitting on it, which is the hardest thing I have ever done.", gossip: "{name} knows something and, for once, is not telling.", mood: ""}
+  hardworking:
+    - {line: "I have taken on more than one pair of hands should, and I am keeping up, so far.", gossip: "{name}, the {role}, has been at work before light and after dark.", mood: "worn thin and not stopping"}
+    - {line: "Something gave, as it had to; I have patched it and gone on.", gossip: "{name} was laid up for a day and back at it the next, against advice.", mood: "stubborn with tiredness"}
+    - {line: "It is done, the whole of it; I will rest when I remember how.", gossip: "They say {name} has finished a job nobody thought one person could.", mood: ""}
+  frugal:
+    - {line: "I have cut everything that could be cut, and I am putting by every coin that comes in.", gossip: "{name}, the {role}, has been living on bread and will not say why.", mood: "careful to a fault"}
+    - {line: "A chance came to spend it all on a sure thing; I nearly did.", gossip: "{name} turned down a deal half of {town} would have jumped at.", mood: "shaken by a near thing"}
+    - {line: "It is enough now; a bad year can come and I will meet it.", gossip: "They say {name} has money put by, more than a {role} ought.", mood: ""}
+  generous:
+    - {line: "There are people in {town} going without, and I have been seeing to some of it quietly.", gossip: "Somebody in {town} has been leaving bread and firewood at doors, and {name} has gone very quiet about it.", mood: "warm, and tired"}
+    - {line: "It has been noticed, and now they come to the door; I cannot help them all.", gossip: "{name}, the {role}, is being asked for help by more people than they can manage.", mood: "stretched thin"}
+    - {line: "I have done what I can; the rest {town} will have to do for itself.", gossip: "They say {name} has given away more this season than a {role} earns.", mood: ""}
+  dutiful:
+    - {line: "A charge was laid on me, and I have been doing it exactly, whatever people think.", gossip: "{name}, the {role}, has been seeing to an old obligation nobody else remembers.", mood: "set-faced"}
+    - {line: "They asked me to let it slide, just this once; I could not.", gossip: "{name} would not bend on something, and somebody in {town} is sore about it.", mood: "unhappy, and unmoved"}
+    - {line: "It is discharged. I did not enjoy it, and I would do it again.", gossip: "Whatever {name} had taken on, it is done, and done properly.", mood: ""}
+  adventurous:
+    - {line: "I have been getting ready to go: maps, a pack, a story for the people I will leave.", gossip: "{name}, the {role}, has been asking travellers about the roads.", mood: "restless"}
+    - {line: "I got as far as the first night out and came back for something I had forgotten; that is what I am telling people.", gossip: "{name} left {town} and was back within two days, saying nothing.", mood: "sheepish, and more determined"}
+    - {line: "The pack is by the door and the goodbyes are said. Soon.", gossip: "They say {name} means to leave {town} for good this time.", mood: ""}
+  haunted:
+    - {line: "I have gone back over the thing that follows me, looking for a way to set it down.", gossip: "{name}, the {role}, has been sleeping badly, and it shows.", mood: "far away"}
+    - {line: "I spoke of it, once, to someone; it did not help them and it did not help me.", gossip: "{name} told somebody something, and that somebody has not been the same since.", mood: "closed up again"}
+    - {line: "It is still there. I have learned to walk with it, and that will have to do.", gossip: "They say {name} seems easier lately, or has just stopped showing it.", mood: ""}
+  idealistic:
+    - {line: "I have been telling {town} how things ought to be, and some of them have listened.", gossip: "{name}, the {role}, has been talking about how {town} ought to be run.", mood: "burning with it"}
+    - {line: "The first time it came to a choice, half of them chose the easy way; I have not given up on them.", gossip: "{name} was let down by people they had counted on, and said so.", mood: "disappointed, and still at it"}
+    - {line: "A small thing is changed in {town} because I would not shut up about it. It is a start.", gossip: "They say one thing in {town} is done differently now, and {name} is the reason.", mood: ""}
+  shrewd:
+    - {line: "Everyone in {town} is selling the same thing; I have been buying something else.", gossip: "{name}, the {role}, has been making deals nobody else understands.", mood: "pleased with a private sum"}
+    - {line: "The price moved against me for a week and people laughed; it has moved back.", gossip: "People were laughing at {name}'s deals, and have stopped.", mood: "unbothered"}
+    - {line: "It came out as I said it would, near enough; I will not say so to anyone.", gossip: "They say {name} came out well ahead of {town} on something, and is modest about it, for once.", mood: ""}
+  vain:
+    - {line: "I have had something made that {town} has not seen the like of, and I have been wearing it.", gossip: "{name}, the {role}, has new clothes and makes sure you see them.", mood: "preening"}
+    - {line: "Somebody said a thing about it that was meant to be heard; I heard it.", gossip: "A remark was made in {town} about {name}'s finery, and {name} has not forgiven it.", mood: "brittle"}
+    - {line: "I am admired, by the ones who count; the others may say what they like.", gossip: "They say {name} has an admirer in {town} at last.", mood: ""}
+  reckless:
+    - {line: "I have said I will do a thing that {town} says cannot be done, and now I have to.", gossip: "{name}, the {role}, has taken a dare in front of witnesses.", mood: "lit up and sleepless"}
+    - {line: "The first try went badly and I have the bruises; I am going again.", gossip: "{name} came off worse at something and will not be talked out of a second go.", mood: "bruised and grinning"}
+    - {line: "Done, or near enough that nobody can say otherwise. My hands are still shaking.", gossip: "They say {name} actually did it, whatever it was, and {town} is still arguing about it.", mood: ""}
   default:
     - {line: "I have been quietly at work on something of my own, and it is going.", gossip: "{name}, the {role}, has had something on their mind lately.", mood: "preoccupied"}
     - {line: "It went wrong once; I have started again and said nothing about it.", gossip: "{name} has been short with people and will not say why.", mood: "short with people"}

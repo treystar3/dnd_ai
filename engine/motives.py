@@ -56,7 +56,8 @@ def move(store, world, state: dict, npc, t: int, rng: random.Random) -> bool:
         ended = True
     store.save_npc(npc)
     from engine import pulselog
-    pulselog.note("motive", f"{npc.name}: {row['line']} [{'ended' if ended else 'step ' + str(npc.motive_step)}]", place=npc.location, engine=True)
+    pulselog.note("motive", f"{npc.name}: {row['line']} [{'ended' if ended else 'step ' + str(npc.motive_step)}]", place=npc.location, engine=True,
+                  seed=seed_of(npc))
     return True
 
 
