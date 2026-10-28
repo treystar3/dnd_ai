@@ -42,6 +42,25 @@ r2 = subprocess.run([sys.executable, "tools/latency.py", str(out)], capture_outp
 check("tools/latency.py reads the folder again on its own", r2.returncode == 0 and "Calls by task" in r2.stdout, r2.stderr[-500:])
 r3 = subprocess.run([sys.executable, "tools/latency.py", "--calls", str(out / "llm_calls.jsonl")], capture_output=True, text=True, timeout=120)
 check("...and a call log on its own", r3.returncode == 0 and "| Task |" in r3.stdout, r3.stderr[-500:])
+# (f361) a night of runs from one command: each its own process, seed and class, its own folder and save; a summary of the night at the end
+import glob
+for d in glob.glob("saves/nightrun_batch_test*"):
+    shutil.rmtree(d, ignore_errors=True)
+base = Path("saves/nightrun_test/night")
+r4 = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--turns", "4", "--hours", "1", "--seed", "5", "--classes", "warrior,mage",
+                     "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
+runs = sorted((p for p in base.iterdir() if p.is_dir()), key=lambda p: int(p.name.rsplit("_", 1)[1])) if base.exists() else []   # by seed: two runs can share a minute
+infos = [json.loads((p / "run.json").read_text(encoding="utf-8")) for p in runs if (p / "run.json").exists()]
+check("two runs from one command, each in its own folder named by its class and seed", r4.returncode == 0 and len(runs) == 2
+      and runs[0].name.endswith("_warrior_5") and runs[1].name.endswith("_mage_6"), (r4.stdout[-800:], r4.stderr[-800:], [p.name for p in runs]))
+check("...each a whole run of its own: its seed, its class, its turns", len(infos) == 2 and [i["seed"] for i in infos] == [5, 6] and all(i["turns"] == 4 for i in infos)
+      and infos[0]["class"] != infos[1]["class"], infos)
+check("...with a save of its own, so the second does not continue the first", sorted(Path(d).name for d in glob.glob("saves/nightrun_batch_test*")) == ["nightrun_batch_test_mage_6", "nightrun_batch_test_warrior_5"],
+      glob.glob("saves/nightrun_batch_test*"))
+night = list(base.glob("batch_*.md"))
+check("the night is summed up in one file listing the runs", len(night) == 1 and "_warrior_5" in night[0].read_text(encoding="utf-8") and "_mage_6" in night[0].read_text(encoding="utf-8"), night)
+for d in glob.glob("saves/nightrun_batch_test*"):
+    shutil.rmtree(d, ignore_errors=True)
 shutil.rmtree("saves/nightrun_test", ignore_errors=True)
 shutil.rmtree("saves/nightrun_test_game", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
