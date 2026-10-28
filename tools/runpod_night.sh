@@ -18,6 +18,18 @@ MODEL="$(python3 -c 'import config; print(config.MODEL)')"
 EMBED="$(python3 -c 'import config; print(config.EMBED_MODEL)')"
 mkdir -p logs out
 
+# A path that drops big packets (seen on Runpod: 1,300-byte packets pass, 1,400 do not) stalls every download. MSS_PROXY=1 routes the
+# installs and the pulls through tools/mss_proxy.py, which caps its outbound segments; the game's own calls to Ollama stay local.
+if [ "${MSS_PROXY:-0}" = "1" ]; then
+    if ! curl -sS -o /dev/null -m 5 -x http://127.0.0.1:3128 https://ollama.com/ 2>/dev/null; then
+        (setsid nohup python3 tools/mss_proxy.py --port 3128 > logs/mss_proxy.log 2>&1 < /dev/null &)
+        sleep 1
+    fi
+    export HTTPS_PROXY=http://127.0.0.1:3128 HTTP_PROXY=http://127.0.0.1:3128 https_proxy=http://127.0.0.1:3128 http_proxy=http://127.0.0.1:3128
+    export NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost
+    echo "Downloads go through the segment-capping proxy (MSS_PROXY=1)."
+fi
+
 if ! command -v ollama >/dev/null 2>&1; then
     echo "Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
@@ -31,8 +43,8 @@ if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     done
 fi
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true
-ollama pull "$MODEL"
-ollama pull "$EMBED"
+ollama show "$MODEL" >/dev/null 2>&1 || ollama pull "$MODEL"          # already on the box: no pull, no registry round trip
+ollama show "$EMBED" >/dev/null 2>&1 || ollama pull "$EMBED"
 python3 -m pip install -q -r requirements.txt
 
 echo "A night of $RUNS run(s), $HOURS h each, $PARALLEL at a time: $MODEL"
