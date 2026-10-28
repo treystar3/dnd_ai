@@ -1,0 +1,47 @@
+# (f351) THE ROOM CHANGES WHILE THE PLAYER IS IN IT.
+#
+# Why: the engine surfaced one mid-stay change, the person the player was talking to heading off; arrivals, the weather turning, the
+# hour, someone changing task and a moment ending were silent until the player looked. Now the engine takes a snapshot of the place at
+# the end of each turn and, when the player is still there next turn and the narrator has not written this turn, tells one change in a
+# line of its own (engine/stay.py): a texture, not a ticker. Weather, the hour and a moment ending always get their line; who comes and
+# goes and who has moved on to something else wait gap_turns after the last such line.
+
+gap_turns: 3                 # after a line about people, no other about people for this many turns
+indoors: [inn, shop, smithy, workshop, temple, guild, guardpost, palace, hut, cabin, house]
+
+lines:                       # {label} is the person as the player knows them; {doing} what they are doing now
+  arrive_in:
+    - "{label} comes in."
+    - "{label} comes in, and is soon {doing}."
+    - "The door goes, and it is {label}."
+  arrive_out:
+    - "{label} comes by."
+    - "{label} comes along, and is soon {doing}."
+  leave_in:
+    - "{label} goes out."
+    - "{label} is gone out; nobody marks it."
+  leave_out:
+    - "{label} goes off down the street."
+    - "{label} is gone."
+  doing:
+    - "{label} has moved on to {doing}."
+    - "{label} is {doing} now."
+
+weather:                     # by the condition it turns to (weather.yaml ids)
+  clear: "The sky clears."
+  fair: "The cloud thins and the light comes back."
+  overcast: "Cloud comes over."
+  windy: "The wind gets up."
+  fog: "Fog comes in."
+  rain: "Rain starts."
+  storm: "The storm breaks."
+
+periods:                     # by the period it turns to
+  dawn: "Dawn comes."
+  morning: "Full morning now."
+  midday: "Midday."
+  afternoon: "The afternoon wears on."
+  evening: "Evening comes on."
+  night: "Night."
+  deep night: "The deep of the night."
+  before dawn: "The hour before dawn."

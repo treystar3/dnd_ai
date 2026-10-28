@@ -245,20 +245,25 @@ def social_circle(npc: NPC, store: CampaignStore, world: World) -> tuple[list[st
     rows = {r.id: r for r in retrieval.people_at(store, npc.location, gone=None, exclude=(npc.id,))}      # those here, and the community
     for r in retrieval.community(store, world, community, exclude=(npc.id,)):
         rows.setdefault(r.id, r)
+    from engine import routines
+    seed, now = store.meta.seed, store.meta.minutes
     for other in rows.values():
         line = f"{other.name}, the {other.role.replace('_', ' ')}"
         if other.gone:
             if community and world.locals_group(other.location) == community:
                 known.append(f"{line} - no longer here: {other.gone}")
             continue
+        usual = routines.usual_line(world, seed, other)                                 # (f352) 'at the Tilted Plough most evenings'
         if other.location == npc.location:
-            on_shift = clock.in_hours(store.meta.minutes, world.roles[other.role].hours)
+            on_shift = clock.in_hours(now, world.roles[other.role].hours) and not routines.away(world, seed, other, now)
             if on_shift:
                 here.append(line)
+            elif routines.away(world, seed, other, now):
+                known.append(f"{line} (works here; {usual}, and that is where they are at this hour)")
             else:
-                known.append(f"{line} (works here, but has gone home for now)")
+                known.append(f"{line} (works here, but has gone home for now" + (f"; {usual}" if usual else "") + ")")
         elif community and world.locals_group(other.location) == community:
-            known.append(f"{line} (usually at {world.places[other.location].name})")
+            known.append(f"{line} (usually at {world.places[other.location].name}" + (f"; {usual}" if usual else "") + ")")
     return here, known
 
 

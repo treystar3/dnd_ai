@@ -77,29 +77,49 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
     state = store.load_world_state()
     town = town_of(world, place_id)
     out = []
+    from engine import threads
     for t in state.get("threads", []):
-        if t["status"] == "active" and t["place"] in (place_id, town):
+        if t["status"] == "active" and (t["place"] in (place_id, town) or (t.get("town") and t["town"] == town)):   # (f357) a threat at the wild is about its town
             out.append(t["stages"][t["stage"]]["description"])
+            since = t["times"][t["stage"]] if t.get("times") and t["stage"] < len(t["times"]) else t.get("made", now)
+            sign = threads.signs_for(t, (now - since) // 1440)                                # (f356) on its second day and after, a sign in turn
+            if sign:
+                out.append(sign)
     for e in state.get("effects", []):
         if e["kind"] == "closed" and e["place"] == place_id and e["until"] > now:
             out.append(f"The way is closed: {e['text']}")
     return out
 
 
+def news_window(state: dict, world, place_id: str, now: int, limit: int = 8, key: str = "", groups: set | None = None) -> list[dict]:
+    """(f356) The news to show at this place now: the newest two that have reached it, then a draw by freshness (and this town's own
+    news first) among the rest, seeded by the day and `key` so the window turns over each day and differs between speakers, instead of
+    the same five newest lines for a day or more. `groups`: only news those circles carry."""
+    keep = P["news"]["keep_days"] * 1440
+    reached = [n for n in state.get("news", []) if now - n["minute"] <= keep and (groups is None or set(n["groups"]) & groups)
+               and n["minute"] + travel_delay(world, n["origin"], place_id) <= now]
+    if len(reached) <= limit:
+        return list(reversed(reached))
+    newest = reached[-2:]
+    rest = reached[:-2]
+    town = town_of(world, place_id)
+    rng = random.Random(f"{key}:news:{place_id}:{clock.day(now)}")
+    picked = []
+    pool = list(rest)
+    while pool and len(picked) < limit - 2:
+        weights = [(1.0 / (1 + (now - n["minute"]) / 1440)) * (1.5 if town_of(world, n["origin"]) == town else 1.0) for n in pool]
+        n = rng.choices(pool, weights=weights)[0]
+        picked.append(n)
+        pool.remove(n)
+    return list(reversed(newest)) + sorted(picked, key=lambda n: -n["minute"])
+
+
 def news_for(store, world, npc, now: int, limit: int = 5) -> list[str]:
-    """News this person has heard: it must have reached where they are, and be news their circles would carry."""
+    """News this person has heard: it must have reached where they are, and be news their circles would carry; the window turns over
+    by the day (news_window)."""
     state = store.load_world_state()
     groups = set(npc.knowledge_groups) | {"everyone"}
-    keep = P["news"]["keep_days"] * 1440
-    heard = []
-    for n in reversed(state.get("news", [])):
-        if now - n["minute"] > keep or not (set(n["groups"]) & groups):
-            continue
-        if n["minute"] + travel_delay(world, n["origin"], npc.location) <= now:
-            heard.append(news_text(n))
-        if len(heard) >= limit:
-            break
-    return heard
+    return [news_text(n, now) for n in news_window(state, world, npc.location, now, limit, key=f"{store.meta.seed}:{getattr(npc, 'id', 'here')}", groups=groups)]
 
 
 def travel_delay(world, origin: str, where: str) -> int:
@@ -113,6 +133,40 @@ def travel_delay(world, origin: str, where: str) -> int:
     return round(found[1] * P["news"]["hours_per_walking_hour"])
 
 
+def within_reach(store, world, state: dict, t: int) -> list[dict]:
+    """(f354) The live situations at the player's town or within near_minutes' walk of it."""
+    if not store.player_exists():
+        return []
+    here = town_of(world, store.load_player().location)
+    if here not in world.places:
+        return []
+    PL = P.get("placement", {})
+    dist = events.distances(world, here)
+    near = {p.id for p in world.places.values() if not p.parent and dist.get(p.id, 10 ** 9) <= PL.get("near_minutes", 600)} | {here}
+    return [th for th in state.get("threads", []) if th["status"] == "active" and (th["place"] in near or town_of(world, th["place"]) in near)]
+
+
+def engine_roll(store, world, catalog, state: dict, t: int, rng: random.Random) -> bool:
+    """(f354) The engine's own situation within reach of the player this tick: by the roll, or after a quiet day, never past most_live."""
+    ER = P.get("engine_roll") or {}
+    if not ER:
+        return False
+    live = within_reach(store, world, state, t)
+    if live:
+        state.pop("reach_quiet_since", None)
+    else:
+        state.setdefault("reach_quiet_since", t)
+    quiet = not live and t - state.get("reach_quiet_since", t) >= ER.get("quiet_hours", 24) * 60
+    roll = rng.random()
+    if len(live) >= ER.get("most_live", 2) or not (quiet or roll < float(ER.get("chance", 0.4))):
+        return False
+    LAST["made_by"] = ""
+    if start_thread(store, world, catalog, state, t, rng, made_by="engine", band_weights=ER.get("bands")):
+        state.pop("reach_quiet_since", None)
+        return True
+    return False
+
+
 # ---------- the clock ----------
 
 def catch_up(store, world, catalog, now: int) -> dict:
@@ -121,7 +175,8 @@ def catch_up(store, world, catalog, now: int) -> dict:
     state = store.load_world_state() or empty_state(now)
     if "last" not in state:
         state["last"] = now
-    budget = P["max_new_events_per_action"]
+    budget = P["max_new_events_per_action"]                             # model calls the pulse may make while the player does one thing
+    engine_budget = P.get("max_engine_events_per_action", 8)            # (f353) the engine's own situations cost no call: a looser cap of their own
     rng = random.Random(f"{store.meta.seed}:pulse:{state['last']}")
     changed = False
     while state["last"] + INTERVAL <= now:
@@ -131,11 +186,21 @@ def catch_up(store, world, catalog, now: int) -> dict:
         changed |= tick_threads(store, world, catalog, state, t, rng)
         if state.get("camps"):
             events.expire_camps(store, world, state, t)
-        if budget <= 0:
+        if engine_budget > 0 and start_queued(store, world, catalog, state, t, rng):          # (f358) what follows from an ending
+            engine_budget -= 1
+            changed = True
+        from engine import consequences
+        if engine_budget > 0 and consequences.tick(store, world, catalog, state, t, rng):    # (f359) the town answers the stranger's deeds
+            engine_budget -= 1
+            changed = True
+        if engine_budget > 0 and engine_roll(store, world, catalog, state, t, rng):          # (f354) the engine's own, within reach
+            engine_budget -= 1
+            changed = True
+        if budget <= 0 and engine_budget <= 0:
             continue
         # one big-event slot (a campaign, or at high level a cataclysm) opens now and then; one at a time
         slot_chance = P["interval_hours"] / (events.E["campaign"]["every_days"] * 24)
-        if not state.get("campaign") and rng.random() < slot_chance:
+        if not state.get("campaign") and rng.random() < slot_chance and budget > 0:
             done = False
             if events.cataclysm_due(state, t, events.player_level(store), rng):
                 done = events.start_cataclysm(store, world, catalog, state, t, rng)
@@ -149,11 +214,23 @@ def catch_up(store, world, catalog, now: int) -> dict:
             continue
         kind = rng.choices(list(P["kinds"]), weights=list(P["kinds"].values()))[0]
         if kind == "motive":
+            from engine import motives
+            engine_made = bool(motives.M.get("engine", True))
+            if (budget <= 0 and not engine_made) or (engine_budget <= 0 and engine_made):
+                continue
             done = move_motive(store, world, catalog, state, t, rng)
+            if done and engine_made:
+                engine_budget -= 1
+            elif done:
+                budget -= 1
         else:
-            done = start_thread(store, world, catalog, state, t, rng)
+            LAST["made_by"] = ""
+            done = start_thread(store, world, catalog, state, t, rng, allow=(budget > 0, engine_budget > 0))
+            if done and LAST["made_by"] == "engine":
+                engine_budget -= 1
+            elif done:
+                budget -= 1
         if done:
-            budget -= 1
             changed = True
     from engine import drift
     deltas = drift.catch_up(store, world, state, now, random.Random(f"{store.meta.seed}:drift:{state.get('drift_last', now)}"))
@@ -163,23 +240,39 @@ def catch_up(store, world, catalog, now: int) -> dict:
 
 
 FINISHED_KEPT = 30
+LAST = {"made_by": ""}            # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget)
 
 
 # ---------- threads ----------
 
-def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "") -> bool:
+def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, pressure_id: str = "", place_id: str = "", made_by: str = "",
+                 allow: tuple[bool, bool] = (True, True), band_weights: dict | None = None, template: str = "", severity_shift: int = 0,
+                 pressure=None, door: str = "") -> bool:
     """Start a situation. pressure_id / place_id force the seed and the place (used by tools/pulse_preview.py). made_by forces who writes it:
     'engine' (data/rules/threads.yaml) or 'model'; by default the tier decides (pulse.yaml tiers engine: true), and a tier the model writes
-    falls back to the engine's own when the model gives nothing usable (f331)."""
+    falls back to the engine's own when the model gives nothing usable (f331). allow (f353): (the model may be called, the engine may build),
+    from the two budgets; a tier whose maker is not allowed this action does not start (a model tier falls back to the engine when it may)."""
     plain = [k for k in P["tiers"] if k not in ("campaign", "cataclysm")]
     tier = tier or rng.choices(plain, weights=[P["tiers"][k]["weight"] for k in plain])[0]
     rule = P["tiers"][tier]
+    may_model, may_engine = allow
+    if not made_by:
+        if rule.get("engine") and not may_engine:
+            return False
+        if not rule.get("engine") and not may_model:
+            if rule.get("fallback") == "engine" and may_engine:
+                made_by = "engine"
+            else:
+                return False
     cooldown = P["pressure_cooldown_days"] * 1440
     pressures = [p for p in world.pressures.values() if t - state["cooldowns"].get(p.id, -10 ** 9) > cooldown]
     if tier == "campaign" and events.E["campaign"]["prefer_marked"]:
         marked = [p for p in pressures if p.campaign]
         pressures = marked or pressures
-    if pressure_id:
+    if pressure is not None:                                         # (f359) a pressure-shaped record of the engine's own (a consequence of the player's deeds)
+        place = world.places.get(pressure.place)
+        template = template or pressure.template
+    elif pressure_id:
         pressure = world.pressures[pressure_id]
         place = world.places.get(pressure.place) or region_town(world, pressure.place, rng)
     elif place_id:
@@ -189,7 +282,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     elif tier == "campaign" and pressures:
         pressure, place = place_by_band(store, world, pressures, rng, must_pressure=True)      # (f324) a campaign near the player, falling outward
     else:
-        pressure, place = place_by_band(store, world, pressures, rng)            # (f323) mostly where the player is, sometimes anywhere
+        pressure, place = place_by_band(store, world, pressures, rng, band_weights=band_weights)   # (f323) mostly where the player is, sometimes anywhere
     if not place:
         return False
     big = tier in events.BIG
@@ -216,7 +309,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
                 return False
             console.debug(f"pulse: the model gave nothing usable ({e}); the engine builds the situation itself")
     if proposal is None:                                             # (f331) the engine's own
-        built = threads.build(store, world, state, place, pressure, tier, rng, t)
+        built = threads.build(store, world, state, place, pressure, tier, rng, t, template=template, severity_shift=severity_shift)
         if not built:
             pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: no template fits the place")
             return False
@@ -235,20 +328,25 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
               "triumph": proposal.triumph.model_dump() if proposal.triumph else None,
               "boss_lines": proposal.boss_lines.model_dump(exclude={"captain_intro"}) if proposal.boss_lines and tier == "campaign" else None,
               "made_by": "engine" if info else "model", "told": not info}                 # (f331) who wrote it; an engine-built one is re-told when met
+    LAST["made_by"] = thread["made_by"]
     if info:
-        thread.update(template=info["template"], severity=info["severity"], words=info["words"])
+        thread.update(template=info["template"], severity=info["severity"], words=info["words"], streets=info.get("streets") or [],   # (f357)
+                      town=(info.get("ids") or {}).get("town", ""))                               # the town it is about (a threat sits at the wild)
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
     state["threads"].append(thread)
-    if pressure:
+    if pressure and pressure.id in world.pressures:
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
         state["campaign"] = thread["id"]
     add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
-    row = pulselog.note("thread", f"[{tier}{', engine-built' if info else ''}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages")
+    here = town_of(world, store.load_player().location) if store.player_exists() else ""
+    row = pulselog.note("thread", f"[{tier}{', engine-built' if info else ''}] {proposal.title} at {world.places[proposal.place].name} - starts, {days} days, {rule['stages']} stages",
+                        tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
+                        reach=any(x["id"] == thread_id for x in within_reach(store, world, state, t)))
     apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)
     from engine import matters                                      # (f317) the door the player meets it through, and what it carries
     reputation = store.load_player().reputation.get(town_of(world, proposal.place), 0) if store.player_exists() else 0
-    matters.attach(store, world, state, thread, proposal, reputation, rng, t)
+    matters.attach(store, world, state, thread, proposal, reputation, rng, t, door=door)
     posted = False
     if thread["contract"] and thread["door"] in ("board", "board_more"):
         posted = post_contract(store, world, proposal.contract, thread, t, plain=thread["hidden"])
@@ -262,7 +360,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     return True
 
 
-def place_by_band(store, world, pressures: list, rng: random.Random, must_pressure: bool = False):
+def place_by_band(store, world, pressures: list, rng: random.Random, must_pressure: bool = False, band_weights: dict | None = None):
     """(f323) Where a new situation goes: a band drawn by pulse.yaml placement - the player's own town, its neighbours, its region, or
     anywhere - then a pressure in that band when there is one (most of the time), else one of its towns. The world keeps moving where
     nobody watches, but the calls the player waits through are mostly ones they will meet. must_pressure (a campaign, f324): the band
@@ -279,7 +377,8 @@ def place_by_band(store, world, pressures: list, rng: random.Random, must_pressu
              "near": [p.id for p in towns if p.id != here and dist.get(p.id, 10 ** 9) <= PL.get("near_minutes", 600)],
              "region": [p.id for p in towns if p.id != here and p.region == region and dist.get(p.id, 10 ** 9) > PL.get("near_minutes", 600)],
              "far": [p.id for p in towns if p.id != here and p.region != region and dist.get(p.id, 10 ** 9) > PL.get("near_minutes", 600)]}
-    weights = {b: PL["bands"].get(b, 0) for b in bands if bands[b]}
+    weights = {b: (band_weights or PL["bands"]).get(b, 0) for b in bands if bands[b]}
+    weights = {b: w for b, w in weights.items() if w > 0} or {b: PL["bands"].get(b, 0) for b in bands if bands[b]}   # (f354) the engine's own bands
     band = rng.choices(list(weights), weights=list(weights.values()))[0]
     order = ["here", "near", "region", "far"]
     ids = set(bands[band])
@@ -313,16 +412,33 @@ def region_town(world, region_id: str, rng):
     return rng.choice(towns) if towns else None
 
 
+def start_queued(store, world, catalog, state: dict, t: int, rng: random.Random) -> bool:
+    """(f358) A follow-on whose delay has run starts now, at its place, from its template, with its severity shift (and the pressure's heat)."""
+    due = [q for q in state.get("queued", []) if q.get("after", 0) <= t]
+    if not due:
+        return False
+    q = due[0]
+    state["queued"] = [x for x in state.get("queued", []) if x is not q]
+    LAST["made_by"] = ""
+    ok = start_thread(store, world, catalog, state, t, rng, tier=q.get("tier") if q.get("tier") in P["tiers"] and q.get("tier") not in events.BIG else None,
+                      pressure_id=q.get("pressure") or "", place_id="" if q.get("pressure") else q.get("place", ""), made_by="engine",
+                      template=q.get("template", ""), severity_shift=int(q.get("severity", 0)))
+    if ok and state.get("threads"):
+        state["threads"][-1]["follows"] = q.get("from", "")
+        pulselog.note("chain", f"{state['threads'][-1]['title']} follows from {q.get('from', '')}", place=q.get("place", ""))
+    return ok
+
+
 def tick_threads(store, world, catalog, state, t, rng) -> bool:
     changed = False
-    from engine import matters
+    from engine import matters, threads
     for th in [x for x in state["threads"] if x["status"] == "active"]:
         if th.get("door") and matters.reopen(store, world, state, th, t):
             changed = True
         while th["status"] == "active" and th["stage"] + 1 < len(th["stages"]) and t >= th["times"][th["stage"] + 1]:
             th["stage"] += 1
             stage = th["stages"][th["stage"]]
-            row = pulselog.note("stage", f"{th['title']} - stage {th['stage'] + 1}/{len(th['stages'])}: {stage['description'][:140]}")
+            row = pulselog.note("stage", f"{th['title']} - stage {th['stage'] + 1}/{len(th['stages'])}: {stage['description'][:140]}", place=th["place"])
             apply_effects(store, world, catalog, state, stage["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
             add_news(state, stage["description"], th["place"], t, th["groups"], thread=th["id"])
             if th["tier"] == "cataclysm":
@@ -333,16 +449,18 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
                 who = resolver(store, world, th, rng)
-                pulselog.note("end", f"{th['title']} - settled by {who}")
+                pulselog.note("end", f"{th['title']} - settled by {who}", how="settled", place=th["place"], tier=th["tier"])
                 end_thread(store, state, th, "resolved", f"{th['title']} - settled by {who}.", t)
                 th["result"] = "others"
+                threads.follow_up(state, th, "settled", rng, t)                                 # (f358) what may come of it
                 matters.town_note(store, world, th["place"], f"{th['title']}: settled by {who}", t)       # (f323) the town's own history
             else:
                 fall = th["fallout"]
-                row = pulselog.note("end", f"{th['title']} - left alone, so the fallout lands: {fall['description'][:140]}")
+                row = pulselog.note("end", f"{th['title']} - left alone, so the fallout lands: {fall['description'][:140]}", how="ignored", place=th["place"], tier=th["tier"])
                 end_thread(store, state, th, "ended", f"{th['title']} - {fall['description']}", t)        # lifts what the stages laid...
                 apply_effects(store, world, catalog, state, fall["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)   # ...and the fallout stays
                 th["result"] = "ignored"
+                threads.follow_up(state, th, "ignored", rng, t)                                 # (f358) ignored, it may get worse
                 if (th.get("summons") == "met" or th.get("answered")) and store.player_exists():      # (f317) they were asked, and let it be
                     pl = store.load_player()
                     matters.remember(store, world, th, "ignored", pl.character.name, t, store.meta.turn)
@@ -441,6 +559,10 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     if not movers:
         return False
     npc = rng.choice(movers)
+    from engine import motives
+    if motives.M.get("engine", True):                                   # (f360) the engine's own step: no call
+        last[npc.id] = t
+        return motives.move(store, world, state, npc, t, rng)
     place = world.places[npc.location]
     request = (f"PERSON: {npc.id} - {npc.name}, {npc.people} {npc.role.replace('_', ' ')}\n"
                f"PERSONALITY: {npc.personality}\nTRAITS: {', '.join(npc.traits)}\nWORRY: {npc.concern}\n"
@@ -453,7 +575,7 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
         console.debug(f"pulse: {npc.name}'s life holds still ({e})")
         return False
     last[npc.id] = t
-    row = pulselog.note("motive", f"{npc.name}: {step.happened} [{step.status}]")
+    row = pulselog.note("motive", f"{npc.name}: {step.happened} [{step.status}]", place=npc.location)
     apply_effects(store, world, catalog, state, step.effects, "normal", t, f"{npc.name}'s doings", row=row)
     npc = store.load_npc(npc.id)
     npc.motive = (step.next_motive.strip() or npc.motive) if step.status == "continuing" else ""
@@ -659,10 +781,10 @@ def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: s
 COUNTS = {3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 
 
-def news_text(n: dict) -> str:
-    """A news row as it is told: a tale told more than once says so."""
+def news_text(n: dict, now: int | None = None) -> str:
+    """A news row as it is told: a tale told more than once says so, for two days after the last telling (f356); then it is just the tale."""
     times = int(n.get("times", 1) or 1)
-    if times < 2:
+    if times < 2 or (now is not None and now - n.get("minute", now) > 2 * 1440):
         return n["text"]
     return f"{n['text']} Again." if times == 2 else f"{n['text']} That makes {COUNTS.get(times, str(times))} times."
 

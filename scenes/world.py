@@ -225,6 +225,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                        Narration, self.recent_narration)
         console.narrate(result.text)
         self.remember_narration(result.text)
+        self._narrated_turn = self.store.meta.turn                                               # (f351)
 
     def has(self, mechanic: str) -> float | None:
         return pools.mechanic(self.player.character, mechanic)
@@ -314,10 +315,24 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.visitors = [v for v in getattr(self, "visitors", []) if v[0] != npc.id] + [(npc.id, until, self.player.location)]
         self.refresh_present()
 
+    def streets_now(self) -> tuple[dict | None, dict]:
+        """(f357) What the running situations have the streets doing here, and where they have placed their cast; read once a minute."""
+        from engine import threads
+        key = (self.player.location, self.minutes)
+        cache = self.__dict__.get("_streets_cache")
+        if not cache or cache[0] != key:
+            state = self.store.load_world_state() or {}
+            cache = (key, threads.street_now(state, self.world, self.player.location, self.minutes))
+            self.__dict__["_streets_cache"] = cache
+        return cache[1]
+
     def refresh_present(self) -> None:
-        from engine import court
+        from engine import court, routines
+        seed = self.store.meta.seed
+        street, cast = self.streets_now()                                                               # (f357)
         self.present = [n for n in self.residents
-                        if clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)]
+                        if clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
+                        and not routines.away(self.world, seed, n, self.minutes, cast)]                 # (f352) at the inn this evening, not here
         here = {n.id for n in self.present}
         self.visitors = [v for v in getattr(self, "visitors", []) if v[1] > self.minutes and v[2] == self.player.location and self.store.npc_exists(v[0])]
         for vid, _, _ in self.visitors:
@@ -325,17 +340,36 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 v = self.store.load_npc(vid)
                 if not v.gone:
                     self.present.append(v)
+        here = {n.id for n in self.present}
+        self._routine_here = set()                                                                     # (f352) the town's people here on their routine
+        key = (self.player.location, clock.day(self.minutes), clock.period(self.minutes))
+        cache = self.__dict__.setdefault("_routine_cache", {})
+        if key not in cache or cache.get("_cast") != cast:
+            cache.clear()
+            cache["_cast"] = cast
+            cache[key] = routines.visitor_ids(self.store, self.world, seed, self.player.location, self.minutes, cast)
+        for vid in cache[key]:
+            if vid not in here and self.store.npc_exists(vid):
+                v = self.store.load_npc(vid)
+                if not v.gone and v.away_until <= self.minutes and court.visible(self, v):
+                    self.present.append(v)
+                    self._routine_here.add(v.id)
+        if self._routine_here and self.__dict__.get("_routine_marked") != key:
+            self.__dict__["_routine_marked"] = key
+            pulselog.mark("routine", f"{len(self._routine_here)} here on their routine", self.minutes, place=self.player.location)   # (f355)
         if getattr(self, "partner", None):          # residents are reloaded from disk each turn: keep pointing at the same person's fresh copy
             fresh_copy = next((n for n in self.present if n.id == self.partner.id), None)
             if fresh_copy:
                 self.partner = fresh_copy
         from engine import doings, moments                                                    # (f348) what each of them is doing now: the engine's
-        self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes))
+        self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes) or street,
+                                            visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here."""
         from engine import drift, events
         drift.apply_player(self.player, pulse.catch_up(self.store, self.world, self.catalog, self.minutes) or {})   # (f331) what the drift owes the record this scene holds
+        self.__dict__.pop("_streets_cache", None)                                           # (f357) the world may have moved: read the streets afresh
         events.apply_player_events(self)
         self.arc_tick()
         here = self.store.load_place(self.player.location)
@@ -424,6 +458,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.player.last_in[old_town] = self.minutes                       # (f331) when the player last left a town
             self._arrival_lines = ambient.since(self.store, self.world, new_town, self.player.last_in.get(new_town), self.minutes)
         self.leave_road(place_id)
+        self.__dict__.pop("_streets_cache", None)                                           # (f357) a new place: read the streets afresh
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
         self.note_town(place_id)
@@ -449,6 +484,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.bring_prisoners(place_id)
         self.party_notice()
         self.trial_notice(on_arrival=True)
+        from engine import stay
+        stay.reset(self)                                                                      # (f351) the stay starts here
 
     def start_backfill(self) -> None:
         """The scene is on screen and the player is reading: make the rest of this place's people in the background."""
@@ -479,6 +516,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return False
         news_seen = self.__dict__.setdefault("_news_seen", set())
         return not any(h not in news_seen for h in here.lines("news")[:3])
+
+    def stay_tick(self) -> None:
+        """(f351) The room changes while the player is in it: one line for the one change worth telling (engine/stay.py)."""
+        from engine import stay
+        line = stay.tick(self, narrated=self.__dict__.get("_narrated_turn") == self.store.meta.turn, rng=self.rng)
+        if line:
+            console.narrate(line)
+            self.remember_narration(line)
+            pulselog.mark("stay", line, self.minutes, place=self.player.location)                      # (f355)
 
     def brevity(self) -> str:
         if getattr(self, "revisit", False):
@@ -624,6 +670,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.banter_tick()
                 self.note_hire_spoke(heard)
                 self.collapse_check()
+                self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
+                self.heard_flush()                         # the places first heard of this turn, in one quiet line
                 self.store.save_player(self.player)
             return True
         except LLMError as e:
@@ -657,6 +705,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.banter_tick()
         except LLMError:
             pass
+        self.heard_flush()
         self.store.save_player(self.player)
 
     def collapse_check(self) -> None:
@@ -1394,6 +1443,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.narrate(shown)
         self.note_shown(shown)
         self.remember_narration(shown)
+        self._narrated_turn = self.store.meta.turn                                               # (f351) the narrator wrote this turn
 
     exits_due = False
 
@@ -1636,16 +1686,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return min(wanted, key=walk)
 
     def go_to_person(self, row, text: str) -> None:
-        """(f342) Walk to where someone of this town works and over to them; when they are not about at this hour, say so."""
-        if row.location != self.player.location:
-            self.travel_route(row.location, text)
+        """(f342) Walk to where someone of this town is (their work, or their routine place at this hour, f352) and over to them; when they
+        are not about at this hour, say so, and where they usually are."""
+        from engine import routines
+        dest = routines.where_now(self.world, self.store.meta.seed, row, self.minutes, self.streets_now()[1])
+        if dest != self.player.location:
+            self.travel_route(dest, text)
             if self.halted:
                 return
         npc = next((n for n in self.present if n.id == row.id), None)
         if npc:
             self.walk_over(npc)
         else:
-            console.note(f"{row.label()} works here, but is not about at this hour.")
+            usual = routines.usual_line(self.world, self.store.meta.seed, row)
+            console.note(f"{row.label()} works here, but is not about at this hour." + (f" You might find them {usual}." if usual else ""))
             self.halted = True
 
     def names_far_place(self, dest: str, text: str) -> bool:

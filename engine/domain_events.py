@@ -472,7 +472,7 @@ class ContractDone(Deed):
         return self.title
 
     def ledger_row(self) -> dict | None:
-        return {"kind": "quest_done", "thread": self.thread, "title": self.title} if self.thread else None
+        return {"kind": "quest_done", "thread": self.thread, "title": self.title}          # (f359) every finished job is a deed the town may answer
 
 
 @dataclass(frozen=True)

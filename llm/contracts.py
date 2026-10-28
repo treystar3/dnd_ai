@@ -1288,10 +1288,10 @@ class ThreadTelling(BaseModel):
     """(f331) A situation the engine built, re-told in the world's own words when the player comes where it is (engine/threads.py tell).
     The facts are the engine's and stay: the same place, the same creature, the same people by their trades, the same outcome. Only the
     lines nothing has copied yet are given, numbered, and each comes back re-told in its place; an empty string keeps the line as it was."""
-    stages: list[str] = []          # one per STAGE given, in order
+    stages: list[str]               # one per STAGE given, in order (required: the model left it out every time it was optional)
     fallout: str = ""
     truth: str = ""
-    clues: list[str] = []           # one per CLUE given, in order, in that person's own words to a stranger who asked
+    clues: list[str]                # one per CLUE given, in order, in that person's own words to a stranger who asked
     reveal: str = ""
     resolution: str = ""
 

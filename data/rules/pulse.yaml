@@ -5,9 +5,20 @@ interval_hours: 8               # the world pulses this often
 eventful_chance: 0.35           # chance a pulse does anything at all (the rest are quiet)
 max_new_events_per_action: 2    # model calls the pulse may make while the player does one thing
                                 # (long stretches of time are compressed: timers still run, fewer new events)
+max_engine_events_per_action: 8 # (f353) the engine's own situations cost no call, so a long absence may start this many of them
 
 # What an eventful pulse does, by weight.
 kinds: {motive: 4, thread: 4}
+
+# (f354) THE ENGINE'S OWN ROLL. The roll above was priced when every situation cost a model call; nineteen in twenty now cost nothing, and
+# at that rate there was half a situation at the player's town at any time. Each tick the engine may also start one within reach of the
+# player (the here and near bands), and after a quiet day within reach it starts one whether the roll said so or not; never more than
+# most_live within reach at once.
+engine_roll:
+  chance: 0.4
+  bands: {here: 55, near: 45}
+  quiet_hours: 24
+  most_live: 2
 
 # Tiers of new situations (threads). Odds are for an eventful pulse that starts a thread.
 # engine: true (f331): the engine builds the situation itself from data/rules/threads.yaml, with no model call; the model may re-tell its
@@ -28,6 +39,15 @@ placement:
   near_minutes: 600
   pressure_share: 0.75
 anchor_settles: 0.5             # when a situation is settled by others, this often it is one of the town's anchors who did it
+
+# (f358) What follows a situation (threads.yaml `then`): the chance a follow-on is queued when it is left to its fallout or settled, how
+# many days later it starts, and the pressure's heat: up one each time a situation of it is ignored, down one when settled, added to the
+# severity of the next; never past heat_max.
+chains:
+  ignored: 0.6
+  settled: 0.35
+  delay_days: [1, 3]
+  heat_max: 3
 deeds_days: 30                  # the writer is told what the stranger has done in the region this far back
 
 # How often a campaign (or, at high level, a cataclysm) starts: see data/rules/events.yaml (campaign.every_days, cataclysm).

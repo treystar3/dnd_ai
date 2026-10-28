@@ -170,6 +170,20 @@ n = len(cs.fight_shown)
 cs.note_fight_shown("It lunges. You step aside.")
 check("...and does not list a thing twice", len(cs.fight_shown) == n)
 
+# places heard of: one quiet line a turn, not a note per place
+notes, ledgers = [], []
+console.note = lambda text: notes.append(text)
+console.ledger = lambda text: ledgers.append(text)
+new = [p.id for p in world.places.values() if not p.parent and p.id not in ws.known_places()][:3]
+for pid in new:
+    ws.hear(pid)
+check("hearing of a place prints nothing by itself", not notes and not ledgers and all(pid in ws.player.heard for pid in new))
+ws.heard_flush()
+check("...the turn's end tells them once, together, as a ledger line and not a note",
+      not notes and len(ledgers) == 1 and ledgers[0].startswith("Heard of: ") and all(world.places[pid].name in ledgers[0] for pid in new) and " and " in ledgers[0], ledgers)
+ws.heard_flush()
+check("...and nothing when nothing new was heard", len(ledgers) == 1)
+
 # the night-run bot
 src = open("tools/nightrun.py").read()
 check("the bot asks a companion how they are at most once a game day", "asked_hires" in src and "unasked" in src)

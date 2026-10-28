@@ -102,7 +102,9 @@ name), the same things lost, found, blocked, paid or killed, the same outcome. A
 weather of it. Each line is one or two sentences. A CLUE is what that person would say to a stranger who asked, in their own voice. The
 TRUTH is the whole of it in plain words. The FALLOUT is how it ends if nobody steps in. The REVEAL is what the one who does the guild's
 job finds that the posting did not say. Write one re-told line for every line given, in order; an empty string keeps a line as it is.
-Name nobody and nowhere that is not in the lines or under PLACES and CREATURES. Never involve the player. Respond only with JSON matching the schema."""
+"stages" holds one string per STAGE given and "clues" one per CLUE given, always, even when there is one; every other line goes in its
+own key and never inside another's. Name nobody and nowhere that is not in the lines or under PLACES and CREATURES. Never involve the
+player. Respond only with JSON matching the schema."""
 
 
 # ---------- big events: campaigns that change the world's shape, cataclysms, and the judge ----------

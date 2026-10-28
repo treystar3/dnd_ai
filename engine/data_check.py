@@ -247,6 +247,15 @@ def check() -> list[str]:
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
+    from engine import routines as _routines                                                  # (f352) routines by period and kind of place
+    bad += _routines.problems(_types, set(_clock.PERIOD_NAMES), _roles)
+    from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
+    bad += _mo.problems(set(((_pulse_rules.get("drift") or {}).get("motives") or {}).get("seeds") or {}))
+    from engine import consequences as _cq                                                   # (f359) the town answers the stranger's deeds
+    bad += _cq.problems(_th.T["templates"], ("kill", "offense", "quest_done", "persuade", "deliver", "dungeon_cleared", "found", "defend"))
+    from engine import stay as _stay                                                          # (f351) the room changing mid-stay
+    _wx = {c_["id"] for c_ in _load("data/rules/weather.yaml")["conditions"]}
+    bad += _stay.problems(_wx, set(_clock.PERIOD_NAMES), _types)
     _degrees = set(_load("data/rules/checks.yaml")["degrees"])
     need(set((PT_.get("gamble") or {}).get("payout") or {}) == _degrees, "pastimes.yaml gamble.payout: one entry per degree in checks.yaml")
     need(all(r_ in _roles for r_ in (PT_.get("gamble") or {}).get("roles") or []), "pastimes.yaml gamble.roles: every role must be in roles.yaml")

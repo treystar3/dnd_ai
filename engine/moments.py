@@ -204,6 +204,8 @@ def start(ws, shape: dict, rng: random.Random | None = None, use_model: bool = T
         ws.weight_hint = "rich"                                    # a moment is worth room, even on a return visit
     console.debug(f"moment at {pid}: {shape['id']} '{m['title']}'{' (written)' if m['written'] else ''} until minute {until}"
                   + (f", visitor {visitor.name}" if visitor else ""))
+    from engine import pulselog
+    pulselog.mark("moment", m["title"], now, place=pid, shape=shape["id"], written=m["written"])        # (f355)
     return m
 
 

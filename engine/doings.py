@@ -58,14 +58,19 @@ def doing_for(npc, seed, minutes: int, taken=(), moment: dict | None = None) -> 
     return pick(npc.role, period, rng, taken)
 
 
-def assign(store, people: list, minutes: int, moment: dict | None = None, save: bool = True) -> list[tuple]:
+def assign(store, people: list, minutes: int, moment: dict | None = None, save: bool = True, visiting=(), place_type: str = "") -> list[tuple]:
     """Give each present person their doing, no two alike; the record is saved when it changed. Returns [(npc, before, after)] for
-    those that changed (a revisit's 'what has changed' line is built from them)."""
+    those that changed (a revisit's 'what has changed' line is built from them). (f352) `visiting`: the ids of those here on their
+    routine, who do what people do at a place of this kind rather than their trade."""
+    from engine import clock, routines
     taken, changed = set(), []
     for n in sorted(people, key=lambda x: x.id):
         if n.role in STILL:
             continue
-        new = doing_for(n, store.meta.seed, minutes, taken, moment)
+        if n.id in visiting and not override(moment, n.role):
+            new = routines.doing_at(place_type, random.Random(f"{store.meta.seed}:visit:{n.id}:{clock.day(minutes)}:{clock.period(minutes)}"), taken)
+        else:
+            new = doing_for(n, store.meta.seed, minutes, taken, moment)
         taken.add(new)
         if new != (n.activity or ""):
             changed.append((n, n.activity or "", new))

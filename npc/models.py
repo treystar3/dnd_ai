@@ -53,6 +53,7 @@ class NPC(BaseModel):
     mood_until: int = 0           # (f331) the game minute a mood the world gave them fades (engine/drift.py); 0 for one with no clock yet
     motive_done_at: int = -1      # (f331) the minute a motive ended (achieved or given up), -1 for never; after a while a new one may take hold
     motive_since: int = 0         # (f334) the minute the motive took hold; 0 for one from before this was kept
+    motive_step: int = 0          # (f360) how many steps the engine has moved their goal (data/rules/motives.yaml)
     relations: dict[str, dict] = {}  # other NPC id -> {"score": -100..100, "feeling": "..."}
     gone: str = ""                # if they've left the story: how ("left for Riverhaven", "taken", "killed by wolves")
     protected: bool = False       # the pulse may never remove them

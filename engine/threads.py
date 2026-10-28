@@ -192,14 +192,18 @@ def kind_of(key: str) -> str:
 
 
 def shapes(kind: str) -> list[str]:
-    """Every template that tells a situation of this kind: the base one first, then the other shapes in the order written."""
-    keys = [k for k in T["templates"] if kind_of(k) == kind]
+    """Every template that tells a situation of this kind: the base one first, then the other shapes in the order written. A template
+    marked consequence (f359) is never drawn by chance."""
+    keys = [k for k in T["templates"] if kind_of(k) == kind and not T["templates"][k].get("consequence")]
     return sorted(keys, key=lambda k: k != kind)
 
 
-def template_for(pressure, kind: str, words: dict, rng: random.Random | None = None) -> tuple[str, dict] | None:
+def template_for(pressure, kind: str, words: dict, rng: random.Random | None = None, force: str = "") -> tuple[str, dict] | None:
     """The template named by the pressure, else one of its kind's shapes the place can fill, drawn by weight (f341; the base shape when
-    no rng is given); when none fits, the kind's base template falls back, until one fits."""
+    no rng is given); when none fits, the kind's base template falls back, until one fits. `force` (f358): a follow-on's template, taken
+    when the place can fill it."""
+    if force and force in T["templates"] and all(words.get(n) for n in T["templates"][force].get("needs", [])):
+        return force, T["templates"][force]
     key = pressure.template if pressure and pressure.template else ""
     if not key:
         fits = [k for k in shapes(kind or "social") if all(words.get(n) for n in T["templates"][k].get("needs", []))]
@@ -280,33 +284,39 @@ def _effect(spec: dict, words: dict, rng: random.Random, scale: float):
         return None
 
 
-def build(store, world, state: dict, place, pressure, tier: str, rng: random.Random, t: int):
+def build(store, world, state: dict, place, pressure, tier: str, rng: random.Random, t: int, template: str = "", severity_shift: int = 0):
     """A complete proposal for a situation at this place, at this tier, or None when no template can be filled here.
-    Returns (proposal, info) where info carries the template key, the severity and the words used, for the thread record."""
+    Returns (proposal, info) where info carries the template key, the severity and the words used, for the thread record. template and
+    severity_shift (f358): a follow-on's shape and how much worse (or better) it is; the pressure's heat is added to the severity too."""
     from engine import pulse
     from llm.contracts import ClueProposal, PathProposal, QuestOffer, StageProposal, ThreadProposal
-    kind = pressure.kind if pressure else rng.choices(list(T["kind_weights"]), weights=list(T["kind_weights"].values()))[0]
+    kind = kind_of(template) if template in T["templates"] else (pressure.kind if pressure else rng.choices(list(T["kind_weights"]), weights=list(T["kind_weights"].values()))[0])
     words = words_for(store, world, place, pressure, rng, t, T["templates"].get(kind))
-    found = template_for(pressure, kind, words, rng)
+    found = template_for(pressure, kind, words, rng, force=template)
     if not found:
         return None
     key, tpl = found
-    if not pressure or not words.get("about"):                   # no description to take a clause from: the shape's own abouts
-        words["about"] = fill(rng.choice(tpl.get("abouts") or ["a quiet trouble"]), words) or "a quiet trouble"
+    if template and key == template:
+        kind = kind_of(key)
+    if not pressure or not words.get("about") or template:      # no description to take a clause from: the shape's own abouts
+        words["about"] = fill(rng.choice(tpl.get("abouts") or ["a quiet trouble"]), words) or words.get("about") or "a quiet trouble"
     words["groups_locals"] = world.locals_group(place.id) or "everyone"
     severity = rng.randint(*pressure.severity) if pressure else rng.randint(1, 3)
+    heat = int((state.get("pressure_heat") or {}).get(pressure.id, 0)) if pressure else 0
+    severity = max(0, min(5, severity + int(severity_shift) + heat))
     scale = T["severity_scale"][severity] * T["tier_scale"].get(tier, 1.0)
     n = pulse.P["tiers"][tier]["stages"]
     specs = list(tpl["stages"])
     while len(specs) < n:
         specs.append(specs[-1])
-    stages = []
+    stages, streets = [], []
     for spec in specs[:n]:
         line = _line(spec["lines"], words, rng)
         if not line:
             return None
         effects = [e for e in (_effect(x, words, rng, scale) for x in spec.get("effects", [])) if e]
         stages.append(StageProposal(description=line, effects=effects))
+        streets.append(_street(spec, words, world, rng))                                        # (f357) what the stage looks like in the streets
     fall = tpl["fallout"]
     fallout = StageProposal(description=_line(fall["lines"], words, rng) or "It ran its course.",
                             effects=[e for e in (_effect(x, words, rng, scale) for x in fall.get("effects", [])) if e])
@@ -351,8 +361,115 @@ def build(store, world, state: dict, place, pressure, tier: str, rng: random.Ran
         groups=list(dict.fromkeys(groups)), stages=stages, fallout=fallout,
         resolution=_line(tpl.get("resolution"), words, rng), contract=contract, paths=paths,
         truth=_line(tpl.get("truth"), words, rng), clues=clues, reveal=_line(tpl.get("reveal"), words, rng) if contract else "")
-    info = {"template": key, "severity": severity, "words": {k: v for k, v in words.items() if k != "ids" and v}, "ids": ids}
+    info = {"template": key, "severity": severity, "words": {k: v for k, v in words.items() if k != "ids" and v}, "ids": ids, "streets": streets}
     return proposal, info
+
+
+# ---------- (f358) what follows: a situation ended queues what may come of it, and heats its pressure
+
+def follow_up(state: dict, th: dict, how: str, rng: random.Random, t: int) -> dict | None:
+    """When a situation ends: the pressure's heat moves (up when ignored, down when settled by anyone), and by the chain's chance one
+    of the template's `then` entries for how it ended is queued at the same place, to start after the delay. Returns the queued row."""
+    from engine import pulse
+    C = pulse.P.get("chains") or {}
+    ended = "ignored" if how == "ignored" else "settled"
+    pid = th.get("pressure") or ""
+    if pid:
+        heat = state.setdefault("pressure_heat", {})
+        heat[pid] = max(0, min(int(C.get("heat_max", 3)), int(heat.get(pid, 0)) + (1 if ended == "ignored" else -1)))
+    tpl = T["templates"].get(th.get("template") or "")
+    opts = [o for o in ((tpl or {}).get("then") or {}).get(ended, []) if o.get("template") in T["templates"]]
+    if not opts or rng.random() >= float(C.get(ended, 0)):
+        return None
+    o = rng.choices(opts, weights=[float(x.get("weight", 1) or 1) for x in opts])[0]
+    lo, hi = C.get("delay_days", [1, 3])
+    row = {"place": th["place"], "pressure": pid, "template": o["template"], "severity": int(o.get("severity", 0)),
+           "after": t + rng.randint(int(lo), int(hi)) * 1440, "from": th["title"], "tier": th.get("tier", "normal")}
+    state.setdefault("queued", []).append(row)
+    return row
+
+
+# ---------- (f357) the streets: what a stage looks like where the player walks
+
+STREET_PLACES = ("square", "inn", "temple", "guild", "shop", "smithy", "workshop", "yard", "guardpost")
+
+
+def _street(spec: dict, words: dict, world, rng: random.Random) -> dict:
+    """A stage's doings (all: at the situation's place; the cast by role, town-wide), the cast placed (`at`: npc id -> place id, only for a
+    real person and a place the town has), and the scene shape, filled from the situation's words."""
+    ids = words["ids"]
+    out = {"doings": {"all": "", "roles": {}}, "cast": {}, "scene": spec.get("scene", "")}
+    d = spec.get("doings") or {}
+    if d.get("all"):
+        out["doings"]["all"] = fill(d["all"], words).rstrip(".")
+    for slot in PERSON_SLOTS:
+        if d.get(slot) and words.get(slot):
+            text = fill(d[slot], words).rstrip(".")
+            if text:
+                out["doings"]["roles"][ids.get(slot + "_role", words[slot].replace(" ", "_"))] = text
+    from engine import retrieval
+    town = ids.get("town", "")
+    for slot, ptype in (spec.get("at") or {}).items():
+        nid = ids.get(slot, "")
+        if slot in PERSON_SLOTS and nid and nid != ids.get(slot + "_role") and town:
+            places = [pid for pid in retrieval.town_places(world, town) if world.places[pid].type == ptype]
+            if places:
+                out["cast"][nid] = rng.choice(places)
+    return out
+
+
+def street_now(state: dict, world, place_id: str, now: int) -> tuple[dict | None, dict]:
+    """What the running situations here have the streets doing: a doings override in a moment's shape for this place (the first that
+    has one), and the cast placed, town-wide: {npc id: place id}."""
+    from engine import pulse
+    town = pulse.town_of(world, place_id)
+    over, cast = None, {}
+    for th in state.get("threads", []):
+        if th["status"] != "active" or not th.get("streets"):
+            continue
+        tt = th.get("town") or pulse.town_of(world, th["place"])
+        if tt != town and th["place"] not in (place_id, town):
+            continue
+        st = th["streets"][th["stage"]] if th["stage"] < len(th["streets"]) else None
+        if not st:
+            continue
+        cast.update(st.get("cast") or {})
+        d = st.get("doings") or {}
+        mine = {"all": d.get("all", "") if place_id in (th["place"], tt) else "", "roles": dict(d.get("roles") or {})}   # everyone: in the streets and at the situation's own place
+        if over is None and (mine["all"] or mine["roles"]):
+            over = {"doings": mine}
+    return over, cast
+
+
+def scene_shape(th: dict):
+    """(f357) The moment shape a situation's current stage names, with the situation's own words as its brief and its written fallback;
+    None when the stage names none."""
+    from engine import moments
+    st = (th.get("streets") or [None] * 99)[th["stage"]] if th.get("streets") and th["stage"] < len(th["streets"]) else None
+    sid = (st or {}).get("scene", "")
+    base = next((s for s in moments.M.get("shapes") or [] if s["id"] == sid), None) if sid else None
+    if not base:
+        return None
+    shape = dict(base)
+    stage = th["stages"][th["stage"]]["description"]
+    d = (st or {}).get("doings") or {}
+    shape["brief"] = f"{stage} It is part of a situation the town knows as: {th['title']}. " + base.get("brief", "")
+    shape["written"] = {"title": th["title"], "line": stage, "memory": th["title"],
+                        "doings": ([{"who": "everyone", "doing": d["all"]}] if d.get("all") else []) + [{"who": r, "doing": x} for r, x in (d.get("roles") or {}).items()]}
+    shape["visitor"] = None
+    return shape
+
+
+# ---------- (f356) the signs of a situation in the streets, day by day
+
+def signs_for(th: dict, day_i: int) -> str:
+    """The sign of an engine-built situation on its day_i-th day of the current stage (1 = the second day): one of its kind's lines in
+    turn, filled with the situation's own words, or '' on the first day, for a model-written one, or when none fills."""
+    if day_i < 1 or th.get("made_by") != "engine" or not th.get("words"):
+        return ""
+    lines = (T.get("signs") or {}).get(kind_of(th.get("template") or th.get("kind") or ""), [])
+    filled = [x for x in (fill(l, th["words"]) for l in lines) if x]
+    return filled[(day_i - 1) % len(filled)] if filled else ""
 
 
 # ---------- the re-telling, when the player comes where it is
@@ -404,11 +521,18 @@ def tell(store, world, state: dict, th: dict, t: int) -> bool:
         parts.append(f"RESOLUTION: {th['resolution']}")
     parts.append("PLACES: " + ", ".join(sorted(k for k, v in world.places.items() if v.type != "road")))
     parts.append("CREATURES: " + ", ".join(sorted({c.name for c in world.bestiary.values()}))[:3000])
+    shape = {"stages": [f"<STAGE {n + 1} re-told>" for n in range(len(u["stages"]))], "fallout": "<FALLOUT re-told>" if u["fallout"] else "",
+             "truth": "<TRUTH re-told>" if u["truth"] and th.get("truth") else "", "clues": [f"<CLUE {n + 1} re-told>" for n in range(len(u["clues"]))],
+             "reveal": "<REVEAL re-told>" if u["reveal"] else "", "resolution": "<RESOLUTION re-told>" if th.get("resolution") else ""}
+    import json as _json
+    parts.append("WRITE EXACTLY THIS SHAPE, every key present, one string per line given and nothing else inside any string: " + _json.dumps(shape))
     try:
         told = generate("thread_telling", pp.TELLING_SYSTEM, "\n".join(p for p in parts if p), ThreadTelling, temperature=0.9, max_tokens=900,
                         validation_context={"stages": len(u["stages"]), "clues": len(u["clues"]), "known": truth.world_words(world)})
     except LLMError as e:
         console.debug(f"threads: {th['title']} keeps its own words ({e})")
+        from engine import pulselog
+        pulselog.mark("retell_failed", th["title"], t, place=th["place"])                               # (f355)
         return False
     changed = False
     for n, i in enumerate(u["stages"]):
@@ -433,6 +557,8 @@ def tell(store, world, state: dict, th: dict, t: int) -> bool:
         changed = True
     th["told"] = True
     console.debug(f"threads: {th['title']} re-told ({len(u['stages'])} stages, {len(u['clues'])} clues)")
+    from engine import pulselog
+    pulselog.mark("retold", th["title"], t, place=th["place"], changed=changed)                         # (f355)
     return changed
 
 
@@ -465,10 +591,42 @@ def problems(pressures: dict | None = None, effect_kinds=(), place_ids=(), creat
         if lines and not any(all(m.group(1)[0].lower() + m.group(1)[1:] in ok for m in _SLOT.finditer(l)) for l in lines):
             bad.append(f"threads.yaml {where}: every line needs a slot the template does not require ({', '.join(sorted(set(needs)))})")
 
+    for kind, lines in (T.get("signs") or {}).items():                                      # (f356) the signs, by kind
+        if kind not in tpls:
+            bad.append(f"threads.yaml signs: '{kind}' is not a kind with a base template")
+        lines_ok(lines, f"signs {kind}")
+        fillable(lines, f"signs {kind}", [])
+    for kind in (T.get("kind_weights") or {}):
+        if not (T.get("signs") or {}).get(kind):
+            bad.append(f"threads.yaml signs: the kind '{kind}' has no sign lines")
+    shape_ids = set()
+    try:
+        from engine import moments as _m
+        shape_ids = {s["id"] for s in _m.M.get("shapes") or []}
+    except Exception:
+        pass
     for key, tpl in tpls.items():
+        for how, opts in (tpl.get("then") or {}).items():                                    # (f358) what follows
+            if how not in ("ignored", "settled"):
+                bad.append(f"threads.yaml {key} then: '{how}' is not ignored or settled")
+            for o in opts or []:
+                if o.get("template") not in tpls:
+                    bad.append(f"threads.yaml {key} then: '{o.get('template')}' is not a template")
+                if not isinstance(o.get("severity", 0), int):
+                    bad.append(f"threads.yaml {key} then: severity is a whole number")
         for part in ("titles", "news", "stages", "fallout"):
             if not tpl.get(part):
                 bad.append(f"threads.yaml {key}: needs {part}")
+        for si, st in enumerate(tpl.get("stages") or []):                                   # (f357) the streets
+            for who, text in (st.get("doings") or {}).items():
+                if who not in ("all",) + PERSON_SLOTS:
+                    bad.append(f"threads.yaml {key} stage {si + 1} doings: '{who}' is not all, role or role2")
+                lines_ok(text, f"{key} stage {si + 1} doings")
+            for who, ptype in (st.get("at") or {}).items():
+                if who not in PERSON_SLOTS or ptype not in STREET_PLACES:
+                    bad.append(f"threads.yaml {key} stage {si + 1} at: a cast slot (role, role2) and a kind of place in a town ({', '.join(STREET_PLACES)})")
+            if st.get("scene") and shape_ids and st["scene"] not in shape_ids:
+                bad.append(f"threads.yaml {key} stage {si + 1} scene: '{st['scene']}' is not a moment shape")
         kind = tpl.get("kind") or key
         if kind not in tpls or (tpls[kind].get("kind") or kind) != kind:
             bad.append(f"threads.yaml {key}: its kind '{kind}' has no base template of that name")

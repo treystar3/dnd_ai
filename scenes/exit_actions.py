@@ -154,14 +154,23 @@ class ExitActions:
     # ---------- what the player has heard of ----------
 
     def hear(self, place_id: str, how: str = "") -> bool:
-        """The player has learned of a place. True if it is new to them."""
+        """The player has learned of a place. True if it is new to them. Nothing is printed here: the places heard of in a turn are told
+        once, together, at the turn's end (heard_flush), as a ledger line rather than a note in the story's column - the person who named
+        the place was just read, and the map marks it."""
         top = mapview.top_of(self.world, place_id)
         if top not in self.world.places or top in self.known_places():
             return False
         self.player.heard.append(top)
-        p = self.world.places[top]
-        console.note(f"You have heard of {p.name}{how}.")
+        self.__dict__.setdefault("_heard_now", []).append(self.world.places[top].name)
         return True
+
+    def heard_flush(self) -> None:
+        """One quiet line for the places first heard of this turn, if any: 'Heard of: the Greywood, Greyhollow and Ironvein (on your map).'"""
+        names = self.__dict__.pop("_heard_now", [])
+        if not names:
+            return
+        shown = ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
+        console.ledger(f"Heard of: {shown} (on your map).")
 
     def hear_names(self, text: str) -> None:
         """Whoever names a place aloud has told the player of it."""
