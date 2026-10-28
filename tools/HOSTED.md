@@ -14,8 +14,13 @@ local night's.
 | A100 40 GB | 40 GB | 5 to 6 | Lambda, RunPod |
 
 The model's weights take about 8 GB; each run at once adds its own context cache, a few gigabytes at the game's 32k context. `ollama ps`
-on the box shows how much of the model sits on the card: anything under 100% GPU means one run too many. Disk: 30 GB is plenty (the model,
-the game, a night's logs).
+on the box shows how much of the model sits on the card: anything under 100% GPU means one run too many.
+
+Disk: a **container disk of 30 GB** and no volume disk. The model is 8 GB, Ollama itself about 1.5 GB, the game and its libraries under
+half a gigabyte, and a night's logs about 100 MB per run (full prompts) plus the zip, so 15 GB is used and 30 leaves room. Put the game in
+the home directory, not `/workspace`: the container disk is local and fast, `/workspace` is the volume disk, which can be network-backed
+(slower writes) and bills at a higher rate if the pod is ever stopped rather than terminated. Everything on the container disk is gone
+when the pod is terminated, which is what you want once the zip is downloaded.
 
 ## The steps
 
