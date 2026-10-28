@@ -93,6 +93,21 @@ st.moment = {}; store.save_place(st); ws.store.meta.turn += 1
 line = stay.tick(ws, rng=rng)
 check("a moment ending is told in its shape's own words", "game breaks up" in line, line)
 check("every moment shape says how it ends", all(sh.get("ends") for sh in __import__("engine.moments", fromlist=["M"]).M["shapes"]))
+# the player's own prisoner is not the room's: bound at their side, never "gone out" (27 of 46 room lines in one run were a captured
+# bandit the player was escorting), and present whatever the hour or the door
+cap = ws.residents[0]
+ws.player.prisoners[cap.id] = {"escort": True, "deal": False, "asked": 0}
+if cap not in ws.present:
+    ws.present.append(cap)
+stay.reset(ws)
+ws.present.remove(cap)
+ws.store.meta.turn += 5
+told.clear(); ws._wrote_turn = False
+check("a prisoner the player escorts leaving the room is no line", stay.tick(ws, rng=rng) == "" and cap.id not in stay.snapshot(ws)["present"])
+cap.away_until = ws.minutes + 1000
+ws.refresh_present()
+check("...and they are present whatever the filters say, while the player holds them", any(p.id == cap.id for p in ws.present))
+del ws.player.prisoners[cap.id]; cap.away_until = 0
 # moving places starts over
 stay.reset(ws); ws.enter("parth"); ws.store.meta.turn += 1
 check("a new place starts the stay over: nothing to tell", stay.tick(ws, rng=rng) == "")
