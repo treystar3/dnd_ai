@@ -59,9 +59,9 @@ check("the review lists the lines by kind with how often each was seen", "## tal
 
 # ---- the cases run through the evaluator, offline
 from tools import interp_eval
-res = interp_eval.evaluate(loaded, live=False, quiet=True)
+res = interp_eval.evaluate(loaded, live=False, quiet=True, save="interp_corpus_eval")      # its own bench: the evaluator's test runs beside this one
 check("offline, every case reads right: the plan through the repairs gives what ran", res["right"] == 3, res)
 shutil.rmtree(base, ignore_errors=True)
-shutil.rmtree("saves/interp_eval", ignore_errors=True)
+shutil.rmtree("saves/interp_corpus_eval", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

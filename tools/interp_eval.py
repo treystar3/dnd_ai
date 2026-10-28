@@ -46,7 +46,8 @@ def load_cases(path=CASES) -> list[dict]:
 class Bench:
     """One scene, re-dressed for each case: who is here, who travels with the player, where they stand, what the mentor is up to."""
 
-    def __init__(self, live: bool = False):
+    def __init__(self, live: bool = False, save: str = SAVE):
+        self.save = save                                       # (f365) its own save folder, so two benches may run at once (the suite runs tests in parallel)
         import simlib
         from llm import gateway as gw
         real = gw._client                                      # the real Ollama client, before the stand-in takes its place
@@ -72,14 +73,14 @@ class Bench:
         self.notes: list[str] = []
         uc.note = lambda m, *a, **k: self.notes.append(str(m))
         self.world = load_world()
-        shutil.rmtree(f"saves/{SAVE}", ignore_errors=True)
-        self.store = CampaignStore.open_or_create(SAVE)
+        shutil.rmtree(f"saves/{save}", ignore_errors=True)
+        self.store = CampaignStore.open_or_create(save)
         self.store.meta.seed = 3; self.store.meta.turn = 1; self.store.meta.minutes = 120; self.store.save_meta()
         char, _ = simlib.make_character("warrior", random.Random(1))
         self.store.save_player(PlayerState(character=char, location="trading_square"))
         self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
-        config.TURN_LOG_PATH = f"saves/{SAVE}/turns.jsonl"
+        config.TURN_LOG_PATH = f"saves/{save}/turns.jsonl"
         config.AUDIT_ENABLED = False
         self.live = live
         self.ran: list = []
@@ -251,8 +252,8 @@ def group_of(case: dict) -> str:
     return kinds[0] if kinds else ("move" if e.get("moves") else "other")
 
 
-def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict:
-    bench = Bench(live=live)
+def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE) -> dict:
+    bench = Bench(live=live, save=save)
     results, wrong = [], []
     taken_wrong = missed = 0
     for case in cases:
