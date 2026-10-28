@@ -1378,6 +1378,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             leveling.level_up(c, count)
             self.store.save_player(self.player)
             console.note(f"[debug] Now level {c.level}. {c.unspent_points} points to spend.")
+        elif name == "report" or name.startswith("report "):
+            self.report_content(text.split(" ", 1)[1].strip() if " " in text else "")      # (f364) what the player just saw, kept with the calls behind it
+        elif name == "credits":
+            from core import credits
+            console.out(credits.text())
         elif name in ("help", "h", "?"):
             console.show_help()
         else:

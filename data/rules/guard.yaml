@@ -1,0 +1,30 @@
+# (f364) THE CONTENT GUARD (engine/guard.py). Everything the model writes passes the gateway; the gateway already sends back an answer
+# that breaks a contract, and now it also sends back one that steps outside what the game writes at all. The categories below are matched
+# as whole words or phrases, case blind, in every text field of an answer; a hit is a rejection like any other (the reason goes back to
+# the model and it writes again), and if every try fails the caller's written fallback is used, so the words never reach the page.
+# Every hit is also a row in the refusals log (kind guarded), which is the record a store asks for. The player's own words are theirs:
+# the tasks that only read them (skip_tasks) are not guarded, since their answers echo the line.
+#
+# The game's own matter - fights, blood, theft, death, cruelty in a story - is not here. This is the line the game itself draws:
+# sexual content, slurs, and instruction in harming oneself. Extend the lists before a release; they are a floor, not a ceiling.
+
+skip_tasks: [interpret_action, combat_interpret, audit_meaning, audit_compare, canon_extract, canon_check, overheard, party_intent,
+             work_offer_read, classify_field, camp_intent, stranger_read, event_judge, clarify, plausible_object]
+
+categories:
+  sexual:
+    reason: "the game does not write sexual content: keep to the scene without it"
+    words: [sex, sexual, fuck, fucked, fucking, fucks, cock, cocks, dick, dicks, pussy, cunt, cunts, tits, boobs, nipple, nipples, orgasm,
+            erection, aroused, arousal, horny, masturbat, blowjob, handjob, rape, raped, raping, rapist, molest, molested, brothel, whore,
+            whores, slut, sluts, naked, nude, undress, undressed, undressing, "in bed with", "take you to bed", "sleep with you", seduce, seduced]
+  slurs:
+    reason: "that is a slur, and nobody in this world uses it: find other words"
+    words: [nigger, niggers, nigga, faggot, faggots, fag, fags, tranny, trannies, retard, retards, retarded, kike, kikes, spic, spics, chink,
+            chinks, gook, gooks, wetback, wetbacks, raghead, towelhead, dyke, dykes]
+  self_harm:
+    reason: "the game does not describe how to harm oneself: leave it unsaid"
+    words: ["kill yourself", "kill themselves", "end your life", "end it all", "how to hang", "slit your wrists", "slit their wrists",
+            "cut your wrists", "overdose on", "commit suicide", "take your own life"]
+  hate:
+    reason: "that belongs to the real world's hatreds, not to this one: find other words"
+    words: ["heil hitler", "white power", "gas the", "holocaust", "ethnic cleansing", "final solution", nazi, nazis, "the jews", "race war"]

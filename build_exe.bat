@@ -7,7 +7,7 @@ call .buildenv\Scripts\activate.bat || goto :fail
 python -m pip install --upgrade pip || goto :fail
 python -m pip install -r requirements.txt pyinstaller || goto :fail
 python -m PyInstaller --noconfirm --clean --onedir --noconsole --name Meravia ^
-  --add-data "data;data" --add-data "ui\gui\web;ui\gui\web" ^
+  --add-data "data;data" --add-data "ui\gui\web;ui\gui\web" --add-data "CREDITS.md;." ^
   --collect-submodules core --collect-submodules engine --collect-submodules character --collect-submodules llm ^
   --collect-submodules npc --collect-submodules scenes --collect-submodules storage --collect-submodules ui --collect-submodules world ^
   --collect-all pydantic --collect-all pydantic_core --collect-all ollama --collect-all webview ^

@@ -212,7 +212,7 @@ families:
     text: wrong in ways the eye refuses - its strikes can leave you reeling
     power: 0.836
     legendary: {thunderous: 10}
-  mind_flayer:
+  mindrender:
     text: a mind-eater - psychic blows stun and terrify, and it fights from a distance
     power: 0.7
     legendary: {thunderous: 8, terrify: 5}
