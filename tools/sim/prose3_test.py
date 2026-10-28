@@ -2,7 +2,7 @@
 once per person, a local's distances in walks and days, the fight narrator with room in words and a memory of what it has shown, the
 worn-word watch (found, never banned), speech without tics, the goddess remembering her earlier words, and a rewrite when a draft ends
 sentence after sentence on a trailing participle."""
-import random, re, shutil, sys, types
+import json, random, re, shutil, sys, types
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 1))
@@ -233,6 +233,24 @@ except LLMError as e:
 except Exception as e:
     got = e
 gateway._client = _client
+class Spy:
+    def __init__(self): self.calls = []
+    def chat(self, **kw):
+        self.calls.append(kw)
+        return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=json.dumps({"text": "A quiet road."})))
+import config as _config
+_spy = Spy(); gateway._client = _spy
+_config.NUM_THREAD = 6
+try:
+    gateway.generate("narrate", "sys", "req", Narration, retries=0, _quiet=True)
+    _config.NUM_THREAD = 0
+    gateway.generate("narrate", "sys", "req", Narration, retries=0, _quiet=True)
+finally:
+    _config.NUM_THREAD = 0
+    gateway._client = _client
+check("(f370) the runner's threads go with every call when config sets them, and not otherwise", len(_spy.calls) == 2 and _spy.calls[0]["options"].get("num_thread") == 6
+      and "num_thread" not in _spy.calls[1]["options"], [c.get("options") for c in _spy.calls])
+
 class Away:
     def chat(self, **kw):
         raise ConnectionError("Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible.")

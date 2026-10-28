@@ -1,6 +1,10 @@
 MODEL = "gemma4:12b"
 THINK = False
 NUM_CTX = 32768
+# (f370) CPU threads the model runner may use, 0 for Ollama's own default (one per core the machine shows). A container that shows every
+# core of its host while its quota is a dozen needs this set (the night script sets it from the quota), or the runner's threads fight
+# for the quota and the card waits on them; DND_NUM_THREAD in the environment sets it without an edit.
+NUM_THREAD = int(__import__("os").environ.get("DND_NUM_THREAD", "0") or 0)
 DEFAULT_TEMPERATURE = 0.8
 LOG_PATH = "logs/llm_calls.jsonl"
 PULSE_LOG_PATH = "logs/pulse.jsonl"   # (f355) what the world did: every pulse event and every one the player met (engine/pulselog.py, tools/world_report.py)

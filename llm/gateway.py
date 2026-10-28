@@ -37,7 +37,7 @@ def warm() -> None:
     def run():
         try:
             _client.chat(model=config.MODEL, think=config.THINK, messages=[{"role": "user", "content": "Reply with one word: ready."}],
-                         options={"num_ctx": config.NUM_CTX, "num_predict": 4}, keep_alive=config.KEEP_ALIVE)
+                         options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()}, keep_alive=config.KEEP_ALIVE)
         except Exception:
             pass
     threading.Thread(target=run, daemon=True, name="model-warmup").start()
@@ -65,6 +65,12 @@ def _tally(task: str, ok: bool, attempts: int) -> None:
     t["calls"] += 1
     t["failed"] += not ok
     t["attempts"] += attempts
+
+
+def threads() -> dict:
+    """(f370) The runner's CPU threads, when config.NUM_THREAD sets them; nothing otherwise, so Ollama keeps its own default."""
+    n = int(getattr(config, "NUM_THREAD", 0) or 0)
+    return {"num_thread": n} if n > 0 else {}
 
 
 def generate(
@@ -123,7 +129,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 messages=messages,
                 format=schema.model_json_schema(),
                 options={"temperature": min(top, base + RETRY_TEMPERATURE_STEP * attempt),
-                         "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **tuned},
+                         "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **threads(), **tuned},
                 keep_alive=config.KEEP_ALIVE,
             )
         except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError, ConnectionError) as e:

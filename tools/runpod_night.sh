@@ -45,6 +45,10 @@ if command -v taskset >/dev/null 2>&1 && [ -r /sys/fs/cgroup/cpu.max ]; then
         if [ "$CORES" -lt "$(nproc)" ]; then
             PIN="taskset -c 0-$((CORES - 1))"
             echo "Pinning Ollama to $CORES cores (the container's quota; nproc says $(nproc))."
+            if [ "${DND_NUM_THREAD:-0}" = "0" ]; then
+                export DND_NUM_THREAD=$(( CORES / 2 > 2 ? CORES / 2 : 2 ))   # the runner's threads, else it spawns one per core shown and they fight
+            fi
+            echo "The model runner gets $DND_NUM_THREAD threads (DND_NUM_THREAD)."
         fi
     fi
 fi
