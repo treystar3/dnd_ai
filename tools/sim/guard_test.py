@@ -21,6 +21,9 @@ def check(n, ok, x=""):
 check("the categories are data, each with words and a reason", guard.problems() == [] and {"sexual", "slurs", "self_harm", "hate"} <= set(guard.PATTERNS), guard.problems())
 check("the game's own matter passes: a fight, blood, a theft, a death", guard.check(["She drives the knife in to the hilt and he dies in the mud, bleeding."]) == ("", "")
       and guard.check(["The thief slips the purse from his belt and is gone."]) == ("", ""))
+check("(f370) a chink in the armour is the gap, not the slur; the slur alone is still caught",
+      guard.check(["Your strikes find the chinks in their collective armor."]) == ("", "") and guard.check(["A chink of light under the door."]) == ("", "")
+      and guard.check(["He called them chinks."])[0] == "slurs", (guard.check(["Your strikes find the chinks in their collective armor."]), guard.check(["He called them chinks."])))
 check("sexual content is caught, as a whole word", guard.check(["They go off to fuck in the hayloft."])[0] == "sexual" and guard.check(["The Sussex road is long."]) == ("", ""))
 check("a slur is caught", guard.check(["Nobody serves a kike here."])[0] == "slurs")
 check("instruction in harming oneself is caught", guard.check(["Why not kill yourself and be done?"])[0] == "self_harm")

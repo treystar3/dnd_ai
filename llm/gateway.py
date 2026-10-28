@@ -171,7 +171,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 if guard.guarded(task):
                     cat, hit = guard.check(guard.strings_of(result))
                     if cat:
-                        reason = guard.reason(cat)
+                        reason = f"{guard.reason(cat)} (not '{hit}')"               # (f370) the word named, or the model writes it again
                         try:
                             from engine import refusals
                             refusals.note("guarded", task, f"{cat}: {hit}")
