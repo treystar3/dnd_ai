@@ -21,6 +21,7 @@ __pycache__/
 
 # --- What the dev tools write: the tools themselves are tracked, their output is not ---
 /sim_out*/
+/lora/
 /sim_report*
 /sim_*.txt
 /boss_transcript.md

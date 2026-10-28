@@ -1,0 +1,63 @@
+# (f361) TEACHING THE MODEL THIS GAME: what a night run's logs become when they are made into training data (tools/lora_dataset.py),
+# how a tuned model is scored against the one it would replace (tools/lora_eval.py), and what tools/lora_train.py trains. Read tools/LORA.md.
+#
+# Why: every call the game makes is logged with its prompt, the model's answer, the validator's rejection if there was one, and the retry
+# that passed. That is a dataset: accepted answers to learn from, and pairs of a rejected draft and its accepted retry to learn the
+# difference between. A LoRA adapter trained on it keeps the base model and adds the game's habits, so the long rule prompts can shrink
+# (the latency lever) and the validators have less to send back.
+
+# Which tasks are worth an adapter, in the order to try them. The interpreter first: a classification-shaped task with an evaluator of its
+# own (tools/interp_eval.py); the voices second, where the habits live.
+tasks: [interpret_action, npc_conversation, narrate, combat_narrate, dialogue_frame, hire_chat, npc_parting]
+
+# The contract each task's answer must fit (llm/contracts.py), so the evaluator can check shape the way the gateway does.
+schemas:
+  interpret_action: ActionPlan
+  npc_conversation: NPCReply
+  narrate: Narration
+  combat_narrate: Narration
+  combat_aftermath: Narration
+  dialogue_frame: DialogueFrame
+  hire_chat: CompanionReply
+  mentor_chat: MentorReply
+  npc_parting: Parting
+  exchange: Exchange
+  moment: MomentProposal
+  road_event: RoadEvent
+  thread_telling: ThreadTelling
+
+# The short system prompt a tuned model is trained against in place of the game's long one (prompts: short in the dataset tool). The
+# training input keeps everything that varies per scene (the user prompt: the person, their kit, the facts, the memories) and drops the
+# constant rules; the target is the answer that satisfied them. A model trained this way behaves as if the rules were there, and at play
+# time they are no longer sent. Everything is JSON because Ollama constrains the shape; the words here only name the job.
+short_system:
+  default: "You are the voice of Meravia, a text role-playing game: plain, concrete, in the game's own style. Answer in the JSON shape asked."
+  interpret_action: "You read the player's typed line into the game's actions, from the catalogues given and nothing else. Answer in the JSON shape asked."
+  npc_conversation: "You are a townsperson of Meravia answering the player in your own voice, as the person described below, knowing only what you are told. Answer in the JSON shape asked."
+  narrate: "You are the narrator of Meravia: second person, present tense, plain and concrete, only what the game state says happened. Answer in the JSON shape asked."
+  combat_narrate: "You are the narrator of a fight in Meravia: second person, present tense, the engine's events only, every damage marker kept. Answer in the JSON shape asked."
+  combat_aftermath: "You are the narrator of Meravia after a fight: second person, present tense, what is left and what is found. Answer in the JSON shape asked."
+  dialogue_frame: "You frame a line of speech in Meravia: a beat before it and after it, from what is around the speaker. Answer in the JSON shape asked."
+  hire_chat: "You are a hired companion in Meravia speaking to the player, in your own voice, from what you are told. Answer in the JSON shape asked."
+  npc_parting: "You are a townsperson of Meravia saying one short parting line as the player leaves. Answer in the JSON shape asked."
+
+# What an accepted answer must still pass to be learned from. The validators already held the line on most things; these are the habits
+# the game only nudges (scenes/voice.py fresh) and would rather not teach.
+filters:
+  max_tails: 1          # sentences ending on a trailing participle, in one answer (prose tasks)
+  max_dots: 1           # trailing-offs ('...') in one answer (speech tasks)
+  stock_opener: false   # a reply opening on 'Well,' 'Ah,' and the like is not learned from (speech tasks)
+prose_tasks: [narrate, combat_narrate, combat_aftermath, dialogue_frame, road_event, moment]
+speech_tasks: [npc_conversation, hire_chat, mentor_chat, npc_parting, exchange]
+
+# Training defaults (tools/lora_train.py). The base is the instruction-tuned model the game runs; the adapter sits on it.
+train:
+  base: google/gemma-4-12b-it       # the Hugging Face id of the base: the exact model the game's Ollama tag (config.MODEL) is built from; check it there
+  rank: 16
+  alpha: 32
+  dropout: 0.05
+  epochs: 1
+  learning_rate: 0.0001
+  max_length: 6144                  # tokens per example; the long conversation prompts need the room
+  general_mix: 0.15                 # share of a general chat dataset mixed in, so the model keeps reading ordinary English
+  targets: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]

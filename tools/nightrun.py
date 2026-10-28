@@ -489,6 +489,7 @@ def main() -> None:
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
     config.LOG_MAX_MB = 10 ** 6
+    config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
 
     import simlib
     if args.cls not in simlib.CLASSES:

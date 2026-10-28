@@ -29,7 +29,7 @@ axes:
   questions:                   # whether they want anything back
     weight: 3
     options:
-      never: {weight: 30, text: "never asks the stranger anything back; what they want is their own business", check: {no_question: true}}
+      never: {weight: 30, text: "never asks the stranger anything back, not one question; what they want is their own business", check: {no_question: true}}
       after: {weight: 25, text: "answers, and then wants to know something in return: who they are, where from, what for"}
       first: {weight: 15, text: "wants to know what the asking is for before they give an answer"}
       none:  {weight: 60, text: ""}
