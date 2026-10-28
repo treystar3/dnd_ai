@@ -3,6 +3,7 @@
     python tools/nightrun.py [--hours 6] [--turns 0] [--class warrior] [--level 13] [--seed 1] [--out DIR] [--stub]
     nightrun.bat --hours 6                 (Windows: the same, through the game's own Python environment)
     nightrun.bat --runs 4 --hours 2        a night of four runs one after another, each its own process, seed and class (f361)
+    nightrun.bat --start veteran            begin as someone with a past (f367, data/rules/starts.yaml); a night rotates through them
 
 A bot plays the way a player types - a word with whoever is here, a walk to the next place, a look at the board, an improvised
 try, a fight when one comes - choosing its lines from the scene's state with a seed, and the real model reads them. The run keeps
@@ -495,20 +496,25 @@ def batch(args) -> None:
         die(f"--classes must be of: {', '.join(simlib.CLASSES)} (not {', '.join(unknown)})")
     if not args.classes and args.cls in classes:
         classes = classes[classes.index(args.cls):] + classes[:classes.index(args.cls)]
+    from engine import starts as _starts
+    points = [s.strip() for s in args.starts.split(",") if s.strip()] or _starts.rotation()      # (f367) a night begins its runs at different points
+    unknown = [s for s in points if s not in _starts.names()]
+    if unknown:
+        die(f"--starts must be of: {', '.join(_starts.names())} (not {', '.join(unknown)})")
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     base = Path(args.out or "logs/nightrun")
     base.mkdir(parents=True, exist_ok=True)
-    plan = [(classes[i % len(classes)], args.seed + i) for i in range(args.runs)]
+    plan = [(classes[i % len(classes)], args.seed + i, points[i % len(points)]) for i in range(args.runs)]
     print(f"A night of {args.runs} runs, {args.hours:g} hours each ({args.runs * args.hours:g} in all): "
-          + ", ".join(f"{c} seed {s}" for c, s in plan), flush=True)
+          + ", ".join(f"{c} seed {s} ({st})" for c, s, st in plan), flush=True)
     rows, stopped = [], False
-    for i, (cls, seed) in enumerate(plan, 1):
+    for i, (cls, seed, start) in enumerate(plan, 1):
         when = datetime.now().strftime("%Y%m%d_%H%M")
         out = base / f"{when}_{cls}_{seed}"
         save = f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}"
         cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
-               "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save] + (["--stub"] if args.stub else [])
-        print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed} -> {out}", flush=True)
+               "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start] + (["--stub"] if args.stub else [])
+        print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start} -> {out}", flush=True)
         started = time.time()
         proc = subprocess.Popen(cmd)
         try:
@@ -526,14 +532,14 @@ def batch(args) -> None:
             info = json.loads((out / "run.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             pass
-        rows.append({"run": out.name, "class": cls, "seed": seed, "exit": code, "minutes": round((time.time() - started) / 60, 1),
+        rows.append({"run": out.name, "class": cls, "seed": seed, "start": start, "exit": code, "minutes": round((time.time() - started) / 60, 1),
                      **{k: info.get(k, "") for k in ("turns", "hours", "level", "deaths", "reason")}})
         if stopped:
             break
-    lines = [f"# A night of {len(rows)} run(s), started {stamp}", "", "| Run | Class | Seed | Turns | Hours | Level | Deaths | Ended | Exit |",
-             "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |"]
+    lines = [f"# A night of {len(rows)} run(s), started {stamp}", "", "| Run | Class | Seed | Start | Turns | Hours | Level | Deaths | Ended | Exit |",
+             "| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- | ---: |"]
     for r in rows:
-        lines.append(f"| {r['run']} | {r['class']} | {r['seed']} | {r['turns']} | {r['hours']} | {r['level']} | {r['deaths']} | {r['reason']} | {r['exit']} |")
+        lines.append(f"| {r['run']} | {r['class']} | {r['seed']} | {r['start']} | {r['turns']} | {r['hours']} | {r['level']} | {r['deaths']} | {r['reason']} | {r['exit']} |")
     text = "\n".join(lines) + "\n"
     (base / f"batch_{stamp}.md").write_text(text, encoding="utf-8")
     print("\n" + text)
@@ -554,6 +560,8 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=1, help="(f361) play this many runs one after another, each its own process with the seed counting up from --seed "
                                                         "and the class rotating; --hours is per run. A night left alone (default 1)")
     ap.add_argument("--classes", default="", help="with --runs: the classes to rotate through, comma-separated (default: every class, from --class on)")
+    ap.add_argument("--start", default="green", help="(f367) the starting point (data/rules/starts.yaml): green, known, veteran, scarred, legend")
+    ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
     args = ap.parse_args()
     if args.runs > 1:
         batch(args)
@@ -608,17 +616,23 @@ def main() -> None:
     store = CampaignStore.open_or_create(save)
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 8 * 60
     store.save_meta()
+    from engine import quests, starts
+    if args.start not in starts.names():
+        die(f"--start must be one of: {', '.join(starts.names())}")
+    point = starts.spec(args.start)
+    level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
     char, spec = simlib.make_character(args.cls, rng, perks=True)
-    if args.level > 1:
-        leveling.level_up(char, args.level - 1)
+    if level > 1:
+        leveling.level_up(char, level - 1)
         spend_points(char, spec)
-        outfit(char, spec, args.level, rng)
+        outfit(char, spec, level, rng)
     player = PlayerState(character=char, location=world.start_location)
-    if args.level > 1:
-        from engine import quests
-        player.guild_rank = quests.letter_for_level(args.level)         # (f366) past the tutorial means a member: the board, contracts and the hall's notice are play
+    if level > 1:
+        player.guild_rank = point.get("rank") or quests.letter_for_level(level)   # (f366) past the tutorial means a member: the board, contracts and the hall's notice are play
     store.save_player(player)
-    ws = WorldScene(store, world, load_traits(), store.load_player())
+    catalog = load_traits()
+    began = starts.apply(store, world, catalog, player, args.start, rng, char.name)     # (f367) the clock, the record, the town's memory of them
+    ws = WorldScene(store, world, catalog, store.load_player())
     ws.player.mentor["never"] = True
     party = hire_party(ws, args.party)
 
@@ -629,7 +643,8 @@ def main() -> None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
+    print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, starting as {args.start} ({point.get('text', '')}; "
+          f"{began['met']} met, {len(began['situations'])} past situations), with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
           f"stops after {args.hours:g} h" + (f" or {args.turns} turns" if args.turns else "") + ". Ctrl+C stops it early.", flush=True)
 
     restarts = 0
@@ -666,6 +681,7 @@ def main() -> None:
         backfill.drop(store)
         turnlog.write_session_stats()
         run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,
+                    "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
         if not args.stub:
             from llm.gateway import unload

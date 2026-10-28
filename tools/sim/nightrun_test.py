@@ -51,13 +51,16 @@ for d in glob.glob("saves/nightrun_batch_test*"):
     shutil.rmtree(d, ignore_errors=True)
 base = Path("saves/nightrun_test/night")
 r4 = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--turns", "4", "--hours", "1", "--seed", "5", "--classes", "warrior,mage",
-                     "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
+                     "--starts", "green,known", "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
 runs = sorted((p for p in base.iterdir() if p.is_dir()), key=lambda p: int(p.name.rsplit("_", 1)[1])) if base.exists() else []   # by seed: two runs can share a minute
 infos = [json.loads((p / "run.json").read_text(encoding="utf-8")) for p in runs if (p / "run.json").exists()]
 check("two runs from one command, each in its own folder named by its class and seed", r4.returncode == 0 and len(runs) == 2
       and runs[0].name.endswith("_warrior_5") and runs[1].name.endswith("_mage_6"), (r4.stdout[-800:], r4.stderr[-800:], [p.name for p in runs]))
 check("...each a whole run of its own: its seed, its class, its turns", len(infos) == 2 and [i["seed"] for i in infos] == [5, 6] and all(i["turns"] == 4 for i in infos)
       and infos[0]["class"] != infos[1]["class"], infos)
+check("...and its own starting point: the second began as someone known, at that start's level, with a past the town remembers",
+      len(infos) == 2 and [i.get("start") for i in infos] == ["green", "known"] and infos[1]["level"] == 22 and infos[1].get("start_days") == 40
+      and len(infos[1].get("past") or []) == 2 and infos[1].get("met_at_start", 0) >= 4, [(i.get("start"), i.get("level"), i.get("past"), i.get("met_at_start")) for i in infos])
 check("...with a save of its own, so the second does not continue the first", sorted(Path(d).name for d in glob.glob("saves/nightrun_batch_test*")) == ["nightrun_batch_test_mage_6", "nightrun_batch_test_warrior_5"],
       glob.glob("saves/nightrun_batch_test*"))
 night = list(base.glob("batch_*.md"))
