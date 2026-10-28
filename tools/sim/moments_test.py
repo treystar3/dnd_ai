@@ -41,6 +41,10 @@ check("a doing for nobody here is sent back", "nobody here" in prop(ctx, doings=
 m = MomentProposal.model_validate({"title": "the pig under the well", "line": "A pig has got loose under the well.", "memory": "the pig",
                                    "doings": [{"who": "the stooped baker", "doing": "cornering the pig"}]}, context=dict(ctx, labels={"the stooped baker": "baker"}))
 check("a doing given by how someone is known lands on their role", m.doings[0].who == "baker", m.doings[0].who)
+m = MomentProposal.model_validate({"title": "the pig under the well", "line": "A pig has got loose under the well.", "memory": "the pig",
+                                   "doings": [{"who": "baker", "doing": "cornering the pig"}]}, context=dict(ctx, roles=["guard"], labels={"the stooped baker": "baker", "the tall guard": "guard"}))
+check("...and a bare noun that can only mean one of them does too", m.doings[0].who == "baker", m.doings[0].who)
+check("...while one that could mean two is still sent back", "nobody here" in prop(dict(ctx, roles=["guard"], labels={"the stooped baker": "baker", "the tall baker": "baker2"}), doings=[{"who": "baker", "doing": "cornering the pig"}]))
 check("a stock phrase in the line is sent back", "stock phrase" in prop(ctx, line="A thick fog clings to the branches while the scent of damp earth hangs heavy in the air."))
 check("a doing with a subject is sent back", "no subject" in prop(ctx, doings=[{"who": "baker", "doing": "the baker shouts at the pig"}]))
 check("a visitor is required when the shape brings one, and refused when it does not",

@@ -561,6 +561,9 @@ class MomentProposal(BaseModel):
             if w not in roles:
                 plain = re.sub(r"^(the|a|an)[ _]", "", w).replace("_", " ")
                 found = next((role for lab, role in labels.items() if re.sub(r"^(the|a|an) ", "", lab) == plain), "")
+                if not found and plain:                                                 # 'herbalist' for 'the wiry herbalist': the one it can mean
+                    near = [role for lab, role in labels.items() if lab.endswith(" " + plain) or plain in lab.split()]
+                    found = near[0] if len(near) == 1 else ""
                 if not found:
                     raise ValueError(f"doings.who '{d.who}' is nobody here: one of {', '.join(sorted(roles))}")
                 w = found

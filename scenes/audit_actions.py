@@ -1,4 +1,5 @@
 """The audit gate as the world scene uses it: the facts it checks against, the three model calls, the player-facing fallback and the turn log."""
+import re
 import time
 
 import config
@@ -66,6 +67,12 @@ class AuditActions:
         """The plan after the audit, or None when it could not be made sense of (the player is asked to reword; nothing happens)."""
         start = time.perf_counter()
         sit = self.situation()
+        row = self.absent_known(plan, sit)
+        if row is not None:                                                        # (f342) the clerk at night, the smith at the inn: the engine knows where they are
+            console.debug(f"audit: {row.label()} is not here; the engine says where they are")
+            self.log_turn(text, sit, raw_plan, ia.Result("answered", plan, reason=f"'{row.id}' is not here: the engine said where they are"), time.perf_counter() - start)
+            self.go_to_person(row, text)
+            return None
         if getattr(config, "AUDIT_ENABLED", True):
             res = ia.audit(text, plan, sit, self.audit_asker())
         else:
@@ -85,6 +92,22 @@ class AuditActions:
             self.ask_back("audit_unsure", text, "the line looked like it might mean something else, and it could not be checked", res.meaning)
             return None
         return res.plan
+
+    def absent_known(self, plan: list, sit):
+        """(f342) A one-step talk aimed at someone of this town who is not here (the clerk after hours, the smith at the inn of an evening):
+        the engine knows where they are, so it says so or walks there (go_to_person) instead of spending two audit calls and asking the
+        player what they meant, which one run did twice for "I ask the clerk what contracts are open". The row, or None."""
+        if len(plan) != 1 or getattr(plan[0], "kind", "") != "talk":
+            return None
+        probs = ia.problems(plan, sit)
+        m = re.search(r"aimed at '([^']+)', who is not here", probs[0]) if len(probs) == 1 else None
+        if not m or not self.store.npc_exists(m.group(1)):
+            return None
+        from engine import mapview, retrieval
+        top = mapview.top_of(self.world, self.player.location)
+        if not top or self.world.places[top].danger:
+            return None
+        return next((r for r in retrieval.people_in_town(self.store, self.world, top) if r.id == m.group(1)), None)
 
     def ask_back(self, kind: str, text: str, why: str, meaning: str = "") -> None:
         """(f321) A line that could not be read is answered with one question in character - from the one being spoken to, or a beat from
