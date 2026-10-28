@@ -58,6 +58,7 @@ SAMPLING = {
     "npc_conversation": SPEECH_REPEAT,              # a townsperson answering the player (its temperature comes from the caller)
     "narrate": PROSE_REPEAT, "dialogue_frame": PROSE_REPEAT, "combat_narrate": PROSE_REPEAT,   # the narrator, the frames, the fight
     "moment": PROSE_REPEAT,                        # (f348) what is going on as the player walks in
+    "player_line": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},   # (f368) the night bot's own line, written the way a player types (tools/nightbot.py)
     "mentor_speech": {"temperature": 0.85, "top_p": 0.95, "top_k": 64},   # Maren's lessons: warm, but they carry the guild's rules
     "pair_dynamic": {"temperature": 0.5, "top_p": 0.9},                   # a summary of how two people are with each other
     "persona_details": {"temperature": 0.8, "top_p": 0.95, "top_k": 64},  # a hire's small personal details, written once

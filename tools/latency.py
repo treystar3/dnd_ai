@@ -102,10 +102,41 @@ def turns_table(rows: list[dict]) -> list[str]:
     return lines
 
 
+def play_table(rows: list[dict], info: dict, pulse: list[dict]) -> list[str]:
+    """(f368) How player-like the run was: the measures the night bot's goals and words are judged by (tools/nightbot.py)."""
+    n = len(rows)
+    share = lambda a, b: f"{a} of {b} ({round(100 * a / b)}%)" if b else "-"
+    texts = [r.get("text", "") for r in rows]
+    src = collections.Counter(r.get("source") for r in rows if r.get("source"))
+    with_passage = [r for r in rows if "refers" in r]
+    talk = [r for r in rows if r.get("kind") == "talk"]
+    bot = info.get("bot") or {}
+    done, dropped = bot.get("goals_done") or {}, bot.get("goals_dropped") or {}
+    goals = collections.Counter((r.get("goal") or "-").split(":")[0] for r in rows)
+    ended = sum(1 for p in pulse if p.get("kind") == "end" and p.get("how") == "player")
+    waits = sum(1 for r in rows if r.get("kind") == "wait")
+    lines = ["| Measure | Value |", "| --- | --- |",
+             f"| Distinct lines | {share(len(set(texts)), n)} |",
+             f"| Lines the model wrote | {src.get('model', 0)} (template {src.get('template', 0)}; model failed {bot.get('model_failed', 0)}, {fmt(float(bot.get('model_seconds') or 0), 0)} s) |",
+             f"| Lines picking up the passage before | {share(sum(1 for r in with_passage if r.get('refers')), len(with_passage))}; in talk {share(sum(1 for r in talk if r.get('refers')), len(talk))} |",
+             f"| Contracts taken / finished | {bot.get('contracts_taken', 0)} / {bot.get('contracts_done', 0)} |",
+             f"| Situations met / followed / ended by the player | {bot.get('doors_seen', 0)} / {bot.get('doors_followed', 0)} / {ended} |",
+             f"| Goals finished / given up | {sum(done.values())} / {sum(dropped.values())}"
+             + (" (" + ", ".join(f"{k} {done.get(k, 0)}/{dropped.get(k, 0)}" for k in sorted(set(done) | set(dropped))) + ")" if done or dropped else "") + " |",
+             f"| Deaths (above the level band) | {info.get('deaths', bot.get('deaths', 0))} ({bot.get('deaths_above_band', 0)}) |",
+             f"| Fights | {bot.get('fights', sum(1 for r in rows if r.get('kind') == 'fight'))} |",
+             f"| Waits | {share(waits, n)} |",
+             f"| Places visited | {bot.get('places', len({r.get('where') for r in rows}))} |"]
+    if goals:
+        lines.append("\nTurns by goal: " + ", ".join(f"{k} {v}" for k, v in goals.most_common()))
+    return lines
+
+
 def summarise(run_dir: Path) -> str:
     run_dir = Path(run_dir)
     calls = load(run_dir / "llm_calls.jsonl")
     turns = load(run_dir / "turns.jsonl")
+    pulse = load(run_dir / "pulse.jsonl")
     game_turns = load(run_dir / "turns_game.jsonl")
     info = {}
     if (run_dir / "run.json").exists():
@@ -114,6 +145,7 @@ def summarise(run_dir: Path) -> str:
     if info:
         lines.append(f"{info.get('character', '?')}, {info.get('class', '?')}, level {info.get('level', '?')}, {info.get('deaths', 0)} deaths; "
                      f"{info.get('turns', len(turns))} turns in {info.get('hours', '?')} hours; stopped: {info.get('reason', '?')}; "
+                     + (f"starting as {info['start']}, playing as {info.get('persona', '?')}; " if info.get("start") else "") +
                      f"model {info.get('model', '?')}" + (" (stand-in)" if info.get("stub") else "") + ".")
         lines.append("")
     lines += ["## Turns", ""]
@@ -121,6 +153,7 @@ def summarise(run_dir: Path) -> str:
     if game_turns:
         handled = collections.Counter(r.get("handled_by", "?") for r in game_turns)
         lines += ["", "Lines by what read them: " + ", ".join(f"{k} {n}" for k, n in handled.most_common())]
+    lines += ["", "## Play", ""] + play_table(turns, info, pulse) if turns else []
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
     text = "\n".join(lines) + "\n"

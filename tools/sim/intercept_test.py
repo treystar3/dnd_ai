@@ -117,7 +117,8 @@ PLAN[:] = [A(kind="look")]
 check("'Bram, how are you holding up?' is for Bram", who("Bram, how are you holding up?") == "hire" and HIRE, HIRE)
 check("'I give Bram a healing draught' is a give", who("I give Bram a healing draught") == "interpret" and not HIRE)
 check("'I heal Bram with Mending Light' is an ability", who("I heal Bram with Mending Light") == "interpret" and not HIRE)
-for line in ("I wait an hour", "I look around", "I drink a healing draught", "I pick up the rope"):
+for line in ("I wait an hour", "I look around", "I drink a healing draught", "I pick up the rope",
+             "I take the contract: Hunt 4 ogres in the red badlands", "I listen for anything unusual"):     # (f368) the night bot's lines after banter
     ws._hire_last = ("Bram Tollis", ws.store.meta.turn - 1)
     check(f"'{line}' after Bram spoke is an action, not an answer to him", who(line) == "interpret" and not HIRE, HIRE)
 ws._hire_last = ("Bram Tollis", ws.store.meta.turn - 1)

@@ -4,9 +4,14 @@
     nightrun.bat --hours 6                 (Windows: the same, through the game's own Python environment)
     nightrun.bat --runs 4 --hours 2        a night of four runs one after another, each its own process, seed and class (f361)
     nightrun.bat --start veteran            begin as someone with a past (f367, data/rules/starts.yaml); a night rotates through them
+    nightrun.bat --persona hunter           play as one kind of player (f368, tools/nightbot.py PERSONAS); a night rotates through them too
 
-A bot plays the way a player types - a word with whoever is here, a walk to the next place, a look at the board, an improvised
-try, a fight when one comes - choosing its lines from the scene's state with a seed, and the real model reads them. The run keeps
+A bot plays the way a player plays (tools/nightbot.py, f368): with goals it keeps across turns (a contract taken, done and reported;
+a situation the world brought to it followed to one of its endings; a place it has not seen), a persona that weights what it cares
+about (--persona; a night rotates through them), a level band it keeps to on roads as well as in the wild, and lines the model writes
+from what the game just said, so a conversation's second line answers the first. The real model reads them. summary.md ends with
+the measures of how player-like the run was: distinct lines, lines picking up the passage before, contracts finished, situations
+followed and ended by the player, deaths above the band. The run keeps
 every log in full under logs/nightrun/<when>/: every model call with Ollama's own counts (tokens read and written, the time each
 took, model loads), every turn with its wall time, the time to its first word, the calls and retries it took, and a transcript.
 At the end tools/latency.py writes summary.md there; it can be run again on the folder at any time.
@@ -36,6 +41,8 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 
+from nightbot import ROTATION as PERSONAS, Bot, persona_for      # (f368) the player with goals; Bot stays importable from here (tools/eventrun.py)
+
 HESITATION = "The world seems to hesitate"          # what the game says when a turn's model call failed and was rolled back
 
 
@@ -63,6 +70,7 @@ class Run:
         self.hesitations = 0                         # turns in a row the model failed
         self.reason = ""
         self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
+        self.passage: list[str] = []                 # (f368) everything the game said since the last line: what the bot's next line answers
 
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
     def install_console(self) -> None:
@@ -87,6 +95,7 @@ class Run:
     def seen(self, who: str, text: str) -> None:
         if self.first_word is None and self.current is not None:
             self.first_word = time.time() - self.t_line
+        self.passage.append((f"{who}: " if who else "") + text.strip())
         self.transcript.write((f"**{who}:** " if who else "") + text.strip() + "\n\n")
 
     def noted(self, text: str) -> None:
@@ -94,6 +103,7 @@ class Run:
             self.hesitations += 1
             if self.current is not None:
                 self.current["hesitated"] = True
+        self.passage.append(text.strip())
         self.transcript.write(f"_{text.strip()}_\n\n")
 
     # ---- the model client: every call counted against the turn it served
@@ -139,10 +149,12 @@ class Run:
             self.reason = reason
             return "quit"
         text, kind = self.bot.decide()
+        self.passage = []
         self.sub_answers = 0
         self.current = {"n": len(self.rows) + 1, "time": datetime.now().isoformat(timespec="seconds"), "kind": kind, "text": text,
                         "where": self.bot.where(), "turn": self.bot.ws.store.meta.turn, "level": self.bot.c.level,
-                        "hp": round(self.bot.hp(), 2), "combat": bool(self.bot.ws.combat)}
+                        "hp": round(self.bot.hp(), 2), "combat": bool(self.bot.ws.combat),
+                        **{k: v for k, v in (getattr(self.bot, "meta", None) or {}).items() if not k.startswith("_")}}   # (f368) goal, persona, source, refers
         self.transcript.write(f"### {self.current['n']} · {self.current['time'][11:]} · {self.current['where']}\n\n> {text}\n\n")
         self.transcript.flush()
         self.first_word, self.calls = None, []
@@ -198,222 +210,21 @@ class Run:
         (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
 
 
-class Bot:
-    """Types what a player would, from what the scene shows: who is here, where the roads go, how the character is doing."""
-
-    QUESTIONS = ["What's been happening around here lately?", "Do you know of any work going?", "What do you make of the roads these days?",
-                 "Who runs things in this town?", "Tell me about yourself.", "Any news from the other towns?", "What should a stranger steer clear of here?"]
-    TOPICS = ["the town", "work", "the road ahead", "the news", "their trade", "the weather lately"]
-    IMPROV = ["I fish in the river for supper.", "I whistle an old marching tune.", "I climb the nearest tree for a look around.",
-              "I carve a mark into the signpost.", "I try my luck at a game of dice.", "I practise sword forms for an hour.",
-              "I sketch the view in my notebook.", "I check my boots for wear and mend a strap."]
-    SEARCH = ["I carefully search the area for tracks.", "I look around.", "I listen for anything unusual.", "I take a good look at the people here."]
-    LEAVE = ["Thanks, I'll let you get on.", "That's all I wanted to know. Good day.", "I'd best be moving on."]
-
-    def __init__(self, ws, world, rng: random.Random, stub=None):
-        self.ws, self.world, self.rng, self.stub = ws, world, rng, stub
-        self.talks = 0                               # lines said in the conversation open now
-        self.spoken_to: collections.deque = collections.deque(maxlen=6)
-        self.been: collections.deque = collections.deque(maxlen=8)
-        self.here_for = 0                            # turns spent at this place
-        self.asked_hires: dict = {}                  # companion name -> the game day they were last asked how they are
-        self.last_loc = ""
-        self.last_text = ""
-        from engine import actions
-        self.kinds = set(getattr(actions, "KINDS", ()) or ())
-
-    @property
-    def c(self):
-        return self.ws.player.character
-
-    def hp(self) -> float:
-        from engine import pools
-        return self.c.health / max(1, pools.maximum(self.c, "health"))
-
-    def where(self) -> str:
-        return self.world.places[self.ws.player.location].name
-
-    def contract_to_take(self) -> dict | None:
-        """(f366) A posting of the player's rank or below they do not already hold, when they hold fewer than two; None otherwise."""
-        from engine import quests
-        ws = self.ws
-        if not ws.player.guild_rank or sum(1 for q in ws.player.quests if q.get("guild")) >= 2:
-            return None
-        try:
-            board = ws.ensure_board()
-        except Exception:
-            return None
-        held = {q.get("title") for q in ws.player.quests}
-        fits = [q for q in board if quests.at_or_below(q["letter"], ws.player.guild_rank) and q["title"] not in held and q["kind"] in ("hunt", "bounty", "gather", "materials")]
-        return self.rng.choice(fits) if fits else None
-
-    def intend(self, kind: str, **fields) -> dict:
-        """The plan the stand-in interpreter answers with (the real model reads the words); an unknown kind becomes a look."""
-        return {"kind": kind if kind in self.kinds else "look", **fields}
-
-    def decide(self) -> tuple[str, str]:
-        text, intent, kind = self.choose()
-        same = self.__dict__.setdefault("_same", collections.deque(maxlen=4))
-        same.append(text)
-        if len(same) == same.maxlen and len(set(same)) == 1:              # the same line four times running is a loop, whatever it is: break it
-            same.clear()
-            if self.ws.combat:
-                alive = [e for e in self.ws.combat.fight.enemies() if e.alive]
-                tgt = min(alive, key=lambda e: e.hp) if alive else None
-                text, intent, kind = (f"I attack {tgt.name}." if tgt else "I attack."), {"kind": "attack", "target": tgt.id if tgt else "", "summary": "bot"}, "fight"
-            else:
-                text, intent, kind = "I look around.", self.intend("look"), "look"
-        if self.stub is not None:
-            self.stub.plan = [intent]
-        self.last_text = text
-        loc = self.ws.player.location
-        self.here_for = self.here_for + 1 if loc == self.last_loc else 0
-        self.last_loc = loc
-        if loc not in self.been:
-            self.been.append(loc)
-        return text, kind
-
-    def choose(self) -> tuple[str, dict, str]:
-        ws, rng = self.ws, self.rng
-        c = self.c
-        loc = ws.player.location
-        p = self.world.places[loc]
-        hp = self.hp()
-        if ws.combat:
-            return self.fight_line()
-        if getattr(ws, "pending_clarify", None):
-            return "I look around.", self.intend("look"), "look"
-        if ws.partner is not None:
-            self.talks += 1
-            if self.talks <= rng.choice((2, 3)):
-                q = rng.choice(self.QUESTIONS)
-                return f'"{q}"', self.intend("talk", target=ws.partner.id, speech=q), "talk"
-            self.talks = 0
-            return rng.choice(self.LEAVE), self.intend("leave_conversation"), "leave"
-        tired = c.fatigue >= 60 or c.hunger >= 60
-        if hp < 0.5 or tired:
-            return self.rest_line(p)
-        present = [n for n in ws.present if n.id not in self.spoken_to]
-        options: list[tuple[int, str]] = []
-        in_town = p.danger is None
-        if present:
-            options.append((35 if in_town else 15, "talk"))
-        options.append((15 if in_town and self.here_for < 4 else 40, "move"))
-        if p.type == "guild":
-            options.append((20, "board"))
-        if p.type in ("shop", "smithy", "workshop", "inn"):
-            options.append((15, "shop"))
-        options += [(10, "improv"), (8 if in_town else 20, "search"), (5, "wait")]
-        from engine import clock as _clock
-        today = _clock.day(ws.minutes)
-        unasked = [m for m in ws.player.party if self.asked_hires.get(m.get("name")) != today]
-        if unasked:
-            options.append((8, "hire"))                 # a check-in at most once a game day per companion: a real player does not nag
-        pick = rng.choices([o[1] for o in options], weights=[o[0] for o in options])[0]
-        if pick == "talk":
-            n = rng.choice(present)
-            self.spoken_to.append(n.id)
-            self.talks = 1
-            topic = rng.choice(self.TOPICS)
-            q = rng.choice(self.QUESTIONS)
-            return f"I go over to {n.label()} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
-        if pick == "move":
-            return self.move_line(p)
-        if pick == "board":
-            take = self.contract_to_take()                                # (f366) a member takes work it can do, one or two at a time
-            if take and rng.random() < 0.6:
-                return f"I take the contract: {take['title']}.", self.intend("accept_quest", item=take["title"]), "board"
-            text = rng.choice(["I read the contract board.", "I ask the clerk what contracts are open for my rank.", "I look over the board for a job I can take."])
-            return text, self.intend("look"), "board"
-        if pick == "shop":
-            text = rng.choice(["I look over the wares.", "I ask what a good blade would cost me.", "I order a meal and listen to the talk."])
-            return text, self.intend("look"), "shop"
-        if pick == "improv":
-            text = rng.choice([t for t in self.IMPROV if t != self.last_text])
-            return text, self.intend("other", summary=text), "improv"
-        if pick == "search":
-            text = rng.choice(self.SEARCH)
-            return text, self.intend("search" if "search" in text else "look"), "search"
-        if pick == "hire":
-            m = rng.choice(unasked)
-            self.asked_hires[m.get("name")] = today
-            return f"I ask {m.get('name', 'my companion')} how they're holding up.", self.intend("look"), "hire"
-        return "I wait an hour.", self.intend("wait", wait_minutes=60), "wait"
-
-    def move_line(self, p) -> tuple[str, dict, str]:
-        rng, world = self.rng, self.world
-        level = self.c.level
-        here = p.id
-        near = [x for x in world.neighbors(here) if x in world.places]
-        def safe(x):
-            d = world.places[x].danger
-            return d is None or d[1] <= level + 6
-        local = [x for x in near if safe(x) and (world.places[x].parent == here or x == p.parent or (p.parent and world.places[x].parent == p.parent))]
-        roads = [x for x in near if safe(x) and x not in local]
-        fresh = lambda xs: [x for x in xs if x not in self.been] or xs
-        if local and (not roads or rng.random() < 0.65):
-            dest = rng.choice(fresh(local))
-            text = rng.choice([f"I walk over to {world.places[dest].name}.", f"I head to {world.places[dest].name}."])
-        elif roads:
-            dest = rng.choice(fresh(roads))
-            text = rng.choice([f"I set out for {world.places[dest].name}.", f"I take the road to {world.places[dest].name}."])
-        else:
-            return "I look around.", self.intend("look"), "look"
-        return text, self.intend("move", destination=dest), "move"
-
-    def rest_line(self, p) -> tuple[str, dict, str]:
-        if p.type == "inn":
-            return "I take a room and sleep until morning.", self.intend("wait", wait_until="dawn"), "rest"
-        inn = next((x for x in self.world.neighbors(p.id) if self.world.places[x].type == "inn"), None)
-        if inn and p.danger is None:
-            return f"I walk over to {self.world.places[inn].name}.", self.intend("move", destination=inn), "move"
-        return "I make camp and rest until morning.", self.intend("wait", wait_until="dawn"), "rest"
-
-    # ---- a fight: the same choices a player makes, said as a player says them
-    def fight_line(self) -> tuple[str, dict, str]:
-        choice = self.combat_choice()
-        f = self.ws.combat.fight
-        target = next((e for e in f.enemies() if e.id == choice.get("target")), None)
-        name = target.name if target else "the nearest enemy"
-        kind = choice["kind"]
-        if kind == "item":
-            return "I drink a healing draught.", {}, "fight"
-        if kind == "flee":
-            return "I run for it.", {}, "fight"
-        if kind == "ability":
-            move = next((m for m in f.player.moves if m.id == choice["ability"]), None)
-            if move:
-                return f"I use {move.name} on {name}.", {}, "fight"
-        return self.rng.choice([f"I attack {name}.", f"I strike at {name}.", f"I go for {name}."]), {}, "fight"
-
-    def combat_choice(self) -> dict:
-        """The decision as a CombatIntent (the stand-in model answers with it; the words above are what the real one reads)."""
-        from engine import combat
-        f = self.ws.combat.fight
-        p = f.player
-        enemies = [e for e in f.enemies() if e.alive]
-        if not enemies:
-            return {"kind": "attack", "target": "", "summary": "bot"}
-        tgt = min(enemies, key=lambda e: e.hp)
-        hpf = p.hp / max(1, p.max_hp)
-        base = {"target": tgt.id, "summary": "bot"}
-        if hpf < 0.5 and f.item_round != f.round and any(i.good == "healing_draught" for i in self.c.inventory):
-            return dict(base, kind="item", item="healing draught")           # one a round: the game refuses a second, and the bot once drank 1,155 times running
-        if (hpf < 0.35 and f.round > 1) or (len(enemies) >= 3 and f.round == 1 and any(e.rank != "normal" for e in enemies)):
-            return dict(base, kind="flee")
-        usable = [m for m in p.moves if not combat.can_use(p, m, f)]
-        if hpf < 0.5:
-            for m in usable:
-                if m.effect == "healing":
-                    return dict(base, kind="ability", ability=m.id)
-        if hpf < 0.6 and f.round > 1:
-            for m in usable:
-                if m.effect == "defense" and m.id not in p.buffs:
-                    return dict(base, kind="ability", ability=m.id)
-        damage = [m for m in usable if m.effect == "damage"]
-        if damage and self.rng.random() < 0.7:
-            return dict(base, kind="ability", ability=self.rng.choice(damage).id, move="closer")
-        return dict(base, kind="attack", move="closer")
+def ended_by_player(path: Path) -> int:
+    """(f368) Situations the player ended, from the run's own world log."""
+    n = 0
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if r.get("kind") == "end" and r.get("how") == "player":
+                    n += 1
+    except OSError:
+        pass
+    return n
 
 
 def spend_points(c, spec) -> None:
@@ -501,20 +312,25 @@ def batch(args) -> None:
     unknown = [s for s in points if s not in _starts.names()]
     if unknown:
         die(f"--starts must be of: {', '.join(_starts.names())} (not {', '.join(unknown)})")
+    personas = [s.strip() for s in args.personas.split(",") if s.strip()] or list(PERSONAS)      # (f368) ...and as different kinds of player
+    unknown = [s for s in personas if s not in PERSONAS]
+    if unknown:
+        die(f"--personas must be of: {', '.join(PERSONAS)} (not {', '.join(unknown)})")
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     base = Path(args.out or "logs/nightrun")
     base.mkdir(parents=True, exist_ok=True)
-    plan = [(classes[i % len(classes)], args.seed + i, points[i % len(points)]) for i in range(args.runs)]
+    plan = [(classes[i % len(classes)], args.seed + i, points[i % len(points)], personas[i % len(personas)]) for i in range(args.runs)]
     print(f"A night of {args.runs} runs, {args.hours:g} hours each ({args.runs * args.hours:g} in all): "
-          + ", ".join(f"{c} seed {s} ({st})" for c, s, st in plan), flush=True)
+          + ", ".join(f"{c} seed {s} ({st}, {pe})" for c, s, st, pe in plan), flush=True)
     rows, stopped = [], False
-    for i, (cls, seed, start) in enumerate(plan, 1):
+    for i, (cls, seed, start, persona) in enumerate(plan, 1):
         when = datetime.now().strftime("%Y%m%d_%H%M")
         out = base / f"{when}_{cls}_{seed}"
         save = f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}"
         cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
-               "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start] + (["--stub"] if args.stub else [])
-        print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start} -> {out}", flush=True)
+               "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start, "--persona", persona] \
+            + (["--stub"] if args.stub else [])
+        print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start}, playing as {persona} -> {out}", flush=True)
         started = time.time()
         proc = subprocess.Popen(cmd)
         try:
@@ -532,14 +348,19 @@ def batch(args) -> None:
             info = json.loads((out / "run.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             pass
-        rows.append({"run": out.name, "class": cls, "seed": seed, "start": start, "exit": code, "minutes": round((time.time() - started) / 60, 1),
+        bot = info.get("bot") or {}
+        rows.append({"run": out.name, "class": cls, "seed": seed, "start": start, "persona": persona, "exit": code, "minutes": round((time.time() - started) / 60, 1),
+                     "distinct": f"{round(100 * info['distinct'])}%" if isinstance(info.get("distinct"), (int, float)) else "",
+                     "done": bot.get("contracts_done", ""), "ended": info.get("ended_by_player", ""),
                      **{k: info.get(k, "") for k in ("turns", "hours", "level", "deaths", "reason")}})
         if stopped:
             break
-    lines = [f"# A night of {len(rows)} run(s), started {stamp}", "", "| Run | Class | Seed | Start | Turns | Hours | Level | Deaths | Ended | Exit |",
-             "| --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- | ---: |"]
+    lines = [f"# A night of {len(rows)} run(s), started {stamp}", "",
+             "| Run | Class | Seed | Start | Persona | Turns | Hours | Level | Deaths | Distinct lines | Contracts done | Ended by player | Stopped | Exit |",
+             "| --- | --- | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |"]
     for r in rows:
-        lines.append(f"| {r['run']} | {r['class']} | {r['seed']} | {r['start']} | {r['turns']} | {r['hours']} | {r['level']} | {r['deaths']} | {r['reason']} | {r['exit']} |")
+        lines.append(f"| {r['run']} | {r['class']} | {r['seed']} | {r['start']} | {r['persona']} | {r['turns']} | {r['hours']} | {r['level']} | {r['deaths']} | "
+                     f"{r['distinct']} | {r['done']} | {r['ended']} | {r['reason']} | {r['exit']} |")
     text = "\n".join(lines) + "\n"
     (base / f"batch_{stamp}.md").write_text(text, encoding="utf-8")
     print("\n" + text)
@@ -562,6 +383,8 @@ def main() -> None:
     ap.add_argument("--classes", default="", help="with --runs: the classes to rotate through, comma-separated (default: every class, from --class on)")
     ap.add_argument("--start", default="green", help="(f367) the starting point (data/rules/starts.yaml): green, known, veteran, scarred, legend")
     ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
+    ap.add_argument("--persona", default="", help=f"(f368) the kind of player the bot is: {', '.join(PERSONAS)} (default: by the seed, in that order)")
+    ap.add_argument("--personas", default="", help="with --runs: the personas to rotate through, comma-separated (default: all, in order)")
     args = ap.parse_args()
     if args.runs > 1:
         batch(args)
@@ -620,6 +443,9 @@ def main() -> None:
     if args.start not in starts.names():
         die(f"--start must be one of: {', '.join(starts.names())}")
     point = starts.spec(args.start)
+    persona = args.persona or persona_for(args.seed)                        # (f368) the kind of player
+    if persona not in PERSONAS:
+        die(f"--persona must be one of: {', '.join(PERSONAS)}")
     level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
     char, spec = simlib.make_character(args.cls, rng, perks=True)
     if level > 1:
@@ -637,13 +463,13 @@ def main() -> None:
     party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
-    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub)
+    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run)
     run.bot = bot
     if stub is not None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, starting as {args.start} ({point.get('text', '')}; "
+    print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, playing as {persona}, starting as {args.start} ({point.get('text', '')}; "
           f"{began['met']} met, {len(began['situations'])} past situations), with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
           f"stops after {args.hours:g} h" + (f" or {args.turns} turns" if args.turns else "") + ". Ctrl+C stops it early.", flush=True)
 
@@ -680,8 +506,11 @@ def main() -> None:
         store.close()
         backfill.drop(store)
         turnlog.write_session_stats()
+        texts = [r.get("text", "") for r in run.rows]
         run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,
                     "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
+                    "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
+                    "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
         if not args.stub:
             from llm.gateway import unload

@@ -41,6 +41,13 @@ _st = _CS.open_or_create("nightrun_test_game"); _pl = _st.load_player(); _st.clo
 check("the character past the tutorial is a guild member of a rank fitting its level, so contracts are play", _pl.guild_rank and _pl.guild_rank != "F", _pl.guild_rank)
 summary = (out / "summary.md").read_text(encoding="utf-8") if (out / "summary.md").exists() else ""
 check("the summary has the turns and the calls by task", "## Turns" in summary and "## Calls by task" in summary and "| interpret_action |" in summary, summary[:600])
+# (f368) the bot plays as a persona with goals; the rows and the summary say so
+check("every row says what the line was for, who was typing, and where the words came from",
+      rows and all({"goal", "persona", "source", "refers"} <= set(x) for x in rows) and all(x["source"] == "template" for x in rows) and all(x["goal"] for x in rows), rows[:1])
+check("the run's persona follows the seed when none is named, and the bot's measures are in run.json",
+      info.get("persona") == "wanderer" and isinstance(info.get("bot"), dict) and {"contracts_taken", "doors_seen", "goals_done", "deaths_above_band", "places"} <= set(info["bot"])
+      and isinstance(info.get("distinct"), float) and "ended_by_player" in info, (info.get("persona"), info.get("bot")))
+check("the summary measures the play", "## Play" in summary and "| Distinct lines |" in summary and "playing as wanderer" in summary, summary[-1200:])
 r2 = subprocess.run([sys.executable, "tools/latency.py", str(out)], capture_output=True, text=True, timeout=120)
 check("tools/latency.py reads the folder again on its own", r2.returncode == 0 and "Calls by task" in r2.stdout, r2.stderr[-500:])
 r3 = subprocess.run([sys.executable, "tools/latency.py", "--calls", str(out / "llm_calls.jsonl")], capture_output=True, text=True, timeout=120)
@@ -51,7 +58,7 @@ for d in glob.glob("saves/nightrun_batch_test*"):
     shutil.rmtree(d, ignore_errors=True)
 base = Path("saves/nightrun_test/night")
 r4 = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--turns", "4", "--hours", "1", "--seed", "5", "--classes", "warrior,mage",
-                     "--starts", "green,known", "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
+                     "--starts", "green,known", "--personas", "careful,talker", "--out", str(base), "--save", "nightrun_batch_test"], capture_output=True, text=True, timeout=1200)
 runs = sorted((p for p in base.iterdir() if p.is_dir()), key=lambda p: int(p.name.rsplit("_", 1)[1])) if base.exists() else []   # by seed: two runs can share a minute
 infos = [json.loads((p / "run.json").read_text(encoding="utf-8")) for p in runs if (p / "run.json").exists()]
 check("two runs from one command, each in its own folder named by its class and seed", r4.returncode == 0 and len(runs) == 2
@@ -63,8 +70,10 @@ check("...and its own starting point: the second began as someone known, at that
       and len(infos[1].get("past") or []) == 2 and infos[1].get("met_at_start", 0) >= 4, [(i.get("start"), i.get("level"), i.get("past"), i.get("met_at_start")) for i in infos])
 check("...with a save of its own, so the second does not continue the first", sorted(Path(d).name for d in glob.glob("saves/nightrun_batch_test*")) == ["nightrun_batch_test_mage_6", "nightrun_batch_test_warrior_5"],
       glob.glob("saves/nightrun_batch_test*"))
+check("...and its own persona, rotating through the ones named", [i.get("persona") for i in infos] == ["careful", "talker"], [i.get("persona") for i in infos])
 night = list(base.glob("batch_*.md"))
-check("the night is summed up in one file listing the runs", len(night) == 1 and "_warrior_5" in night[0].read_text(encoding="utf-8") and "_mage_6" in night[0].read_text(encoding="utf-8"), night)
+check("the night is summed up in one file listing the runs, with each one's persona and its measures", len(night) == 1 and "_warrior_5" in night[0].read_text(encoding="utf-8")
+      and "_mage_6" in night[0].read_text(encoding="utf-8") and "| careful |" in night[0].read_text(encoding="utf-8") and "Distinct lines" in night[0].read_text(encoding="utf-8"), night)
 for d in glob.glob("saves/nightrun_batch_test*"):
     shutil.rmtree(d, ignore_errors=True)
 shutil.rmtree("saves/nightrun_test", ignore_errors=True)

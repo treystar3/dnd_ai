@@ -455,6 +455,28 @@ class Clarify(BaseModel):
     _blank = blank_placeholders("line")
 
 
+class PlayerLine(BaseModel):
+    """(f368) What the night bot types next (tools/nightbot.py): one line as a player would type it, from the scene, the goal and what
+    the game just said. The names the goal turns on (must_name in the context: a place, a person, a creature) must be in it, or the
+    game would read the line as something else."""
+    line: str = ""
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        self.line = " ".join(self.line.split())
+        if not self.line:
+            raise ValueError("write the one line the player types")
+        if len(self.line) > 240 or len(self.line.split()) > 45:
+            raise ValueError("one or two short sentences: under 240 characters")
+        low = self.line.lower()
+        if low.startswith(("the player", "you ", "the game", "as the player", "narrator")):
+            raise ValueError("write it in the first person, as the player types it: 'I ...', or the words they say")
+        for name in _ctx(info).get("must_name") or []:
+            if name and name.lower() not in low:
+                raise ValueError(f"the line must name {name}")
+        return self
+
+
 class AuditMeaning(BaseModel):
     """One plain sentence: what the player wants to do."""
     meaning: str

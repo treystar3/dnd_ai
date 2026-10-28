@@ -349,14 +349,18 @@ class GuildActions:
                                    source="the adventurers' guild", day=clock.day(self.minutes)))
 
     def pick_posting(self, board: list[dict], words: str) -> dict | None:
-        m = re.search(r"\b(\d+)\b", words)
-        if m and 1 <= int(m.group(1)) <= len(board):
-            return board[int(m.group(1)) - 1]
+        """The posting the words mean: by its title's words first ("the ogres one", "hunt 4 ogres in the badlands"), and by a bare number
+        only when the words name nothing: "Hunt 4 ogres" is the ogres, not the fourth posting (f368)."""
         best, score = None, 0
         for q in board:
             hit = sum(1 for w in re.findall(r"[a-z]+", words.lower()) if len(w) > 3 and w[:5] in q["title"].lower())
             if hit > score:
                 best, score = q, hit
+        if score >= 2:
+            return best
+        m = re.search(r"\b(\d+)\b", words)
+        if m and 1 <= int(m.group(1)) <= len(board):
+            return board[int(m.group(1)) - 1]
         return best
 
     def on_accept_quest(self, intent, text: str) -> None:
