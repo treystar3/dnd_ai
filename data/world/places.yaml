@@ -2069,6 +2069,14 @@
     - The dry chamber stays above the tide; someone long gone scratched the turn of the water into its wall.   # (f381) the hermit it promised lived nowhere
   biome: coast
   danger: [1, 18]
+  features:                     # (f394) the parts its description names are places you can go
+    - {id: first_chamber, name: the first chamber, kind: chamber, entry: true,
+       what: "The cave mouth's chamber, sand over rock, where the sea comes in twice a day."}
+    - {id: second_beach, name: the second beach, kind: beach, links: [first_chamber], open: low_tide, tags: [glowing, tidal],
+       what: "A second beach behind the first chamber, its tidepools glowing a cold blue; the sea covers the way to it at high water."}
+    - {id: dry_chamber, name: the dry chamber, kind: chamber, links: [first_chamber], holds: clue, tags: [dry],
+       what: "A chamber that stays above the tide. Someone long gone scratched the turn of the water into its wall.",
+       clue: "The scratches count the tide. Read against the light, they say the way to the second beach runs dry {low_tide}."}
 
 - id: shipwreck_shoals
   name: the Shipwreck Shoals

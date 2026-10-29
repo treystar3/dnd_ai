@@ -11,6 +11,16 @@ hire:
   final: [dead, departed]
   moves: {with: [dead, departed]}
 
+feature:                              # (f394) a part of a place (engine/features.py)
+  states: [unseen, known, explored, changed, gone]
+  start: unseen
+  final: [gone]
+  moves:
+    unseen: [known, explored, changed, gone]
+    known: [explored, changed, gone]
+    explored: [changed, gone]
+    changed: [explored, gone]
+
 captive:
   states: [escorted, held, handed_over, released, escaped, ransomed, executed, dead]
   start: escorted

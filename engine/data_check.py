@@ -267,6 +267,9 @@ def check() -> list[str]:
     bad += _hygiene.problems()
     from engine import entities as _entities                                                  # (f392) the lifecycles
     bad += _entities.problems()
+    from engine import features as _features                                                  # (f394) the parts of places
+    from world.loader import load_world as _lw
+    bad += _features.problems(_lw())
     from engine import trust as _trust                                                        # (f362) trust moved by the engine, by a reply's intent
     import typing as _typing
     from llm.contracts import NPCReply as _NPCReply

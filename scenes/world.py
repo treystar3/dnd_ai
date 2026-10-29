@@ -52,8 +52,9 @@ from scenes.law_actions import LawActions
 from scenes.pastime_actions import PastimeActions
 from scenes import plan_repairs
 from scenes.plan_repairs import PlanRepairs
+from scenes.part_actions import PartActions
 from scenes import markup
-from engine import entities, mapview, mentor, needs, pulse, pulselog, quests, turnlog
+from engine import entities, features, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
 from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
@@ -78,7 +79,7 @@ SEARCH = encounters.E
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
-                 PastimeActions, PlanRepairs):
+                 PastimeActions, PlanRepairs, PartActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -487,6 +488,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.leave_road(place_id)
         self.__dict__.pop("_streets_cache", None)                                           # (f357) a new place: read the streets afresh
         self.end_contexts(place_id)
+        same_place = place_id == self.player.location
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
         self.note_town(place_id)
@@ -509,6 +511,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         moments.on_enter(self)                                                                # (f348) a possibility: something going on as they walk in
         self.home_arrival()
         self.arc_enter(place_id)
+        self.arrive_parts(place_id, same_place)                             # (f394) its parts, and where in it the player stands
         self.bring_prisoners(place_id)
         self.party_notice()
         self.trial_notice(on_arrival=True)
@@ -709,6 +712,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         shown = turnlog.SHOWN
         try:
             with self.store.transaction():
+                ledger.begin()                             # (f394) the turn's record
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.ran = []
                 self.handle(text)
@@ -725,6 +729,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if turnlog.SHOWN == shown and not self.to_menu:
                     self.said_nothing(text)
                 self.store.save_player(self.player)
+                ledger.LAST = ledger.end()
             return True
         except LLMError as e:
             console.debug(f"turn rolled back: {e}")
@@ -937,7 +942,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                  if n.heard_of and not (n.met_player and n.name_known_to_player)]
         known = self.player.character.knowledge
         from engine import matters
-        return {"groups": out, "heard": heard, "facts": [self.world.lore[f].text for f in known if f in self.world.lore],
+        found = [f"{e.name.capitalize()}, {self.where_name(e.place)}: {e.data['clue'].replace('{low_tide}', features.low_tide_text(self.minutes))}"
+                 for e in self.store.find_entities(kind="feature") if e.data.get("read") and e.data.get("clue")]          # (f394)
+        return {"groups": out, "heard": heard, "facts": [self.world.lore[f].text for f in known if f in self.world.lore] + found,
                 "history": list(self.player.character.item_history), "matters": matters.journal(self)}
 
     def prebuff_command(self, rest: str) -> None:
@@ -1610,7 +1617,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        worn=self.worn_words("prose"),                               # (f349) ...and which words it has worn out lately
                                        unlooked=unlooked,
                                        who=entities.who_is_who(self),                               # (f392) who is who, never guessed at
-                                       fallen=here.lines("fallen"))                                 # ...and who fell, never seen alive again
+                                       fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
+                                       parts=features.lines(self),                                  # (f394) the parts of this place, real
+                                       told=ledger.told())                                          # ...and what the engine did this turn
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
                        temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"), said=player_text or "")         # (f384) no invented speech
         shown = self.unnamed(result.text)
@@ -1628,6 +1637,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.narrate(shown)
         self.note_shown(shown)
         self.remember_narration(shown)
+        self.adopt_from_passage(shown)                                                           # (f394) what it named is real now
         self._wrote_turn = True                                                                  # (f351) the narrator wrote this turn: its passage is the room's update
 
     exits_due = False
@@ -1728,7 +1738,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         this town and its ways out plus any place named or close in meaning, the people met who are named, and a catalogue (wares, the
         pack, abilities...) only when the words are about that kind of thing."""
         from engine import candidates as cand
-        places = cand.places(self.world, self.player.location, text)
+        places = features.candidates(self) + cand.places(self.world, self.player.location, text)   # (f394) the parts of this place first
         from engine import truth
         _sc = truth.scene_of(self)
         people = [(p.id, p.label, f"{p.role}. {p.plain} {p.doing}" + (f" {p.note}" if p.note else "")) for p in _sc.present_people() if p.kind == "npc"]
@@ -1766,6 +1776,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         here_top = _mv.top_of(self.world, self.player.location)
         shown_places = []
         for pid, name in places:                                      # (f333) the kind of place, and whose town when it is not this one
+            if pid not in self.world.places:                          # (f394) a part of this place: already said as one
+                shown_places.append((pid, name))
+                continue
             p_ = self.world.places[pid]
             top_ = _mv.top_of(self.world, pid)
             tag = p_.type if p_.type not in ("town", "city", "village") else ""
@@ -1935,6 +1948,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug("move within the current place - nothing to travel")
             return
         if dest not in self.world.places:
+            on_trail = self.fresh_trail() and self.toward_trail(dest, text)
+            if self.part_move(dest, text):                                             # (f394) a part of this place, or further in
+                if on_trail and not self.halted:                                       # ...where the signs led: follow them on there
+                    self._following = True
+                    intent.seek = ""
+                    self.on_search(intent, text)
+                return
+        if dest.startswith("feature:"):
+            dest = dest.split(":")[-1].replace("_", " ")
+        if dest not in self.world.places:
             person = self.local_person(dest)
             if person:
                 self.walk_over(person)
@@ -1948,6 +1971,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self._following = True
                     intent.seek = ""
                     self.on_search(intent, text)
+                    return
+                if self.part_move(dest, text, adopt=True):                              # (f394) a part a place like this would have
                     return
                 if self.part_of_here(dest):                                             # (f381) a spot inside this place
                     self.within_place(dest, text)
@@ -2520,6 +2545,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         if self.place.type == "dungeon" and self.player.delve:
             self.dungeon_search(text)
+            return
+        if self.search_part(intent, text):                       # (f394) what the part the player stands at holds
             return
         from engine import matters
         if matters.try_find(self, text):                          # (f317) a matter's find path points here

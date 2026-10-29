@@ -1,0 +1,97 @@
+# THE PARTS OF PLACES (f394, engine/features.py; GOAL.md: a world of places, not stages). A wild place, a cave, a ruin is made of parts
+# the player can go to: a chamber, a tunnel, a pool, a ledge. They are registry entities (kind feature): a name, a kind, what is there,
+# what they link to, when they are open, and what they hold, rolled by the engine. A place's own `features:` (places.yaml) come first;
+# then these templates make the first few parts of a wild place on the first visit; then the world grows a part at a time, outward from
+# where the player stands, when they go further in, or when the narrator names one (adopted, within the budget). Nothing named is a dead
+# end by accident: Bumbo Claat walked to "the dry chamber" the place's own description names, and found a wall the narrator made up.
+
+# Kinds: the words a phrase is known by (the first is the plain noun), and what one can be.
+kinds:
+  chamber:  {words: [chamber, cavern, grotto, room, hall, alcove, vault], deeper: true}
+  tunnel:   {words: [tunnel, passage, corridor, crawlway, gallery, shaft], deeper: true}
+  pool:     {words: [pool, tidepool, tidepools, pond, sump, basin], deeper: false}
+  beach:    {words: [beach, shore, strand, cove, shingle], deeper: false}
+  ledge:    {words: [ledge, shelf, outcrop, overhang, balcony], deeper: false}
+  spring:   {words: [spring, stream, brook, rill, creek, fall, falls], deeper: false}
+  clearing: {words: [clearing, glade, meadow, dell], deeper: true}
+  grove:    {words: [grove, thicket, copse, stand], deeper: true}
+  hollow:   {words: [hollow, gully, ravine, ditch, den, burrow], deeper: true}
+  overlook: {words: [overlook, ridge, crest, rise, summit, lookout], deeper: false}
+  ruin:     {words: [ruin, ruins, wall, tower, arch, foundation, stair, stairs], deeper: true}
+  shrine:   {words: [shrine, altar, cairn, standing stone, stones, idol], deeper: false}
+  camp:     {words: [camp, campsite, firepit, lean-to], deeper: false}
+  marks:    {words: [marks, carvings, scratches, writing, mural, etchings], deeper: false}
+
+# Words that never name a part on their own (too general): "the cave", "the walls", "the floor".
+plain: [cave, caves, wall, walls, floor, ceiling, roof, ground, air, dark, darkness, water, sea, tide, rock, rocks, stone, path, way, place, area, side]
+
+# Which kinds a place grows, by its biome (default when it has none or another). The first kinds listed are the likelier. Towns grow no
+# parts here: their parts are places of their own (the inn, the smithy).
+grows:
+  coast:           [chamber, tunnel, pool, beach, ledge, marks]
+  drowned:         [pool, chamber, tunnel, ruin, ledge]
+  freshwater:      [spring, pool, hollow, grove, ledge]
+  underground:     [chamber, tunnel, pool, ledge, marks]
+  deep_underground: [chamber, tunnel, pool, ledge, marks, ruin]
+  forest:          [clearing, grove, hollow, spring, overlook, ruin]
+  jungle:          [grove, clearing, hollow, spring, ruin, shrine]
+  hills:           [hollow, overlook, ruin, spring, camp]
+  mountains:       [ledge, overlook, tunnel, chamber, ruin]
+  highpeaks:       [ledge, overlook, tunnel, chamber, shrine]
+  volcanic:        [tunnel, chamber, ledge, overlook, ruin]
+  arctic:          [hollow, overlook, ruin, shrine, chamber]
+  swamp:           [pool, hollow, grove, ruin, shrine]
+  farmland:        [hollow, spring, ruin, shrine, camp]
+  cracked_plains:  [ruin, hollow, overlook, shrine]
+  desert:          [ruin, hollow, overlook, shrine]
+  ruins:           [ruin, chamber, tunnel, shrine, marks]
+  default:         [hollow, ruin, spring, overlook]
+
+# Names made by the engine for a part it grows: a word for how it looks, then its kind's plain noun ("the narrow tunnel").
+looks:
+  chamber:  [low, echoing, round, dripping, back, inner, side]
+  tunnel:   [narrow, winding, sloping, flooded, low, back, side]
+  pool:     [still, glowing, deep, brackish, shallow, clear]
+  beach:    [hidden, inner, second, black, pale]
+  ledge:    [high, narrow, broken, mossy]
+  spring:   [cold, hidden, little, bright]
+  clearing: [quiet, sunken, overgrown, small]
+  grove:    [old, dark, thorn, birch]
+  hollow:   [deep, fern, dry, hidden]
+  overlook: [windy, high, bare, rocky]
+  ruin:     [tumbled, old, half-buried, roofless]
+  shrine:   [forgotten, moss-grown, weathered, small]
+  camp:     [abandoned, cold, old, hunters']
+  marks:    [faded, scratched, old, deep]
+
+# What a part holds, rolled once when it is made (seeded), by weight. lair: a creature of the place's roster dens here, and a search here
+# finds it; cache: something left behind; clue: a sign of a situation here, or of the place's past; hazard: a danger (a fall, bad air);
+# resource: something to gather; none: atmosphere, and nothing else. A safe place grows no lairs or hazards.
+holds: {none: 45, lair: 14, cache: 12, clue: 12, hazard: 9, resource: 8}
+
+# A clue a part holds when no situation here gives it one: a trace of the place's past, said plainly.
+clues:
+  - "a name and a year cut into the rock, the letters old and rounded by weather"
+  - "the ashes of a fire, and a bone needle someone left behind"
+  - "a line of notches, as if someone counted days here"
+  - "a scrap of oiled cloth wedged where no tide or wind would take it"
+  - "tool marks where someone worked the rock, and gave up"
+
+# Caches and hazards, said plainly; the engine sets what a cache is worth and what a hazard costs.
+caches: ["a bundle tucked into a crack", "a rusted tin under loose stones", "a pack left behind, half rotted", "a pouch caught in the roots"]
+hazards:
+  - {what: "loose footing over a drop", check: perception, cost: 8}
+  - {what: "bad air that dizzies", check: perception, cost: 6}
+  - {what: "a slick of weed over sharp rock", check: perception, cost: 6}
+  - {what: "a rotten floor over a hollow", check: perception, cost: 8}
+
+budget:
+  first_visit: 3          # parts a wild place without its own list is given on the first visit
+  most: 9                 # parts a place may hold in all, its own included: beyond, the deepest part is where it ends
+  per_hour: 3             # parts a place may grow in an hour of play
+  adopt_per_passage: 2    # parts one passage of the narrator may name into being
+  step_minutes: 5         # walking from one part of a place to the next
+
+# The tide, for parts open only at low water (places.yaml: open: low_tide). A tide turns every 745 minutes (12 h 25 min); the first high
+# water of the world is at minute 360 (dawn on the first day). Low water is the 300 minutes around the middle of each turn.
+tide: {period: 745, first_high: 360, low_half_width: 150}

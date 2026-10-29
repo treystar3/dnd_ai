@@ -149,7 +149,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
                       news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
-                      unlooked: int = 0, who: list[str] = (), fallen: list[str] = ()) -> str:
+                      unlooked: int = 0, who: list[str] = (), fallen: list[str] = (), parts: list[str] = (), told: list[str] = ()) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
@@ -169,6 +169,9 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (f"WITH THE PLAYER (companions the event has act; show only what the event says they do): {', '.join(companions)}\n" if companions else "")
         + (f"{_who_head()}: {'; '.join(who)}\n" if who else "")
         + (f"{_fallen_head()}: {'; '.join(fallen)}\n" if fallen else "")
+        + (("THE PARTS OF THIS PLACE (real: the player can go to each; name no other part of it):\n" + "\n".join(f"  - {x}" for x in parts) + "\n")
+           if parts else "")
+        + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(told) + "\n") if told else "")
         + (f"WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): {', '.join(worn)}\n" if worn else "") + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")

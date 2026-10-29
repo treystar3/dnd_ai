@@ -194,7 +194,8 @@ class Run:
                    embed_calls=sum(1 for c in embeds if c["main"]), embed_seconds=round(sum(c["seconds"] for c in embeds if c["main"]), 2),
                    schemas=dict(collections.Counter(c["schema"] for c in chats if c["main"])),
                    hesitated=row.get("hesitated", False), level_after=self.bot.c.level, deaths=self.bot.c.deaths,
-                   notes=self.turn_notes[-8:], state=self.state_now())
+                   notes=self.turn_notes[-8:], state=self.state_now(),
+                   outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
         if not row["hesitated"]:
             self.hesitations = 0
         self.rows.append(row)
@@ -204,6 +205,14 @@ class Run:
               f"{row['chat_calls']} calls {row['chat_seconds']:.1f}s" + (f"  first word {row['first_word']}s" if row["first_word"] else "")
               + ("  (model failed)" if row["hesitated"] else ""), flush=True)
         self.current = None
+
+    def last_outcomes(self) -> list[dict]:
+        """(f394) The turn's record (engine/ledger.py): what the engine did, as typed rows."""
+        try:
+            from engine import ledger
+            return list(ledger.LAST)
+        except Exception:
+            return []
 
     def state_now(self) -> dict:
         """(f391) The state the summary's consistency checks read, as the turn ends: where the player is and what the game believes about
@@ -223,7 +232,7 @@ class Run:
                 who["last_turn"] = ws.store.meta.turn
             today = clock.day(ws.minutes)
             held = [today - int(v.get("day", today)) for v in (p.prisoners or {}).values()]
-            return {"place": p.location, "minutes": ws.minutes, "delve": bool(p.delve), "at_dungeon": ws.dungeon_here() is not None,
+            return {"place": p.location, "spot": getattr(p, "spot", ""), "minutes": ws.minutes, "delve": bool(p.delve), "at_dungeon": ws.dungeon_here() is not None,
                     "party_mode": getattr(p, "party_mode", "with"), "party": [m.get("name", "") for m in p.party],
                     "prisoners": len(held), "prisoner_days": max(held, default=0)}
         except Exception as e:

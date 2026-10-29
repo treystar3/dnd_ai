@@ -879,6 +879,25 @@ class Bot:
         return self.rng.choice(fits) if fits else None
 
     # ---- nothing in particular: the small change of a day
+    def parts_line(self) -> tuple[str, dict, str]:
+        """(f394) Into the place: a part of it not walked yet, a part the last passage named, further in, or a search where they stand."""
+        from engine import features
+        ws, rng = self.ws, self.rng
+        parts = [e for e in features.here(ws.store, ws.player.location) if e.state in ("known",) and e.ref != ws.player.spot]
+        named = features.named_part(self.passage() or "")
+        r = rng.random()
+        if parts and r < 0.4:
+            e = rng.choice(parts)
+            return rng.choice([f"I go over to {e.name}.", f"I head for {e.name}.", f"Let's take a look at {e.name}."]), \
+                self.intend("move", destination=e.ref), "move"
+        if named and r < 0.55:
+            return f"I go to {named[0]}.", self.intend("move", destination=named[0]), "move"
+        if r < 0.85:
+            return rng.choice(["I go further in.", "I push on, deeper in.", "I see what lies beyond.", "I explore further."]), \
+                self.intend("explore", seek="further in"), "move"
+        return rng.choice(["I search where I stand.", "I look closely around this spot.", "I search this place carefully."]), \
+            self.intend("search"), "search"
+
     def idle(self, only: str = "") -> tuple[str, dict, str]:
         ws, rng, P = self.ws, self.rng, self.P
         p = self.place()
@@ -895,6 +914,9 @@ class Bot:
         if p is not None and p.type in ("shop", "smithy", "workshop", "inn"):
             options.append((15 * P["trade"], "shop"))
         options += [(10 * P["improv"], "improv"), (8 if in_town else 20, "search"), (3, "wait")]
+        from engine import features as _features
+        if p is not None and _features.grows_here(p):
+            options.append((18 * P.get("roam", 1), "parts"))      # (f394) a curious player goes into a place, not only through it
         from engine import clock as _clock
         today = _clock.day(ws.minutes)
         unasked = [m for m in ws.player.party if self.asked_hires.get(m.get("name")) != today]
@@ -913,6 +935,8 @@ class Bot:
             return f"I go over to {n.label()} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
         if pick == "move":
             return self.move_line(p)
+        if pick == "parts":
+            return self.parts_line()
         if pick == "board":
             take = self.contract_to_take()
             if take and rng.random() < 0.6:

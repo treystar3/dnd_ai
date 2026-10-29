@@ -76,6 +76,7 @@ class PlayerState(BaseModel):
     guild_done: dict[str, int] = {}  # guild contracts completed, by letter
     quests: list[dict] = []        # contracts and personal requests taken on (see engine/quests.py)
     delve: dict | None = None      # inside a dungeon: {"dungeon", "floor", "chamber", "rest"}
+    spot: str = ""                 # (f394) the part of the place the player stands at (a feature's ref, engine/features.py), or "" anywhere
     reputation: dict[str, int] = {}  # how each town regards the player, -100..100
     visited: list[str] = []        # places the player has been
     last_in: dict[str, int] = {}   # (f331) town id -> the game minute the player last left it, for "since you were last here"

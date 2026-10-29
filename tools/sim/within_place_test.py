@@ -78,7 +78,7 @@ stub.plan = [{"kind": "move", "destination": "the dry chamber"}]
 ws.turn("I walk over to the dry chamber")
 asked = narrated()
 check("a spot the place's own description names is a short walk inside it", ws.minutes - before <= 10
-      and not any(t == "DiscoveryProposal" for t, _ in CALLS) and asked and "still within the Tidepool Caves" in asked[-1],
+      and not any(t == "DiscoveryProposal" for t, _ in CALLS) and asked and "within the Tidepool Caves" in asked[-1],
       (ws.minutes - before, [t for t, _ in CALLS]))
 check("...and nobody is hunted for it", not TRIED, TRIED)
 

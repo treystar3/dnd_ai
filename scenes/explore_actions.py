@@ -60,6 +60,8 @@ class ExploreActions:
             console.note("Not from here. Get to a proper place first.")
             self.halted = True
             return
+        if self.explore_parts(intent, text):                       # (f394) further into this place, or to a part of it
+            return
         seek = (intent.seek or intent.destination or text).strip()
         data = self.store.load_discoveries()
         lead = discovery.match_lead(data, here, seek, self.minutes)

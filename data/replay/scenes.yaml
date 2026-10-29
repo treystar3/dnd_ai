@@ -34,7 +34,10 @@
   steps:
     - say: "I go further into the cave."
       reads: [{kind: explore, seek: "further into the cave"}]
-      then: {facade: false, made: 1, told_not: ["comes to nothing", "nothing new"]}
+      then: {facade: false, told_not: ["comes to nothing", "nothing new"]}       # a part the place already has, not yet walked
+    - say: "I keep going, further in."
+      reads: [{kind: explore, seek: "further in"}]
+      then: {facade: false, made: 1, told_not: ["comes to nothing", "nothing new"]}   # beyond it: a part made now, a step deeper
     - reopen: true
       then: {place: tidepool_caves}
     - say: "I go back the way I came, toward the entrance."
