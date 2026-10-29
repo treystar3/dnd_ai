@@ -11,14 +11,19 @@ habit_chance: 65          # a habit shows this often when its moment comes (alwa
 flaw_chance: 45           # a hire has a flaw this often
 
 # ---- habits: when = rest | arrival | fight_start | fight_end. {name} {their} {weapon} {count} are filled in.
+# (f379) where: a habit that needs a kind of place says so: building (a door to touch: the kinds under buildings), open_air (a sky to
+# read: anywhere but a building or under the ground). Without it, anywhere. "Urrok touches the doorframe on the way in" walking into the
+# Greywood was the doorframe habit with no door.
+buildings: [shop, inn, temple, guild, workshop, smithy, palace, guardpost, home]
+under_ground: [underground, dungeon]
 habits:
   first_watch:  {when: rest,        line: "{name} takes the first watch without being asked, and will not be argued out of it.", prompt: "always takes the first watch and will not be argued out of it"}
   eats_last:    {when: rest,        line: "{name} does not touch food until everyone else has eaten.", prompt: "will not eat before everyone else has"}
   hums:         {when: rest,        line: "{name} hums the same four bars, badly, while the fire catches.", prompt: "hums the same tune, badly, whenever their hands are busy"}
   boots_off:    {when: rest,        line: "{name} has {their} boots off before the pack is down.", prompt: "has their boots off the moment they stop"}
   mends:        {when: rest,        line: "{name} gets out needle and thread and mends something of someone else's without asking.", prompt: "mends other people's gear without asking, and will not be thanked for it"}
-  checks_sky:   {when: arrival,     line: "{name} looks at the sky before anything else, every time.", prompt: "reads the sky before anything else, every time, and trusts it over any almanac"}
-  doorframe:    {when: arrival,     line: "{name} touches the doorframe on the way in, for luck.", prompt: "touches the doorframe of every building for luck"}
+  checks_sky:   {when: arrival,     where: open_air, line: "{name} looks at the sky before anything else, every time.", prompt: "reads the sky before anything else, every time, and trusts it over any almanac"}
+  doorframe:    {when: arrival,     where: building, line: "{name} touches the doorframe on the way in, for luck.", prompt: "touches the doorframe of every building for luck"}
   counts_coin:  {when: arrival,     line: "{name} counts {their} coin on arriving, as if the road might have taken some.", prompt: "counts their coin on arriving anywhere"}
   sharpens:     {when: arrival_danger, line: "{name} sits and sharpens a blade that does not need it.", prompt: "sharpens a blade that does not need it when something is coming"}
   talks_weapon: {when: fight_start, line: "{name} murmurs something to {their} {weapon} before the first blow.", prompt: "talks to their weapon under their breath, as to an old friend"}
