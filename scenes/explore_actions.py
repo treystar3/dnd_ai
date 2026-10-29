@@ -29,10 +29,17 @@ class ExploreActions:
 
     def within_place(self, dest: str, text: str) -> None:
         """(f381) A few steps to that spot: no hours, no invention, nobody added."""
+        self.facade_met("facade", text, f"walked to '{dest}', named by the place or the passage, with nothing real there")
         self.end_conversation()
         self.advance(X.get("within_minutes", 5))
         self.narrate(f"The player walks a short way, still within {self.place.name}, to {dest}. Describe getting there and what is "
                      "there, from what this place is known to hold; add no one and nothing of value.", text)
+
+    def facade_met(self, kind: str, text: str, why: str) -> None:
+        """(f393) The player reached for something and the world had nothing behind it: a facade when the place or the passage named
+        it, a dead end otherwise. Counted (refusals log), so a night says how often the stage set showed (GOAL.md)."""
+        from engine import refusals
+        refusals.note(kind, text, why, self.player.location, self.store.meta.turn)
 
     def ensure_discoveries(self) -> None:
         discovery.apply_all(self.world, self.store.load_discoveries())
@@ -60,11 +67,13 @@ class ExploreActions:
         self.end_conversation()
         self.advance(self.rng.randint(*[h * 60 for h in X["hours"]]))
         if not discovery.room(data, here) or self.rng.random() >= chance:
+            self.facade_met("facade" if self.part_of_here(seek) else "dead_end", text, f"looked for '{seek}' and found nothing new")
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. They find nothing new "
                          f"- only more of {place.name}. Describe the search and its fruitlessness.", text)
             return
         found = self.invent_discovery(here, seek, lead, data)
         if not found:
+            self.facade_met("facade" if self.part_of_here(seek) else "dead_end", text, f"looked for '{seek}': a lead came to nothing")
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. A promising lead "
                          f"comes to nothing. Describe that.", text)
             return

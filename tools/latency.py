@@ -190,6 +190,7 @@ def consistency_table(rows: list[dict], calls: list[dict], info: dict) -> list[s
     lines.append(f"| Turns ending on a refusal said at least twice in the last ten | {again} |")
     lines.append(f"| Longest run of one refusal | {longest}" + (f' ("{worst[:70]}")' if worst else "") + " |")
     lines.append(f"| Goals the bot gave up on meeting the same refusal twice | {(info.get('bot') or {}).get('blocked', 0)} |")
+    lines += goal_lines(rows, info)
     states = [r.get("state") or {} for r in rows]
     stale = sum(1 for s in states if s.get("delve") and not s.get("at_dungeon"))
     held, run_hold = 0, 0
@@ -235,6 +236,19 @@ def consistency_table(rows: list[dict], calls: list[dict], info: dict) -> list[s
     return lines
 
 
+def goal_lines(rows: list[dict], info: dict) -> list[str]:
+    """(f393) GOAL.md, counted: facades met (the player reached for something the place or the passage named, and nothing was there),
+    dead ends (looked for something unnamed, found nothing), attempts the game made room for (the turn's record: made), attempts it
+    said no to in the world (refused), and additions per hour of play. The refusals log and each turn's record are the sources."""
+    refs = info.get("_refusals") or []
+    kinds = collections.Counter(r.get("kind") for r in refs)
+    outcomes = collections.Counter(o.get("kind") for r in rows for o in (r.get("outcomes") or []))
+    hours = float(info.get("hours") or 0) or 1.0
+    return [f"| Facades met / dead ends | {kinds.get('facade', 0)} / {kinds.get('dead_end', 0)} |",
+            f"| Attempts the world made room for / said no to in the world | {outcomes.get('made', 0)} / {kinds.get('refused', 0)} |",
+            f"| Additions to the world per hour | {outcomes.get('made', 0) / hours:.1f} |"]
+
+
 def summarise(run_dir: Path) -> str:
     run_dir = Path(run_dir)
     calls = load(run_dir / "llm_calls.jsonl")
@@ -244,6 +258,7 @@ def summarise(run_dir: Path) -> str:
     info = {}
     if (run_dir / "run.json").exists():
         info = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    info["_refusals"] = load(run_dir / "refusals.jsonl")          # (f393)
     lines = [f"# Night run: {run_dir.name}", ""]
     if info:
         lines.append(f"{info.get('character', '?')}, {info.get('class', '?')}, level {info.get('level', '?')}, {info.get('deaths', 0)} deaths; "
