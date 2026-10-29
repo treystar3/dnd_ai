@@ -84,6 +84,27 @@ def closed_reason(store, place_id: str, now: int) -> str:
     return hits[0]["text"] if hits else ""
 
 
+def closed_until(store, place_id: str, now: int) -> int:
+    """(f390) The minute the way through this place opens again (the last closure on it to lift), or 0 when it is open."""
+    state = store.load_world_state()
+    return max((e["until"] for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"), default=0)
+
+
+def way_out(world, here: str) -> set[str]:
+    """(f390) The places a closure cannot bar to someone standing at `here`: the place itself, every place it lies within, and the one a
+    dead end opens onto (a dungeon's mouth opens only onto the wild above it). A closure stops people going in; it never shuts in whoever
+    is already there. A night's run spent four hours at the mouth of a mine whose only way out was a wild a world event had closed."""
+    out = set()
+    p = world.places.get(here)
+    while p is not None and p.id not in out:
+        out.add(p.id)
+        links = list(getattr(p, "connects", None) or {})
+        if len(links) == 1:
+            out.add(links[0])
+        p = world.places.get(p.parent) if p.parent else None
+    return out
+
+
 def happenings_at(store, world, place_id: str, now: int) -> list[str]:
     """What can be seen of the world's situations here right now."""
     state = store.load_world_state()

@@ -190,9 +190,10 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if not reason:                                                       # (f364) the content guard: the line the game draws
                 from engine import guard
                 if guard.guarded(task):
-                    cat, hit = guard.check(guard.strings_of(result))
+                    alien = guard.foreign(guard.strings_of(result), system + "\n" + str(messages[1]["content"]))   # (f390) another alphabet
+                    cat, hit = ("script", alien) if alien else guard.check(guard.strings_of(result))
                     if cat:
-                        reason = f"{guard.reason(cat)} (not '{hit}')"               # (f370) the word named, or the model writes it again
+                        reason = f"{guard.script_reason() if cat == 'script' else guard.reason(cat)} (not '{hit}')"   # (f370) the word named, or the model writes it again
                         try:
                             from engine import refusals
                             refusals.note("guarded", task, f"{cat}: {hit}")

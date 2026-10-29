@@ -1976,16 +1976,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.show_exits()
             return
         route, walk = found
+        free = pulse.way_out(self.world, self.player.location)                 # (f390) a closure never shuts in whoever is already there
+        passed = [p for p in route[1:] if p in free and pulse.closed_reason(self.store, p, self.minutes)]
         blocked = next(((p, pulse.closed_reason(self.store, p, self.minutes)) for p in route[1:]
-                        if pulse.closed_reason(self.store, p, self.minutes)), None)
+                        if p not in free and pulse.closed_reason(self.store, p, self.minutes)), None)
         if blocked and self.has("wayfinder") is not None:
             console.note(f"The way through {self.world.places[blocked[0]].name} is closed ({blocked[1]}), "
                          "but you know a way around.")
             blocked = None
         if blocked:
-            console.note(f"The way through {self.world.places[blocked[0]].name} is closed: {blocked[1]}")
+            left = pulse.closed_until(self.store, blocked[0], self.minutes) - self.minutes
+            days, hours = round(left / 1440), max(1, round(left / 60))
+            when = (" Nobody can say when it will open again." if not 0 < left <= 30 * 1440 else
+                    f" It should open again in about {days} day{'s' if days != 1 else ''}." if days else
+                    f" It should open again in about {hours} hour{'s' if hours != 1 else ''}.")
+            console.note(f"The way through {self.world.places[blocked[0]].name} is closed: {blocked[1].rstrip('.')}.{when}")
             self.halted = True
             return
+        if passed:
+            console.note(f"The way through {self.world.places[passed[0]].name} is closed to anyone going in, but you are already "
+                         "here, and nothing stops you leaving.")
         if any(i.legendary_effect == "lightfoot" for i in self.player.character.equipment.values()):
             walk = max(1, round(walk * (1 - items.LEGENDARY["lightfoot"].value / 100)))
         if self.has("trailblazer"):

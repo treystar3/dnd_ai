@@ -8,6 +8,12 @@
 # The game's own matter - fights, blood, theft, death, cruelty in a story - is not here. This is the line the game itself draws:
 # sexual content, slurs, and instruction in harming oneself. Extend the lists before a release; they are a floor, not a ceiling.
 
+# (f390) Letters of another writing system in an English line ("One keeps his head down, 그의 gaze fixed on the ground"; "it лишь skims
+# across"): a warmer night's narrator slipped them into one passage in a hundred. Any letter that is not Latin is sent back, unless the
+# request itself carried it (a name the player typed in their own script is theirs to keep).
+script:
+  reason: "write every word in English: a word in another language or alphabet is not part of the story"
+
 skip_tasks: [interpret_action, combat_interpret, audit_meaning, audit_compare, canon_extract, canon_check, overheard, party_intent,
              work_offer_read, classify_field, camp_intent, stranger_read, event_judge, clarify, plausible_object]
 
