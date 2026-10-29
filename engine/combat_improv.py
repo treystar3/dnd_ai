@@ -4,7 +4,11 @@ check, and applies a legal, bounded effect through the battlefield and status pr
 
 The law that keeps builds meaningful: AN ABILITY IS A PROMISE; AN IMPROVISATION IS A GAMBLE. The improvised version of anything an
 ability does is check-gated, costs the whole action, lands weaker (shorter, smaller, never a stun), and a failure is a real event -
-the action is lost and the player is left exposed for a round - never "nothing happens"."""
+the action is lost and the player is left exposed for a round - never "nothing happens".
+
+(f380) Each event says what the player tried, in their words, before what came of it: "it catches: the troll is fouled and slowed" alone,
+for "I watch the troll and look for an opening", was told as a lance driven into its shoulder. And watching for an opening is a thing
+of its own, not a reach for the nearest meaning (it had been read as fouling the troll's legs)."""
 from __future__ import annotations
 
 import random
@@ -14,6 +18,7 @@ from engine.combat import RULES, add_status, apply_damage, leave_open, tell, vb,
 
 # what an improvisation can be FOR, each with the words its meaning is matched against and its odds shift
 EFFECTS = {
+    "read_opening": {"about": "watching it, studying how it moves, waiting for an opening, reading its guard, biding your time", "odds": 10},
     "break_engagement": {"about": "getting away, slipping free, putting something between you and them, escaping their reach", "odds": 0},
     "gain_position": {"about": "climbing, high ground, a vantage point, getting on top of something", "odds": 0},
     "create_cover": {"about": "cover, a shield of furniture or terrain, ducking behind something, blocking their line", "odds": 5},
@@ -22,7 +27,8 @@ EFFECTS = {
     "disable": {"about": "tangling, pinning, blinding, jamming, fouling their weapon or legs", "odds": -10},
     "damage": {"about": "hurting them with the surroundings: a dropped beam, a kicked brazier, a rockslide", "odds": -5},
 }
-FALLBACK_WORDS = {"break_engagement": ("away", "escape", "between", "back off", "slip"),
+FALLBACK_WORDS = {"read_opening": ("watch", "opening", "study", "wait for", "bide", "its guard", "a gap"),
+                  "break_engagement": ("away", "escape", "between", "back off", "slip"),
                   "gain_position": ("climb", "high", "up ", "vantage", "leap onto", "on top"),
                   "create_cover": ("cover", "behind", "barricade", "shield"),
                   "distract": ("distract", "sand", "feint", "throw my", "trick", "eyes"),
@@ -61,12 +67,19 @@ def resolve(fight, p, target, words: str, rng: random.Random) -> None:
     good = degree in ("success", "strong success")
     partial = degree == "partial"
     fight.log.append(f"{p.name} improvises ({effect.replace('_', ' ')}): {degree}")
+    tried = f"{who(p)} {vb(p, 'try', 'tries')} it ({words.strip() or effect.replace('_', ' ')})"
     if not good and not partial:
         bf.gain(p, "exposed")
-        tell(fight, f"{who(p)} {vb(p, 'try', 'tries')} it ({words.strip() or effect.replace('_', ' ')}) and it goes wrong - "
-             f"the moment is lost and {who(p)} {vb(p, 'are', 'is')} left exposed")
+        tell(fight, f"{tried} and it goes wrong - the moment is lost and {who(p)} {vb(p, 'are', 'is')} left exposed")
         return
-    if effect == "break_engagement":
+    told = len(fight.story)
+    if effect == "read_opening":
+        t = target or (fight.enemies()[0] if fight.enemies() else None)
+        if t is not None:
+            leave_open(fight, t)
+            tell(fight, f"{who(p)} {vb(p, 'see', 'sees')} the gap in {who(t)}'s guard - open to {'your' if p.side == 'player' else 'its'} next blow"
+                 + (", if only for a moment" if partial else ""))
+    elif effect == "break_engagement":
         bf.slip_away(fight, p)
         tell(fight, f"it works: {who(p)} {vb(p, 'slip', 'slips')} out of their reach" + (", barely" if partial else ""))
         if partial:
@@ -110,3 +123,5 @@ def resolve(fight, p, target, words: str, rng: random.Random) -> None:
         if t is not None:
             apply_damage(fight, p, t, RULES.get("improv", {}).get("damage_mult", 0.8) * (0.5 if partial else 1.0),
                          "brings the surroundings down on", rng, can_cleave=False, can_riposte=False)
+    if len(fight.story) > told:                                          # what was tried comes first, then what came of it
+        fight.story.insert(told, tried[0].upper() + tried[1:])

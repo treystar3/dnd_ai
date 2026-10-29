@@ -23,7 +23,8 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 # ---- the doings are plain facts
-lines = list(doings.D["anyone"]) + [e["text"] for r in doings.D["by_role"] for e in doings.entries(r)]
+lines = list(doings.D["anyone"]) + [e["text"] for r in doings.D["by_role"] for e in doings.entries(r)] \
+    + [e["text"] for who in doings.D.get("by_person", {}) for e in doings.entries("", who)]
 check("every doing is two to five words, with no second clause, no figure and no pronoun",
       all(2 <= len(t.split()) <= 5 and "," not in t and not re.search(r"\b(as if|like a|his|her|him|she|he|their|them)\b", t) for t in lines))
 check("the hunter fletches arrows and the smith shoes a horse, and nothing more is said of it",

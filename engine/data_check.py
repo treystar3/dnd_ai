@@ -157,6 +157,8 @@ def check() -> list[str]:
     for m in motives:
         need(len((Q.get("secret_themes") or {}).get(m, [])) == 2, f"quirks.yaml secret_themes: motive '{m}' needs two themes (trusted, devoted)")
         need(len((Q.get("secret_fallback") or {}).get(m, [])) == 2, f"quirks.yaml secret_fallback: motive '{m}' needs two written fallbacks")
+    for h, spec in (Q.get("habits") or {}).items():                  # (f379) where a habit can happen
+        need(spec.get("where", "") in ("", "building", "open_air"), f"quirks.yaml habits.{h}: where is building or open_air, or absent for anywhere")
     H = Q.get("habituation") or {}
     for k in ("react_chance", "bond_share"):
         vals = H.get(k) or []

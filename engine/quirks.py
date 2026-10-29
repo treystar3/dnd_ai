@@ -247,12 +247,26 @@ def voice_check(member: dict, speech: str, player_name: str = "", recent: list[s
 
 # ---------- habits ----------
 
-def habit_line(member: dict, when: str, rng: random.Random, weapon: str = "", danger: bool = False, day: int | None = None) -> str:
+def habit_fits(spec: dict, place_type: str) -> bool:
+    """(f379) Can this habit happen in this kind of place: a door for the doorframe, a sky for reading the sky. No place type: anywhere."""
+    where = spec.get("where", "")
+    if not where or not place_type:
+        return True
+    building = place_type in Q.get("buildings", [])
+    if where == "building":
+        return building
+    if where == "open_air":
+        return not building and place_type not in Q.get("under_ground", [])
+    return True
+
+
+def habit_line(member: dict, when: str, rng: random.Random, weapon: str = "", danger: bool = False, day: int | None = None,
+               place_type: str = "") -> str:
     """The habit shown at its moment, or ''. Always the first time; then most of the time, and never twice in one day (a night run saw
-    'takes the first watch' on every hour's wait)."""
+    'takes the first watch' on every hour's wait). (f379) Never where it cannot happen (habit_fits)."""
     q = member.get("quirks") or {}
     spec = Q["habits"].get(q.get("habit", ""))
-    if not spec:
+    if not spec or not habit_fits(spec, place_type):
         return ""
     if day is not None and q.get("habit_day") == day:
         return ""

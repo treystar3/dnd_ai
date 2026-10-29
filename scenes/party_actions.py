@@ -506,7 +506,7 @@ class PartyActions:
             from llm.contracts import DialogueFrame
             from scenes import world_prompts as wp
             from scenes.voice import fresh
-            others = [f"{n.label()}: {n.activity}" for n in self.present][:4] + [f"{o['name']}: travelling with the player" for o in self.player.party
+            others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present][:4] + [f"{o['name']}: travelling with the player" for o in self.player.party
                                                                                  if o is not m and o.get("permanent") and not o.get("story")][:3]
             looks = f"({(m.get('people') or 'human').replace('_', '-')} {m.get('role', '')}, rank {m.get('rank', 'F')}) {m.get('blurb', '')}".strip()
             doing = "in the fight beside the player" if in_fight else "travelling with the player, close at hand"

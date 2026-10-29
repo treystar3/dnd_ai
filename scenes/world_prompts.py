@@ -105,9 +105,9 @@ Write plain prose. No lists, no markdown, no headings. Use real detail from the 
 
 Rules:
 - Describe only what the GAME STATE gives you: the place's visible details, and the people present with what they are doing.
-- Say what is new. ALREADY SHOWN THIS VISIT lists what the player has read here already: do not describe it again. On an arrival,
-  the place and one person doing one thing; the rest waits until the player looks. When they look, answer what
-  they look at, describing at most four people individually and summing up the rest as a group.
+- Say what is new. ALREADY SHOWN THIS VISIT lists what the player has read here already: do not describe it again. Walking in,
+  PEOPLE HERE holds only the first people the eye falls on; the others are a number, the room as a whole at most. When they look,
+  answer what they look at, describing at most four people individually and summing up the rest as a group.
 - The player's companions are with them and are not scenery: say nothing of them unless the GAME EVENT says what one of them does,
   and then show only that. Never their posture, their mood or where they stand as a way of filling a passage.
 - WORDS YOU HAVE WORN OUT lists words your recent passages leaned on: find other words, or leave the thing unsaid.
@@ -134,17 +134,22 @@ def _sentences(lines) -> str:
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
-                      news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = ()) -> str:
+                      news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
+                      unlooked: int = 0) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
-    length is given: the narrator writes what the moment holds."""
+    length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
+    first (scenes/world.py first_seen); this many more are here, met when the player looks."""
     visible = "\n".join(f"  - {v}" for v in list(place.visible) + list(streets))       # (f313) the crowd, the watch, the town's state and landmarks, from the truth layer
     present = "\n".join(f"  - {label}: {desc} Right now: {activity}" for label, desc, activity in people) or "  (no one)"
+    if unlooked:
+        present += (f"\n  - and {unlooked} {'other' if unlooked == 1 else 'others'} the player has not looked at yet: at most a word for them "
+                    "together, never one by one")
     said = f'\nPLAYER\'S WORDS: "{player_text}"' if player_text else ""
     return (
         f"GAME STATE\nTIME: {time_label}\n{('THE PLAYER: ' + gear + chr(10)) if gear else ''}PLACE: {place.name} ({place.type})\n"
         + (f"THE TOWN (its character; let it colour the scene, never recite it): {town}\n" if town else "")
-        + f"VISIBLE:\n{visible}\nPEOPLE HERE:\n{present}\n"
+        + f"VISIBLE:\n{visible}\nPEOPLE HERE{' (the first the eye falls on, walking in)' if unlooked else ''}:\n{present}\n"
         + (("ALREADY SHOWN THIS VISIT (the player has read these here; do not describe them again - say what is new):\n"
             + "\n".join(f"  - {x}" for x in already) + "\n") if already else "")
         + (f"WITH THE PLAYER (companions the event has act; show only what the event says they do): {', '.join(companions)}\n" if companions else "")

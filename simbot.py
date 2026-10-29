@@ -920,7 +920,10 @@ class Bot:
             self.act({"kind": "join_guild"}, "join the guild", "guild")
             self.log("joined", coins=c.coins)
         self.people_pass()
-        self.act({"kind": "board"}, "check the board", "guild")      # any action also turns in finished contracts
+        clerk = ws.clerk_here()
+        if clerk and any(quests.done(q, self.pack) for q in ws.player.quests if q["guild"]):     # (f378) the work is handed in by speaking to the clerk
+            self.act({"kind": "talk", "target": clerk.id, "speech": "I've finished a contract. Here it is."}, "hand in to the clerk", "guild")
+        self.act({"kind": "board"}, "check the board", "guild")
         self.last_guild_day = self.day
         self.town_services()
         if ws.player.guild_rank:

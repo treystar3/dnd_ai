@@ -33,9 +33,77 @@ TAG = re.compile(r"\s*[\[\(\{]\s*h\d+\s*[\]\)\}]", re.IGNORECASE)
 TAG_N = re.compile(r"\s*[\[\(\{]\s*h(\d+)\s*[\]\)\}]", re.IGNORECASE)
 
 
-def place_figures(text: str, hits: list[dict], window: bool) -> str:
-    """Swap each blow's tag in the narration for its figure, e.g. '(14 damage)'. Any figure the narrator left out goes on the end,
-    so a blow is never without its number. In the window a figure is a hoverable token (⟦id|figure⟧); in the terminal plain text."""
+_END = re.compile(r"[.!?]+[\"'”’]*(?=\s|$)")
+_STOPWORDS = {"that", "this", "with", "from", "into", "onto", "their", "them", "they", "your", "yours", "what", "when", "then", "than",
+              "there", "here", "have", "were", "been", "upon", "over", "under", "each", "just", "only", "against", "across", "before", "after"}
+
+
+def _sense(text: str) -> set[str]:
+    """The words of a line that say what happened in it, cut to their stems: 'wolves' and 'wolf', 'sweeps' and 'sweep' meet."""
+    out = set()
+    for w in re.findall(r"[a-z]{4,}", (text or "").lower()):
+        if w in _STOPWORDS:
+            continue
+        for end in ("ing", "ed", "es", "s"):
+            if w.endswith(end) and len(w) - len(end) >= 4:
+                w = w[:-len(end)]
+                break
+        out.add("wolf" if w == "wolve" else w)
+    return out
+
+
+def _sentence_spans(text: str) -> list[tuple[int, int]]:
+    """Where each sentence of the passage starts and ends, its closing quote included; the spaces and line breaks between are left out."""
+    spans, start = [], 0
+    for m in _END.finditer(text):
+        if text[start:m.end()].strip():
+            spans.append((start, m.end()))
+        start = m.end()
+    if text[start:].strip():
+        spans.append((start, len(text.rstrip())))
+    return spans
+
+
+def seat_missing(text: str, hits: list[dict], story: list[str]) -> str:
+    """(f377) Each blow's tag the narrator left out, put back at the end of the sentence that tells that blow, rather than on the end of
+    the passage, where a killing blow's figure read as belonging to the last miss. The sentence is found between the blows told before
+    and after it (the tags keep the events' order), as the one sharing most of the engine's own words for that blow (its story line:
+    who struck, with what, at whom, how it ended); with nothing shared, the last sentence before the next blow. Nothing else in the
+    passage moves."""
+    want = sorted(int(h["tag"][1:]) for h in hits if h.get("figure") and str(h.get("tag", "")).startswith("h") and h["tag"][1:].isdigit())
+    for k in want:
+        spans = _sentence_spans(text)
+        if not spans:
+            return text
+        at = {}
+        for i, (a, b) in enumerate(spans):
+            for m in TAG_N.finditer(text[a:b]):
+                at.setdefault(int(m.group(1)), i)
+        if k in at:
+            continue
+        before = [i for n, i in at.items() if n < k]
+        after = [i for n, i in at.items() if n > k]
+        lo, hi = (max(before) + 1 if before else 0), (min(after) if after else len(spans))
+        if lo >= hi and after:                         # told in the same sentence as the blow after it: just before that blow's tag
+            a, b = spans[hi]
+            nxt = next(m for m in TAG_N.finditer(text[a:b]) if int(m.group(1)) > k)
+            text = text[:a + nxt.start()] + f" [h{k}]" + text[a + nxt.start():]
+            continue
+        told = _sense(TAG_N.sub("", next((s for s in story if f"[h{k}]" in s), "")))
+        window = range(lo, hi) if lo < hi else [len(spans) - 1]          # after every blow told: the last sentence
+        best = max(window, key=lambda i: (len(told & _sense(TAG_N.sub("", text[spans[i][0]:spans[i][1]]))), i))
+        a, b = spans[best]
+        m = re.search(r"([.!?]+)([\"'”’]*)$", text[a:b])
+        cut = b if not m or m.group(2) else a + m.start()  # before the full stop; after a closing quote, never inside the words said
+        text = text[:cut] + f" [h{k}]" + text[cut:]
+    return text
+
+
+def place_figures(text: str, hits: list[dict], window: bool, story: list[str] = ()) -> str:
+    """Swap each blow's tag in the narration for its figure, e.g. '(14 damage)'. (f377) A blow's tag the narrator left out is put back
+    on the sentence that tells it (seat_missing); any figure still without a place goes on the end, so a blow is never without its
+    number. In the window a figure is a hoverable token (⟦id|figure⟧); in the terminal plain text."""
+    text = seat_missing(text, hits, list(story))
     by_tag = {h['tag']: h for h in hits if h.get('figure')}
     used = set()
     def fig(h):
@@ -746,8 +814,9 @@ class CombatScene:
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
                                           looks=self.ability_looks()),                                                           # (f373)
-                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
-        text_out = place_figures(result.text, f.hits, console.damage_tags)
+                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"),
+                       tails=False)                                                                                          # (f380)
+        text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
         self.note_fight_shown(result.text)

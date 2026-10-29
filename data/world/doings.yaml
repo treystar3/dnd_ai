@@ -14,6 +14,9 @@
 # An entry is a phrase in the present participle with no subject, or {text, when, weight}: `when` lists the periods it may be chosen in
 # (any, when absent), `weight` its share (1 when absent).
 
+# by_person (f380): a person the world was written around keeps doings of their own, ahead of their role's: Maren carries a greatsword
+# and waits on her own party, and the contractors' list had her counting a handful of arrows. Keyed by the person's id.
+
 anyone:                       # for a role with no list of its own, and when a role's list is spent
   - "talking with a neighbour"
   - "carrying a basket"
@@ -107,7 +110,7 @@ by_role:
     - "writing in the ledger"
     - "pinning up a contract"
     - "counting coin"
-    - "reading a contract aloud"
+    - "checking a contract"
     - {text: "sweeping the hall", when: [dawn, morning]}
     - "sharpening a pen"
   innkeeper:
@@ -331,3 +334,14 @@ by_role:
     - "resting with a warm drink"
     - "telling a story"
     - {text: "packing a lute", when: [morning, dawn]}
+
+by_person:
+  maren:
+    - "oiling a greatsword"
+    - "reading the board"
+    - "watching the door"
+    - {text: "eating a late breakfast", when: [morning]}
+    - {text: "eating stew", when: [midday, evening]}
+    - "writing a letter"
+    - "talking shop with a contractor"
+    - "checking a plate strap"

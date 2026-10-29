@@ -156,7 +156,7 @@ class BanterActions:
             else:
                 n = next((x for x in self.present if x.name == who or x.label() == who), None)
                 speakers.append(f"{who}: {n.activity}" if n else who)
-        others = [f"{n.label()}: {n.activity}" for n in self.present if n.name not in speaking and n.label() not in speaking][:4]
+        others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present if n.name not in speaking and n.label() not in speaking][:4]
         spoken = [t for _, t in merged if not t.startswith("(")] or [t for _, t in merged]
         try:
             from engine import reach                            # (f344) what the place offers the party; tense in a fight

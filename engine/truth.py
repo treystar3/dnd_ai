@@ -264,6 +264,16 @@ AUDIT = Viewer(id="audit", kind="audit", groups=frozenset({"everyone"}))
 PLAYER = Viewer(id="player", kind="player", groups=frozenset({"everyone"}), is_player=True, in_party=True)
 
 
+def their_work(label: str, role: str) -> str:
+    """(f378) What someone does for a living, for the narrator: 'the guild clerk', or '' when how the player knows them already says it.
+    Told only their look and their doing, the narrator took a spectacled quartermaster weighing a sack for the clerk, and wrote the real
+    clerk, whom the player knew by name, as a second man reading at the board."""
+    role = (role or "").replace("_", " ").strip()
+    if not role or role.split()[-1] in (label or "").lower():
+        return ""
+    return f"the {role}"
+
+
 def _present_people(ws) -> list[Present]:
     from npc.life import manner
     out = []
