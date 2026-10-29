@@ -1035,7 +1035,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.collect_commissions()
             if self.player.quests:
                 self.expire_quests()
-                self.turn_in()
+                if intent.kind in ("give", "show") and intent.target:        # (f378) handing the work over is handing it in; talk does it in on_talk
+                    self.turn_in(intent.target)
             if intent.kind in TIME_COST:
                 self.advance(TIME_COST[intent.kind])
         undone = self.__dict__.pop("dropped_steps", [])
@@ -1427,7 +1428,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Who is here, as the player knows them, for the narrator (engine/truth.py, f313). The hires travelling with the player are not
         scenery (f349): they are left out, and the narrator hears of one only when the GAME EVENT has them act (companions_in)."""
         from engine import truth
-        return [(p.label, p.desc, p.doing) for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+        return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc, p.doing)      # (f378) and their work
+                for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+
+    def seen_as(self, n) -> str:
+        """(f378) A townsperson as the narrator's frames list them: how the player knows them, and their work when that does not say it."""
+        from engine import truth
+        work = truth.their_work(n.label(), n.role)
+        return f"{n.label()}, {work}" if work else n.label()
 
     def companions_in(self, event: str) -> list[str]:
         """(f349) The hires the GAME EVENT names, so the narrator may show what one of them does; the rest go unmentioned."""
@@ -1961,6 +1969,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"trusted face: {npc.name} starts at trust {npc.trust}")
         check_note = getattr(self, "pending_check", "")
         self.pending_check = ""
+        handed = self.turn_in(npc.id) if self.player.quests else []             # (f378) finished work is handed in by speaking to who pays
+        if handed:
+            check_note = (check_note + " [THE GAME HAS DECIDED: the stranger has handed in " + "; ".join(handed)
+                          + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()
         from engine import matters, court, stakes
         matters.bind_for(self.store, self.world, npc)                    # (f317) a clue written for their role settles on them
         ctx = (self.npc_context(npc) + self.local_knowledge(npc) + matters.talk_lines(self, npc)
@@ -2110,7 +2122,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not reasons:
             self.show_speech(speaker, reply, npc)
             return
-        others = [self.unnamed(f"{n.label()}: {n.activity}", npc) for n in self.present if n.id != npc.id][:5]
+        others = [self.unnamed(f"{self.seen_as(n)}: {n.activity}", npc) for n in self.present if n.id != npc.id][:5]
         manner = self.unnamed(f"{npc.personality} {npc.voice}".strip(), npc) or "unknown yet"
         within, moment = self.reach_of(npc)
         try:

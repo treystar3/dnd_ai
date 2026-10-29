@@ -52,7 +52,8 @@ ACTIONS: tuple[Action, ...] = (
                (fishing is other; herbs are forage)"""),
     Action("talk", "speak to someone here", clock.TALK_MINUTES, targeted=True,
            prompt="""they speak to, ask, whisper to, greet, approach or look for a PERSON in PEOPLE HERE,
-               or keep talking in the current conversation. Any spoken words count as talk."""),
+               or keep talking in the current conversation. Any spoken words count as talk. Handing in, reporting or
+               turning in finished work (a contract, a request) is talk to the clerk or to whoever asked for it."""),
     Action("leave_conversation", "end the conversation", 0,
            prompt="""they end the current conversation without going anywhere (a goodbye can include spoken words)"""),
     Action("buy", "buy a ware from someone here", targeted=True, verbs=("buy", "purchase", "sleep", "rest"), words=("order", "rent"),

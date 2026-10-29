@@ -107,7 +107,7 @@ by_role:
     - "writing in the ledger"
     - "pinning up a contract"
     - "counting coin"
-    - "reading a contract aloud"
+    - "checking a contract"
     - {text: "sweeping the hall", when: [dawn, morning]}
     - "sharpening a pen"
   innkeeper:

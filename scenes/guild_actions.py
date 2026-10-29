@@ -515,15 +515,18 @@ class GuildActions:
                 self.arc_quest_gone(q, "time ran out")
                 self.store.save_player(self.player)
 
-    def turn_in(self) -> None:
-        """Pay out finished contracts when the clerk (or a personal request's giver) is present."""
+    def turn_in(self, to: str | None = None) -> list[str]:
+        """Pay out finished contracts to the clerk (a guild contract) or the one who asked (a personal request). (f378) `to` is the person
+        the player is speaking to or handing the work to, and only what they pay for is handed in: walking into the hall no longer does
+        it. None pays everything whose payer is present (tests and tools). Returns what was handed in, for the payer's reply."""
         clerk = self.clerk_here()
         present = {n.id: n for n in self.present}
         bonus = self.guild_perks()["reward_bonus"]
         c = self.player.character
+        handed = []
         for q in list(self.player.quests):
             payer = clerk if q["guild"] else present.get(q["issuer"])
-            if not payer or not quests.done(q, self.pack):
+            if not payer or not quests.done(q, self.pack) or (to is not None and payer.id != to):
                 continue
             if q["kind"] == "gather":
                 inv.remove_goods(self.pack, q["good"], "", q["count"])
@@ -550,12 +553,14 @@ class GuildActions:
                                      thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
             console.ledger(f"Completed: [{q['letter']}] {q['title']}. {payer.label().capitalize()} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
+            handed.append(f"the finished {'contract' if q['guild'] else 'request'} '{q['title']}', paid {money.words(coins)}")
             from engine import stakes
             stakes.done(self, q)                                            # (f322) the result lands; the issuer and the town remember
             if levels:
                 console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
             self.promote_if_due()
         self.store.save_player(self.player)
+        return handed
 
     def promote_if_due(self) -> None:
         if not self.rank:
