@@ -151,6 +151,16 @@ class Bridge:
         self.emit(k="home", data=data)
         return True
 
+    def creation(self, data: dict) -> bool:
+        """(f388) A step of character creation, drawn by the page itself (web/app.js showCreation)."""
+        self.flush_text()
+        self.emit(k="creation", data=data)
+        return True
+
+    def creation_done(self) -> None:
+        self.flush_text()
+        self.emit(k="creation_end")
+
     def home_done(self) -> None:
         """A game is opening: the page hides the home page and clears the story of whatever was played before; the pinned view runs
         again at the first prompt, for the new character."""
@@ -231,7 +241,7 @@ class Bridge:
     def install(self) -> None:
         from llm import gateway
         self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
-                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
+                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
         real_chat = gateway._client.chat
 
         def chat(*a, **kw):
@@ -253,6 +263,7 @@ class Bridge:
         console.panel = self.panel
         console.setup, console.setup_progress, console.setup_done = self.setup, self.setup_progress, self.setup_done
         console.home, console.home_done = self.home, self.home_done
+        console.creation, console.creation_done = self.creation, self.creation_done
         console.combat_state, console.damage_tags = self.combat_state, True
         console.WIDTH = WRAP_WIDTH      # the page wraps text to its own width, so the game must not wrap it first
 
@@ -267,6 +278,7 @@ class Bridge:
         console.panel = s["panel"]
         console.setup, console.setup_progress, console.setup_done = s["setup"], s["setup_progress"], s["setup_done"]
         console.home, console.home_done = s["home"], s["home_done"]
+        console.creation, console.creation_done = s["creation"], s["creation_done"]
         console.combat_state, console.damage_tags = s["combat_state"], s["damage_tags"]
         console.WIDTH = s["width"]
         gateway._client.chat = s["chat"]

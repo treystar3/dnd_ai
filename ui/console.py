@@ -110,6 +110,16 @@ def home_done() -> None:
     """The home page is finished and a game is opening."""
 
 
+def creation(data: dict) -> bool:
+    """(f388) One step of character creation as a page (scenes/goddess.py show): True when a window drew it; the terminal returns False
+    and the scene prints the step as text."""
+    return False
+
+
+def creation_done() -> None:
+    """(f388) Creation is over: a window closes its pages."""
+
+
 def setup_progress(frac: float, text: str) -> None:
     print(f"\r  {text}  {int(frac * 100):>3}%   ", end="", flush=True)
     if frac >= 1:

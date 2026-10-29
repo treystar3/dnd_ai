@@ -241,6 +241,10 @@ def check() -> list[str]:
     from engine import world_improv as _wi                   # (f332) what an improvisation may make true
     for p_ in _wi.problems():
         need(False, p_)
+    from engine import look as _look                          # (f388) a look for every people of the world, and no other
+    from world.loader import load_world as _lw
+    for p_ in _look.problems(_lw()):
+        need(False, p_)
     PT_ = _load("data/rules/pastimes.yaml")
     _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
     from engine import clock as _clock, doings as _doings, moments as _moments                 # (f348) doings by role and period; moments by place and period

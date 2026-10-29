@@ -188,6 +188,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         held = c.equipment.get("main_hand")
         parts = [f"wearing {', '.join(worn)}" if worn else "no armor, only plain clothes"]
         parts.append(f"carrying {held.name}" if held else "empty-handed")
+        if getattr(c, "look_text", ""):                    # (f388) how they look, as they chose at the Threshold
+            parts.insert(0, c.look_text.rstrip("."))
         return "; ".join(parts)
 
     def remember_narration(self, text: str, shown: dict | None = None) -> None:

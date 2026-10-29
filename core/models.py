@@ -251,6 +251,9 @@ class Character(BaseModel):
     combat_identity: str = ""                  # how the class fights, in the reading's words ("Spear and mobility"): the kit answers to it
     concept: str = ""                          # the player's own words at the Threshold ("a centaur spearman hunter")
     pronoun: str = ""                          # (f386) she, he or they: from their own words at the Threshold, kept; '#pronoun' changes it
+    people: str = ""                           # (f388) the people they were born to (data/world/peoples.yaml), chosen before the goddess speaks
+    look: dict = {}                            # (f388) their look as chosen: {"look": {axis: option}, "flags": [...], "extra": "..."} (engine/look.py)
+    look_text: str = ""                        # (f388) the one sentence the world sees ("A stocky dwarf woman with braided copper hair...")
     uses_companions: bool = False      # keeps companions: tamed, living creatures that grow with them
     summoner: bool = False             # makes summons with magic (engine/summons.py); a summon is never a companion
     bound_summon: str = ""             # the summon ability whose Bound summon walks with them now

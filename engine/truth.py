@@ -512,6 +512,8 @@ def _player(scene: Scene):
     ws = scene.ws
     c = ws.player.character
     out = [Fact("player", SEEN_AS[player_pronoun(c)])]
+    if getattr(c, "look_text", ""):                     # (f388) what they chose to keep of themselves: what anyone sees
+        out.append(Fact("player", "looks like this: " + c.look_text))
     out.append(Fact("player", f"wears a guild badge (rank {ws.rank})" if ws.rank else "wears no guild badge"))
     weapon = (c.equipment or {}).get("main_hand")
     if weapon:

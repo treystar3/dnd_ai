@@ -489,6 +489,9 @@ def main() -> None:
         die(f"--persona must be one of: {', '.join(PERSONAS)}")
     level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
     char, spec = simlib.make_character(args.cls, rng, perks=True)
+    from engine import look                                             # (f388) a look of its own, seeded, as a player chooses one first
+    seen = look.surprise(random.Random(f"{args.seed}:{args.cls}:look"))
+    char.pronoun, char.people, char.look, char.look_text = seen["pronoun"], seen["people"], {k: seen[k] for k in ("look", "flags", "extra")}, look.describe(seen)
     if level > 1:
         leveling.level_up(char, level - 1)
         spend_points(char, spec)
