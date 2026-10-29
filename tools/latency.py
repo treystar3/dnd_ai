@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import collections
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def load(path: Path) -> list[dict]:
@@ -132,6 +135,106 @@ def play_table(rows: list[dict], info: dict, pulse: list[dict]) -> list[str]:
     return lines
 
 
+REFUSAL_WORDS = re.compile(r"\b(closed|not|no|nothing|can't|cannot|isn't|aren't|don't|nowhere|already|too|need|unknown|refuse)\b", re.I)
+PRONOUNS = {"he": re.compile(r"\b(he|him|his|himself)\b", re.I), "she": re.compile(r"\b(she|her|hers|herself)\b", re.I)}
+
+
+def _prose(calls: list[dict]) -> list[tuple[int, str, str]]:
+    """(turn, task, text) for the prose of every accepted answer."""
+    from engine import hygiene
+    out = []
+    for r in calls:
+        if r.get("error") or not r.get("raw") or r.get("task") == "player_line":     # the bot's own lines are not the game's
+            continue
+        try:
+            value = json.loads(r["raw"])
+        except ValueError:
+            continue
+        for t in hygiene.prose_of(value):
+            if t:
+                out.append((int(r.get("turn") or 0), r.get("task", "?"), t))
+    return out
+
+
+def consistency_table(rows: list[dict], calls: list[dict], info: dict) -> list[str]:
+    """(f391) What a reader of the night would trip over, counted: the machinery in the text, refusals said again and again, what the
+    game believed against where the player was, captives held, people who left the party and were never spoken of again, and companions
+    called by the wrong pronoun or people. Rough by design (a sentence may be about two people); the counts are for comparing nights."""
+    from engine import hygiene
+    lines = ["| Measure | Value |", "| --- | --- |"]
+    reasons = {v.split(":")[0][:40]: k for k, v in hygiene.H["reasons"].items()}
+    at_model = collections.Counter()
+    for r in calls:
+        err = str(r.get("error") or "")
+        hit = next((k for head, k in reasons.items() if err.startswith(head)), None)
+        if hit:
+            at_model[hit] += 1
+        elif err.startswith("write every word in English"):
+            at_model["script"] += 1
+    screen = info.get("hygiene") or {}
+    lines.append(f"| Machinery sent back by the gateway | {sum(at_model.values())}" + (f" ({', '.join(f'{k} {v}' for k, v in at_model.most_common())})" if at_model else "") + " |")
+    lines.append(f"| Machinery mended at the screen | {sum(screen.values())}" + (f" ({', '.join(f'{k} {v}' for k, v in sorted(screen.items()))})" if screen else "") + " |")
+    keyed = []
+    for r in rows:
+        keys = {re.sub(r"\d+", "#", n.lower())[:90] for n in r.get("notes") or [] if REFUSAL_WORDS.search(n)}
+        keyed.append(keys)
+    longest, worst, again = 0, "", 0
+    run: dict[str, int] = {}
+    for i, keys in enumerate(keyed):
+        run = {k: run.get(k, 0) + 1 for k in keys}
+        for k, n in run.items():
+            if n > longest:
+                longest, worst = n, k
+        if any(sum(1 for prev in keyed[max(0, i - 10):i] if k in prev) >= 2 for k in keys):
+            again += 1
+    lines.append(f"| Turns ending on a refusal said at least twice in the last ten | {again} |")
+    lines.append(f"| Longest run of one refusal | {longest}" + (f' ("{worst[:70]}")' if worst else "") + " |")
+    lines.append(f"| Goals the bot gave up on meeting the same refusal twice | {(info.get('bot') or {}).get('blocked', 0)} |")
+    states = [r.get("state") or {} for r in rows]
+    stale = sum(1 for s in states if s.get("delve") and not s.get("at_dungeon"))
+    held, run_hold = 0, 0
+    for s in states:
+        run_hold = run_hold + 1 if s.get("party") and s.get("party_mode", "with") != "with" else 0
+        held = max(held, run_hold)
+    lines.append(f"| Turns the game believed the player was in a dungeon they had left | {stale} |")
+    lines.append(f"| Longest run of the party held back | {held} turns |")
+    lines.append(f"| Captives held at once (most) / longest held | {max((s.get('prisoners', 0) for s in states), default=0)} / "
+                 f"{max((s.get('prisoner_days', 0) for s in states), default=0)} days |")
+    prose = _prose(calls)
+    left = []
+    for a, b in zip(rows, rows[1:]):
+        gone = set((a.get("state") or {}).get("party") or []) - set((b.get("state") or {}).get("party") or [])
+        for name in gone:
+            first = name.split()[0]
+            after = sum(1 for t, _, text in prose if t > int(b.get("turn") or 0) and re.search(rf"\b{re.escape(first)}\b", text))
+            left.append(f"{name} (turn {b.get('turn')}): named {after} times after")
+    lines.append(f"| Left the party, and named afterwards | {'; '.join(left) if left else 'nobody left'} |")
+    cast = info.get("cast") or {}
+    firsts = {n.split()[0]: n for n in cast}
+    from engine import look
+    peoples = {spec["word"]: p for p, spec in look.L["peoples"].items()}
+    wrong_pr = collections.Counter()
+    wrong_pe = collections.Counter()
+    for _, task, text in prose:
+        for sent in re.split(r"(?<=[.!?])\s+", text):
+            named = [n for f, n in firsts.items() if re.search(rf"\b{re.escape(f)}\b", sent)]
+            if len(named) != 1:
+                continue
+            who = cast[named[0]]
+            pr = who.get("pronoun")
+            other = {"he": "she", "she": "he"}.get(pr)
+            if other and PRONOUNS[other].search(sent) and not PRONOUNS[pr].search(sent):
+                wrong_pr[(named[0], task)] += 1
+            for word, pid in peoples.items():
+                if who.get("people") and pid != who["people"] and re.search(rf"\b{re.escape(word)}\b", sent, re.I):
+                    wrong_pe[(named[0], task)] += 1
+    def top(c):
+        return "; ".join(f"{n} in {t} {v}" for (n, t), v in c.most_common(4))
+    lines.append(f"| Companion sentences with the other gender's pronoun | {sum(wrong_pr.values())}" + (f" ({top(wrong_pr)})" if wrong_pr else "") + " |")
+    lines.append(f"| Companion sentences naming another people | {sum(wrong_pe.values())}" + (f" ({top(wrong_pe)})" if wrong_pe else "") + " |")
+    return lines
+
+
 def summarise(run_dir: Path) -> str:
     run_dir = Path(run_dir)
     calls = load(run_dir / "llm_calls.jsonl")
@@ -156,6 +259,8 @@ def summarise(run_dir: Path) -> str:
         handled = collections.Counter(r.get("handled_by", "?") for r in game_turns)
         lines += ["", "Lines by what read them: " + ", ".join(f"{k} {n}" for k, n in handled.most_common())]
     lines += ["", "## Play", ""] + play_table(turns, info, pulse) if turns else []
+    if turns:
+        lines += ["", "## Consistency", ""] + consistency_table(turns, calls, info)
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
     text = "\n".join(lines) + "\n"

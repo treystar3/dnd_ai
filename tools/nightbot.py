@@ -81,7 +81,10 @@ class Bot:
     """Types what a player would, from what the scene shows and what they mean to do."""
 
     QUESTIONS = ["What's been happening around here lately?", "Do you know of any work going?", "What do you make of the roads these days?",
-                 "Who runs things in this town?", "Tell me about yourself.", "Any news from the other towns?", "What should a stranger steer clear of here?"]
+                 "Who runs things in this town?", "Tell me about yourself.", "Any news from the other towns?", "What should a stranger steer clear of here?",
+                 "How long have you been here?", "What do you do when the day's work is done?", "Who here would you trust with your life?",
+                 "What's the oldest thing in this place?", "Is there anything you need done?", "Where would you go, if you could go anywhere?",
+                 "What do people here argue about?", "Have you seen anything strange lately?", "Who should I meet while I'm here?"]
     TOPICS = ["the town", "work", "the road ahead", "the news", "their trade", "the weather lately"]
     IMPROV = ["I fish in the river for supper.", "I whistle an old marching tune.", "I climb the nearest tree for a look around.",
               "I carve a mark into the signpost.", "I try my luck at a game of dice.", "I practise sword forms for an hour.",
@@ -114,7 +117,8 @@ class Bot:
         self.stats = {"persona": persona, "lines": {"model": 0, "template": 0}, "refers": 0, "refers_talk": 0, "talk_lines": 0, "with_passage": 0,
                       "contracts_taken": 0, "contracts_done": 0, "doors_seen": 0, "doors_followed": 0, "goals_done": collections.Counter(),
                       "goals_dropped": collections.Counter(), "deaths": 0, "deaths_above_band": 0, "waits": 0, "fights": 0, "clarified": 0,
-                      "model_failed": 0, "model_seconds": 0.0}
+                      "model_failed": 0, "model_seconds": 0.0, "blocked": 0}
+        self.refused_last: set[str] = set()          # (f391) the refusals the game showed last turn
         try:
             self.deaths_seen = self.c.deaths
             self.done_seen = sum(self.ws.player.guild_done.values())
@@ -200,8 +204,25 @@ class Bot:
             prev = h
         return hops
 
+    REFUSAL = re.compile(r"\b(closed|not|no|nothing|can't|cannot|isn't|aren't|don't|nowhere|already|too|need|unknown)\b", re.I)
+
+    def read_refusals(self) -> None:
+        """(f391) The same refusal two turns running means what the bot is after cannot be done now: it gives that goal up and keeps away
+        from its place for a day, as a player would, instead of asking 741 times (a night's run did, at a closed way out of a mine)."""
+        notes = getattr(self.run, "turn_notes", None) or []
+        keys = {re.sub(r"\d+", "#", n.lower())[:90] for n in notes if self.REFUSAL.search(n)}
+        if keys & self.refused_last and self.goals:
+            g = self.goals.pop()
+            self.stats["goals_dropped"][g["kind"]] += 1
+            self.stats["blocked"] += 1
+            if g.get("place"):
+                self.avoid[g["place"]] = self.ws.minutes + 1440
+            keys = set()
+        self.refused_last = keys
+
     # ---- what happened since the last line: deaths, contracts, doors
     def watch(self) -> None:
+        self.read_refusals()
         c = self.c
         if c.deaths > self.deaths_seen:
             self.stats["deaths"] += c.deaths - self.deaths_seen
@@ -346,21 +367,24 @@ class Bot:
             self.goals.pop()
             return rng.choice(self.LEAVE), self.intend("leave_conversation"), "leave"
         self.label("idle:talk")
-        if self.talks <= self.P["talk"]:
-            q = self.question_for(g)
+        q = self.question_for(g) if self.talks <= self.P["talk"] else ""
+        if q:
             return f'"{q}"', self.intend("talk", target=partner.id, speech=q), "talk"
         self.talks = 0
         return rng.choice(self.LEAVE), self.intend("leave_conversation"), "leave"
 
     def question_for(self, g: dict) -> str:
-        asked = self.__dict__.setdefault("_asked", [])
-        if self.talks <= 1:
-            asked.clear()
+        """(f391) A question this person has not been asked before, ever: the night's runs put the same seven questions to one rider
+        thirty-five times, and the game's answers to that measured the bot, not the game."""
+        partner = getattr(self.ws, "partner", None)
+        asked = self.__dict__.setdefault("_asked_of", {}).setdefault(getattr(partner, "id", ""), [])
         title = g.get("title") or ""
         pool = [f"What do you know about {title}?", f"Who would know more about {title}?", f"What would it take to settle {title}?"] \
             if g.get("kind") == "follow" and title and self.rng.random() < 0.6 else list(self.QUESTIONS)
-        pool = [q for q in pool if q not in asked] or pool
-        q = self.rng.choice(pool)
+        fresh = [q for q in pool if q not in asked]
+        if not fresh:
+            return ""
+        q = self.rng.choice(fresh)
         asked.append(q)
         return q
 
@@ -883,7 +907,9 @@ class Bot:
             self.spoken_to.append(n.id)
             self.talks = 1
             topic = rng.choice(self.TOPICS)
-            q = rng.choice(self.QUESTIONS)
+            asked = self.__dict__.setdefault("_asked_of", {}).setdefault(n.id, [])
+            q = rng.choice([x for x in self.QUESTIONS if x not in asked] or self.QUESTIONS)
+            asked.append(q)
             return f"I go over to {n.label()} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
         if pick == "move":
             return self.move_line(p)

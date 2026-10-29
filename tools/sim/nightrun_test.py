@@ -58,6 +58,14 @@ check("the run's persona follows the seed when none is named, and the bot's meas
       info.get("persona") == "wanderer" and isinstance(info.get("bot"), dict) and {"contracts_taken", "doors_seen", "goals_done", "deaths_above_band", "places"} <= set(info["bot"])
       and isinstance(info.get("distinct"), float) and "ended_by_player" in info, (info.get("persona"), info.get("bot")))
 check("the summary measures the play", "## Play" in summary and "| Distinct lines |" in summary and "playing as wanderer" in summary, summary[-1200:])
+# (f391) what a reader would trip over, counted: each turn keeps its notes and what the game believed; the run keeps who travelled along
+check("each row keeps the notes shown and the state the game believed: place, dungeon, party, captives",
+      rows and all("notes" in x and {"place", "delve", "at_dungeon", "party_mode", "party", "prisoners"} <= set(x.get("state") or {}) for x in rows), rows[-1:])
+check("...and run.json keeps the party as the game knew them, and what the output gate mended",
+      isinstance(info.get("cast"), dict) and info["cast"] and all(v.get("pronoun") in ("he", "she", "they", "it") for v in info["cast"].values())
+      and isinstance(info.get("hygiene"), dict), (info.get("cast"), info.get("hygiene")))
+check("the summary has a consistency section", "## Consistency" in summary and "| Longest run of one refusal |" in summary
+      and "| Companion sentences with the other gender's pronoun |" in summary, summary[summary.find("## Consistency"):][:800])
 r2 = subprocess.run([sys.executable, "tools/latency.py", str(out)], capture_output=True, text=True, timeout=120)
 check("tools/latency.py reads the folder again on its own", r2.returncode == 0 and "Calls by task" in r2.stdout, r2.stderr[-500:])
 r3 = subprocess.run([sys.executable, "tools/latency.py", "--calls", str(out / "llm_calls.jsonl")], capture_output=True, text=True, timeout=120)
