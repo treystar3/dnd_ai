@@ -2,10 +2,10 @@
 
 Why: the model, asked to write a voice, wrote the same one for everybody ("slow, measured, gravelly, steady"), a sound that text cannot
 act; and a person in a five-hour run was no more like themselves than like a stranger across town. A kit is one option on each of a few
-audible axes (how much they say, the shape of a sentence, whether they ask back, how a line opens, contractions, what they call you, how
+audible axes (whether they ask back, how a line opens, contractions, what they call you, how
 they refuse, where their words come from), drawn once and kept on the person (speech["kit"]). Each option is behaviour the model is told
-and, where the engine can hear it, a check the reply must pass (check()): a terse person over the word cap is sent back, a person who never
-asks back cannot end on a question. Nobody needs to be memorable; two people need to sound different, so draw() keeps, of several candidate
+and, where the engine can hear it, a check the reply must pass (check()): a person who never asks back cannot end on a question. (f375) No
+habit is a length: how much someone says and how long their sentences run are not drawn or checked. Nobody needs to be memorable; two people need to sound different, so draw() keeps, of several candidate
 kits, the one farthest from the kits already in use here (a town's people, a list's hires), weighted by how audible each axis is.
 
 (f374) A kit carries at most `max_marked` habits (two). The first playthrough after kits came in met a clerk who never asked, never used
@@ -87,12 +87,13 @@ def ensure(speech: dict, rng: random.Random, taken: list[dict] | tuple = ()) -> 
     kit = speech.get("kit")
     if not kit or any(axis not in kit or kit[axis] not in spec["options"] for axis, spec in AXES.items()):
         speech["kit"] = draw(rng, taken)
-    return trim(speech["kit"])
+    return kit_of(speech)
 
 
 def kit_of(member_or_speech) -> dict:
     sp = member_or_speech.get("speech") if isinstance(member_or_speech, dict) and "speech" in member_or_speech else member_or_speech
-    return trim((sp or {}).get("kit") or {}) if isinstance(sp, dict) else {}
+    kit = (sp or {}).get("kit") or {} if isinstance(sp, dict) else {}
+    return trim({a: v for a, v in kit.items() if a in AXES}) if kit else {}       # (f375) an old kit's length or sentence habit is read past
 
 
 # ---------- what the model is told
@@ -107,23 +108,10 @@ def lines(kit: dict) -> list[str]:
     return out
 
 
-def room(kit: dict, level: str) -> str:
-    """The reply's length level moved by the kit: a terse person a step down, a full one a step up."""
-    order = ["short", "medium", "long"]
-    if level not in order:
-        return level
-    shift = sum(int(spec["options"].get((kit or {}).get(axis, ""), {}).get("room", 0)) for axis, spec in AXES.items())
-    return order[max(0, min(len(order) - 1, order.index(level) + shift))]
-
-
 # ---------- what the engine can hear
 
 _ADDRESS = re.compile(r"\b(friend|stranger|traveller|traveler|lad|lass|lassie|laddie|sir|madam|ma'am|m'lady|my lord|my lady|you there|"
                       r"newcomer|outsider)\b", re.I)
-
-
-def _sentences(text: str) -> list[str]:
-    return [s for s in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if s.strip()]
 
 
 def check(kit: dict, speech: str) -> str:
@@ -136,10 +124,6 @@ def check(kit: dict, speech: str) -> str:
     for axis, spec in AXES.items():
         opt = spec["options"].get(kit.get(axis, ""), {})
         c = opt.get("check") or {}
-        if "max_words" in c and len(words) > int(c["max_words"]):
-            return f"this person {opt['text']}: under {c['max_words']} words"
-        if "max_sentence_words" in c and any(len(re.findall(r"[A-Za-z'’]+", s)) > int(c["max_sentence_words"]) for s in _sentences(speech)):
-            return f"this person speaks in {opt['text']}: no sentence over {c['max_sentence_words']} words"
         if c.get("no_question") and "?" in speech:
             return f"this person {opt['text']}: no question in the reply"
         if c.get("no_stock_opener") and opener_of(speech):
@@ -236,7 +220,7 @@ def house_hit(speech: str, house: set[str] | list[str]) -> str:
 def problems() -> list[str]:
     bad = []
     sound = [w.lower() for w in V.get("sound_words", [])]
-    known = {"max_words", "max_sentence_words", "no_question", "no_stock_opener", "no_contractions", "no_address", "max_long_words"}
+    known = {"no_question", "no_stock_opener", "no_contractions", "no_address", "max_long_words"}          # (f375) no word or sentence caps
     for axis, spec in AXES.items():
         opts = spec.get("options") or {}
         if not opts or sum(o.get("weight", 1) for o in opts.values()) <= 0:

@@ -355,7 +355,7 @@ def facts(player, where: str, about: str = "", objective: bool = False) -> str:
     if about and relevance.pick(about, [M["chat"]["motivation_about"]], 1):      # why she helps: when that is what the talk is about
         lines.append("MOTIVATION (yours, private): you have seen too many newcomers hurt or killed over things nobody bothered to show them, and "
                      "helping the capable ones has become a habit you do not make a sentimental thing of. If asked why you help, put it your own way, "
-                     "briefly, and wave off thanks.")
+                     "and wave off thanks.")
     if about:
         mine = about_her(player, about)
         if mine:
@@ -582,9 +582,6 @@ def check_voice(source: list[str], out: list[str]) -> str:
     for n, (src, new) in enumerate(zip(source, out), 1):
         if not new.strip():
             return f"line {n} is empty"
-        limit = max(14, 2 * len(src.split()) + 10)
-        if len(new.split()) > limit:
-            return f"line {n} is too long: keep it to about the length of the original (at most {limit} words)"
         digits, commands, quoted = _facts_of(src)
         got_digits, got_commands, _ = _facts_of(new)
         low = new.lower()
@@ -642,12 +639,10 @@ def check_figures(asked: str, reply: str) -> str:
 
 
 def check_reply(reply: str) -> str:
-    """Her answer to what the player just said: a sentence or two, in plain speech, with no rules, figures or talk of a game."""
+    """Her answer to what the player just said, in plain speech, with no rules, figures or talk of a game."""
     low = reply.lower()
     if not reply.strip():
-        return "give a 'reply': one or two plain sentences answering what the player just said"
-    if len(reply.split()) > 45:
-        return "the reply is too long: one or two short sentences, at most 45 words"
+        return "give a 'reply' answering what the player just said"
     if re.search(r"\d", reply):
         return "the reply must not state any numbers"
     if set(re.findall(r"[a-z]+", low)) & BANNED_WORDS:
@@ -682,16 +677,13 @@ def voice_request(player, where: str, beat: str, lines: list[str], reply_to: str
 
 
 def check_speech(paragraphs: list[str], ctx: dict) -> str:
-    """Why a speech she wrote freely can't be used, or '': enough paragraphs of a sane length, every required phrase word for word, no
+    """Why a speech she wrote freely can't be used, or '': something said, every required phrase word for word, no
     figure or amount that is not in the material, no talk of a game, no name as her first word, and the ending the beat asks for."""
-    lo, hi = ctx.get("paragraphs", (2, 5))
-    if not lo <= len(paragraphs) <= hi:
-        return f"write {lo} to {hi} paragraphs of natural speech (you wrote {len(paragraphs)}): group related sentences into one paragraph"
+    if not paragraphs:
+        return "write what Maren says, in paragraphs of natural speech"
     whole = " ".join(paragraphs)
     low = " ".join(whole.lower().split())
     for n, p in enumerate(paragraphs, 1):
-        if len(p.split()) > ctx.get("max_words", 75):
-            return f"paragraph {n} is too long: split it"
         if "*" in p or '"' in p:
             return f"paragraph {n} must be plain speech: no asterisks and no quotation marks"
     for phrase in ctx.get("must", []):
@@ -722,7 +714,7 @@ def speech_system(player) -> str:
     from engine import quirks
     return (chat_system_persona() + "\n\nHOW YOU SPEAK:\n" + "\n".join(f"- {b}" for b in quirks.Q["maren"]["blueprint"]) +
             "\n\nSTYLE:\n" + "\n".join(f"- {r}" for r in quirks.Q["style_rules"]) +
-            "\n\nYOUR JOB: write what Maren says next, as natural speech in short paragraphs: group related sentences "
+            "\n\nYOUR JOB: write what Maren says next, as natural speech in paragraphs: group related sentences "
             "together instead of putting each sentence on its own line.\nRULES:\n" + "\n".join(f"- {r}" for r in V["speech_rules"]) +
             "\n\nRespond only with JSON matching the schema: {\"paragraphs\": [\"first paragraph\", \"second paragraph\"]}.")
 

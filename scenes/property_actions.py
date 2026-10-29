@@ -79,7 +79,7 @@ class PropertyActions:
                     console.note(f"You pay {money.fmt(cost)} and the builders get to work. Your house stands again. "
                                  f"Purse: {money.fmt(c.coins)}")
                     self.narrate("The player pays builders to raise their ruined house again. Describe the new beams and the "
-                                 "door hung back on its hinges in two sentences.", text)
+                                 "door hung back on its hinges.", text)
                 self.halted = True
                 return True
             uid = prop.find_upgrade(words)
@@ -103,7 +103,7 @@ class PropertyActions:
                 self.store.save_player(self.player)
                 console.note(f"You pay for a {u['name']}: {money.fmt(u['price'])}. Purse: {money.fmt(c.coins)}")
                 self.narrate(f"The player pays builders and craftsmen {money.words(u['price'])} to add a {u['name']} to their "
-                             f"house. {u['text']} Describe the work being finished in two sentences.", text)
+                             f"house. {u['text']} Describe the work being finished.", text)
                 return True
             self.halted = True
             return True
@@ -137,7 +137,7 @@ class PropertyActions:
                      f"now; you can sleep there free, and keep your item box in it. Type #home.")
         self.weight_hint = "major"
         self.narrate(f"The player buys {h['name']} from {agent.label()} for {money.words(h['price'])} and is handed the key. "
-                     "Describe the signing and the first look at the door in two or three sentences.", text)
+                     "Describe the signing and the first look at the door.", text)
         return True
 
     def home_arrival(self) -> None:

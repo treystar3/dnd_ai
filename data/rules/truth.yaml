@@ -51,6 +51,9 @@ lately:
 # How busy a place is: a crowd line in WHERE, by the place's scale and the time of day. A place may name its own scale in places.yaml
 # (scale: hamlet | village | town | city | capital) and its own crowd lines (crowd: {market: "...", quiet: "..."}); otherwise its type
 # decides. Infrastructure for cities that bustle and villages that do not (f313); passers-by drawn from the crowd come later.
+# (f375) Each line is a plain sentence, and only the narrator is given it; a person speaking hears it only when the player's words are
+# about the town or its streets (engine/truth.py streets_asked). Told to everyone as a compressed phrase ("the inn's front room full of
+# drivers"), it came back from people's mouths as "drivers gathered outside the inn".
 scale_by_type: {village: village, town: town, city: city, square: town, inn: town, guild: town, temple: village, shop: town,
                 workshop: village, smithy: village, yard: village, guardpost: village}
 periods:                                   # which crowd line a time of day uses
@@ -63,11 +66,11 @@ periods:                                   # which crowd line a time of day uses
   deep night: empty
   before dawn: empty
 crowd:
-  hamlet:  {market: "a few people about their work", easing: "a few people about", quiet: "almost no one about", empty: "no one about"}
-  village: {market: "people about their work, everyone known to everyone", easing: "a few people still about", quiet: "the odd person about", empty: "no one about"}
-  town:    {market: "busy: the streets and the square full of people about their business", easing: "the crowd thinning as the day ends", quiet: "a few people about, most doors shut", empty: "empty streets; a watchman, a drunk, no one else"}
-  city:    {market: "crowded: streets packed with people from everywhere, carts, criers, nobody looking twice at a stranger", easing: "still busy, the crowds drifting toward the inns", quiet: "quieter, but never empty; lamps lit, people still about", empty: "the streets nearly empty; the watch about, and whoever has no bed"}
-  capital: {market: "thronged: the widest streets in the kingdom and still crowded, a hundred faces a minute, guards at every corner", easing: "the great streets still full, the crowds turning toward the taverns and the lamplit squares", quiet: "quieter, the guard patrols more visible than the people", empty: "empty but for the guard, who are everywhere"}
+  hamlet:  {market: "A few people are out working.", easing: "A few people are about.", quiet: "Almost no one is about.", empty: "No one is about."}
+  village: {market: "People are out at their work.", easing: "A few people are still about.", quiet: "Only the odd person is about.", empty: "No one is about."}
+  town:    {market: "The streets and the square are busy.", easing: "The streets are emptying as the day ends.", quiet: "A few people are about, and most doors are shut.", empty: "The streets are empty but for a watchman."}
+  city:    {market: "The streets are crowded with people, carts and street criers.", easing: "The streets are still busy, and people are heading for the inns.", quiet: "The streets are quieter, but people are still about.", empty: "The streets are nearly empty; the watch is about."}
+  capital: {market: "The wide streets are crowded, with guards on every corner.", easing: "The streets are still full, and people are heading for the taverns.", quiet: "The streets are quieter; there are more guards than people.", empty: "The streets are empty but for the guard."}
 guard:                                     # how much of the watch is about, by scale: a line in WHERE. A place may name its own (guard: heavy)
   hamlet: none
   village: light

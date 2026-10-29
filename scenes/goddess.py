@@ -144,7 +144,7 @@ class ThresholdScene:
         if self.step == Step.STATS:
             console.show_stat_rules(getattr(self, "guidance", []))
         self.speak(
-            "What the player said does not answer the current step. Respond briefly, "
+            "What the player said does not answer the current step. Respond "
             f"in character, and return them to it: {EXPECTS[self.step]}."
         )
 
@@ -230,7 +230,7 @@ class ThresholdScene:
         self.step = Step.PASSIVES
         console.show_passives(self.passive_options)
         self.speak(
-            f"The player chose {' and '.join(a.name for a in self.actives)}. Acknowledge it briefly. "
+            f"The player chose {' and '.join(a.name for a in self.actives)}. Acknowledge it. "
             "The game now shows fifteen innate traits. Invite them to choose three."
         )
 
@@ -244,7 +244,7 @@ class ThresholdScene:
         self.guidance = creation.attribute_guidance(self.interp, self.actives)
         console.show_stat_rules(self.guidance)
         self.speak(
-            f"The player chose {' and '.join(p.name for p in self.passives)}. Acknowledge it briefly. "
+            f"The player chose {' and '.join(p.name for p in self.passives)}. Acknowledge it. "
             "Now their body and mind must be shaped. Ask what kind of body and mind they wish to return with."
         )
 
@@ -261,7 +261,7 @@ class ThresholdScene:
         if error:
             console.note(f"That can't be done: {error}")
             console.show_stat_rules(getattr(self, "guidance", []))
-            self.speak(f"That shaping is not possible: {error} Say plainly, in a sentence or two, what the limit is ({stats.rules_text()}) and ask them to try again.")
+            self.speak(f"That shaping is not possible: {error} Say plainly what the limit is ({stats.rules_text()}) and ask them to try again.")
             return
         self.values = values
         self.step = Step.CONFIRM_STATS

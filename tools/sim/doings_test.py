@@ -27,8 +27,13 @@ days = {doings.doing_for(guard, 7, noon + d * 1440) for d in range(12)}
 check("it turns from day to day", len(days) >= 3, days)
 check("a different seed, a different draw", {doings.doing_for(guard, s, noon) for s in range(8)} != {a})
 check("a role with no list falls to anyone's doings", doings.doing_for(types.SimpleNamespace(id="x", role="no_such_role", activity=""), 1, noon) in doings.D["anyone"])
-whet = sum(1 for d in range(60) for s in range(3) if "whetstone" in doings.doing_for(guard, s, noon + d * 1440))
+whet = sum(1 for d in range(60) for s in range(3) if "sharpening" in doings.doing_for(guard, s, noon + d * 1440))
 check("a guard sharpens a spear now and then, not for good", 0 < whet < 30, whet)
+import re as _re
+_all = list(doings.D["anyone"]) + [e["text"] for r in doings.D["by_role"] for e in doings.entries(r)]
+check("(f375) every doing is a plain fact: two to five words, no second clause, no figure, no pronoun",
+      all(2 <= len(t.split()) <= 5 and "," not in t and not _re.search(r"\b(as if|like a|his|her|him|she|he|their|them)\b", t) for t in _all),
+      [t for t in _all if not 2 <= len(t.split()) <= 5 or "," in t])
 
 # in a place: no two alike, saved on the record, the moment's doings over everyone's
 from storage.campaign import CampaignStore, PlayerState

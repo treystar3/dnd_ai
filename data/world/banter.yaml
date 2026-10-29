@@ -1,7 +1,7 @@
 rules:
   - "Write a short natural exchange between the people named, as spoken lines in turn. Each person sounds like themselves: use the PERSON notes for how they talk."
   - "Each person reacts to how the other speaks to them. Warmth is met with warmth and teasing; coldness or rudeness is met with a cooler, drier, pointed reply, and never with grovelling."
-  - "Plain spoken English, one to three short sentences per line, under 45 words. No stage directions, no asterisks, no quotation marks, no emojis."
+  - "Plain spoken English. No stage directions, no asterisks, no quotation marks, no emojis."
   - "Use only the facts given. Add no new figures, prices, places, names, rules or history. Never speak of a game, a program, stats or a system."
   - "Say nothing about the place beyond what is given in WHERE: no rumours, crimes, weather, history or inhabitants of your own invention."
   - "The player is present and may be spoken about or to, but is never spoken for."
@@ -60,12 +60,12 @@ banter:
     said: "At {place}, the player has just been talking with {addressee}, and the others, who were listening, join in, each with something of their own, never repeating {addressee}'s words or turns of phrase."
     witnessed: "At {place}, it has just happened, in front of all of them: {what}"
     fight_now: "At {place}, in the middle of the fight, it has just happened in front of them: {what}"
-  alone: "Only one hired companion is with the player, so they say something to the player, one or two short lines, in their own manner."
-  pair: "Two companions talk to each other while the player is nearby; they may mention the player briefly but do not speak for them."
+  alone: "Only one hired companion is with the player, so they say something to the player, in their own manner."
+  pair: "Two companions talk to each other while the player is nearby; they may mention the player but do not speak for them."
   # Everyone travelling along is there for every exchange; who of them speaks is the director's (engine/party_director.py): each is scored
   # on reasons the engine knows, and only those with reason enough speak. Those who do not are named as present and listening. Every
   # speaker brings what they think of each other one present, and of the player.
-  group: "Three companions talk among themselves while the player is nearby; each answers whoever spoke, the talk can pass from one pair to another, and they may mention the player briefly but do not speak for them."
+  group: "Three companions talk among themselves while the player is nearby; each answers whoever spoke, the talk can pass from one pair to another, and they may mention the player but do not speak for them."
   one_of_several: "One companion says something, to the player or to the others; the others are there and say nothing this time."
   most_speakers: 3
   group_lines: [3, 6]         # for these line counts only the most is used: the fewest is one line from each chosen speaker (some people

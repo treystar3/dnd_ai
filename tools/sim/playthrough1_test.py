@@ -76,13 +76,12 @@ if pick:
     ws.party_hire(pick["name"], f"hire {pick['name']}", offered, exact=pick)
 check("a hire is narrated as joining the player here, not as the party setting out", told and "setting out" not in told[-1] and "Nobody leaves or goes anywhere" in told[-1], told[-1:] if told else "no narration")
 
-# ---- her beats: a four-line script may come back as four paragraphs, each as long as her longest line
+# ---- her beats: her script comes back in as many paragraphs, as long, as she needs (f375: no count, no word cap)
 spoke = []
 ws.mentor_speak = lambda lines, beat, **k: spoke.append(k) or True
 long_line = "One more thing. " + "word " * 72
 ws.mentor_say(["A short line of hers here.", "Another line, with a bit more in it.", "A third one for the board.", long_line], beat="beat")
-check("four lines may be four paragraphs, and each may be as long as her longest", spoke and spoke[-1]["paragraphs"] == (1, 3)
-      and spoke[-1]["max_words"] >= len(long_line.split()) + 20, spoke[-1:])
+check("her beat is given no paragraph count and no word cap", spoke and "paragraphs" not in spoke[-1] and "max_words" not in spoke[-1], spoke[-1:])
 
 # ---- a wolf has hide, a soldier armor
 def fighter(fid, side, category=""):

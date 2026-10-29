@@ -7,6 +7,7 @@ a typed event for each (engine/domain_events.py); this file reads the words and 
 
 import random
 import re
+import config
 
 from engine import arcs, party as rules, quests
 from engine.party import P
@@ -324,7 +325,7 @@ class PartyActions:
             self.narrate("[THE GAME HAS DECIDED: the player hires " + ", ".join(f"{m['name']} ({m['blurb']})" for m in hired) +
                          " at the guild hall; they will travel with the player from now on. Their manner: " +
                          "; ".join(f"{m['name']} {self.temper_text(m)}" for m in hired) +
-                         ".] Describe the brief meeting in two or three sentences: they join the player here. Nobody leaves or goes anywhere: the player "
+                         ".] Describe the meeting: they join the player here. Nobody leaves or goes anywhere: the player "
                          "has not set out, and stays where they are.", text)
 
     # a line with an action word in it is not said to a hire or to Maren, whatever name it carries: the one list is the action table's
@@ -431,11 +432,11 @@ class PartyActions:
             out.append("you have told the player plainly that this might not be worth it")
         return out                                           # (f315) where they are, who is here and the board come with their truth view (hire_view)
 
-    def hire_view(self, m: dict):
+    def hire_view(self, m: dict, text: str = ""):
         """Their view of the moment from the truth layer (engine/truth.py): the same scene the narrator and the townsfolk read, as a hired
         adventurer may know it - the party by name, the townsfolk as the player knows them, the board wherever the guild's people are."""
         from engine import truth
-        view = truth.scene_of(self).view(truth.viewer_for_hire(f"hire:{m['id']}"), "hire")
+        view = truth.scene_of(self).view(truth.viewer_for_hire(f"hire:{m['id']}"), "hire").asking(text)     # (f375) the streets when asked
         console.debug(f"truth view for {m['name']}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         return view
 
@@ -517,7 +518,7 @@ class PartyActions:
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose")),
-                              DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400,
+                              DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"), tails=False)
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
@@ -556,7 +557,7 @@ class PartyActions:
         if feeling in quirks.Q["answer_told"]["when"]:          # they told them something that matters: it is answered first, whatever is felt
             answer_to = {"said": text, "scene": list(now)}
             now = [quirks.Q["answer_told"]["rule"]] + now
-        view = self.hire_view(m)
+        view = self.hire_view(m, text)
         for attempt in range(2):
             ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player,
                    "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words()}
@@ -569,7 +570,7 @@ class PartyActions:
                                              again=convo.again_fact(before) if before else "",
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
                                              worn=self.worn_words("speech")),
-                             CompanionReply, temperature=0.8, max_tokens=320, retries=1, validation_context=ctx,
+                             CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                              relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False))
             except LLMError:
                 reply = P["temperaments"][(m.get("temper") or ["dry"])[0]].get("quip", "")
@@ -632,7 +633,7 @@ class PartyActions:
             return
         console.note(f"{m['name']} is promoted from {old}-rank to {m['rank']}-rank ({money.fmt(fee)}). Level {m['level']}.")
         self.narrate(f"[THE GAME HAS DECIDED: the player pays for {m['name']} to be raised from {old}-rank to {m['rank']}-rank at the guild. "
-                     f"Their manner: {self.temper_text(m)}.] Describe the moment in two sentences.", text)
+                     f"Their manner: {self.temper_text(m)}.] Describe the moment.", text)
 
     def party_dismiss(self, target: str, text: str, offered: list[dict]) -> None:
         if not self.player.party:
@@ -652,7 +653,7 @@ class PartyActions:
             if m.get("npc") and m.get("stay"):
                 self.companion_home(m["npc"])
         console.note(f"{', '.join(m['name'] for m in gone)} part ways with you. No refund.")
-        self.narrate(f"[THE GAME HAS DECIDED: the player sends {', '.join(m['name'] for m in gone)} away; they leave.] Describe it in a sentence.", text)
+        self.narrate(f"[THE GAME HAS DECIDED: the player sends {', '.join(m['name'] for m in gone)} away; they leave.] Describe it.", text)
 
     def party_hold(self, target: str, text: str, offered: list[dict]) -> None:
         if not self.player.party:

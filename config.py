@@ -10,6 +10,9 @@ LOG_PATH = "logs/llm_calls.jsonl"
 PULSE_LOG_PATH = "logs/pulse.jsonl"   # (f355) what the world did: every pulse event and every one the player met (engine/pulselog.py, tools/world_report.py)
 DEBUG = False
 MAX_TOKENS = 800
+# (f375) The most one narration or one reply may run to, so a runaway generation stops. It is never told to the model and nothing is
+# measured against it: no narrator or speaker is given a length any more.
+PROSE_MAX_TOKENS = 2048
 REQUEST_TIMEOUT = 120
 KEEP_ALIVE = "30m"          # how long Ollama keeps the model loaded after a call (its default is 5 minutes, and a cold load costs 20-60 seconds)
 COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)

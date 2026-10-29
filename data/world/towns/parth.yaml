@@ -55,8 +55,8 @@ festivals:
   - {name: the Crossing Day, season: spring, day: 20, days: 1}
 scale: town
 crowd:
-  market: "busy: carts on the bridge, the square full of stalls and the inn's front room full of drivers"
-  easing: "the carts gone on, the square being swept, the inn filling"
-  quiet: "a few people about, most doors shut, the inn's windows lit"
-  empty: "empty streets; the watch's bell, a dog, nobody else"
+  market: "Carts are queueing on the bridge, the square is full of stalls, and cart drivers are eating in the inn."    # (f375) plain sentences
+  easing: "The carts have gone on, the square is being swept, and the inn is filling up."
+  quiet: "A few people are about, most doors are shut, and the inn's windows are lit."
+  empty: "The streets are empty but for a dog and the watch."
 guard: light

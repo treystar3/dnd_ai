@@ -57,8 +57,6 @@ def check_exchange(ex, ctx: dict) -> str:
             if who in silent_ok:
                 continue
             return f"{who} must say something" if silent_ok else "a line was empty"
-        if len(ln.text.split()) > ctx.get("max_words", 55):
-            return "a line is too long: keep each under 55 words"
         if "*" in ln.text or '"' in ln.text:
             return "plain speech only: no asterisks and no quotation marks"
         if ln.text.lower().lstrip().startswith(ln.speaker.lower().split()[0] + ":"):

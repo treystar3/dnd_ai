@@ -94,6 +94,6 @@ class MountActions:
                          f"{'You ride it now. ' if self.player.mount == mount['id'] else 'Say #mount to choose which you ride. '}"
                          f"Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player pays {money.words(price)} to a stablemaster for {mount['name']} and takes the reins. "
-                         "Describe the animal and the first moments in the saddle in two sentences.", text)
+                         "Describe the animal and the first moments in the saddle.", text)
             self.halted = False
         return True

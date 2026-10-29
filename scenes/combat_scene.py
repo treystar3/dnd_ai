@@ -740,14 +740,13 @@ class CombatScene:
         you = combat.condition(p) + (", up on high ground" if "elevated" in p.position_tags else "")
         from engine import battlefield as bfm, voice_rules
         boss = any(e.boss for e in f.fighters if e.side == "enemy" and e.alive) or any(e.startswith("BOSS") for e in f.story)
-        rule = voice_rules.V["narration"].get("fight_boss" if boss else "fight", voice_rules.V["narration"]["normal"])
         result = fresh("combat_narrate", cp.NARRATE_SYSTEM,
                        cp.narrate_request(self.ws.place.name, self.ws.time_label(), text, f.story,
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
-                                          length=rule["length"], shown=self.fight_shown, worn=self.ws.worn_words("prose"),    # (f349)
+                                          shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
                                           looks=self.ability_looks()),                                                           # (f373)
-                       Narration, self.ws.recent_narration, max_tokens=rule["tokens"], worn=self.ws.worn_words("prose"))
+                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
         text_out = place_figures(result.text, f.hits, console.damage_tags)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
@@ -1074,7 +1073,7 @@ class CombatScene:
             f"THE PLAYER IS: {combat.condition(self.fight.player)}\nTHE FALLEN: {fallen}\n"
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),
-            Narration, self.ws.recent_narration, max_tokens=400)
+            Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS)
         console.narrate(aftermath.text)
         self.ws.remember_narration(aftermath.text)
         self.take_prisoners(yielded)
@@ -1242,6 +1241,6 @@ class CombatScene:
         wake = c.last_rest if c.last_rest in ws.world.places else ws.world.start_location
         ws.enter(wake)
         ws.narrate(f"{days} days have passed in the world. The player wakes here, alive again, a lighter purse and nothing else lost. "
-                   "They are thrown back by the goddess's failing light and wake with a sharp breath. Describe waking, brief and stark: the first "
-                   "breath in one sentence, said only once in the whole passage, then what they see.")
+                   "They are thrown back by the goddess's failing light and wake with a sharp breath. Describe waking, stark: the first "
+                   "breath, said only once in the whole passage, then what they see.")
         ws.show_exits()

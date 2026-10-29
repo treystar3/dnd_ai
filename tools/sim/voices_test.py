@@ -26,8 +26,10 @@ check("most people are unmarked on most axes: a kit is a line or two, not a shee
 old = {"length": "plain", "sentences": "short", "questions": "never", "opening": "echo", "contractions": "full", "address": "formal", "refusing": "excuse", "words": "exact"}
 kept = voices.kit_of({"speech": {"kit": dict(old)}})
 check("(f374) an old save's seven-habit kit is read as its two most audible habits, and nobody is re-drawn",
-      len(voices.lines(kept)) == 2 and kept["questions"] == "never" and kept["sentences"] == "short" and kept["opening"] == "none"
+      len(voices.lines(kept)) == 2 and kept["questions"] == "never" and kept["opening"] == "echo" and kept["words"] == "usual"
       and kept["contractions"] == "usual" and kept["address"] == "usual", kept)
+check("(f375) ...and its old length and sentence habits are read past: no axis is a length", "length" not in kept and "sentences" not in kept
+      and "length" not in voices.AXES and "sentences" not in voices.AXES and not hasattr(voices, "room"))
 check("...and a habit that would open every line is told as now and then", "now and then" in voices.AXES["opening"]["options"]["echo"]["text"]
       and "now and then" in voices.AXES["opening"]["options"]["hands"]["text"])
 
@@ -37,26 +39,23 @@ town = []
 for _ in range(10):
     town.append(voices.draw(r, town))
 check("ten people of one town: no two sound alike, and each differs from every other on the audible axes",
-      min(voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]) >= 4, [voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]][:12])
+      min(voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]) >= 3, [voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]][:12])
 check("a kit is one option on every axis", all(set(k) == set(voices.AXES) and all(k[a] in voices.AXES[a]["options"] for a in k) for k in town))
 sp = {"culture": "heartland"}
 k1 = voices.ensure(sp, random.Random(1)); k2 = voices.ensure(sp, random.Random(2))
-check("a kit is drawn once and kept on the speech profile", k1 is k2 and sp["kit"] == k1)
+check("a kit is drawn once and kept on the speech profile", k1 == k2 and sp["kit"] == k1)
 
 # ---- what the engine hears
 terse = {"length": "terse", "sentences": "mixed", "questions": "never", "opening": "matter", "contractions": "full", "address": "none", "refusing": "flat", "words": "plain"}
-check("a terse person over the cap is sent back, with the kit's own words", "under 28 words" in voices.check(terse, " ".join(["word"] * 30)))
+check("(f375) a long reply is never sent back for its length", voices.check(terse, " ".join(["word"] * 300) + ".") == "")
 check("a person who never asks back cannot end on a question", "no question" in voices.check(terse, "The mill is past the bridge. What do you want it for?"))
 check("a person who starts on the matter cannot open on a filler", "not on 'Well'" in voices.check(terse, "Well, the mill is past the bridge."))
 check("no contractions means none", "'do not'" in voices.check(terse, "It isn't far."))
 check("never addressing the stranger means no 'friend'", "drop 'friend'" in voices.check(terse, "Past the bridge, friend."))
 check("plain words means no fine ones", "not 'extraordinarily'" in voices.check(terse, "It is extraordinarily and remarkably and unquestionably far."))
 check("a line that keeps to the kit passes", voices.check(terse, "Past the bridge. Left at the oak.") == "")
-short = dict(terse, length="plain", sentences="short")
-check("short sentences means none that runs on", "no sentence over 20 words" in voices.check(short, "The mill is past the bridge and you take the left fork at the oak and then it is a mile or so on from there."))
+check("(f375) ...nor for a long sentence", voices.check(dict(terse, sentences="short"), "The mill is past the bridge and you take the left fork at the oak and then it is a mile or so on from there.") == "")
 check("an unmarked kit hears nothing", voices.check({a: "plain" if a == "length" else ("mixed" if a == "sentences" else "none" if a in ("questions", "opening") else "usual") for a in voices.AXES}, "Well, isn't it far, friend? Extraordinarily.") == "")
-check("the kit's room: a terse person a step down, a full one a step up, within the levels", voices.room(terse, "long") == "medium" and voices.room(dict(terse, length="full"), "short") == "medium"
-      and voices.room(terse, "short") == "short" and voices.room(dict(terse, length="full"), "long") == "long")
 
 # ---- the contracts carry it
 def npc(speech, kit=None, house=()):

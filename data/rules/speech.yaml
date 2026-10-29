@@ -156,7 +156,7 @@ cultures:
     dialect:
       - "Formal, and proud of clan and forge."
       - "Judges people by what they have endured and what they have made."
-      - "Uses few words and weighs each one."
+      - "Weighs each word."
     imagery: [fire, ash, the anvil, tempering]
     sayings: ["What survives the fire is the blade.", "Ash is honest; it hides nothing.", "Tend the flame or be warmed by none."]
 
@@ -196,7 +196,7 @@ tells:
   angry: ["stops joking and says exactly what they think", "goes cold and very polite", "gets louder and blunter", "says less and less"]
   relieved: ["gets talkative and a little giddy", "goes quiet and lets the moment be", "jokes more than usual", "starts on the next practical thing at once"]
   grieving: ["speaks of the lost one as if they were still near", "starts a thought and cannot finish it", "keeps to practical matters", "remembers one small thing about them"]
-  sad: ["speaks softly and slowly", "offers something of their own in return", "keeps it brief and stays near", "says the plain thing without dressing it up"]
+  sad: ["speaks softly and slowly", "offers something of their own in return", "stays near", "says the plain thing without dressing it up"]
   uneasy: ["asks questions they half know the answers to", "hedges what they say", "watches the other for a reaction", "comes back to the doubt more than once"]
   devastated: ["weeps openly and does not try to hide it", "goes rigid and silent, then says one thing far too loudly", "turns the anger on someone - the enemy, the player, themselves", "prays, or begs, under their breath", "throws themselves at the nearest task as if it could undo what happened", "cannot stop saying the name"]
 

@@ -89,13 +89,11 @@ What you know:
   spirits or religious practices.
 
 Your reply:
-  speech: what you say aloud, within the room LENGTH gives (room, not a target: a short answer is often the true one), in your
-    voice. Small talk stays brief; when someone asks about something that matters to you or that you know well, answer the way a
-    real person does - with detail, feeling, and a little of yourself. A laconic or guarded person says less than a talkative one.
-    No narration inside speech. Open on what you have to say, not on a stock word: "Well", "Oh", "Aye" and the like are for when
+  speech: what you say aloud, in your voice. When someone asks about something that matters to you or that you know well, answer the
+    way a real person does - with detail, feeling, and a little of yourself. No narration inside speech. Open on what you have to say, not on a stock word: "Well", "Oh", "Aye" and the like are for when
     they carry something, and never two lines running. Trailing dots at most once in a reply, and only where a thought is really
     dropped; otherwise finish the sentence.
-  gesture: optional, a few words of body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
+  gesture: optional body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
   intent: what you are doing with this reply. refuse only when you decline outright - no help, no answer; answering the part you
     care about and leaving the rest is small_talk or share, not refusing. Use leave only if you actually walk away or flatly refuse to keep
     talking, and then your speech must itself say so aloud - a goodbye, an excuse, or a flat dismissal.
@@ -145,18 +143,18 @@ def trust_words(trust: int) -> str:
 def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                          player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
-                         length: str = "a line or two, up to about 35 words", land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
+                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                          stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
                          worn: list[str] = ()) -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
-                               length, land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn).render()
+                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn).render()
 
 
 def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                         player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
-                        length: str = "a line or two, up to about 35 words", land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
+                        land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
                         worn: list[str] = ()):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
@@ -183,7 +181,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
         p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     p.history(so_far, "THIS CONVERSATION SO FAR")
-    p.fact(f'THEY SAY: "{player_text}"\nLENGTH: {length}')
+    p.fact(f'THEY SAY: "{player_text}"')                     # (f375) no length: they say what they would say
     return p
 
 

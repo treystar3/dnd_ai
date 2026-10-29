@@ -64,7 +64,7 @@ class ShopActions:
                 console.note(f"You can't afford {ware.name} ({money.fmt(ware.price)}). Purse: {money.fmt(c.coins)}")
             else:
                 self.narrate(f"The player tries to pay {seller.label()} for {ware.name}, which costs {money.words(ware.price)}, "
-                             f"but they only have {money.words(c.coins)}. Show the awkward moment briefly.", text)
+                             f"but they only have {money.words(c.coins)}. Show the awkward moment.", text)
                 self.halted = True
             return False
         if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
@@ -107,7 +107,7 @@ class ShopActions:
                 console.note(effect)
         else:
             self.narrate(f"The player pays {seller.label()} {money.words(ware.price)} for {ware.name}, and the coins change "
-                         f"hands. {effect} Describe the exchange in two or three sentences.", text)
+                         f"hands. {effect} Describe the exchange.", text)
         return True
 
     def buy_stock_item(self, npc, item, price: int, text: str = "", quiet: bool = False) -> bool:
@@ -118,7 +118,7 @@ class ShopActions:
                 console.note(f"You can't afford {item.name} ({money.fmt(price)}). Purse: {money.fmt(c.coins)}")
             else:
                 self.narrate(f"The player wants {item.name} from {npc.label()}, which costs {money.words(price)}, but they "
-                             f"only have {money.words(c.coins)}. Show the moment briefly.", text)
+                             f"only have {money.words(c.coins)}. Show the moment.", text)
                 self.halted = True
             return False
         c.coins -= price

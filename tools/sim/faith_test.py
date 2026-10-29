@@ -24,7 +24,7 @@ for pid, p in w.places.items():
 n = lambda role, loc: NS(role=role, location=loc)
 pr = faith.line(w, n("priest", "parth_temple")); fm = faith.line(w, n("farmer", "parth")); gd = faith.line(w, n("guard", "lethoria"))
 check("line names the god", "Aurelan" in pr and "Aurelan" in fm)
-check("voice varies by role", pr != fm != gd and "devout" in pr and "brief" in gd and "ordinary talk" in fm)
+check("voice varies by role", pr != fm != gd and "devout" in pr and "practical" in gd and "ordinary talk" in fm)
 check("tone notes are marked as not to be quoted", "not lines to quote" in fm)
 check("river guard follows Teluun", "Teluun" in faith.line(w, n("guard", "riverhaven")))
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

@@ -55,9 +55,10 @@ Write:
     not in the first ten days of spring, where the story begins.
   scale: one of SCALES, for how big and busy it is. guard: one of GUARDS, for how much of the watch is about.
   crowd: how the streets look at four times - market (the busy hours of the day), easing (the day ending), quiet (night) and empty
-    (deep night) - each a phrase, lower case, that says WHO is about and HOW MANY, in this town's own terms. The shape: market
-    "busy: carts on the bridge, the square full of stalls and the inn's front room full of drivers"; empty "empty streets; the watch's
-    bell, a dog, nobody else". A line that names no people and no number (bells, lanterns, stillness, shadows) is wrong.
+    (deep night) - each one plain sentence that says WHO is about and HOW MANY, in this town's own terms, with every word spelled out
+    (cart drivers, not drivers). The shape: market "Carts are queueing on the bridge, the square is full of stalls, and cart drivers are
+    eating in the inn."; empty "The streets are empty but for a dog and the watch." A line that names no people and no number (bells,
+    lanterns, stillness, shadows) is wrong.
 Write as someone who has been there would tell a friend, not as a chronicler: not "lives on the polished surface of royal favour" but
 "lives on the court: half the city feeds, dresses, carts for and cleans up after the other half".
 Invent no geography: rivers, roads, hills and woods are only those THE TOWN'S PLACES and NEARBY name. Names under ALREADY USED belong

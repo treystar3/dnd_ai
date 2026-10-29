@@ -163,6 +163,13 @@ class View:
     def __init__(self, scene: Scene, viewer: Viewer, profile: str):
         self.scene, self.viewer, self.profile = scene, viewer, profile
         self.skip: set[str] = set()
+        self.allow: set[str] = set()                  # (f375) narrator-only facts this viewer is given for this reply ('crowd')
+
+    def asking(self, text: str) -> "View":
+        """(f375) The same view for a reply to these words: the street scene comes in when they are about the town or its streets."""
+        if streets_asked(text):
+            self.allow.add("crowd")
+        return self
 
     def without(self, *names: str) -> "View":
         """The same view with these people left out of WHO IS HERE: the speakers of an exchange are introduced in its own block."""
@@ -176,12 +183,13 @@ class View:
         if name == "present":
             return self.present_lines()
         v = self.viewer
-        return [f.text for f in self.scene.facts(name) if v.sees(f)]
+        return [f.text for f in self.scene.facts(name) if v.sees(f) or (f.id and f.id in self.allow)]
 
     def present_lines(self) -> list[str]:
         """Who is here, as this viewer knows them: a townsperson knows their neighbours by name and sees strangers (Maren, the hires) as
         what they look like; the narrator, the interpreter and the audit use what the player knows them as; those travelling with the
-        player know everyone's name."""
+        player know everyone's name. (f375) What the others are doing goes only to the narrator and the engine's readers: told everyone's
+        chores, the people who speak brought them up as news, and garbled them."""
         v = self.viewer
         out = []
         for p in self.scene.present_people():
@@ -189,10 +197,10 @@ class View:
                 continue
             if v.kind == "npc":
                 who = p.name if (p.kind == "npc" and p.local and p.local in v.groups) else (p.name if p.kind == "npc" else p.desc)
-                out.append(f"{who}: {p.doing}".rstrip(": ") if p.kind == "npc" else f"a stranger here with the one in front of you - {who} {p.doing}".strip())
+                out.append(who if p.kind == "npc" else f"a stranger here with the one in front of you - {who}".strip())
             elif v.kind in ("hire", "maren"):                 # (f315) the party knows its own by name, and the townsfolk as the player does - unless they are neighbours
                 who = p.name if (p.kind != "npc" or (p.local and p.local in v.groups)) else p.label
-                out.append(f"{who}: {p.desc} {p.doing}".strip())
+                out.append(f"{who}: {p.desc}".strip().rstrip(":"))
             else:
                 out.append(f"{p.label}: {p.desc} {p.doing}".strip())
         return out
@@ -223,6 +231,16 @@ def scene_of(ws) -> Scene:
         cached = (key, Scene(ws))
         ws._truth = cached
     return cached[1]
+
+
+_STREETS = re.compile(r"\b(streets?|town|busy|crowds?|crowded|square|market|bridge|outside|out there|going on|about today|people about|traffic|carts?|quiet)\b",
+                      re.I)
+
+
+def streets_asked(text: str) -> bool:
+    """(f375) Are these words about the town or its streets (how busy, who is about, what is going on outside)? Then a speaker is given
+    the street scene for this reply; otherwise only the narrator has it."""
+    return bool(_STREETS.search(text or ""))
 
 
 def viewer_for_npc(npc, world=None) -> Viewer:
@@ -300,8 +318,10 @@ def _here(scene: Scene):
         slot = T["periods"].get(clock.period(ws.minutes), "quiet")
         cond = scene.condition()
         crowd = cond.crowd or (place.crowd or (top.crowd if top is not None else {}) or {}).get(slot) or T["crowd"].get(scale, T["crowd"]["village"])[slot]
-        prefix = "Outside, the streets: " if top is not None and top is not place else "The streets: "
-        out.append(Fact("here", prefix + crowd + ".", id="crowd"))
+        crowd = " ".join(crowd.split())
+        prefix = "Outside: " if top is not None and top is not place else ""
+        out.append(Fact("here", prefix + crowd + ("" if crowd.endswith((".", "!", "?")) else "."), id="crowd",
+                        known=frozenset({"narrator"})))           # (f375) the street scene is the narrator's; a speaker hears it when asked (View.asking)
         guard = place.guard or (top.guard if top is not None else "") or T["guard"].get(scale, "light")
         line = T["guard_lines"].get(guard, "")
         if line:

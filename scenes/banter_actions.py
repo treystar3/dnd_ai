@@ -100,7 +100,7 @@ class BanterActions:
                "gesture_states": {n: quirks.gesture_state(h, [dict(o, name=on) for on, o in holders.items() if o is not h] + self.gesturers(h))
                                   for n, h in holders.items()}}
         try:
-            r = generate("exchange", system, P_, Exchange, temperature=0.9, max_tokens=420, retries=1, validation_context=ctx,
+            r = generate("exchange", system, P_, Exchange, temperature=0.9, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                          relaxed_context=dict(ctx, recent={n: l[-1:] for n, l in (recent or {}).items()}, kit=False))
         except LLMError:
             return None
@@ -164,7 +164,7 @@ class BanterActions:
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
                                               P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
                                               reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight)),
-                          DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 420, tails=False)
+                          DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS, tails=False)
             after = "" if in_fight else frame.after
             self.remember_narration(" ".join(t for t in (frame.before, after) if t.strip()),
                                     {"type": "dialogue", "before": frame.before, "speaker": "", "speech": "", "after": after})

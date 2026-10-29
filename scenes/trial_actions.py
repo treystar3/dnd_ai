@@ -134,13 +134,11 @@ class TrialActions:
             t["tries"] = 0
             console.note(f"PROMOTED to guild rank {nxt}! New perks: {quests.describe_perks(nxt)}.")
             self.narrate(f"[THE GAME HAS DECIDED: the player won the trial for guild rank {nxt}; {who}, the examiner, lowers their blade and "
-                         "concedes, and the hall marks the player's new rank. The blows were pulled and nobody is hurt.] Describe the moment in "
-                         "two or three sentences.", "")
+                         "concedes, and the hall marks the player's new rank. The blows were pulled and nobody is hurt.] Describe the moment.", "")
         else:
             wait = T["retry_days"] * clock.MINUTES_PER_DAY
             t["wait_until"] = self.minutes + wait
             console.note(f"You lose the trial. You keep rank {self.rank}. You may stand again in {clock.describe_duration(wait)}.")
             self.narrate(f"[THE GAME HAS DECIDED: the player lost the trial for guild rank {nxt}; {who}, the examiner, stops the blow and "
-                         "tells the player plainly what they lacked. The blows were pulled and nobody is hurt.] Describe the moment in two or "
-                         "three sentences.", "")
+                         "tells the player plainly what they lacked. The blows were pulled and nobody is hurt.] Describe the moment.", "")
         self.store.save_player(self.player)

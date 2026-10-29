@@ -8,6 +8,7 @@ is_goodbye() takes only a line that is nothing but a goodbye (with its thanks an
 from __future__ import annotations
 
 import re
+import config
 
 _FILLER = (r"(?:ok(?:ay)?|alright|all right|right|well|then|thanks|thank you|many thanks|much obliged|cheers|good|very well|i see|"
            r"i understand|understood|fair enough|fine|good to know|noted|anyway|and|so|now|again|friend|sir|ma'am|madam|miss|master|"
@@ -43,10 +44,10 @@ def is_goodbye(text: str, names=()) -> bool:
 
 
 PARTING_SYSTEM = """You play one person in a fantasy world, in a role-playing game; the game has you answer in your own voice.
-The one you were talking with is leaving: their words are their goodbye. Answer with one short parting line, as this person would at
-the end of an ordinary talk - a word, a nod and a word, the last practical thing, something of your own, or nothing warm at all if you
-are not warm. A few words; never a speech, never a blessing for the road unless that is who you are. No narration inside the speech.
-gesture is optional: a few words of what they do, or empty. Use only this world's terms, and never a line you have said lately.
+The one you were talking with is leaving: their words are their goodbye. Answer with your parting, as this person would at the end
+of an ordinary talk - the last practical thing, something of your own, or nothing warm at all if you are not warm. Never a blessing
+for the road unless that is who you are. No narration inside the speech.
+gesture is optional: what they do, or empty. Use only this world's terms, and never a line you have said lately.
 Respond only with JSON matching the schema."""
 
 
@@ -93,7 +94,7 @@ def line(ws, npc, text: str) -> tuple[str, str]:
     known = view.scene.known_words()
     heard = list(getattr(ws, "_partings_heard", []))
     try:
-        r = generate("npc_parting", PARTING_SYSTEM, request(ws, npc, text), Parting, temperature=0.9, max_tokens=120, retries=2,
+        r = generate("npc_parting", PARTING_SYSTEM, request(ws, npc, text), Parting, temperature=0.9, max_tokens=config.PROSE_MAX_TOKENS, retries=2,
                      validation_context={"known": known, "recent": list(npc.said[-6:]), "heard": heard}, relaxed_context={"known": known})
         speech, gesture = r.speech.strip(), (r.gesture or "").strip()
     except LLMError:

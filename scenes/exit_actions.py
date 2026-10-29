@@ -89,7 +89,7 @@ class ExitActions:
             desc = scrub(m["road"].description) if m["road"] else "an ordinary track"
             lines.append(f"  - {exits.option_label(m)}: {desc}")
         return ("The player has walked a while along the road leaving {town} to the {d}, and the road forks. "
-                "Describe the fork in two or three sentences: how each branch looks from here (the ground, the traffic, the weather), "
+                "Describe the fork: how each branch looks from here (the ground, the traffic, the weather), "
                 "using only the notes below. Do NOT name any town or place, and do not say where any branch ends.\n"
                 "BRANCHES:\n{lines}").format(town=self.world.places[top].name, d=gp["dir"], lines="\n".join(lines))
 

@@ -192,7 +192,7 @@ class LawActions:
         elif took:
             how = {"strong success": "smoothly and without a flicker of notice", "success": "cleanly",
                    "partial": "with a clumsy moment that could have given them away"}[degree]
-            base = f"The player takes {what} from {holder}, {how}. Describe the lifting in two or three sentences."
+            base = f"The player takes {what} from {holder}, {how}. Describe the lifting."
         else:
             base = (f"The player tries to take {what} from {holder} and cannot manage it"
                     + (" - it is far beyond their skill" if hopeless else "") + ". They come away empty-handed. "
@@ -335,7 +335,7 @@ class LawActions:
         c = self.player.character
         day, turn = clock.day(self.minutes), self.store.meta.turn
         if lock and locks.is_open(lock):
-            self.narrate(f"The player goes to {lock['name']}; it is already open. Describe it in a sentence.", text)
+            self.narrate(f"The player goes to {lock['name']}; it is already open. Describe it.", text)
             return
         if not lock:
             lock = self.invent_lock(owner, what, text)
@@ -347,7 +347,7 @@ class LawActions:
         lock_owner = next((n for n in self.present if n.id == lock["owner"]), None)
         if self.has_key(lock) and locks.key_fits(lock, day):
             self.open_lock(lock, "key")
-            self.narrate(f"The player opens {lock['name']} with a key they carry. Describe it in a sentence; nothing is found yet.", text)
+            self.narrate(f"The player opens {lock['name']} with a key they carry. Describe it; nothing is found yet.", text)
             self.store.save_player(self.player)
             return
         changed = self.has_key(lock)
@@ -523,7 +523,7 @@ class LawActions:
             self.settle_bribe(guard, town, fine)
         else:
             self.notice(RanFromWatch(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label()), guard)
-            self.narrate(f"The player bolts from {guard.label()} and slips away through the crowd. Keep it brief.", "")
+            self.narrate(f"The player bolts from {guard.label()} and slips away through the crowd.", "")
         self.store.save_npc(guard)
         self.store.save_player(self.player)
 
@@ -544,7 +544,7 @@ class LawActions:
             self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
                               worked=True, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.ledger(f"The coins vanish. Purse: {money.fmt(c.coins)}")
-            self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away. Keep it brief.", "")
+            self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away.", "")
         else:
             guard.trust = max(0, guard.trust + B["trust"][degree])
             self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
@@ -563,7 +563,7 @@ class LawActions:
         self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), days=H["jail_days"]), guard)
         console.note(f"You serve {H['jail_days']} days and pay {money.fmt(price)}. Purse: {money.fmt(c.coins)}")
         self.narrate(f"The player spends {H['jail_days']} days in the town cells and is released with a stern warning. "
-                     f"Describe the stay in two or three sentences.", "")
+                     f"Describe the stay.", "")
 
     def pay_in_standing(self, guard, town: str, fine: int) -> None:
         """Above the Law: no cell, ever. The purse pays what it can; the rest comes off the player's name in this town."""
@@ -580,4 +580,4 @@ class LawActions:
         console.note(f"No cell for you. You pay {money.fmt(paid)}" + (f"; the rest ({money.fmt(owed)}) is paid in standing here ({-lost})" if owed else "")
                      + f". Purse: {money.fmt(c.coins)} (Above the Law)")
         self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes {money.words(paid)}"
-                     + (" and makes sure the whole street knows the rest went unpaid" if owed else "") + ". Keep it to two sentences.", "")
+                     + (" and makes sure the whole street knows the rest went unpaid" if owed else "") + ".", "")
