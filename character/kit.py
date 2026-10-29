@@ -1,6 +1,8 @@
 """What a new character wakes up with: a rudimentary weapon - or, for a class that keeps companions, a companion instead - and some coin.
 
-A companion is a living creature, tamed, that grows with the player; it takes the weapon's place. (A summoner's Bound summon is not
+A companion is a living creature, tamed, that grows with the player; it takes the weapon's place, unless the class's own words name the
+weapon it fights with (f385: a beast-master whose class was "heavy bludgeon and rhythmic intimidation" woke with a worg and empty hands,
+and punched its way through every fight); then it has both. (A summoner's Bound summon is not
 part of the kit: it is made by its summon ability, engine/summons.py, and the summoner carries a weapon like anyone else.)
 
 The model only chooses from lists. The engine builds the items, the companion and the purse.
@@ -57,7 +59,9 @@ def weapon_words(b: items.BaseItem) -> set[str]:
 
 
 AGENT_ENDINGS = ("", "s", "man", "men", "sman", "smen", "woman", "women", "er", "r", "ers", "rs")   # spearman, lancer, swordsmen, bows
-CALLINGS = {"archer": "bow", "archers": "bow", "archery": "bow", "marksman": "bow", "knife": "dagger", "knives": "dagger"}   # a calling or a plain word that names its weapon
+CALLINGS = {"archer": "bow", "archers": "bow", "archery": "bow", "marksman": "bow", "knife": "dagger", "knives": "dagger",
+            "bludgeon": "blunt", "bludgeons": "blunt", "cudgel": "club", "maul": "hammer", "mallet": "hammer", "flail": "blunt"}   # a calling or a plain word that names its weapon
+GENERIC = {"heavy", "light", "simple", "thrown", "focus", "hand", "arcane", "warding", "blade"}     # (f385) words that fit many weapons and name none
 
 
 def named_weapons(text: str, options: list) -> list:
@@ -72,6 +76,14 @@ def named_weapons(text: str, options: list) -> list:
         if any(w == v + end for w in said for v in words for end in AGENT_ENDINGS):
             fits.append(b)
     return fits
+
+
+def weapon_named(text: str, options: list) -> list:
+    """(f385) The weapons a class's words name by a word of the weapon's own (hammer, bow, bludgeon), not one that fits many (heavy,
+    light): what a companion class carries besides its companion."""
+    said = {w for w in re.findall(r"[a-z]+", (text or "").lower()) if len(w) >= 3}
+    said |= {CALLINGS[w] for w in said if w in CALLINGS}
+    return [b for b in options if any(w == v + end for w in said for v in weapon_words(b) - GENERIC for end in AGENT_ENDINGS)]
 
 
 def give_starting_kit(c: Character, class_text: str, uses_companions: bool, world: World) -> str:
@@ -92,6 +104,13 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
         c.companions.append(Companion(id=_slug(name) or creature.id, name=name, creature=creature.id,
                                       kind=creature.category, description=f"a {creature.name.lower()}",
                                       source="bonded before the player woke"))
+        armed = weapon_named(f"{c.concept} {c.combat_identity} {c.custom_class}", weapon_options())
+        if armed:                                                   # (f385) the class names what it fights with: it carries that too
+            chosen = armed[0].id if len(armed) == 1 else _ask_kit(c, class_text, False, armed, []).weapon
+            weapon = items.make(chosen, rules["starting_rarity"])
+            c.equipment[items.base_of(weapon).slot] = weapon
+            return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion - and a {weapon.name} lies "
+                    f"beside them; they carry a small purse of {purse}.{bound}")
         return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion, in place of any weapon -"
                 f" and they carry a small purse of {purse}.{bound}")
     options = weapon_options()

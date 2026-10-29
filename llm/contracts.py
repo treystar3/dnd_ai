@@ -660,6 +660,19 @@ class MentorReply(BaseModel):
         return self
 
 
+def misaddressed(speech: str, others: list[str], said: str = "") -> str:
+    """(f385) Someone else here spoken to by name in a reply meant for the player ('..., Salith.' or 'Salith, ...'), when the player's
+    own words did not bring them up: the model has mixed up who it is talking to. The other's full name, or ''."""
+    for o in others:
+        first = (o or "").split()[0] if (o or "").split() else ""
+        if len(first) < 3 or re.search(rf"\b{re.escape(first)}\b", said or "", re.I):
+            continue
+        f = re.escape(first)
+        if re.search(rf"(^|[.!?]\s+){f}\s*,|,\s*{f}\s*(?:[.!?]|$)", speech or ""):
+            return o
+    return ""
+
+
 class CompanionReply(BaseModel):
     """A hired adventurer answering the player: what they say, what they do, and anything from this exchange worth keeping."""
     speech: str = ""
@@ -705,6 +718,10 @@ class CompanionReply(BaseModel):
         hit = banter.echoes(self.speech, ctx.get("heard", []))          # (f382) another companion just said it
         if hit:
             raise ValueError(f"someone else has just said '{hit}': answer in your own words")
+        wrong = misaddressed(self.speech, ctx.get("others") or [], ctx.get("said") or "")
+        if wrong:                                                        # (f385) "He isn't looking for company, Salith." to Bumbo
+            raise ValueError(f"you are answering {ctx.get('player') or 'the player'}; {wrong} is someone else here. Do not call the player "
+                             f"{wrong.split()[0]}: use their name, {ctx.get('player') or 'the player'}, or none")
         if ctx.get("member"):
             from engine import quirks, voices
             why = quirks.voice_check(ctx["member"], self.speech, ctx.get("player", ""), ctx.get("recent", [])) or \

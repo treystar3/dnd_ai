@@ -84,7 +84,7 @@ ws.enter("trading_square")
 # ---- the crowd scales with the place
 ws.enter("guild_house")
 ws.store.meta.minutes = 2 * 60                     # two hours after waking at eight: mid-morning
-check("Parth at mid-morning is a busy town", any("cart drivers are eating in the inn" in l for l in truth.scene_of(ws).view(truth.NARRATOR, "narrator").streets()), truth.scene_of(ws).view(truth.NARRATOR, "narrator").streets())
+check("Parth at mid-morning is a busy town", any("the square is full of stalls" in l for l in truth.scene_of(ws).view(truth.NARRATOR, "narrator").streets()), truth.scene_of(ws).view(truth.NARRATOR, "narrator").streets())
 cap = world.places["lethoria"]
 check("a place's own scale wins over its type (Lethoria is the capital, places.yaml)", truth.scale_of(world, cap) == "capital" and cap.type == "city")
 check("...and its places take the town's", truth.scale_of(world, world.places["lethoria_inn"]) == "capital")

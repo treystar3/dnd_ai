@@ -99,6 +99,10 @@ def check_exchange(ex, ctx: dict) -> str:
     first = ctx.get("first_speaker")
     if first and ex.lines and ex.lines[0].speaker != first and first not in silent_ok:    # someone struck hard need not open
         return f"{first} speaks first"
+    dead = (ctx.get("must_name") or "").split(",")[0].split()
+    if dead and not any(re.search(rf"\b{re.escape(dead[0])}\b", l.text, re.I) for l in ex.lines):
+        return (f"this is about {dead[0]}, who died: someone says {dead[0]}'s name. 'They won't be coming back' about no one in "
+                "particular could be about anyone")                                  # (f385) a death talked over without the name
     from engine import quirks
     states = {k: dict(v) for k, v in ctx.get("gesture_states", {}).items()}
     kept = 0

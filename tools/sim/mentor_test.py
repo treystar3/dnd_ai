@@ -538,7 +538,8 @@ pl = NS(character=ch, mentor={})
 a, b = mentor.line(pl, "steady", 5), mentor.line(pl, "steady", 5)
 check("a retry hears it a little differently", a != b)
 check("the first-hurt lesson says how to use any item, not only the draught", all("drink the healing draught" in x and "'Items' list" in x and "Anything else you're carrying" in x for b in mentor.BUILDS for x in M["lessons"]["first_blood"][b]))
-check("every lesson has every build", all(set(M["lessons"][k]) == set(mentor.BUILDS) for k in ("track", "found", "start", "first_blood", "steady")))
+check("every lesson has every build (and 'found' one for empty hands, f385)", all(set(M["lessons"][k]) - {"unarmed"} == set(mentor.BUILDS) for k in ("track", "found", "start", "first_blood", "steady"))
+      and "unarmed" in M["lessons"]["found"])
 
 # ---- she walks them to the guild hall, signs them in and explains the board there
 s6, w6 = fresh("mentor_escort")

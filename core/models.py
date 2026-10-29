@@ -229,6 +229,7 @@ class Companion(BaseModel):
     fallen: bool = False         # went down in a fight; sits out until recover_at (or is called back by its summon ability)
     recover_at: int = 0          # game minute when a fallen companion is on its feet again
     dead: bool = False           # a beast that did not survive being downed; only a revival brings it back
+    pronoun: str = ""            # (f385) she, he or it, chosen once (engine/party.py companion_pronoun) and kept
 
     @property
     def active(self) -> bool:

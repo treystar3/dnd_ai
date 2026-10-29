@@ -221,10 +221,23 @@ def build_of(character) -> str:
     return "melee"
 
 
+def empty_handed(character) -> bool:
+    """(f385) Nothing in their hands to draw: no weapon, or wraps on their fists."""
+    from engine import items
+    weapon = (character.equipment or {}).get("main_hand")
+    try:
+        return weapon is None or "unarmed" in (items.base_of(weapon).tags or [])
+    except Exception:
+        return weapon is None
+
+
 def line(player, key: str, seed=0) -> str:
     """One of the phrasings of a lesson, for this build. The same advice each time, said a little differently on a retry."""
     L = M["lessons"][key]
-    options = L[build_of(player.character)] if isinstance(L, dict) else L
+    build = build_of(player.character)
+    if build == "melee" and isinstance(L, dict) and L.get("unarmed") and empty_handed(player.character):
+        build = "unarmed"                                   # (f385) "Draw. Now." to someone with nothing to draw
+    options = L[build] if isinstance(L, dict) else L
     said = player.mentor.setdefault("said", {})
     n = said.get(key, 0)
     said[key] = n + 1

@@ -120,11 +120,17 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     if not parts:
         return result
     nudge = "\n\nYOUR DRAFT " + ". YOUR DRAFT ALSO ".join(parts) + ". Write it fresh, with the same events."
-    redo = generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens, validation_context=context)
+    why = [p.split(" (")[0].split(".")[0].split(":")[0].lower() for p in parts]
+    from engine import turnlog
+    from llm import gateway
+    with gateway.tagged(rewrite_of_draft=why):              # (f385) the log says this call replaces the one before it, and why
+        redo = generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens, validation_context=context)
     now = " ".join(getattr(redo, f, "") or "" for f in fields)
     (rn, rs), (dn, ds) = _marked(now), _marked(text)
     if rn < dn or rs < ds:                                  # (f384) the draft kept every blow in its own sentence: it stands
+        turnlog.rewrite(task, why, "draft")
         return result
+    turnlog.rewrite(task, why, "rewrite")
     return redo
 
 

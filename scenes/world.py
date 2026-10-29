@@ -53,7 +53,7 @@ from scenes.pastime_actions import PastimeActions
 from scenes import plan_repairs
 from scenes.plan_repairs import PlanRepairs
 from scenes import markup
-from engine import mapview, mentor, needs, pulse, pulselog, quests
+from engine import mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
 from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
@@ -457,6 +457,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         new_town, old_town = pulse.town_of(self.world, place_id), pulse.town_of(self.world, self.player.location)
         if new_town != old_town:
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
+            self.__dict__.pop("_crowd_told", None)                                # (f385) ...and its crowd
             self._framed_hires = set()                                            # (f347) a hire's first words in a new town earn a frame; each shop in it does not
             from engine import ambient
             if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
@@ -636,24 +637,39 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if text.startswith("#"):
                 before = self.player.location
                 bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
+                turnlog.begin(console)                                      # (f385) a button that does something is a row too
+                rolled = False
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
                         self.command(text)
                 except LLMError as e:
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
+                    rolled = True
                     console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
                 if self.to_menu:
+                    turnlog.end(rolled, command=self.command_row(text, before, bar))
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
+                turnlog.end(rolled, command=self.command_row(text, before, bar))
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
-            if not self.turn(text):
+            turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
+            stood = self.turn(text)
+            if not stood:
                 console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
                              "Nothing has changed; try again, perhaps worded differently.")
+            turnlog.end(not stood)
             self.show_header()
+
+    def command_row(self, text: str, before: str, bar) -> dict:
+        """(f385) A # command's row: what it changed (the place, the clock, the coin: the top bar), and whether it is only a view."""
+        from ui.gui.bridge import VIEWS
+        changed = (["place"] if self.player.location != before else []) + (["clock or coin"] if self.header_key() != bar else [])
+        name = (text[1:].strip().lower().split() or [""])[0]
+        return {"text": text, "turn": self.store.meta.turn, "changed": changed, "view": name in VIEWS}
 
     def name_ids(self) -> None:
         """Who is who, for anything kept under a stable id instead of a name (engine/canon.py opinions): the hires, Maren, the player."""
@@ -667,9 +683,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """One whole turn as one unit: everything the action and what follows it write is committed together at the end, or, if the model
         fails partway, rolled back together and the game put back as it was before the line was typed. True if the turn stood."""
         self.name_ids()
+        turnlog.tap(console)
+        shown = turnlog.SHOWN
         try:
             with self.store.transaction():
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
+                self.ran = []
                 self.handle(text)
                 heard = self.hire_said_marks()
                 self.sync_heard()
@@ -681,12 +700,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.collapse_check()
                 self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
                 self.heard_flush()                         # the places first heard of this turn, in one quiet line
+                if turnlog.SHOWN == shown and not self.to_menu:
+                    self.said_nothing(text)
                 self.store.save_player(self.player)
             return True
         except LLMError as e:
             console.debug(f"turn rolled back: {e}")
             self.reload_after_rollback()
             return False
+
+    def said_nothing(self, text: str) -> None:
+        """(f385) The turn showed the player nothing at all: no passage, no line, no note. That is never the answer to something typed.
+        One line says so, and the refusal log keeps what ran, so the handler that went quiet can be found and given its own reason."""
+        from engine import refusals
+        ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
+        console.note("Nothing came of that: the game found nothing it could do with it here. Try saying it another way.")
+        refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
 
     def reload_after_rollback(self) -> None:
         """The database was rolled back to before the turn; what the scene holds in memory must match it again."""
@@ -1025,6 +1054,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     console.debug(f"no such action kind: {intent.kind}")
                     self.halted = True
                     break
+                self.__dict__.setdefault("ran", []).append(intent.kind)
                 getattr(self, f"on_{intent.kind}")(intent, text)
                 if intent.force and intent.kind != "attack":
                     self.after_force(intent, text)
@@ -1493,13 +1523,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seen.update((self.player.location, h) for h in unseen)
         unseen = self.__dict__.pop("_arrival_lines", []) + unseen                                  # (f331) what changed here while the player was away, once
         self.__dict__.setdefault("_news_seen", set()).update(here.lines("news")[:3])              # (f349) news the narrator has been handed once
+        streets = here.streets()
+        crowd = [f.text for f in here.scene.facts("here") if f.id == "crowd" and f.text in streets]
+        told = self.__dict__.setdefault("_crowd_told", {})                                         # (f385) the crowd once a visit to the town,
+        town = pulse.town_of(self.world, self.player.location)                                      # and again only when it changes: "cart drivers
+        streets = [s for s in streets if not (s in crowd and told.get(town) == s)]                 # eating in the inn" came back as drivers in
+        for s in crowd:                                                                             # passage after passage
+            told[town] = s
         people, unlooked = self.people_view(), 0
         if not self.__dict__.pop("_looking", False) and not (self.__dict__.get("_shown_here") or {}).get("place"):
             people, unlooked = self.first_seen(people)                                       # (f380) walking in: who the eye falls on first
         request = wp.narration_request(self.time_label(), self.place, people, event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
-                                       unseen, streets=here.streets(),
+                                       unseen, streets=streets,
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
                                        already=self.shown_lines(),                                  # (f347) ...and what the player has read here already

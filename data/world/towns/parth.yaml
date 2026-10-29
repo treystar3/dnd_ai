@@ -17,8 +17,8 @@ id: parth
 character: >
   A river-crossing market town that lives on the trade road and knows it: everyone has a cousin who drives a cart, and the
   innkeeper counts the season by who comes through. Plain-spoken, slow to take offence and slower to forgive, with a
-  countryman's suspicion of magic that comes from watching the Seekers take children away. The Greywood sits at the edge of
-  every conversation about the north.
+  countryman's suspicion of magic that comes from watching the Seekers take children away. The Greywood, just northwest of
+  the town, sits at the edge of every conversation.
 landmarks:
   - name: the Wend bridge
     where: parth
@@ -55,7 +55,7 @@ festivals:
   - {name: the Crossing Day, season: spring, day: 20, days: 1}
 scale: town
 crowd:
-  market: "Carts are queueing on the bridge, the square is full of stalls, and cart drivers are eating in the inn."    # (f375) plain sentences
+  market: "Carts are queueing on the bridge and the square is full of stalls."    # (f375) plain sentences; (f385) no drivers in the inn: they were in every passage
   easing: "The carts have gone on, the square is being swept, and the inn is filling up."
   quiet: "A few people are about, most doors are shut, and the inn's windows are lit."
   empty: "The streets are empty but for a dog and the watch."

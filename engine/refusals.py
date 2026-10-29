@@ -5,7 +5,8 @@ into a one-line question asked in character instead of a system note.
 Kinds: audit_failed (the plan could not be made sense of twice), audit_unsure (f332: the plan was flagged as risky and the check itself
 could not be made, so it did not run), talk_whom (words said to no one in particular with several people here), model_down (a call gave up
 and a written fallback was used), clarify_failed (the question was asked, and the answer still could not be read), undone (f332: a line
-named more things than the game does at once, and the rest were not done)."""
+named more things than the game does at once, and the rest were not done), silent (f385: the turn showed the player nothing at all; the
+actions that ran are kept, so the handler that went quiet can be given its own reason)."""
 from __future__ import annotations
 
 import json

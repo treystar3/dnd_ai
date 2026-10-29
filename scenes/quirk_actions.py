@@ -227,6 +227,7 @@ class QuirkActions:
             how = (how + " " + " ".join(severity.SV["silent_rule"].split())).strip()
         view = self.hire_view(m)
         ctx = {"recent": lately, "member": m, "player": self.player.character.name, "must": must or [], "retell": retell, "silent_ok": quiet,
+               "others": self.fellow_names(m), "said": heard if isinstance(heard, str) else "",                       # (f385)
                "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "known": view.scene.known_words()}
         from engine import canon, context
         fix = ""
@@ -236,7 +237,7 @@ class QuirkActions:
                              ppr.talk_prompt(how, core, self.hire_relation(m), now + self.hire_now(m, heard), rules.pick_memories(m, q, day=self.minutes // 1440),
                                              m.get("talk", [])[-4:], player, heard, unsaid=banter.unsaid_rule(lately, q),
                                              notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place), leaned=quirks.leaned_on(m),
-                                             offers=self.material_for(m), fix=fix, truth_text=view.text()),
+                                             offers=self.material_for(m), fix=fix, truth_text=view.text(), others=self.fellow_names(m)),
                              CompanionReply, temperature=0.85, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx, relaxed_context=dict(ctx, recent=lately[-1:]))
             except LLMError:
                 return ""

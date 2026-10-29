@@ -6,6 +6,7 @@ rejected, so the retry can fix the specific problem.
 Callers get a validated proposal object or an LLMError, never raw text.
 """
 
+import contextlib
 import json
 import threading
 import time
@@ -266,6 +267,21 @@ def _usage(response) -> dict | None:
             "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
 
 
+_tag = threading.local()
+
+
+@contextlib.contextmanager
+def tagged(**fields):
+    """(f385) Fields added to every call logged inside: a rewrite says it is one, and why, so its draft (the call before it, same task)
+    reads as replaced in logs/llm_calls.jsonl."""
+    before = getattr(_tag, "fields", None)
+    _tag.fields = {**(before or {}), **fields}
+    try:
+        yield
+    finally:
+        _tag.fields = before
+
+
 def _log(task, attempt, elapsed, messages, raw, error, usage=None):
     global _writes
     path = Path(config.LOG_PATH)
@@ -284,6 +300,7 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None):
     }
     if usage:
         entry["tokens"] = usage                         # what the call cost the model (tools/latency.py reads these)
+    entry.update(getattr(_tag, "fields", None) or {})
     with _log_lock:
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")

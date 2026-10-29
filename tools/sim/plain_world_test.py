@@ -60,7 +60,8 @@ check("the person's own doing is theirs, as RIGHT NOW", f"RIGHT NOW: {a.activity
 streets = sc.view(truth.NARRATOR, "narrator").streets()
 crowd = next((l for l in streets if l.startswith("Outside: ")), "")[len("Outside: "):]
 check("the narrator has Parth's own street line, as a plain sentence", crowd and crowd in (world.places["parth"].crowd or {}).values(), (streets, world.places["parth"].crowd))
-check("...and Parth's busy hours say cart drivers, not drivers", "cart drivers are eating in the inn" in world.places["parth"].crowd["market"])
+check("...and Parth's busy hours name no drivers in the inn (f385: they were in every passage)", "the square is full of stalls" in world.places["parth"].crowd["market"]
+      and "drivers" not in world.places["parth"].crowd["market"])
 quiet = sc.view(truth.viewer_for_npc(a, world), "townsfolk")
 check("a townsperson asked an ordinary thing is not told the street scene", crowd not in quiet.text())
 asked = sc.view(truth.viewer_for_npc(a, world), "townsfolk").asking("what's going on in town today?")

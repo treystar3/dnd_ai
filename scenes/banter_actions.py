@@ -33,7 +33,7 @@ class BanterActions:
                  hook: str = "", wants: dict[str, str] | None = None, recent: dict[str, list[str]] | None = None,
                  members: dict[str, dict] | None = None, between: str = "", holders: dict[str, dict] | None = None,
                  subtexts: dict[str, str] | None = None, shared: str = "", all_speak: bool = False, interaction: str = "",
-                 first_speaker: str = "", moment: bool = False, silent_ok: tuple = ()) -> list[tuple[str, str]] | None:
+                 first_speaker: str = "", moment: bool = False, silent_ok: tuple = (), must_name: str = "") -> list[tuple[str, str]] | None:
         """The model writes a short exchange between these people (name -> who they are); None if it fails or is turned off."""
         if not getattr(config, "VOICED_MENTOR", True):
             return None
@@ -96,7 +96,7 @@ class BanterActions:
             P_.instruction(f"{' and '.join(quiet)} may answer with no words: a line with empty text and only a gesture, or no line at all.", "WHO MAY SAY NOTHING")
         P_.instruction(f"WRITE {lines[0]} TO {lines[1]} LINES, speakers from: {', '.join(people)}.")
         ctx = {"speakers": list(people), "lines": lines, "all_speak": all_speak, "silent_ok": tuple(silent_ok), "first_speaker": first_speaker, "material": material + [hook or ""], "recent": recent or {},
-               "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(),
+               "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(), "must_name": must_name,
                "gesture_states": {n: quirks.gesture_state(h, [dict(o, name=on) for on, o in holders.items() if o is not h] + self.gesturers(h))
                                   for n, h in holders.items()}}
         try:
@@ -280,7 +280,8 @@ class BanterActions:
                 options.append((2, "mood", H["mood"].format(name=m["name"], mood=mood), m))
         if fresh and kind == "fight" or (fresh and kind != "fight" and rng.random() < 0.5):
             if last.get("fallen"):
-                options.append((6, "fallen", H["fallen"].format(name=last["fallen"][0]), None))
+                what = (last.get("fallen_what") or {}).get(last["fallen"][0])        # (f385) a companion beast, said as what they were
+                options.append((6, "fallen", H["fallen"].format(name=last["fallen"][0]) + (f" {last['fallen'][0]} was {what}." if what else ""), None))
             elif not last.get("won"):
                 options.append((5, "lost_fight", H["lost_fight"], None))
             elif last.get("hard"):
@@ -674,7 +675,8 @@ class BanterActions:
         args = dict(hook=hook, wants=wants, recent=recent, members={m["name"]: m for m in pick}, between=between, subtexts=subtexts, shared=shared,
                     all_speak=len(pick) > 1, interaction=director.interaction(plan, names) if plan else "",
                     first_speaker=pick[0]["name"] if plan and len(pick) > 1 else "",
-                    moment=hook_kind in context.PRESSING_HOOKS or hook_kind in ("said", "deed", "fallen", "event"), silent_ok=silent_ok)
+                    moment=hook_kind in context.PRESSING_HOOKS or hook_kind in ("said", "deed", "fallen", "event"), silent_ok=silent_ok,
+                    must_name=((self.player.party_last_fight or {}).get("fallen") or [""])[0] if hook_kind == "fallen" else "")   # (f385)
         span = span or (len(pick), hi)                            # no minimum beyond each chosen speaker saying something: some people do not talk much
         span = (max(1, span[0] - len(silent_ok)), max(1, span[1]))  # those allowed silence are not counted toward the lines that must be written
         if plan and plan.beat.weight != "light":                  # as it hit each of them, before anything it leaves behind changes their records

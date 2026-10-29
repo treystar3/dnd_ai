@@ -349,7 +349,8 @@ class PartyActions:
             if not m.get("permanent") or m.get("story"):
                 continue
             rank = m.get("rank") or rules.rank_of(m["level"])
-            out.append((f"hire:{m['id']}", m["name"], f"(a hired {m['role']}, rank {rank}) {m.get('blurb', '')} Manner: {self.temper_text(m)}.",
+            p = rules.pronoun_pair(rules.pronoun_of(m, self.store.meta.seed, self.player.party_used))         # (f385) the same she or he every time
+            out.append((f"hire:{m['id']}", m["name"], f"(a hired {m['role']}, rank {rank}; {p}) {m.get('blurb', '')} Manner: {self.temper_text(m)}.",
                         "travelling with the player, close at hand"))
         return out
 
@@ -549,6 +550,14 @@ class PartyActions:
                 pass
         console.say(shown, name)
 
+    def fellow_names(self, m: dict) -> list[str]:
+        """(f385) Everyone else in the party a hire might mix the player up with: the other hires, Maren when she is along."""
+        from engine import mentor
+        out = [x["name"] for x in self.player.party if x is not m and x.get("name") and x.get("name") != m.get("name")]
+        if self.mentor_with_you() and mentor.NAME not in out and m.get("name") != mentor.NAME:
+            out.append(mentor.NAME)
+        return out
+
     def hire_talk(self, m: dict, text: str) -> None:
         """What the player says to a hire: the model answers as them from who they are, how they are with the player, what presses now
         and what they remember. Anything worth keeping from the exchange is kept, on the same call."""
@@ -580,6 +589,7 @@ class PartyActions:
         for attempt in range(2):
             heard = [t for who, t in recent[-6:] if who not in ("Player", m["name"].split()[0])]           # (f382) what the others just said
             ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player, "heard": heard,
+                   "others": self.fellow_names(m), "said": text,                                                   # (f385)
                    "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words()}
             try:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,
@@ -589,7 +599,7 @@ class PartyActions:
                                              subtext=self.hire_subtext(m, text), offers=self.material_for(m),
                                              again=convo.again_fact(before) if before else "",
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
-                                             worn=self.worn_words("speech")),
+                                             worn=self.worn_words("speech"), others=self.fellow_names(m)),
                              CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                              relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False))
             except LLMError:

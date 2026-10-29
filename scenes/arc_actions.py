@@ -16,10 +16,83 @@ from npc.models import NPC
 from npc.traits import assign_traits, npc_rng
 from ui import console
 
+
+def combat_who(f) -> str:
+    from engine import combat
+    return combat.who(f)
+
 PR = A["prisoner"]
 
 
 class ArcActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("yielded", 25, "yield_intercept", "spare or finish a foe that gave up at the end of the fight"),)
+
+    # ---------- (f385) a foe that yielded waits on the player ----------
+
+    YIELD_KILL = re.compile(r"\b(kill|finish|execute|slay|slaughter|end (it|them|him|her)|dispatch|behead|murder|stab|slit|crush|stomp|"
+                            r"cut (its|their|his|her) throat|put (it|them|him|her) (down|out of)|no mercy|run (it|them|him|her) through|"
+                            r"strike (it|them|him|her) down)\b", re.I)
+    YIELD_SPARE = re.compile(r"\b(spare|mercy|release|go free|let (it|them|him|her) (go|live|leave|be)|send (it|them|him|her) (off|away)|"
+                             r"leave (it|them|him|her)|wave (it|them|him|her) (off|away)|shoo)\b", re.I)
+    YIELD_NOT = re.compile(r"\b(don'?t|do not|never|won'?t|will not|no need to)\b", re.I)
+
+    def hold_yielded(self, foes: list) -> None:
+        """(f385) Foes who gave up the fight and are not taken as captives wait for the player to say: spare them, or finish them. A
+        yielded sahuagin used to be let go with nobody asked, and a companion praised the mercy the player never chose."""
+        if not foes:
+            return
+        self.held_yield = list(foes)
+        one = len(foes) == 1
+        names = ", ".join(combat_who(e) for e in foes)
+        it = "it" if one else "them"
+        console.note(f"{names[:1].upper() + names[1:]} {'has' if one else 'have'} given up the fight and {'waits' if one else 'wait'} on you. "
+                     f"Spare {it}, or finish {it}? Say what you do.")
+
+    def yield_intercept(self, text: str) -> bool:
+        """The line after a foe yielded: kill words finish them, mercy words let them go; anything else, and they slip away while the
+        player turns to it (the line goes on to be read as usual)."""
+        foes = getattr(self, "held_yield", None)
+        if not foes or self.combat:
+            return False
+        self.held_yield = None
+        low = text.lower()
+        kill, spare = self.YIELD_KILL.search(low), self.YIELD_SPARE.search(low)
+        if kill and self.YIELD_NOT.search(low[:kill.start()].rsplit(".", 1)[-1]):     # "don't kill it"
+            kill, spare = None, spare or kill
+        one = len(foes) == 1
+        names = ", ".join(combat_who(e) for e in foes)
+        if kill and not (spare and spare.start() < kill.start()):
+            self.finish_yielded(foes, names, one, text)
+            return True
+        if spare:
+            from engine.domain_events import Spared
+            self.notice(Spared(minute=self.minutes, place=self.player.location))
+            self.narrate(f"The player spares {names}, who had yielded, beaten. [THE GAME HAS DECIDED: {'it goes' if one else 'they go'} off "
+                         f"alive and {'does' if one else 'do'} not come back.] Tell it as it happens.", text)
+            return True
+        console.note(f"While you turn to other things, {names} {'slips' if one else 'slip'} away.")
+        return False
+
+    def finish_yielded(self, foes: list, names: str, one: bool, text: str) -> None:
+        """Killing what yielded: they are dead as any fallen foe is (a contract counts them, their remains can be skinned)."""
+        from engine import loot
+        for e in foes:
+            e.hp = 0
+        self.record_kills(foes)
+        state = self.store.load_place(self.player.location)
+        skinnable = 0
+        for e in foes:
+            if loot.has_remains(e):
+                state.carcasses.append({"creature": e.creature, "level": e.level, "minute": self.minutes})
+                skinnable += 1
+        state.bodies = self.keep_bodies(state.bodies + [{"creature": e.creature, "name": e.name, "level": e.level, "category": e.category,
+                                                          "rank": e.rank, "minute": self.minutes, "asked": False} for e in foes])
+        self.store.save_place(state)
+        self.narrate(f"The player kills {names}, who had yielded and lay beaten. [THE GAME HAS DECIDED: {'it is' if one else 'they are'} "
+                     "dead.] Tell it plainly, as it happens.", text)
+        if skinnable:
+            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - say so if you want to.")
 
     # ---------- the story's state ----------
 

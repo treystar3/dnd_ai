@@ -51,7 +51,7 @@ def talk_request(core: str, relation: str, now: list[str], memories: list[str], 
 
 def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: list[str], recent: list, player: str, text: str, unsaid: str = "",
                 notes: str = "", props: str = "", leaned: str = "", subtext: str = "", offers: list[str] | None = None, again: str = "",
-                again_how: str = "", fix: str = "", truth_text: str = "", worn: list[str] = ()):
+                again_how: str = "", fix: str = "", truth_text: str = "", worn: list[str] = (), others: list[str] = ()):
     """The same request as talk_request, built from typed parts (engine/prompt.py) so the gateway knows instruction from fact. truth_text is
     their view of the moment from the truth layer (engine/truth.py, f315): where they are, who is here, what the town has, the board."""
     from engine.prompt import Prompt
@@ -61,6 +61,9 @@ def talk_prompt(how: str, core: str, relation: str, now: list[str], memories: li
     p = Prompt()
     p.fact(core, "WHO YOU ARE")
     p.instruction(how, "HOW YOU SPEAK")
+    p.fact(f"{player}, the one who hired you" + (f". {', '.join(others)} {'is' if len(others) == 1 else 'are'} someone else: never call "
+                                                 f"{player} by {'that name' if len(others) == 1 else 'their names'}" if others else ""),
+           "YOU ARE TALKING WITH")                                                          # (f385) Merris called the player Salith
     p.fact(relation, f"HOW YOU ARE WITH {player.upper()}")
     p.fact(right_now, "RIGHT NOW")
     p.fact(truth_text)
