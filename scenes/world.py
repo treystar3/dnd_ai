@@ -2125,7 +2125,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines(), worn=self.worn_words("prose")),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
-                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"),
+                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"), tails=False,
             )
         except LLMError:
             self.show_speech(speaker, reply, npc)
@@ -2309,7 +2309,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                          "both a level and enough completed contracts.")
         if npc.role == "guild_contractor":
             import zlib
-            letter = "FFFEED"[zlib.crc32(npc.id.encode()) % 6]
+            letter = getattr(npc, "rank", "") or "FFFEED"[zlib.crc32(npc.id.encode()) % 6]        # (f374) Maren is A rank, not a drawn F
             lines.append(f"You are a rank-{letter} member of the adventurers' guild, between contracts. You know the "
                          "Greywood and its dangers from your own jobs, and you size up newcomers.")
         if npc.quest_offer:

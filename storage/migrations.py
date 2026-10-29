@@ -88,12 +88,27 @@ def _v5_lethoria(store) -> None:
                 store.execute(f"UPDATE {table} SET {', '.join(f'{c} = ?' for c in cols)} WHERE rowid = ?", (*new, row[0]))
 
 
+def _v6_maren_voice(store) -> None:
+    """(f374) Maren, once the lesson is over, is a person written by hand: her record takes her own personality, voice and rank and a
+    speech profile with no drawn habits (engine/mentor.py own_voice), replacing the townsperson's voice kit an older build drew for her.
+    A save where she is not yet a person of the world is untouched."""
+    if not store.npc_exists("maren"):
+        return
+    from engine import mentor
+    try:
+        player = store.load_player()
+    except Exception:
+        player = None
+    store.save_npc(mentor.own_voice(store.load_npc("maren"), player))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
     (3, "combat on the battlefield (zones, rows, engagement); a fight in progress under range bands is discarded", _v3_battlefield),
     (4, "the world renamed from Rivia to Meravia in everything the model wrote into the save", _v4_meravia),
     (5, "the capital renamed from Valecourt to Lethoria, its ids with it", _v5_lethoria),
+    (6, "Maren after the lesson keeps the voice she was written with", _v6_maren_voice),
 ]
 
 CURRENT = MIGRATIONS[-1][0]

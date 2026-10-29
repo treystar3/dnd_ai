@@ -18,6 +18,7 @@ import ui.console as uc
 SAID, NOTES, ANSWERS = [], [], []
 uc.say = lambda t, s="": SAID.append((s, t))
 uc.dialogue = lambda b, s, t, a: SAID.append((s, t))        # her words framed by the narrator (f274) count as said by her
+uc.npc_says = lambda s, t, g="": SAID.append((s, t))        # ...and so do her words alone, once the moment has had its frame (f374)
 uc.narrate = lambda t: SAID.append(("narrate", t))
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
 uc.ask = lambda *a, **k: ANSWERS.pop(0) if ANSWERS else ""

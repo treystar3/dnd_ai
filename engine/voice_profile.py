@@ -65,6 +65,8 @@ def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tup
     instructions (how their regard shows, and at most one feature of their culture on the culture budget), and any material offered to be
     said as it is (a saying). The same engine as a hire's, on a record instead of a party row."""
     from engine import voices
+    if (npc.speech or {}).get("own_voice"):                         # (f374) written by hand: their voice and lines are in the prompt already
+        return "", [], []
     member = {"id": npc.id, "name": npc.name, "speech": npc.speech, "said": list(npc.said), "people": npc.people}
     relation = relation_kind(score=getattr(npc, "trust", 50) - 50)
     feature = culture_feature(member, rng)

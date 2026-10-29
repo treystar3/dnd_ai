@@ -21,7 +21,15 @@ def check(n, ok, x=""):
 
 # ---- the data
 check("the kit's axes are data, each with options, and every option is behaviour, never a sound", voices.problems() == [] and len(voices.AXES) >= 6, voices.problems())
-check("most people are unmarked on most axes: a kit is a few lines, not a sheet", 2 <= sum(len(voices.lines(voices.roll(random.Random(k)))) for k in range(500)) / 500 <= 4)
+check("most people are unmarked on most axes: a kit is a line or two, not a sheet", 1.5 <= sum(len(voices.lines(voices.draw(random.Random(k)))) for k in range(500)) / 500 <= 2
+      and max(len(voices.lines(voices.draw(random.Random(k)))) for k in range(500)) <= voices.V["max_marked"] == 2)
+old = {"length": "plain", "sentences": "short", "questions": "never", "opening": "echo", "contractions": "full", "address": "formal", "refusing": "excuse", "words": "exact"}
+kept = voices.kit_of({"speech": {"kit": dict(old)}})
+check("(f374) an old save's seven-habit kit is read as its two most audible habits, and nobody is re-drawn",
+      len(voices.lines(kept)) == 2 and kept["questions"] == "never" and kept["sentences"] == "short" and kept["opening"] == "none"
+      and kept["contractions"] == "usual" and kept["address"] == "usual", kept)
+check("...and a habit that would open every line is told as now and then", "now and then" in voices.AXES["opening"]["options"]["echo"]["text"]
+      and "now and then" in voices.AXES["opening"]["options"]["hands"]["text"])
 
 # ---- drawing apart
 r = random.Random(3)
@@ -29,7 +37,7 @@ town = []
 for _ in range(10):
     town.append(voices.draw(r, town))
 check("ten people of one town: no two sound alike, and each differs from every other on the audible axes",
-      min(voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]) >= 5, [voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]][:12])
+      min(voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]) >= 4, [voices.distance(a, b) for i, a in enumerate(town) for b in town[i + 1:]][:12])
 check("a kit is one option on every axis", all(set(k) == set(voices.AXES) and all(k[a] in voices.AXES[a]["options"] for a in k) for k in town))
 sp = {"culture": "heartland"}
 k1 = voices.ensure(sp, random.Random(1)); k2 = voices.ensure(sp, random.Random(2))

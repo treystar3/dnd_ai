@@ -128,6 +128,11 @@ Rules:
 Respond only with JSON matching the schema, with the prose in "text"."""
 
 
+def _sentences(lines) -> str:
+    """(f374) Lines as sentences one after another: a line without its own full stop gets one, so two never run together."""
+    return " ".join(s if s.endswith((".", "!", "?")) else s + "." for s in (" ".join(str(x).split()) for x in lines) if s)
+
+
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), length: str = "up to about 70 words", streets: list[str] = (), town: str = "",
@@ -148,7 +153,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
         + (f"LYING ON THE GROUND HERE: {', '.join(ground)}\n" if ground else "")
-        + (f"WHAT'S GOING ON HERE LATELY (let it show in the scene when it would be noticed): {' '.join(happenings)}\n"
+        + (f"WHAT'S GOING ON HERE LATELY (let it show in the scene when it would be noticed): {_sentences(happenings)}\n"
            if happenings else "")
         + (f"WHAT PEOPLE HERE ARE TALKING ABOUT (background only; nobody recites it, nobody addresses the player with it): {' '.join(news)}\n"
            if news else "") +

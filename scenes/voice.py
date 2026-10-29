@@ -72,10 +72,12 @@ def participle_tails(text: str) -> list[str]:
 
 
 def fresh(task: str, system: str, request: str, schema, recent: list[str], fields=("text",),
-          temperature: float = 0.9, max_tokens: int = 600, context: dict | None = None, worn: list[str] | None = None):
+          temperature: float = 0.9, max_tokens: int = 600, context: dict | None = None, worn: list[str] | None = None, tails: bool = True):
     """Generate narration; if it repeats recent phrasing or stock phrases, leans on words the writing has worn out (f349, `worn` from the
     scene's watch) or ends two or more sentences on a trailing participle, rewrite once with the habit called out. `context` is the
-    schema's validation context (a frame's speaker and the others present, f347)."""
+    schema's validation context (a frame's speaker and the others present, f347). (f374) tails=False for a frame around speech: a beat
+    before and after a line is a sentence or two, the first playthrough rewrote half of them for this and the rewrite fixed it in half of
+    those, at a second call each, before the player could read the line."""
     from engine import worn as _worn
     result = generate(task, system, request, schema, temperature=temperature, max_tokens=max_tokens, validation_context=context)
     text = " ".join(getattr(result, f, "") or "" for f in fields)
@@ -86,11 +88,11 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     lean = _worn.leaned_on(text, worn or [])
     if len(lean) >= 2:
         parts.append("LEANED ON WORDS YOU HAVE WORN OUT: " + ", ".join(lean) + ". Find other words, or leave the thing unsaid")
-    tails = participle_tails(text)
+    found = participle_tails(text)
     last = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()][-1:]
-    closes = bool(last) and len(text.split()) >= 25 and participle_tails(last[0]) == last     # the closing sentence trails off: the habit at its most visible
-    if len(tails) >= 2 or closes:
-        parts.append("ENDED " + ("ITS LAST SENTENCE" if closes and len(tails) < 2 else "SENTENCES") + " ON A TRAILING PARTICIPLE (" + "; ".join(f'"{t[-50:]}"' for t in tails[:2])
+    closes = tails and bool(last) and len(text.split()) >= 25 and participle_tails(last[0]) == last     # the closing sentence trails off: the habit at its most visible
+    if tails and (len(found) >= 2 or closes):
+        parts.append("ENDED " + ("ITS LAST SENTENCE" if closes and len(found) < 2 else "SENTENCES") + " ON A TRAILING PARTICIPLE (" + "; ".join(f'"{t[-50:]}"' for t in found[:2])
                      + "). End each sentence, and above all the last, on its verb or its noun: a thing done, not a thing going on")
     if not parts:
         return result

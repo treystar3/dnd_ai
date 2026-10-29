@@ -474,13 +474,29 @@ def make_npc(player, minutes: int, turn: int, place_id: str):
             Memory(day=day, turn=turn, text="Let them hire me as practice. Fought a troll beside them in the Greywood, where no troll should be."),
             Memory(day=day, turn=turn, text="They did well."),
             Memory(day=day, turn=turn, text="My own party from the capital is late again. I wait for them at the guild hall. They are my companions, not the stranger's: the stranger came alone.")]
-    persona = " ".join(M["chat"]["persona"].split())
-    return NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
-               epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
-               activity="between jobs", personality=persona, voice="Warm and wry, gently teasing, practical, and more caring than she admits.",
-               concern="Things where they do not belong, and her own party from the capital, late again, who keep her waiting at the guild hall.",
-               trust=65, mood="fond of the player, though she would not say so", name_known_to_player=True, met_player=True,
-               knows_player_as=player.character.name, protected=True, memories=mem)
+    npc = NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
+              epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
+              concern="Things where they do not belong, and her own party from the capital, late again, who keep her waiting at the guild hall.",
+              trust=65, mood="fond of the player, though she would not say so", name_known_to_player=True, met_player=True,
+              knows_player_as=player.character.name, protected=True, memories=mem)        # (f374) no activity yet: the hall gives her one, and that is no change to tell
+    return own_voice(npc, player)
+
+
+def own_voice(npc, player=None):
+    """(f374) Her record keeps the voice she was written with (mentor.yaml npc): her personality told of her rather than to her, her voice,
+    her rank, and a speech profile that marks her as written by hand (no kit habits, no rolled stance: engine/voices.py, voice_rules.py)
+    with lines she has said to this player (the lesson's talk, the conversational ones) or, when there are few, lines written in her voice."""
+    from engine import voices
+    N = M["npc"]
+    npc.personality = " ".join(N["personality"].split())
+    npc.voice = N["voice"]
+    npc.rank = N.get("rank", "")
+    said = [t for who, t in (player.mentor.get("chat", []) if player is not None else []) if who == NAME.split()[0]]
+    said = [" ".join(t.split()) for t in said if "#" not in t and not re.search(r"(?<![A-Za-z])'[^']{3,60}'(?![A-Za-z])", t)   # not a command taught
+            and 8 <= len(t.split()) <= 45]
+    samples = (said[-4:] + [s for s in N.get("samples", []) if s not in said])[:5]
+    npc.speech = {"own_voice": True, "kit": {axis: voices.unmarked(axis) for axis in voices.AXES}, "samples": samples}
+    return npc
 
 
 def maren_fighter(level_mentor: int | None = None):

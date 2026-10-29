@@ -403,6 +403,18 @@ class CampaignStore:
         self._attach_memories(npc)
         return npc
 
+    def speech_kits(self, ids: list[str]) -> list[dict]:
+        """(f374) The voice kits of these people (engine/voices.py), read out of their records without parsing them: a kit is drawn to
+        differ from these, and the index rows carry no speech."""
+        ids, out = list(ids), []
+        with self._lock:
+            for k in range(0, len(ids), 500):
+                chunk = ids[k:k + 500]
+                for (j,) in self._db.execute(f"SELECT json_extract(json, '$.speech.kit') FROM npcs WHERE id IN ({','.join('?' * len(chunk))})", chunk):
+                    if j:
+                        out.append(json.loads(j))
+        return out
+
     def load_npcs(self, ids: list[str]) -> list[NPC]:
         """Several at once, in the order asked for; ids that do not exist are skipped."""
         ids = list(ids)

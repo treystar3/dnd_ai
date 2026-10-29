@@ -518,7 +518,7 @@ class PartyActions:
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400,
-                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
+                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"), tails=False)
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
                 self.note_shown(f"{frame.before} {after}")

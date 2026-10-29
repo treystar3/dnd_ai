@@ -81,11 +81,13 @@ def assign(store, people: list, minutes: int, moment: dict | None = None, save: 
 
 
 def changed_lines(changed: list[tuple], most: int = 2) -> list[str]:
-    """For the narrator, on a return visit: who has gone from one thing to another since the player last saw them."""
+    """For the narrator, on a return visit: who is doing something else since the player last saw them, as what they do now. (f374) Told
+    as 'since the player was last here, X has gone from A to B', the narrator wrote it back as a report ('Since your last visit, Maren
+    Holt now scrapes mud from a cloak'); told as the present, it is shown."""
     out = []
     for n, before, after in changed:
         if before and after and before != after:
-            out.append(f"since the player was last here, {n.label()} has gone from {before.rstrip('.')} to {after.rstrip('.')}")
+            out.append(f"{n.label()} is {after.rstrip('.')} now, not {before.rstrip('.')} as when the player was last here; show it, never report it as a change.")
     return out[:most]
 
 

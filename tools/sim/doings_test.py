@@ -49,7 +49,8 @@ m = {"doings": {"all": "dancing, or stamping the time from a bench", "roles": {"
 changed = doings.assign(store, ws.present, ws.minutes, moment=m, save=False)
 check("a moment sets everyone's doing, by role where it says", all((n.activity == "pulling ale as fast as the mugs come back") == (n.role == "innkeeper") or n.activity == "dancing, or stamping the time from a bench" for n in ws.present), [(n.role, n.activity) for n in ws.present])
 lines = doings.changed_lines(changed)
-check("a return visit's line says who has gone from what to what", lines and lines[0].startswith("since the player was last here, ") and " has gone from " in lines[0], lines)
+check("a return visit's line says what they do now and what they did then, to be shown, not reported (f374)", lines and " now, not " in lines[0]
+      and "as when the player was last here" in lines[0] and "never report it as a change" in lines[0] and lines[0].endswith("."), lines)
 doings.assign(store, ws.present, ws.minutes, save=False)
 check("...and the moment over, their own doings come back", all(n.activity in [e["text"] for e in doings.entries(n.role)] + doings.D["anyone"] for n in ws.present))
 shutil.rmtree("saves/doings_test", ignore_errors=True)

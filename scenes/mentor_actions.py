@@ -2,7 +2,7 @@
 tracking and the fight, can be talked to throughout, and a troll that should not be there turns up. The rules and the state are in
 engine/mentor.py; the fixed words are in data/world/mentor.yaml. Her free answers come from the model with a locked fact sheet, so
 she can't invent a rule. The first hunt can't be lost: the player's health holds at 1."""
-from engine import combat, encounters, inventory, mentor, money, pools
+from engine import combat, encounters, inventory, mentor, money, pools, voice_rules
 import config
 import re
 from llm.contracts import MentorLines, MentorReply, MentorSpeech
@@ -36,14 +36,25 @@ class MentorActions:
 
     def mentor_show(self, speech: str, reply_to: str = "", gesture: str = "") -> None:
         """Her words on the page the way anyone else's are (f274): the narrator frames them with what she is doing as she speaks, a
-        sentence or two before and after (scenes/world.py narrate_dialogue), under her label. Without the narrator, the words alone."""
+        sentence or two before and after (scenes/world.py narrate_dialogue), under her label. Without the narrator, the words alone.
+        (f374) Like anyone else's, a frame is the exception (f347): her first words, the first in each stage of the lesson in each place,
+        and the first once she has stopped weighing a stranger. The first playthrough framed every line she said, thirty frames in half
+        an hour, and her hands went to the pommel and her weight shifted in a third of them."""
         label = self.mentor_label()
         speech = speech.strip()
-        if getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True) and not self.combat:
+        introduced = bool(self.player.mentor.get("introduced"))
+        moment = f"maren:{mentor.stage(self.player) or 'meeting'}:{introduced}"
+        narrated = getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True) and not self.combat
+        if narrated and moment in self.__dict__.setdefault("_framed_here", set()):         # (a new place clears it: scenes/world.py enter)
+            g = voice_rules.short_gesture(gesture or "")
+            console.npc_says(label, speech, g)
+            self.remember_narration(f'{label}: "{speech}"', {"type": "says", "speaker": label, "speech": speech, "gesture": g})
+            return
+        if narrated:
+            self._framed_here.add(moment)
             from llm.contracts import DialogueFrame
             from scenes import world_prompts as wp
             from scenes.voice import fresh
-            introduced = bool(self.player.mentor.get("introduced"))
             looks = M["frame"]["looks"]
             manner = M["frame"]["manner_warm"] if introduced else M["frame"]["manner_cold"]
             doing = M["frame"]["doing"].get(mentor.stage(self.player) or "meeting", M["frame"]["doing"]["meeting"])
@@ -59,7 +70,7 @@ class MentorActions:
                                                   reach=within, moment=moment, already=self.shown_lines(),
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"]),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=400,
-                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)})
+                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)}, tails=False)
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either
                     before, after = (re.sub(r"\bMaren( Holt)?\b", "the woman", x) for x in (before, after))
