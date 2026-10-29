@@ -75,6 +75,19 @@ check("unknown tags vanish and a repeat is dropped", t.count("(14 damage)") == 1
 t = cs.place_figures("A blow lands. [h1]", hits[:1], window=True)
 check("window gets a hoverable token", "⟦a-1-1|(14 damage)⟧" in t, t)
 check("the engine never leaves a tag in prose", "[h" not in cs.place_figures("x [h1] y [h2] z [h3]", hits, False))
+# (f377) a killing blow the narrator told without its tag: its figure goes on the sentence that tells it, not after the last miss
+kill = [{"id": "k-1", "tag": "h1", "figure": "(14 damage)"}, {"id": "k-2", "tag": "h2", "figure": "(9 damage)"}, {"id": "k-3", "tag": "h3", "figure": "(miss)"}]
+told = ["You use Lancer's Sweep on the wolf: a heavy blow - the wolf is dead [h1]", "The wolf bites you: a solid hit [h2]", "The wolf snaps at you and misses [h3]"]
+said = ("The sizzling hiss of acid dies away as the coating loses its potency on your copper tip. You drive the lance into a low, violent sweep "
+        "that catches the lead beast squarely across the chest. It slams into the earth and stays there, stone dead. The remaining wolves do not "
+        "hesitate; they press inward.\n\nOne lunges and sinks its teeth deep into your side, the impact jarring your ribs [h2]. From the opposite "
+        "flank, the final wolf snaps at your throat but finds only air, its jaws clattering shut against the wind [h3].")
+t = cs.place_figures(said, kill, False, told)
+check("(f377) a left-out killing blow's figure sits on the sentence that tells it, before the blows after it, and the passage keeps its paragraphs",
+      "stone dead (14 damage)." in t and t.endswith("against the wind (miss).") and "\n\n" in t and t.index("(14 damage)") < t.index("(9 damage)"), t)
+t = cs.place_figures('He roars, "Come on!" You swing wide and miss [h3].', kill, False, ["You strike the wolf [h1]", "x [h2]", "y [h3]"])
+check("(f377) ...never inside words someone says, and two blows told in one sentence keep their order",
+      '"Come on!" (14 damage)' in t and t.index("(9 damage)") < t.index("(miss)"), t)
 check("opening events lose their tags", cs.TAG.sub("", "A wolf bites you. [h1]") == "A wolf bites you.")
 
 # ---- pane data ----
