@@ -460,6 +460,25 @@ def _news(scene: Scene):
             for n in pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed))]
 
 
+@facet("fallen")
+def _fallen(scene: Scene):
+    """(f392) The companions who died travelling with the player (engine/entities.py): known to the party and the narrator, so a death
+    is spoken of and remembered, and the dead are never seen alive again."""
+    from engine import entities
+    ws = scene.ws
+    F = T.get("fallen") or {}
+    out = []
+    dead = [e for e in ws.store.find_entities(kind="hire", state="dead") if ws.minutes - e.since <= F.get("days", 60) * 1440][-F.get("most", 4):]
+    for e in reversed(dead):
+        days = (ws.minutes - e.since) // 1440
+        when = "today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+        where = f" at {e.data['place_name']}" if e.data.get("place_name") else ""
+        out.append(Fact("fallen", f"{e.name} ({entities.people_word(ws.world, e.people) or 'person'}, {e.pronoun}), "
+                                  f"{e.data.get('role') and 'a hired ' + e.data['role'] or 'a companion'}: died {when}{where}",
+                        frozenset({"party", "narrator"})))
+    return out
+
+
 @facet("lately")
 def _lately(scene: Scene):
     """(f330) What the player did here lately that people saw, from the journal (engine/reactions.py publishes every deed): a deed is known to

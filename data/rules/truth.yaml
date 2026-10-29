@@ -30,13 +30,17 @@ headers:                                   # header text per facet; the order th
   lately:      "WHAT THE STRANGER DID HERE LATELY (only what you saw or everyone knows)"
   news:        "NEWS THAT HAS REACHED HERE"
   player:      "THE ONE IN FRONT OF YOU"
+  fallen:      "THE FALLEN (companions who died travelling with the player: remembered, and never seen alive again)"
 
 profiles:                                  # which facets each kind of reader is given
   townsfolk:   [here, present, town, board, happenings, lately, news, player]
-  hire:        [here, present, town, board, happenings, lately, news, player]      # (f386) player: everyone who speaks to them sees them
+  hire:        [here, present, town, board, happenings, lately, news, player, fallen]      # (f386) player: everyone who speaks to them sees them
   maren:       [here, present, town, board, happenings, player]
-  banter:      [here, present, town, happenings, lately, news, player]
-  narrator:    [here, present, happenings, lately, news]
+  banter:      [here, present, town, happenings, lately, news, player, fallen]
+  narrator:    [here, present, happenings, lately, news, fallen]
+
+# (f392) The companions who died travelling with the player, known to the party and the narrator: how far back, and how many.
+fallen: {days: 60, most: 4}
 
 # What the player did here lately (f330: engine/reactions.py, the campaign journal). A deed those present saw is known to them, and to the
 # narrator; the public kinds below are known to everyone of the town. Nothing done unseen, nothing from another town.

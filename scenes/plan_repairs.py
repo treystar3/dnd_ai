@@ -244,7 +244,7 @@ class PlanRepairs:
             if a.kind != "move":
                 continue
             dest = a.destination.strip()
-            if self.player.delve and OUT_OF_DUNGEON.search(low):
+            if self.player.delve and self.dungeon_here() and OUT_OF_DUNGEON.search(low):        # (f392) in one, standing at its mouth
                 a.kind, a.destination = "leave_dungeon", ""
                 continue
             if dest in self.world.places or any(dest.lower() == pl.name.lower() or dest.lower() == pl.name.lower().removeprefix("the ")

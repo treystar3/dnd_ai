@@ -778,6 +778,7 @@ class PartyActions:
             console.note("You have no party.")
             return
         self.party_service.set_mode("hold")
+        self.player.party_hold_at = self.player.location                    # (f392) held back here: they fall in again when the player leaves
         console.note("Your party will hold back and come running if the alarm goes up. They make no noise for you to answer for.")
 
     def party_with(self, target: str, text: str, offered: list[dict]) -> None:

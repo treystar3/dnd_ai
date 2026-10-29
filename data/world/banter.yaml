@@ -129,6 +129,7 @@ banter:
     hard_fight:  "The last fight was a hard one, against something at the player's level or above, and everyone felt it."
     lost_fight:  "The party came off worse in the last fight."
     fallen:      "{name} was killed in the last fight. {name} is dead, and the rest of them are still taking it in."
+    fallen_many: "{names} were killed in the last fight. All of them are dead, and the rest are still taking it in."   # (f392) every one, not the first
     promotion:   "{name} has gone as far as their rank allows; whether the player will pay to have them raised is a sore point, or a hope, depending on the day."
     warned:      "{name} has told the player plainly that this might not be worth it, and the air has not cleared."
     relationship: "Between {a} and {b}: {dynamic} They are {words}."

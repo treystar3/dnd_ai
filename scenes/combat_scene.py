@@ -1200,6 +1200,9 @@ class CombatScene:
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
             f"PLACE: {self.ws.place.name}\nTIME AND WEATHER: {self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
             f"THE PLAYER IS: {combat.condition(self.fight.player)}\nTHE FALLEN: {fallen}\n"
+            + (f"THE PLAYER'S OWN WHO DIED IN THIS FIGHT (their companions; the passage does not pass over them): {'; '.join(lost)}\n"
+               if (lost := [f"{e.name} ({e.pronoun}, {entities.people_word(self.ws.world, e.people)})"
+                            for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
             + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),

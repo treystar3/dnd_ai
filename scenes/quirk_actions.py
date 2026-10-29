@@ -50,7 +50,7 @@ class QuirkActions:
 
     def quirked(self, m: dict) -> dict:
         if not m.get("quirks") or m["quirks"].get("voice") not in quirks.Q["voices"]:
-            quirks.roll(m, random.Random(f"{self.store.meta.seed}:{m['id']}"))
+            quirks.roll(m, random.Random(f"{self.store.meta.seed}:{m['id']}"), self.player.owned)
         if m.get("permanent") and not m.get("story") and (not m.get("speech") or not m["speech"].get("kit")):
             from engine import voice_profile, voices         # who they are and where they come from, before anything is written about them
             voice_profile.ensure(m, random.Random(f"{self.store.meta.seed}:{m['id']}:speech"), voices.kits_in_party(self.player.party, m))   # (f350)
@@ -67,6 +67,7 @@ class QuirkActions:
         from llm.contracts import PersonaDetails
         quirks.detail_subjects(m, random.Random(f"{self.store.meta.seed}:{m['id']}:details"))
         taken = [d for o in self.player.party if o is not m for d in (o.get("details") or [])]
+        taken += [d for d in self.player.owned.get("detail", []) + self.player.owned.get("secret", []) if d not in taken]   # (f392) the dead's too
         from engine import voice_profile
         home_names = re.findall(r"\b[A-Z][a-z]+", voice_profile.culture(m).get("home", ""))
         themes = quirks.secret_themes(m)
@@ -75,6 +76,10 @@ class QuirkActions:
                          validation_context={"names": [m["name"].split()[0], m["name"].split()[-1]] + home_names, "secrets": len(themes)})
             if r.secrets:
                 m["secrets"] = r.secrets
+                for s_ in r.secrets:
+                    quirks.own(self.player.owned, "secret", str(s_.get("text", s_) if isinstance(s_, dict) else s_)[:160])
+            for d_ in r.details or []:
+                quirks.own(self.player.owned, "detail", str(d_)[:160])
             if r.weights:
                 m["detail_weights"] = r.weights
             return r.details

@@ -135,6 +135,11 @@ def _sentences(lines) -> str:
     return " ".join(s if s.endswith((".", "!", "?")) else s + "." for s in (" ".join(str(x).split()) for x in lines) if s)
 
 
+def _fallen_head() -> str:
+    from engine.truth import T
+    return T["headers"]["fallen"]
+
+
 def _who_head() -> str:
     from engine.entities import WHO_HEAD
     return WHO_HEAD
@@ -144,7 +149,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
                       news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
-                      unlooked: int = 0, who: list[str] = ()) -> str:
+                      unlooked: int = 0, who: list[str] = (), fallen: list[str] = ()) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
@@ -163,6 +168,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
             + "\n".join(f"  - {x}" for x in already) + "\n") if already else "")
         + (f"WITH THE PLAYER (companions the event has act; show only what the event says they do): {', '.join(companions)}\n" if companions else "")
         + (f"{_who_head()}: {'; '.join(who)}\n" if who else "")
+        + (f"{_fallen_head()}: {'; '.join(fallen)}\n" if fallen else "")
         + (f"WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): {', '.join(worn)}\n" if worn else "") + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")

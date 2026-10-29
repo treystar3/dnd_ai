@@ -51,15 +51,32 @@ def roll_voice(q: dict, rng: random.Random) -> None:
         q["curses"] = rng.sample(Q["curses"]["world"], 2) + rng.sample(Q["curses"]["mild"], 1) + rng.sample(Q["curses"]["strong"], 1)
 
 
-def roll(member: dict, rng: random.Random) -> None:
+OWNED_KEPT = 400
+
+
+def own(owned: dict | None, kind: str, value: str) -> None:
+    """(f392) This is someone's now, in this save: nobody else is given it, the dead's included."""
+    if owned is not None and value:
+        owned[kind] = (owned.get(kind, []) + [value])[-OWNED_KEPT:]
+
+
+def _unowned(options: list, owned: dict | None, kind: str) -> list:
+    """The options nobody in this save has yet; all of them when every one is taken."""
+    have = set((owned or {}).get(kind, []))
+    return [o for o in options if o not in have] or list(options)
+
+
+def roll(member: dict, rng: random.Random, owned: dict | None = None) -> None:
     """Give a new hire their quirks. Idempotent: a member who has them keeps them, except a voice that is no longer in the data, which is
-    rolled again."""
+    rolled again. (f392) `owned` (PlayerState.owned): a habit or an errand's target already someone's in this save is not given again.
+    Two hires on two nights both owed the same widow her revenge, word for word, and two in one party shared a habit."""
     if member.get("quirks"):
         if member["quirks"].get("voice") not in Q["voices"]:
             roll_voice(member["quirks"], rng)
         return
     q: dict = {}
-    q["habit"] = rng.choice(list(Q["habits"]))
+    q["habit"] = rng.choice(_unowned(list(Q["habits"]), owned, "habit"))
+    own(owned, "habit", q["habit"])
     roll_voice(q, rng)
     v = q["voice"]
     spec = Q["voices"][v]
@@ -69,7 +86,8 @@ def roll(member: dict, rng: random.Random) -> None:
     q["flaw"] = rng.choice(list(Q["flaws"])) if rng.randrange(100) < Q["flaw_chance"] else ""
     E = Q["errands"].get(member.get("motive", ""), {})
     if E.get("targets"):
-        q["target"] = rng.choice(E["targets"])
+        q["target"] = rng.choice(_unowned(list(E["targets"]), owned, "target"))
+        own(owned, "target", q["target"])
     q["habit_shown"] = 0
     q["reacted"] = {}          # deed -> day last reacted
     q["told"] = 0              # secrets told so far

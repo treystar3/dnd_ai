@@ -63,7 +63,7 @@ class PartyService:
         minute = self.now()
         member = rules.new_hire(offer, player_level, minute // 1440)
         from engine import quirks
-        quirks.roll(member, random.Random(f"{self.seed}:{member['id']}"))
+        quirks.roll(member, random.Random(f"{self.seed}:{member['id']}"), self.player.owned)
         self.player.party.append(member)
         if offer.get("hall"):
             self.player.party_used.append(f"{offer['hall']}:{offer['id']}")

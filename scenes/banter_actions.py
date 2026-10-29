@@ -286,7 +286,10 @@ class BanterActions:
         if fresh and kind == "fight" or (fresh and kind != "fight" and rng.random() < 0.5):
             if last.get("fallen"):
                 what = (last.get("fallen_what") or {}).get(last["fallen"][0])        # (f385) a companion beast, said as what they were
-                options.append((6, "fallen", H["fallen"].format(name=last["fallen"][0]) + (f" {last['fallen'][0]} was {what}." if what else ""), None))
+                many = last["fallen"][:3]                                             # (f392) every one who fell, not only the first
+                said = (H["fallen"].format(name=many[0]) + (f" {many[0]} was {what}." if what else "") if len(many) == 1
+                        else H["fallen_many"].format(names=", ".join(many[:-1]) + " and " + many[-1]))
+                options.append((6, "fallen", said, None))
             elif not last.get("won"):
                 options.append((5, "lost_fight", H["lost_fight"], None))
             elif last.get("hard"):

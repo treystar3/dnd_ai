@@ -88,6 +88,8 @@ class PlayerState(BaseModel):
     relics_bought: list[str] = []  # named relics already bought (one of each exists)
     party: list[dict] = []         # hired adventurers with you: {"id", "name", "role", "level", "blurb", "arc"} (engine/party.py)
     party_mode: str = "with"       # "with" - they move and fight beside you; "hold" - they wait outside a camp and come when the alarm rings
+    party_hold_at: str = ""        # (f392) where the party was told to hold back: they fall in again when the player leaves it
+    owned: dict[str, list[str]] = {}   # (f392) what is someone's in this save, the dead's included: habit, target, detail, secret (engine/quirks.py)
     party_used: list[str] = []     # roster ids already hired or lost, so they do not reappear
     party_relations: dict = {}     # how two hires are with each other: "idA|idB" -> {"score", "dynamic", "day"} (engine/party.py)
     party_last_fight: dict = {}    # the last fight the party was in: {"minute", "won", "hard", "hurt": [names], "carried": [names]}

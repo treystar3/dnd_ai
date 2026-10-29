@@ -459,6 +459,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return ("unknown - just a stranger" if -5 < r < 5 else "well liked" if r >= 30 else "liked" if r >= 10
                 else "known, and thought decent" if r > 0 else "distrusted" if r <= -30 else "viewed warily")
 
+    def end_contexts(self, place_id: str) -> None:
+        """(f392) What the game believes about where the player is belongs to that place, and ends when they leave it: a delve is its
+        dungeon's, the party holding back is the approach's. A night's run walked out of a dungeon with its delve still set; from then on
+        every 'move out' was refused as 'You're not down in a dungeon' (46 times), and no companion spoke again, because talk waits
+        while a delve is on. Another held its party back at a camp and never called them, so they fought but never spoke."""
+        if self.player.delve:
+            d = next((x for x in self.store.load_dungeons() if x["id"] == self.player.delve.get("dungeon")), None)
+            if d is None or place_id != d["entrance"]:
+                self.player.delve = None
+        if self.player.party_mode == "hold" and place_id != self.player.party_hold_at:
+            self.party_service.set_mode("with")
+            if self.player.party:
+                console.note("Your party falls in beside you again.")
+
     def enter(self, place_id: str) -> None:
         self.wildlife = None
         new_town, old_town = pulse.town_of(self.world, place_id), pulse.town_of(self.world, self.player.location)
@@ -472,6 +486,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self._arrival_lines = ambient.since(self.store, self.world, new_town, self.player.last_in.get(new_town), self.minutes)
         self.leave_road(place_id)
         self.__dict__.pop("_streets_cache", None)                                           # (f357) a new place: read the streets afresh
+        self.end_contexts(place_id)
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
         self.note_town(place_id)
@@ -1594,7 +1609,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        companions=self.companions_in(event),                        # (f349) ...and of a companion only when the event has them act
                                        worn=self.worn_words("prose"),                               # (f349) ...and which words it has worn out lately
                                        unlooked=unlooked,
-                                       who=entities.who_is_who(self))                               # (f392) who is who, never guessed at
+                                       who=entities.who_is_who(self),                               # (f392) who is who, never guessed at
+                                       fallen=here.lines("fallen"))                                 # ...and who fell, never seen alive again
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
                        temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"), said=player_text or "")         # (f384) no invented speech
         shown = self.unnamed(result.text)
