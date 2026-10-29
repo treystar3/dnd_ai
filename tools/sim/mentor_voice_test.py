@@ -11,6 +11,7 @@ import ui.console as uc
 SAID = []
 uc.say = lambda t, s="": SAID.append((s, t))
 uc.dialogue = lambda b, s, t, a: SAID.append((s, t))
+uc.npc_says = lambda s, t, g="": SAID.append((s, t))        # her words alone, once the moment has had its frame (f374)
 uc.narrate = lambda t: None
 uc.note = lambda m, *a, **k: None
 from engine import mentor

@@ -174,6 +174,9 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
         p.instruction("\n".join(f"- {l}" for l in voice_lines), "HOW YOU TALK")
     if material:
         p.material("\n".join(f"- {m}" for m in material), "WORDS YOU MAY USE THIS TIME, AS THEY ARE (only if they fit)")
+    samples = (getattr(npc, "speech", None) or {}).get("samples") or []
+    if samples:                                                     # (f374) a person written by hand: their way of talking, shown
+        p.history("\n".join(f"- {s}" for s in samples), "HOW YOU SOUND (things you have said: the way you talk, to keep; never say these again)")
     p.fact(_knowledge(npc, facts, convo, wares, extra))
     p.history(unsaid)
     if worn:
@@ -189,7 +192,8 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
     return (
         f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {place.name}.\n"
         f"LOOKS: {npc.description}\nPERSONALITY: {npc.personality}\n"
-        + (f"VOICE: {npc.voice}\n" if npc.voice and not (getattr(npc, "speech", None) or {}).get("kit") else "")      # (f350) a kit under HOW YOU TALK is the voice
+        + (f"VOICE: {npc.voice}\n" if npc.voice and (not (getattr(npc, "speech", None) or {}).get("kit")                # (f350) a kit under HOW YOU TALK is the voice,
+                                                    or (getattr(npc, "speech", None) or {}).get("own_voice")) else "")     # (f374) unless the person was written by hand
         + f"ON YOUR MIND: {npc.concern}\nRIGHT NOW: {npc.activity}\n"
         f"TRAITS (how you decide and react; never a subject you bring up):\n{traits}\n\n"
         f"TIME: {time_label}\n"

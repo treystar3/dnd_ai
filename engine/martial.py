@@ -112,7 +112,7 @@ def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
         cut = min(float(m["cap"]), t.sundered + float(m["pct"][AT.tier_of(move.tier)]))
         if cut > t.sundered:
             t.sundered = cut
-            C.tell(combat, f"{C.whose(t)} armor cracks under it ({m['label']}: {cut:g}% broken)")
+            C.tell(combat, f"{C.whose(t)} {C.cover(t)} cracks and splits under it ({m['label']}: {cut:g}% broken)")
         return True
     if mid in ("shove", "hook"):
         held = move.rider
@@ -181,13 +181,95 @@ def flurry(combat, att, t, move, mult, rng) -> bool:
     hits = max(2, int(getattr(move, "hits", 0) or 2))
     each = flurry_total(hits) / hits
     landed = False
+    strikes: list[dict] = []
+    s0, l0 = len(combat.story), len(combat.log)
     for i in range(hits):
         if not t.alive:
             break
+        n0 = len(combat.hits)
         landed |= C.apply_damage(combat, att, t, mult * each, f"uses {move.name} on" if i == 0 else "strikes again at", rng,
                                  how=f"with {move.name}" if i == 0 else f"as {move.name} keeps coming",
                                  can_cleave=(i == 0), can_flurry=(i == 0))
+        rec = combat.hits[n0] if len(combat.hits) > n0 else None          # the strike's own record is the first its call made
+        if rec is not None and rec.get("att") == att.name and rec.get("dfn") == t.name:
+            strikes.append(rec)
+    one_attack(combat, att, t, move, strikes, hits, s0, l0)
     return landed
+
+
+NUMBERS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
+ORDINALS = {2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth"}
+LANDS = ("hit", "crit", "graze")
+
+
+def flurry_figure(strikes: list[dict]) -> str:
+    """One figure for a flurry: '(3 hits, 15 damage)', '(2 of 3 hits, 1 critical, 14 damage +2 from the open wound, bleeding)'."""
+    made = len(strikes)
+    landed = [r for r in strikes if r.get("outcome") in LANDS]
+    if not landed:
+        return f"({made} strikes, all missed)"
+    crits = sum(1 for r in landed if r["outcome"] == "crit")
+    total = sum(int(r.get("final") or 0) for r in landed)
+    bleed = sum(int(r.get("bleed") or 0) for r in strikes)
+    inflicted = list(dict.fromkeys(s for r in strikes for s in r.get("inflicted", [])))
+    count = f"{made} hits" if len(landed) == made else f"{len(landed)} of {made} hits"
+    return (f"({count}" + (f", {crits} critical" if crits else "") + f", {total} damage"
+            + (f" +{bleed} from the open wound" if bleed else "") + "".join(f", {s}" for s in inflicted) + ")")
+
+
+def one_attack(combat, att, t, move, strikes: list[dict], planned: int, s0: int, l0: int) -> None:
+    """(f371) A flurry is one attack: its strikes' lines in the story become one line with one marker, their records one record with one
+    figure (each strike kept in `parts`, for the working on hover), their lines in the combat log one line. Without records (the odds being
+    simulated) nothing is told, so nothing is merged."""
+    if not combat.record or len(strikes) < 2:
+        return
+    import re
+    head = strikes[0]
+    tags = {r["tag"] for r in strikes}
+    parts = [dict(r) for r in strikes]
+    made = len(strikes)
+    landed = [r for r in strikes if r.get("outcome") in LANDS]
+    crits = sum(1 for r in landed if r["outcome"] == "crit")
+    grazes = sum(1 for r in landed if r["outcome"] == "graze")
+    total = sum(int(r.get("final") or 0) for r in landed)
+    num = lambda n: NUMBERS.get(n, str(n))
+    if len(landed) == made:
+        how = "both land" if made == 2 else "every one lands"
+    elif not landed:
+        how = "both miss" if made == 2 else "none of them lands"
+    else:
+        wide = made - len(landed)
+        how = f"{num(len(landed))} {'lands' if len(landed) == 1 else 'land'} and {num(wide)} {'goes' if wide == 1 else 'go'} wide"
+    if crits:
+        how += ", one of them a perfect strike" if crits == 1 else f", {num(crits)} of them perfect strikes"
+    elif grazes and grazes == len(landed):
+        how += ", only glancing"
+    line = f"{C.who(att)} {C.vb(att, 'use', 'uses')} {move.name} on {C.who(t)}, {num(made)} strikes in one motion: {how}"
+    if landed:
+        line += f" - together {C.severity(total, t.max_hp)}"
+    if t.alive:
+        line += f" - {C.who(t)} {C.vb(t, 'are', 'is')} {C.condition(t)}"
+    elif made < planned:
+        line += f" - {C.who(t)} {C.vb(t, 'are', 'is')} down before the {ORDINALS.get(made + 1, 'next')} strike can follow"
+    line = line[0].upper() + line[1:] + f" [{head['tag']}]"
+    kept, at = [], None
+    for s in combat.story[s0:]:
+        m = re.search(r" \[(h\d+)\]$", s)
+        if m and m.group(1) in tags:
+            if at is None:
+                at = len(kept)
+            continue
+        kept.append(s)
+    kept.insert(at if at is not None else 0, line)
+    combat.story[s0:] = kept
+    head.update(label=f"uses {move.name} on", parts=parts, planned=planned, final=total,
+                outcome="crit" if crits else ("hit" if landed else "miss"), figure=flurry_figure(strikes))
+    head.pop("bleed", None)
+    head.pop("inflicted", None)
+    combat.hits[:] = [h for h in combat.hits if h is head or h.get("tag") not in tags]
+    own = (f"{att.name} uses {move.name} on {t.name}:", f"{att.name} strikes again at {t.name}:")
+    lines = [l for l in combat.log[l0:] if not l.startswith(own)]
+    combat.log[l0:] = [f"{att.name} uses {move.name} on {t.name}: {head['figure'][1:-1]}"] + lines
 
 
 def ready_counter(combat, att, move) -> None:

@@ -21,6 +21,7 @@ categories:
     reason: "that is a slur, and nobody in this world uses it: find other words"
     words: [nigger, niggers, nigga, faggot, faggots, fag, fags, tranny, trannies, retard, retards, retarded, kike, kikes, spic, spics, chink,
             chinks, gook, gooks, wetback, wetbacks, raghead, towelhead, dyke, dykes]
+    allow: ["chinks? (in|of) ", "chinks? between"]       # a chink in the armour, a chink of light: the gap, not the slur (f370)
   self_harm:
     reason: "the game does not describe how to harm oneself: leave it unsaid"
     words: ["kill yourself", "kill themselves", "end your life", "end it all", "how to hang", "slit your wrists", "slit their wrists",

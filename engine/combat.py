@@ -322,7 +322,7 @@ def new_hit(combat: Combat, att: Fighter, dfn: Fighter, label: str) -> dict | No
         return None
     if not combat.serial:
         combat.serial = f"{random.randrange(16 ** 4):04x}"
-    n = len(combat.hits) + 1
+    n = 1 + max((int(h["tag"][1:]) for h in combat.hits if str(h.get("tag", "")).startswith("h")), default=0)   # (f371) not the count: merged records leave gaps
     rec = {"id": f"{combat.serial}-{combat.round}-{n}", "tag": f"h{n}", "round": combat.round, "att": att.name, "dfn": dfn.name,
            "att_side": att.side, "dfn_side": dfn.side, "label": label, "outcome": "", "chance": 0.0, "roll": 0.0,
            "note": "", "base": {}, "steps": [], "defence": {}, "extras": [], "final": 0, "figure": ""}
@@ -349,6 +349,18 @@ def hit_step(rec: dict | None, mult: float, label: str, factor: float) -> float:
     if rec is not None and label and abs(factor - 1) > 1e-9:
         rec["steps"].append([label, round(factor, 3)])
     return mult * factor
+
+
+COVER = {"dragon": "scales", "plant": "bark", "construct": "plating", "beast": "hide", "monstrosity": "hide", "lycanthrope": "hide",
+         "aberration": "hide", "swarm": "mass", "ooze": "body", "elemental": "outer shell"}
+
+
+def cover(f: Fighter) -> str:
+    """(f373) What turns a blow on this fighter, in words: a wolf's hide, a dragon's scales, a soldier's armor. A wolf told as wearing
+    'armor' came out of the narrator as plate mail."""
+    if f.side in ("player", "ally") or not f.category:
+        return "armor"
+    return COVER.get(f.category, "armor")
 
 
 def figure(rec: dict) -> str:
@@ -1466,7 +1478,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     soak = f", {round(absorbed)} absorbed" if absorbed >= 1 else ""
     combat.log.append(f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
     quality = {"graze": "only a glancing blow", "crit": "a perfect strike, " + severity(taken, dfn.max_hp)}.get(outcome, severity(taken, dfn.max_hp))
-    turned = f"; {whose(dfn)} {'armor' if dfn.side == 'player' else 'hide or armor'} turns part of it" if absorbed > taken * 0.4 else ""
+    turned = f"; {whose(dfn)} {cover(dfn)} turns part of it" if absorbed > taken * 0.4 else ""
     after = f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""
     tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec)
     emult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]

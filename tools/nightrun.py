@@ -52,6 +52,20 @@ def die(message: str) -> None:
     sys.exit(1)
 
 
+def wait_for_server(seconds: int = 600, every: int = 10, up=None, sleep=time.sleep) -> bool:
+    """(f370) Ollama restarting (a reinstall, a pinning, a crash) is minutes of nothing answering, not a reason to end a night: wait for
+    it, up to `seconds`, and say whether it came back. `up` and `sleep` are for the test."""
+    from llm import setup_check
+    up = up or setup_check.server_up
+    waited = 0
+    while not up():
+        if waited >= seconds:
+            return False
+        sleep(every)
+        waited += every
+    return True
+
+
 class Run:
     """The harness: the console hooks that record the transcript and the time to the first word, the wrapped model client that counts
     every call, and the turn rows."""
@@ -199,7 +213,11 @@ class Run:
         if self.live and self.hesitations >= 3:
             from llm import setup_check
             if not setup_check.server_up():
-                return "Ollama stopped answering"
+                print("Ollama is not answering: waiting for it to come back (up to ten minutes)...", flush=True)
+                if wait_for_server():
+                    self.hesitations = 0
+                else:
+                    return "Ollama stopped answering"
         return ""
 
     def finish(self, extra: dict) -> None:
@@ -436,7 +454,7 @@ def main() -> None:
         simlib.install(stub)
     else:
         from llm import setup_check
-        if not setup_check.server_up():
+        if not setup_check.server_up() and not wait_for_server():
             die("Ollama is not running. Start the Ollama app, wait a few seconds, and run this again.")
         if not setup_check.model_present():
             die(f"The model {config.MODEL} is not downloaded: run  ollama pull {config.MODEL}  first.")
@@ -506,6 +524,18 @@ def main() -> None:
                 run.reason = "stopped by hand"
                 break
             except Exception as e:
+                if not args.stub and isinstance(e, ConnectionError):          # (f370) the server is away, not the game broken: wait for it
+                    print("Ollama cannot be reached: waiting for it to come back (up to ten minutes)...", flush=True)
+                    if wait_for_server():
+                        if run.current is not None:
+                            run.current["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+                            run.close_turn()
+                        ws.combat = None
+                        try:
+                            ws.reload_after_rollback()
+                        except Exception:
+                            pass
+                        continue
                 restarts += 1
                 run.errors.write(f"--- turn {len(run.rows) + 1}: {type(e).__name__}: {e}\n{traceback.format_exc()}\n")
                 run.errors.flush()

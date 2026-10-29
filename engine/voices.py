@@ -8,6 +8,12 @@ and, where the engine can hear it, a check the reply must pass (check()): a ters
 asks back cannot end on a question. Nobody needs to be memorable; two people need to sound different, so draw() keeps, of several candidate
 kits, the one farthest from the kits already in use here (a town's people, a list's hires), weighted by how audible each axis is.
 
+(f374) A kit carries at most `max_marked` habits (two). The first playthrough after kits came in met a clerk who never asked, never used
+a contraction, said madam, refused by excuse and counted everything, and a hire who repeated every question back before answering it:
+six or seven habits at once, each told as a rule, read as a caricature, and the model applied every one to every line. A person is
+mostly ordinary with one or two things you would notice. Drawing apart still works: two people differ on which habits they have. A kit
+kept from before (an old save's) is trimmed as it is read (kit_of), keeping its most audible habits, so nobody is re-drawn.
+
 The house-phrase guard is the same idea across people: a run of words that several other people in this town have said lately is how
 everyone here talks, and a reply that uses it is sent back. The tables are data/rules/voices.yaml."""
 from __future__ import annotations
@@ -41,6 +47,25 @@ def roll(rng: random.Random) -> dict:
     return {axis: _pick(rng, spec["options"]) for axis, spec in AXES.items()}
 
 
+def unmarked(axis: str) -> str:
+    """The option on an axis that says nothing (its text is empty): what most people are."""
+    opts = AXES[axis]["options"]
+    return next((k for k, o in opts.items() if not o.get("text")), next(iter(opts)))
+
+
+def trim(kit: dict) -> dict:
+    """(f374) The kit with at most `max_marked` habits: the most audible marked axes (by axis weight, then in axis order) are kept and
+    the rest go back to unmarked."""
+    if not kit:
+        return kit
+    cap = int(V.get("max_marked", 2))
+    marked = [a for a in AXES if kit.get(a) and AXES[a]["options"].get(kit[a], {}).get("text")]
+    if len(marked) <= cap:
+        return kit
+    keep = set(sorted(marked, key=lambda a: (-AXES[a].get("weight", 1), list(AXES).index(a)))[:cap])
+    return {a: (v if a in keep or a not in AXES else unmarked(a)) for a, v in kit.items()}
+
+
 def distance(a: dict, b: dict) -> int:
     """How differently two kits sound: the weights of the axes they differ on."""
     return sum(spec.get("weight", 1) for axis, spec in AXES.items() if (a or {}).get(axis) != (b or {}).get(axis))
@@ -48,8 +73,8 @@ def distance(a: dict, b: dict) -> int:
 
 def draw(rng: random.Random, taken: list[dict] | tuple = ()) -> dict:
     """The kit for someone new: of `draw_tries` candidates, the one farthest (by its nearest neighbour) from the kits already in use here."""
-    taken = [t for t in taken if t]
-    cands = [roll(rng) for _ in range(int(V.get("draw_tries", 12)))]
+    taken = [trim(t) for t in taken if t]
+    cands = [trim(roll(rng)) for _ in range(int(V.get("draw_tries", 12)))]
     if not taken:
         return cands[0]
     return max(cands, key=lambda k: min(distance(k, t) for t in taken))
@@ -62,12 +87,12 @@ def ensure(speech: dict, rng: random.Random, taken: list[dict] | tuple = ()) -> 
     kit = speech.get("kit")
     if not kit or any(axis not in kit or kit[axis] not in spec["options"] for axis, spec in AXES.items()):
         speech["kit"] = draw(rng, taken)
-    return speech["kit"]
+    return trim(speech["kit"])
 
 
 def kit_of(member_or_speech) -> dict:
     sp = member_or_speech.get("speech") if isinstance(member_or_speech, dict) and "speech" in member_or_speech else member_or_speech
-    return (sp or {}).get("kit") or {} if isinstance(sp, dict) else {}
+    return trim((sp or {}).get("kit") or {}) if isinstance(sp, dict) else {}
 
 
 # ---------- what the model is told
@@ -139,14 +164,8 @@ def kits_in_town(store, world, npc) -> list[dict]:
     """The kits of everyone else in this person's town, so theirs is drawn to differ."""
     from engine import pulse, retrieval
     town = pulse.town_of(world, npc.location)
-    out = []
-    for row in retrieval.people_in_town(store, world, town):
-        if row.id == npc.id:
-            continue
-        kit = kit_of(getattr(row, "speech", None) or {})
-        if kit:
-            out.append(kit)
-    return out
+    ids = [row.id for row in retrieval.people_in_town(store, world, town) if row.id != npc.id]
+    return [trim(k) for k in store.speech_kits(ids) if isinstance(k, dict) and k]     # (f374) from the records: the index rows carry no speech
 
 
 def kits_in_party(party: list[dict], member: dict | None = None) -> list[dict]:

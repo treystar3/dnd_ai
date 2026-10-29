@@ -48,8 +48,30 @@ when the pod is terminated, which is what you want once the zip is downloaded.
   finished runs are whole and the one in flight keeps its logs but not its summary: `python tools/latency.py <run folder>` writes it.
 - Nothing on the box needs your account: the game, the model and the logs. Keep any token you use read-only.
 
-## RunPod in particular
+## Runpod in particular: the pod driven from a session
 
-RunPod's own guide for agents is at https://agents.runpod.io/ (its API at api.runpod.io). The steps above are the generic ones; when the
-guide is readable from the session doing the setup, follow it for the pod's creation (image, disk, exposed ports) and come back here for
-step 3.
+What the first hosted night taught, so the next one is one command.
+
+- **Create the pod** in the console or through the API: the official `runpod/pytorch` image (the one the console's Pytorch template
+  uses), Secure Cloud, 30 GB container disk, no volume, Jupyter on (port `8888/http`), SSH off. The create call places exactly the GPU
+  type named and answers 400 when it has no stock, so read `GET /v2/catalog/gpus?include=AVAILABILITY&product=POD` first.
+- **Drive it through Jupyter**, not SSH. `tools/runpod_jupyter.py` reaches the pod over HTTPS alone: the Jupyter proxy's contents API
+  takes the game as one tarball and its kernel websocket runs any command. The Runpod key comes from `RUNPOD_API_KEY` or `--key-file`
+  and the Jupyter token from the pod's env; neither is printed. `night` uploads the committed game and starts the night detached;
+  `status`, `tail` and `exec` watch it. Needs `requests` and `websocket-client` on the driving machine.
+
+      python tools/runpod_jupyter.py --pod <id> night --runs 6 --hours 3 --parallel 3 --mss-proxy
+      python tools/runpod_jupyter.py --pod <id> status
+
+- **Expect a path that drops big packets.** Two pods in a row passed 1,300-byte packets and dropped 1,400-byte ones with no word back,
+  so every TLS handshake and download stalled, and nothing inside the container may change the MTU. `--mss-proxy` (MSS_PROXY=1 on the
+  night script) routes the installs and the pulls through `tools/mss_proxy.py`, a loopback proxy whose outbound sockets cap their own
+  segment size; downloads then run at hundreds of MB/s. The game's own calls to Ollama stay local.
+- **Check Ollama saw the card** before trusting the night: the server log (`logs/ollama.log`) must say `library=CUDA`. A half-finished
+  install leaves an `ollama` that runs on the CPU in silence; the night script reinstalls only when the binary is missing, so remove
+  `/usr/local/bin/ollama` and `/usr/local/lib/ollama` by hand after a failed install.
+- **At the end**, the zip is at `/workspace/dnd_ai/out/night_<when>.zip`: download it from the pod's Jupyter file browser (Connect, then
+  Jupyter Lab, in the console) or through the tool, then **terminate** the pod. A stopped pod still bills for its disk.
+
+Runpod's own guide for agents is at https://agents.runpod.io/ (its API at api.runpod.io); the Runpod plugin in the claude.ai catalog
+carries the same skills and the hosted MCP server.

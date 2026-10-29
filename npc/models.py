@@ -33,6 +33,7 @@ class NPC(BaseModel):
     location: str
     gender: str = ""
     tier: Literal["background", "known", "significant"] = "background"
+    rank: str = ""                # (f374) an adventurer's guild rank when the record has one (Maren: A); a guild contractor without one is drawn from their id
 
     epithet: str = ""
     description: str = ""

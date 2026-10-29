@@ -37,8 +37,8 @@ axes:
     weight: 2
     options:
       matter: {weight: 40, text: "starts on the matter itself, never on a sound or a filler word", check: {no_stock_opener: true}}
-      echo:   {weight: 15, text: "repeats the gist of what was asked before answering it, flat or as a question"}
-      hands:  {weight: 15, text: "names what is in their hands or what they were doing before they answer"}
+      echo:   {weight: 15, text: "now and then, not every time, repeats the gist of a question back before answering it, flat or as a question"}
+      hands:  {weight: 15, text: "now and then, not every time, names what is in their hands or what they were doing before they answer"}
       none:   {weight: 65, text: ""}
   contractions:
     weight: 1
@@ -68,6 +68,10 @@ axes:
       exact:   {weight: 15, text: "exact about names, counts and times: never 'a few', always the number"}
       figures: {weight: 15, text: "says things by way of a comparison to something ordinary; not every line, but their way"}
       usual:   {weight: 60, text: ""}
+
+# (f374) The most habits one person has. Seven at once, each told as a rule, read as a caricature and the model applied every one to
+# every line; a person is mostly ordinary with one or two things you would notice. A kit kept from before is trimmed when read.
+max_marked: 2
 
 draw_tries: 12               # candidate kits drawn for one person; the one farthest from the kits already in use here is kept
 

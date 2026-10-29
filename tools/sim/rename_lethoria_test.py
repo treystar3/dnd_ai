@@ -57,7 +57,7 @@ store.close()
 
 store = CampaignStore.open_or_create("rename_lethoria_test")
 db = store._db
-check("the old save is brought to the current version", store.version == migrations.CURRENT == 5, store.version)
+check("the old save is brought to the current version", store.version == migrations.CURRENT >= 5, store.version)
 p2 = store.load_player()
 check("the player stands in the capital's guild hall, under its new id", p2.location == "lethoria_guild", p2.location)
 check("standing kept for the capital moved with it", "lethoria" in p2.standing and oo not in p2.standing and p2.standing["lethoria"] == {"nobility": [12, 3]}, p2.standing)

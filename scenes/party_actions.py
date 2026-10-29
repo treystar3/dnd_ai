@@ -324,10 +324,19 @@ class PartyActions:
             self.narrate("[THE GAME HAS DECIDED: the player hires " + ", ".join(f"{m['name']} ({m['blurb']})" for m in hired) +
                          " at the guild hall; they will travel with the player from now on. Their manner: " +
                          "; ".join(f"{m['name']} {self.temper_text(m)}" for m in hired) +
-                         ".] Describe the brief meeting and the group setting out, in two or three sentences.", text)
+                         ".] Describe the brief meeting in two or three sentences: they join the player here. Nobody leaves or goes anywhere: the player "
+                         "has not set out, and stays where they are.", text)
 
     # a line with an action word in it is not said to a hire or to Maren, whatever name it carries: the one list is the action table's
     TALK_ACTIONS = actions.action_re(PARTY_WORDS)
+    # (f373) set phrases of assent that carry an action word ('go ahead', 'go for it'): an answer, not a step
+    ASSENT = re.compile(r"\b(go ahead|go for it|go on then|do it|do so|do that|sounds good|good to go)\b")
+
+    def action_line(self, text: str) -> bool:
+        """A line that does something rather than answering someone: an action word outside the set phrases of assent, or the player doing
+        something in the first person (engine/actions.first_person_action)."""
+        low = self.ASSENT.sub(" ", (text or "").strip().lower())
+        return bool(self.TALK_ACTIONS.search(low)) or actions.first_person_action(text)
 
     def hire_people(self) -> list[tuple[str, str, str, str]]:
         """The hired adventurers travelling with the player, as people here: (id, name, description, what they are doing). Nobody is listed
@@ -371,8 +380,7 @@ class PartyActions:
         last = getattr(self, "_hire_last", None)
         if not last or last[1] != self.store.meta.turn - 1:
             return None
-        low = text.strip().lower()
-        if self.TALK_ACTIONS.search(low) or actions.first_person_action(text) or any(self.npc_addressed(text, n) for n in self.present):
+        if self.action_line(text) or any(self.npc_addressed(text, n) for n in self.present):
             return None
         return next((m for m in self.player.party if m.get("permanent") and m.get("name") == last[0]), None)
 
@@ -398,7 +406,7 @@ class PartyActions:
         first = m["name"].split()[0].lower()
         low = text.strip().lower()
         direct = "?" in text or low.startswith((first, f"ask {first}", f"tell {first}", f"say to {first}"))
-        return m if direct or not (self.TALK_ACTIONS.search(low) or actions.first_person_action(text)) else None
+        return m if direct or not self.action_line(text) else None
 
     @staticmethod
     def hurt_words(h: float) -> str:
@@ -510,7 +518,7 @@ class PartyActions:
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=300 if in_fight else 400,
-                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
+                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"), tails=False)
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
                 self.note_shown(f"{frame.before} {after}")

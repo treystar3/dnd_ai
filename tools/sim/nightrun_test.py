@@ -16,6 +16,16 @@ u = gateway._usage(full)
 check("an answer's counts are kept: tokens and milliseconds", u == {"prompt": 1234, "out": 56, "read_ms": 2500, "write_ms": 3000, "load_ms": 0, "total_ms": 5600}, u)
 check("a stand-in's answer, which has none, gives none", gateway._usage(types.SimpleNamespace(done_reason="stop")) is None)
 
+# (f370) a server that is away is waited for, up to the limit, before a night gives up on it
+sys.path.insert(0, "tools")
+import nightrun
+calls = []
+def up():
+    calls.append(1)
+    return len(calls) >= 3
+check("the night waits for Ollama to come back, polling until it answers", nightrun.wait_for_server(seconds=60, every=10, up=up, sleep=lambda s: None) and len(calls) == 3, calls)
+check("...and gives up once the limit is spent", not nightrun.wait_for_server(seconds=20, every=10, up=lambda: False, sleep=lambda s: None))
+
 # a short run with the stand-in model
 out = Path("saves/nightrun_test/out")
 shutil.rmtree("saves/nightrun_test", ignore_errors=True)

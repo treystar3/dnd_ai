@@ -45,6 +45,34 @@ combat.act_ability(f, p, tech("Storm", martial_form="flurry", hits=4), e, rng)
 check("flurry hits the set number of times", sum(1 for l in f.log if "Storm" in l or "strikes again" in l) == 4, f.log)
 check("...and its card says so", "4 times, each for 31%" in AT.describe(tech("Storm", martial_form="flurry", hits=4)), AT.describe(tech("Storm", martial_form="flurry", hits=4)))
 
+# (f371) a flurry is one attack: one line for the narrator, one marker, one figure, one row in the log, each strike kept for the working
+import re
+from scenes.combat_scene import place_figures
+p, e = player(), foe(); f = fight(p, e); f.record = True; bf.engage(f, p, e)
+combat.act_ability(f, p, tech("Lance Volley", martial_form="flurry", hits=3), e, random.Random(4))
+mine = [h for h in f.hits if h["att"] == p.name]
+told = [s for s in f.story if "Lance Volley" in s]
+check("a flurry is one record with each strike in its parts", len(mine) == 1 and len(mine[0]["parts"]) == 3 and mine[0]["planned"] == 3
+      and mine[0]["final"] == sum(x["final"] for x in mine[0]["parts"] if x["outcome"] in ("hit", "crit", "graze")), [(h["label"], h.get("figure")) for h in mine])
+check("...told to the narrator as one line, strikes in one motion, with one marker", len(told) == 1 and "three strikes in one motion" in told[0]
+      and len(re.findall(r"\[h\d+\]", " ".join(f.story))) == 1 and not any("strikes again" in s or "keeps coming" in s for s in f.story), f.story)
+check("...with one figure that counts the hits and sums the damage", re.fullmatch(r"\((3|\d of 3) hits(, \d critical)?, \d+ damage.*\)", mine[0]["figure"]) is not None, mine[0]["figure"])
+check("...and one line in the combat numbers", sum(1 for l in f.log if "Lance Volley" in l or "strikes again" in l) == 1, f.log)
+out = place_figures("You drive the lance in three quick thrusts [h1].", f.hits, False)
+check("...so the passage carries one number for it", out.count("damage") == 1 and mine[0]["figure"] in out, out)
+nxt = combat.new_hit(f, p, e, "strikes")
+check("...and the next blow's tag is new, though the strikes' records were folded away", nxt["tag"] not in {h["tag"] for h in f.hits if h is not nxt}, [h["tag"] for h in f.hits])
+first_two = [x["final"] for x in mine[0]["parts"][:2]]
+if all(first_two):                                         # with this seed the first two strikes land: a foe that dies to the second
+    p, e = player(), foe(hp=first_two[0] + 1); f = fight(p, e); f.record = True; bf.engage(f, p, e)
+    combat.act_ability(f, p, tech("Lance Volley", martial_form="flurry", hits=3), e, random.Random(4))
+    mine = [h for h in f.hits if h["att"] == p.name]
+    check("a flurry that drops its target early is still one attack, and says the rest never came", len(mine) == 1 and len(mine[0]["parts"]) == 2
+          and mine[0]["planned"] == 3 and any("down before the third strike can follow" in s for s in f.story), (f.story, [h.get("figure") for h in mine]))
+p, e = player(), foe(); f = fight(p, e); bf.engage(f, p, e)
+combat.act_ability(f, p, tech("Lance Volley", martial_form="flurry", hits=3), e, rng)
+check("without records (the odds simulated) every strike is still struck and logged", sum(1 for l in f.log if "Lance Volley" in l or "strikes again" in l) == 3, f.log)
+
 p, e = player(), foe(); f = fight(p, e); bf.engage(f, p, e)
 combat.act_ability(f, p, tech("Crusher", martial_form="windup"), e, rng)
 check("a wind-up does nothing on its first turn", e.hp == e.max_hp and p.charging)

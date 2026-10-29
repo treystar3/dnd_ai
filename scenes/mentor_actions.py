@@ -2,7 +2,7 @@
 tracking and the fight, can be talked to throughout, and a troll that should not be there turns up. The rules and the state are in
 engine/mentor.py; the fixed words are in data/world/mentor.yaml. Her free answers come from the model with a locked fact sheet, so
 she can't invent a rule. The first hunt can't be lost: the player's health holds at 1."""
-from engine import combat, encounters, inventory, mentor, money, pools
+from engine import combat, encounters, inventory, mentor, money, pools, voice_rules
 import config
 import re
 from llm.contracts import MentorLines, MentorReply, MentorSpeech
@@ -36,14 +36,25 @@ class MentorActions:
 
     def mentor_show(self, speech: str, reply_to: str = "", gesture: str = "") -> None:
         """Her words on the page the way anyone else's are (f274): the narrator frames them with what she is doing as she speaks, a
-        sentence or two before and after (scenes/world.py narrate_dialogue), under her label. Without the narrator, the words alone."""
+        sentence or two before and after (scenes/world.py narrate_dialogue), under her label. Without the narrator, the words alone.
+        (f374) Like anyone else's, a frame is the exception (f347): her first words, the first in each stage of the lesson in each place,
+        and the first once she has stopped weighing a stranger. The first playthrough framed every line she said, thirty frames in half
+        an hour, and her hands went to the pommel and her weight shifted in a third of them."""
         label = self.mentor_label()
         speech = speech.strip()
-        if getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True) and not self.combat:
+        introduced = bool(self.player.mentor.get("introduced"))
+        moment = f"maren:{mentor.stage(self.player) or 'meeting'}:{introduced}"
+        narrated = getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True) and not self.combat
+        if narrated and moment in self.__dict__.setdefault("_framed_here", set()):         # (a new place clears it: scenes/world.py enter)
+            g = voice_rules.short_gesture(gesture or "")
+            console.npc_says(label, speech, g)
+            self.remember_narration(f'{label}: "{speech}"', {"type": "says", "speaker": label, "speech": speech, "gesture": g})
+            return
+        if narrated:
+            self._framed_here.add(moment)
             from llm.contracts import DialogueFrame
             from scenes import world_prompts as wp
             from scenes.voice import fresh
-            introduced = bool(self.player.mentor.get("introduced"))
             looks = M["frame"]["looks"]
             manner = M["frame"]["manner_warm"] if introduced else M["frame"]["manner_cold"]
             doing = M["frame"]["doing"].get(mentor.stage(self.player) or "meeting", M["frame"]["doing"]["meeting"])
@@ -59,7 +70,7 @@ class MentorActions:
                                                   reach=within, moment=moment, already=self.shown_lines(),
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"]),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=400,
-                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)})
+                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)}, tails=False)
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either
                     before, after = (re.sub(r"\bMaren( Holt)?\b", "the woman", x) for x in (before, after))
@@ -85,8 +96,10 @@ class MentorActions:
         if getattr(config, "FREE_MENTOR", True) and not any(isinstance(part, mentor.Fixed) for part in parts) and sum(len(x.split()) for x, _ in out) >= 12:
             lines = [x for x, _ in out]
             keep = list(dict.fromkeys(re.findall(r"#\w+", " ".join(lines)) + re.findall(r"(?<![A-Za-z])'([^']{3,60})'(?![A-Za-z])", " ".join(lines))))
-            top = max(2, min(4, (len(lines) + 1) // 2))
-            if self.mentor_speak(lines, beat, must=keep, reply_to=reply_to, paragraphs=(1, top)):
+            top = max(2, min(4, (len(lines) + 1) // 2), len(lines) - 1)        # (f373) a script of four lines may come back as four paragraphs
+            if self.mentor_speak(lines, beat, must=keep, reply_to=reply_to, paragraphs=(1, top),
+                                 max_words=max(75, max(len(x.split()) for x in lines) + 20,      # a paragraph may hold her longest line, or two grouped
+                                               sum(sorted(len(x.split()) for x in lines)[-2:]) + 5)):
                 return
         source = [x for x, fixed in out if not fixed]
         reply, voiced = self.mentor_voice(source, beat, reply_to) if source else ("", None)
@@ -101,7 +114,7 @@ class MentorActions:
         mentor.remember_said(self.player, " ".join(said))
 
     def mentor_speak(self, points: list[str], beat: str, must=(), reply_to: str = "", ends: str = "", ends_question: bool = False,
-                     paragraphs=(2, 5), ranks=None) -> bool:
+                     paragraphs=(2, 5), ranks=None, max_words: int = 75) -> bool:
         """She says this in her own paragraphs, not line by line: the points are what to cover, the must lines are said word for word, and
         the engine checks the facts. True if the model's speech was used; False means nothing was said and the written lines should be."""
         if not getattr(config, "VOICED_MENTOR", True):
@@ -112,7 +125,7 @@ class MentorActions:
                          mentor.speech_request(self.player, self.place.name, beat, points, list(must), (reply_to or "").strip(), ends),
                          MentorSpeech, temperature=0.8, max_tokens=min(1100, 150 + 90 * len(points)), retries=1,
                          validation_context={"material": points, "must": list(must), "paragraphs": (paragraphs[0], paragraphs[1] + 1), "ends_question": ends_question,
-                                             "ranks": ranks})
+                                             "ranks": ranks, "max_words": max_words})
         except LLMError:
             return False
         self.mentor_show("\n\n".join(r.paragraphs), reply_to)

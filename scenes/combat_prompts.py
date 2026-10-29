@@ -76,6 +76,8 @@ Rules:
   fight starting over: the boss was dead on its feet and is not. A fall is an ending - slow down for it, let it land.
   Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
+- An event that tells several strikes "in one motion" is ONE attack (a volley, a flurry, a combination): tell it as one action and say
+  how many struck home, never as separate attacks one after another, and give its one marker once, at the end of that telling.
 - Some events end with a marker such as [h2]. It stands for that blow's damage figure, which the game fills in. Copy each marker
   exactly once, in the same form ([h2]), as the last thing in the sentence that tells that blow, just before its full stop: never in
   the middle of a sentence, and never two markers in one sentence. Never explain it and write no numbers yourself.
@@ -86,7 +88,7 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    length: str = "up to about 90 words", shown: list[str] = (), worn: list[str] = ()) -> str:
+                    length: str = "up to about 90 words", shown: list[str] = (), worn: list[str] = (), looks: list[str] = ()) -> str:
     """length (f349): room in words, by the weight of the fight (voice.yaml narration.fight / fight_boss); shown: what the player has read
     in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on."""
     return (
@@ -99,7 +101,9 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\nLENGTH: {length}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
         f'THE PLAYER SAID: "{player_words}"\n'
-        "EVENTS:\n" + "\n".join(f"  - {e}" for e in events)
+        + (("WHAT THE PLAYER'S ABILITIES LOOK LIKE (show each as this, with the weapon they carry; never as something thrown, cast or "
+            "magical unless this says so):\n" + "\n".join(f"  - {x}" for x in looks) + "\n") if looks else "")
+        + "EVENTS:\n" + "\n".join(f"  - {e}" for e in events)
     )
 
 

@@ -37,7 +37,7 @@ def warm() -> None:
     def run():
         try:
             _client.chat(model=config.MODEL, think=config.THINK, messages=[{"role": "user", "content": "Reply with one word: ready."}],
-                         options={"num_ctx": config.NUM_CTX, "num_predict": 4}, keep_alive=config.KEEP_ALIVE)
+                         options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()}, keep_alive=config.KEEP_ALIVE)
         except Exception:
             pass
     threading.Thread(target=run, daemon=True, name="model-warmup").start()
@@ -65,6 +65,12 @@ def _tally(task: str, ok: bool, attempts: int) -> None:
     t["calls"] += 1
     t["failed"] += not ok
     t["attempts"] += attempts
+
+
+def threads() -> dict:
+    """(f370) The runner's CPU threads, when config.NUM_THREAD sets them; nothing otherwise, so Ollama keeps its own default."""
+    n = int(getattr(config, "NUM_THREAD", 0) or 0)
+    return {"num_thread": n} if n > 0 else {}
 
 
 def generate(
@@ -123,12 +129,13 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 messages=messages,
                 format=schema.model_json_schema(),
                 options={"temperature": min(top, base + RETRY_TEMPERATURE_STEP * attempt),
-                         "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **tuned},
+                         "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **threads(), **tuned},
                 keep_alive=config.KEEP_ALIVE,
             )
-        except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError) as e:
-            # A timeout, a dropped connection or a server error (Ollama answers 500 when the model hits its own repeat limit) is one
-            # failed attempt, not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails.
+        except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError, ConnectionError) as e:
+            # A timeout, a dropped connection, a server error (Ollama answers 500 when the model hits its own repeat limit) or a server
+            # that cannot be reached at all (the client raises Python's own ConnectionError while Ollama restarts) is one failed attempt,
+            # not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails (f370).
             last_error = e
             what = (f"timed out after {config.REQUEST_TIMEOUT}s" if isinstance(e, httpx.TimeoutException)
                     else f"the model server failed: {str(e)[:200] or type(e).__name__}")
@@ -170,7 +177,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 if guard.guarded(task):
                     cat, hit = guard.check(guard.strings_of(result))
                     if cat:
-                        reason = guard.reason(cat)
+                        reason = f"{guard.reason(cat)} (not '{hit}')"               # (f370) the word named, or the model writes it again
                         try:
                             from engine import refusals
                             refusals.note("guarded", task, f"{cat}: {hit}")

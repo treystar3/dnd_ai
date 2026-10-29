@@ -68,6 +68,8 @@ def roll_stance(npc, minutes: int, rng) -> str:
     simply themselves). Weights in data/rules/voice.yaml stances; wary needs trust under 50, grievance a concern, after a motive, and
     tired is twice as likely after dark."""
     from engine import clock
+    if (getattr(npc, "speech", None) or {}).get("own_voice"):         # (f374) a person written by hand is themselves: their mood is their stance
+        return ""
     S = V.get("stances", {})
     opts = {}
     for k, spec in S.items():

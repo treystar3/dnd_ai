@@ -28,6 +28,8 @@ def _pattern(words: list) -> re.Pattern:
 
 
 PATTERNS: dict[str, re.Pattern] = {cat: _pattern((spec or {}).get("words") or []) for cat, spec in (G.get("categories") or {}).items()}
+ALLOWED: dict[str, re.Pattern | None] = {cat: (re.compile("|".join(f"(?:{a})" for a in (spec or {}).get("allow") or []), re.I) if (spec or {}).get("allow") else None)
+                                        for cat, spec in (G.get("categories") or {}).items()}   # (f370) a hit that begins an allowed phrase is the innocent sense
 SKIP = set(G.get("skip_tasks") or [])
 
 
@@ -50,8 +52,10 @@ def check(texts) -> tuple[str, str]:
         if not t:
             continue
         for cat, pat in PATTERNS.items():
-            m = pat.search(t)
-            if m:
+            allow = ALLOWED.get(cat)
+            for m in pat.finditer(t):
+                if allow is not None and allow.match(t, m.start()):
+                    continue
                 return cat, m.group(0)
     return "", ""
 
