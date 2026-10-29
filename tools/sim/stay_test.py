@@ -97,6 +97,8 @@ check("every moment shape says how it ends", all(sh.get("ends") for sh in __impo
 # bandit the player was escorting), and present whatever the hour or the door
 cap = ws.residents[0]
 ws.player.prisoners[cap.id] = {"escort": True, "deal": False, "asked": 0}
+from engine import entities as _entities                                  # (f392) a captive is one in the registry, escorted
+_entities.begin(ws.store, "captive", f"captive:{cap.id}", cap.name, ws.minutes, owner="player", links={"npc": cap.id})
 if cap not in ws.present:
     ws.present.append(cap)
 stay.reset(ws)

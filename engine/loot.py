@@ -214,8 +214,12 @@ def found_materials(category: str, level: int, rng: random.Random, bonus: float 
 
 
 def has_remains(enemy) -> bool:
-    """Whether a fallen creature leaves anything worth skinning or butchering."""
+    """Whether a fallen creature leaves anything worth skinning or butchering. (f392) Never a person: a night's run offered to butcher
+    bandits for hide and meat, and the party talked of eating a dead prisoner."""
     from engine import inventory
+    from engine.arcs import A
+    if enemy.category in A["people_categories"]:
+        return False
     F = L.get("material_finds")
     if F and any(enemy.category in m.found_with and m.levels[0] * F["level_floor"] <= enemy.level <= m.levels[1]
                  for m in items.MATERIALS.values()):

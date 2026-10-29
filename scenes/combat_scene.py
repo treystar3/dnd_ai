@@ -1063,7 +1063,7 @@ class CombatScene:
             self.victory()
             ws.dungeon_fight_over("victory")
             ws.road_fight_over("victory")
-            ws.camp_fight_over("victory", dead)
+            ws.camp_fight_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
             ws.orenna_fight_over("victory")
             ws.mentor_fight_over("victory", f)
             ws.assault_fight_over("victory")
@@ -1119,6 +1119,7 @@ class CombatScene:
             self.sync_player()
             return
         c = self.ws.player.character
+        self.survivor_yields()
         dead = [e for e in self.fight.fighters if e.side == "enemy" and not e.alive]
         yielded = [e for e in self.fight.fighters if e.side == "enemy" and e.alive and e.surrendered]
         if not dead and not yielded and self.tamed:
@@ -1219,26 +1220,42 @@ class CombatScene:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")
 
+    def survivor_yields(self) -> None:
+        """(f392) A won fight against outlaws can leave one who lives and yields (arcs.yaml prisoner.chance): chosen here among the fallen,
+        before the after-fight passage is written, so the story and the captive agree. It used to be rolled afterwards, among the dead:
+        a night's run had an outlaw narrated dead and then throwing down his weapon. An arc's camp has its leader's own way."""
+        from engine.arcs import A as R
+        ws, f = self.ws, self.fight
+        if getattr(ws, "camp_fight", None) or ws.place.type in ("dungeon", "road"):
+            return
+        fallen = [e for e in f.fighters if e.side == "enemy" and not e.alive and e.category in R["people_categories"]]
+        if not fallen or any(e.alive and e.surrendered for e in f.fighters if e.side == "enemy"):
+            return
+        PR = R["prisoner"]
+        chance = max(PR["min_chance"], min(PR["max_chance"], PR["chance"] + ws.player.outlaw_rep * PR["rep_chance_per_point"]))
+        if random.Random(f"{ws.store.meta.seed}:yield:{ws.minutes}").random() < chance:
+            who = max(fallen, key=lambda e: e.level)
+            who.hp, who.surrendered = 1, True
+
     def take_prisoners(self, yielded: list) -> list:
         """Foes who yielded: people can be bound and kept (questioned, let go, handed to the watch); the rest wait on the player (f385).
-        Returns those taken."""
+        (f392) No more than walk bound at once (lifecycles.yaml captive.most_escorted): the rest wait on the player's word like any foe
+        who yields. An arc's camp leader is taken by the camp's own way (arc_actions.camp_fight_over). Returns those taken."""
+        from engine import entities
         from engine.arcs import A as R
-        ppl = sorted([e for e in yielded if e.category in R["people_categories"]], key=lambda e: -e.level)[:3]
+        room = entities.L["captive"]["most_escorted"] - len(self.ws.escorted())
+        leader = (getattr(self.ws, "camp_fight", None) or {}).get("leader")
+        ppl = sorted([e for e in yielded if e.category in R["people_categories"] and e.name != leader], key=lambda e: -e.level)[:max(0, room)]
         if not ppl:
-            return []
+            return [e for e in yielded if e.name == leader]
         self.ws.surrender_took = True
         rng = random.Random(f"{self.ws.store.meta.seed}:surrender:{self.ws.minutes}")
         for e in ppl:
             name = rng.choice(R["prisoner"]["names"])
             kind = re.sub(r" ?\d+$", "", e.name)
-            npc = self.ws.make_prisoner(name, "", tip=rng.random() < R["prisoner"]["tip_chance"], named=False, kind=kind)
-            npc.activity = "walking bound at your side"
-            self.ws.store.save_npc(npc)
-            self.ws.player.prisoners[npc.id]["escort"] = True
-            self.ws.player.prisoners[npc.id]["level"] = e.level
-            self.ws.player.prisoners[npc.id]["creature"] = e.creature
+            self.ws.make_prisoner(name, "", tip=rng.random() < R["prisoner"]["tip_chance"], named=False, kind=kind, fighter=e)
         self.ws.store.save_player(self.ws.player)
-        return ppl
+        return ppl + [e for e in yielded if e.name == leader]
 
     FALLBACK_FIRST = ["Ashen", "Hollow", "Ember", "Gloam", "Thorn", "Dusk", "Varr", "Kestrel", "Wraith", "Sable", "Oath", "Rime"]
     FALLBACK_SECOND = ["fang", "bane", "ward", "song", "reach", "brand", "mourn", "keep", "bite", "light", "fall", "shard"]
@@ -1352,6 +1369,8 @@ class CombatScene:
         c = ws.player.character
         summary = death.die(c)
         lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
+        if ws.captives_lost("got away while their captor lay dead"):                 # (f392) nobody waits bound beside a corpse
+            lost.append("the captives they held, who got away")
         console.note("You have died.")
         console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
         said = list(getattr(ws.player, "goddess_said", []))                        # (f349) she remembers what she said on earlier returns
