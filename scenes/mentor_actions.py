@@ -85,8 +85,10 @@ class MentorActions:
         if getattr(config, "FREE_MENTOR", True) and not any(isinstance(part, mentor.Fixed) for part in parts) and sum(len(x.split()) for x, _ in out) >= 12:
             lines = [x for x, _ in out]
             keep = list(dict.fromkeys(re.findall(r"#\w+", " ".join(lines)) + re.findall(r"(?<![A-Za-z])'([^']{3,60})'(?![A-Za-z])", " ".join(lines))))
-            top = max(2, min(4, (len(lines) + 1) // 2))
-            if self.mentor_speak(lines, beat, must=keep, reply_to=reply_to, paragraphs=(1, top)):
+            top = max(2, min(4, (len(lines) + 1) // 2), len(lines) - 1)        # (f373) a script of four lines may come back as four paragraphs
+            if self.mentor_speak(lines, beat, must=keep, reply_to=reply_to, paragraphs=(1, top),
+                                 max_words=max(75, max(len(x.split()) for x in lines) + 20,      # a paragraph may hold her longest line, or two grouped
+                                               sum(sorted(len(x.split()) for x in lines)[-2:]) + 5)):
                 return
         source = [x for x, fixed in out if not fixed]
         reply, voiced = self.mentor_voice(source, beat, reply_to) if source else ("", None)
@@ -101,7 +103,7 @@ class MentorActions:
         mentor.remember_said(self.player, " ".join(said))
 
     def mentor_speak(self, points: list[str], beat: str, must=(), reply_to: str = "", ends: str = "", ends_question: bool = False,
-                     paragraphs=(2, 5), ranks=None) -> bool:
+                     paragraphs=(2, 5), ranks=None, max_words: int = 75) -> bool:
         """She says this in her own paragraphs, not line by line: the points are what to cover, the must lines are said word for word, and
         the engine checks the facts. True if the model's speech was used; False means nothing was said and the written lines should be."""
         if not getattr(config, "VOICED_MENTOR", True):
@@ -112,7 +114,7 @@ class MentorActions:
                          mentor.speech_request(self.player, self.place.name, beat, points, list(must), (reply_to or "").strip(), ends),
                          MentorSpeech, temperature=0.8, max_tokens=min(1100, 150 + 90 * len(points)), retries=1,
                          validation_context={"material": points, "must": list(must), "paragraphs": (paragraphs[0], paragraphs[1] + 1), "ends_question": ends_question,
-                                             "ranks": ranks})
+                                             "ranks": ranks, "max_words": max_words})
         except LLMError:
             return False
         self.mentor_show("\n\n".join(r.paragraphs), reply_to)

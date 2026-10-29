@@ -88,7 +88,7 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    length: str = "up to about 90 words", shown: list[str] = (), worn: list[str] = ()) -> str:
+                    length: str = "up to about 90 words", shown: list[str] = (), worn: list[str] = (), looks: list[str] = ()) -> str:
     """length (f349): room in words, by the weight of the fight (voice.yaml narration.fight / fight_boss); shown: what the player has read
     in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on."""
     return (
@@ -101,7 +101,9 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\nLENGTH: {length}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
         f'THE PLAYER SAID: "{player_words}"\n'
-        "EVENTS:\n" + "\n".join(f"  - {e}" for e in events)
+        + (("WHAT THE PLAYER'S ABILITIES LOOK LIKE (show each as this, with the weapon they carry; never as something thrown, cast or "
+            "magical unless this says so):\n" + "\n".join(f"  - {x}" for x in looks) + "\n") if looks else "")
+        + "EVENTS:\n" + "\n".join(f"  - {e}" for e in events)
     )
 
 

@@ -1057,6 +1057,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     REPAIRS = (
         plan_repairs.Repair("scrub_markup", 10, "scrub_markup", "words in *asterisks* are never speech; a talk left wordless by that goes"),
         plan_repairs.Repair("wordless_talk", 20, "wordless_talk", "a second, wordless talk to the one the line already spoke to adds nothing (f299)"),
+        plan_repairs.Repair("walk_after_word", 25, "walk_after_word", "a word, then a walk to the one it was said to: an acknowledgement on the way goes, else the walk does (f373)"),
         plan_repairs.Repair("move_to_present", 30, "move_to_present", "a move before a word or a deal with someone already here is no journey - unless the line names the place"),
         plan_repairs.Repair("narrated_talk", 40, "drop_narrated_talk", "a talk whose words narrate another step is not speech; the one it named gets the deed (f333)"),
         plan_repairs.Repair("local_building", 50, "local_building", "'the inn' with no town named is this town's inn, not a far one (f333)"),
@@ -1088,6 +1089,27 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     continue
             kept.append(a)
         return kept or plan
+
+    FILLER = re.compile(r"^\W*(?:u+h+|u+m+|h+m+|a+h+|o+h+|okay|ok|right|alright|all right|fine|sure|yeah|yes|well|so|i see)"
+                        r"(?:[\s,.!]+(?:okay|ok|then|so|right|sure|fine|well|i see))*[\s.!]*$")
+
+    def walk_after_word(self, text: str, plan: list) -> list | None:
+        """(f373) 'uhh okay then, I head to the clerk at the desk' was read as words to the clerk, then a walk to her: she answered 'uhh okay
+        then' with a recital of the rank rules before the player had reached her desk. When the words are only an acknowledgement (said to
+        whoever spoke last), the walk is the step and the words go; when they are real words, the player is already speaking to them and
+        the walk goes."""
+        here = {n.id for n in self.present}
+        out = list(plan)
+        for k, a in enumerate(plan):
+            if a.kind != "talk" or a.target not in here:
+                continue
+            walk = next((b for b in plan[k + 1:] if b.kind == "move" and b.destination == a.target), None)
+            if walk is None:
+                continue
+            gone = a if self.FILLER.match(a.speech or "") else walk
+            if gone in out:
+                out.remove(gone)
+        return out if len(out) != len(plan) and out else None
 
     def move_to_present(self, text: str, plan: list) -> list:
         here_ids = {n.id for n in self.present}

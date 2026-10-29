@@ -411,11 +411,11 @@ return:
     out of the fields.
   info:
     - "You are back at the edge of Parth. Tell the player to hand the contract in at the guild hall: the clerk will have their coin and their first mark toward the next rank."
-    - "You must leave them here because your own business will not wait any longer. Tell them they did well today, to stay alive, and that you expect to hear of them."
+    - "Part ways here: you wait at the guild hall a while yet for your own late party, so they know where to find you. Tell them they did well today, to stay alive, and that you expect to hear of them."
   speech:
     - "Take the contract in at the guild hall. The clerk's got your coin, and your first mark toward the next rank."
-    - "This is where I leave you. My own business won't wait any longer. You did well today. Stay alive. I expect I'll hear about you."
-  leave: "She shoulders the greatsword, nods once, and the crowd in the street closes behind her."
+    - "This is where we part. I'll be at the hall a while yet, waiting on my lot, so you know where to find me. You did well today. Stay alive. I expect I'll hear about you."
+  leave: "She shoulders the greatsword, nods once and goes on ahead toward the hall, and the crowd in the street closes behind her."
 
 # ---------------------------------------------------------------------------------------------------------------------------
 # When you talk to her

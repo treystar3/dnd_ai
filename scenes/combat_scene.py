@@ -411,10 +411,27 @@ class CombatScene:
         intent = self.interpret(text)
         self.act(intent, text)
 
+    def outside_ability(self, intent, text: str) -> str:
+        """(f373) The note for an ability of the player's that works only outside a fight, when the line uses it here; '' otherwise. Beast
+        Command used on a wolf mid-fight was answered with Maren's 'they're wolves, they won't listen', as if the player had only talked."""
+        from core.models import UseContext
+        c = self.ws.player.character
+        low = text.lower()
+        for a in getattr(c, "actives", []) or []:
+            named = a.id == getattr(intent, "ability", "") or (a.name and re.search(rf"\b{re.escape(a.name.lower())}\b", low))
+            if named and a.context == UseContext.OUT_OF_COMBAT and not any(m.id == a.id for m in self.fight.player.moves):
+                return (f"{a.name} works outside a fight, not in one: {a.description.strip()} "
+                        "Use it once the fight is over; for now, pick one of your fighting abilities from the panel.")
+        return ""
+
     def act(self, intent, text: str) -> None:
         f = self.fight
         p = f.player
         console.debug(f"combat intent: {intent.model_dump(exclude_defaults=True)}")
+        away = self.outside_ability(intent, text)
+        if away:                                                            # (f373) a power for outside a fight: say so, and no turn passes
+            console.note(away)
+            return
         if f.mentor and intent.kind == "tame" or (f.mentor and not f.mentor_troll and intent.kind == "flee"):
             self.ws.mentor_refuse(intent.kind)
             return
@@ -706,6 +723,16 @@ class CombatScene:
         combat.tell(f, f"backing away is the work of the round: you {story}")
         return True
 
+    def ability_looks(self) -> list[str]:
+        """(f373) The player's abilities this round's events name, each with its own description: 'Lance Volley' alone was told as a lance
+        hurled in a volley of throws, with magic humming; its card says three quick strikes."""
+        story = " ".join(self.fight.story)
+        out = []
+        for a in getattr(self.ws.player.character, "actives", []) or []:
+            if a.name and a.description and re.search(rf"\b{re.escape(a.name)}\b", story):
+                out.append(f"{a.name}: {a.description.strip()}")
+        return out[:3]
+
     def narrate_round(self, text: str) -> None:
         f = self.fight
         p = f.player
@@ -718,7 +745,8 @@ class CombatScene:
                        cp.narrate_request(self.ws.place.name, self.ws.time_label(), text, f.story,
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
-                                          length=rule["length"], shown=self.fight_shown, worn=self.ws.worn_words("prose")),    # (f349)
+                                          length=rule["length"], shown=self.fight_shown, worn=self.ws.worn_words("prose"),    # (f349)
+                                          looks=self.ability_looks()),                                                           # (f373)
                        Narration, self.ws.recent_narration, max_tokens=rule["tokens"], worn=self.ws.worn_words("prose"))
         text_out = place_figures(result.text, f.hits, console.damage_tags)
         console.narrate(text_out)

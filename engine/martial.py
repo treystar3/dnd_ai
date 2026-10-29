@@ -112,7 +112,7 @@ def maneuver(combat, att, t, move, rng, contested: bool = False) -> bool:
         cut = min(float(m["cap"]), t.sundered + float(m["pct"][AT.tier_of(move.tier)]))
         if cut > t.sundered:
             t.sundered = cut
-            C.tell(combat, f"{C.whose(t)} armor cracks under it ({m['label']}: {cut:g}% broken)")
+            C.tell(combat, f"{C.whose(t)} {C.cover(t)} cracks and splits under it ({m['label']}: {cut:g}% broken)")
         return True
     if mid in ("shove", "hook"):
         held = move.rider

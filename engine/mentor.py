@@ -472,12 +472,13 @@ def make_npc(player, minutes: int, turn: int, place_id: str):
         mem.append(Memory(day=day, turn=turn, text=f"They told me: {t[:160]}"))
     mem += [Memory(day=day, turn=turn, text=f"Walked {player.character.name} to the guild hall and watched them sign in."),
             Memory(day=day, turn=turn, text="Let them hire me as practice. Fought a troll beside them in the Greywood, where no troll should be."),
-            Memory(day=day, turn=turn, text="They did well.")]
+            Memory(day=day, turn=turn, text="They did well."),
+            Memory(day=day, turn=turn, text="My own party from the capital is late again. I wait for them at the guild hall. They are my companions, not the stranger's: the stranger came alone.")]
     persona = " ".join(M["chat"]["persona"].split())
     return NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
                epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
                activity="between jobs", personality=persona, voice="Warm and wry, gently teasing, practical, and more caring than she admits.",
-               concern="Things where they do not belong, and the rest of her party who are always late.",
+               concern="Things where they do not belong, and her own party from the capital, late again, who keep her waiting at the guild hall.",
                trust=65, mood="fond of the player, though she would not say so", name_known_to_player=True, met_player=True,
                knows_player_as=player.character.name, protected=True, memories=mem)
 

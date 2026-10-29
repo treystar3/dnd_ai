@@ -351,6 +351,18 @@ def hit_step(rec: dict | None, mult: float, label: str, factor: float) -> float:
     return mult * factor
 
 
+COVER = {"dragon": "scales", "plant": "bark", "construct": "plating", "beast": "hide", "monstrosity": "hide", "lycanthrope": "hide",
+         "aberration": "hide", "swarm": "mass", "ooze": "body", "elemental": "outer shell"}
+
+
+def cover(f: Fighter) -> str:
+    """(f373) What turns a blow on this fighter, in words: a wolf's hide, a dragon's scales, a soldier's armor. A wolf told as wearing
+    'armor' came out of the narrator as plate mail."""
+    if f.side in ("player", "ally") or not f.category:
+        return "armor"
+    return COVER.get(f.category, "armor")
+
+
 def figure(rec: dict) -> str:
     out = rec["outcome"]
     if out == "miss":
@@ -1466,7 +1478,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     soak = f", {round(absorbed)} absorbed" if absorbed >= 1 else ""
     combat.log.append(f"{att.name} {label} {dfn.name}: {taken} damage{note}{soak}")
     quality = {"graze": "only a glancing blow", "crit": "a perfect strike, " + severity(taken, dfn.max_hp)}.get(outcome, severity(taken, dfn.max_hp))
-    turned = f"; {whose(dfn)} {'armor' if dfn.side == 'player' else 'hide or armor'} turns part of it" if absorbed > taken * 0.4 else ""
+    turned = f"; {whose(dfn)} {cover(dfn)} turns part of it" if absorbed > taken * 0.4 else ""
     after = f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""
     tell(combat, f"{who(att)} {vb(att, 'hit', 'hits')} {who(dfn)} {how}: {quality}{turned}{after}", rec)
     emult = multiplier * {"graze": 0.5, "hit": 1.0, "crit": crit_multiplier(att)}[outcome]
