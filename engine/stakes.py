@@ -188,7 +188,7 @@ def done(ws, q: dict) -> None:
                 state["effects"].append({"kind": "danger", "place": q["place"], "value": D["value"], "until": ws.minutes + D["days"] * 1440, "cause": q["title"]})
             ws.store.save_world_state(state)
         ws.weight_hint = "rich"
-        ws.narrate(f"THE JOB IS DONE AND PAID. What is different now, seen or heard of: {q['result']}. Show it in a sentence or two, as it would be noticed; no speeches.")
+        ws.narrate(f"THE JOB IS DONE AND PAID. What is different now, seen or heard of: {q['result']}. Show it as it would be noticed; no speeches.")      # (f384) no length
     if q.get("more"):
         _open_matter(ws, q)
 

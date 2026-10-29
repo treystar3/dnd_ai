@@ -331,7 +331,7 @@ class PartyActions:
     # a line with an action word in it is not said to a hire or to Maren, whatever name it carries: the one list is the action table's
     TALK_ACTIONS = actions.action_re(PARTY_WORDS)
     # (f373) set phrases of assent that carry an action word ('go ahead', 'go for it'): an answer, not a step
-    ASSENT = re.compile(r"\b(go ahead|go for it|go on then|do it|do so|do that|sounds good|good to go)\b")
+    ASSENT = re.compile(r"\b(go ahead|go for it|go on then|go on(?=\s*[,.!]|\s*$)|do it|do so|do that|sounds good|good to go)\b")
 
     def action_line(self, text: str) -> bool:
         """A line that does something rather than answering someone: an action word outside the set phrases of assent, or the player doing
@@ -381,9 +381,28 @@ class PartyActions:
         last = getattr(self, "_hire_last", None)
         if not last or last[1] != self.store.meta.turn - 1:
             return None
-        if self.action_line(text) or any(self.npc_addressed(text, n) for n in self.present):
+        if self.action_line(text) or any(self.npc_addressed(text, n) for n in self.present) or self.not_to_them(text, last[0]):
             return None
         return next((m for m in self.player.party if m.get("permanent") and m.get("name") == last[0]), None)
+
+    COMMAND = re.compile(r"^\s*(?:please\s+)?(follow|execute|kill|slap|punch|kick|throw|pee|poop|fart|spit|rub|turn in|hand in|report|"
+                         r"pick up|grab|push|pull|climb|jump|run|flee|hide|sneak|steal|open|close|light|burn|break|smash|destroy|dig|eat|"
+                         r"drink|sleep|kneel|pray|sing|dance|play|loot|skin|harvest|search|track|hunt|explore|leave|enter|attack|fight|"
+                         r"buy|sell|use|cast|go|head|walk|look)\b(?!,)")
+    TO_SOMEONE = re.compile(r"^\s*(?:\*\s*)?(?:ask|tell|talk to|speak to|say to|call to)\s+(?:the\s+)?([a-z']+)")
+
+    def not_to_them(self, text: str, name: str) -> bool:
+        """(f384) A line that is plainly not for the hire who spoke last: an action in the game's own markup (*execute the one who
+        yielded*), a command opening on its verb ('follow the sea hag', 'turn in all quests'), or a word for someone else ('ask the
+        hermit who he is'). A playthrough sent nine such lines to the last hire as speech, and none of them happened."""
+        low = (text or "").strip().lower()
+        first = (name or "").split()[0].lower() if name else ""
+        if "*" in text and (not first or first not in low):
+            return True
+        if self.COMMAND.match(low) and "?" not in text and not low.startswith(("go on", "go ahead", "look,")):
+            return True
+        m = self.TO_SOMEONE.match(low)
+        return bool(m) and m.group(1) not in (first, "me", "us", "him", "her", "them", "you")
 
     def npc_addressed(self, text: str, npc) -> bool:
         from engine import mentor

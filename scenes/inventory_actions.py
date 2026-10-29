@@ -205,6 +205,10 @@ class InventoryActions:
     def on_pick_up(self, intent, text: str) -> None:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
+        if not item and any(w in (intent.item or text).lower() for w in self.COIN_WORDS):        # (f384) loot coin goes straight to the purse
+            console.note(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
+            self.halted = True
+            return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp
             self.narrate(wp.SCENERY_PICKUP.format(thing=(intent.item or "it").strip()), text)

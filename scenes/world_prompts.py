@@ -198,8 +198,8 @@ EXCHANGE_SYSTEM = DM_VOICE + """
 You are framing a short exchange between several people. The game will print their spoken lines between your two pieces of prose,
 exactly as given - you never repeat them, quote them, paraphrase them or add to them, and nobody else speaks.
 
-before: how they fall into talking - who turns to whom, what their hands are doing - built only from the scene. Often a sentence; empty
-  when the talk simply starts.
+before: how they fall into talking - who turns to whom, what their hands are doing - built only from the scene; empty when the talk
+  simply starts.
 after: how the talk ends or trails off: a look, a shrug, someone moving off. Never the room, the light, the weather or the place around
   them as a closing shot. Leave it empty when the last line is the end.
 

@@ -40,10 +40,15 @@ class Situation:
     wildlife: bool = False
     workers: set[str] = field(default_factory=set)            # ids of people here with a work offer standing
     lines: list[str] = field(default_factory=list)            # plain scene facts shown to the model
+    people_at: object = None                                  # (f384) place -> the ids, names and roles of who is found there, or None
 
     def knows_target(self, target: str) -> bool:
         t = target.strip().lower()
         return not t or t in self.present or (t == "wildlife" and self.wildlife)
+
+    def found_at(self, place: str, target: str) -> bool:
+        """(f384) Is the one a step is aimed at found where an earlier step of the plan takes the player?"""
+        return bool(self.people_at and place and target) and target.strip().lower() in self.people_at(place)
 
 
 class AuditAsk(Protocol):
@@ -72,8 +77,11 @@ def _key(step) -> tuple:
 def problems(plan: list, sit: Situation) -> list[str]:
     """Things that cannot be true in the scene as it is, one line each."""
     out = []
+    there = ""                                                # (f384) where an earlier step walks to: "go to the hall and hand it to the clerk"
     for i, s in enumerate(plan, 1):
-        if s.kind in TARGETED and s.target and not sit.knows_target(s.target):
+        if s.kind == "move" and getattr(s, "destination", ""):
+            there = s.destination
+        if s.kind in TARGETED and s.target and not sit.knows_target(s.target) and not sit.found_at(there, s.target):
             out.append(f"step {i} ({s.kind}) is aimed at '{s.target}', who is not here")
         if s.kind == "ability" and s.ability and sit.abilities and s.ability.strip().lower() not in sit.abilities:
             out.append(f"step {i} uses ability '{s.ability}', which the player does not have")

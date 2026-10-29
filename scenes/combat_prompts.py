@@ -108,7 +108,8 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
 
 AFTERMATH_SYSTEM = DM_VOICE + """
 You narrate the moment just after a fight ends. The last foe is down. Describe the silence returning,
-the player's breathing and wounds, the fallen, the place. If the player finds anything, describe them noticing it.
+the player's breathing and wounds, the fallen, the place. If the player finds anything, describe them noticing it and taking it: it is
+already in their pack or purse, never left lying.
 No numbers, no game words. Respond only with JSON matching the schema, with the prose in "text"."""
 
 

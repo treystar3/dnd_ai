@@ -71,8 +71,24 @@ def participle_tails(text: str) -> list[str]:
     return out
 
 
+_QUOTE = re.compile(r'["\u201c]([^"\u201d]{8,})["\u201d]')
+_MARK = re.compile(r"\[h\d+\]")
+
+
+def invented_speech(text: str, said: str) -> str:
+    """(f384) Words the passage puts in someone's mouth, or '': a quoted line that is not the player's own. The narrator wrote two
+    woodcutters' warnings and the player's question to them, and Maren saying Parth was 'just over that rise' while standing in it."""
+    mine = set(re.findall(r"[a-z']+", (said or "").lower()))
+    for m in _QUOTE.finditer(text or ""):
+        q = set(re.findall(r"[a-z']+", m.group(1).lower()))
+        if q and len(q & mine) / len(q) < 0.6:
+            return m.group(1)[:60]
+    return ""
+
+
 def fresh(task: str, system: str, request: str, schema, recent: list[str], fields=("text",),
-          temperature: float = 0.9, max_tokens: int | None = None, context: dict | None = None, worn: list[str] | None = None):
+          temperature: float = 0.9, max_tokens: int | None = None, context: dict | None = None, worn: list[str] | None = None,
+          said: str | None = None):
     """Generate narration; if it repeats recent phrasing or stock phrases, or leans on words the writing has worn out (f349, `worn` from
     the scene's watch), rewrite once with the habit called out. `context` is the schema's validation context (a frame's speaker and the
     others present, f347).
@@ -80,7 +96,11 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     (f382) No rewrite for sentences ending on a trailing participle, anywhere. It was dropped for frames (f374) and fights (f380) first;
     across the second playthrough and the f375 night warrior it rewrote three passages in four, the rewrites ended as many sentences that
     way as the drafts (a rate of 0.25 to 0.34 either way), and each was a second call before the player could read anything. The DM
-    voice still names the habit; participle_tails stays for the LoRA tools, which keep such drafts out of what is learned."""
+    voice still names the habit; participle_tails stays for the LoRA tools, which keep such drafts out of what is learned.
+
+    (f384) said: the player's words, for a passage that may put no words in anyone else's mouth (invented_speech): one that does is
+    rewritten. A rewrite that loses a blow's [hN] marker the draft had, or piles them up together, is thrown away and the draft stands:
+    its figures would otherwise be printed away from their blows."""
     from engine import worn as _worn
     import config
     max_tokens = max_tokens or config.PROSE_MAX_TOKENS                     # (f375) a ceiling against a runaway, never a length
@@ -93,7 +113,22 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     lean = _worn.leaned_on(text, worn or [])
     if len(lean) >= 2:
         parts.append("LEANED ON WORDS YOU HAVE WORN OUT: " + ", ".join(lean) + ". Find other words, or leave the thing unsaid")
+    spoken = invented_speech(text, said) if said is not None else ""
+    if spoken:
+        parts.append(f'PUT WORDS IN SOMEONE\'S MOUTH ("{spoken}"). Nobody speaks in a passage: show what people do, and leave the speaking '
+                     "to the game")
     if not parts:
         return result
     nudge = "\n\nYOUR DRAFT " + ". YOUR DRAFT ALSO ".join(parts) + ". Write it fresh, with the same events."
-    return generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens, validation_context=context)
+    redo = generate(task, system, request + nudge, schema, temperature=min(1.1, temperature + 0.1), max_tokens=max_tokens, validation_context=context)
+    now = " ".join(getattr(redo, f, "") or "" for f in fields)
+    (rn, rs), (dn, ds) = _marked(now), _marked(text)
+    if rn < dn or rs < ds:                                  # (f384) the draft kept every blow in its own sentence: it stands
+        return result
+    return redo
+
+
+def _marked(text: str) -> tuple[int, int]:
+    """(f384) How many blow markers a passage keeps, and how many sentences carry one: a rewrite that drops markers, or piles them up
+    after its last sentence ('...without drawing blood. [h1] [h2] [h3] [h4]'), prints every figure away from its blow."""
+    return (len(_MARK.findall(text or "")), sum(1 for s in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if _MARK.search(s)))

@@ -70,6 +70,7 @@ from world.loader import World
 
 QUIT_WORDS = {"quit", "exit", "/quit", "/exit"}
 NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|refuse|decline|later)\b")     # "I don't want to join" is not joining
+UNPAID = re.compile(r"\b(without pay(ing)?|for free|no fee|steal|snatch|forge|by force|force my|swipe)\b")      # (f384) taking it, not joining
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 SEARCH = encounters.E
@@ -1115,6 +1116,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def move_to_present(self, text: str, plan: list) -> list:
         here_ids = {n.id for n in self.present}
         said = {w for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 3}
+        norm = lambda s: " ".join(re.findall(r"[a-z]+", (s or "").lower()))
+        echo = lambda b: b.kind == "talk" and norm(b.speech) and norm(b.speech) in norm(text) \
+            and len(norm(b.speech).split()) >= 0.8 * len(norm(text).split())              # the whole line, not words quoted in it
+        if re.match(r"^\s*(?:i\s+)?(?:go|head|walk|run|hurry|travel|make my way|set off|take me)\b", text.lower()) and any(echo(b) for b in plan):
+            return [a for a in plan if not echo(a)] or plan          # (f384) "go to smith": a journey; the talk was the line itself, put in a mouth
 
         def named(dest: str) -> bool:                              # (f342) "to the trading square": the player named where; the move stands
             pl = self.world.places.get(dest)
@@ -1125,7 +1131,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def join_guild_rewrite(self, text: str, plan: list) -> list | None:
         """Paying or asking to join the guild, said to the clerk, is joining - and only once."""
-        if self.rank or not self.clerk_here() or NEGATED.search(text.lower()):
+        if self.rank or not self.clerk_here() or NEGATED.search(text.lower()) or UNPAID.search(text.lower()):
             return None
         asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
         for a in plan:
@@ -1432,7 +1438,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         by_id = {n.id: n for n in self.present}
         return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc
                  + ((" " + knows) if (knows := recognition.seen(by_id[p.id], self.minutes) if p.id in by_id else "") else ""), p.doing)   # (f378) work; (f382) knows you
-                for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+                for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire", "companion")]
 
     FIRST_SEEN = 2
 
@@ -1442,7 +1448,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         and one person'. So the engine chooses: those the player knows by name, then whoever the place is kept by (its first role: the
         clerk at the hall, the keeper of an inn), then by chance; the rest are a number until the player looks."""
         from engine import truth
-        ps = [p for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+        ps = [p for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire", "companion")]
         if len(people) <= self.FIRST_SEEN:
             return people, 0
         kept_by = next(iter(self.place.residents or {}), "")
@@ -1501,7 +1507,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        worn=self.worn_words("prose"),                               # (f349) ...and which words it has worn out lately
                                        unlooked=unlooked)
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
-                       temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"))
+                       temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"), said=player_text or "")         # (f384) no invented speech
         shown = self.unnamed(result.text)
         if strict and voice_rules.contradicts_nothing(shown):
             console.debug("narration claimed a gain the engine did not give - rewriting once")
@@ -1632,7 +1638,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                       if n.location == self.player.location and n.away_until > self.minutes else self.where_name(n.location))
                      for n in shown_away]
         last = self.last_spoken if left or any(n.id == self.last_spoken for n in self.present) else None
-        people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire")]
+        people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire", "companion")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
         wares_all = [f"{w.id}: {w.name} - {money.words(w.price)} (sold by {n.label()}, id {n.id})"               # (f333) the id alone first: the model copies the label it is shown
@@ -2007,7 +2013,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"trusted face: {npc.name} starts at trust {npc.trust}")
         check_note = getattr(self, "pending_check", "")
         self.pending_check = ""
+        was, self.buffering = self.buffering, True                              # (f384) two jobs handed in are told in one passage
         handed = self.turn_in(npc.id) if self.player.quests else []             # (f378) finished work is handed in by speaking to who pays
+        self.buffering = was
         if handed:
             check_note = (check_note + " [THE GAME HAS DECIDED: the stranger has handed in " + "; ".join(handed)
                           + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()

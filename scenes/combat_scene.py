@@ -407,11 +407,12 @@ class CombatScene:
         return generate("combat_interpret", cp.INTERPRET_SYSTEM, cp.interpret_request(abilities, enemies, text, usable, allies),
                         CombatIntent, temperature=0.2, max_tokens=200)
 
-    ORDER_WORDS = (
+    ORDER_WORDS = (                                  # (f384) any form of the verb ("Fenris attacks the troll"), and the ways a blow is asked for
         ("hold", r"\b(hold (back|off|here)|stay back|hang back|stand down|stand back|keep back|stay out of it)\b"),
-        ("heal", r"\b(heal|mend|tend|patch me|bandage|look after me)\b"),
-        ("guard", r"\b(guard|protect|cover|shield|watch over|defend me|stay (close|near|with) me|stand (by|with) me|have my back|watch my back)\b"),
-        ("focus", r"\b(take|attack|kill|hit|focus|target|go for|strike|cut down|finish off)\b"),
+        ("heal", r"\b(heal|mend|tend|patch me|bandage|look after me)(?:s|es|ed|ing)?\b"),
+        ("guard", r"\b(guard|protect|cover|shield|watch over|defend me|stay (close|near|with) me|stand (by|with) me|have my back|watch my back)(?:s|es|ed|ing)?\b"),
+        ("focus", r"\b(take|attack|kill|hit|focus|target|go for|strike|cut down|finish off|shoot|loose|bite|maul|savage|tear into|grab|seize|pin|"
+                  r"tackle|charge|rush|fire (?:a |an |your |another )?(?:bolt|arrow|shot)|fire at|open fire|hold [^,.;]*\bdown)(?:s|es|ed|ing)?\b"),
     )
 
     NOT = r"\b(don'?t|do not|stop|quit|no more|never|not|no longer|cease)\b"
@@ -441,7 +442,7 @@ class CombatScene:
         if "?" in text:                                  # a question is for talking, not an order
             return None
         low = " " + text.lower() + " "
-        allies = [a for a in self.fight.allies() if a.alive and a.ally_role]
+        allies = [a for a in self.fight.allies() if a.alive and (a.ally_role or combat.is_companion(a))]       # (f384) the animal companion too
         if not allies:
             return None
         named = [a for a in allies if re.search(r"\b" + re.escape(a.name.split()[0].lower()) + r"\b", low)]
@@ -833,7 +834,7 @@ class CombatScene:
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
                                           looks=self.ability_looks()),                                                           # (f373)
-                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
+                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
         text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
@@ -1151,6 +1152,7 @@ class CombatScene:
         noticed = [items.display_name(i) if i.rarity == "legendary" else inventory.label(i) for i in found]
         if coins:
             noticed.append("a few coins")
+        noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
         fallen = ", ".join(combat.who(e) for e in dead) or "no one - the rest yielded"
         if yielded:
             fallen += f". THOSE WHO YIELDED: {', '.join(combat.who(e) for e in yielded)}"

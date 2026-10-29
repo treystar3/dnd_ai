@@ -1065,6 +1065,10 @@ class DialogueFrame(BaseModel):
         if m:
             raise ValueError(f"after shows them going back to what they were doing ('{m.group(0)}'): end on what the words changed, "
                              "or leave after empty")
+        for field in (self.before, self.after):                     # (f384) 'BEFORE: ALREADY SHOWN THIS VISIT' was printed as the frame
+            caps = re.search(r"\b[A-Z]{3,}(?:\s+[A-Z]{2,}){1,}\b", field or "")
+            if caps:
+                raise ValueError(f"'{caps.group(0)}' is a heading of the request, not prose: write what is seen, or leave it empty")
         ctx = _ctx(info)
         mine = {str(s).split()[0].lower() for s in ctx.get("speaker", ()) if str(s).strip()}
         theirs = {str(o).split()[0].lower(): str(o) for o in ctx.get("others", ()) if str(o).strip()}

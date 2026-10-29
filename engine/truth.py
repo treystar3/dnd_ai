@@ -197,7 +197,7 @@ class View:
                 continue
             if v.kind == "npc":
                 who = p.name if (p.kind == "npc" and p.local and p.local in v.groups) else (p.name if p.kind == "npc" else p.desc)
-                out.append(who if p.kind == "npc" else f"a stranger here with the one in front of you - {who}".strip())
+                out.append(who if p.kind == "npc" else (p.desc if p.kind == "companion" else f"a stranger here with the one in front of you - {who}".strip()))
             elif v.kind in ("hire", "maren"):                 # (f315) the party knows its own by name, and the townsfolk as the player does - unless they are neighbours
                 who = p.name if (p.kind != "npc" or (p.local and p.local in v.groups)) else p.label
                 out.append(f"{who}: {p.desc}".strip().rstrip(":"))
@@ -292,6 +292,11 @@ def _present_people(ws) -> list[Present]:
     for hid, name, desc, doing in ws.hire_people():
         out.append(Present(id=hid, name=name, label=name, desc=desc, doing=doing, kind="hire",
                            note=f"hired, travelling with the player; speech to them is talk with target {hid}"))
+    for comp in [c for c in getattr(ws.player.character, "companions", None) or [] if c.active and c.name]:     # (f384) Fenris, at your side
+        kind_of = (ws.world.bestiary[comp.creature].name.lower() if comp.creature in ws.world.bestiary else (comp.kind or "animal"))
+        out.append(Present(id=f"companion:{comp.id}", name=comp.name, label=comp.name, desc=f"the player's own {kind_of}, at their side",
+                           doing="at the player's side", kind="companion",
+                           note="the player's own companion: telling it to track, sniff out or hunt something is search; it is not talked with"))
     if ws.wildlife:
         out.append(Present(id="wildlife", name=", ".join(e.name for e in ws.wildlife[1]), label=", ".join(e.name for e in ws.wildlife[1]),
                            desc="a creature, keeping its distance", doing="", kind="wildlife"))
