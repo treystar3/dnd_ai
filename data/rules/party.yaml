@@ -27,12 +27,20 @@ stealth:
   scout_each: 5               # scouts help you read the camp (cap below)
   scout_cap: 10
 
+# (f385) blurbs name no gender (a hire's own is kept as their pronoun); fights_as is how the fight narrator must show them fighting: a
+# mage's "bolt" became a crossbow when nothing said what it was.
 roles:
-  fighter: {profile: guardian, attacks: [sword], fee: 1.0, blurb: ["a scarred sellsword", "a shield-bearer from the border wars", "a grim veteran of three sieges", "a broad-shouldered mercenary"]}
-  archer:  {profile: scout,    attacks: [bow],   fee: 1.0, blurb: ["a keen-eyed bowman", "a hunter turned hireling", "a quiet markswoman", "a ranger with a longbow"]}
-  priest:  {profile: support,  attacks: [mace],  fee: 1.2, heals: true, blurb: ["a field priest with steady hands", "a wandering healer of the old faith", "a cleric who has seen too much", "a brisk temple medic"]}
-  rogue:   {profile: striker,  attacks: [dagger], fee: 1.0, scout: true, blurb: ["a lean cutpurse gone straight", "a quiet blade who likes the dark", "a former spy with light feet", "a nimble sneak-thief"]}
-  mage:    {profile: support,  attacks: [bolt],  fee: 1.3, blurb: ["a hedge-mage with scorched sleeves", "a battle-wizard in a patched robe", "a young arcanist with something to prove", "a sullen spellcaster"]}
+  fighter: {profile: guardian, attacks: [sword], fee: 1.0, fights_as: "a sword and a shield, up close",
+            blurb: ["a scarred sellsword", "a shield-bearer from the border wars", "a grim veteran of three sieges", "a broad-shouldered mercenary"]}
+  archer:  {profile: scout,    attacks: [bow],   fee: 1.0, fights_as: "a bow, loosing arrows from behind the line",
+            blurb: ["a keen-eyed hunter with a bow", "a hunter turned hireling", "a quiet sharpshooter", "a ranger with a longbow"]}
+  priest:  {profile: support,  attacks: [mace],  fee: 1.2, heals: true, fights_as: "a mace, and prayers that close wounds with a touch of the hands",
+            blurb: ["a field priest with steady hands", "a wandering healer of the old faith", "a cleric who has seen too much", "a brisk temple medic"]}
+  rogue:   {profile: striker,  attacks: [dagger], fee: 1.0, scout: true, fights_as: "a pair of daggers, quick and close",
+            blurb: ["a lean cutpurse gone straight", "a quiet blade who likes the dark", "a former spy with light feet", "a nimble sneak-thief"]}
+  mage:    {profile: support,  attacks: [bolt],  fee: 1.3, fights_as: "a staff, and bolts of force cast from the hand: never a bow, a crossbow or anything loosed",
+            blurb: ["a hedge-mage with scorched sleeves", "a battle-wizard in a patched robe", "a young arcanist with something to prove", "a sullen spellcaster"]}
+maren_fights_as: "a greatsword, two-handed, in plate armour"
 
 profiles:
   striker:  {strength: 14, dexterity: 15, constitution: 11, intelligence: 6, wisdom: 10, charisma: 6}

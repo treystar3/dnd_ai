@@ -2,6 +2,7 @@
 tracking and the fight, can be talked to throughout, and a troll that should not be there turns up. The rules and the state are in
 engine/mentor.py; the fixed words are in data/world/mentor.yaml. Her free answers come from the model with a locked fact sheet, so
 she can't invent a rule. The first hunt can't be lost: the player's health holds at 1."""
+from engine import entities
 from engine import combat, encounters, inventory, mentor, money, pools, voice_rules
 import config
 import re
@@ -68,9 +69,10 @@ class MentorActions:
                               wp.dialogue_request(self.time_label(), self.place, others, label, looks, doing, manner, not introduced,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["shows"],
                                                   reach=within, moment=moment, already=self.shown_lines(),
-                                                  why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"]),
+                                                  why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"],
+                                                  who_is=entities.who_is_who(self, also=["maren"])),       # (f392)
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)}, tails=False)
+                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)})
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either
                     before, after = (re.sub(r"\bMaren( Holt)?\b", "the woman", x) for x in (before, after))
@@ -144,16 +146,14 @@ class MentorActions:
         return (r.reply if reply_to else ""), r.lines
 
     def mentor_settle(self) -> None:
-        """The tutorial is over: she becomes a person of the world, at the guild hall, who remembers the player."""
+        """The tutorial is over: she keeps a record as a person of the world who remembers the player, and (f382) leaves Parth on the work
+        the capital sent her to do; she is in no place, and the town hears she has gone."""
         if self.store.npc_exists("maren"):
             return
         hall = next((p.id for p in self.world.places.values() if p.type == "guild" and p.parent == M["gate"]["place"]), None) or self.player.location
         npc = mentor.make_npc(self.player, self.minutes, self.store.meta.turn, hall)
         self.store.save_npc(npc)
-        st = self.store.load_place(hall)
-        if npc.id not in st.residents:
-            st.residents.append(npc.id)
-            self.store.save_place(st)
+        mentor.moved_on(self.store, self.world, npc, self.minutes)
 
     def mentor_journal_entry(self):
         """While the lesson runs she is not yet a person of the world, but you know her name, so the journal has her: (town, entry) or None."""

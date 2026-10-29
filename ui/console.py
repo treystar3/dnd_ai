@@ -110,6 +110,16 @@ def home_done() -> None:
     """The home page is finished and a game is opening."""
 
 
+def creation(data: dict) -> bool:
+    """(f388) One step of character creation as a page (scenes/goddess.py show): True when a window drew it; the terminal returns False
+    and the scene prints the step as text."""
+    return False
+
+
+def creation_done() -> None:
+    """(f388) Creation is over: a window closes its pages."""
+
+
 def setup_progress(frac: float, text: str) -> None:
     print(f"\r  {text}  {int(frac * 100):>3}%   ", end="", flush=True)
     if frac >= 1:
@@ -547,6 +557,7 @@ def show_help() -> None:
     print("  #prebuff  the buffs you cast before the first blow of a fight you start, e.g. #prebuff Stoneskin, Frost Armor (#prebuff none clears)")
     print("  #allocate spend attribute points from leveling, e.g. #allocate str 3 dex 2")
     print("  #enchant  see enchantments an enchanter here can bind into your gear")
+    print("  #pronoun  how people see you: #pronoun she, #pronoun he or #pronoun they")
     print("  #resetlayout  put the info pane's buttons back in their original order (drag a button to move it; game window only)")
     print("  #help     this list")
     print("  quit      save and exit")
@@ -619,3 +630,28 @@ def status_block(when: str, weather: str, place_line: str, spot_line: str,
     print()
     for line in lines:
         print(f"  {line}")
+
+
+OUTPUTS = ("say", "narrate", "npc_says", "dialogue", "note", "wait", "ledger")
+
+
+def guard_outputs() -> None:
+    """(f391) Every line the player sees passes the output gate (engine/hygiene.py) on its way out: no JSON tail, code, placeholder,
+    escape or 'the player' reaches the page, whoever drew the line. The terminal's functions are gated as this module loads; the window
+    keeps them (it only takes stdout); a night's harness, which puts its own in place, calls this again. Gating twice is a no-op."""
+    import sys
+    from engine import hygiene
+    me = sys.modules[__name__]
+    for name in OUTPUTS:
+        fn = getattr(me, name)
+        if getattr(fn, "gated", False):
+            continue
+
+        def gated(*args, _fn=fn, **kwargs):
+            return _fn(*(hygiene.clean(a) if isinstance(a, str) else a for a in args),
+                       **{k: hygiene.clean(v) if isinstance(v, str) else v for k, v in kwargs.items()})
+        gated.gated, gated.inner = True, fn
+        setattr(me, name, gated)
+
+
+guard_outputs()

@@ -2,6 +2,7 @@
 anything is there; the model invents what; the engine checks it, keeps it, and puts it on the map."""
 
 import random
+import re
 
 from engine import checks, clock, discovery, pulse
 from engine.discovery import X
@@ -11,7 +12,34 @@ from llm.gateway import LLMError, generate
 from ui import console
 
 
+NOT_A_SPOT = {"north", "south", "east", "west", "back", "away", "road", "path", "trail", "track", "tracks", "area", "place", "side",
+              "edge", "there", "here", "into", "toward", "towards", "deeper", "further", "beyond", "around", "near", "nearby", "other",
+              "over", "from", "with", "that", "this", "where", "somewhere", "something", "anywhere", "hidden", "secret", "shortcut"}
+
+
 class ExploreActions:
+
+    def part_of_here(self, dest: str) -> bool:
+        """(f381) Is `dest` a spot inside where the player is: named by this place's own description, or by the passage they just read?
+        At the Tidepool Caves, 'the dry chamber' is in the place's description and 'the dry chamber's threshold' was where the tracks
+        led; going there was read as setting out to find somewhere new, and the model was asked to invent it."""
+        words = [w for w in re.findall(r"[a-z]+", (dest or "").lower()) if len(w) >= 4 and w not in NOT_A_SPOT]
+        seen = " ".join(list(self.place.visible) + list(self.recent_narration[-1:])).lower()
+        return bool(words) and any(re.search(rf"\b{re.escape(w)}", seen) for w in words)
+
+    def within_place(self, dest: str, text: str) -> None:
+        """(f381) A few steps to that spot: no hours, no invention, nobody added."""
+        self.facade_met("facade", text, f"walked to '{dest}', named by the place or the passage, with nothing real there")
+        self.end_conversation()
+        self.advance(X.get("within_minutes", 5))
+        self.narrate(f"The player walks a short way, still within {self.place.name}, to {dest}. Describe getting there and what is "
+                     "there, from what this place is known to hold; add no one and nothing of value.", text)
+
+    def facade_met(self, kind: str, text: str, why: str) -> None:
+        """(f393) The player reached for something and the world had nothing behind it: a facade when the place or the passage named
+        it, a dead end otherwise. Counted (refusals log), so a night says how often the stage set showed (GOAL.md)."""
+        from engine import refusals
+        refusals.note(kind, text, why, self.player.location, self.store.meta.turn)
 
     def ensure_discoveries(self) -> None:
         discovery.apply_all(self.world, self.store.load_discoveries())
@@ -32,6 +60,8 @@ class ExploreActions:
             console.note("Not from here. Get to a proper place first.")
             self.halted = True
             return
+        if self.explore_parts(intent, text):                       # (f394) further into this place, or to a part of it
+            return
         seek = (intent.seek or intent.destination or text).strip()
         data = self.store.load_discoveries()
         lead = discovery.match_lead(data, here, seek, self.minutes)
@@ -39,11 +69,13 @@ class ExploreActions:
         self.end_conversation()
         self.advance(self.rng.randint(*[h * 60 for h in X["hours"]]))
         if not discovery.room(data, here) or self.rng.random() >= chance:
+            self.facade_met("facade" if self.part_of_here(seek) else "dead_end", text, f"looked for '{seek}' and found nothing new")
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. They find nothing new "
                          f"- only more of {place.name}. Describe the search and its fruitlessness.", text)
             return
         found = self.invent_discovery(here, seek, lead, data)
         if not found:
+            self.facade_met("facade" if self.part_of_here(seek) else "dead_end", text, f"looked for '{seek}': a lead came to nothing")
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. A promising lead "
                          f"comes to nothing. Describe that.", text)
             return

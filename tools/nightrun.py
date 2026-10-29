@@ -86,6 +86,8 @@ class Run:
         self.reason = ""
         self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
         self.passage: list[str] = []                 # (f368) everything the game said since the last line: what the bot's next line answers
+        self.turn_notes: list[str] = []              # (f391) the notes the game showed this turn (refusals among them), kept in the turn row
+        self.cast: dict[str, dict] = {}              # (f391) everyone who travelled with the player, as the game knew them: for the summary's checks
 
     # ---- the console: everything the game prints goes to the transcript, and the first story line stamps the time
     def install_console(self) -> None:
@@ -106,6 +108,7 @@ class Run:
         console.header = lambda text: None
         console.debug = lambda message: None
         console.ask = self.ask
+        console.guard_outputs()                      # (f391) the transcript gets what the player would see, through the output gate
 
     def seen(self, who: str, text: str) -> None:
         if self.first_word is None and self.current is not None:
@@ -119,6 +122,7 @@ class Run:
             if self.current is not None:
                 self.current["hesitated"] = True
         self.passage.append(text.strip())
+        self.turn_notes.append(text.strip()[:200])
         self.transcript.write(f"_{text.strip()}_\n\n")
 
     # ---- the model client: every call counted against the turn it served
@@ -165,6 +169,7 @@ class Run:
             return "quit"
         text, kind = self.bot.decide()
         self.passage = []
+        self.turn_notes = []
         self.sub_answers = 0
         self.current = {"n": len(self.rows) + 1, "time": datetime.now().isoformat(timespec="seconds"), "kind": kind, "text": text,
                         "where": self.bot.where(), "turn": self.bot.ws.store.meta.turn, "level": self.bot.c.level,
@@ -188,7 +193,9 @@ class Run:
                    background_calls=sum(1 for c in chats if not c["main"]),
                    embed_calls=sum(1 for c in embeds if c["main"]), embed_seconds=round(sum(c["seconds"] for c in embeds if c["main"]), 2),
                    schemas=dict(collections.Counter(c["schema"] for c in chats if c["main"])),
-                   hesitated=row.get("hesitated", False), level_after=self.bot.c.level, deaths=self.bot.c.deaths)
+                   hesitated=row.get("hesitated", False), level_after=self.bot.c.level, deaths=self.bot.c.deaths,
+                   notes=self.turn_notes[-8:], state=self.state_now(),
+                   outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
         if not row["hesitated"]:
             self.hesitations = 0
         self.rows.append(row)
@@ -198,6 +205,38 @@ class Run:
               f"{row['chat_calls']} calls {row['chat_seconds']:.1f}s" + (f"  first word {row['first_word']}s" if row["first_word"] else "")
               + ("  (model failed)" if row["hesitated"] else ""), flush=True)
         self.current = None
+
+    def last_outcomes(self) -> list[dict]:
+        """(f394) The turn's record (engine/ledger.py): what the engine did, as typed rows."""
+        try:
+            from engine import ledger
+            return list(ledger.LAST)
+        except Exception:
+            return []
+
+    def state_now(self) -> dict:
+        """(f391) The state the summary's consistency checks read, as the turn ends: where the player is and what the game believes about
+        it (a dungeon, the party's mode), who travels with them, the captives held."""
+        try:
+            from engine import clock, party
+            ws = self.bot.ws
+            p = ws.player
+            for m in p.party:
+                if m.get("name"):
+                    who = self.cast.setdefault(m["name"], {"kind": "hire", "pronoun": party.pronoun_of(m), "people": m.get("people", ""),
+                                                           "first_turn": ws.store.meta.turn})
+                    who["last_turn"] = ws.store.meta.turn
+            for comp in getattr(p.character, "companions", []) or []:
+                who = self.cast.setdefault(comp.name, {"kind": "companion", "pronoun": party.companion_pronoun(comp), "people": comp.creature,
+                                                       "first_turn": ws.store.meta.turn})
+                who["last_turn"] = ws.store.meta.turn
+            today = clock.day(ws.minutes)
+            held = [today - int(v.get("day", today)) for v in (p.prisoners or {}).values()]
+            return {"place": p.location, "spot": getattr(p, "spot", ""), "minutes": ws.minutes, "delve": bool(p.delve), "at_dungeon": ws.dungeon_here() is not None,
+                    "party_mode": getattr(p, "party_mode", "with"), "party": [m.get("name", "") for m in p.party],
+                    "prisoners": len(held), "prisoner_days": max(held, default=0)}
+        except Exception as e:
+            return {"error": str(e)[:120]}
 
     def done(self) -> str:
         if self.stop_when is not None:
@@ -224,8 +263,9 @@ class Run:
         self.close_turn()
         for f in (self.turn_file, self.transcript, self.errors):
             f.close()
+        from engine import hygiene
         info = {"ended": datetime.now().isoformat(timespec="seconds"), "turns": len(self.rows), "reason": self.reason,
-                "hours": round((time.time() - self.started) / 3600, 2), **extra}
+                "hours": round((time.time() - self.started) / 3600, 2), "cast": self.cast, "hygiene": dict(hygiene.REPAIRS), **extra}
         (self.out / "run.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
 
 
@@ -489,6 +529,9 @@ def main() -> None:
         die(f"--persona must be one of: {', '.join(PERSONAS)}")
     level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
     char, spec = simlib.make_character(args.cls, rng, perks=True)
+    from engine import look                                             # (f388) a look of its own, seeded, as a player chooses one first
+    seen = look.surprise(random.Random(f"{args.seed}:{args.cls}:look"))
+    char.pronoun, char.people, char.look, char.look_text = seen["pronoun"], seen["people"], {k: seen[k] for k in ("look", "flags", "extra")}, look.describe(seen)
     if level > 1:
         leveling.level_up(char, level - 1)
         spend_points(char, spec)
@@ -564,7 +607,8 @@ def main() -> None:
                     "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
-                    "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
+                    "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
+                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD}})          # (f387) which voice this night tried
         if not args.stub:
             from llm.gateway import unload
             unload()

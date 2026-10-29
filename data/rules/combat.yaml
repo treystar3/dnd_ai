@@ -204,6 +204,7 @@ encounters:
   chance_on_search: 0.65    # actively searching or hunting a dangerous place
   search_minutes: 20
   tracker_bonus: 0.15       # extra search chance for characters with the Tracker passive
+  trail: {bonus: 0.25, fresh_minutes: 120}   # (f381) signs a search turned up: following them hunts that creature, with better odds
   roster_size: 6
   elite_chance: 0.05
   elite_scaling: {from_level: 90, full_level: 140, health: 1.6, damage: 1.8}   # on top of the elite rank multipliers: x1.6 health, x1.8 damage by level 140

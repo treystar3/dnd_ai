@@ -5,6 +5,16 @@ NUM_CTX = 32768
 # core of its host while its quota is a dozen needs this set (the night script sets it from the quota), or the runner's threads fight
 # for the quota and the card waits on them; DND_NUM_THREAD in the environment sets it without an edit.
 NUM_THREAD = int(__import__("os").environ.get("DND_NUM_THREAD", "0") or 0)
+# (f387) For a night that tries the world's voice warmer: DND_TEMP_ADD is added to the temperature of every call already warm (0.5 and up:
+# the narrator, the frames, everyone who speaks) - never the cold ones that read the player's line or judge (0.1-0.4), and never the night
+# bot's own lines (BOT_TASKS), so two nights differ only in how the world writes. DND_REPEAT_ADD is added to repeat_penalty wherever a
+# call sets one (prose and speech). (f393) +0.15 and +0.1 are the default since the night that tried them: wording reused from earlier
+# passages roughly halved, and townsfolk replies sent back halved; the words of other alphabets it brought into one narration in a
+# hundred are sent back by the content guard (f390). DND_TEMP_ADD=0 DND_REPEAT_ADD=0 gives the voice as it was.
+TEMP_ADD = float(__import__("os").environ.get("DND_TEMP_ADD", "0.15") or 0)
+REPEAT_ADD = float(__import__("os").environ.get("DND_REPEAT_ADD", "0.1") or 0)
+WARM_FROM = 0.5
+BOT_TASKS = ("player_line",)
 DEFAULT_TEMPERATURE = 0.8
 LOG_PATH = "logs/llm_calls.jsonl"
 PULSE_LOG_PATH = "logs/pulse.jsonl"   # (f355) what the world did: every pulse event and every one the player met (engine/pulselog.py, tools/world_report.py)

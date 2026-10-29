@@ -87,6 +87,7 @@ class Place(BaseModel):
     guard: str = ""           # (f313) how much of the watch is about: none | light | some | heavy; by scale when empty
     districts: list[str] = []     # (f313) named quarters people can direct you to ("the river market"); the town profiles fill these
     audience: dict = {}           # (f320) {keeper: role, sees: [roles], reputation?}: the people of those roles are met here only when admitted (engine/court.py)
+    features: list[dict] = []     # (f394) the place's own parts (engine/features.py): {id, name, kind, what, links?, open?, holds?, clue?, entry?}
 
     @field_validator("connects", mode="before")
     @classmethod

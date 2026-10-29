@@ -68,7 +68,7 @@ check("a failure is one event, with the attempt in it", len(fight.story) == 1 an
 checks.roll = real_roll
 
 # ---- a round of a fight is not rewritten for trailing participles
-check("the combat narrator asks for no participle rewrite", "tails=False" in inspect.getsource(cs.CombatScene.narrate_round))
+check("no narration is rewritten for trailing participles (f382; fights first, f380)", "tails" not in inspect.signature(__import__("scenes.voice", fromlist=["fresh"]).fresh).parameters)
 
 # ---- walking into the guild hall
 shutil.rmtree("saves/playthrough2_test", ignore_errors=True)

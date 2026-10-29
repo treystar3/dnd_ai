@@ -11,6 +11,10 @@ SPOKEN ALOUD. When MARKUP is given below, follow it exactly. Unmarked text is re
 Split their message into the separate things they do, in order - usually one, at most three. "Thank Bram, go upstairs
 and sleep" is three actions. Small flourishes that are not actions of their own (a smile, scratching their head,
 pointing, a gesture) belong to the action they accompany. Several sentences spoken to the same person are one talk.
+Words for the whole party ("tell everyone...", "we need to...") are ONE talk, to one of them: the others hear it.
+A proposal to go somewhere or do something ("let's head for the Ironcrown Peaks", "we need to head toward Parth", "can we go to the
+inn now?", "may I search the tidepools for crabs?") is the player doing it - a move, a search, a wait - not talk, unless it asks the
+companions to choose ("should we go north or east?").
 
 Each action has:
 kind:
@@ -131,11 +135,21 @@ def _sentences(lines) -> str:
     return " ".join(s if s.endswith((".", "!", "?")) else s + "." for s in (" ".join(str(x).split()) for x in lines) if s)
 
 
+def _fallen_head() -> str:
+    from engine.truth import T
+    return T["headers"]["fallen"]
+
+
+def _who_head() -> str:
+    from engine.entities import WHO_HEAD
+    return WHO_HEAD
+
+
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
                       news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
-                      unlooked: int = 0) -> str:
+                      unlooked: int = 0, who: list[str] = (), fallen: list[str] = (), parts: list[str] = (), told: list[str] = ()) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
@@ -153,6 +167,11 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (("ALREADY SHOWN THIS VISIT (the player has read these here; do not describe them again - say what is new):\n"
             + "\n".join(f"  - {x}" for x in already) + "\n") if already else "")
         + (f"WITH THE PLAYER (companions the event has act; show only what the event says they do): {', '.join(companions)}\n" if companions else "")
+        + (f"{_who_head()}: {'; '.join(who)}\n" if who else "")
+        + (f"{_fallen_head()}: {'; '.join(fallen)}\n" if fallen else "")
+        + (("THE PARTS OF THIS PLACE (real: the player can go to each; name no other part of it):\n" + "\n".join(f"  - {x}" for x in parts) + "\n")
+           if parts else "")
+        + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(told) + "\n") if told else "")
         + (f"WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): {', '.join(worn)}\n" if worn else "") + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
@@ -198,11 +217,16 @@ EXCHANGE_SYSTEM = DM_VOICE + """
 You are framing a short exchange between several people. The game will print their spoken lines between your two pieces of prose,
 exactly as given - you never repeat them, quote them, paraphrase them or add to them, and nobody else speaks.
 
-before: how they fall into talking - where they are, what they are doing, who looks at whom - built only from the scene.
-after: how the talk ends or trails off, and when it fits, the place around them: the road, the fire, the room, the weather.
+before: how they fall into talking - who turns to whom, what their hands are doing - built only from the scene; empty when the talk
+  simply starts.
+after: how the talk ends or trails off: a look, a shrug, someone moving off. Never the room, the light, the weather or the place around
+  them as a closing shot. Leave it empty when the last line is the end.
 
 THE FRAME SHOWS, when given, says what the frame is about. Never repeat details already used in RECENT NARRATION.
 Rules:
+- The frame is about the people talking. OTHERS PRESENT are there; mention one only if they react to the talk, and never go round the
+  room describing them. (f382)
+- The player is "you", never named and never in the third person.
 - Describe only what the SCENE contains. Never add people, items, events or dialogue of your own.
 - Call people only by the names given.
 - """ + __import__("engine.quirks", fromlist=["HANDS_RULE"]).HANDS_RULE + """
@@ -211,12 +235,13 @@ Respond only with JSON matching the schema."""
 
 
 def exchange_request(time_label: str, place, speakers: list[str], others: list[str], first: str, last: str, recent: list[str],
-                     frame: str, player: str = "", reach: list[str] | None = None, moment: str = "easy") -> str:
+                     frame: str, player: str = "", reach: list[str] | None = None, moment: str = "easy", who: list[str] = ()) -> str:
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
         f"WHO IS TALKING: {'; '.join(speakers)}\nOTHERS PRESENT: {'; '.join(others) or 'no one else'}\n"
-        + (f"THE PLAYER: {player}\n" if player else "") + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
+        + (f"{_who_head()}: {'; '.join(who)}\n" if who else "")
+        + (f"THE PLAYER: {player} (always 'you' in the frame)\n" if player else "") + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
         f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n\n"
         f'THE FIRST LINE (printed by the game, do not repeat): "{first}"\n'
         f'THE LAST LINE (printed by the game, do not repeat): "{last}"\n'
@@ -228,13 +253,14 @@ def dialogue_request(time_label: str, place, others: list[str], who: str, looks:
                      manner: str, first: bool, player_did: str, speech: str, gesture: str, leaving: bool,
                      recent: list[str], frame: str = "",
                      reach: list[str] | None = None, moment: str = "easy", why: list[str] | None = None, already: list[str] | None = None,
-                     worn: list[str] | None = None) -> str:
+                     worn: list[str] | None = None, who_is: list[str] = ()) -> str:
     """why (f347): the engine's reasons this line gets a frame at all; already: what the player has read about this place this visit;
     worn (f349): words recent passages leaned on. frame (f375): what the frame shows (a companion's, Maren's), never how long it is."""
     visible = "; ".join(place.visible)
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
-        f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\n" + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
+        f"OTHERS PRESENT: {'; '.join(others) or 'no one else'}\n" + (f"{_who_head()}: {'; '.join(who_is)}\n" if who_is else "")
+        + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
         + (f"WHY THIS LINE GETS A FRAME: {'; '.join(why)}\n" if why else "")
         + (("ALREADY SHOWN THIS VISIT (do not describe these again): " + "; ".join(already) + "\n") if already else "")
         + (("WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): " + ", ".join(worn) + "\n") if worn else "") + "\n"

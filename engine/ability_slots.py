@@ -382,7 +382,7 @@ def _assign_channel(slots, interp, fams, rng):
     """Some single-target attacks become channeled: mana struck through the weapon, at melee or extended reach."""
     C = P["channel"]
     if not fighter(interp) or getattr(interp, "uses_companions", False):
-        return                                  # (f260) a channeled strike needs a melee weapon: casters carry a focus, tamers a companion
+        return                                  # (f260) a channeled strike needs a melee weapon: casters carry a focus; tamers fight through their companion (armed too since f389, with any weapon)
     banned = forbidden_reach(interp)
     able = [s for s in slots if s["effect"] == "damage" and s["reach"] != "area" and _channel_reach(s, banned)]
     hybrid = mixed(interp)

@@ -102,6 +102,46 @@ def _v6_maren_voice(store) -> None:
     store.save_npc(mentor.own_voice(store.load_npc("maren"), player))
 
 
+def _v7_maren_moves_on(store) -> None:
+    """(f382) Maren no longer waits at the guild hall once the lesson is over: she has left Parth on the capital's work. A save where she
+    was made a person of the world by an older build (f374 to f381) has her taken out of the hall's residents and marked gone."""
+    if not store.npc_exists("maren"):
+        return
+    from engine import mentor
+    from world.loader import load_world
+    npc = store.load_npc("maren")
+    if npc.gone:
+        return
+    npc.gone = mentor.M["npc"]["gone"]
+    store.save_npc(npc)
+    minutes = getattr(store.meta, "minutes", 0) or 0
+    mentor.moved_on(store, load_world(), npc, minutes)
+
+
+def _v8_hire_pronouns(store) -> None:
+    """(f385) Every hire keeps she or he: the roster drew a gender with each name and never kept it, so the narrator called one hire she,
+    he and they in one fight. An older save's hires get theirs back from their week's roster, drawn again (engine/party.py pronoun_of);
+    a tamed companion gets one once."""
+    try:
+        player = store.load_player()
+    except Exception:
+        return
+    from engine import party
+    for m in player.party:
+        party.pronoun_of(m, store.meta.seed, player.party_used)
+    for c in player.character.companions:
+        party.companion_pronoun(c)
+    store.save_player(player)
+
+
+def _v9_entities(store) -> None:
+    """(f392) The registry. Nothing is moved into it: what it keeps is registered as it happens (engine/entities.py), and an older save
+    simply starts with it empty."""
+    from storage.campaign import SCHEMA_V3
+    for stmt in [s.strip() for s in SCHEMA_V3.split(";") if s.strip()]:
+        store.execute(stmt)
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -109,6 +149,9 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (4, "the world renamed from Rivia to Meravia in everything the model wrote into the save", _v4_meravia),
     (5, "the capital renamed from Valecourt to Lethoria, its ids with it", _v5_lethoria),
     (6, "Maren after the lesson keeps the voice she was written with", _v6_maren_voice),
+    (7, "Maren leaves Parth once the lesson is over, on the capital's work", _v7_maren_moves_on),
+    (8, "every hire keeps the pronoun they were drawn with", _v8_hire_pronouns),
+    (9, "the registry of who someone is and what has become of them", _v9_entities),
 ]
 
 CURRENT = MIGRATIONS[-1][0]

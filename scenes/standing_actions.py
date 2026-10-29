@@ -122,7 +122,7 @@ class StandingActions:
             return
         if degree in ("strong success", "success"):
             standing.correct(self.store, self.player, deed["id"], self.minutes)
-            self.narrate("The player takes the time to set a false tale about themselves straight, and it is believed. Two sentences.", "")
+            self.narrate("The player takes the time to set a false tale about themselves straight, and it is believed.", "")      # (f384) no length
             console.note("You set the record straight. The tale is told true from now on.")
         else:
             console.note("You argue your case, but the tale has a life of its own. Nobody is convinced.")

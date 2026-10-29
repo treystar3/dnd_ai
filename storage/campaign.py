@@ -76,6 +76,7 @@ class PlayerState(BaseModel):
     guild_done: dict[str, int] = {}  # guild contracts completed, by letter
     quests: list[dict] = []        # contracts and personal requests taken on (see engine/quests.py)
     delve: dict | None = None      # inside a dungeon: {"dungeon", "floor", "chamber", "rest"}
+    spot: str = ""                 # (f394) the part of the place the player stands at (a feature's ref, engine/features.py), or "" anywhere
     reputation: dict[str, int] = {}  # how each town regards the player, -100..100
     visited: list[str] = []        # places the player has been
     last_in: dict[str, int] = {}   # (f331) town id -> the game minute the player last left it, for "since you were last here"
@@ -88,6 +89,8 @@ class PlayerState(BaseModel):
     relics_bought: list[str] = []  # named relics already bought (one of each exists)
     party: list[dict] = []         # hired adventurers with you: {"id", "name", "role", "level", "blurb", "arc"} (engine/party.py)
     party_mode: str = "with"       # "with" - they move and fight beside you; "hold" - they wait outside a camp and come when the alarm rings
+    party_hold_at: str = ""        # (f392) where the party was told to hold back: they fall in again when the player leaves it
+    owned: dict[str, list[str]] = {}   # (f392) what is someone's in this save, the dead's included: habit, target, detail, secret (engine/quirks.py)
     party_used: list[str] = []     # roster ids already hired or lost, so they do not reappear
     party_relations: dict = {}     # how two hires are with each other: "idA|idB" -> {"score", "dynamic", "day"} (engine/party.py)
     party_last_fight: dict = {}    # the last fight the party was in: {"minute", "won", "hard", "hurt": [names], "carried": [names]}
@@ -166,6 +169,16 @@ CREATE INDEX IF NOT EXISTS event_log_actor ON event_log (actor, seq);
 CREATE INDEX IF NOT EXISTS event_log_target ON event_log (target, seq);
 """
 
+SCHEMA_V3 = """
+CREATE TABLE IF NOT EXISTS entities (
+    ref TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL DEFAULT '', place TEXT NOT NULL DEFAULT '',
+    owner TEXT NOT NULL DEFAULT '', deadline INTEGER NOT NULL DEFAULT 0, json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS entities_kind ON entities (kind, state);
+CREATE INDEX IF NOT EXISTS entities_owner ON entities (owner, state);
+CREATE INDEX IF NOT EXISTS entities_place ON entities (place, state);
+"""
+
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS places (id TEXT PRIMARY KEY, json TEXT NOT NULL);
@@ -207,6 +220,7 @@ class CampaignStore:
         if fresh:                                         # a new database is created whole at the current schema and marked current;
             db.executescript(SCHEMA_V1)                   # an older one is brought forward step by step below (storage/migrations.py)
             db.executescript(SCHEMA_V2)
+            db.executescript(SCHEMA_V3)
             store.set_version(migrations.CURRENT)
             if (root / "campaign.json").exists():
                 store._import_legacy()
@@ -303,6 +317,37 @@ class CampaignStore:
         text = self._kv_text("campaign")
         if text:
             self.meta = CampaignMeta.model_validate_json(text)
+
+    # ---------- (f392) the registry: who someone is and what has become of them ----------
+
+    def save_entity(self, e) -> None:
+        with self._lock, self.transaction():
+            self._db.execute("INSERT INTO entities (ref, kind, state, place, owner, deadline, json) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                             "ON CONFLICT(ref) DO UPDATE SET kind = excluded.kind, state = excluded.state, place = excluded.place, "
+                             "owner = excluded.owner, deadline = excluded.deadline, json = excluded.json",
+                             (e.ref, e.kind, e.state, e.place, e.owner, int(e.deadline), e.model_dump_json()))
+
+    def load_entity(self, ref: str):
+        from core.models import Entity
+        with self._lock:
+            row = self._db.execute("SELECT json FROM entities WHERE ref = ?", (ref,)).fetchone()
+        return Entity.model_validate_json(row[0]) if row else None
+
+    def find_entities(self, kind: str = "", state: str | tuple = "", owner: str = "", place: str = "") -> list:
+        """Entities by kind, state (one or several), owner and place; any left empty is not a condition. Oldest first."""
+        from core.models import Entity
+        where, args = [], []
+        for col, val in (("kind", kind), ("owner", owner), ("place", place)):
+            if val:
+                where.append(f"{col} = ?")
+                args.append(val)
+        if state:
+            states = (state,) if isinstance(state, str) else tuple(state)
+            where.append(f"state IN ({', '.join('?' * len(states))})")
+            args += list(states)
+        sql = "SELECT json FROM entities" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY rowid"
+        with self._lock:
+            return [Entity.model_validate_json(r[0]) for r in self._db.execute(sql, args)]
 
     def load_world_state(self) -> dict:
         return self._kv("world_state") or {}

@@ -214,6 +214,7 @@ class Combat(BaseModel):
     ally_reserves: list[Fighter] = []   # a party told to hold back: they reach the fight on ally_arrive
     ally_arrive: int = 3
     order_round: int = 0           # the round the player last gave an order (one a turn, and it does not use the action)
+    ordered: list[str] = []        # (f383) the allies that order went to: telling the same ones again this turn corrects it
     record: bool = False           # keep a breakdown of every blow (the window's combat log); off while the odds are simulated
     serial: str = ""               # tells this fight's blows apart from another fight's
     hits: list[dict] = []          # this turn's blows: who, how the roll and the damage were worked out, what was dealt
@@ -2861,13 +2862,17 @@ ORDERS = ("focus", "guard", "hold", "heal")
 GUARD_CHANCE = 0.4          # an enemy that would strike the player strikes a guarding ally instead this often
 
 
-def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "") -> str:
-    """The player's one free order a turn to an ally. '' if given; else why not."""
+def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", same_command: bool = False) -> str:
+    """The player's one free order a turn to an ally. '' if given; else why not. (f383) The same allies told again this turn is a
+    correction and replaces the order (a misread order could not be put right); another ally waits for the next turn. same_command: the
+    rest of the party given one order together."""
     if kind not in ORDERS:
         return "That is not an order they know."
     if not ally.alive or ally.fled or ally not in combat.fighters:
         return f"{ally.name} is not in the fight."
-    if combat.order_round == combat.round and combat.round:
+    if combat.order_round != combat.round:
+        combat.ordered = []
+    if combat.order_round == combat.round and combat.round and ally.id not in combat.ordered and not same_command:
         return "You have already given an order this turn."
     if kind == "heal" and not (ally.ally_role == "priest" or ally.can_heal):
         return f"{ally.name} has no healing to give."
@@ -2880,6 +2885,8 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "") ->
         ally.order_target = t.id
     ally.order = kind
     combat.order_round = combat.round
+    if ally.id not in combat.ordered:
+        combat.ordered.append(ally.id)
     return ""
 
 

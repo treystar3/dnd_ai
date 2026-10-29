@@ -26,15 +26,16 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-# ---- Maren: her goodbye says where she will be, and her late party is hers
+# ---- Maren: her goodbye says she is going on her way (f382: she leaves Parth on the capital's work), and her party is hers
 ret = mentor.M["return"]
-check("her farewell says she will be at the hall, waiting on her own party", "at the hall" in ret["speech"][1] and "waiting on my lot" in ret["speech"][1]
-      and "won't wait" not in ret["speech"][1] and "hall" in ret["leave"] and any("guild hall a while yet" in i and "own late party" in i for i in ret["info"]), ret["speech"][1])
+check("her farewell says she is leaving Parth on her own work", "capital" in ret["speech"][1] and "on the road" in ret["speech"][1]
+      and "road out of town" in ret["leave"] and any("you leave Parth today" in i for i in ret["info"]), ret["speech"][1])
 char, _ = simlib.make_character("warrior", random.Random(1))
 pl = PlayerState(character=char, location="parth")
 npc = mentor.make_npc(pl, 600, 3, "guild_house")
-check("as a person of the world her late party is her own, and she knows the stranger came alone", "her own party" in npc.concern
-      and any("not the stranger's" in m.text and "came alone" in m.text for m in npc.memories), (npc.concern, [m.text for m in npc.memories][-1:]))
+check("as a person of the world her party is her own, and she knows the stranger came alone", "capital" in npc.concern
+      and any("not the stranger's" in m.text and "came alone" in m.text and "My own party" in m.text for m in npc.memories) and npc.gone,
+      (npc.concern, [m.text for m in npc.memories][-1:]))
 
 # ---- a scene at the hall
 world = load_world()

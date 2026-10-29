@@ -72,7 +72,7 @@ st.save_npc(clerk("Plain."))
 seen = []
 def write(names, first):
     seen.append(first)
-    return [{"speaker": names[0] if i % 2 == 0 else names[1], "text": "Right, then."} for i in range(5)]
+    return [{"speaker": names[0] if i % 2 == 0 else names[1], "text": ["Right, then.", "Pen ready?", "Name, please.", "Go on.", "Done."][i]} for i in range(5)]
 stub.exchange = write
 for pers, key in (("Curt and dismissive, bored.", "cold and rude"), ("Warm and kind.", "warm and kind")):
     SAID.clear(); seen.clear()
@@ -108,7 +108,7 @@ w.player.party_mode = "with"
 stub.exchange = lambda names, first: [{"speaker": names[0], "text": "Long road."}]
 SAID.clear()
 check("one companion says something to the player", w.party_banter([mem]) and len(SAID) == 1 and SAID[0][0] == "Bram", SAID)
-stub.exchange = lambda names, first: [{"speaker": names[i % len(names)], "text": "Mind your feet."} for i in range(3)]
+stub.exchange = lambda names, first: [{"speaker": names[i % len(names)], "text": ["Mind your feet.", "Watch the roots.", "Slow down."][i]} for i in range(3)]
 SAID.clear()
 _dr = dict(banter.B["banter"]["director"]); banter.B["banter"]["director"].update(second=-999)      # both have reason enough (director_test covers who)
 check("two companions talk to each other", w.party_banter([mem, mem2]) and {s for s, _ in SAID} == {"Bram", "Isel"}, SAID)
@@ -117,6 +117,7 @@ w._banter_loc = "parth"; w._banter_last = -10**9
 n = 0
 for k in range(40):
     st.meta.minutes = 5000 + k * 500
+    st.meta.turn += 1                                    # (f386) each arrival is a turn of its own: the party's lines are counted by turn
     w._banter_loc = "parth"; w._banter_last = -10**9
     SAID.clear()
     w.player.location = "greywood"
@@ -179,7 +180,7 @@ kinds = {w.banter_hook(live, "travel", _r.Random(i))[0] for i in range(40)}
 check("on a quiet road the hooks are the small stuff", kinds <= {"weather", "mundane", "arrival", "news", "player", "relationship", "personal"} and len(kinds) >= 2, kinds)
 banter.B["banter"]["director"]["first"] = banter.B["banter"]["director"]["second"] = -999     # these check a pair talking (director_test covers who speaks)
 seen_req = []
-stub.exchange = lambda names, first: (seen_req.append(first), [{"speaker": names[i % len(names)], "text": "Right."} for i in range(2)])[1]
+stub.exchange = lambda names, first: (seen_req.append(first), [{"speaker": names[i % len(names)], "text": ["Right.", "Fair."][i]} for i in range(2)])[1]
 SAID.clear(); w.party_banter(live, "travel")
 check("the request carries what brought it up and what each wants, and no manner-as-topic", "WHAT BROUGHT THIS UP" in seen_req[-1] and "WHAT EACH WANTS" in seen_req[-1] and "speaks of an old faith" not in seen_req[-1], seen_req[-1][-600:])
 check("what they said is kept against repeating", live[0].get("said") and live[1].get("said"), (live[0].get("said"), live[1].get("said")))

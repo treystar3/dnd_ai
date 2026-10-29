@@ -348,7 +348,7 @@ def try_find(ws, text: str = "") -> bool:
             ws.notice(ClueFound(minute=ws.minutes, place=here, thread=th["id"], what=path["name"]))
         elif degree == "partial":
             ws.narrate("The player searches here and has the feeling something is to be found, without putting a hand on it yet. "
-                       "Two sentences; nothing named.", text)
+                       "Nothing named.", text)      # (f384) no length
         else:
             ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search briefly.", text)
         return True

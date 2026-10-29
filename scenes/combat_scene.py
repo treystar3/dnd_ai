@@ -11,6 +11,7 @@ import re
 
 from core.models import Item
 import config
+from engine import entities
 from engine import ability_traits as AT
 from engine import accessories, bosses, inventory, clock, combat, death, events, items, leveling, loot, mentor, money, party, pools, taming
 from llm.contracts import AccessoryName, CombatIntent, GoddessLine, LegendaryName, LootName, Narration
@@ -407,12 +408,33 @@ class CombatScene:
         return generate("combat_interpret", cp.INTERPRET_SYSTEM, cp.interpret_request(abilities, enemies, text, usable, allies),
                         CombatIntent, temperature=0.2, max_tokens=200)
 
-    ORDER_WORDS = (
+    ORDER_WORDS = (                                  # (f384) any form of the verb ("Fenris attacks the troll"), and the ways a blow is asked for
         ("hold", r"\b(hold (back|off|here)|stay back|hang back|stand down|stand back|keep back|stay out of it)\b"),
-        ("heal", r"\b(heal|mend|tend|patch me|bandage|look after me)\b"),
-        ("guard", r"\b(guard|protect|cover|shield|watch over|defend me|stay (close|near|with) me|stand (by|with) me|have my back|watch my back)\b"),
-        ("focus", r"\b(take|attack|kill|hit|focus|target|go for|strike|cut down|finish off)\b"),
+        ("heal", r"\b(heal|mend|tend|patch me|bandage|look after me)(?:s|es|ed|ing)?\b"),
+        ("guard", r"\b(guard|protect|cover|shield|watch over|defend me|stay (close|near|with) me|stand (by|with) me|have my back|watch my back)(?:s|es|ed|ing)?\b"),
+        ("focus", r"\b(take|attack|kill|hit|focus|target|go for|strike|cut down|finish off|shoot|loose|bite|maul|savage|tear into|grab|seize|pin|"
+                  r"tackle|charge|rush|fire (?:a |an |your |another )?(?:bolt|arrow|shot)|fire at|open fire|hold [^,.;]*\bdown)(?:s|es|ed|ing)?\b"),
     )
+
+    NOT = r"\b(don'?t|do not|stop|quit|no more|never|not|no longer|cease)\b"
+    INSTEAD = {"heal": "focus", "guard": "focus", "hold": "focus", "focus": "hold"}      # told only what not to do: the other thing
+
+    def order_kind(self, low: str) -> str:
+        """(f383) Which order the line gives, read past the ones it says not to give: "do not heal me anymore, focus on attacking" was read
+        as heal, the first pattern in the table to match anywhere. An order inside a clause with a not before it, or anymore after it, is
+        not given; of the rest the first in the line is. A line that only says what not to do gives the other thing (stop healing: fight)."""
+        import re
+        hits = []
+        for k, pat in self.ORDER_WORDS:
+            for m in re.finditer(pat, low):
+                start = max(low.rfind(c, 0, m.start()) for c in (",", ";", ".", " but ", " then ", " and ", " instead"))
+                ends = [i for i in (low.find(c, m.end()) for c in (",", ";", ".", " but ", " then ", " and ")) if i >= 0]
+                before, after = low[max(0, start):m.start()], low[m.end():min(ends) if ends else len(low)]
+                hits.append((m.start(), k, bool(re.search(self.NOT, before)) or bool(re.search(r"\b(anymore|any more|no longer)\b", after))))
+        plain = sorted(h for h in hits if not h[2])
+        if plain:
+            return plain[0][1]
+        return self.INSTEAD[sorted(hits)[0][1]] if hits else ""
 
     def order_of(self, text: str):
         """('ally', kind, enemy id) when the line is an order to a party member by name (or to the party), else None. No model call: a plain
@@ -421,14 +443,14 @@ class CombatScene:
         if "?" in text:                                  # a question is for talking, not an order
             return None
         low = " " + text.lower() + " "
-        allies = [a for a in self.fight.allies() if a.alive and a.ally_role]
+        allies = [a for a in self.fight.allies() if a.alive and (a.ally_role or combat.is_companion(a))]       # (f384) the animal companion too
         if not allies:
             return None
         named = [a for a in allies if re.search(r"\b" + re.escape(a.name.split()[0].lower()) + r"\b", low)]
         everyone = bool(re.search(r"\b(everyone|all of you|you all|party|you two|you both|team)\b", low))
         if not named and not everyone:
             return None
-        kind = next((k for k, pat in self.ORDER_WORDS if re.search(pat, low)), "")
+        kind = self.order_kind(low)
         if not kind:
             return None
         target = ""
@@ -442,22 +464,21 @@ class CombatScene:
     def give_orders(self, who, kind: str, target: str) -> None:
         f = self.fight
         told = []
+        again = f.order_round == f.round and f.round and any(a.id in f.ordered for a in who)      # (f383) putting this turn's order right
         for a in who:
-            problem = combat.give_order(f, a, kind, target)
+            problem = combat.give_order(f, a, kind, target, same_command=bool(told))     # one order a turn is one command, even to the whole party
             if problem:
                 console.note(problem)
                 if "already given" in problem:
                     return
                 continue
             told.append(a)
-            if len(who) > 1 and a is not who[-1]:
-                f.order_round = 0               # one order a turn is one command, even to the whole party
         if told:
-            f.order_round = f.round
             line = {"focus": "to attack {foe}", "guard": "to guard you", "hold": "to hold back", "heal": "to tend you"}[kind]
             foe = next((e.name for e in f.enemies() if e.id == target), "")
             foe = ("the " + foe) if foe and foe[0].islower() else foe        # "the troll", "the wolf 1", but "Old Brannoch" as is
-            console.narrate(f"You tell {' and '.join(a.name.split()[0] for a in told)} " + line.format(foe=foe or "their foe") + ".")
+            console.narrate(("Instead, you tell " if again else "You tell ") + " and ".join(a.name.split()[0] for a in told) + " "
+                            + line.format(foe=foe or "their foe") + ".")
         self.show()
         self.ws.store.save_combat(self.to_json())
 
@@ -801,6 +822,33 @@ class CombatScene:
                 out.append(f"{a.name}: {a.description.strip()}")
         return out[:3]
 
+    def ally_looks(self) -> list[str]:
+        """(f385) Everyone on the player's side as the narrator must keep them: who they are to look at, she, he or it, and what they fight
+        with. Nothing said it before: one hire was she, he and they in one fight, and a mage's bolts became a crossbow's."""
+        ws, f = self.ws, self.fight
+        members = {f"ally_{m['id']}": m for m in ws.player.party}
+        comps = {f"ally_{c.id}": c for c in getattr(ws.player.character, "companions", None) or []}
+        out = []
+        for a in f.fighters:
+            if a.side != "ally" or a is f.player:
+                continue
+            m = members.get(a.id) if a.ally_role else None
+            if m is None and a.name == mentor.NAME:
+                m = {"sheet": "maren", "name": a.name, "blurb": "a guild veteran", "people": "human"}
+            if m is not None:
+                p = party.pronoun_of(m, ws.store.meta.seed, ws.player.party_used)
+                folk = entities.people_word(ws.world, m.get("people", ""))                      # (f392) and their people
+                out.append(f"{a.name} ({party.pronoun_pair(p)}{', ' + folk if folk else ''}): {m.get('blurb', '').strip()}; fights with {party.fights_as(m)}")
+                continue
+            c = comps.get(a.id)
+            if c is not None and combat.is_companion(a):
+                kind_of = ws.world.bestiary[c.creature].name.lower() if c.creature in ws.world.bestiary else (c.kind or "beast")
+                out.append(f"{a.name} ({party.pronoun_pair(party.companion_pronoun(c))}): the player's own {kind_of}"
+                           + (f", {c.description.strip().rstrip('.')}" if c.description else "") + "; fights with teeth, claws and weight")
+            elif a.summon_form or a.id.startswith("thrall"):
+                out.append(f"{a.name} (it/its): {'summoned by the player' if a.summon_form else 'a fallen foe risen to fight for the player'}")
+        return out
+
     def narrate_round(self, text: str) -> None:
         f = self.fight
         p = f.player
@@ -813,9 +861,8 @@ class CombatScene:
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
-                                          looks=self.ability_looks()),                                                           # (f373)
-                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"),
-                       tails=False)                                                                                          # (f380)
+                                          looks=self.ability_looks(), allies=self.ally_looks()),                                # (f373, f385)
+                       Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
         text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
         console.narrate(text_out)
         self.ws.remember_narration(TAG.sub("", result.text))
@@ -942,17 +989,29 @@ class CombatScene:
             ws.store.save_player(ws.player)
         rules = combat.RULES["creatures"]["companion_fall"]
         changed = False
+        last = getattr(ws.player, "party_last_fight", None)
+        last = last if (last or {}).get("minute") == ws.minutes else None
         for comp in c.companions:
             if f"ally_{comp.id}" not in fallen_ids or not comp.active:
                 continue
             changed = True
             comp.fallen = True
             comp.recover_at = ws.minutes + int(rules["recover_hours"] * 60)
+            p = party.companion_pronoun(comp)
             if self.rng.random() < rules["death_chance"]:
                 comp.dead = True
-                console.note(f"{comp.name} is dead. It fell protecting you.")
+                console.note(f"{comp.name} is dead. {'It' if p == 'it' else p.capitalize()} fell protecting you.")
+                if last is not None:                           # (f385) what the party will talk over: the player's own animal, by name
+                    kind_of = ws.world.bestiary[comp.creature].name.lower() if comp.creature in ws.world.bestiary else (comp.kind or "animal")
+                    last.setdefault("fallen_what", {})[comp.name] = f"the player's own {kind_of}"
             else:
                 console.note(f"{comp.name} is badly hurt and will need a day to recover.")
+                if last is not None and comp.name in last.get("fallen", []):      # (f385) down, not dead: no wake is held for them
+                    i = last["fallen"].index(comp.name)
+                    last["fallen"].pop(i)
+                    if i < len(last.get("fallen_ids", [])):
+                        last["fallen_ids"].pop(i)
+                    last.setdefault("hurt", []).append(comp.name)
         if changed:
             ws.store.save_player(ws.player)
 
@@ -994,9 +1053,7 @@ class CombatScene:
         self.companions_after_fight({a.id for a in fallen})
         if f.over == "victory" and not f.no_rewards:
             dead_ = [e for e in f.fighters if e.side == "enemy" and not e.alive]
-            from engine.domain_events import LootedDead, Spared
-            if any(e.side == "enemy" and e.alive and e.surrendered for e in f.fighters):
-                ws.notice(Spared(minute=ws.minutes, place=ws.player.location))
+            from engine.domain_events import LootedDead
             if any(e.category in loot.L["coin_categories"] for e in dead_):
                 ws.notice(LootedDead(minute=ws.minutes, place=ws.player.location))      # (f310) only the dead who carry coin, not wolves
         elif f.over == "fled" and not f.mentor:
@@ -1006,7 +1063,7 @@ class CombatScene:
             self.victory()
             ws.dungeon_fight_over("victory")
             ws.road_fight_over("victory")
-            ws.camp_fight_over("victory", dead)
+            ws.camp_fight_over("victory", dead, [e for e in f.fighters if e.side == "enemy" and e.alive and e.surrendered])
             ws.orenna_fight_over("victory")
             ws.mentor_fight_over("victory", f)
             ws.assault_fight_over("victory")
@@ -1062,6 +1119,7 @@ class CombatScene:
             self.sync_player()
             return
         c = self.ws.player.character
+        self.survivor_yields()
         dead = [e for e in self.fight.fighters if e.side == "enemy" and not e.alive]
         yielded = [e for e in self.fight.fighters if e.side == "enemy" and e.alive and e.surrendered]
         if not dead and not yielded and self.tamed:
@@ -1133,19 +1191,26 @@ class CombatScene:
         noticed = [items.display_name(i) if i.rarity == "legendary" else inventory.label(i) for i in found]
         if coins:
             noticed.append("a few coins")
+        noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
         fallen = ", ".join(combat.who(e) for e in dead) or "no one - the rest yielded"
         if yielded:
-            fallen += f". THOSE WHO YIELDED: {', '.join(combat.who(e) for e in yielded)}"
+            fallen += (f". THOSE WHO YIELDED (alive and beaten, waiting on the player's choice: tell nothing of what becomes of them): "
+                       f"{', '.join(combat.who(e) for e in yielded)}")
         aftermath = fresh(
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
             f"PLACE: {self.ws.place.name}\nTIME AND WEATHER: {self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
             f"THE PLAYER IS: {combat.condition(self.fight.player)}\nTHE FALLEN: {fallen}\n"
+            + (f"THE PLAYER'S OWN WHO DIED IN THIS FIGHT (their companions; the passage does not pass over them): {'; '.join(lost)}\n"
+               if (lost := [f"{e.name} ({e.pronoun}, {entities.people_word(self.ws.world, e.people)})"
+                            for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
+            + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS)
         console.narrate(aftermath.text)
         self.ws.remember_narration(aftermath.text)
-        self.take_prisoners(yielded)
+        taken = self.take_prisoners(yielded)
+        self.ws.hold_yielded([e for e in yielded if e not in taken])         # (f385) the rest wait on the player's word
         console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
         for item in found:
             if item.rarity == "legendary":
@@ -1158,24 +1223,42 @@ class CombatScene:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")
 
-    def take_prisoners(self, yielded: list) -> None:
-        """Foes who yielded: people can be bound and kept (questioned, let go, handed to the watch); the rest simply leave."""
+    def survivor_yields(self) -> None:
+        """(f392) A won fight against outlaws can leave one who lives and yields (arcs.yaml prisoner.chance): chosen here among the fallen,
+        before the after-fight passage is written, so the story and the captive agree. It used to be rolled afterwards, among the dead:
+        a night's run had an outlaw narrated dead and then throwing down his weapon. An arc's camp has its leader's own way."""
         from engine.arcs import A as R
-        ppl = sorted([e for e in yielded if e.category in R["people_categories"]], key=lambda e: -e.level)[:3]
-        if not ppl:
+        ws, f = self.ws, self.fight
+        if getattr(ws, "camp_fight", None) or ws.place.type in ("dungeon", "road"):
             return
+        fallen = [e for e in f.fighters if e.side == "enemy" and not e.alive and e.category in R["people_categories"]]
+        if not fallen or any(e.alive and e.surrendered for e in f.fighters if e.side == "enemy"):
+            return
+        PR = R["prisoner"]
+        chance = max(PR["min_chance"], min(PR["max_chance"], PR["chance"] + ws.player.outlaw_rep * PR["rep_chance_per_point"]))
+        if random.Random(f"{ws.store.meta.seed}:yield:{ws.minutes}").random() < chance:
+            who = max(fallen, key=lambda e: e.level)
+            who.hp, who.surrendered = 1, True
+
+    def take_prisoners(self, yielded: list) -> list:
+        """Foes who yielded: people can be bound and kept (questioned, let go, handed to the watch); the rest wait on the player (f385).
+        (f392) No more than walk bound at once (lifecycles.yaml captive.most_escorted): the rest wait on the player's word like any foe
+        who yields. An arc's camp leader is taken by the camp's own way (arc_actions.camp_fight_over). Returns those taken."""
+        from engine import entities
+        from engine.arcs import A as R
+        room = entities.L["captive"]["most_escorted"] - len(self.ws.escorted())
+        leader = (getattr(self.ws, "camp_fight", None) or {}).get("leader")
+        ppl = sorted([e for e in yielded if e.category in R["people_categories"] and e.name != leader], key=lambda e: -e.level)[:max(0, room)]
+        if not ppl:
+            return [e for e in yielded if e.name == leader]
         self.ws.surrender_took = True
         rng = random.Random(f"{self.ws.store.meta.seed}:surrender:{self.ws.minutes}")
         for e in ppl:
             name = rng.choice(R["prisoner"]["names"])
             kind = re.sub(r" ?\d+$", "", e.name)
-            npc = self.ws.make_prisoner(name, "", tip=rng.random() < R["prisoner"]["tip_chance"], named=False, kind=kind)
-            npc.activity = "walking bound at your side"
-            self.ws.store.save_npc(npc)
-            self.ws.player.prisoners[npc.id]["escort"] = True
-            self.ws.player.prisoners[npc.id]["level"] = e.level
-            self.ws.player.prisoners[npc.id]["creature"] = e.creature
+            self.ws.make_prisoner(name, "", tip=rng.random() < R["prisoner"]["tip_chance"], named=False, kind=kind, fighter=e)
         self.ws.store.save_player(self.ws.player)
+        return ppl + [e for e in yielded if e.name == leader]
 
     FALLBACK_FIRST = ["Ashen", "Hollow", "Ember", "Gloam", "Thorn", "Dusk", "Varr", "Kestrel", "Wraith", "Sable", "Oath", "Rime"]
     FALLBACK_SECOND = ["fang", "bane", "ward", "song", "reach", "brand", "mourn", "keep", "bite", "light", "fall", "shard"]
@@ -1289,6 +1372,8 @@ class CombatScene:
         c = ws.player.character
         summary = death.die(c)
         lost = [f"half their gold ({summary['coins']} gone, {summary['kept']} kept)" if summary['coins_raw'] else "nothing - their purse was spared"]
+        if ws.captives_lost("got away while their captor lay dead"):                 # (f392) nobody waits bound beside a corpse
+            lost.append("the captives they held, who got away")
         console.note("You have died.")
         console.wait("Darkness. Then the sourceless light of the Threshold, dimmer than you remember.")
         said = list(getattr(ws.player, "goddess_said", []))                        # (f349) she remembers what she said on earlier returns

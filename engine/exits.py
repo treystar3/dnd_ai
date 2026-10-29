@@ -149,7 +149,7 @@ def pick(group: dict, text: str) -> dict | None:
             return m
     for m in ms:
         side = m["side"].replace(" fork", "")
-        if f" {side} " in t and not (side in ("left", "right") and ("far left" in t or "far right" in t) and len(ms) == 4 and side != m["side"].replace(" fork", "")):
+        if f" {side} " in t and not (side in ("left", "right") and f" far {side} " in t):     # (f395) "far right" is never the right fork
             return m
     if any(w in t for w in (" straight ", " centre ", " center ", " middle ")) and len(ms) == 3:
         return ms[1] if False else next(m for m in ms if m["side"].startswith("middle"))

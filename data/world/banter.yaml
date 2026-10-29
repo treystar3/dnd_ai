@@ -12,7 +12,7 @@ clerk:
   situation: >
     Maren Holt, an A-rank adventurer, has walked a newcomer into the guild hall to be signed into the register. She is talking to the clerk
     about signing them up, with the newcomer standing there. The joining fee is {fee}. Everyone who joins starts at rank F, by rule: it is never offered, asked about or agreed to. The clerk and Maren open
-    with a few lines about the newcomer, then agree to sign them in. What each of them knows: Maren met the newcomer in the street only a short while ago, stopped them as an armed stranger, and talked them through the guild on the way here. The clerk has never seen or heard of the newcomer, and knows nothing of how Maren met them or what they have talked about: the clerk may ask, but never speaks as if they already know (no "the one you've been teaching", no "the one you told me about"). The newcomer pays their own fee, in their own time: Maren hands over no coin and nothing else, and no one pays or signs during this exchange. The clerk speaks first to greet Maren, and the exchange ends on the clerk setting the register out and waiting on the newcomer, or Maren stepping back to let it happen.
+    with a few lines about the newcomer, then agree to sign them in. What each of them knows: Maren met the newcomer in the street only a short while ago, stopped them as a stranger who looks like a fighter, and talked them through the guild on the way here. The clerk has never seen or heard of the newcomer, and knows nothing of how Maren met them or what they have talked about: the clerk may ask, but never speaks as if they already know (no "the one you've been teaching", no "the one you told me about"). The newcomer pays their own fee, in their own time: Maren hands over no coin and nothing else, and no one pays or signs during this exchange. The clerk speaks first to greet Maren, and the exchange ends on the clerk setting the register out and waiting on the newcomer, or Maren stepping back to let it happen.
   manner:
     warm: "The clerk is warm and kind towards Maren and the newcomer. Maren answers in kind: relaxed and fond of the clerk. Her humour is about herself, the weather or the newcomer's nerves, never about the clerk, their work, their ink, their desk or their hands."
     cold: "The clerk is cold and rude, curt with Maren and dismissive of the newcomer. Maren does not take it lying down: she goes drier and sharper, politely firm, protective of the newcomer, and makes the clerk do the job properly without quite losing her temper."
@@ -43,6 +43,7 @@ banter:
   fight_easy_cooldown: 120    # and not within this many minutes of the last talk
   rest_chance: 50             # when the player rests or sleeps with the party beside them
   lines: [2, 4]               # only the most is used: the fewest is one line from each chosen speaker
+  turn_lines: 2               # (f386) no talk among the party after a turn that already showed this many companion lines (a night run had 14 in one)
   rules:
     - "People talk past each other, deflect, tease and change the subject. Not every line answers the last one, and a line may be a fragment."
     - "What brought the talk up is given; start from that, not from who you are. Your temperament shows in how you take it, never as the subject."
@@ -128,6 +129,7 @@ banter:
     hard_fight:  "The last fight was a hard one, against something at the player's level or above, and everyone felt it."
     lost_fight:  "The party came off worse in the last fight."
     fallen:      "{name} was killed in the last fight. {name} is dead, and the rest of them are still taking it in."
+    fallen_many: "{names} were killed in the last fight. All of them are dead, and the rest are still taking it in."   # (f392) every one, not the first
     promotion:   "{name} has gone as far as their rank allows; whether the player will pay to have them raised is a sore point, or a hope, depending on the day."
     warned:      "{name} has told the player plainly that this might not be worth it, and the air has not cleared."
     relationship: "Between {a} and {b}: {dynamic} They are {words}."
@@ -138,6 +140,10 @@ banter:
     weather:     "It is {period}, {weather}; the season is {season}."
     mundane:     "Nothing in particular has happened: small talk between people who travel together."
     personal:    "Something of {name}'s own is on their mind, and they may bring it up in their own way, or let it show: {thing}"
+    # (f382) A thing of their own comes up most when something in front of them touches it: the f375 night's mage, arriving in a market
+    # square, talked about labelling spice crates as a child, out of nowhere. Touched, it is three times as likely as untouched (once).
+    touched:     "{touch} puts {name} in mind of something of their own, and they may bring it up in their own way, or let it show: {thing}"
+    errand:      "The job the party is on: {job}. What each makes of it, of the road there or of how it will go."
     motive:      "What {name} wants underneath it all is on their mind today, and may surface in what they say, or not: {thing}"
     shared:      "Something {a} and {b} went through together is on their minds: {thing}"
   # How heavy a topic is decides when it comes up unasked. Every personal topic has a weight: light, personal or heavy (data/rules/quirks.yaml

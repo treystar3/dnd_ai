@@ -163,6 +163,23 @@ check("summary.md measures the play: distinct lines, lines picking up the passag
       and "| Situations met / followed / ended by the player | 3 / 2 / 1 |" in text and "| Goals finished / given up | 1 / 2 (contract 1/0, go 0/2) |" in text
       and "| Deaths (above the level band) | 1 (1) |" in text and "| Waits | 2 of 4 (50%) |" in text and "playing as talker" in text
       and "Turns by goal: idle 3, follow 1" in text, text)
+# ---- (f391) a refusal said twice gives the goal up; a person is never asked the same thing twice
+import types
+b3 = Bot(ws, world, random.Random(4), stub, persona="steady")
+b3.goals = [{"kind": "go", "place": "parth", "tries": 0}]
+b3.run = types.SimpleNamespace(turn_notes=["The way through the Cracked Plains is closed: The Weeping Standing Stone."])
+b3.read_refusals()
+check("one refusal is not yet a reason to give up", len(b3.goals) == 1)
+b3.read_refusals()
+check("the same refusal twice running gives the goal up and keeps away from its place for a day",
+      not b3.goals and b3.stats["blocked"] == 1 and b3.avoid.get("parth", 0) > ws.minutes, (b3.goals, b3.stats["blocked"]))
+was = ws.partner
+ws.partner = types.SimpleNamespace(id="someone")
+qs = [b3.question_for({}) for _ in range(len(Bot.QUESTIONS) + 2)]
+asked = [q for q in qs if q]
+check("a person is never asked the same question twice; once all are asked there is nothing left to ask", len(set(asked)) == len(asked) == len(Bot.QUESTIONS) and qs[-1] == "", qs)
+ws.partner = was
+
 shutil.rmtree(tmp, ignore_errors=True)
 store.close()
 shutil.rmtree("saves/nightbot_test", ignore_errors=True)

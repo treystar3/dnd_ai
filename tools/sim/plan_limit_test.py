@@ -73,8 +73,10 @@ world_improv.read_effect = lambda words: "block"
 t = ws.minutes
 world_improv.resolve(ws, "bar the gate with the cart", "I bar the gate with the cart")
 st = store.load_world_state()
-closed = pulse.closed_reason(store, "trading_square", ws.minutes + 1)
-check("a way barred is closed for a while, and the world says so", closed.startswith("barred from inside") and not pulse.closed_reason(store, "trading_square", t + 91), closed)
+seen = pulse.happenings_at(store, world, "trading_square", ws.minutes + 1)
+check("a way barred is closed for a while, and the world says so - as the player's own doing (f386)", any("barred the way here themselves" in h and "barred from inside" in h for h in seen)
+      and not any("barred" in h for h in pulse.happenings_at(store, world, "trading_square", t + 91)), seen)
+check("...and it never bars the player who barred it (f386)", pulse.closed_reason(store, "trading_square", ws.minutes + 1) == "")
 world_improv.read_effect = lambda words: "signal"
 world_improv.resolve(ws, "ring the alarm bell", "I ring the alarm bell")
 st = store.load_world_state()

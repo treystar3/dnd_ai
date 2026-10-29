@@ -26,16 +26,35 @@ Give a short reason."""
 class AuditActions:
 
     def situation(self) -> ia.Situation:
+        from scenes.work_actions import offer_open
         sit = ia.Situation(
             present=__import__("engine.truth", fromlist=["scene_of"]).scene_of(self).present_ids(),   # (f313) the one list everyone reads
             abilities={k: a.name for a in self.player.character.actives for k in (a.id.lower(), a.name.lower())},
             place=self.place.name, wildlife=bool(self.wildlife),
             partner=self.partner.label() if self.partner else "",
-            workers={n.id for n in self.present if n.work_offer})
+            workers={n.id for n in self.present if offer_open(n, self.minutes)}, people_at=self.people_at)
         sit.lines = [f"Place: {sit.place}.", "People here: " + (", ".join(sit.present.values()) or "no one") + ".",
                      "Talking with: " + (sit.partner or "no one") + ".",
                      "Pack: " + (", ".join(self.pack_names()) or "empty") + "."]
         return sit
+
+    def people_at(self, place: str) -> set[str]:
+        """(f384) Who is found at a place, by id, name, label and work, lower case: what a talk after a walk may be aimed at."""
+        low = (place or "").strip().lower()
+        pid = place if place in self.world.places else next((p for p, pl in self.world.places.items() if pl.name.lower() in (low, f"the {low}")), "")
+        if not pid:
+            return set()
+        out = set()
+        for rid in self.store.load_place(pid).residents:
+            try:
+                n = self.store.load_npc(rid)
+            except Exception:
+                continue
+            if n.gone:
+                continue
+            role = n.role.replace("_", " ")
+            out |= {n.id.lower(), n.name.lower(), n.label().lower(), role, role.split()[-1]}
+        return out
 
     def pack_names(self) -> list[str]:
         try:

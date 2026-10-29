@@ -1024,6 +1024,7 @@ $("grip").addEventListener("pointerdown", (e) => {
 // ---------- input ----------
 const history = []; let hpos = 0;
 function updateInput() {
+  if (typeof crInput === "function" && !$("creation").hidden) crInput();     // (f388) the creation page's own box answers the same prompt
   input.disabled = !state.prompt;
   $("send").disabled = !state.prompt;
   if (state.prompt) input.focus();
@@ -1459,6 +1460,8 @@ function handle(ev) {
     case "setup_end": $("setup").hidden = true; break;
     case "home": showHome(ev.data); break;
     case "home_end": hideHome(); break;
+    case "creation": showCreation(ev.data); break;          // (f388) a step of character creation, as a page
+    case "creation_end": hideCreation(); break;
   }
 }
 
@@ -1470,3 +1473,283 @@ async function start() {
   es.onmessage = (m) => { try { handle(JSON.parse(m.data)); } catch (e) { console.error(e); } };
 }
 start();
+
+// ---------- (f388) character creation as pages ----------
+// The game sends each step (scenes/goddess.py show): who you were, your name, your calling, three abilities, three traits, your body
+// and mind. Every choice goes back as a hidden line ("create:picks 1 4 7"); anything typed in the box below is said to the goddess.
+const cr = { d: null, picks: [], filter: "all", who: null, vals: null, step: "" };
+function crSend(text) {
+  if (!state.prompt) return;
+  document.querySelectorAll("#crcard button").forEach((b) => (b.disabled = true));
+  state.prompt = false; crInput();
+  api("/input", { text });
+}
+function crInput() { $("crinput").disabled = !state.prompt; $("crsend").disabled = !state.prompt; }
+function showCreation(d) {
+  if (cr.step !== d.step) { cr.picks = []; cr.filter = "all"; cr.vals = null; }
+  cr.step = d.step; cr.d = d;
+  if (!$("homepage").hidden) hideHome();                   // a game is being made: the home page has gone
+  $("creation").hidden = false;
+  const tabs = $("crtabs"); tabs.textContent = "";
+  const at = d.tabs.findIndex(([id]) => id === d.tab);
+  d.tabs.forEach(([id, label], i) => tabs.appendChild(el("span", "cr-tab" + (i < at ? " done" : i === at ? " on" : ""), (i < at ? "✓ " : "") + label)));
+  const voice = $("crvoice"); voice.textContent = "";
+  if (d.who) voice.appendChild(el("p", "cr-intro", d.who.intro));
+  else if (d.goddess) { voice.appendChild(el("div", "cr-who", "The goddess")); voice.appendChild(el("p", "cr-line", d.goddess)); }
+  if (d.wait) voice.appendChild(el("p", "cr-wait", d.wait));
+  if (d.note) voice.appendChild(el("p", "cr-note", d.note));
+  const card = $("crcard"); card.textContent = ""; card.hidden = false;
+  if (d.wait) card.hidden = true;
+  else if (d.who) crWho(card, d.who);
+  else if (d.cards) crPicker(card, d);
+  else if (d.body) crBody(card, d.body);
+  else if (d.reading || d.ask) crAsk(card, d);
+  else card.hidden = true;
+  $("crinput").placeholder = d.who ? "Or say it in your own words: \"a stocky dwarf woman with copper hair\"…" : "Or say it to her in your own words…";
+  crInput();
+  $("creation").scrollTop = 0;
+}
+function hideCreation() { $("creation").hidden = true; cr.d = null; cr.step = ""; input.focus(); }
+$("crform").onsubmit = (e) => {
+  e.preventDefault();
+  const t = $("crinput").value.trim();
+  if (!t || !state.prompt) return;
+  $("crinput").value = "";
+  crSend(t);
+};
+
+// -- who you were
+// LOOK-SENTENCE-BEGIN (the same sentence as engine/look.py describe; tools/sim/creation_page_test.py runs both and compares)
+function lookAxes(page, people) { return (page.peoples.find((p) => p.id === people) || page.peoples[0]).axes; }
+function lookSentence(page, c) {
+  const p = page.peoples.find((x) => x.id === c.people) || page.peoples[0];
+  const pr = page.nouns[c.pronoun] || page.nouns.they;
+  const axes = lookAxes(page, p.id), before = [], withs = [];
+  for (const a of axes) {
+    const ax = page.axes[a], v = c.look[a] || ax.default;
+    if (ax.say && !(ax.none || []).includes(v)) before.push(ax.say.replace("{v}", v));
+  }
+  const words = p.id === "human" ? before.concat([pr.noun]) : before.concat([p.word]).concat(pr.after_people ? [pr.after_people] : []);
+  for (const a of axes) {
+    const ax = page.axes[a], v = c.look[a] || ax.default;
+    if (v === "none" && ax.none_with) withs.push(ax.none_with);
+    else if (ax.with) withs.push((c.flags || []).filter((f) => page.flags[f] && page.flags[f].axis === a).map((f) => page.flags[f].word).concat([ax.with.replace("{v}", v)]).join(" "));
+  }
+  const head = words.join(" ");
+  let s = ("aeiou".includes(head.charAt(0).toLowerCase()) ? "An " : "A ") + head + (withs.length ? " with " + withs.join(" and ") : "");
+  const extra = (c.extra || "").replace(/[\x00-\x1f<>{}\[\]]/g, " ").split(/\s+/).join(" ").trim().slice(0, page.extra_most).replace(/^[ .;,]+|[ .;,]+$/g, "");
+  if (extra) {
+    const i = extra.indexOf(","), first = (i < 0 ? extra : extra.slice(0, i)).trim(), rest = i < 0 ? "" : extra.slice(i + 1).trim();
+    if (/^(a|an|one|two|some)\s/i.test(first)) s += (withs.length ? " and " : " with ") + first.charAt(0).toLowerCase() + first.slice(1) + (rest ? "; " + rest : "");
+    else s += "; " + extra.charAt(0).toLowerCase() + extra.slice(1);
+  }
+  return s.replace(/\.+$/, "") + ".";
+}
+// LOOK-SENTENCE-END
+function crWho(card, page) {
+  if (!cr.who) cr.who = JSON.parse(JSON.stringify(page.default));
+  const w = cr.who;
+  card.appendChild(el("h3", "", page.title));
+  card.appendChild(el("div", "cr-hint", page.hint));
+  card.appendChild(el("div", "cr-label", "Your people"));
+  const grid = el("div", "cr-peoples");
+  for (const p of page.peoples) {
+    const b = el("button", "cr-people" + (w.people === p.id ? " on" : ""));
+    b.type = "button";
+    b.append(el("div", "nm", p.name), el("div", "bl", p.blurb));
+    b.onclick = () => { w.people = p.id; for (const a of p.axes) if (!w.look[a]) w.look[a] = page.axes[a].default; showCreation(cr.d); };
+    grid.appendChild(b);
+  }
+  card.appendChild(grid);
+  card.appendChild(el("div", "cr-label", "How others speak of you"));
+  const prs = el("div", "cr-chips");
+  for (const p of page.pronouns) {
+    const b = el("button", "cr-chip" + (w.pronoun === p ? " on" : ""), p); b.type = "button";
+    b.onclick = () => { w.pronoun = p; showCreation(cr.d); };
+    prs.appendChild(b);
+  }
+  card.appendChild(prs);
+  card.appendChild(el("div", "cr-label", "Your look"));
+  const rows = el("div", "cr-look");
+  const people = page.peoples.find((p) => p.id === w.people) || page.peoples[0];
+  for (const a of people.axes) {
+    const ax = page.axes[a];
+    if (!w.look[a]) w.look[a] = ax.default;
+    rows.appendChild(el("div", "cr-axis", ax.label));
+    const chips = el("div", "cr-chips");
+    for (const o of ax.options) {
+      const b = el("button", "cr-chip" + (w.look[a] === o ? " on" : ""), o); b.type = "button";
+      b.onclick = () => { w.look[a] = o; if (o === "none") w.flags = (w.flags || []).filter((f) => page.flags[f].axis !== a); showCreation(cr.d); };
+      chips.appendChild(b);
+    }
+    for (const f of people.flags.filter((f) => page.flags[f].axis === a)) {
+      const on = (w.flags || []).includes(f);
+      const b = el("button", "cr-chip flag" + (on ? " on" : ""), page.flags[f].label + (on ? " ✓" : "")); b.type = "button";
+      b.disabled = w.look[a] === "none";
+      b.onclick = () => { w.flags = on ? w.flags.filter((x) => x !== f) : (w.flags || []).concat([f]); showCreation(cr.d); };
+      chips.appendChild(b);
+    }
+    rows.appendChild(chips);
+  }
+  rows.appendChild(el("div", "cr-axis", "Anything else"));
+  const extra = el("input", "cr-extra"); extra.type = "text"; extra.maxLength = page.extra_most; extra.placeholder = page.extra_hint; extra.value = w.extra || "";
+  rows.appendChild(extra);
+  card.appendChild(rows);
+  card.appendChild(el("div", "cr-sep"));
+  card.appendChild(el("div", "cr-hint", "How the world sees you:"));
+  const seen = el("p", "cr-seen", lookSentence(page, w));
+  card.appendChild(seen);
+  extra.oninput = () => { w.extra = extra.value; seen.textContent = lookSentence(page, w); };
+  card.appendChild(el("div", "cr-sep"));
+  const foot = el("div", "cr-foot");
+  const surprise = el("button", "", "Surprise me"); surprise.type = "button";
+  surprise.onclick = () => {
+    const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
+    const p = pick(page.peoples);
+    w.people = p.id; w.pronoun = pick(page.pronouns); w.look = {};
+    for (const a of p.axes) w.look[a] = pick(page.axes[a].options);
+    w.flags = p.flags.filter((f) => w.look[page.flags[f].axis] !== "none" && Math.random() < 0.3);
+    showCreation(cr.d);
+  };
+  const go = el("button", "primary", "Into the dark"); go.type = "button";
+  go.onclick = () => crSend("create:who " + JSON.stringify(w));
+  foot.append(surprise, go);
+  card.appendChild(foot);
+}
+
+// -- your name, your calling, her reading of you
+function crAsk(card, d) {
+  if (d.reading) {
+    const r = d.reading;
+    card.appendChild(el("h3", "", r.name));
+    card.appendChild(el("div", "cr-hint", [r.kind, r.identity].filter(Boolean).join(" · ")));
+    if (r.themes && r.themes.length) { const t = el("div", "cr-chips"); for (const x of r.themes) t.appendChild(el("span", "cr-chip still", x)); card.appendChild(t); }
+    if (r.summary) card.appendChild(el("p", "cr-summary", r.summary));
+    const yes = el("button", "primary", d.confirm || "Yes"); yes.type = "button";
+    yes.onclick = () => crSend("create:confirm");
+    const foot = el("div", "cr-foot"); foot.appendChild(yes); card.appendChild(foot);
+    card.appendChild(el("div", "cr-sep"));
+  }
+  if (!d.ask) return;
+  const a = d.ask;
+  card.appendChild(el(d.reading ? "div" : "h3", d.reading ? "cr-label" : "", a.label));
+  const box = el(a.multiline ? "textarea" : "input", "cr-text");
+  if (!a.multiline) box.type = "text";
+  box.placeholder = a.placeholder || ""; box.rows = 3;
+  card.appendChild(box);
+  const go = el("button", d.reading ? "" : "primary", a.button); go.type = "button";
+  const send = () => { const v = box.value.trim(); if (v) crSend(a.send + " " + v); };
+  go.onclick = send;
+  box.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+  const foot = el("div", "cr-foot"); foot.appendChild(go); card.appendChild(foot);
+  if (!d.reading) setTimeout(() => box.focus(), 0);
+}
+
+// -- three abilities, three traits
+function crPicker(card, d) {
+  card.appendChild(el("h3", "", d.title));
+  card.appendChild(el("div", "cr-hint", "Click to choose · hover any card for its full detail · or just type what you want"));
+  const filters = el("div", "cr-chips");
+  for (const [g, label, n] of d.groups) {
+    const b = el("button", "cr-chip" + (cr.filter === g ? " on" : ""), `${label} ${n}`); b.type = "button";
+    b.onclick = () => { cr.filter = g; showCreation(cr.d); };
+    filters.appendChild(b);
+  }
+  card.appendChild(filters);
+  const grid = el("div", "cr-cards");
+  for (const c of d.cards) {
+    if (cr.filter !== "all" && c.group !== cr.filter) continue;
+    const on = cr.picks.includes(c.n);
+    const b = el("button", "cr-ab" + (on ? " on" : "")); b.type = "button";
+    const head = el("div", "hd"); head.append(el("span", "nm", c.name), el("span", "cost", c.cost || ""));
+    b.append(head);
+    if (c.line) b.append(el("div", "ln", c.line));
+    b.append(el("div", "tx", c.text), el("span", "tick", on ? "✓" : ""));
+    b.title = (c.tip || []).map((r) => r[1]).join("\n");
+    b.onclick = () => {
+      if (on) cr.picks = cr.picks.filter((x) => x !== c.n);
+      else if (cr.picks.length < d.pick) cr.picks = cr.picks.concat([c.n]);
+      showCreation(cr.d);
+    };
+    grid.appendChild(b);
+  }
+  card.appendChild(grid);
+  card.appendChild(el("div", "cr-sep"));
+  const foot = el("div", "cr-foot spread");
+  const chosen = el("div", "cr-chosen"); chosen.appendChild(el("span", "", "Chosen:"));
+  for (const n of cr.picks) {
+    const c = d.cards.find((x) => x.n === n);
+    const chip = el("button", "cr-chip on", c.name + " ×"); chip.type = "button";
+    chip.onclick = () => { cr.picks = cr.picks.filter((x) => x !== n); showCreation(cr.d); };
+    chosen.appendChild(chip);
+  }
+  if (cr.picks.length < d.pick) chosen.appendChild(el("span", "cr-chip ghost", `${d.pick - cr.picks.length} more`));
+  const go = el("button", "primary", d.button); go.type = "button";
+  go.disabled = cr.picks.length !== d.pick;
+  go.onclick = () => crSend("create:picks " + cr.picks.join(" "));
+  foot.append(chosen, go);
+  card.appendChild(foot);
+}
+
+// -- body and mind
+function crPools(b, v) {
+  const out = {};
+  for (const [p, r] of Object.entries(b.pools)) {
+    let raw = r.base;
+    for (const [a, w] of Object.entries(r.w)) raw += w * (v[a] || 0);
+    if (p === "mana") raw += r.cast_w * (v[r.cast] || 0) + r.other_w * Math.max(...r.mental.filter((m) => m !== r.cast).map((m) => v[m] || 0));
+    out[p] = Math.max(1, Math.round(raw * (1 + r.pct) + r.flat));
+  }
+  return out;
+}
+function crWeaponBest(b, v) {                       // (f389) the attribute the weapon goes by: the best of those it uses
+  return Math.max(...b.weapon_attrs.map((a) => v[a]));
+}
+
+function crBody(card, b) {
+  if (!cr.vals) cr.vals = Object.assign({}, b.values);
+  const v = cr.vals;
+  const left = b.total - Object.values(v).reduce((s, x) => s + x, 0);
+  card.appendChild(el("h3", "", "Shape your attributes"));
+  card.appendChild(el("div", "cr-hint", `Each starts at ${b.base} · at most ${b.cap} at the start · or describe it: "${b.describe}"`));
+  const top = el("div", "cr-chips");
+  top.appendChild(el("span", "cr-chip badge" + (left ? "" : " zero"), left ? `${left} point${left === 1 ? "" : "s"} left` : "every point placed"));
+  const sug = el("button", "cr-chip", b.suggest_label); sug.type = "button"; sug.onclick = () => { cr.vals = Object.assign({}, b.suggested); showCreation(cr.d); };
+  const reset = el("button", "cr-chip", "Reset"); reset.type = "button"; reset.onclick = () => { cr.vals = null; for (const k of Object.keys(b.values)) b.values[k] = b.base; showCreation(cr.d); };
+  top.append(sug, reset);
+  card.appendChild(top);
+  if (b.weapon) {                                   // (f389) what they will wake with, and what it hits harder with
+    const w = el("div", "cr-weapon");
+    w.append(el("span", "", "You'll wake with "), el("b", "", b.weapon.name),
+             el("span", "", " · hits harder with " + b.weapon.attrs.map((a) => a[0].toUpperCase() + a.slice(1)).join(" or ")));
+    card.appendChild(w);
+  }
+  const rows = el("div", "cr-attrs");
+  for (const r of b.rows) {
+    const name = el("div", "an"); name.append(el("div", "lb", r.label), el("div", "ht", r.hint));
+    const minus = el("button", "step", "−"), plus = el("button", "step", "+"); minus.type = plus.type = "button";
+    minus.disabled = v[r.id] <= b.base; plus.disabled = v[r.id] >= b.cap || left <= 0;
+    minus.onclick = () => { v[r.id] -= 1; showCreation(cr.d); };
+    plus.onclick = () => { v[r.id] += 1; showCreation(cr.d); };
+    const note = el("div", "nt" + (r.main ? " main" : ""), "");
+    if (r.main) { note.append(el("b", "", "main"), document.createTextNode(" for your class")); } else note.textContent = r.note;
+    if (r.weapon) note.append(el("span", "wp", (note.textContent ? " · " : "") + "your " + b.weapon.label.toLowerCase() + (r.main ? "" : " uses it")));
+    rows.append(name, minus, el("div", "val", String(v[r.id])), plus, note);
+  }
+  card.appendChild(rows);
+  card.appendChild(el("div", "cr-sep"));
+  const pools = crPools(b, v), best = crWeaponBest(b, v), hit = b.hit[best], blow = b.blow[best];
+  const derived = el("div", "cr-derived"); derived.appendChild(el("span", "", "You'd begin with"));
+  for (const [label, val] of [["Health", pools.health], ["Stamina", pools.stamina], ["Mana", pools.mana],
+                              [(b.weapon ? b.weapon.label : "Fist") + " blow", blow === undefined ? "" : blow],
+                              ["Hit chance vs " + b.foe, hit === undefined ? "" : hit + "%"]]) {
+    if (val === "") continue;
+    const s = el("span", "dv"); s.append(document.createTextNode(label + " "), el("b", "", String(val))); derived.appendChild(s);
+  }
+  card.appendChild(derived);
+  card.appendChild(el("div", "cr-sep"));
+  const foot = el("div", "cr-foot");
+  const go = el("button", "primary", b.button); go.type = "button"; go.disabled = left !== 0;
+  go.onclick = () => crSend("create:stats " + JSON.stringify(v));
+  foot.appendChild(go); card.appendChild(foot);
+}

@@ -22,7 +22,7 @@
   visible:
     - Timber-and-stone houses gathered where the trade road crosses the river Wend.
     - Grain fields and low sheep hills on every side but the north.
-    - To the north, the dark edge of the Greywood.
+    - To the northwest, the dark edge of the Greywood.         # (f385) where the map and the roads out put it
     - Hearths and ovens are lit by flint and tinder; nothing here is kindled by magic.
     - Roads leave in every direction - the Old Quarry Road north, the King's Pass northeast, the Red Road east,
       the King's Road south and the Salt Road southwest to the sea.
@@ -2066,9 +2066,17 @@
   region: saltmarches
   visible:
     - Caves that flood twice a day, with a second beach of glowing tidepools behind the first chamber.
-    - A hermit lives in the dry chamber and will tell you when the water turns.
+    - The dry chamber stays above the tide; someone long gone scratched the turn of the water into its wall.   # (f381) the hermit it promised lived nowhere
   biome: coast
   danger: [1, 18]
+  features:                     # (f394) the parts its description names are places you can go
+    - {id: first_chamber, name: the first chamber, kind: chamber, entry: true,
+       what: "The cave mouth's chamber, sand over rock, where the sea comes in twice a day."}
+    - {id: second_beach, name: the second beach, kind: beach, links: [first_chamber], open: low_tide, tags: [glowing, tidal],
+       what: "A second beach behind the first chamber, its tidepools glowing a cold blue; the sea covers the way to it at high water."}
+    - {id: dry_chamber, name: the dry chamber, kind: chamber, links: [first_chamber], holds: clue, tags: [dry],
+       what: "A chamber that stays above the tide. Someone long gone scratched the turn of the water into its wall.",
+       clue: "The scratches count the tide. Read against the light, they say the way to the second beach runs dry {low_tide}."}
 
 - id: shipwreck_shoals
   name: the Shipwreck Shoals

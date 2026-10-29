@@ -52,8 +52,10 @@ from scenes.law_actions import LawActions
 from scenes.pastime_actions import PastimeActions
 from scenes import plan_repairs
 from scenes.plan_repairs import PlanRepairs
+from scenes.part_actions import PartActions
+from scenes.listening import Listening
 from scenes import markup
-from engine import mapview, mentor, needs, pulse, pulselog, quests
+from engine import entities, features, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
 from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
@@ -70,6 +72,7 @@ from world.loader import World
 
 QUIT_WORDS = {"quit", "exit", "/quit", "/exit"}
 NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|refuse|decline|later)\b")     # "I don't want to join" is not joining
+UNPAID = re.compile(r"\b(without pay(ing)?|for free|no fee|steal|snatch|forge|by force|force my|swipe)\b")      # (f384) taking it, not joining
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
 SEARCH = encounters.E
@@ -77,7 +80,7 @@ SEARCH = encounters.E
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
-                 PastimeActions, PlanRepairs):
+                 PastimeActions, PlanRepairs, PartActions, Listening):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -187,6 +190,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         held = c.equipment.get("main_hand")
         parts = [f"wearing {', '.join(worn)}" if worn else "no armor, only plain clothes"]
         parts.append(f"carrying {held.name}" if held else "empty-handed")
+        if getattr(c, "look_text", ""):                    # (f388) how they look, as they chose at the Threshold
+            parts.insert(0, c.look_text.rstrip("."))
         return "; ".join(parts)
 
     def remember_narration(self, text: str, shown: dict | None = None) -> None:
@@ -333,10 +338,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.present = [n for n in self.residents
                         if clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
                         and not routines.away(self.world, seed, n, self.minutes, cast)]                 # (f352) at the inn this evening, not here
-        mine = getattr(self.player, "prisoners", None) or {}
+        bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
-            if n.id in mine and (mine[n.id] or {}).get("escort") and not n.gone and all(p.id != n.id for p in self.present):
+            if n.id in bound and not n.gone and all(p.id != n.id for p in self.present):
                 self.present.append(n)
+        for pid in bound:                                                   # (f386) ...and wherever the player has walked them to: one taken
+            if all(p.id != pid for p in self.present) and self.store.npc_exists(pid):     # elsewhere was 'not here'
+                n = self.store.load_npc(pid)
+                if not n.gone:
+                    self.present.append(n)
         here = {n.id for n in self.present}
         self.visitors = [v for v in getattr(self, "visitors", []) if v[1] > self.minutes and v[2] == self.player.location and self.store.npc_exists(v[0])]
         for vid, _, _ in self.visitors:
@@ -451,11 +461,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return ("unknown - just a stranger" if -5 < r < 5 else "well liked" if r >= 30 else "liked" if r >= 10
                 else "known, and thought decent" if r > 0 else "distrusted" if r <= -30 else "viewed warily")
 
+    def end_contexts(self, place_id: str) -> None:
+        """(f392) What the game believes about where the player is belongs to that place, and ends when they leave it: a delve is its
+        dungeon's, the party holding back is the approach's. A night's run walked out of a dungeon with its delve still set; from then on
+        every 'move out' was refused as 'You're not down in a dungeon' (46 times), and no companion spoke again, because talk waits
+        while a delve is on. Another held its party back at a camp and never called them, so they fought but never spoke."""
+        if self.player.delve:
+            d = next((x for x in self.store.load_dungeons() if x["id"] == self.player.delve.get("dungeon")), None)
+            if d is None or place_id != d["entrance"]:
+                self.player.delve = None
+        if self.player.party_mode == "hold" and place_id != self.player.party_hold_at:
+            self.party_service.set_mode("with")
+            if self.player.party:
+                console.note("Your party falls in beside you again.")
+
     def enter(self, place_id: str) -> None:
         self.wildlife = None
         new_town, old_town = pulse.town_of(self.world, place_id), pulse.town_of(self.world, self.player.location)
         if new_town != old_town:
             self.__dict__.setdefault("_happenings_seen", set()).clear()           # (f323) a new town: its happenings are new to the eye
+            self.__dict__.pop("_crowd_told", None)                                # (f385) ...and its crowd
             self._framed_hires = set()                                            # (f347) a hire's first words in a new town earn a frame; each shop in it does not
             from engine import ambient
             if self.world.peoples_at(old_town) and old_town in self.world.places and not self.world.places[old_town].danger:
@@ -463,6 +488,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self._arrival_lines = ambient.since(self.store, self.world, new_town, self.player.last_in.get(new_town), self.minutes)
         self.leave_road(place_id)
         self.__dict__.pop("_streets_cache", None)                                           # (f357) a new place: read the streets afresh
+        self.end_contexts(place_id)
+        same_place = place_id == self.player.location
         self.revisit = self.store.load_place(place_id).populated
         self.player.location = place_id
         self.note_town(place_id)
@@ -485,6 +512,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         moments.on_enter(self)                                                                # (f348) a possibility: something going on as they walk in
         self.home_arrival()
         self.arc_enter(place_id)
+        self.arrive_parts(place_id, same_place)                             # (f394) its parts, and where in it the player stands
         self.bring_prisoners(place_id)
         self.party_notice()
         self.trial_notice(on_arrival=True)
@@ -635,24 +663,39 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if text.startswith("#"):
                 before = self.player.location
                 bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
+                turnlog.begin(console)                                      # (f385) a button that does something is a row too
+                rolled = False
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
                         self.command(text)
                 except LLMError as e:
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
+                    rolled = True
                     console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
                 if self.to_menu:
+                    turnlog.end(rolled, command=self.command_row(text, before, bar))
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
+                turnlog.end(rolled, command=self.command_row(text, before, bar))
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
-            if not self.turn(text):
+            turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
+            stood = self.turn(text)
+            if not stood:
                 console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
                              "Nothing has changed; try again, perhaps worded differently.")
+            turnlog.end(not stood)
             self.show_header()
+
+    def command_row(self, text: str, before: str, bar) -> dict:
+        """(f385) A # command's row: what it changed (the place, the clock, the coin: the top bar), and whether it is only a view."""
+        from ui.gui.bridge import VIEWS
+        changed = (["place"] if self.player.location != before else []) + (["clock or coin"] if self.header_key() != bar else [])
+        name = (text[1:].strip().lower().split() or [""])[0]
+        return {"text": text, "turn": self.store.meta.turn, "changed": changed, "view": name in VIEWS}
 
     def name_ids(self) -> None:
         """Who is who, for anything kept under a stable id instead of a name (engine/canon.py opinions): the hires, Maren, the player."""
@@ -666,9 +709,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """One whole turn as one unit: everything the action and what follows it write is committed together at the end, or, if the model
         fails partway, rolled back together and the game put back as it was before the line was typed. True if the turn stood."""
         self.name_ids()
+        turnlog.tap(console)
+        shown = turnlog.SHOWN
         try:
             with self.store.transaction():
+                ledger.begin()                             # (f394) the turn's record
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
+                self.ran = []
                 self.handle(text)
                 heard = self.hire_said_marks()
                 self.sync_heard()
@@ -680,12 +727,23 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.collapse_check()
                 self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
                 self.heard_flush()                         # the places first heard of this turn, in one quiet line
+                if turnlog.SHOWN == shown and not self.to_menu:
+                    self.said_nothing(text)
                 self.store.save_player(self.player)
+                ledger.LAST = ledger.end()
             return True
         except LLMError as e:
             console.debug(f"turn rolled back: {e}")
             self.reload_after_rollback()
             return False
+
+    def said_nothing(self, text: str) -> None:
+        """(f385) The turn showed the player nothing at all: no passage, no line, no note. That is never the answer to something typed.
+        One line says so, and the refusal log keeps what ran, so the handler that went quiet can be found and given its own reason."""
+        from engine import refusals
+        ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
+        console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
+        refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
 
     def reload_after_rollback(self) -> None:
         """The database was rolled back to before the turn; what the scene holds in memory must match it again."""
@@ -885,7 +943,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                  if n.heard_of and not (n.met_player and n.name_known_to_player)]
         known = self.player.character.knowledge
         from engine import matters
-        return {"groups": out, "heard": heard, "facts": [self.world.lore[f].text for f in known if f in self.world.lore],
+        found = [f"{e.name.capitalize()}, {self.where_name(e.place)}: {e.data['clue'].replace('{low_tide}', features.low_tide_text(self.minutes))}"
+                 for e in self.store.find_entities(kind="feature") if e.data.get("read") and e.data.get("clue")]          # (f394)
+        return {"groups": out, "heard": heard, "facts": [self.world.lore[f].text for f in known if f in self.world.lore] + found,
                 "history": list(self.player.character.item_history), "matters": matters.journal(self)}
 
     def prebuff_command(self, rest: str) -> None:
@@ -1024,6 +1084,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     console.debug(f"no such action kind: {intent.kind}")
                     self.halted = True
                     break
+                self.__dict__.setdefault("ran", []).append(intent.kind)
                 getattr(self, f"on_{intent.kind}")(intent, text)
                 if intent.force and intent.kind != "attack":
                     self.after_force(intent, text)
@@ -1056,10 +1117,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.meta.turn += 1
 
     REPAIRS = (
+        plan_repairs.Repair("settle_targets", 12, "settle_targets", "a target written near enough to someone here is them: a tag like (elite), a stray space, a slip of the pen (f386)"),
         plan_repairs.Repair("scrub_markup", 10, "scrub_markup", "words in *asterisks* are never speech; a talk left wordless by that goes"),
         plan_repairs.Repair("wordless_talk", 20, "wordless_talk", "a second, wordless talk to the one the line already spoke to adds nothing (f299)"),
         plan_repairs.Repair("walk_after_word", 25, "walk_after_word", "a word, then a walk to the one it was said to: an acknowledgement on the way goes, else the walk does (f373)"),
         plan_repairs.Repair("move_to_present", 30, "move_to_present", "a move before a word or a deal with someone already here is no journey - unless the line names the place"),
+        plan_repairs.Repair("party_word", 35, "party_word", "the same words to each of the party are one talk; a proposal to go or search, read as talk to them, is doing it (f386)"),
         plan_repairs.Repair("narrated_talk", 40, "drop_narrated_talk", "a talk whose words narrate another step is not speech; the one it named gets the deed (f333)"),
         plan_repairs.Repair("local_building", 50, "local_building", "'the inn' with no town named is this town's inn, not a far one (f333)"),
         plan_repairs.Repair("join_guild", 150, "join_guild_rewrite", "paying or asking to join, said to the clerk, is joining - once (f271, f282)"),
@@ -1115,6 +1178,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def move_to_present(self, text: str, plan: list) -> list:
         here_ids = {n.id for n in self.present}
         said = {w for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 3}
+        norm = lambda s: " ".join(re.findall(r"[a-z]+", (s or "").lower()))
+        echo = lambda b: b.kind == "talk" and norm(b.speech) and norm(b.speech) in norm(text) \
+            and len(norm(b.speech).split()) >= 0.8 * len(norm(text).split())              # the whole line, not words quoted in it
+        if re.match(r"^\s*(?:i\s+)?(?:go|head|walk|run|hurry|travel|make my way|set off|take me)\b", text.lower()) and any(echo(b) for b in plan):
+            return [a for a in plan if not echo(a)] or plan          # (f384) "go to smith": a journey; the talk was the line itself, put in a mouth
 
         def named(dest: str) -> bool:                              # (f342) "to the trading square": the player named where; the move stands
             pl = self.world.places.get(dest)
@@ -1125,7 +1193,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def join_guild_rewrite(self, text: str, plan: list) -> list | None:
         """Paying or asking to join the guild, said to the clerk, is joining - and only once."""
-        if self.rank or not self.clerk_here() or NEGATED.search(text.lower()):
+        if self.rank or not self.clerk_here() or NEGATED.search(text.lower()) or UNPAID.search(text.lower()):
             return None
         asking = text.strip().lower().startswith(("how", "what", "where", "can ", "could ", "do ", "does ", "is ", "are ")) or "?" in text
         for a in plan:
@@ -1167,6 +1235,40 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return [a for k, a in enumerate(plan)       # skinning and harvesting is one action: a second "other" restating it is dropped
                 if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
                         and any(w in f"{a.summary} {a.item}".lower() for w in self.HARVEST_WORDS))] or plan
+
+    def settle_targets(self, text: str, plan: list) -> list:
+        """(f386) The plan repair that puts a step on the one it means. A night's runs had 'wildlife:hippogriff (elite)', 'wildlife: raven',
+        'bixdie_wigglewick' and a prisoner at the player's side all ruled 'not here', and the questions asked back made it worse."""
+        from engine.actions import TARGETED
+        for a in plan:
+            if a.kind in TARGETED and a.target:
+                a.target = self.settle_target(a.target)
+        return plan
+
+    def settle_target(self, target: str) -> str:
+        """The id of the one here a written target means: the id itself; without a tag in brackets or a stray space; 'wildlife:...' when
+        a creature is about; by name or by how the player knows them; or by a near spelling of any of those. Else as it was written."""
+        import difflib
+        from engine import truth
+        present = truth.scene_of(self).present_people()
+        ids = {p.id.lower(): p.id for p in present}
+        t = re.sub(r"\s*:\s*", ":", (target or "").strip().lower())
+        t = re.sub(r"\s*\([^)]*\)", "", t).strip()
+        if t in ids:
+            return ids[t]
+        if t.split(":", 1)[0] == "wildlife" and "wildlife" in ids:
+            return ids["wildlife"]
+        plain = lambda s: re.sub(r"^the\s+", "", re.sub(r"\s*\([^)]*\)", "", (s or "").strip().lower().replace("_", " ")))
+        bare = plain(t.split(":", 1)[-1])
+        pool = {}
+        for p in present:
+            for k in (p.id.lower(), plain(p.name), plain(p.label)):
+                if k:
+                    pool.setdefault(k, p.id)
+        if bare in pool:
+            return pool[bare]
+        near = difflib.get_close_matches(t, list(pool), n=1, cutoff=0.85) or difflib.get_close_matches(bare, list(pool), n=1, cutoff=0.85)
+        return pool[near[0]] if near else target
 
     def drop_narrated_talk(self, text: str, plan: list) -> list:
         """(f333) A talk step whose 'speech' is the player describing an action the plan already has ("I give Bram a healing draught" beside
@@ -1278,6 +1380,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             problems = invariants.validate_campaign(self.store, self.world)
             console.note("The campaign checks out: nothing inconsistent found." if not problems else
                          f"{len(problems)} problem{'s' if len(problems) != 1 else ''} found:\n" + "\n".join(f"  - {p}" for p in problems[:40]))
+        elif name.split()[0] == "pronoun":                  # (f386) how the people of the world see the player: '#pronoun she|he|they'
+            from engine import truth
+            want = (name.split() + [""])[1]
+            if want in truth.SEEN_AS:
+                self.player.character.pronoun = want
+                self.store.save_player(self.player)
+            console.note(f"People see you as {'someone they cannot place' if truth.player_pronoun(self.player.character) == 'they' else truth.SEEN_AS[truth.player_pronoun(self.player.character)][3:]}"
+                         " (#pronoun she, #pronoun he or #pronoun they to change it).")
         elif name == "resetlayout":
             console.note("#resetlayout puts the info pane's buttons back in their original order. It works in the game window, where you can drag the buttons.")
         elif name in ("system", "sys", "character"):
@@ -1428,8 +1538,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Who is here, as the player knows them, for the narrator (engine/truth.py, f313). The hires travelling with the player are not
         scenery (f349): they are left out, and the narrator hears of one only when the GAME EVENT has them act (companions_in)."""
         from engine import truth
-        return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc, p.doing)      # (f378) and their work
-                for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+        from engine import recognition
+        by_id = {n.id: n for n in self.present}
+        return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc
+                 + ((" " + knows) if (knows := recognition.seen(by_id[p.id], self.minutes) if p.id in by_id else "") else ""), p.doing)   # (f378) work; (f382) knows you
+                for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire", "companion")]
 
     FIRST_SEEN = 2
 
@@ -1439,7 +1552,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         and one person'. So the engine chooses: those the player knows by name, then whoever the place is kept by (its first role: the
         clerk at the hall, the keeper of an inn), then by chance; the rest are a number until the player looks."""
         from engine import truth
-        ps = [p for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+        ps = [p for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire", "companion")]
         if len(people) <= self.FIRST_SEEN:
             return people, 0
         kept_by = next(iter(self.place.residents or {}), "")
@@ -1484,21 +1597,32 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seen.update((self.player.location, h) for h in unseen)
         unseen = self.__dict__.pop("_arrival_lines", []) + unseen                                  # (f331) what changed here while the player was away, once
         self.__dict__.setdefault("_news_seen", set()).update(here.lines("news")[:3])              # (f349) news the narrator has been handed once
+        streets = here.streets()
+        crowd = [f.text for f in here.scene.facts("here") if f.id == "crowd" and f.text in streets]
+        told = self.__dict__.setdefault("_crowd_told", {})                                         # (f385) the crowd once a visit to the town,
+        town = pulse.town_of(self.world, self.player.location)                                      # and again only when it changes: "cart drivers
+        streets = [s for s in streets if not (s in crowd and told.get(town) == s)]                 # eating in the inn" came back as drivers in
+        for s in crowd:                                                                             # passage after passage
+            told[town] = s
         people, unlooked = self.people_view(), 0
         if not self.__dict__.pop("_looking", False) and not (self.__dict__.get("_shown_here") or {}).get("place"):
             people, unlooked = self.first_seen(people)                                       # (f380) walking in: who the eye falls on first
         request = wp.narration_request(self.time_label(), self.place, people, event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
-                                       unseen, streets=here.streets(),
+                                       unseen, streets=streets,
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
                                        already=self.shown_lines(),                                  # (f347) ...and what the player has read here already
                                        companions=self.companions_in(event),                        # (f349) ...and of a companion only when the event has them act
                                        worn=self.worn_words("prose"),                               # (f349) ...and which words it has worn out lately
-                                       unlooked=unlooked)
+                                       unlooked=unlooked,
+                                       who=entities.who_is_who(self),                               # (f392) who is who, never guessed at
+                                       fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
+                                       parts=features.lines(self),                                  # (f394) the parts of this place, real
+                                       told=ledger.told())                                          # ...and what the engine did this turn
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
-                       temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"))
+                       temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"), said=player_text or "")         # (f384) no invented speech
         shown = self.unnamed(result.text)
         if strict and voice_rules.contradicts_nothing(shown):
             console.debug("narration claimed a gain the engine did not give - rewriting once")
@@ -1514,6 +1638,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         console.narrate(shown)
         self.note_shown(shown)
         self.remember_narration(shown)
+        self.adopt_from_passage(shown)                                                           # (f394) what it named is real now
         self._wrote_turn = True                                                                  # (f351) the narrator wrote this turn: its passage is the room's update
 
     exits_due = False
@@ -1614,7 +1739,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         this town and its ways out plus any place named or close in meaning, the people met who are named, and a catalogue (wares, the
         pack, abilities...) only when the words are about that kind of thing."""
         from engine import candidates as cand
-        places = cand.places(self.world, self.player.location, text)
+        places = features.candidates(self) + cand.places(self.world, self.player.location, text)   # (f394) the parts of this place first
         from engine import truth
         _sc = truth.scene_of(self)
         people = [(p.id, p.label, f"{p.role}. {p.plain} {p.doing}" + (f" {p.note}" if p.note else "")) for p in _sc.present_people() if p.kind == "npc"]
@@ -1629,7 +1754,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                       if n.location == self.player.location and n.away_until > self.minutes else self.where_name(n.location))
                      for n in shown_away]
         last = self.last_spoken if left or any(n.id == self.last_spoken for n in self.present) else None
-        people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire")]
+        people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire", "companion")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
         wares_all = [f"{w.id}: {w.name} - {money.words(w.price)} (sold by {n.label()}, id {n.id})"               # (f333) the id alone first: the model copies the label it is shown
@@ -1652,6 +1777,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         here_top = _mv.top_of(self.world, self.player.location)
         shown_places = []
         for pid, name in places:                                      # (f333) the kind of place, and whose town when it is not this one
+            if pid not in self.world.places:                          # (f394) a part of this place: already said as one
+                shown_places.append((pid, name))
+                continue
             p_ = self.world.places[pid]
             top_ = _mv.top_of(self.world, pid)
             tag = p_.type if p_.type not in ("town", "city", "village") else ""
@@ -1821,6 +1949,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug("move within the current place - nothing to travel")
             return
         if dest not in self.world.places:
+            on_trail = self.fresh_trail() and self.toward_trail(dest, text)
+            if self.part_move(dest, text):                                             # (f394) a part of this place, or further in
+                if on_trail and not self.halted:                                       # ...where the signs led: follow them on there
+                    self._following = True
+                    intent.seek = ""
+                    self.on_search(intent, text)
+                return
+        if dest.startswith("feature:"):
+            dest = dest.split(":")[-1].replace("_", " ")
+        if dest not in self.world.places:
             person = self.local_person(dest)
             if person:
                 self.walk_over(person)
@@ -1830,6 +1968,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.go_to_person(row, text)
                 return
             if not any(dest.lower() in pl.name.lower() or dest == pl.id for pl in self.world.places.values()):
+                if self.fresh_trail() and self.toward_trail(dest, text):                 # (f381) going where the signs led
+                    self._following = True
+                    intent.seek = ""
+                    self.on_search(intent, text)
+                    return
+                if self.part_move(dest, text, adopt=True):                              # (f394) a part a place like this would have
+                    return
+                if self.part_of_here(dest):                                             # (f381) a spot inside this place
+                    self.within_place(dest, text)
+                    return
                 if self.place.danger or self.place.type in ("hut", "camp", "grove", "spring", "shrine", "ford", "cabin", "cave",
                                                             "ruin", "hollow", "overlook") or self.looks_like_exploring(dest, text):
                     intent.seek = intent.seek or dest
@@ -1871,16 +2019,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.show_exits()
             return
         route, walk = found
+        free = pulse.way_out(self.world, self.player.location)                 # (f390) a closure never shuts in whoever is already there
+        passed = [p for p in route[1:] if p in free and pulse.closed_reason(self.store, p, self.minutes)]
         blocked = next(((p, pulse.closed_reason(self.store, p, self.minutes)) for p in route[1:]
-                        if pulse.closed_reason(self.store, p, self.minutes)), None)
+                        if p not in free and pulse.closed_reason(self.store, p, self.minutes)), None)
         if blocked and self.has("wayfinder") is not None:
             console.note(f"The way through {self.world.places[blocked[0]].name} is closed ({blocked[1]}), "
                          "but you know a way around.")
             blocked = None
         if blocked:
-            console.note(f"The way through {self.world.places[blocked[0]].name} is closed: {blocked[1]}")
+            left = pulse.closed_until(self.store, blocked[0], self.minutes) - self.minutes
+            days, hours = round(left / 1440), max(1, round(left / 60))
+            when = (" Nobody can say when it will open again." if not 0 < left <= 30 * 1440 else
+                    f" It should open again in about {days} day{'s' if days != 1 else ''}." if days else
+                    f" It should open again in about {hours} hour{'s' if hours != 1 else ''}.")
+            console.note(f"The way through {self.world.places[blocked[0]].name} is closed: {blocked[1].rstrip('.')}.{when}")
             self.halted = True
             return
+        if passed:
+            console.note(f"The way through {self.world.places[passed[0]].name} is closed to anyone going in, but you are already "
+                         "here, and nothing stops you leaving.")
         if any(i.legendary_effect == "lightfoot" for i in self.player.character.equipment.values()):
             walk = max(1, round(walk * (1 - items.LEGENDARY["lightfoot"].value / 100)))
         if self.has("trailblazer"):
@@ -1980,6 +2138,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         speech = intent.speech or text
         label_before = npc.label()
         first_time = not npc.met_player
+        from engine import recognition
+        back = "" if first_time or self.convo else recognition.line(npc, self.minutes)       # (f382) they know the player again
+        self._back = npc.id if back else None
         if first_time:
             rep = self.player.reputation.get(pulse.town_of(self.world, npc.location), 0)
             npc.trust = max(0, min(100, npc.trust + round(rep * pulse.P["reputation"]["trust_per_point"])
@@ -1993,7 +2154,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"trusted face: {npc.name} starts at trust {npc.trust}")
         check_note = getattr(self, "pending_check", "")
         self.pending_check = ""
+        was, self.buffering = self.buffering, True                              # (f384) two jobs handed in are told in one passage
         handed = self.turn_in(npc.id) if self.player.quests else []             # (f378) finished work is handed in by speaking to who pays
+        self.buffering = was
         if handed:
             check_note = (check_note + " [THE GAME HAS DECIDED: the stranger has handed in " + "; ".join(handed)
                           + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()
@@ -2007,7 +2170,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now." + (f" The old note was: {npc.journal_note} - bring it up to date with what has happened since."
                                                                          if npc.journal_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
-        ctx = ctx + secret_lines
+        ctx = ([back] if back else []) + ctx + secret_lines
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
@@ -2114,6 +2277,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             out.append(W["leave"])
         if note:
             out.append(W["decided"])
+        if self.__dict__.pop("_back", None) == npc.id:                          # (f382) someone who knows them, after a while
+            out.append(W["back"])
         return out
 
     def other_names(self, who=None) -> list[str]:
@@ -2156,9 +2321,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
                                     getattr(reply, "intent", "") == "leave", self.recent_narration,
                                     reach=within, moment=moment,
-                                    why=reasons, already=self.shown_lines(), worn=self.worn_words("prose")),
+                                    why=reasons, already=self.shown_lines(), worn=self.worn_words("prose"),
+                                    who_is=entities.who_is_who(self, also=[npc.id])),                 # (f392)
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"), tails=False,
+                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"),
             )
         except LLMError:
             self.show_speech(speaker, reply, npc)
@@ -2381,8 +2547,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.place.type == "dungeon" and self.player.delve:
             self.dungeon_search(text)
             return
+        if self.search_part(intent, text):                       # (f394) what the part the player stands at holds
+            return
         from engine import matters
         if matters.try_find(self, text):                          # (f317) a matter's find path points here
+            return
+        if self.plant_sought(intent.seek):                        # (f381) looking for silverleaf is foraging, not hunting
+            self.on_forage(intent, text)
             return
         if not self.place.danger:
             self.narrate("The player searches the area. There is no wild game or danger here. Describe the search "
@@ -2401,6 +2572,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         chance = SEARCH["chance_on_search"] + (SEARCH["tracker_bonus"] if self.has("tracker") is not None else 0)
         chance += (self.mech("patient_watch") + (self.mech("sniffer") if self.companion_here() else 0)) / 100
+        trail = self.fresh_trail()
+        following = self.__dict__.pop("_following", False)
+        if trail and (following or not intent.seek or self.TRAIL_WORDS.search(intent.seek)
+                      or encounters.matching(self.world, [trail["creature"]], intent.seek)):           # (f381) on the trail just found
+            intent.seek = self.world.bestiary[trail["creature"]].name
+            chance += SEARCH.get("trail", {}).get("bonus", 0)
         quarry = next((q for q in self.player.quests if q["kind"] in ("hunt", "bounty") and q.get("place") ==
                        self.player.location and q["progress"] < q["count"]), None) if self.owns("game_warden") else None
         if quarry:
@@ -2416,17 +2593,38 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 from scenes.combat_scene import CombatScene
                 self.combat = CombatScene.begin(self, creature, enemies, "You find the trail of your quarry:", initiated=True)
                 return
-        if self.maybe_encounter(min(0.95, chance), "Your search pays off:", intent.seek or text):
+        if self.maybe_encounter(min(0.95, chance), "You follow the signs:" if trail and intent.seek else "Your search pays off:",
+                                intent.seek or text):
+            self._trail = None
             return
         if self.wildlife:
             return
         roster = encounters.ensure_roster(self.store, self.world, self.player.location)
         wanted = encounters.matching(self.world, roster, intent.seek) if intent.seek else []
-        clue = self.world.bestiary[self.rng.choice(wanted or roster)].name.lower() if roster else ""
+        pick = self.rng.choice(wanted or roster) if roster else ""
+        clue = self.world.bestiary[pick].name.lower() if pick else ""
+        if pick:
+            self._trail = {"place": self.player.location, "creature": pick, "minutes": self.minutes}     # (f381) signs to follow
         self.narrate(f"The player spends {clue and 'a while '}searching but finds no creature this time. They do find "
                      f"fresh signs of {clue or 'nothing'}: tracks, droppings, or marks. Describe the search and the sign."
                      f"{' The creature they were looking for is not known to live here.' if intent.seek and not wanted else ''}",
                      text)
+
+    TRAIL_WORDS = re.compile(r"\b(tracks?|trail|signs?|prints?|spoor|droppings|marks|it|them|the beast|the creature)\b", re.I)
+
+    def fresh_trail(self) -> dict | None:
+        """(f381) The signs the last search here turned up, while they are fresh: {place, creature, minutes} or None."""
+        t = self.__dict__.get("_trail")
+        if t and t["place"] == self.player.location and self.minutes - t["minutes"] <= SEARCH.get("trail", {}).get("fresh_minutes", 120):
+            return t
+        return None
+
+    def toward_trail(self, dest: str, text: str) -> bool:
+        """(f381) Going where the signs lead: the place named is in the passage that told of them, or the line says to follow them."""
+        last = (self.recent_narration[-1] if self.recent_narration else "").lower()
+        words = [w for w in re.findall(r"[a-z]+", dest.lower()) if len(w) >= 4]
+        return any(re.search(rf"\b{re.escape(w)}", last) for w in words) or bool(re.search(r"\bfollow", text.lower())
+                                                                                   and self.TRAIL_WORDS.search(f"{dest} {text}"))
 
     def fight_buffs(self) -> list[str]:
         """The combat buffs the player named as they started a fight this turn - readied by name, or named in what they wrote (f248)."""
@@ -2554,7 +2752,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def on_other(self, intent: ActionIntent, text: str) -> None:
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
-        world_improv.resolve(self, intent.summary or text, text)
+        if world_improv.is_rest(text) and len(re.findall(r"[a-z']+", text.lower())) <= 12:
+            late = clock.period(self.minutes) in ("evening", "night", "deep night")
+            self.on_wait(ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60), text)
+            return                                          # (f386) a line that only goes to sleep is a rest, not a gamble rolled as hiding
+        spot = features.spot_of(self)
+        if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \
+                any(w in f"{intent.summary} {text}".lower().split() for w in self.CLUE_WORDS) and self.search_part(intent, text):
+            return                                          # (f395) reading the marks where the player stands: what the part holds
+        from engine import ruling
+        ruling.run(self, intent.summary or text, text)      # (f395) the dungeon master's ruling: make room, set the stakes, or say no
 
 
 from scenes import intercepts as _intercepts                                     # noqa: E402

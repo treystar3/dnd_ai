@@ -221,10 +221,23 @@ def build_of(character) -> str:
     return "melee"
 
 
+def empty_handed(character) -> bool:
+    """(f385) Nothing in their hands to draw: no weapon, or wraps on their fists."""
+    from engine import items
+    weapon = (character.equipment or {}).get("main_hand")
+    try:
+        return weapon is None or "unarmed" in (items.base_of(weapon).tags or [])
+    except Exception:
+        return weapon is None
+
+
 def line(player, key: str, seed=0) -> str:
     """One of the phrasings of a lesson, for this build. The same advice each time, said a little differently on a retry."""
     L = M["lessons"][key]
-    options = L[build_of(player.character)] if isinstance(L, dict) else L
+    build = build_of(player.character)
+    if build == "melee" and isinstance(L, dict) and L.get("unarmed") and empty_handed(player.character):
+        build = "unarmed"                                   # (f385) "Draw. Now." to someone with nothing to draw
+    options = L[build] if isinstance(L, dict) else L
     said = player.mentor.setdefault("said", {})
     n = said.get(key, 0)
     said[key] = n + 1
@@ -473,13 +486,28 @@ def make_npc(player, minutes: int, turn: int, place_id: str):
     mem += [Memory(day=day, turn=turn, text=f"Walked {player.character.name} to the guild hall and watched them sign in."),
             Memory(day=day, turn=turn, text="Let them hire me as practice. Fought a troll beside them in the Greywood, where no troll should be."),
             Memory(day=day, turn=turn, text="They did well."),
-            Memory(day=day, turn=turn, text="My own party from the capital is late again. I wait for them at the guild hall. They are my companions, not the stranger's: the stranger came alone.")]
+            Memory(day=day, turn=turn, text="Left Parth after, on the work the capital sent me south to do. My own party is to catch me up on the road. They are my companions, not the stranger's: the stranger came alone.")]
     npc = NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
               epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
-              concern="Things where they do not belong, and her own party from the capital, late again, who keep her waiting at the guild hall.",
+              concern="Things where they do not belong, and the work the capital sent her south to do.",
               trust=65, mood="fond of the player, though she would not say so", name_known_to_player=True, met_player=True,
-              knows_player_as=player.character.name, protected=True, memories=mem)        # (f374) no activity yet: the hall gives her one, and that is no change to tell
+              knows_player_as=player.character.name, protected=True, memories=mem,
+              gone=M["npc"]["gone"])                                 # (f382) she goes on her way: a record, in no place
     return own_voice(npc, player)
+
+
+def moved_on(store, world, npc, t: int) -> None:
+    """(f382) She has left Parth: out of every place's residents, in the journal, and news in the town she left."""
+    from engine import pulse
+    if npc.location in world.places:
+        ps = store.load_place(npc.location)
+        if npc.id in ps.residents:
+            ps.residents = [r for r in ps.residents if r != npc.id]
+            store.save_place(ps)
+    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {npc.gone}", {"how": npc.gone, "place": npc.location})
+    state = store.load_world_state()
+    pulse.add_news(state, M["npc"]["news"], pulse.town_of(world, M["gate"]["place"]), t, ["everyone"])
+    store.save_world_state(state)
 
 
 def own_voice(npc, player=None):

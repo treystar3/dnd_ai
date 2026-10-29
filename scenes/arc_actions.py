@@ -16,10 +16,83 @@ from npc.models import NPC
 from npc.traits import assign_traits, npc_rng
 from ui import console
 
+
+def combat_who(f) -> str:
+    from engine import combat
+    return combat.who(f)
+
 PR = A["prisoner"]
 
 
 class ArcActions:
+    from scenes.intercepts import Intercept as _I
+    INTERCEPTS = (_I("yielded", 25, "yield_intercept", "spare or finish a foe that gave up at the end of the fight"),)
+
+    # ---------- (f385) a foe that yielded waits on the player ----------
+
+    YIELD_KILL = re.compile(r"\b(kill|finish|execute|slay|slaughter|end (it|them|him|her)|dispatch|behead|murder|stab|slit|crush|stomp|"
+                            r"cut (its|their|his|her) throat|put (it|them|him|her) (down|out of)|no mercy|run (it|them|him|her) through|"
+                            r"strike (it|them|him|her) down)\b", re.I)
+    YIELD_SPARE = re.compile(r"\b(spare|mercy|release|go free|let (it|them|him|her) (go|live|leave|be)|send (it|them|him|her) (off|away)|"
+                             r"leave (it|them|him|her)|wave (it|them|him|her) (off|away)|shoo)\b", re.I)
+    YIELD_NOT = re.compile(r"\b(don'?t|do not|never|won'?t|will not|no need to)\b", re.I)
+
+    def hold_yielded(self, foes: list) -> None:
+        """(f385) Foes who gave up the fight and are not taken as captives wait for the player to say: spare them, or finish them. A
+        yielded sahuagin used to be let go with nobody asked, and a companion praised the mercy the player never chose."""
+        if not foes:
+            return
+        self.held_yield = list(foes)
+        one = len(foes) == 1
+        names = ", ".join(combat_who(e) for e in foes)
+        it = "it" if one else "them"
+        console.note(f"{names[:1].upper() + names[1:]} {'has' if one else 'have'} given up the fight and {'waits' if one else 'wait'} on you. "
+                     f"Spare {it}, or finish {it}? Say what you do.")
+
+    def yield_intercept(self, text: str) -> bool:
+        """The line after a foe yielded: kill words finish them, mercy words let them go; anything else, and they slip away while the
+        player turns to it (the line goes on to be read as usual)."""
+        foes = getattr(self, "held_yield", None)
+        if not foes or self.combat:
+            return False
+        self.held_yield = None
+        low = text.lower()
+        kill, spare = self.YIELD_KILL.search(low), self.YIELD_SPARE.search(low)
+        if kill and self.YIELD_NOT.search(low[:kill.start()].rsplit(".", 1)[-1]):     # "don't kill it"
+            kill, spare = None, spare or kill
+        one = len(foes) == 1
+        names = ", ".join(combat_who(e) for e in foes)
+        if kill and not (spare and spare.start() < kill.start()):
+            self.finish_yielded(foes, names, one, text)
+            return True
+        if spare:
+            from engine.domain_events import Spared
+            self.notice(Spared(minute=self.minutes, place=self.player.location))
+            self.narrate(f"The player spares {names}, who had yielded, beaten. [THE GAME HAS DECIDED: {'it goes' if one else 'they go'} off "
+                         f"alive and {'does' if one else 'do'} not come back.] Tell it as it happens.", text)
+            return True
+        console.note(f"While you turn to other things, {names} {'slips' if one else 'slip'} away.")
+        return False
+
+    def finish_yielded(self, foes: list, names: str, one: bool, text: str) -> None:
+        """Killing what yielded: they are dead as any fallen foe is (a contract counts them, their remains can be skinned)."""
+        from engine import loot
+        for e in foes:
+            e.hp = 0
+        self.record_kills(foes)
+        state = self.store.load_place(self.player.location)
+        skinnable = 0
+        for e in foes:
+            if loot.has_remains(e):
+                state.carcasses.append({"creature": e.creature, "level": e.level, "minute": self.minutes})
+                skinnable += 1
+        state.bodies = self.keep_bodies(state.bodies + [{"creature": e.creature, "name": e.name, "level": e.level, "category": e.category,
+                                                          "rank": e.rank, "minute": self.minutes, "asked": False} for e in foes])
+        self.store.save_place(state)
+        self.narrate(f"The player kills {names}, who had yielded and lay beaten. [THE GAME HAS DECIDED: {'it is' if one else 'they are'} "
+                     "dead.] Tell it plainly, as it happens.", text)
+        if skinnable:
+            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - say so if you want to.")
 
     # ---------- the story's state ----------
 
@@ -239,11 +312,12 @@ class ArcActions:
 
     # ---------- after a fight with outlaws ----------
 
-    def camp_fight_over(self, outcome: str, dead: list) -> None:
+    def camp_fight_over(self, outcome: str, dead: list, yielded: list = ()) -> None:
+        """(f392) A prisoner is only ever someone who lived and yielded: a night's run had an outlaw narrated among the dead and then
+        throwing down his weapon. A won fight's chance of a survivor who yields is rolled before anyone is told who fell
+        (combat_scene.survivor_yields); an arc's camp leader is taken only if he yielded, and found on the body if he fell."""
         info = getattr(self, "camp_fight", None)
         self.camp_fight = None
-        c = self.player.character
-        outlaws = [e for e in dead if e.category in A["people_categories"]]
         if outcome != "victory":
             return
         if info:
@@ -255,31 +329,38 @@ class ArcActions:
                 if n["kind"] == "boss":
                     self.finish_arc(data, arc, leader if info.get("people", True) else None)
                     return
-                if info.get("people", True):
+                lived = next((e for e in yielded if e.name == info["leader"]), None)
+                if info.get("people", True) and lived is not None:
                     self.standing_report("camp_cleared", None, self.pname(n["place"]))
-                    self.make_prisoner(sn.get("npc_name") or info["leader"], sn.get("npc_looks", ""), arc=arc["id"], node=n["id"], named=True)
+                    self.make_prisoner(sn.get("npc_name") or info["leader"], sn.get("npc_looks", ""), arc=arc["id"], node=n["id"], named=True,
+                                       fighter=lived)
                     n["status"] = "active"
                     self.store.save_arcs(data)
+                elif info.get("people", True):
+                    self.standing_report("camp_cleared", None, self.pname(n["place"]))
+                    console.note(f"{sn.get('npc_name') or info['leader']} will not be answering questions. On the body, and among what "
+                                 "the camp leaves behind, you find what you came for.")
+                    n["clue_given"] = True
+                    self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
                 else:
                     console.note("Among what is left, you find what you came for.")
                     n["clue_given"] = True
                     self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
             return
-        if not outlaws or getattr(self, "surrender_took", False):
-            self.surrender_took = False
-            return
-        chance = max(PR["min_chance"], min(PR["max_chance"], PR["chance"] + self.player.outlaw_rep * PR["rep_chance_per_point"]))
-        rng = random.Random(f"{self.store.meta.seed}:yield:{self.minutes}")
-        if rng.random() < chance and self.place.type not in ("dungeon", "road"):
-            who = max(outlaws, key=lambda e: e.level)
-            tip = rng.random() < PR["tip_chance"]
-            self.make_prisoner(rng.choice(PR["names"]), "", tip=tip, named=False, kind=who.name)
 
     def make_prisoner(self, name: str, looks: str, arc: str = "", node: str = "", tip: bool = False, named: bool = False,
-                      kind: str = "outlaw") -> NPC:
+                      kind: str = "outlaw", fighter=None) -> NPC:
+        """(f392) A captive: a person who yielded, with a gender and a people of their own (the people their kind names - an orc war
+        chief is an orc - else the place's), in the registry, escorted: they walk bound at the player's side until handed over,
+        released, put to death, or they slip their bonds (data/rules/lifecycles.yaml captive)."""
+        from engine import entities, look
         peoples = self.world.peoples_at(self.player.location) or {"human": 100}
+        words = f" {re.sub(r'[^a-z]+', ' ', (getattr(fighter, 'creature', '') + ' ' + kind).lower())} "
+        folk = next((p for p, spec in look.L["peoples"].items() if f" {spec['word'].replace('-', ' ')} " in words), "") or max(peoples, key=peoples.get)
+        rng = random.Random(f"{self.store.meta.seed}:captive:{name}:{self.minutes}")
+        gender = rng.choice(["male", "female"])
         epithet = "the captured leader" if named else "the captured " + re.sub(r" ?\d+$", "", kind)
-        npc = NPC(id=_unique_id(self.store, f"prisoner {name}"), name=name, people=max(peoples, key=peoples.get), role="prisoner",
+        npc = NPC(id=_unique_id(self.store, f"prisoner {name}"), name=name, gender=gender, people=folk, role="prisoner",
                   location=self.player.location, epithet=epithet,
                   description=looks or "Bound, bloodied and watching you.", activity="sitting bound where you left them",
                   protected=True, name_known_to_player=named,
@@ -289,12 +370,37 @@ class ArcActions:
         ps = self.store.load_place(self.player.location)
         ps.residents.append(npc.id)
         self.store.save_place(ps)
-        self.player.prisoners[npc.id] = {"deal": False, "arc": arc, "node": node, "tip": tip, "asked": 0, "day": clock.day(self.minutes)}
+        self.player.prisoners[npc.id] = {"deal": False, "arc": arc, "node": node, "tip": tip, "asked": 0, "day": clock.day(self.minutes), "escort": True}
+        if fighter is not None:
+            self.player.prisoners[npc.id].update(level=fighter.level, creature=fighter.creature)
+        entities.begin(self.store, "captive", f"captive:{npc.id}", npc.name, self.minutes, pronoun=entities.GENDER[gender], people=folk,
+                       place=self.player.location, owner="player", links={"npc": npc.id, "fighter": getattr(fighter, "id", ""),
+                                                                           "creature": getattr(fighter, "creature", "")},
+                       data={"note": "the player's captive, walking bound at their side"})
+        npc.activity = "walking bound at your side"
+        self.store.save_npc(npc)
         self.store.save_player(self.player)
         self.residents = self.residents + [npc]
         self.refresh_present()
-        console.note(f"{npc.label().capitalize()} throws down their weapon and yields. Question them, let them go, or put an end to it.")
+        w = entities.WORDS[entities.GENDER[gender]]
+        console.note(f"{npc.label().capitalize()} throws down {w['their']} weapon and yields. Question {w['them']}, let {w['them']} go, "
+                     "hand them to the watch, or put an end to it.")
         return npc
+
+    def captives_lost(self, how: str) -> int:
+        """(f392) Every captive the player held gets away (the player died). Returns how many."""
+        n = 0
+        for nid in list(self.escorted()):
+            if self.store.npc_exists(nid):
+                self.drop_prisoner(self.store.load_npc(nid), how, partial_node=True, state="escaped")
+                n += 1
+        return n
+
+    def escorted(self) -> set[str]:
+        """(f392) The captives walking bound at the player's side: wherever the player is, they are."""
+        from engine import entities
+        return {e.links.get("npc", "") for e in self.store.find_entities(kind="captive", state=tuple(entities.L["captive"]["present_with_player"]),
+                                                                          owner="player")}
 
     def prisoner_here(self, intent=None) -> NPC | None:
         mine = [n for n in self.present if n.id in self.player.prisoners]
@@ -557,25 +663,38 @@ class ArcActions:
                 self.fail_arc(a, why)
 
     def arc_tick(self) -> None:
-        """Prisoners left behind don't wait forever."""
-        if not self.player.prisoners:
-            return
-        today = clock.day(self.minutes)
-        for nid, pr in list(self.player.prisoners.items()):
+        """(f392) Captives do not wait forever (data/rules/lifecycles.yaml captive.escape). One escorted works at their bonds: each day
+        after the first, a chance they get free, growing with every day held. One left behind somewhere is gone after a few days. A
+        night's run walked a berserker bound for a thousand turns; nothing could become of him but what the player chose."""
+        from engine import entities
+        X = entities.L["captive"]["escape"]
+        for e in self.store.find_entities(kind="captive", state=("escorted", "held"), owner="player"):
+            nid = e.links.get("npc", "")
             if not self.store.npc_exists(nid):
                 self.player.prisoners.pop(nid, None)
-                continue
-            if pr.get("escort"):
+                entities.move(self.store, e, "escaped", self.minutes, "gone from the world")
                 continue
             npc = self.store.load_npc(nid)
-            if npc.location == self.player.location or today - pr["day"] < 2:
+            held = (self.minutes - e.since) / 1440
+            if e.state == "held":
+                if npc.location != self.player.location and held >= X["left_days"]:
+                    self.drop_prisoner(npc, "slipped their bonds in the night", partial_node=True, state="escaped")
                 continue
-            self.drop_prisoner(npc, "slipped their bonds in the night", partial_node=True)
+            day = int((self.minutes - e.since - X["grace_hours"] * 60) // 1440)
+            if day < 0 or e.data.get("rolled", -1) >= day:
+                continue
+            e.data["rolled"] = day
+            self.store.save_entity(e)
+            chance = min(X["chance_most"], X["chance_per_day"] * (day + 1))
+            if random.Random(f"{self.store.meta.seed}:{e.ref}:slip:{day}").random() < chance:
+                w = entities.WORDS.get(e.pronoun, {"them": "them", "their": "their"})
+                console.note(f"{npc.label().capitalize()} has worked {w['their']} bonds loose and slipped away while you were not watching.")
+                self.drop_prisoner(npc, "slipped their bonds and got away", partial_node=True, state="escaped")
 
     def bring_prisoners(self, place_id: str) -> None:
         """Bound prisoners you are escorting come with you to the next place."""
-        for nid, pr in list(self.player.prisoners.items()):
-            if not pr.get("escort") or not self.store.npc_exists(nid):
+        for nid in self.escorted():
+            if not self.store.npc_exists(nid):
                 continue
             npc = self.store.load_npc(nid)
             if npc.location == place_id:
@@ -617,7 +736,7 @@ class ArcActions:
         self.player.character.coins += coins
         node_pending = pr.get("node")
         self.end_conversation()
-        self.drop_prisoner(npc, "handed over to the watch", partial_node=bool(node_pending))
+        self.drop_prisoner(npc, "handed over to the watch", partial_node=bool(node_pending), state="handed_over")
         self.standing_report("prisoner_handed_over", [guard], npc.label())
         console.note(f"{guard.label().capitalize()} takes {npc.label()} into custody. Paid: {money.fmt(coins)}"
                      + (" - and it counts toward your bounty." if bounty else "."))
@@ -626,7 +745,12 @@ class ArcActions:
                      "Describe the handover.", text)
         self.store.save_player(self.player)
 
-    def drop_prisoner(self, npc, how: str, partial_node: bool = False) -> None:
+    def drop_prisoner(self, npc, how: str, partial_node: bool = False, state: str = "released") -> None:
+        """The player no longer holds them: `state` is what became of them (data/rules/lifecycles.yaml captive), kept in the registry."""
+        from engine import entities
+        e = self.store.load_entity(f"captive:{npc.id}")
+        if e is not None and not entities.final(e):
+            entities.move(self.store, e, state, self.minutes, how)
         pr = self.player.prisoners.pop(npc.id, None)
         self.store.save_player(self.player)
         pulse.remove_npc(self.store, self.world, npc, how, self.minutes)
@@ -672,7 +796,7 @@ class ArcActions:
         self.player.outlaw_rep = max(-100, min(100, self.player.outlaw_rep + delta))
         node_pending = pr.get("node")
         self.end_conversation()
-        self.drop_prisoner(npc, f"{verdict} by the stranger", partial_node=bool(node_pending))
+        self.drop_prisoner(npc, f"{verdict} by the stranger", partial_node=bool(node_pending), state="released" if how == "release" else "executed")
         state = self.store.load_world_state() or pulse.empty_state(self.minutes)
         broke = how == "kill" and pr.get("deal")
         news = (f"A traveler spared a captured outlaw." if how == "release" else

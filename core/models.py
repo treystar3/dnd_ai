@@ -229,6 +229,7 @@ class Companion(BaseModel):
     fallen: bool = False         # went down in a fight; sits out until recover_at (or is called back by its summon ability)
     recover_at: int = 0          # game minute when a fallen companion is on its feet again
     dead: bool = False           # a beast that did not survive being downed; only a revival brings it back
+    pronoun: str = ""            # (f385) she, he or it, chosen once (engine/party.py companion_pronoun) and kept
 
     @property
     def active(self) -> bool:
@@ -249,7 +250,13 @@ class Character(BaseModel):
     class_summary: str = ""
     combat_identity: str = ""                  # how the class fights, in the reading's words ("Spear and mobility"): the kit answers to it
     concept: str = ""                          # the player's own words at the Threshold ("a centaur spearman hunter")
+    pronoun: str = ""                          # (f386) she, he or they: from their own words at the Threshold, kept; '#pronoun' changes it
+    people: str = ""                           # (f388) the people they were born to (data/world/peoples.yaml), chosen before the goddess speaks
+    look: dict = {}                            # (f388) their look as chosen: {"look": {axis: option}, "flags": [...], "extra": "..."} (engine/look.py)
+    look_text: str = ""                        # (f388) the one sentence the world sees ("A stocky dwarf woman with braided copper hair...")
     uses_companions: bool = False      # keeps companions: tamed, living creatures that grow with them
+    start_weapon: str = ""            # (f389) the weapon chosen at the Threshold and shown on the attributes page; the kit hands it over
+    capabilities: list[str] = []      # (f395) what the story or an item has given them beyond the ordinary (data/rules/capabilities.yaml)
     summoner: bool = False             # makes summons with magic (engine/summons.py); a summon is never a companion
     bound_summon: str = ""             # the summon ability whose Bound summon walks with them now
     bound_broken: bool = False         # that Bound summon was unmade in a fight and has not been cast again
@@ -296,3 +303,25 @@ class Character(BaseModel):
     location: str = "unknown"
     aspirations: list[str] = []
 
+
+
+class Entity(BaseModel):
+    """(f392) One person or thing the player has to do with, in the registry (engine/entities.py, the save's `entities` table): who it is
+    and what has become of it. Townsfolk keep their own records (npc/models.py) and are read through the same identity; what is kept
+    here is what had no home of its own, or lost it: a companion who fell, a captive, a body, a beast at the player's side.
+    ref: 'hire:<id>', 'captive:<npc id>', 'companion:<id>', 'corpse:<n>'. state: a state of its kind's lifecycle (data/rules/lifecycles.yaml)."""
+    ref: str
+    kind: str
+    name: str
+    pronoun: str = "they"
+    people: str = ""                       # a people's id (data/world/peoples.yaml), or a creature's for a beast
+    look: str = ""
+    state: str = ""
+    since: int = 0                         # the minute it came to this state
+    deadline: int = 0                      # the minute something happens unless the player acts first (0: nothing is due)
+    place: str = ""
+    owner: str = ""                        # 'player' while it is the player's (a hire, a captive, a beast)
+    tags: dict[str, int] = {}              # a condition and the minute it ends (0: until it is lifted)
+    links: dict[str, str] = {}             # its other records: npc, fighter, creature, corpse_of
+    data: dict = {}                        # what its kind keeps: role, how they died, what the captive knows...
+    history: list[list] = []               # [minute, from, to, why], the newest last, a few kept

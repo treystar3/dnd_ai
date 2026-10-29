@@ -376,6 +376,7 @@ def converse(
 
     if not npc.met_player:
         npc.met_player = True
+    npc.last_talk_at = store.meta.minutes                   # (f382) when they last spoke: the next talk, long after, is a return
     for name in note_mentions(npc, reply.speech, store):
         console.debug(f"{npc.name} named {name}: noted as heard of")
     if reply.remember.strip():

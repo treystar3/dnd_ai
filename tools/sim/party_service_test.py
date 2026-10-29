@@ -70,7 +70,8 @@ for seed in range(40):
     fates[seed] = svc.decide_down(m2, random.Random(seed), in_fight=True)
     check_once = seed == 0
 check("going down is decided once per fight and both fates occur over seeds",
-      set(fates.values()) == {"dead", "carried"} and all(k in ("party_died", "party_carried") for k in kinds()) and len(kinds()) == 40, set(fates.values()))
+      set(fates.values()) == {"dead", "carried"} and all(k in ("party_died", "party_carried") for k in kinds() if k != "state_changed")
+      and len([k for k in kinds() if k != "state_changed"]) == 40, set(fates.values()))      # (f392) the registry's own move is its echo
 m2["down_fate"] = "carried"
 ev.RECENT.clear()
 check("an already-decided fate is not decided or published again", svc.decide_down(m2, random.Random(1)) == "carried" and kinds() == [])

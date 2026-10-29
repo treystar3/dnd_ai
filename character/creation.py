@@ -26,9 +26,12 @@ PICKS = 3                  # abilities and passives the player keeps at creation
 SAVE_PATH = Path("saves/character.json")
 
 
-def interpret_concept(concept: str) -> ClassInterpretation:
+def interpret_concept(concept: str, who: str = "") -> ClassInterpretation:
+    """`who` (f388): how the player already looks ("A stocky dwarf woman..."), so the reading does not make a dwarf woman 'a mountain of a
+    man'."""
     from llm.contracts import AskedInterpretation
-    got = generate("classify_concept", prompts.CLASSIFY_SYSTEM, concept, AskedInterpretation, temperature=0.3)   # families required (f250)
+    text = (f"WHO THEY ARE (already chosen; describe them as this, never otherwise): {who}\n\nWHO THEY WANT TO BECOME: {concept}" if who else concept)
+    got = generate("classify_concept", prompts.CLASSIFY_SYSTEM, text, AskedInterpretation, temperature=0.3)   # families required (f250)
     return ClassInterpretation(**got.model_dump())
 
 
@@ -288,15 +291,25 @@ def build_character(
     attributes: Attributes,
     aspiration: str | None,
     concept: str = "",
+    who: dict | None = None,
+    weapon: str = "",
 ) -> Character:
+    """`who` (f388): the first page's choices (engine/look.py clean): people, pronoun, look, and the sentence the world sees.
+    `weapon` (f389): the weapon chosen at the Threshold, which the kit hands over when they wake."""
+    from engine import look as look_mod
+    seen = look_mod.clean(who) if who else None
     return Character(
+        pronoun=seen["pronoun"] if seen else "",
+        people=seen["people"] if seen else "",
+        look={k: seen[k] for k in ("look", "flags", "extra")} if seen else {},
+        look_text=look_mod.describe(seen) if seen else "",
         name=name,
         archetype=interp.archetype,
         custom_class=interp.custom_class,
         class_summary=interp.summary,
         combat_identity=getattr(interp, "combat_identity", "") or "",
         concept=concept,
-        uses_companions=interp.uses_companions, summoner=bool(getattr(interp, "summoner", False)),
+        uses_companions=interp.uses_companions, summoner=bool(getattr(interp, "summoner", False)), start_weapon=weapon,
         primary_attributes=list(interp.primary_attributes),
         elements=list(getattr(interp, "elements", []) or []),
         casting_attribute=casting_attribute(interp) if any(a.resource.value == "mana" for a in actives) else "",

@@ -1,0 +1,195 @@
+# THE ACCEPTANCE SCENES (f393, tools/acceptance.py; GOAL.md). Each is played through the real turn with the stand-in model; `reads` is what
+# the interpreter is taken to read, `ruling` what the dungeon master's ruling is taken to say (slice 2). A scene of a slice not built
+# yet is expected to fall short: the list says how far the game is from the goal.
+#
+# The Tidepool Caves are where Bumbo Claat's session met the facade: the place's own description names "a second beach of glowing
+# tidepools behind the first chamber" and "the dry chamber", but going to either ended in a dead end the narrator made up.
+
+# ---------- slice 0: the harness itself ----------
+- name: harness_walk
+  slice: 0
+  about: the harness plays a turn and reads the world after it (walking to a place in town)
+  start: {place: trading_square, minutes: 720, level: 10}
+  steps:
+    - say: "I walk to the adventurers' guild house."
+      reads: [{kind: move, destination: "guild_house"}]
+      then: {place: guild_house}
+    - reopen: true
+      then: {place: guild_house}
+
+# ---------- slice 1: go deeper ----------
+- name: tidepool_dry_chamber
+  slice: 1
+  about: the dry chamber the place describes is somewhere you can walk to
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I go to the dry chamber."
+      reads: [{kind: move, destination: "the dry chamber"}]
+      then: {spot: chamber, knows: [dry chamber], facade: false, told_not: ["comes to nothing", "nothing new"]}
+
+- name: tidepool_deeper
+  slice: 1
+  about: going further into the cave leads somewhere, and what it made is kept
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I go further into the cave."
+      reads: [{kind: explore, seek: "further into the cave"}]
+      then: {facade: false, told_not: ["comes to nothing", "nothing new"]}       # a part the place already has, not yet walked
+    - say: "I keep going, further in."
+      reads: [{kind: explore, seek: "further in"}]
+      then: {facade: false, made: 1, told_not: ["comes to nothing", "nothing new"]}   # beyond it: a part made now, a step deeper
+    - reopen: true
+      then: {place: tidepool_caves}
+    - say: "I go back the way I came, toward the entrance."
+      reads: [{kind: move, destination: "the first chamber"}]
+      then: {spot: chamber, facade: false}
+
+- name: tidepool_second_beach_tide
+  slice: 1
+  about: the second beach is behind the tide, and the game says when it opens instead of walling it off
+  start: {place: tidepool_caves, minutes: 360, level: 10}      # dawn: the tide is in
+  steps:
+    - say: "I go to the second beach with the glowing tidepools."
+      reads: [{kind: move, destination: "the second beach"}]
+      then: {facade: false, note_has: ["tide"]}
+    - wait: 360                                                   # mid-day: the tide is out
+      say: "I go to the second beach with the glowing tidepools."
+      reads: [{kind: move, destination: "the second beach"}]
+      then: {spot: beach, knows: [second beach], facade: false}
+
+- name: tidepool_kept
+  slice: 1
+  about: a part of the place found once is there when the player comes back
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I go to the dry chamber."
+      reads: [{kind: move, destination: "the dry chamber"}]
+      then: {spot: chamber}
+    - reopen: true
+      then: {spot: chamber, knows: [dry chamber]}
+
+# ---------- slice 2: try anything sensible ----------
+- name: tidepool_marks
+  slice: 2
+  about: the marks scratched into the dry chamber's wall can be read, and tell when the beach opens
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I go to the dry chamber."
+      reads: [{kind: move, destination: "the dry chamber"}]
+    - say: "I study the marks scratched into the wall."
+      reads: [{kind: other, summary: "studies the marks scratched into the chamber wall"}]
+      ruling: {sense: "yes", why: "the marks are there to be read", needs: [], stakes: {check: "lore", hard: "easy"}}
+      then: {refused: false, facade: false, told_has: ["tide"]}
+
+- name: refuse_wings
+  slice: 2
+  about: 'growing wings and flying away is refused in the world: nothing made, nothing broken, a way forward'
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I grow wings and fly away."
+      reads: [{kind: other, summary: "grows wings and flies away"}]
+      ruling: {sense: "yes", why: "the player wants to fly", needs: [], requires: [flight]}     # even if the model allows it, the engine does not
+      then: {refused: true, made: 0, place: tidepool_caves, note_not: ["Nothing comes of that"]}
+
+- name: wings_with_the_means
+  slice: 2
+  about: with something that grants flight, flying is allowed
+  start: {place: tidepool_caves, minutes: 720, level: 10, capabilities: [flight]}
+  steps:
+    - say: "I fly up to the roof of the cave."
+      reads: [{kind: other, summary: "flies up to the roof of the cave"}]
+      ruling: {sense: "yes", why: "they can fly", needs: [{kind: feature, name: "the cave roof", what: "a high shelf under the cave roof", where: "above"}], requires: [flight]}
+      then: {refused: false, made: 1}
+
+- name: refuse_dragon
+  slice: 2
+  about: summoning a dragon from nothing is refused
+  start: {place: trading_square, minutes: 720, level: 10}
+  steps:
+    - say: "I summon a dragon to burn the market."
+      reads: [{kind: other, summary: "summons a dragon"}]
+      ruling: {sense: "no", why: "nothing the player has can call a dragon", answer: "You raise your hands to the sky; the market goes on haggling.", instead: ["ask about dragons at the guild"]}
+      then: {refused: true, made: 0}
+
+- name: refuse_wall
+  slice: 2
+  about: walking through a wall is refused
+  start: {place: trading_square, minutes: 720, level: 10}
+  steps:
+    - say: "I walk straight through the wall of the bakery."
+      reads: [{kind: other, summary: "walks through a wall"}]
+      ruling: {sense: "yes", why: "", needs: [], requires: [pass_through]}
+      then: {refused: true, made: 0}
+
+- name: middle_ledge
+  slice: 2
+  about: climbing to a ledge works, with a check and something up there
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I climb up to the ledge above the waterline."
+      reads: [{kind: other, summary: "climbs to a ledge above the waterline"}]
+      ruling: {sense: "yes", why: "sea caves have shelves above the tide", needs: [{kind: feature, name: "the high ledge", what: "a shelf of rock above the waterline", where: "above"}], stakes: {check: "athletics", hard: "fair"}}
+      then: {refused: false, made: 1, knows: [ledge]}
+
+- name: middle_rockfall
+  slice: 2
+  about: digging through a rockfall works, with time
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I dig through the rockfall at the back of the tunnel."
+      reads: [{kind: other, summary: "digs through a rockfall"}]
+      ruling: {sense: "cost", why: "loose rock can be shifted, slowly", needs: [{kind: feature, name: "the rockfall", what: "a slope of fallen shale blocking the tunnel", where: "ahead"}], stakes: {check: "athletics", hard: "hard"}}
+      then: {refused: false, made: 1}
+
+- name: middle_hermit
+  slice: 2
+  about: calling out for the hermit is answered by someone, or by no one, by the rules
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I call out for the hermit who lives in these caves."
+      reads: [{kind: other, summary: "calls out for the hermit"}]
+      ruling: {sense: "yes", why: "a hermit living here would hear", needs: [{kind: person, name: "the hermit", what: "an old recluse who lives in the dry chamber", role: "hermit"}]}
+      then: {refused: false, facade: false, present: hermit}
+
+- name: middle_block
+  slice: 2
+  about: wedging the way into the dry chamber shut keeps it shut, and walking there is told so
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I wedge driftwood across the way into the dry chamber."
+      reads: [{kind: other, summary: "wedges driftwood across the way into the dry chamber"}]
+      ruling: {sense: "yes", why: "there is driftwood enough", needs: [], changes: [{part: "the dry chamber", becomes: "blocked"}]}
+      then: {refused: false, made: 0, told_has: ["blocked"]}
+    - say: "I go to the dry chamber."
+      reads: [{kind: move, destination: "the dry chamber"}]
+      then: {note_has: ["blocked"], facade: false}
+
+- name: grounded_coins
+  slice: 2
+  about: handing over the coins gives coins, never something else in the pack whose name holds 'silver'
+  start: {place: trading_square, minutes: 720, level: 10, coins: 500, pack: [silverleaf], present: [{id: m1, name: Osric Vane, role: merchant}]}
+  steps:
+    - say: "I hand over five silver coins to the merchant."
+      reads: [{kind: give, item: "silverleaf", target: "m1"}]        # what the interpreter read on a night: the word 'silver' in the pack
+      then: {has: [silverleaf], coins_spent: true}
+
+# ---------- slice 3: the world hears ----------
+- name: song_lure
+  slice: 3
+  about: a song to lure the sahuagin is heard, and they come to ground the player chose
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I play a song to lure the sahuagin to me."
+      reads: [{kind: other, summary: "plays a song to lure sahuagin"}]
+      ruling: {sense: "yes", why: "sahuagin are drawn to sound by the water", needs: []}
+      then: {fight: sahuagin}
+
+- name: shout_watch
+  slice: 3
+  about: shouting for the watch in a town draws the watch
+  start: {place: trading_square, minutes: 720, level: 10}
+  steps:
+    - say: "I shout for the watch!"
+      reads: [{kind: other, summary: "shouts for the watch"}]
+      ruling: {sense: "yes", why: "the watch answers a shout in the market", needs: []}
+      then: {note_has: ["watch"]}

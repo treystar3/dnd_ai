@@ -50,6 +50,14 @@
     <footer id="homever">Version __VERSION__</footer>
   </div>
 </div>
+<div id="creation" hidden>   <!-- (f388) character creation as pages: app.js showCreation draws each step the game sends (scenes/goddess.py show) -->
+  <div class="cr-inner">
+    <nav id="crtabs" class="cr-tabs" aria-label="Steps"></nav>
+    <div id="crvoice" class="cr-voice"></div>
+    <section id="crcard" class="cr-card"></section>
+    <form id="crform" class="cr-say" autocomplete="off"><input id="crinput" type="text" spellcheck="false" placeholder="Or say it to her in your own words…"><button id="crsend" type="submit">Say</button></form>
+  </div>
+</div>
 <div id="setup" hidden><div class="card"><h2 id="setuptitle"></h2><div id="setuplines"></div><div id="setupbar" hidden><div id="setupfill"></div></div><div id="setuptext"></div><div id="setupbtns"></div></div></div>
 <script>window.TOKEN = "__TOKEN__";</script>
 <script src="/app.js"></script>

@@ -241,6 +241,10 @@ def check() -> list[str]:
     from engine import world_improv as _wi                   # (f332) what an improvisation may make true
     for p_ in _wi.problems():
         need(False, p_)
+    from engine import look as _look                          # (f388) a look for every people of the world, and no other
+    from world.loader import load_world as _lw
+    for p_ in _look.problems(_lw()):
+        need(False, p_)
     PT_ = _load("data/rules/pastimes.yaml")
     _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
     from engine import clock as _clock, doings as _doings, moments as _moments                 # (f348) doings by role and period; moments by place and period
@@ -259,6 +263,15 @@ def check() -> list[str]:
     bad += _starts.problems(set(_load("data/rules/standing.yaml")["groups"]), set(_pulse_rules["tiers"]), set(_load("data/rules/guild.yaml")["ranks"]))
     from engine import guard as _guard                                                        # (f364) the content guard's categories
     bad += _guard.problems()
+    from engine import hygiene as _hygiene                                                    # (f391) the output gate's rules
+    bad += _hygiene.problems()
+    from engine import entities as _entities                                                  # (f392) the lifecycles
+    bad += _entities.problems()
+    from engine import ruling as _ruling                                                      # (f395) what a character can do beyond the ordinary
+    bad += _ruling.problems()
+    from engine import features as _features                                                  # (f394) the parts of places
+    from world.loader import load_world as _lw
+    bad += _features.problems(_lw())
     from engine import trust as _trust                                                        # (f362) trust moved by the engine, by a reply's intent
     import typing as _typing
     from llm.contracts import NPCReply as _NPCReply

@@ -73,7 +73,7 @@ smith_npc.trust = 50
 ws.player.mentor["introduced"] = False
 ws.mentor_show("Where did you come by that weapon?", reply_to="hello")
 check("Maren, still weighing a stranger: her greatsword within reach, and the moment tense with the reason",
-      "WITHIN REACH: her greatsword" in asked[-1] and "THE MOMENT: tense - she does not yet know whether this armed stranger is a bandit" in asked[-1], asked[-1][-700:])
+      "WITHIN REACH: her greatsword" in asked[-1] and "THE MOMENT: tense - she does not yet know whether this stranger, who looks like a fighter, is a bandit" in asked[-1], asked[-1][-700:])
 ws.player.mentor["introduced"] = True
 ws.mentor_show("Good. Then let's get you on the board.", reply_to="i'm no bandit")
 check("...and once the stranger has settled her, easy", "THE MOMENT: easy" in asked[-1])

@@ -34,6 +34,8 @@ def register(ws) -> None:
     rx = Reactions(ws)
     for fn in (rx.ledger, rx.memories, rx.standing, rx.reputation, rx.heat, rx.hires):
         _OFF.append(de.subscribe(de.Deed, fn))
+    _OFF.append(de.subscribe(de.MemberDied, rx.fallen))           # (f392) the registry keeps who travelled with the player, and who fell
+    _OFF.append(de.subscribe(de.MemberLeft, rx.departed))
 
 
 def unregister() -> None:
@@ -56,6 +58,39 @@ def _flagged(table, e) -> list:
 class Reactions:
     def __init__(self, ws):
         self.ws = ws
+
+    # ---- (f392) the party's lifecycle, in the registry
+
+    def _hire_entity(self, member_id: str):
+        """The registry's record of this hire, made now from their party row if there is none yet."""
+        from engine import entities, party
+        ws = self.ws
+        ref = f"hire:{member_id}"
+        e = ws.store.load_entity(ref)
+        if e is not None:
+            return e
+        m = next((x for x in ws.player.party if str(x.get("id")) == str(member_id)), None)
+        if m is None or m.get("story"):
+            return None
+        return entities.begin(ws.store, "hire", ref, m["name"], ws.minutes, pronoun=party.pronoun_of(m, ws.store.meta.seed, ws.player.party_used),
+                              people=m.get("people", ""), owner="player", data={"role": m.get("role", ""), "note": f"a hired {m.get('role', 'companion')}"})
+
+    def fallen(self, e) -> None:
+        """A companion who dies is kept: who they were, where and how they fell. The party row is deleted when they are buried; a night's
+        run had two companions die and never be spoken of again, because nothing remembered them."""
+        from engine import entities
+        ent = self._hire_entity(e.member_id)
+        if ent is None or entities.final(ent):
+            return
+        ent.data.update(how=e.text(), place=self.ws.player.location, place_name=self.ws.place.name if self.ws.place else "",
+                        note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player")
+        entities.move(self.ws.store, ent, "dead", e.minute or self.ws.minutes, e.text())
+
+    def departed(self, e) -> None:
+        from engine import entities
+        ent = self._hire_entity(e.member_id)
+        if ent is not None and not entities.final(ent):
+            entities.move(self.ws.store, ent, "departed", e.minute or self.ws.minutes, e.text())
 
     # ---- where and when
 

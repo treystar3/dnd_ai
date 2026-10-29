@@ -8,6 +8,7 @@
 # The rule throughout: the engine supplies the specifics and the model supplies the delivery. A quirk that lives only in the prompt is noise.
 
 habit_chance: 65          # a habit shows this often when its moment comes (always the first time)
+habit_wear: [100, 65, 45, 30, 20, 12]    # (f386) ...and less each time it has been shown: by how many times so far (the last holds after that)
 flaw_chance: 45           # a hire has a flaw this often
 
 # ---- habits: when = rest | arrival | fight_start | fight_end. {name} {their} {weapon} {count} are filled in.

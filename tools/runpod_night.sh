@@ -61,8 +61,19 @@ if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
     done
 fi
 nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true
-ollama show "$MODEL" >/dev/null 2>&1 || ollama pull "$MODEL"          # already on the box: no pull, no registry round trip
-ollama show "$EMBED" >/dev/null 2>&1 || ollama pull "$EMBED"
+# (f387) A pull is tried up to six times, a little longer apart each time: the registry answered one night's first pull with a bare 503,
+# and the script, stopping at the first error, ended the night before it began while the pod went on billing.
+pull() {
+    ollama show "$1" >/dev/null 2>&1 && return 0          # already on the box: no pull, no registry round trip
+    for n in 1 2 3 4 5 6; do
+        ollama pull "$1" && return 0
+        echo "Pulling $1 failed (try $n of 6); trying again in $((n * 20)) s."
+        sleep $((n * 20))
+    done
+    return 1
+}
+pull "$MODEL"
+pull "$EMBED"
 python3 -m pip install -q -r requirements.txt
 
 echo "A night of $RUNS run(s), $HOURS h each, $PARALLEL at a time: $MODEL"

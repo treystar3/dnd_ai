@@ -45,12 +45,12 @@ s = ThresholdScene()
 s.speak = lambda event: heard.append(event)
 s.concept = "I want to be a hunter with a gun"
 import character.creation as cr
-cr.interpret_concept = lambda c: ClassInterpretation(archetype=Archetype.ROGUE, custom_class="Crossbow Hunter", combat_identity="crossbow marksman",
+cr.interpret_concept = lambda c, who="": ClassInterpretation(archetype=Archetype.ROGUE, custom_class="Crossbow Hunter", combat_identity="crossbow marksman",
                                                     themes=["Marksmanship"], summary="A patient hunter.", adapted="Firearms do not exist here; I read this as a crossbow marksman.")
 s.read_class()
 check("the Goddess is told to say that the thing asked for has no place in Meravia", s.step == Step.CONFIRM_CLASS and "no place in Meravia" in heard[-1] and "Firearms do not exist" in heard[-1], heard[-1:])
 heard.clear()
-cr.interpret_concept = lambda c: ClassInterpretation(archetype=Archetype.ROGUE, custom_class="Shadow", combat_identity="daggers", themes=["Stealth"], summary="Quiet.")
+cr.interpret_concept = lambda c, who="": ClassInterpretation(archetype=Archetype.ROGUE, custom_class="Shadow", combat_identity="daggers", themes=["Stealth"], summary="Quiet.")
 s.read_class()
 check("an ordinary concept gets no such note", "no place in Meravia" not in heard[-1])
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

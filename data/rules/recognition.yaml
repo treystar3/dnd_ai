@@ -1,0 +1,13 @@
+# (f382) PEOPLE KNOW YOU AGAIN. Someone the player has talked with, met again after a while, is told so when the new conversation opens:
+# when they last spoke and the last thing between them. Before this a person was told only "someone you have met before", with memories
+# by day number and no today to set them against: across the f375 night and two playthroughs nobody once greeted the player as someone
+# they knew (engine/recognition.py).
+
+after_minutes: 180            # a conversation opened this long after the last one is a return; sooner, it is the same visit going on
+
+# what the person is told, at the start of the new conversation
+line: "THEY ARE BACK: you last spoke with them {ago}.{last} Greet them as someone you know, in your own way; you need not make anything of it."
+last: " The last thing you remember of them: {memory}"
+
+# what the narrator is told of a present person who knows the player and has not seen them for a while
+seen: "Knows the player; last spoke with them {ago}."

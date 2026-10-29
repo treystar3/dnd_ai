@@ -1,0 +1,37 @@
+# THE LIFECYCLES (f392, engine/entities.py). What can become of someone the player has to do with, as states and the moves between
+# them. Two nights showed what a flag cannot hold: a captive bound at the player's side for a thousand turns, a man who had died yielding,
+# a companion's record deleted the moment she fell so that nobody spoke of her again. Every move is checked against `moves`, kept in the
+# entity's history, and published on the event bus (StateChanged), so the journal and every system that cares hears of it.
+#
+# states: every state; start: the first; final: states nothing moves on from (the player no longer holds them); moves: from -> to.
+
+hire:
+  states: [with, dead, departed]
+  start: with
+  final: [dead, departed]
+  moves: {with: [dead, departed]}
+
+feature:                              # (f394) a part of a place (engine/features.py)
+  states: [unseen, known, explored, changed, gone]
+  start: unseen
+  final: [gone]
+  moves:
+    unseen: [known, explored, changed, gone]
+    known: [explored, changed, gone]
+    explored: [changed, gone]
+    changed: [explored, gone]
+
+captive:
+  states: [escorted, held, handed_over, released, escaped, ransomed, executed, dead]
+  start: escorted
+  final: [handed_over, released, escaped, ransomed, executed, dead]
+  moves:
+    escorted: [held, handed_over, released, escaped, ransomed, executed, dead]
+    held: [escorted, handed_over, released, escaped, ransomed, executed, dead]
+  present_with_player: [escorted]     # an escorted captive is wherever the player is; a held one stays where it was left
+  most_escorted: 3                    # a fourth taken while three walk bound is let go: nobody marches a column of prisoners
+  escape:                             # captives work at their bonds: each day after the first, a chance one of them gets free
+    grace_hours: 24
+    chance_per_day: 0.15
+    chance_most: 0.6                  # the chance grows with every day held, to this
+    left_days: 2                      # a captive left behind somewhere is gone after this many days

@@ -104,7 +104,7 @@ bram["quirks"].update(likes="harvest", dislikes="flee", reacted={}); isel["quirk
 tam["quirks"].update(likes="loot_dead", dislikes="harvest", reacted={})
 calls = collections.Counter()
 reqs_ = []
-stub.exchange = lambda names_, first: (calls.update(["exchange"]), reqs_.append(first), [{"speaker": names_[i % len(names_)], "text": f"A word on the skinning, {chr(97 + i)}."} for i in range(2)])[2]
+stub.exchange = lambda names_, first: (calls.update(["exchange"]), reqs_.append(first), [{"speaker": names_[i % len(names_)], "text": ["Leave the hide. It is ruined.", "The meat will still fetch a copper or two."][i]} for i in range(2)])[2]
 stub.companion = lambda u: (calls.update(["companion"]), {"speech": "Fine work."})[1]
 before = {m["id"]: m["bond"] for m in crew}
 SAID.clear(); w.deed("harvest")
@@ -156,6 +156,7 @@ for k in range(200):
     for key, last in (("easy", {"minute": 0, "won": True, "hard": False}), ("hard", {"minute": 0, "won": True, "hard": True})):
         w.player.party_last_fight = last
         st.meta.minutes = 5000 + k * 500; w._banter_due = "fight"; w._banter_last = -10**9
+        st.meta.turn += 1                                # (f386) each fight's end is a turn of its own: the party's lines are counted by turn
         w.banter_tick()
 w.party_banter = _pb
 check("after an easy win the party talks now and then; after a hard fight, usually", said_after["easy"] < 80 and said_after["hard"] > 110, said_after)
@@ -216,6 +217,7 @@ check("talking to Bram about his boots: one read of the words, Bram answers, nob
       and calls["companion"] == 1 and w.last_plan.speaker_ids == [], (calls, director.explain(w.last_plan, names)))
 calls.clear()
 stub.overheard = lambda u: (calls.update(["overheard"]), {"about": [], "party": True, "weight": "light"})[1]
+st.meta.turn += 1                                        # (f386) the others join in once a turn: this is the next one
 w.hire_talk(bram, "We leave at dawn. Everyone ready?")
 check("'we leave at dawn, everyone ready?': Bram answers, then Isel and Tamsin join in, in one exchange", calls["exchange"] == 1
       and sorted(w.last_plan.speaker_ids) == ["d2", "d3"], (calls, director.explain(w.last_plan, names)))

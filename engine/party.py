@@ -48,13 +48,14 @@ def roster(seed, hall: str, day: int, player_level: int, rank_coins: int, used: 
         level = max(1, round(player_level * rng.uniform(lo, hi)))
         from engine import voice_profile
         people = voice_profile.roll_people(rng)
-        name = hire_name(people, rng)
+        gender = rng.choice(["male", "female"])                             # (f385) drawn where hire_name drew it: the same names as before
+        name = hire_name(people, rng, gender)
         speech = voice_profile.roll(rng, people)
         from engine import voices
         voices.ensure(speech, rng, [o["speech"]["kit"] for o in out])      # (f350) no two on one list sound alike
         out.append({"id": f"{week}-{i}", "name": name, "role": role, "level": level, "rank": rank_of(level),
                     "blurb": rng.choice(P["roles"][role]["blurb"]), "fee": 0, "hall": hall, "people": people, "speech": speech,
-                    **roll_personality(rng)})
+                    "pronoun": "she" if gender == "female" else "he", **roll_personality(rng)})
     rng.shuffle(out)
     for m in out:
         m["fee"] = fee(m, player_level, rank_coins)
@@ -188,11 +189,68 @@ def new_hire(offer: dict, player_level: int, day: int) -> dict:
     return {"id": offer["id"], "name": offer["name"], "role": offer["role"], "level": offer["level"], "rank": offer["rank"],
             "blurb": offer["blurb"], "temper": list(offer.get("temper", [])), "motive": offer.get("motive", ""), "line": offer.get("line", ""),
             "people": offer.get("people", "human"), **({"speech": dict(offer["speech"])} if offer.get("speech") else {}),
+            **({"pronoun": offer["pronoun"]} if offer.get("pronoun") else {}),
             "permanent": True, "base_level": offer["level"], "hired_at": player_level, "hired_day": day, "bond": start,
             "fights_since": 0, "warned": False, "hp_frac": 1.0, "hp_at": 0,
             "capped": level_cap(offer["rank"]) is not None and offer["level"] >= level_cap(offer["rank"]),
             "memories": [{"day": day, "text": "I took their coin at the guild hall and signed on.", "weight": 2, "count": 1}],
             "impression": "Has only just met the player and is reserving judgment.", "mood": "", "mood_at": 0, "said": []}
+
+
+def pronoun_of(member: dict, seed=None, used=()) -> str:
+    """(f385) she, he or they, the same every time. A hire's name was built for a gender rolled with it, which was never kept: the narrator
+    called one hire she, he and they in one fight. Now the roster keeps it. A hire from an older save gets theirs back by drawing their
+    week's roster again (it is seeded: the same names, the same genders); failing that, one is chosen once from who they are, and kept."""
+    p = member.get("pronoun")
+    if p in ("she", "he", "they"):
+        return p
+    p = "she" if member.get("sheet") == "maren" else (_drawn_with(member, seed, used)
+                                                       or random.Random(f"{member.get('id')}:{member.get('name')}").choice(["she", "he"]))
+    member["pronoun"] = p
+    return p
+
+
+def _drawn_with(member: dict, seed, used) -> str:
+    """The pronoun a hire's roster entry was drawn with: their hall is in the player's used list, their week in their id."""
+    if seed is None:
+        return ""
+    try:
+        week = int(str(member.get("id", "")).split("-")[0])
+    except ValueError:
+        return ""
+    for u in used or ():
+        hall, _, mid = str(u).rpartition(":")
+        if mid != member.get("id") or not hall:
+            continue
+        for o in roster(seed, hall, week * P["roster_days"], 1, 0, []):
+            if o["id"] == member["id"] and o["name"] == member.get("name"):
+                return o["pronoun"]
+    return ""
+
+
+def companion_pronoun(comp) -> str:
+    """(f385) A tamed beast is she or he, chosen once from its id and kept; a spirit, an elemental, a construct or the risen dead is it."""
+    if comp.pronoun:
+        return comp.pronoun
+    comp.pronoun = ("it" if (comp.kind or "beast") in ("spirit", "elemental", "construct", "undead")
+                    else random.Random(f"{comp.id}:{comp.name}").choice(["she", "he"]))
+    return comp.pronoun
+
+
+def pronoun_pair(p: str) -> str:
+    """'she/her', 'he/him', 'they/them'."""
+    if p == "it":
+        return "it/its"
+    from engine import quirks
+    their, them, they, _ = quirks.PRONOUNS.get(p, quirks.PRONOUNS["they"])
+    return f"{they}/{them}"
+
+
+def fights_as(member: dict) -> str:
+    """(f385) How a hire fights, as the narrator must show it (party.yaml roles: fights_as)."""
+    if member.get("sheet") == "maren":
+        return P.get("maren_fights_as", "a greatsword")
+    return P["roles"].get(member.get("role", ""), {}).get("fights_as", "")
 
 
 def health_now(member: dict, minutes: int) -> float:

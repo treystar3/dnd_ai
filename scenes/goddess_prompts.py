@@ -1,7 +1,7 @@
 """Prompts for the Threshold scene: the goddess's voice, and reading the player's input."""
 
 
-def goddess_system(knowledge: dict[str, list[str]]) -> str:
+def goddess_system(knowledge: dict[str, list[str]], who: str = "") -> str:
     def block(key):
         return "\n".join(f"- {line}" for line in knowledge.get(key, []))
 
@@ -36,6 +36,10 @@ About the world:
 She will not reveal:
 {block("will_not_reveal")}
 
+""" + (f"""
+The one before you (what they chose to keep of themselves, before you spoke): {who} Speak to them as what they are: never call a woman a
+man, or anyone a people they are not.
+""" if who else "") + """
 Respond only with JSON matching the schema, with her words in "speech"."""
 
 

@@ -64,6 +64,7 @@ class NPC(BaseModel):
     knows_player_as: str = ""
     met_player: bool = False
     last_talk_day: int = -1       # (f362) the game day of the last conversation: the first talk of a day moves trust (engine/trust.py)
+    last_talk_at: int = -1        # (f382) the game minute of the last conversation: a talk opened long after it is a return (engine/recognition.py)
     away_until: int = -1
     looks_away_until: int = -1    # a bribed person sees nothing until this game minute
     hidden: list[dict] = []       # story objects the player went looking for on this person: {"name", "description", "worth", "taken"}

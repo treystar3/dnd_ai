@@ -77,9 +77,32 @@ def danger_factor(store, place_id: str, now: int) -> float:
 
 
 def closed_reason(store, place_id: str, now: int) -> str:
+    """Why the way through a place is shut to the player now, or ''. (f386) Never a barring the player made themselves: they barred it
+    against others, and can unbar it (a night's run was shut out of the guild house for twenty turns by its own leaning on a wall)."""
     state = store.load_world_state()
-    hits = active_effects(state, now, "closed", place_id)
+    hits = [e for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"]
     return hits[0]["text"] if hits else ""
+
+
+def closed_until(store, place_id: str, now: int) -> int:
+    """(f390) The minute the way through this place opens again (the last closure on it to lift), or 0 when it is open."""
+    state = store.load_world_state()
+    return max((e["until"] for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"), default=0)
+
+
+def way_out(world, here: str) -> set[str]:
+    """(f390) The places a closure cannot bar to someone standing at `here`: the place itself, every place it lies within, and the one a
+    dead end opens onto (a dungeon's mouth opens only onto the wild above it). A closure stops people going in; it never shuts in whoever
+    is already there. A night's run spent four hours at the mouth of a mine whose only way out was a wild a world event had closed."""
+    out = set()
+    p = world.places.get(here)
+    while p is not None and p.id not in out:
+        out.add(p.id)
+        links = list(getattr(p, "connects", None) or {})
+        if len(links) == 1:
+            out.add(links[0])
+        p = world.places.get(p.parent) if p.parent else None
+    return out
 
 
 def happenings_at(store, world, place_id: str, now: int) -> list[str]:
@@ -97,7 +120,8 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
                 out.append(sign)
     for e in state.get("effects", []):
         if e["kind"] == "closed" and e["place"] == place_id and e["until"] > now:
-            out.append(f"The way is closed: {e['text']}")
+            out.append(f"The player has barred the way here themselves, and can unbar it: {e['text']}" if e.get("cause") == "improvised"
+                       else f"The way is closed: {e['text']}")                                # (f386) theirs, said as theirs
     return out
 
 

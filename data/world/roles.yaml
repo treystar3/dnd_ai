@@ -38,6 +38,8 @@
            {id: torch, name: a torch, price: 8, kind: item, item: torch},
            {id: trail_ration, name: a trail ration, price: 15, kind: item, item: trail_ration}],
    buys: [cloth, wood]}
+- {id: hermit, hours: [0, 24], description: Lives alone in the wild and knows it better than anyone; wary of company and glad of it., knowledge_groups: [hunters]}   # (f395) made only when the world makes room for one (engine/ruling.py); no place lists them
+- {id: wanderer, hours: [0, 24], description: Someone on their way through, with a story of where from., knowledge_groups: [merchants]}   # (f395) the same
 - {id: traveling_player, hours: [0, 24], description: A travelling player who sings for a room and a meal and carries the news of three regions., knowledge_groups: [merchants]}   # (f348) made only by a moment (data/rules/moments.yaml); no place lists them
 - {id: tinker, hours: [8, 17],        description: Mends pots and small goods; travels the road between towns., knowledge_groups: [merchants],
    buys: [any], buy_rate: 0.25,

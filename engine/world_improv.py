@@ -5,6 +5,7 @@ that would do it, and something is made true either way: a mark on the place, a 
 Mirrors engine/combat_improv.py: AN ABILITY IS A PROMISE; AN IMPROVISATION IS A GAMBLE."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -16,16 +17,33 @@ W = yaml.safe_load((ROOT / "data" / "rules" / "improv.yaml").read_text(encoding=
 
 
 def read_effect(words: str) -> str:
-    """Which of the vocabulary the player is after, by meaning when the helper model is there, else 'attempt'."""
+    """Which of the vocabulary the player is after, by meaning when the helper model is there, else 'attempt'. (f386) A reading whose
+    `needs` words the line lacks gives way to the next closest; a line that is only a gesture or a pose is 'pose'."""
     from engine import relevance
-    named = {k: v["about"] for k, v in W["effects"].items() if v["about"]}
+    named = {k: v["about"] for k, v in W["effects"].items() if v.get("about")}
     try:
-        pick = relevance.pick(words, list(named.values()), 1, floor=0.3)
-        if pick:
-            return next(k for k, a in named.items() if a == pick[0])
+        for p in relevance.pick(words, list(named.values()), 3, floor=0.3):
+            k = next(k for k, a in named.items() if a == p)
+            need = W["effects"][k].get("needs")
+            if k == "pose" or not need or re.search(need, words or "", re.I):
+                return k
     except Exception:
         pass
-    return "attempt"
+    if is_pose(words):
+        return "pose"
+    return next((k for k, e in W["effects"].items() if e.get("needs") and re.search(e["needs"], words or "", re.I)), "attempt")
+
+
+def is_pose(words: str) -> bool:
+    """(f386) A gesture or a pose and nothing more: none of the effects' own words, and a word of standing, leaning, watching..."""
+    if not re.search(W["pose_words"], words or "", re.I):
+        return False
+    return not any(re.search(e["needs"], words or "", re.I) for k, e in W["effects"].items() if e.get("needs") and k != "practise")
+
+
+def is_rest(words: str) -> bool:
+    """(f386) A line that only sleeps or rests: a rest, not a gamble (going to sleep was rolled as hiding)."""
+    return bool(re.search(W["rest_words"], words or "", re.I))
 
 
 def odds_for(c, effect: str) -> float:
@@ -80,8 +98,13 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
 
 
 def problems() -> list[str]:
-    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing."""
+    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing; a `needs` that is no pattern."""
     bad = []
+    for name, e in (W.get("effects") or {}).items():
+        try:
+            re.compile(e.get("needs") or "")
+        except re.error as x:
+            bad.append(f"improv.yaml {name}: needs is not a pattern ({x})")
     need = {"closed": ("minutes",), "danger": ("value", "days"), "news": ("text",)}
     for name, e in (W.get("effects") or {}).items():
         for ch in e.get("changes") or []:
@@ -98,6 +121,9 @@ def problems() -> list[str]:
 def what_of(words: str) -> str:
     """The thing attempted, for a mark: the player's words, trimmed of the 'I' and kept short."""
     w = " ".join((words or "").split())
+    if w.lower().startswith("the player "):                 # (f391) a summary in the third person: "The player takes out their journal"
+        from engine import hygiene
+        w = hygiene.second_person(w, whole=True)[4:]
     for lead in ("i try to ", "i attempt to ", "i'll ", "i will ", "i "):
         if w.lower().startswith(lead):
             w = w[len(lead):]
@@ -105,14 +131,38 @@ def what_of(words: str) -> str:
     return w.rstrip(".!").strip()[:80]
 
 
-def resolve(ws, words: str, text: str) -> None:
-    """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact."""
+def changed_text(ws, ruled: dict | None, degree: str) -> str:
+    """(f395) The parts the attempt made different (engine/ruling.change_parts), as the narrator is told them."""
+    if not (ruled or {}).get("changes"):
+        return ""
+    from engine import ruling
+    lines = ruling.change_parts(ws, ruled, degree)
+    return (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(lines)) if lines else ""
+
+
+def resolve(ws, words: str, text: str, ruled: dict | None = None) -> None:
+    """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact. (f395) With the
+    dungeon master's ruling (engine/ruling.py): a plain yes is done without a roll; a cost is rolled on the ruling's check and how hard
+    it is; and what the world made for it is told as real."""
     from engine import checks, pools
     c = ws.player.character
     effect = read_effect(words or text)
+    made = (ruled or {}).get("made") or []
+    room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
+    if effect == "pose" and not made and not (ruled or {}).get("changes"):                       # (f386) shown, and nothing else: no roll, no mark, nothing barred
+        ws.advance(1)
+        ws.narrate(f"THE GAME HAS DECIDED: the player does a small thing ({what_of(words or text)}) and nothing comes of it: it changes nothing "
+                   "and nobody makes anything of it. Show it in passing, as it would be seen.", text)
+        return
+    if effect == "pose":
+        effect = "attempt"
     e = W["effects"][effect]
-    odds = odds_for(c, effect)
-    degree, rolled = checks.roll(odds, ws.rng, c=c)
+    if ruled is not None and ruled.get("sense") == "yes" and not ruled.get("check"):
+        degree, rolled, odds = "success", 0, 100.0               # a plain yes: a dungeon master does not roll for lighting a torch
+    else:
+        from engine import ruling
+        odds = ruling.odds(ws, effect, ruled) if ruled is not None else odds_for(c, effect)
+        degree, rolled = checks.roll(odds, ws.rng, c=c)
     console.debug(f"improvised ({effect}): {odds:.0f}% - rolled {rolled}: {degree}")
     console.ledger(f"{effect.capitalize()} — {degree.replace('_', ' ')}")
     what = what_of(words or text)
@@ -128,8 +178,9 @@ def resolve(ws, words: str, text: str) -> None:
         if changed:
             console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
         ws.advance(5)
+        room += changed_text(ws, ruled, degree)
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
-                   + ". Show it done, as it would be seen, and what is different now. Nothing is gained that was not there, and no one is harmed.", text)
+                   + ". Show it done, as it would be seen, and what is different now. Nothing is gained that was not there, and no one is harmed." + room, text)
         return
     if degree == "partial":
         P = W["partial"]
@@ -137,8 +188,9 @@ def resolve(ws, words: str, text: str) -> None:
             ws.add_mark("roughly, " + mark)
         apply_changes(ws, effect, what, degree)
         ws.advance(P["minutes"])
+        room += changed_text(ws, ruled, degree)
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works - {P['text']}. Show it as it would be seen, "
-                   "the flaw in it plain. Nothing is gained that was not there.", text)
+                   "the flaw in it plain. Nothing is gained that was not there." + room, text)
         return
     F = W["fails"][e["fail"]]
     ws.advance(F["minutes"])
@@ -149,4 +201,4 @@ def resolve(ws, words: str, text: str) -> None:
         ws.add_mark(F["mark"].format(mark=mark))
     ws.store.save_player(ws.player)
     ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS - {F['text']}. Show the failure as it happens and what it "
-               "costs them, and stop there; no one gives them anything, and nobody speaks beyond a look or a word.", text)
+               "costs them, and stop there; no one gives them anything, and nobody speaks beyond a look or a word." + room, text)

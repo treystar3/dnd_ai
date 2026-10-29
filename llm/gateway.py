@@ -6,6 +6,7 @@ rejected, so the retry can fix the specific problem.
 Callers get a validated proposal object or an LLMError, never raw text.
 """
 
+import contextlib
 import json
 import threading
 import time
@@ -73,6 +74,19 @@ def threads() -> dict:
     return {"num_thread": n} if n > 0 else {}
 
 
+def shifted(task: str, base: float, top: float, tuned: dict) -> tuple[float, float, dict]:
+    """(f387) config.TEMP_ADD and REPEAT_ADD applied: warm calls warmer (their retry ceiling with them), set penalties firmer. The cold
+    calls and the night bot's own lines are untouched."""
+    add, rep = float(getattr(config, "TEMP_ADD", 0) or 0), float(getattr(config, "REPEAT_ADD", 0) or 0)
+    if task in getattr(config, "BOT_TASKS", ()):
+        return base, top, tuned
+    if add and base >= getattr(config, "WARM_FROM", 0.5):
+        base, top = min(1.5, base + add), min(1.5, top + add)
+    if rep and "repeat_penalty" in tuned:
+        tuned = dict(tuned, repeat_penalty=round(tuned["repeat_penalty"] + rep, 3))
+    return base, top, tuned
+
+
 def generate(
     task: str,
     system: str,
@@ -120,6 +134,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     tuned = dict(getattr(config, "SAMPLING", {}).get(task, {}))
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2      # a retry warms a tuned task only a little
+    base, top, tuned = shifted(task, base, top, tuned)
     for attempt in range(retries + 1):
         start = time.perf_counter()
         try:
@@ -175,9 +190,15 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if not reason:                                                       # (f364) the content guard: the line the game draws
                 from engine import guard
                 if guard.guarded(task):
-                    cat, hit = guard.check(guard.strings_of(result))
+                    alien = guard.foreign(guard.strings_of(result), system + "\n" + str(messages[1]["content"]))   # (f390) another alphabet
+                    cat, hit = ("script", alien) if alien else guard.check(guard.strings_of(result))
+                    if not cat:                                                  # (f391) the machinery in the prose: JSON, codes, 'the player'
+                        from engine import hygiene
+                        kind, found = hygiene.problem(task, result)
+                        if kind:
+                            reason = f"{hygiene.reason(kind)} (not '{found}')"
                     if cat:
-                        reason = f"{guard.reason(cat)} (not '{hit}')"               # (f370) the word named, or the model writes it again
+                        reason = f"{guard.script_reason() if cat == 'script' else guard.reason(cat)} (not '{hit}')"   # (f370) the word named, or the model writes it again
                         try:
                             from engine import refusals
                             refusals.note("guarded", task, f"{cat}: {hit}")
@@ -266,6 +287,21 @@ def _usage(response) -> dict | None:
             "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
 
 
+_tag = threading.local()
+
+
+@contextlib.contextmanager
+def tagged(**fields):
+    """(f385) Fields added to every call logged inside: a rewrite says it is one, and why, so its draft (the call before it, same task)
+    reads as replaced in logs/llm_calls.jsonl."""
+    before = getattr(_tag, "fields", None)
+    _tag.fields = {**(before or {}), **fields}
+    try:
+        yield
+    finally:
+        _tag.fields = before
+
+
 def _log(task, attempt, elapsed, messages, raw, error, usage=None):
     global _writes
     path = Path(config.LOG_PATH)
@@ -284,6 +320,7 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None):
     }
     if usage:
         entry["tokens"] = usage                         # what the call cost the model (tools/latency.py reads these)
+    entry.update(getattr(_tag, "fields", None) or {})
     with _log_lock:
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")

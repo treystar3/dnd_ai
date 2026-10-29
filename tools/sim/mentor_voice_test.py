@@ -86,7 +86,7 @@ w.mentor_say(mentor.Fixed([FIX]), beat="test")
 check("a block of only fixed lines never calls the model", SAID[-1][1] == FIX)
 
 mentor.set_stage(w.player, "")
-check("at the first meeting she is sceptical", "highly sceptical" in mentor.facts(w.player, "Parth") and "armed stranger" in mentor.facts(w.player, "Parth"))
+check("at the first meeting she is sceptical", "highly sceptical" in mentor.facts(w.player, "Parth") and "looks like a fighter" in mentor.facts(w.player, "Parth"))
 # she answers what the player says
 stub.voice = None; stub.reply = "Woke up in a field, did you? That is a new one."
 SAID.clear()

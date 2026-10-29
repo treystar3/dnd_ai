@@ -1,0 +1,65 @@
+# WHO YOU WERE (f388, engine/look.py): the first page of creation, before the goddess speaks. The player chooses a people, how others
+# speak of them, and a look; the engine makes one plain sentence of it ("A stocky dwarf woman with braided copper hair...") that every
+# speaker and the narrator are given from then on. Nothing here changes a number: it is how the world sees you.
+#
+# peoples: one per people of data/world/peoples.yaml (start-up checks they agree), with the line the page shows under its name, the word
+#   the sentence uses, and - for a people whose look is not hair - the axes it has instead (replaces) or as well (adds).
+# axes: each a row of choices; `default` is chosen when the player picks nothing; `none` words leave the axis out of the sentence.
+# flags: a toggle on an axis (braided hair), with the word it puts before the axis's words.
+
+intro: "Darkness. Before the light, before the voice, you hold on to the one thing you still have: yourself."
+title: "Who were you?"
+hint: "How the world will see you"
+extra_hint: "a burn scar along the jaw, soot never quite washes from her hands"
+extra_most: 160                        # characters of "anything else" kept
+
+pronouns:
+  - {id: he, label: he, noun: man}
+  - {id: she, label: she, noun: woman}
+  - {id: they, label: they, noun: person, after_people: ""}   # "a young dragonborn", not "a young dragonborn person"; a human is "a person"
+
+peoples:
+  human:      {blurb: "Most of the south. Parth is yours.", word: human}
+  dwarf:      {blurb: "Stone and clan, Ironvein and the hills.", word: dwarf}
+  halfling:   {blurb: "Small, warm, everywhere.", word: halfling}
+  half_elf:   {blurb: "Between two houses.", word: half-elf}
+  elf:        {blurb: "Eldervale's old groves.", word: elf}
+  gnome:      {blurb: "Bright, quick, clever.", word: gnome}
+  goliath:    {blurb: "Mountain-born, deed-named.", word: goliath}
+  orc:        {blurb: "Strong, proud, slow to trust.", word: orc}
+  dragonborn: {blurb: "Clan first, scale and pride.", word: dragonborn, replaces: {hair: scales}}
+  genasi:     {blurb: "An element in the blood.", word: genasi, adds: [element]}
+
+axes:
+  build:
+    label: Build
+    options: [slight, lean, stocky, broad, towering]
+    default: lean
+    say: "{v}"                         # before the people's word: "a stocky dwarf"
+  age:
+    label: Age
+    options: [young, grown, weathered, old]
+    default: grown
+    none: [grown]                      # a grown woman is just a woman
+    say: "{v}"
+  hair:
+    label: Hair
+    options: [black, brown, copper, blond, grey, white, none]
+    default: brown
+    with: "{v} hair"                   # after "with": "with braided copper hair"
+    none_with: "a shaved head"         # hair: none
+  scales:
+    label: Scales
+    options: [bronze, brass, copper, red, black, white, blue, green]
+    default: bronze
+    with: "{v} scales"
+  element:
+    label: Element
+    options: [fire, water, earth, air]
+    default: fire
+    say: "{v}-touched"                 # before the people's word: "a fire-touched genasi"
+
+order: [build, age, hair, scales, element]   # the rows on the page, top to bottom
+
+flags:
+  braided: {axis: hair, label: braided, word: braided}

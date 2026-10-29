@@ -20,6 +20,17 @@ PAY_WORDS = re.compile(r"\b(pay|paid|wage|wages|coin|coins|copper|coppers|silver
 TASK_WORDS = re.compile(r"\b(work|job|task|chore|chores|haul|carry|labou?r|help|clear|load|dig|chop|tend|mend|fetch|move)\b", re.I)
 
 
+OFFER_HOURS = 6                     # (f395) an offer of work stands this long; then it is gone, not waiting to swallow a later "I take her offer"
+
+
+def offer_open(npc, now: int) -> dict | None:
+    """The work this person has offered the player, if the offer still stands."""
+    o = getattr(npc, "work_offer", None)
+    if not o or o.get("until", 10 ** 12) < now:
+        return None
+    return o
+
+
 class WorkActions:
 
     def promises_pay(self, speech: str) -> bool:
@@ -49,7 +60,7 @@ class WorkActions:
         minutes = max(15, min(W["max_minutes"], offer.minutes or 60))
         fair = W["wage_per_hour"] * minutes / 60
         pay = round(max(fair * (1 - W["wage_spread"]), min(fair * (1 + W["wage_spread"]), offer.pay or fair)))
-        npc.work_offer = {"task": offer.task.strip(), "pay": max(1, pay), "minutes": minutes}
+        npc.work_offer = {"task": offer.task.strip(), "pay": max(1, pay), "minutes": minutes, "until": self.minutes + OFFER_HOURS * 60}
         self.store.save_npc(npc)
         console.debug(f"Work offered: {offer.task.strip()} - {money.words(pay)}, about "
                      f"{clock.describe_duration(minutes)}.")
@@ -59,12 +70,12 @@ class WorkActions:
             npc = next((n for n in self.present if n.id == nid), None)
             if npc:
                 return npc
-        return next((n for n in self.present if n.work_offer), None)
+        return next((n for n in self.present if offer_open(n, self.minutes)), None)
 
     def on_work(self, intent, text: str) -> None:
         npc = self.worker_for(intent)
         c = self.player.character
-        if npc and npc.work_offer:
+        if npc and offer_open(npc, self.minutes):
             job = npc.work_offer
             tending = self.owns("tireless_tending")
             self.advance(job["minutes"] // 2 if tending else job["minutes"], exert=True)

@@ -365,11 +365,18 @@ mn = store.load_npc("maren")
 check("...who remembers what the player told her", any("They told me" in m.text for m in mn.memories) and any("hire me as practice" in m.text.lower() or "hire me" in m.text.lower() for m in mn.memories), [m.text for m in mn.memories])
 check("...likes them, and knows them by name", mn.trust >= 60 and mn.knows_player_as == c.name and mn.name_known_to_player and mn.protected)
 hall_id = next(p.id for p in world.places.values() if p.type == "guild" and p.parent == "parth")
-check("...and waits at the guild hall", "maren" in store.load_place(hall_id).residents and mn.location == hall_id)
+check("(f382) ...and has left Parth on the capital's work: in no place, and not waiting at the hall", mn.gone and "capital" in mn.gone
+      and "maren" not in store.load_place(hall_id).residents)
+check("...Parth heard she has gone", any("Maren Holt" in n["text"] and "left Parth" in n["text"] for n in store.load_world_state().get("news", [])))
 store.meta.minutes = 1440 * 3 + 12 * 60
 ws.enter(hall_id); ws.refresh_present()
-check("she is there to talk to", any(n.id == "maren" for n in ws.present), [n.id for n in ws.present])
+check("she is not at the hall to talk to", not any(n.id == "maren" for n in ws.present), [n.id for n in ws.present])
 player.party = []
+check("...nor to ask along", not ws.companion_join("Maren, come with me") and not player.party)
+mn.gone = ""; store.save_npc(mn)                                    # were a later story to bring her back to the hall, she could come along
+_hp = store.load_place(hall_id); _hp.residents.append("maren"); store.save_place(_hp)
+ws.enter(hall_id); ws.refresh_present()
+check("back at the hall, she is there to talk to", any(n.id == "maren" for n in ws.present), [n.id for n in ws.present])
 check("'Maren, come with me' puts her in the party, unpaid", ws.party_turn("Maren, come with me") and any(m.get("npc") == "maren" for m in player.party), player.party)
 check("...and she is no longer waiting at the hall", "maren" not in store.load_place(hall_id).residents)
 near, later = CombatScene.allies(ws)
@@ -531,7 +538,8 @@ pl = NS(character=ch, mentor={})
 a, b = mentor.line(pl, "steady", 5), mentor.line(pl, "steady", 5)
 check("a retry hears it a little differently", a != b)
 check("the first-hurt lesson says how to use any item, not only the draught", all("drink the healing draught" in x and "'Items' list" in x and "Anything else you're carrying" in x for b in mentor.BUILDS for x in M["lessons"]["first_blood"][b]))
-check("every lesson has every build", all(set(M["lessons"][k]) == set(mentor.BUILDS) for k in ("track", "found", "start", "first_blood", "steady")))
+check("every lesson has every build (and 'found' one for empty hands, f385)", all(set(M["lessons"][k]) - {"unarmed"} == set(mentor.BUILDS) for k in ("track", "found", "start", "first_blood", "steady"))
+      and "unarmed" in M["lessons"]["found"])
 
 # ---- she walks them to the guild hall, signs them in and explains the board there
 s6, w6 = fresh("mentor_escort")

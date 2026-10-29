@@ -1,0 +1,62 @@
+# THE RULING'S TEST SET (f393; tools/ruling_eval.py, slice 2). What a good dungeon master would say to each line: `expect` is yes, cost
+# (yes, at a cost or with a check) or no; `needs` the kinds of thing the world must hold for it (feature, person, thing, way), when it
+# does not already; `means` the capabilities the character has in the case. `model` (optional) is a ruling to try the engine's own
+# checks against, offline: whatever the model says, a line that needs a capability the character lacks is a no.
+#
+# GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not.
+
+# ---------- sensible: the world makes room ----------
+- {line: "I go further into the cave.", at: tidepool_caves, expect: "yes", needs: [feature]}
+- {line: "I follow the tunnel to see where it leads.", at: tidepool_caves, expect: "yes", needs: [feature]}
+- {line: "I climb up to the ledge above the waterline.", at: tidepool_caves, expect: "cost", needs: [feature]}
+- {line: "I wade into the glowing pool and feel along the bottom.", at: tidepool_caves, expect: "cost", needs: []}
+- {line: "I dig through the rockfall at the back of the tunnel.", at: tidepool_caves, expect: "cost", needs: [feature]}
+- {line: "I call out for the hermit who lives here.", at: tidepool_caves, expect: "yes", needs: [person]}
+- {line: "I look for a dry place to sit out the tide.", at: tidepool_caves, expect: "yes", needs: [feature]}
+- {line: "I light a torch and hold it up to the ceiling.", at: tidepool_caves, expect: "yes", needs: []}
+- {line: "I search the rocks for crabs to cook.", at: tidepool_caves, expect: "cost", needs: []}
+- {line: "I follow the tracks deeper into the wood.", at: greywood, expect: "yes", needs: [feature]}
+- {line: "I climb the tallest tree for a look around.", at: greywood, expect: "cost", needs: [feature]}
+- {line: "I set a snare on the game trail.", at: greywood, expect: "cost", needs: []}
+- {line: "I look for a stream to fill my waterskin.", at: greywood, expect: "yes", needs: [feature]}
+- {line: "I knock on the back door of the inn.", at: trading_square, expect: "yes", needs: [feature]}
+- {line: "I ask around for someone who knows the old mine.", at: trading_square, expect: "yes", needs: [person]}
+- {line: "I go down to the riverbank under the bridge.", at: trading_square, expect: "yes", needs: [feature]}
+- {line: "I peer through the gap in the warehouse shutters.", at: trading_square, expect: "cost", needs: [feature]}
+- {line: "I sing a sea shanty to draw out whatever lives in the pools.", at: tidepool_caves, expect: "yes", needs: []}
+- {line: "I shout for the watch.", at: trading_square, expect: "yes", needs: []}
+- {line: "I sit by the fire and mend my boots.", at: trading_square, expect: "yes", needs: []}
+
+# ---------- nonsensical: the world says no, in its own words ----------
+- {line: "I grow wings and fly away.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [flight]}}
+- {line: "I summon a dragon to burn the market.", at: trading_square, expect: "no"}
+- {line: "I walk straight through the wall.", at: trading_square, expect: "no", model: {sense: "yes", requires: [pass_through]}}
+- {line: "I declare myself king of Parth.", at: trading_square, expect: "no"}
+- {line: "I conjure a thousand gold coins.", at: trading_square, expect: "no"}
+- {line: "I teleport to the capital.", at: trading_square, expect: "no", model: {sense: "yes", requires: [teleport]}}
+- {line: "I breathe underwater and swim to the sea floor.", at: tidepool_caves, expect: "no", model: {sense: "yes", requires: [water_breathing]}}
+- {line: "I lift the whole inn off the ground.", at: trading_square, expect: "no"}
+- {line: "I turn into a wolf.", at: greywood, expect: "no", model: {sense: "yes", requires: [shape_change]}}
+- {line: "I find a legendary sword lying in the gutter.", at: trading_square, expect: "no"}
+- {line: "I make the sun go down now.", at: trading_square, expect: "no"}
+- {line: "I read the merchant's mind.", at: trading_square, expect: "no", model: {sense: "yes", requires: [mind_reading]}}
+- {line: "I raise the dead guard from his grave.", at: trading_square, expect: "no", model: {sense: "yes", requires: [raise_dead]}}
+- {line: "I become invisible.", at: trading_square, expect: "no", model: {sense: "yes", requires: [invisibility]}}
+- {line: "I jump to the top of the guild hall.", at: trading_square, expect: "no"}
+- {line: "I order the whole town to bow to me.", at: trading_square, expect: "no"}
+- {line: "I pull a cannon out of my pack.", at: trading_square, expect: "no"}
+- {line: "I instantly heal every wound in the town.", at: trading_square, expect: "no"}
+- {line: "I grow ten feet tall.", at: trading_square, expect: "no", model: {sense: "yes", requires: [shape_change]}}
+- {line: "I speak to the ocean and it answers.", at: tidepool_caves, expect: "no"}
+
+# ---------- what the character can do decides ----------
+- {line: "I fly up to the roof of the cave.", at: tidepool_caves, expect: "yes", means: [flight], model: {sense: "yes", requires: [flight]}}
+- {line: "I fly up to the roof of the cave.", at: tidepool_caves, expect: "no", means: [], model: {sense: "yes", requires: [flight]}}
+- {line: "I breathe the water and dive to the bottom of the pool.", at: tidepool_caves, expect: "yes", means: [water_breathing], model: {sense: "yes", requires: [water_breathing]}}
+- {line: "I ask the wolf what it saw.", at: greywood, expect: "yes", means: [speak_with_beasts], model: {sense: "yes", requires: [speak_with_beasts]}}
+- {line: "I ask the wolf what it saw.", at: greywood, expect: "no", means: [], model: {sense: "yes", requires: [speak_with_beasts]}}
+- {line: "I ask the dead sailor how he drowned.", at: tidepool_caves, expect: "yes", means: [speak_with_dead], model: {sense: "yes", requires: [speak_with_dead]}}
+- {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "yes", means: [darkvision], model: {sense: "yes", requires: [darkvision]}}
+- {line: "I see in the dark of the back tunnel.", at: tidepool_caves, expect: "cost", means: [], model: {sense: "cost", requires: []}}
+- {line: "I slip unseen past the guard.", at: trading_square, expect: "cost", means: [], model: {sense: "cost", requires: []}}
+- {line: "I turn into a wolf.", at: greywood, expect: "yes", means: [shape_change], model: {sense: "yes", requires: [shape_change]}}

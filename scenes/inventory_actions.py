@@ -205,6 +205,10 @@ class InventoryActions:
     def on_pick_up(self, intent, text: str) -> None:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
+        if not item and any(w in (intent.item or text).lower() for w in self.COIN_WORDS):        # (f384) loot coin goes straight to the purse
+            console.note(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
+            self.halted = True
+            return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp
             self.narrate(wp.SCENERY_PICKUP.format(thing=(intent.item or "it").strip()), text)
@@ -438,9 +442,22 @@ class InventoryActions:
         c = self.player.character
         return any(m.active for m in c.companions) or bool(c.bound_summon and not c.bound_broken)   # a companion, or the Bound summon
 
+    def plant_sought(self, seek: str):
+        """(f381) The plant a line is looking for ('search for silverleaf'), or None."""
+        low = (seek or "").lower()
+        return next((g for g in inv.GOODS.values() if g.grows_in and re.search(rf"\b{re.escape(g.name.lower())}", low)), None) if low else None
+
     def on_forage(self, intent, text: str) -> None:
         biome = self.place.biome
         herbs = [g for g in inv.GOODS.values() if biome in g.grows_in]
+        want = self.plant_sought(getattr(intent, "seek", "") or "")
+        if want and biome not in want.grows_in:                                          # (f381) told plainly, not a hunt for tracks
+            self.advance(R["forage_minutes"])
+            self.narrate(f"The player looks for {want.name}, but it does not grow in this kind of country. Describe the search "
+                         "coming up empty of it.", text)
+            return
+        if want:
+            herbs = [want] + [g for g in herbs if g is not want]                         # the plant they came for is looked for first
         if not herbs and not (biome in ("hills", "mountains") and self.owns("prospector")):
             self.narrate("The player looks for useful plants, but nothing worth gathering grows here.", text)
             return

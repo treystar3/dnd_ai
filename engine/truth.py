@@ -111,7 +111,7 @@ class Scene:
     def key(ws) -> tuple:
         return (ws.store.meta.turn, ws.minutes, ws.player.location, tuple(n.id for n in ws.present), len(ws.player.quests),
                 tuple(m.get("id") for m in ws.player.party), ws.player.party_mode, bool(ws.combat), bool(ws.wildlife),
-                ws.player.mentor.get("stage", ""), ws.player.guild_rank)
+                ws.player.mentor.get("stage", ""), ws.player.guild_rank, player_pronoun(ws.player.character))     # (f386) '#pronoun' is seen at once
 
     def facts(self, name: str) -> list[Fact]:
         if name not in self._facts:
@@ -197,7 +197,7 @@ class View:
                 continue
             if v.kind == "npc":
                 who = p.name if (p.kind == "npc" and p.local and p.local in v.groups) else (p.name if p.kind == "npc" else p.desc)
-                out.append(who if p.kind == "npc" else f"a stranger here with the one in front of you - {who}".strip())
+                out.append(who if p.kind == "npc" else (p.desc if p.kind == "companion" else f"a stranger here with the one in front of you - {who}".strip()))
             elif v.kind in ("hire", "maren"):                 # (f315) the party knows its own by name, and the townsfolk as the player does - unless they are neighbours
                 who = p.name if (p.kind != "npc" or (p.local and p.local in v.groups)) else p.label
                 out.append(f"{who}: {p.desc}".strip().rstrip(":"))
@@ -277,21 +277,30 @@ def their_work(label: str, role: str) -> str:
 def _present_people(ws) -> list[Present]:
     from npc.life import manner
     out = []
+    from engine import entities
     for n in ws.present:
-        people = ws.world.peoples[n.people].name if n.people in ws.world.peoples else n.people
+        who = entities.identity(ws, n.id)                                    # (f392) she or he, and their people: never guessed at
+        people = f"{who.pronoun}, {who.people}" if who else (ws.world.peoples[n.people].name if n.people in ws.world.peoples else n.people)
+        from scenes.work_actions import offer_open                  # (f395) an offer that still stands
         note = (f"Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
-                "and 'taking the pay' once it is done is part of that work." if n.work_offer else "")
+                "and 'taking the pay' once it is done is part of that work." if offer_open(n, ws.minutes) else "")
         out.append(Present(id=n.id, name=n.name or n.label(), label=n.label(), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
                            desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}." + (f" Lately: {n.mood}." if n.mood else ""),   # (f334) a mood shows
                            note=note, plain=n.description or "",
                            local=ws.world.locals_group(n.location) or ""))
     her = ws.mentor_person()
     if her:
-        out.append(Present(id="maren", name=her[0], label=her[0], desc=her[1], doing=her[2], kind="maren",
+        out.append(Present(id="maren", name=her[0], label=her[0], desc=her[1].replace("(human)", "(she, human)", 1), doing=her[2], kind="maren",
                            note="travelling with the player; speech to her is talk with target maren"))
     for hid, name, desc, doing in ws.hire_people():
         out.append(Present(id=hid, name=name, label=name, desc=desc, doing=doing, kind="hire",
                            note=f"hired, travelling with the player; speech to them is talk with target {hid}"))
+    for comp in [c for c in getattr(ws.player.character, "companions", None) or [] if c.active and c.name]:     # (f384) Fenris, at your side
+        kind_of = (ws.world.bestiary[comp.creature].name.lower() if comp.creature in ws.world.bestiary else (comp.kind or "animal"))
+        out.append(Present(id=f"companion:{comp.id}", name=comp.name, label=comp.name,
+                           desc=f"({entities.identity(ws, f'companion:{comp.id}').pronoun}) the player's own {kind_of}, at the player's side",
+                           doing="at the player's side", kind="companion",
+                           note="the player's own companion: telling it to track, sniff out or hunt something is search; it is not talked with"))
     if ws.wildlife:
         out.append(Present(id="wildlife", name=", ".join(e.name for e in ws.wildlife[1]), label=", ".join(e.name for e in ws.wildlife[1]),
                            desc="a creature, keeping its distance", doing="", kind="wildlife"))
@@ -452,6 +461,25 @@ def _news(scene: Scene):
             for n in pulse.news_window(state or {}, ws.world, ws.player.location, ws.minutes, 8, key=str(ws.store.meta.seed))]
 
 
+@facet("fallen")
+def _fallen(scene: Scene):
+    """(f392) The companions who died travelling with the player (engine/entities.py): known to the party and the narrator, so a death
+    is spoken of and remembered, and the dead are never seen alive again."""
+    from engine import entities
+    ws = scene.ws
+    F = T.get("fallen") or {}
+    out = []
+    dead = [e for e in ws.store.find_entities(kind="hire", state="dead") if ws.minutes - e.since <= F.get("days", 60) * 1440][-F.get("most", 4):]
+    for e in reversed(dead):
+        days = (ws.minutes - e.since) // 1440
+        when = "today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+        where = f" at {e.data['place_name']}" if e.data.get("place_name") else ""
+        out.append(Fact("fallen", f"{e.name} ({entities.people_word(ws.world, e.people) or 'person'}, {e.pronoun}), "
+                                  f"{e.data.get('role') and 'a hired ' + e.data['role'] or 'a companion'}: died {when}{where}",
+                        frozenset({"party", "narrator"})))
+    return out
+
+
 @facet("lately")
 def _lately(scene: Scene):
     """(f330) What the player did here lately that people saw, from the journal (engine/reactions.py publishes every deed): a deed is known to
@@ -483,12 +511,32 @@ def _lately(scene: Scene):
     return out[-int(L.get("most", 8)):]
 
 
+_HE = re.compile(r"\b(he|him|his|himself|man|men|male|boy|lad|son|father|brother|husband|king|lord|mister|gentleman)\b", re.I)
+_SHE = re.compile(r"\b(she|her|hers|herself|woman|women|female|girl|lass|daughter|mother|sister|wife|queen|lady|madam|nun|priestess)\b", re.I)
+SEEN_AS = {"he": "is a man", "she": "is a woman",
+           "they": "you cannot tell at a glance whether a man or a woman: call them nothing that says (no sir, madam, lad or lass)"}
+
+
+def player_pronoun(c) -> str:
+    """(f386) she, he or they for the player, the same every time. Nothing kept it: across a night's runs the people of the world called
+    one player sir, madam, lad and lass, two of them in one turn. Read once from their own words at the Threshold and the reading of
+    their class, and kept; 'they' when those words do not say. '#pronoun' sets it."""
+    if c.pronoun in SEEN_AS:
+        return c.pronoun
+    words = f"{c.concept} {c.custom_class} {c.class_summary}"
+    he, she = len(_HE.findall(words)), len(_SHE.findall(words))
+    c.pronoun = "he" if he > she else "she" if she > he else "they"
+    return c.pronoun
+
+
 @facet("player")
 def _player(scene: Scene):
-    """What anyone can see of the player: the badge, the weapon, the company they keep."""
+    """What anyone can see of the player: whether a man or a woman, the badge, the weapon, the company they keep."""
     ws = scene.ws
     c = ws.player.character
-    out = []
+    out = [Fact("player", SEEN_AS[player_pronoun(c)])]
+    if getattr(c, "look_text", ""):                     # (f388) what they chose to keep of themselves: what anyone sees
+        out.append(Fact("player", "looks like this: " + c.look_text))
     out.append(Fact("player", f"wears a guild badge (rank {ws.rank})" if ws.rank else "wears no guild badge"))
     weapon = (c.equipment or {}).get("main_hand")
     if weapon:

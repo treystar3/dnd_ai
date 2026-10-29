@@ -8,6 +8,7 @@ the tasks that only read them are skipped."""
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 
 import yaml
@@ -58,6 +59,30 @@ def check(texts) -> tuple[str, str]:
                     continue
                 return cat, m.group(0)
     return "", ""
+
+
+_WORD = re.compile(r"[^\W\d_]+")
+
+
+def _foreign(ch: str) -> bool:
+    return not ch.isascii() and ch.isalpha() and not unicodedata.name(ch, "").startswith("LATIN")
+
+
+def foreign(texts, allowed: str = "") -> str:
+    """(f390) The first word written in another alphabet or script (그의, 彼の, лишь) in these texts, or ''. A word that `allowed` (the
+    request) already carries is not counted: it came from the player or the game, not from the model losing its language."""
+    for t in texts:
+        if not t or t.isascii():
+            continue
+        for m in _WORD.finditer(t):
+            word = m.group(0)
+            if any(_foreign(ch) for ch in word) and word not in allowed:
+                return word
+    return ""
+
+
+def script_reason() -> str:
+    return (G.get("script") or {}).get("reason") or "write every word in English"
 
 
 def reason(category: str) -> str:

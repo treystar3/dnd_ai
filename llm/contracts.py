@@ -455,6 +455,75 @@ class Clarify(BaseModel):
     _blank = blank_placeholders("line")
 
 
+class Need(BaseModel):
+    """(f395) Something the world must hold for an attempt, that it does not hold yet: a part of the place, a person, a thing, a way."""
+    kind: Literal["feature", "person", "thing", "way"] = "feature"
+    name: str = ""
+    what: str = ""
+    where: str = ""
+    role: str = ""
+
+
+class Stakes(BaseModel):
+    check: str = ""
+    hard: Literal["", "easy", "fair", "hard"] = ""
+
+
+class Change(BaseModel):
+    """(f395) What an attempt, if it works, makes different about a part of the place: its name (empty: where the player stands), and
+    what it becomes (features.yaml becomes)."""
+    part: str = ""
+    becomes: str = ""
+
+
+class Ruling(BaseModel):
+    """(f395) The dungeon master's ruling on one thing the player tries (engine/ruling.py; GOAL.md). sense: yes (it makes sense here and
+    they can simply do it), cost (it makes sense, at a cost: time, effort, a check, a risk), no (it does not make sense in this world, or
+    for this character). needs: what the world must hold for it that it does not hold yet. requires: what it needs beyond the ordinary,
+    from CAPABILITIES, whether or not the player has it (the game checks). For a no, answer: what happens instead, in the world."""
+    sense: Literal["yes", "cost", "no"]
+    why: str = ""
+    needs: list[Need] = []
+    requires: list[str] = []
+    stakes: Stakes = Stakes()
+    changes: list[Change] = []
+    answer: str = ""
+    instead: list[str] = []
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        caps = ctx.get("capabilities") or []
+        self.requires = [r.strip().lower() for r in self.requires if r and r.strip()]
+        wrong = [r for r in self.requires if caps and r not in caps]
+        if wrong:
+            raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
+        if self.sense == "no" and not self.answer.strip():
+            raise ValueError("a no needs `answer`: what happens instead, in one or two sentences of the world, as the player would see it")
+        if len(self.needs) > 2:
+            raise ValueError("at most two needs: only what the attempt cannot happen without")
+        if any(not n.name.strip() for n in self.needs):
+            raise ValueError("every need has a short name ('the high ledge', 'the hermit')")
+        if self.stakes.check and ctx.get("checks") and self.stakes.check not in ctx["checks"]:
+            self.stakes.check = ""
+        roles = ctx.get("roles") or []
+        for n in self.needs:
+            if n.kind == "person" and roles and n.role not in roles:
+                n.role = ""
+        self.instead = [i for i in self.instead if i and i.strip()][:2]
+        becomes = ctx.get("becomes") or []
+        for ch in self.changes:
+            ch.becomes = (ch.becomes or "").strip().lower()
+        wrong = [ch.becomes for ch in self.changes if becomes and ch.becomes not in becomes]
+        if wrong:
+            raise ValueError(f"changes: becomes is one of BECOMES ({', '.join(becomes)}), not {', '.join(wrong)}")
+        if len(self.changes) > 2:
+            raise ValueError("at most two changes: only what lasts")
+        if self.sense == "no":
+            self.changes = []
+        return self
+
+
 class PlayerLine(BaseModel):
     """(f368) What the night bot types next (tools/nightbot.py): one line as a player would type it, from the scene, the goal and what
     the game just said. The names the goal turns on (must_name in the context: a place, a person, a creature) must be in it, or the
@@ -513,6 +582,14 @@ class ActionPlan(BaseModel):
     def at_most_three(self):
         if not self.actions:
             raise ValueError("give at least one action")
+        seen, kept = set(), []
+        for a in self.actions:                      # (f386) the same words to each of the party is one word, heard by all: three talks
+            key = " ".join(re.sub(r"[^a-z0-9 ]+", " ", (a.speech or "").lower()).split()) if a.kind == "talk" else ""
+            if key and key in seen:                 # used to fill the three and push the move they asked for off the end
+                continue
+            seen.add(key)
+            kept.append(a)
+        self.actions = kept
         self._dropped = list(self.actions[3:])
         self.actions = self.actions[:3]
         return self
@@ -660,6 +737,19 @@ class MentorReply(BaseModel):
         return self
 
 
+def misaddressed(speech: str, others: list[str], said: str = "") -> str:
+    """(f385) Someone else here spoken to by name in a reply meant for the player ('..., Salith.' or 'Salith, ...'), when the player's
+    own words did not bring them up: the model has mixed up who it is talking to. The other's full name, or ''."""
+    for o in others:
+        first = (o or "").split()[0] if (o or "").split() else ""
+        if len(first) < 3 or re.search(rf"\b{re.escape(first)}\b", said or "", re.I):
+            continue
+        f = re.escape(first)
+        if re.search(rf"(^|[.!?]\s+){f}\s*,|,\s*{f}\s*(?:[.!?]|$)", speech or ""):
+            return o
+    return ""
+
+
 class CompanionReply(BaseModel):
     """A hired adventurer answering the player: what they say, what they do, and anything from this exchange worth keeping."""
     speech: str = ""
@@ -702,6 +792,16 @@ class CompanionReply(BaseModel):
         hit = banter.repeats(self.speech, ctx.get("recent", []))
         if hit:
             raise ValueError(f"you have said something very like '{hit}' lately: say it differently, or say something else")
+        hit = banter.echoes(self.speech, ctx.get("heard", []))          # (f382) another companion just said it
+        if hit:
+            raise ValueError(f"someone else has just said '{hit}': answer in your own words")
+        held = banter.holding_talk(self.speech, ctx.get("said") or "")
+        if held:                                                         # (f386) "I have my staff gripped tight", five turns running
+            raise ValueError(f"you tell what you are holding ('{held}'): nobody asked. Say something else; a gesture may show it if it matters")
+        wrong = misaddressed(self.speech, ctx.get("others") or [], ctx.get("said") or "")
+        if wrong:                                                        # (f385) "He isn't looking for company, Salith." to Bumbo
+            raise ValueError(f"you are answering {ctx.get('player') or 'the player'}; {wrong} is someone else here. Do not call the player "
+                             f"{wrong.split()[0]}: use their name, {ctx.get('player') or 'the player'}, or none")
         if ctx.get("member"):
             from engine import quirks, voices
             why = quirks.voice_check(ctx["member"], self.speech, ctx.get("player", ""), ctx.get("recent", [])) or \
@@ -985,7 +1085,7 @@ class StartingKit(BaseModel):
                 raise ValueError("companion must be one of the ids listed under COMPANION OPTIONS")
             if not self.companion_name.strip():
                 raise ValueError("give the companion a name")
-            self.weapon = ""                                       # a companion takes the weapon's place
+            self.weapon = ""                                       # (f389) the companion is asked for alone; the weapon on its own
         elif self.weapon not in ctx.get("weapons", []):
             raise ValueError("weapon must be one of the ids listed under WEAPON OPTIONS")
         return self
@@ -1062,6 +1162,10 @@ class DialogueFrame(BaseModel):
         if m:
             raise ValueError(f"after shows them going back to what they were doing ('{m.group(0)}'): end on what the words changed, "
                              "or leave after empty")
+        for field in (self.before, self.after):                     # (f384) 'BEFORE: ALREADY SHOWN THIS VISIT' was printed as the frame
+            caps = re.search(r"\b[A-Z]{3,}(?:\s+[A-Z]{2,}){1,}\b", field or "")
+            if caps:
+                raise ValueError(f"'{caps.group(0)}' is a heading of the request, not prose: write what is seen, or leave it empty")
         ctx = _ctx(info)
         mine = {str(s).split()[0].lower() for s in ctx.get("speaker", ()) if str(s).strip()}
         theirs = {str(o).split()[0].lower(): str(o) for o in ctx.get("others", ()) if str(o).strip()}

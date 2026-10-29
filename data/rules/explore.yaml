@@ -4,6 +4,10 @@
 # decides whether anything is there and keeps it small, believable and in the right country.
 
 hours: [2, 4]              # time an attempt takes
+# (f381) Somewhere inside where the player already is - a spot this place's own description names, or the passage they just read names
+# ("the dry chamber" at the Tidepool Caves, where tracks led "toward the dry chamber's threshold") - is a short walk, never an attempt to
+# find somewhere off the map: that cost hours and asked the model to invent a place that was already there.
+within_minutes: 5
 base_chance: 0.12          # before skill; a searching traveler usually finds nothing
 check_weight: 0.40         # + this x (perception or lore check odds / 100)
 passives: {tracker: 0.10, wayfinder: 0.10, trailblazer: 0.05}

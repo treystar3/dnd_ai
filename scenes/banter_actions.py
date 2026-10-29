@@ -7,6 +7,7 @@ from __future__ import annotations
 import random
 
 import config
+from engine import entities
 from engine import banter, clock, money, mentor, pulse, quirks, weather
 from engine import party as rules
 from llm.contracts import Exchange, PairDynamic
@@ -33,7 +34,7 @@ class BanterActions:
                  hook: str = "", wants: dict[str, str] | None = None, recent: dict[str, list[str]] | None = None,
                  members: dict[str, dict] | None = None, between: str = "", holders: dict[str, dict] | None = None,
                  subtexts: dict[str, str] | None = None, shared: str = "", all_speak: bool = False, interaction: str = "",
-                 first_speaker: str = "", moment: bool = False, silent_ok: tuple = ()) -> list[tuple[str, str]] | None:
+                 first_speaker: str = "", moment: bool = False, silent_ok: tuple = (), must_name: str = "") -> list[tuple[str, str]] | None:
         """The model writes a short exchange between these people (name -> who they are); None if it fails or is turned off."""
         if not getattr(config, "VOICED_MENTOR", True):
             return None
@@ -96,7 +97,7 @@ class BanterActions:
             P_.instruction(f"{' and '.join(quiet)} may answer with no words: a line with empty text and only a gesture, or no line at all.", "WHO MAY SAY NOTHING")
         P_.instruction(f"WRITE {lines[0]} TO {lines[1]} LINES, speakers from: {', '.join(people)}.")
         ctx = {"speakers": list(people), "lines": lines, "all_speak": all_speak, "silent_ok": tuple(silent_ok), "first_speaker": first_speaker, "material": material + [hook or ""], "recent": recent or {},
-               "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(),
+               "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(), "must_name": must_name,
                "gesture_states": {n: quirks.gesture_state(h, [dict(o, name=on) for on, o in holders.items() if o is not h] + self.gesturers(h))
                                   for n, h in holders.items()}}
         try:
@@ -124,6 +125,7 @@ class BanterActions:
         before, after = self.exchange_frame(merged)                # (f325) the narrator opens and closes the exchange, as it frames anyone's words
         if before:
             console.narrate(before)
+        self.note_party_said(len(merged))                                    # (f386)
         for who, text in merged:
             console.say(text, who)
             if severity.is_silent(text):                         # a gesture or silence: nothing was said to remember saying
@@ -163,8 +165,9 @@ class BanterActions:
             frame = fresh("dialogue_frame", wp.EXCHANGE_SYSTEM,
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
                                               P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
-                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight)),
-                          DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS, tails=False)
+                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight),
+                                              who=entities.who_is_who(self)),                         # (f392) she, elf: never guessed at
+                          DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS)
             after = "" if in_fight else frame.after
             self.remember_narration(" ".join(t for t in (frame.before, after) if t.strip()),
                                     {"type": "dialogue", "before": frame.before, "speaker": "", "speech": "", "after": after})
@@ -220,6 +223,8 @@ class BanterActions:
         crew = self.banter_crew()
         if not crew:
             return
+        if self.party_said_now() >= BN["banter"].get("turn_lines", 2) and not (due == "fight" and (self.player.party_last_fight or {}).get("fallen")):
+            return                                          # (f386) the party has said enough this turn already; a death is still talked over
         rng = random.Random(self.store.meta.seed * 7919 + self.minutes)
         last = getattr(self, "_hire_last", None)
         just_talked = bool(last) and last[1] >= self.store.meta.turn - 1        # (f307) they have just spoken with the player, this turn
@@ -280,7 +285,11 @@ class BanterActions:
                 options.append((2, "mood", H["mood"].format(name=m["name"], mood=mood), m))
         if fresh and kind == "fight" or (fresh and kind != "fight" and rng.random() < 0.5):
             if last.get("fallen"):
-                options.append((6, "fallen", H["fallen"].format(name=last["fallen"][0]), None))
+                what = (last.get("fallen_what") or {}).get(last["fallen"][0])        # (f385) a companion beast, said as what they were
+                many = last["fallen"][:3]                                             # (f392) every one who fell, not only the first
+                said = (H["fallen"].format(name=many[0]) + (f" {many[0]} was {what}." if what else "") if len(many) == 1
+                        else H["fallen_many"].format(names=", ".join(many[:-1]) + " and " + many[-1]))
+                options.append((6, "fallen", said, None))
             elif not last.get("won"):
                 options.append((5, "lost_fight", H["lost_fight"], None))
             elif last.get("hard"):
@@ -310,11 +319,17 @@ class BanterActions:
                         options.append((2, "player", H["player"].format(name=m["name"], memory=x["text"]), m))
                 from engine import gravity                      # how heavy a topic may be decides whether it fits this moment
                 mo = gravity.moment(kind, bool(fresh and (last.get("fallen") or not last.get("won", True))))
+                scene = self.banter_scene()
                 for m in pick:
-                    got = self.personal_topic(m, rng, mo)
+                    got = self.personal_topic(m, rng, mo, scene=scene)
                     if got:
-                        thing, g = got
-                        options.append((3 * gravity.share(mo, g), "personal", H["personal"].format(name=m["name"], thing=thing), m, g))
+                        thing, g, touch = got
+                        said = H["touched"].format(touch=touch[0].upper() + touch[1:], name=m["name"], thing=thing) if touch else \
+                            H["personal"].format(name=m["name"], thing=thing)
+                        options.append(((3 if touch else 1) * gravity.share(mo, g), "personal", said, m, g))     # (f382) touched by the scene
+                job = next((q for q in self.player.quests if q.get("progress", 0) < q.get("count", 1)), None)
+                if job and kind in ("travel", "rest"):          # (f382) the job they are on, what travelling together is for
+                    options.append((2, "errand", H["errand"].format(job=job.get("title", "")), None))
                     mt = rules.P["motives"].get(m.get("motive", ""), "")
                     if mt and context.due(m, "motive", now):      # what drives them comes up unasked only from here, and only when due
                         options.append((gravity.share(mo, "personal"), "motive", H["motive"].format(name=m["name"], thing=f"{m['name'].split()[0]} {mt}"), m))
@@ -339,14 +354,31 @@ class BanterActions:
 
     PERSONAL_KEEP = 8                                           # how many of their own topics are remembered as used, so the next is new
 
-    def personal_topic(self, m: dict, rng: random.Random, moment: str = "ease") -> tuple[str, str] | None:
-        """One thing of their own to talk about, with its weight: a detail written at hire, something they have said about themselves, or a
-        belief; not one used lately, and only as heavy as the moment allows (engine/gravity.py)."""
-        from engine import gravity
+    def personal_topic(self, m: dict, rng: random.Random, moment: str = "ease", scene=()) -> tuple[str, str, str] | None:
+        """One thing of their own to talk about, with its weight and what here touched it ('' when nothing did): a detail written at hire,
+        something they have said about themselves, or a belief; not one used lately, and only as heavy as the moment allows
+        (engine/gravity.py). (f382) With the scene given, one that something in it is close to comes first."""
+        from engine import gravity, relevance
+        import config
         used = set(m.get("topics_used", []))
         pool = gravity.details(m) + [(c["text"], gravity.level(c.get("gravity"))) for c in m.get("canon", []) + m.get("traits", [])]
         pool += [(b["text"], "light") for b in m.get("beliefs", [])]
-        return gravity.choose([(t, g) for t, g in pool if t not in used], moment, rng, m, self.minutes)
+        pool = [(t, g) for t, g in pool if t not in used]
+        touches = {}
+        for t, g in pool[:8] if scene else ():
+            hit = relevance.pick(t, list(scene), 1, floor=config.SIM_RELEVANT)
+            if hit:
+                touches[t] = hit[0]
+        got = gravity.choose([(t, g) for t, g in pool if t in touches], moment, rng, m, self.minutes) if touches else None
+        if got:
+            return got[0], got[1], touches[got[0]]
+        got = gravity.choose(pool, moment, rng, m, self.minutes)
+        return (got[0], got[1], "") if got else None
+
+    def banter_scene(self) -> list[str]:
+        """(f382) What is in front of the party, as lines something of their own might be touched by: the place and what can be seen."""
+        out = [f"{self.place.name}, a {self.place.type}"] + [str(v).rstrip(".") for v in self.place.visible]
+        return [x for x in out if x.strip()]
 
     def shared_topic(self, pick: list[dict], rng: random.Random, moment: str = "ease") -> tuple[str, str] | None:
         """Something the pair went through together and has not talked over lately, with its weight, or None. A heavy one needs both of
@@ -417,15 +449,18 @@ class BanterActions:
         emotion = severity.emotion(hit) or emotion                      # devastated: their own way of breaking, over any other feeling
         struck = severity.register(hit, in_fight) if hit else ""
         speak = quirks.blueprint(m, rng_v if query is not None else None)
+        own = rules.pronoun_of(m, self.store.meta.seed, self.player.party_used)
         v = quirks.voice_prompt(m, rng_v if query is not None else None)
         g = quirks.growth(m)
         from engine import voices
         kit = [f"{k[0].upper()}{k[1:]}." for k in voices.lines(voices.kit_of(m))]            # (f350) their kit: always, it is the voice
-        mine = kit + ([f"In speech, {v}."] if v else []) + ([f"With the player, they have changed: {g}; let it show, never say it."] if g else [])
+        mine = kit + ([f"In speech, {v}."] if v else []) + ([entities.gendered(f"With the player, they have changed: {g}; let it show, never say it.", own)] if g else [])
         room = self.HOW_BUDGET - len(speak) - len(mine) + len(kit)   # at most HOW_BUDGET lines on how they speak besides the kit, in any one reply
         profile = voice_profile.compile(m, rng_v, emotion, relation, toward, budget=room, feature=self.culture_now(m)) if query is not None else []
-        how = " ".join(([struck] if struck else []) + speak + mine + profile)
-        facts = f"A hired {m['role']}, {m.get('blurb', '')}." + (" " + voice_profile.who(m) if voice_profile.who(m) else "")
+        how = entities.gendered(" ".join(([struck] if struck else []) + speak + mine + profile), own)    # (f392) all of it about them, in their pronoun
+        me = entities.identity(self, f"hire:{m['id']}")                         # (f392) who they are: their own pronoun and people, never guessed
+        facts = entities.gendered(f"A hired {m['role']} ({me.tag() if me else own}), {m.get('blurb', '')}."
+                                  + (" " + voice_profile.who(m) if voice_profile.who(m) else ""), own)
         records = [r for r in self.companion_records(m) if r.get("kind") not in without]
         rng = random.Random(f"{self.store.meta.seed}:{self.minutes}:{m['id']}")
         chosen, notes = context.select(m, records, "full" if query is None else scene, query, self.minutes, rng)
@@ -651,7 +686,8 @@ class BanterActions:
         args = dict(hook=hook, wants=wants, recent=recent, members={m["name"]: m for m in pick}, between=between, subtexts=subtexts, shared=shared,
                     all_speak=len(pick) > 1, interaction=director.interaction(plan, names) if plan else "",
                     first_speaker=pick[0]["name"] if plan and len(pick) > 1 else "",
-                    moment=hook_kind in context.PRESSING_HOOKS or hook_kind in ("said", "deed", "fallen", "event"), silent_ok=silent_ok)
+                    moment=hook_kind in context.PRESSING_HOOKS or hook_kind in ("said", "deed", "fallen", "event"), silent_ok=silent_ok,
+                    must_name=((self.player.party_last_fight or {}).get("fallen") or [""])[0] if hook_kind == "fallen" else "")   # (f385)
         span = span or (len(pick), hi)                            # no minimum beyond each chosen speaker saying something: some people do not talk much
         span = (max(1, span[0] - len(silent_ok)), max(1, span[1]))  # those allowed silence are not counted toward the lines that must be written
         if plan and plan.beat.weight != "light":                  # as it hit each of them, before anything it leaves behind changes their records
