@@ -1283,6 +1283,9 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     if "concealed" in att.position_tags:
         att.counters["struck_hidden"] = 1               # striking from hiding gives you away, once the action is done
     A, D = mechanics(att, combat, dfn), mechanics(dfn, combat, att)
+    if att.counters.get("blessed"):
+        from engine import techniques
+        multiplier *= techniques.blessed(att, combat)              # (f396) a hired priest's Blessing
     if fights_for_you(att):
         multiplier *= 1 + max(0, companion_boost(combat, "companion_damage")) / 100
         if "press" in A:
@@ -2913,8 +2916,13 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{a.name} hangs back")
             tell(combat, F["line"].format(name=a.name.split()[0]))
             return
+    from engine import techniques
     if a.order == "heal":
         hurt = combat.player if combat.player.hp < combat.player.max_hp else None
+        kit_heal = techniques.healing(a.ally_role)
+        if hurt and kit_heal:                                      # (f396) told to heal: their own heal, every turn they are told to
+            techniques.heal_on(combat, a, hurt, techniques.heal_amount(hurt, kit_heal), kit_heal["name"])
+            return
         if hurt and (a.ally_role == "priest" or a.can_heal):
             amount = hurt.max_hp * RULES["ally_heal"]["pct"] / 100 * 1.5
             amount, _ = combat_perks.mend(combat, a, hurt, amount)        # one path for every heal: withering and perks apply
@@ -2922,7 +2930,9 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{a.name} heals {hurt.name} for {round(amount)}")
             tell(combat, f"{who(a)} {vb(a, 'tend', 'tends')} {who(hurt)}, and the wounds close")
             return
-    if a.ally_role == "priest" and "heal" not in a.cooldowns:
+    if techniques.kit(a.ally_role) and a.order != "focus" and techniques.support(combat, a, rng):
+        return                                                     # (f396) a heal, a blessing or a shield, on their own judgement
+    if a.ally_role == "priest" and "heal" not in a.cooldowns and not techniques.healing(a.ally_role):
         hurt = [f for f in [combat.player] + combat.allies() if f.alive and f.hp < f.max_hp * RULES["ally_heal"]["below"]]
         if hurt:
             t = min(hurt, key=lambda f: f.hp / f.max_hp)
@@ -2950,6 +2960,8 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
         if a.reach not in ("ranged", "area") and a.zone_id == target.zone_id:
             bf.engage(combat, a, target)
         inspire = mechanics(combat.player, combat).get("inspire", 0)
+        if techniques.offence(combat, a, target, 1.0 + inspire / 100, rng):
+            return                                                 # (f396) a technique of their own at the foe in reach
         apply_damage(combat, a, target, 1.0 + inspire / 100, "attacks", rng)
 
 

@@ -196,6 +196,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def remember_narration(self, text: str, shown: dict | None = None) -> None:
         """Keep what the model should remember, and what the player saw (as pieces, so a reload draws it the same way)."""
+        from engine import hygiene
+        text = hygiene.undash(text)                         # (f396) what the narrator is shown of itself carries no dashes to copy
+        if shown:
+            shown = {k: hygiene.undash(v) if k in ("text", "before", "after") and isinstance(v, str) else v for k, v in shown.items()}
         if text.strip():
             self.recent_narration = (self.recent_narration + [text])[-6:]
             self.store.save_story(self.recent_narration, shown or {"type": "narration", "text": text})

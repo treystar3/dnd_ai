@@ -1091,6 +1091,8 @@ class CombatScene:
             ws.orenna_fight_over("defeat")
             ws.assault_fight_over("defeat")
             self.defeat()
+        if f.over in ("victory", "fled") and ws.player.party:
+            ws.tend_after_fight()                          # (f396) a priest on their feet sees to the wounds
         events.release_allies(ws)
         ws.store.save_player(ws.player)
 

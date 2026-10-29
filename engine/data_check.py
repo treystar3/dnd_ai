@@ -269,6 +269,8 @@ def check() -> list[str]:
     bad += _entities.problems()
     from engine import ruling as _ruling                                                      # (f395) what a character can do beyond the ordinary
     bad += _ruling.problems()
+    from engine import techniques as _techniques                                              # (f396) what hires can do in a fight
+    bad += _techniques.problems()
     from engine import features as _features                                                  # (f394) the parts of places
     from world.loader import load_world as _lw
     bad += _features.problems(_lw())

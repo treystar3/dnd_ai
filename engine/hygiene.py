@@ -144,6 +144,77 @@ def clean(text: str) -> str:
     return t
 
 
+# (f396) The narrator writes no dashes: the owner's one exception to leaving the narrator's style alone. An em dash, an en dash, a
+# double hyphen or a spaced hyphen between words is mended to the punctuation it stands for. Hyphenated words are left as they are.
+DASH = re.compile(r"[ \t]*(?:\u2014|\u2013|--)[ \t]*|[ \t]+-[ \t]+")
+RANGE = re.compile(r"(\d)\s*[\u2013\u2014]\s*(\d)")
+CLOSING = "\"\u201d'\u2019)"
+OPENING = "\"\u201c'\u2018("
+GO_ON = {"and", "but", "or", "nor", "then", "yet", "so", "no", "not", "until", "before", "after", "as", "like", "only", "just", "maybe",
+         "perhaps", "or", "if", "though", "although", "because", "while", "when", "where", "which", "who", "whose", "even", "still", "almost"}
+
+
+def undash(text: str) -> str:
+    """The same passage without dashes: a dash that breaks off speech is an ellipsis, one that opens a line is dropped, a pair around an
+    aside are commas, one before 'and', 'but', 'then' and the like is a comma, and one before the rest of a thought is a colon (or a
+    comma, when the sentence has a colon already)."""
+    if not isinstance(text, str) or not text or not ("\u2014" in text or "\u2013" in text or "--" in text or " - " in text or "\t-" in text):
+        return text
+    t = RANGE.sub(r"\1 to \2", text)
+    out, i, cap = [], 0, False
+    matches = list(DASH.finditer(t))
+    for n, m in enumerate(matches):
+        before, after = t[:m.start()], t[m.end():]
+        piece = t[i:m.start()]
+        out.append(piece[:1].upper() + piece[1:] if cap else piece)
+        i, cap = m.end(), False
+        prev = before.rstrip(" \t")
+        nxt = after.lstrip(" \t")
+        start = max(before.rfind(c) for c in ".!?\n")             # the sentence this dash is in
+        end = min([x for x in (after.find(c) for c in ".!?\n") if x >= 0] or [len(after)])
+        sentence_has = sum(1 for x in matches if start < x.start() < m.end() + end and x is not m)
+        if not prev or prev[-1] in OPENING or prev.endswith("\n"):
+            rep, cap = "", True                                   # a dash that opens a line or a quotation
+        elif not nxt or nxt[0] in CLOSING or nxt[0] == "\n":
+            rep = "..."                                           # a word broken off: "But I-"
+        elif nxt[0] in ".,;:!?":
+            rep = ""
+        elif sentence_has:
+            rep = ", "                                            # a pair around an aside
+        elif (re.match(r"[A-Za-z']+", nxt) or [""])[0].lower() in GO_ON or ":" in t[start + 1:m.start()] + after[:end]:
+            rep = ", "
+        else:
+            rep = ": "
+        out.append(rep)
+    out.append(t[i:][:1].upper() + t[i:][1:] if cap else t[i:])
+    s = "".join(out)
+    s = re.sub(r"\s+([,;:])", r"\1", s)
+    s = re.sub(r"([,;:])\s*([,;:.!?])", r"\2", s)
+    s = re.sub(r"\.\.\.\s*([.,])", "...", s)
+    s = re.sub(r"[ \t]{2,}", " ", s)
+    if s != text:
+        REPAIRS["dash"] += 1
+    return s
+
+
+def undash_answer(task: str, value) -> None:
+    """(f396) A narrator's answer, mended in place: its prose fields carry no dashes (speech and gestures are the speakers' own)."""
+    if task not in NARRATOR or value is None:
+        return
+    for key in list(getattr(type(value), "model_fields", {}) or {}):
+        v = getattr(value, key, None)
+        if isinstance(v, str) and key in PROSE and key not in ("speech", "gesture"):
+            setattr(value, key, undash(v))
+        elif isinstance(v, list):
+            for j, x in enumerate(v):
+                if isinstance(x, str) and key in PROSE and key not in ("speech", "gesture"):
+                    v[j] = undash(x)
+                elif hasattr(x, "model_fields"):
+                    undash_answer(task, x)
+        elif hasattr(v, "model_fields"):
+            undash_answer(task, v)
+
+
 def problems() -> list[str]:
     bad = []
     for k in ("prose_fields", "narrator_tasks", "reasons"):

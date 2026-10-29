@@ -42,6 +42,37 @@ roles:
             blurb: ["a hedge-mage with scorched sleeves", "a battle-wizard in a patched robe", "a young arcanist with something to prove", "a sullen spellcaster"]}
 maren_fights_as: "a greatsword, two-handed, in plate armour"
 
+# (f396) WHAT A HIRE CAN DO BESIDES A PLAIN BLOW (engine/techniques.py). Each role has two techniques of its own, used on the hire's own
+# judgement in a fight, the first listed first when both would serve; each is ready again `cooldown` rounds after it is used. Why: hired
+# fighters, archers, rogues and mages fought with one plain blow, and a priest healed a twelfth of a wound every fourth round once someone
+# was badly hurt, so a player who hired a priest never saw them heal. does:
+#   heal    the player (or, if the player is well, the most hurt of the party) once below `below` of their health: `pct` of their health
+#   bless   in the first rounds: the player and the party strike `pct` percent harder for `rounds` rounds (once a fight)
+#   guard   the player below `below` of their health and in reach: until the hire's next turn, blows meant for the player land on them
+#   strike  a heavier blow at the foe they are fighting, `power` times a plain one; `engaged`: only at a foe already busy with another
+#   hinder  a blow at `power` that also leaves the foe `status` for `rounds` rounds
+#   burst   a blow at `power` at every foe near the one they are fighting, when there are at least `foes` of them
+kits:
+  fighter:
+    - {id: shield_wall,   name: Shield Wall,   does: guard,  below: 0.6, cooldown: 3}
+    - {id: crushing_blow, name: Crushing Blow, does: strike, power: 1.8, cooldown: 3}
+  archer:
+    - {id: pinning_shot,  name: Pinning Shot,  does: hinder, power: 0.8, status: slowed, rounds: 2, cooldown: 4}
+    - {id: aimed_shot,    name: Aimed Shot,    does: strike, power: 2.0, cooldown: 3}
+  priest:
+    - {id: healing_word,  name: Healing Word,  does: heal,   below: 0.75, pct: 20, cooldown: 1}
+    - {id: blessing,      name: Blessing,      does: bless,  pct: 15, rounds: 3, cooldown: 99}
+  rogue:
+    - {id: backstab,      name: Backstab,      does: strike, power: 2.3, engaged: true, cooldown: 2}
+    - {id: hamstring,     name: Hamstring,     does: hinder, power: 0.9, status: slowed, rounds: 2, cooldown: 4}
+  mage:
+    - {id: arcane_burst,  name: Arcane Burst,  does: burst,  power: 0.8, foes: 2, cooldown: 4}
+    - {id: force_bolt,    name: Force Bolt,    does: strike, power: 1.7, cooldown: 2}
+
+# (f396) A priest's care outside a fight: after a fight they came through on their feet, and when the player asks them to see to their
+# wounds (once in `asked_every` minutes; it takes `minutes`). Hurt hires are tended too.
+tending: {after_fight_pct: 25, hires_pct: 30, asked_pct: 35, asked_every: 120, minutes: 10}
+
 profiles:
   striker:  {strength: 14, dexterity: 15, constitution: 11, intelligence: 6, wisdom: 10, charisma: 6}
   guardian: {strength: 15, dexterity: 9, constitution: 16, intelligence: 6, wisdom: 10, charisma: 6}

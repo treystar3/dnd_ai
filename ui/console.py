@@ -647,9 +647,11 @@ def guard_outputs() -> None:
         if getattr(fn, "gated", False):
             continue
 
-        def gated(*args, _fn=fn, **kwargs):
-            return _fn(*(hygiene.clean(a) if isinstance(a, str) else a for a in args),
-                       **{k: hygiene.clean(v) if isinstance(v, str) else v for k, v in kwargs.items()})
+        mend = (lambda s: hygiene.undash(hygiene.clean(s))) if name == "narrate" else hygiene.clean   # (f396) the narrator writes no dashes
+
+        def gated(*args, _fn=fn, _mend=mend, **kwargs):
+            return _fn(*(_mend(a) if isinstance(a, str) else a for a in args),
+                       **{k: _mend(v) if isinstance(v, str) else v for k, v in kwargs.items()})
         gated.gated, gated.inner = True, fn
         setattr(me, name, gated)
 
