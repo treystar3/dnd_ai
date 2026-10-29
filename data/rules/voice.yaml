@@ -15,6 +15,7 @@ frame_when:
   decided: "the game has decided how the player's attempt went, and it shows on them"
   fight: "a beat in the press of a fight"
   feeling: "they are {feeling} right now, and it shows"
+  back: "they know the player and have not seen them for a while: show them knowing who it is"      # (f382)
 
 # (f349) The worn-word watch (engine/worn.py): the last `keep` passages are kept; a seed word or a suffixed manner word that appears in at
 # least `least` of them is worn, and the `top` most worn are handed to the narrator, the frames, the fight and everyone who speaks as

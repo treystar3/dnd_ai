@@ -25,7 +25,7 @@ frame:                           # how the narrator frames her words with what s
     done: "standing with the player"
 
 journal_line: "A-rank adventurer out of the capital, waiting in Parth for a late party. Dry, watchful, and she is looking after you on your first contract."
-journal_after: "A-rank adventurer out of the capital. She took you through your first contract and fought a troll beside you in the Greywood."   # (f299) once the lesson is over
+journal_after: "A-rank adventurer out of the capital. She took you through your first contract, fought a troll beside you in the Greywood, and has gone on her way on the capital's business."   # (f299) once the lesson is over
 
 # (f374) Who she is once the lesson is over and she is a person of the world (engine/mentor.py make_npc). The first playthrough met her
 # at the hall afterwards as a stranger: the engine had drawn her a townsperson's voice kit (short sentences, never asks back, says
@@ -33,6 +33,10 @@ journal_after: "A-rank adventurer out of the capital. She took you through your 
 # teased the player through a troll fight answered in six-word lines and harped on 'those boys of yours'. A person written by hand keeps
 # the voice she was written with: no kit habits, no rolled stance, her own way of talking shown by lines she has said.
 npc:
+  # (f382) Once the lesson is over she leaves Parth and goes on with the work the capital sent her south to do. Her record is kept (what
+  # she remembers of the player, her voice) but she is in no place: `gone` says where she went, and Parth hears it as news.
+  gone: "left Parth on the work the capital sent her south to do"
+  news: "Maren Holt, the A-rank adventurer out of the capital, has left Parth on business of her own."
   rank: A
   personality: >
     A broad-shouldered travelling adventurer in her middle years, holding the A rank: a formidable veteran with a wry manner and a soft
@@ -431,11 +435,11 @@ return:
     out of the fields.
   info:
     - "You are back at the edge of Parth. Tell the player to hand the contract in at the guild hall: the clerk will have their coin and their first mark toward the next rank."
-    - "Part ways here: you wait at the guild hall a while yet for your own late party, so they know where to find you. Tell them they did well today, to stay alive, and that you expect to hear of them."
+    - "Part ways here: the capital did not send you south to sit in Parth, and your own party can catch you up on the road; you leave Parth today, on that work. Tell them they did well today, to stay alive, and that you expect to hear of them."
   speech:
     - "Take the contract in at the guild hall. The clerk's got your coin, and your first mark toward the next rank."
-    - "This is where we part. I'll be at the hall a while yet, waiting on my lot, so you know where to find me. You did well today. Stay alive. I expect I'll hear about you."
-  leave: "She shoulders the greatsword, nods once and goes on ahead toward the hall, and the crowd in the street closes behind her."
+    - "This is where we part. The capital didn't send me down here to sit in Parth, and my lot can catch me up on the road. You did well today. Stay alive. I expect I'll hear about you."
+  leave: "She shoulders the greatsword, nods once and takes the road out of town, and the crowd in the street closes behind her."
 
 # ---------------------------------------------------------------------------------------------------------------------------
 # When you talk to her

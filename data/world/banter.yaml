@@ -138,6 +138,10 @@ banter:
     weather:     "It is {period}, {weather}; the season is {season}."
     mundane:     "Nothing in particular has happened: small talk between people who travel together."
     personal:    "Something of {name}'s own is on their mind, and they may bring it up in their own way, or let it show: {thing}"
+    # (f382) A thing of their own comes up most when something in front of them touches it: the f375 night's mage, arriving in a market
+    # square, talked about labelling spice crates as a child, out of nowhere. Touched, it is three times as likely as untouched (once).
+    touched:     "{touch} puts {name} in mind of something of their own, and they may bring it up in their own way, or let it show: {thing}"
+    errand:      "The job the party is on: {job}. What each makes of it, of the road there or of how it will go."
     motive:      "What {name} wants underneath it all is on their mind today, and may surface in what they say, or not: {thing}"
     shared:      "Something {a} and {b} went through together is on their minds: {thing}"
   # How heavy a topic is decides when it comes up unasked. Every personal topic has a weight: light, personal or heavy (data/rules/quirks.yaml

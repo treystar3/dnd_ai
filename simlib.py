@@ -113,7 +113,8 @@ class Stub:
         if getattr(self, "exchange", None):
             return {"lines": self.exchange(names, first)}
         lo = int(re.search(r"WRITE (\d+) TO", first).group(1))
-        return {"lines": [{"speaker": names[i % len(names)], "text": "Well, here we are."} for i in range(max(lo, 2))]}
+        said = ["Well, here we are.", "So it seems.", "Quiet enough, for now.", "Could be worse.", "Mind the mud.", "We will see."]   # (f382) one line said
+        return {"lines": [{"speaker": names[i % len(names)], "text": said[i % len(said)]} for i in range(max(lo, 2))]}          # twice is sent back
 
     def a_CompanionReply(self, u, k):
         if getattr(self, "companion", None):

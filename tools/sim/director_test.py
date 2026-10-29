@@ -104,7 +104,7 @@ bram["quirks"].update(likes="harvest", dislikes="flee", reacted={}); isel["quirk
 tam["quirks"].update(likes="loot_dead", dislikes="harvest", reacted={})
 calls = collections.Counter()
 reqs_ = []
-stub.exchange = lambda names_, first: (calls.update(["exchange"]), reqs_.append(first), [{"speaker": names_[i % len(names_)], "text": f"A word on the skinning, {chr(97 + i)}."} for i in range(2)])[2]
+stub.exchange = lambda names_, first: (calls.update(["exchange"]), reqs_.append(first), [{"speaker": names_[i % len(names_)], "text": ["Leave the hide. It is ruined.", "The meat will still fetch a copper or two."][i]} for i in range(2)])[2]
 stub.companion = lambda u: (calls.update(["companion"]), {"speech": "Fine work."})[1]
 before = {m["id"]: m["bond"] for m in crew}
 SAID.clear(); w.deed("harvest")

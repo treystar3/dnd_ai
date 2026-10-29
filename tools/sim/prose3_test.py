@@ -52,11 +52,8 @@ def fake2(task, system, request, schema, **kw):
     return Narration(text="He nods, his hand resting on the hilt. She turns away, her shoulders dropping. The door shuts." if len(calls) == 1 else "Clean.")
 voice.generate = fake2
 r = voice.fresh("narrate", "sys", "req", Narration, [])
-check("a draft ending two sentences on a trailing participle is rewritten once, shown them", len(calls) == 2 and "TRAILING PARTICIPLE" in calls[1] and "resting on the hilt" in calls[1], calls[-1][-300:])
-calls.clear()
-voice.generate = lambda *a, **k: (calls.append(a[2]) or Narration(text="He nods, his hand resting on the hilt. The door shuts."))
-voice.fresh("narrate", "sys", "req", Narration, [])
-check("one such sentence is let be", len(calls) == 1)
+check("(f382) a draft ending sentences on trailing participles is not rewritten for it: the rewrites trailed as often", len(calls) == 1, calls)
+check("...while the DM voice still names the habit", "trailing participle" in voice.DM_VOICE)
 
 # ---- speech without tics
 def npc(speech, last=""):
@@ -185,19 +182,15 @@ ws.heard_flush()
 check("...and nothing when nothing new was heard", len(ledgers) == 1)
 
 # ---- what the 20261027_1334 run showed
-# a long draft whose last sentence trails off is rewritten, even when it is the only such sentence
+# (f382) a long draft whose last sentence trails off is not rewritten for it either
 calls.clear()
 def fake3(task, system, request, schema, **kw):
     calls.append(request)
     return Narration(text="The gate is open and the yard beyond it is quiet, the carts drawn up along the wall and the dogs asleep under them. "
-                          "Berric sets his pack down by the well. He looks back the way you came, his hand resting on the hilt." if len(calls) == 1 else "Clean.")
+                          "Berric sets his pack down by the well. He looks back the way you came, his hand resting on the hilt.")
 voice.generate = fake3
 r = voice.fresh("narrate", "sys", "req", Narration, [])
-check("a passage that ends on a trailing participle is rewritten, told it was the last sentence", len(calls) == 2 and "ITS LAST SENTENCE" in calls[1] and r.text == "Clean.", calls[-1][-200:])
-calls.clear()
-voice.generate = lambda *a, **k: (calls.append(a[2]) or Narration(text="He looks back, his hand resting on the hilt. The gate is open."))
-voice.fresh("narrate", "sys", "req", Narration, [])
-check("...a short passage with one such sentence in the middle is let be", len(calls) == 1)
+check("(f382) a passage that ends on a trailing participle is let be", len(calls) == 1, calls)
 
 # the worn words are heard in speech too: a reply leaning on two of them is sent back
 def npcw(speech, worn):

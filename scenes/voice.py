@@ -72,14 +72,15 @@ def participle_tails(text: str) -> list[str]:
 
 
 def fresh(task: str, system: str, request: str, schema, recent: list[str], fields=("text",),
-          temperature: float = 0.9, max_tokens: int | None = None, context: dict | None = None, worn: list[str] | None = None, tails: bool = True):
-    """Generate narration; if it repeats recent phrasing or stock phrases, leans on words the writing has worn out (f349, `worn` from the
-    scene's watch) or ends two or more sentences on a trailing participle, rewrite once with the habit called out. `context` is the
-    schema's validation context (a frame's speaker and the others present, f347). (f374) tails=False for a frame around speech: a beat
-    before and after a line is a sentence or two, the first playthrough rewrote half of them for this and the rewrite fixed it in half of
-    those, at a second call each, before the player could read the line. (f380) And none for a round of a fight: the second playthrough
-    rewrote 10 of 11 rounds, mostly for this; the rewrites ended as many sentences that way as the drafts did (29 against 31), and two of
-    them lost a blow's [hN] marker the draft had kept, so its figure was printed at the end of the passage instead of beside the blow."""
+          temperature: float = 0.9, max_tokens: int | None = None, context: dict | None = None, worn: list[str] | None = None):
+    """Generate narration; if it repeats recent phrasing or stock phrases, or leans on words the writing has worn out (f349, `worn` from
+    the scene's watch), rewrite once with the habit called out. `context` is the schema's validation context (a frame's speaker and the
+    others present, f347).
+
+    (f382) No rewrite for sentences ending on a trailing participle, anywhere. It was dropped for frames (f374) and fights (f380) first;
+    across the second playthrough and the f375 night warrior it rewrote three passages in four, the rewrites ended as many sentences that
+    way as the drafts (a rate of 0.25 to 0.34 either way), and each was a second call before the player could read anything. The DM
+    voice still names the habit; participle_tails stays for the LoRA tools, which keep such drafts out of what is learned."""
     from engine import worn as _worn
     import config
     max_tokens = max_tokens or config.PROSE_MAX_TOKENS                     # (f375) a ceiling against a runaway, never a length
@@ -92,12 +93,6 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     lean = _worn.leaned_on(text, worn or [])
     if len(lean) >= 2:
         parts.append("LEANED ON WORDS YOU HAVE WORN OUT: " + ", ".join(lean) + ". Find other words, or leave the thing unsaid")
-    found = participle_tails(text)
-    last = [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()][-1:]
-    closes = tails and bool(last) and len(text.split()) >= 25 and participle_tails(last[0]) == last     # the closing sentence trails off: the habit at its most visible
-    if tails and (len(found) >= 2 or closes):
-        parts.append("ENDED " + ("ITS LAST SENTENCE" if closes and len(found) < 2 else "SENTENCES") + " ON A TRAILING PARTICIPLE (" + "; ".join(f'"{t[-50:]}"' for t in found[:2])
-                     + "). End each sentence, and above all the last, on its verb or its noun: a thing done, not a thing going on")
     if not parts:
         return result
     nudge = "\n\nYOUR DRAFT " + ". YOUR DRAFT ALSO ".join(parts) + ". Write it fresh, with the same events."

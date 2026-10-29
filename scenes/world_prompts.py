@@ -198,11 +198,16 @@ EXCHANGE_SYSTEM = DM_VOICE + """
 You are framing a short exchange between several people. The game will print their spoken lines between your two pieces of prose,
 exactly as given - you never repeat them, quote them, paraphrase them or add to them, and nobody else speaks.
 
-before: how they fall into talking - where they are, what they are doing, who looks at whom - built only from the scene.
-after: how the talk ends or trails off, and when it fits, the place around them: the road, the fire, the room, the weather.
+before: how they fall into talking - who turns to whom, what their hands are doing - built only from the scene. Often a sentence; empty
+  when the talk simply starts.
+after: how the talk ends or trails off: a look, a shrug, someone moving off. Never the room, the light, the weather or the place around
+  them as a closing shot. Leave it empty when the last line is the end.
 
 THE FRAME SHOWS, when given, says what the frame is about. Never repeat details already used in RECENT NARRATION.
 Rules:
+- The frame is about the people talking. OTHERS PRESENT are there; mention one only if they react to the talk, and never go round the
+  room describing them. (f382)
+- The player is "you", never named and never in the third person.
 - Describe only what the SCENE contains. Never add people, items, events or dialogue of your own.
 - Call people only by the names given.
 - """ + __import__("engine.quirks", fromlist=["HANDS_RULE"]).HANDS_RULE + """
@@ -216,7 +221,7 @@ def exchange_request(time_label: str, place, speakers: list[str], others: list[s
     return (
         f"SCENE\nTIME AND WEATHER: {time_label}\nPLACE: {place.name} - {visible}\n"
         f"WHO IS TALKING: {'; '.join(speakers)}\nOTHERS PRESENT: {'; '.join(others) or 'no one else'}\n"
-        + (f"THE PLAYER: {player}\n" if player else "") + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
+        + (f"THE PLAYER: {player} (always 'you' in the frame)\n" if player else "") + (f"THE FRAME SHOWS: {frame}\n" if frame else "") + f"THE MOMENT: {moment}\n"
         f"WITHIN REACH: {'; '.join(reach or []) or 'nothing in particular'}\n\n"
         f'THE FIRST LINE (printed by the game, do not repeat): "{first}"\n'
         f'THE LAST LINE (printed by the game, do not repeat): "{last}"\n'

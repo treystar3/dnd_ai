@@ -702,6 +702,9 @@ class CompanionReply(BaseModel):
         hit = banter.repeats(self.speech, ctx.get("recent", []))
         if hit:
             raise ValueError(f"you have said something very like '{hit}' lately: say it differently, or say something else")
+        hit = banter.echoes(self.speech, ctx.get("heard", []))          # (f382) another companion just said it
+        if hit:
+            raise ValueError(f"someone else has just said '{hit}': answer in your own words")
         if ctx.get("member"):
             from engine import quirks, voices
             why = quirks.voice_check(ctx["member"], self.speech, ctx.get("player", ""), ctx.get("recent", [])) or \

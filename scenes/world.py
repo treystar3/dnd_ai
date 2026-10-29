@@ -1428,7 +1428,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Who is here, as the player knows them, for the narrator (engine/truth.py, f313). The hires travelling with the player are not
         scenery (f349): they are left out, and the narrator hears of one only when the GAME EVENT has them act (companions_in)."""
         from engine import truth
-        return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc, p.doing)      # (f378) and their work
+        from engine import recognition
+        by_id = {n.id: n for n in self.present}
+        return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc
+                 + ((" " + knows) if (knows := recognition.seen(by_id[p.id], self.minutes) if p.id in by_id else "") else ""), p.doing)   # (f378) work; (f382) knows you
                 for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
 
     FIRST_SEEN = 2
@@ -1988,6 +1991,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         speech = intent.speech or text
         label_before = npc.label()
         first_time = not npc.met_player
+        from engine import recognition
+        back = "" if first_time or self.convo else recognition.line(npc, self.minutes)       # (f382) they know the player again
+        self._back = npc.id if back else None
         if first_time:
             rep = self.player.reputation.get(pulse.town_of(self.world, npc.location), 0)
             npc.trust = max(0, min(100, npc.trust + round(rep * pulse.P["reputation"]["trust_per_point"])
@@ -2015,7 +2021,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now." + (f" The old note was: {npc.journal_note} - bring it up to date with what has happened since."
                                                                          if npc.journal_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
-        ctx = ctx + secret_lines
+        ctx = ([back] if back else []) + ctx + secret_lines
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
@@ -2122,6 +2128,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             out.append(W["leave"])
         if note:
             out.append(W["decided"])
+        if self.__dict__.pop("_back", None) == npc.id:                          # (f382) someone who knows them, after a while
+            out.append(W["back"])
         return out
 
     def other_names(self, who=None) -> list[str]:
@@ -2166,7 +2174,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines(), worn=self.worn_words("prose")),
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"), tails=False,
+                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"),
             )
         except LLMError:
             self.show_speech(speaker, reply, npc)

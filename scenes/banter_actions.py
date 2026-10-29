@@ -164,7 +164,7 @@ class BanterActions:
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
                                               P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
                                               reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight)),
-                          DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS, tails=False)
+                          DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS)
             after = "" if in_fight else frame.after
             self.remember_narration(" ".join(t for t in (frame.before, after) if t.strip()),
                                     {"type": "dialogue", "before": frame.before, "speaker": "", "speech": "", "after": after})
@@ -310,11 +310,17 @@ class BanterActions:
                         options.append((2, "player", H["player"].format(name=m["name"], memory=x["text"]), m))
                 from engine import gravity                      # how heavy a topic may be decides whether it fits this moment
                 mo = gravity.moment(kind, bool(fresh and (last.get("fallen") or not last.get("won", True))))
+                scene = self.banter_scene()
                 for m in pick:
-                    got = self.personal_topic(m, rng, mo)
+                    got = self.personal_topic(m, rng, mo, scene=scene)
                     if got:
-                        thing, g = got
-                        options.append((3 * gravity.share(mo, g), "personal", H["personal"].format(name=m["name"], thing=thing), m, g))
+                        thing, g, touch = got
+                        said = H["touched"].format(touch=touch[0].upper() + touch[1:], name=m["name"], thing=thing) if touch else \
+                            H["personal"].format(name=m["name"], thing=thing)
+                        options.append(((3 if touch else 1) * gravity.share(mo, g), "personal", said, m, g))     # (f382) touched by the scene
+                job = next((q for q in self.player.quests if q.get("progress", 0) < q.get("count", 1)), None)
+                if job and kind in ("travel", "rest"):          # (f382) the job they are on, what travelling together is for
+                    options.append((2, "errand", H["errand"].format(job=job.get("title", "")), None))
                     mt = rules.P["motives"].get(m.get("motive", ""), "")
                     if mt and context.due(m, "motive", now):      # what drives them comes up unasked only from here, and only when due
                         options.append((gravity.share(mo, "personal"), "motive", H["motive"].format(name=m["name"], thing=f"{m['name'].split()[0]} {mt}"), m))
@@ -339,14 +345,31 @@ class BanterActions:
 
     PERSONAL_KEEP = 8                                           # how many of their own topics are remembered as used, so the next is new
 
-    def personal_topic(self, m: dict, rng: random.Random, moment: str = "ease") -> tuple[str, str] | None:
-        """One thing of their own to talk about, with its weight: a detail written at hire, something they have said about themselves, or a
-        belief; not one used lately, and only as heavy as the moment allows (engine/gravity.py)."""
-        from engine import gravity
+    def personal_topic(self, m: dict, rng: random.Random, moment: str = "ease", scene=()) -> tuple[str, str, str] | None:
+        """One thing of their own to talk about, with its weight and what here touched it ('' when nothing did): a detail written at hire,
+        something they have said about themselves, or a belief; not one used lately, and only as heavy as the moment allows
+        (engine/gravity.py). (f382) With the scene given, one that something in it is close to comes first."""
+        from engine import gravity, relevance
+        import config
         used = set(m.get("topics_used", []))
         pool = gravity.details(m) + [(c["text"], gravity.level(c.get("gravity"))) for c in m.get("canon", []) + m.get("traits", [])]
         pool += [(b["text"], "light") for b in m.get("beliefs", [])]
-        return gravity.choose([(t, g) for t, g in pool if t not in used], moment, rng, m, self.minutes)
+        pool = [(t, g) for t, g in pool if t not in used]
+        touches = {}
+        for t, g in pool[:8] if scene else ():
+            hit = relevance.pick(t, list(scene), 1, floor=config.SIM_RELEVANT)
+            if hit:
+                touches[t] = hit[0]
+        got = gravity.choose([(t, g) for t, g in pool if t in touches], moment, rng, m, self.minutes) if touches else None
+        if got:
+            return got[0], got[1], touches[got[0]]
+        got = gravity.choose(pool, moment, rng, m, self.minutes)
+        return (got[0], got[1], "") if got else None
+
+    def banter_scene(self) -> list[str]:
+        """(f382) What is in front of the party, as lines something of their own might be touched by: the place and what can be seen."""
+        out = [f"{self.place.name}, a {self.place.type}"] + [str(v).rstrip(".") for v in self.place.visible]
+        return [x for x in out if x.strip()]
 
     def shared_topic(self, pick: list[dict], rng: random.Random, moment: str = "ease") -> tuple[str, str] | None:
         """Something the pair went through together and has not talked over lately, with its weight, or None. A heavy one needs both of

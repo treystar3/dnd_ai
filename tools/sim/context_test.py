@@ -234,9 +234,10 @@ w.party_banter([bram, isel], "travel")
 w.banter_hook = _orig
 after = len(bram.get("topics_used", [])) + len(isel.get("topics_used", []))
 check("a personal topic, once talked about, is marked used so the next one is new", after == before + 1, (before, after, k, bram.get("topics_used"), isel.get("topics_used")))
-check("...and it was in the request as what brought the talk up", seen and "on their mind" in seen[-1])
+check("...and it was in the request as what brought the talk up", seen and ("on their mind" in seen[-1] or "in mind of something of their own" in seen[-1]))
 used = bram.get("topics_used", []) + isel.get("topics_used", [])
 check("a used topic is not offered again while it is remembered", all((w.personal_topic(m, random.Random(1)) or ("",))[0] not in m.get("topics_used", []) for m in (bram, isel)))
+check("(f382) the topic comes back with what touched it, '' when nothing did", all(len(w.personal_topic(m, random.Random(1)) or ("", "", "")) == 3 for m in (bram, isel)))
 st.meta.minutes = 1800; stub.exchange = None; bram["raised"] = {}
 
 # ---- what they were given is not new canon

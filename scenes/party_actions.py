@@ -519,7 +519,7 @@ class PartyActions:
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose")),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"), tails=False)
+                              context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
                 after = "" if in_fight else frame.after
                 console.dialogue(frame.before, name, speech, after)
                 self.note_shown(f"{frame.before} {after}")
@@ -559,7 +559,8 @@ class PartyActions:
             now = [quirks.Q["answer_told"]["rule"]] + now
         view = self.hire_view(m, text)
         for attempt in range(2):
-            ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player,
+            heard = [t for who, t in recent[-6:] if who not in ("Player", m["name"].split()[0])]           # (f382) what the others just said
+            ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player, "heard": heard,
                    "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words()}
             try:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,

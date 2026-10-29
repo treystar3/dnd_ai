@@ -38,6 +38,32 @@ def manner(npc) -> str:
     return "neutral"
 
 
+def near_speaker(name: str, speakers: dict[str, str]) -> str:
+    """(f382) The allowed speaker a misspelt or shortened name means ('Thavathiel Liaror', 'Deth'), or ''. Sending it back cost a second
+    call, and the second answer was the worse one: the f375 night's companions spoke a broken line on exactly such a retry."""
+    import difflib
+    key = " ".join(name.strip().lower().rstrip(":").split())
+    if not key:
+        return ""
+    firsts = {}
+    for low, full in speakers.items():
+        firsts.setdefault(low.split()[0], []).append(full)
+    if len(firsts.get(key.split()[0], [])) == 1 and (len(key.split()) == 1 or difflib.SequenceMatcher(None, key, firsts[key.split()[0]][0].lower()).ratio() >= 0.75):
+        return firsts[key.split()[0]][0]
+    close = difflib.get_close_matches(key, list(speakers), n=2, cutoff=0.85)
+    return speakers[close[0]] if len(close) == 1 else ""
+
+
+def echoes(text: str, heard: list[str]) -> str:
+    """(f382) A line someone else said just now that this one says again, or '': two companions greeted the player, and both said 'Morning.'"""
+    norm = lambda s: " ".join(re.findall(r"[a-z']+", (s or "").lower()))
+    t = norm(text)
+    for h in [h for h in heard if h and h.strip()][-4:]:
+        if t and t == norm(h):
+            return h[:60]
+    return repeats(text, heard)
+
+
 def check_exchange(ex, ctx: dict) -> str:
     """Why an exchange can't be used, or ''. Names are fixed to the allowed ones as written, and nothing new is added."""
     speakers = {s.lower(): s for s in ctx.get("speakers", [])}
@@ -46,7 +72,7 @@ def check_exchange(ex, ctx: dict) -> str:
     if not lo <= len(ex.lines) <= hi:
         return f"write {lo} to {hi} lines of dialogue (you wrote {len(ex.lines)})"
     for ln in ex.lines:
-        who = speakers.get(ln.speaker.strip().lower().rstrip(":"))
+        who = speakers.get(ln.speaker.strip().lower().rstrip(":")) or near_speaker(ln.speaker, speakers)
         if not who:
             return f"speaker must be one of: {', '.join(speakers.values())}"
         ln.speaker = who
@@ -90,6 +116,9 @@ def check_exchange(ex, ctx: dict) -> str:
     for i, ln in enumerate(ex.lines):
         if not ln.text:
             continue
+        said = echoes(ln.text, [l.text for l in ex.lines[:i] if l.speaker != ln.speaker]) if len(ln.text.split()) <= 6 else ""
+        if said:                                             # (f382) one person's line said again by the next
+            return f"{ln.speaker} says again what was just said ('{said}'): give them their own words"
         hit = repeats(ln.text, recent.get(ln.speaker, []))
         if hit:
             return f"{ln.speaker} has said something very like '{hit}' lately: give them something new to say"
