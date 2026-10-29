@@ -92,7 +92,7 @@ lines:
 # (f325) How the narrator frames a companion's words with what they do as they speak (scenes/party_actions.companion_show), as it does
 # Maren's and the townsfolk's; and how an exchange among the party is opened and closed (scenes/banter_actions.show_exchange).
 frame:
-  talk: "one or two short sentences before, at most one after: how they listen and what they do as they speak - often only a look or a pause, sometimes nothing. They handle their gear only when the moment gives them a reason. They do not touch the player or anything of theirs, hand anything over, go anywhere, or do anything that changes the scene; never their words or their meaning"
-  fight: "one short sentence before, nothing after: what they are doing in the press of the fight as they say it - a parry, a step, a look thrown over a shoulder. Nothing that changes the fight"
-  exchange: "one or two sentences before: how they fall into talking, where they are, what they are doing; one sentence after: how the talk ends or trails off. Nothing that changes the scene, and never any of their words"
-  exchange_fight: "one short sentence before, nothing after: the press of the fight around the words"
+  talk: "how they listen and what they do as they speak - often only a look or a pause, sometimes nothing. They handle their gear only when the moment gives them a reason. They do not touch the player or anything of theirs, hand anything over, go anywhere, or do anything that changes the scene; never their words or their meaning"
+  fight: "what they are doing in the press of the fight as they say it - a parry, a step, a look thrown over a shoulder. Nothing that changes the fight"
+  exchange: "before: how they fall into talking, where they are, what they are doing; after: how the talk ends or trails off. Nothing that changes the scene, and never any of their words"
+  exchange_fight: "the press of the fight around the words; nothing after"

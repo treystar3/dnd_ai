@@ -87,8 +87,9 @@ voice.generate = real
 check("the frames carry the hands rule, which lets a hand stay on a weapon while a moment is tense",
       quirks.HANDS_RULE in wp.DIALOGUE_SYSTEM and quirks.HANDS_RULE in wp.EXCHANGE_SYSTEM and "stay there for as long as the tension lasts" in quirks.HANDS_RULE)
 check("the exchange is shown what is within reach too", "WITHIN REACH:" in wp.exchange_request("t", world.places["parth"], ["Bram"], [], "a", "b", [], "short", reach=["a cart"]))
-mentor_rule = yaml.safe_load(open("data/world/mentor.yaml", encoding="utf-8"))["frame"]["length"]
+mentor_rule = yaml.safe_load(open("data/world/mentor.yaml", encoding="utf-8"))["frame"]["shows"]
 party_rule = yaml.safe_load(open("data/rules/party.yaml", encoding="utf-8"))["frame"]
+check("(f375) what a frame shows names no sentence count", all("sentence" not in x for x in [mentor_rule, *party_rule.values()]))
 check("no example gesture names a hilt or a strap any more", "hilt" not in mentor_rule and "strap" not in party_rule["talk"] and "with their hands" not in party_rule["exchange"])
 check("there is no repetition guard on gestures: the world decides, not a rule against habits", not hasattr(voice, "reached_again"))
 

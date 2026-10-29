@@ -1,21 +1,7 @@
-# HOW THE VOICES SPEAK. The engine decides how much a moment deserves, and whether a line of speech gets the narrator's frame at all;
-# the model fills the space. Room is given in words, never in sentences: a sentence count makes every sentence long to meet it, a word
-# budget leaves the model free to set a short sentence beside a long one. Quiet moments stay short. First sights, turning points and big
-# talk get room. (f347)
-
-narration:                   # the narrator, by the weight of the moment. length is room, not a target: less is always allowed
-  brief:  {length: "up to about 35 words", tokens: 350}
-  normal: {length: "up to about 70 words", tokens: 600}
-  rich:   {length: "up to about 120 words, one paragraph", tokens: 950}
-  major:  {length: "up to about 170 words, in one or two paragraphs", tokens: 1300}
-  fight:  {length: "up to about 90 words, often far fewer", tokens: 600}                     # (f349) one exchange of a fight
-  fight_boss: {length: "up to about 140 words, in one paragraph", tokens: 800}               # a set-piece beat in a boss fight
-
-npc:                         # what a person says, by how much the conversation calls for; frame is the room for the narrator's beat, when the engine asks for one
-  short:  {length: "a line or two, up to about 35 words", tokens: 800, frame: "up to about 25 words before, or nothing; up to about 15 after, or nothing"}
-  medium: {length: "up to about 80 words", tokens: 900, frame: "up to about 40 words before, or nothing; up to about 25 after, or nothing"}
-  long:   {length: "a real answer, up to about 160 words, the way a person tells a story or explains something that matters to them", tokens: 1300,
-           frame: "up to about 55 words before, or nothing; up to about 30 after, or nothing"}
+# HOW THE VOICES SPEAK (f375). No narrator and no person of the world is given a length: no word budget, no sentence count, no room.
+# The narrator writes what the moment holds and a person says what they would say. (Until f375 the engine set room in words by the
+# weight of the moment and how much the talk called for, and checked replies against it.) config.PROSE_MAX_TOKENS only stops a
+# runaway generation.
 
 # When a line of speech gets the narrator's frame at all (scenes/world.py frame_reasons, party_actions.py hire_frame_reasons). Every
 # other line is the words and the speaker's own gesture. The frame is told its reason and writes to it.
@@ -29,7 +15,6 @@ frame_when:
   decided: "the game has decided how the player's attempt went, and it shows on them"
   fight: "a beat in the press of a fight"
   feeling: "they are {feeling} right now, and it shows"
-gesture_words: 6             # a gesture printed with bare speech is kept only when it is this short (a longer one is cut at its first clause, or dropped)
 
 # (f349) The worn-word watch (engine/worn.py): the last `keep` passages are kept; a seed word or a suffixed manner word that appears in at
 # least `least` of them is worn, and the `top` most worn are handed to the narrator, the frames, the fight and everyone who speaks as
@@ -70,7 +55,7 @@ exemplars:
 # simply themselves. wary needs trust under 50, grievance a concern, after a motive; tired is twice as likely after dark.
 stances:
   none:      {weight: 40, text: ""}
-  busy:      {weight: 18, text: "busy ({activity}): you answer with half your attention and your hands do not stop; you never say that you are busy"}
+  busy:      {weight: 18, text: "busy: you answer with half your attention and your hands do not stop; you never say that you are busy"}     # (f375) the chore itself is in RIGHT NOW, not quoted here
   wary:      {weight: 12, text: "wary of strangers today: you ask what they want before you give anything, and give little"}
   tired:     {weight: 10, text: "tired: you answer shorter than you would, and take any excuse to end it; you never say that you are tired"}
   grievance: {weight: 12, text: "nursing a grievance that keeps coming up whatever they ask: {concern}"}
@@ -82,13 +67,3 @@ partings:
   plain: ["Aye.", "Good day to you.", "Right. Mind the road.", "Go well."]
   wary:  ["Hm.", "Go on, then.", "Mind yourself."]
 
-# Points toward a longer reply. 0 = short, 1-2 = medium, 3+ = long. Guarded or laconic people stay shorter regardless.
-points:
-  long_player_message_words: 18
-  long_conversation_turns: 6
-  trust: 65
-  open_question: [why, how come, how did, how do, tell me, explain, what happened, what do you know, story, rumor, rumour,
-                  news, history, remember, describe, what is it like, what's it like, where did, who is, who was, who are]
-  weighty: [please, help me, missing, abducted, kidnapped, stolen, stole, murder, killed, died, dead, lost, afraid, danger,
-            urgent, desperate, plead, begging, sorry, forgive, secret, truth, swear, promise, betray]
-quiet_traits: [laconic, taciturn, reserved, guarded, suspicious, gruff, shy, stoic]

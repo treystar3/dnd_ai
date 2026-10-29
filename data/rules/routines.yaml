@@ -51,31 +51,31 @@ usual:                       # how a routine is told: "at the Tilted Plough most
   evening: most evenings
   night: most nights
 
-doings:                      # what someone does at their routine place, by the kind of place; no two people alike
+doings:                      # what someone does at their routine place, by the kind of place; no two people alike (f375: plain facts, two to five words)
   inn:
-    - at a table with a cup, in no hurry
-    - waiting on a bowl of stew
-    - in a game of dice by the hearth
-    - half asleep by the fire with their boots off
-    - arguing prices with whoever will listen
-    - at the counter, talking the innkeeper's ear off
-    - alone at the end of a bench with a pie
-    - watching the door over a cup
+    - drinking at a table
+    - waiting for stew
+    - playing dice by the hearth
+    - dozing by the fire
+    - arguing about prices
+    - talking with the innkeeper
+    - eating a pie
+    - watching the door
   square:
-    - sitting on the well's rim, watching who passes
-    - talking across a cart with a neighbour
-    - haggling over a basket of something
-    - letting a child run rings round them
-    - leaning on a post with nothing to do and content with it
-    - looking over what the stalls have left
+    - sitting on the well's rim
+    - talking with a neighbour
+    - haggling over a basket
+    - minding a child
+    - leaning on a post
+    - looking over the stalls
   temple:
-    - kneeling at the back, eyes shut
-    - lighting a candle and standing a while
-    - in low talk with the priest by the door
-    - sitting alone on the last bench
-    - sweeping the step without being asked
+    - kneeling in prayer
+    - lighting a candle
+    - talking with the priest
+    - sitting on the last bench
+    - sweeping the step
   default:
-    - passing the time with whoever is near
-    - standing about with nothing pressing
-    - sitting on a step, looking at nothing in particular
-    - talking with a neighbour about the weather
+    - passing the time
+    - standing about
+    - sitting on a step
+    - talking about the weather

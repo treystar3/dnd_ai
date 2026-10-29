@@ -186,7 +186,7 @@ class ArcActions:
         self.advance(field.F["speak_corpse"]["minutes"])
         n["clue_given"] = True
         self.narrate(f"The player finds a body at {place} ({tpl['site_desc']}) and uses {ab.name} to question it. Describe the dead giving "
-                     f"up what they knew, in two or three sentences, adding nothing beyond this: {sn.get('clue', '')}", "")
+                     f"up what they knew, adding nothing beyond this: {sn.get('clue', '')}", "")
         console.note(f"{ab.name}: the dead tell you what the place was hiding.")
         self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
         return True
@@ -205,7 +205,7 @@ class ArcActions:
             if degree in ("success", "strong success"):
                 n["clue_given"] = True
                 self.narrate(f"The player searches at {place} ({tpl['site_desc']}), relying on {skill}, and finds something. "
-                             f"Describe the search and what turns up in two or three sentences: {sn.get('clue', '')}", "")
+                             f"Describe the search and what turns up: {sn.get('clue', '')}", "")
                 console.note(f"{skill.capitalize()} - {degree}: you find what the place was hiding.")
                 self.advance_arc(data, arc, n, False, self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""}))
                 return
@@ -517,7 +517,7 @@ class ArcActions:
             console.note(f"{gift.description[:-1]} - it is yours now. It will fight at your side, though it is no bonded companion.")
             console.note(f"  {gift.name}: {arcs.perk_text(gift)}")
             self.narrate(f"As the story ends, an animal attaches itself to the player for good: {gift.description} "
-                         "Describe the moment it chooses them in two sentences.", "")
+                         "Describe the moment it chooses them.", "")
         sn = self.story_node(arc, last["id"])
         who = sn.get("npc_name") or "the leader"
         people = leader is not None or (yielded and tpl["leaders"] and
@@ -623,7 +623,7 @@ class ArcActions:
                      + (" - and it counts toward your bounty." if bounty else "."))
         self.weight_hint = "brief"
         self.narrate(f"The player hands the bound captive {npc.name} over to {guard.name}, {guard.label()}. "
-                     "Describe the handover in two sentences.", text)
+                     "Describe the handover.", text)
         self.store.save_player(self.player)
 
     def drop_prisoner(self, npc, how: str, partial_node: bool = False) -> None:
@@ -650,7 +650,7 @@ class ArcActions:
             if freed:
                 self.store.save_player(self.player)
                 console.note(f"You release {freed.name} back to the wild.")
-                self.narrate(f"The player lets their tamed companion {freed.name} go back to the wild. Describe the parting in two sentences.", text)
+                self.narrate(f"The player lets their tamed companion {freed.name} go back to the wild. Describe the parting.", text)
                 return
             console.note("There's no one here to let go.")
             self.halted = True
@@ -683,7 +683,7 @@ class ArcActions:
         self.weight_hint = "brief"
         self.narrate(f"The player has {verdict} the captive {npc.name}, who {tell}. "
                      + ("They had been promised mercy. " if pr.get("deal") and how == "kill" else "")
-                     + "Describe the moment in two sentences.", text)
+                     + "Describe the moment.", text)
         self.store.save_player(self.player)
 
     # ---------- display ----------

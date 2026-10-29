@@ -81,8 +81,8 @@ class RoadActions:
             self.remember_narration(line)
         else:
             self.narrate(f"After {clock.describe_duration(walk)} on foot, the player arrives at {self.place.name}.{passing}{happened} "
-                         f"Give the place in a sentence or two and one person doing one thing; the rest waits until they look. "
-                         f"Mention the road only briefly.{self.brevity()}", text)
+                         f"Give the place and one person doing one thing; the rest waits until they look. "
+                         f"Say little of the road.{self.brevity()}", text)
         self.show_exits()
         if self.arc_arrival():
             return

@@ -93,12 +93,12 @@ check("a local says a distance in walks and days, never minutes", clock.walk_wor
 check("the player's own map keeps its figures", clock.describe_duration(70) == "1 hour 10 minutes")
 
 # ---- the fight narrator joins the rest
-check("the fight narrator has room in words, no sentence count, one blow a sentence and its own exemplars",
-      "Three to six" not in cp.NARRATE_SYSTEM and "LENGTH" in cp.NARRATE_SYSTEM and "HOW A FIGHT SOUNDS HERE" in cp.NARRATE_SYSTEM
+check("the fight narrator has no length, no sentence count, one blow a sentence and its own exemplars",
+      "Three to six" not in cp.NARRATE_SYSTEM and "LENGTH" not in cp.NARRATE_SYSTEM and "HOW A FIGHT SOUNDS HERE" in cp.NARRATE_SYSTEM
       and "last thing in the sentence" in cp.NARRATE_SYSTEM and "up to eight sentences" not in cp.NARRATE_SYSTEM and "One sentence tells one blow" in cp.NARRATE_SYSTEM)
-req = cp.narrate_request("P", "t", "swing", ["x [h1]"], "sword", "fine", ["a wolf, unhurt"], 2, length="up to about 90 words", shown=["the look of the wolf"], worn=["steady"])
-check("its request carries the room, what the fight has shown and the worn words", "LENGTH: up to about 90 words" in req and "ALREADY SHOWN IN THIS FIGHT" in req and "the look of the wolf" in req and "WORN OUT (find other words): steady" in req)
-check("a fight and a boss beat have their room in the rules", "words" in voice_rules.V["narration"]["fight"]["length"] and "words" in voice_rules.V["narration"]["fight_boss"]["length"] and len(voice_rules.V["exemplars"]["fight"]) >= 3)
+req = cp.narrate_request("P", "t", "swing", ["x [h1]"], "sword", "fine", ["a wolf, unhurt"], 2, shown=["the look of the wolf"], worn=["steady"])
+check("its request carries what the fight has shown and the worn words, and no length", "LENGTH" not in req and "ALREADY SHOWN IN THIS FIGHT" in req and "the look of the wolf" in req and "WORN OUT (find other words): steady" in req)
+check("a fight has its exemplars, and no room in the rules (f375)", "narration" not in voice_rules.V and len(voice_rules.V["exemplars"]["fight"]) >= 3)
 check("an element on the blade is told to the narrator once a fight", combat.Combat(fighters=[]).burn_told is False and "combat.burn_told = True" in open("engine/combat.py").read())
 
 # ---- in a scene

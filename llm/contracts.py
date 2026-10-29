@@ -683,8 +683,6 @@ class CompanionReply(BaseModel):
             self.speech = ""
         if not self.speech and not self.gesture and not quiet:
             raise ValueError("give speech, or a gesture if they say nothing")
-        if len(self.speech) > 900:
-            raise ValueError("answer in one to four short sentences, or two short paragraphs")
         if "*" in self.speech or '"' in self.speech:
             raise ValueError("speech is plain words: no asterisks or quotation marks")
         from engine import quirks
@@ -958,8 +956,6 @@ class Parting(BaseModel):
     def short_and_new(self, info: ValidationInfo):
         if not self.speech.strip():
             raise ValueError("say something, even a word")
-        if len(self.speech.split()) > 25:
-            raise ValueError("one short parting line: a few words, not a speech")
         if "*" in self.speech or "_" in self.speech:
             raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _not_said_again(self.speech, info)

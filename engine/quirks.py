@@ -524,8 +524,6 @@ def gesture_ok(gesture: str, recent: list[str], name: str = "") -> str:
     g = " ".join((gesture or "").split())
     if not g:
         return ""
-    if len(g.split()) > 15:
-        return "a gesture is a few words, fifteen at most"
     if '"' in g or "*" in g or "\u201c" in g:
         return "a gesture is what the body does: no speech, no asterisks"
     from llm import embed

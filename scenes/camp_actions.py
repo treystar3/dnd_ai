@@ -333,8 +333,8 @@ class CampActions:
         camp["day"] = clock.day(self.minutes)
         self.store.save_arcs(data)
         if camp["alert"] >= CA["alarm"]:
-            self.narrate(event + " The alarm is raised: the camp turns on the player. Describe the moment it goes wrong, "
-                         "briefly. Do not describe the fight itself.", text)
+            self.narrate(event + " The alarm is raised: the camp turns on the player. Describe the moment it goes wrong. "
+                         "Do not describe the fight itself.", text)
             self.camp_battle(data, arc, n, tpl)
             return True
         return False
@@ -362,7 +362,7 @@ class CampActions:
             camp["edge"] = max(camp["edge"], CA["scout"]["edge_partial"])
             console.note(f"You make out {len(guards)} guard{'s' if len(guards) != 1 else ''} and a leader, and not much more.")
             self.narrate(f"[THE GAME HAS DECIDED: the player gets a partial look: {len(guards)} guards and a leader, nothing "
-                         "about their habits.] Describe what the player can make out, briefly.", text)
+                         "about their habits.] Describe what the player can make out.", text)
             return
         camp["edge"] = CA["scout"]["edge"] + (5 if degree == "strong success" else 0)
         lvls = [g["level"] for g in guards]
@@ -379,7 +379,7 @@ class CampActions:
             console.note("That is a garrison, not a gang. The guild hires out adventurers for a job like this.")
         self.narrate(f"[THE GAME HAS DECIDED: the player scouts well. They count {len(guards)} guards and the leader "
                      f"{ld['name']}, and notice {flaw}. Charging in would be {label}.] Describe what the player sees and works out, "
-                     "briefly, from cover. Add no new characters.", text)
+                     "from cover. Add no new characters.", text)
 
     def camp_fight_sim(self, enemies: list, reserves: list):
         from scenes.combat_scene import CombatScene
@@ -419,7 +419,7 @@ class CampActions:
         noisy = degree == "partial"
         self.narrate(f"[THE GAME HAS DECIDED: the player silently takes out {who}." +
                      (" It is not clean - there is a clatter, a held breath - but nobody comes." if noisy else " Clean and quiet.") +
-                     "] Describe it briefly, in keeping with the player's words and abilities. Nobody else notices.", text)
+                     "] Describe it in keeping with the player's words and abilities. Nobody else notices.", text)
         if noisy and self.camp_raise(data, arc, n, tpl, camp, CA["partial_alert"],
                                      "[THE GAME HAS DECIDED: the noise carries and the camp stirs.]", text):
             return
@@ -447,7 +447,7 @@ class CampActions:
         key = (how, surprise if not (surprise == "none" and degree == "failure") else "none")
         line = desc[key] if degree != "failure" else ("The player is seen and the camp is on them." if how == "ambush"
                                                       else "The lie is caught at once, and the camp turns on the player.")
-        self.narrate(f"[THE GAME HAS DECIDED: {line}] Describe this moment briefly and end as steel is drawn.", text)
+        self.narrate(f"[THE GAME HAS DECIDED: {line}] Describe this moment and end as steel is drawn.", text)
         if surprise != "none":
             console.note("You catch them off guard - you will have the first moment." if surprise == "all"
                          else "You catch the leader off guard - you will have the first moment against them.")
@@ -492,7 +492,7 @@ class CampActions:
         if degree == "failure":
             camp["alert"] = CA["alarm"]
             self.narrate("[THE GAME HAS DECIDED: the player's threat is laughed off and the camp takes up arms.] "
-                         "Describe it briefly and end as steel is drawn.", text)
+                         "Describe it and end as steel is drawn.", text)
             self.camp_battle(data, arc, n, tpl)
             return
         share = {"strong success": 0.75, "success": 0.5, "partial": 0.25}[degree]
@@ -508,7 +508,7 @@ class CampActions:
                      + (f" {left} guard{'s' if left != 1 else ''} left." if left else " Only the leader remains."))
         self.narrate(f"[THE GAME HAS DECIDED: the player's menace works. {names} lose their nerve and flee"
                      + (", and the leader is visibly shaken" if degree == "strong success" else "") + ".] "
-                     "Describe it briefly. The leader is still in the camp, and now knows something is wrong.", text)
+                     "Describe it. The leader is still in the camp, and now knows something is wrong.", text)
 
     def camp_charge(self, data, arc, n, tpl, camp, text, target: str = "") -> None:
         camp["alert"] = CA["alarm"]

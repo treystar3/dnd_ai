@@ -68,7 +68,7 @@ p = prompts.conversation_prompt(full, place, ["- wary"], [], [], "what's good to
 text = p.render()
 check("the prompt carries the stance, the people, how they talk, the material and what was said lately, and ends on the line and its room",
       "RIGHT NOW YOU ARE: busy" in text and "YOUR PEOPLE: A halfling." in text and "HOW YOU TALK:" in text and "WORDS YOU MAY USE" in text
-      and "SAID LATELY BY YOU" in text and text.rstrip().endswith("LENGTH: a line or two, up to about 35 words") and "THIS CONVERSATION SO FAR" in text, text[-600:])
+      and "SAID LATELY BY YOU" in text and text.rstrip().endswith('THEY SAY: "what\'s good today?"') and "LENGTH" not in text and "THIS CONVERSATION SO FAR" in text, text[-600:])
 check("how they talk and the stance are instructions; the saying is material; the rest is fact", "Keeps things short" in "\n".join(p.texts("instruction"))
       and "busy: kneading" in "\n".join(p.texts("instruction")) and "Mend the net" in "\n".join(p.texts("material")) and "YOU ARE: Hesk" in "\n".join(p.texts("fact")))
 check("the plain request is the same text", prompts.conversation_request(full, place, ["- wary"], [], [], "hi", [], [], []) == prompts.conversation_prompt(full, place, ["- wary"], [], [], "hi", [], [], []).render())
@@ -96,9 +96,9 @@ check("no record, no guard", bool(ok.speech))
 # ---- the parting line
 try:
     Parting.model_validate({"speech": " ".join(["word"] * 30)})
-    check("a parting is a few words, not a speech", False)
+    check("(f375) a parting is as long as the person makes it", True)
 except ValidationError as e:
-    check("a parting is a few words, not a speech", "not a speech" in str(e))
+    check("(f375) a parting is as long as the person makes it", False, str(e))
 check("a parting may be a word and a gesture", Parting.model_validate({"speech": "Aye.", "gesture": "nods"}).gesture == "nods")
 from llm.contracts import parting_like
 check("a parting another person here said lately is sent back: no chorus of safe travels", parting_like("Safe travels.", ["Right then. Safe travels, friend."]) and parting_like("Safe travels to you then.", ["Safe travels."])

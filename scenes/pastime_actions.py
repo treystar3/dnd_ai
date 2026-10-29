@@ -42,7 +42,7 @@ class PastimeActions:
         self.weight_hint = "rich"
         self.narrate(f"THE PLAYER PRAYS {where}: {intent.summary or text}.{tone} Show it as it would be seen - the posture, the quiet, what the "
                      f"place does around them" + (f"; {priest.label()} notices and lets them be" if priest else "") + ". Nobody answers from on high; "
-                     "nothing is gained but the moment. Two or three sentences.", text)
+                     "nothing is gained but the moment.", text)
 
     # ---------- gamble
 
@@ -74,7 +74,7 @@ class PastimeActions:
         outcome = ("WINS, and well" if degree == "strong success" else "WINS" if won > 0 else "LOSES the stake" if won < 0 else "comes out even")
         self.narrate(f"THE GAME HAS DECIDED: the player gambles {money.words(stake)} with {who.label()} ({intent.summary or text}) and {outcome}. "
                      "Show the play as it would be seen - hands, dice or cards, the faces round the table - and the coin changing hands. "
-                     "Nothing else is won or lost. Two or three sentences.", text)
+                     "Nothing else is won or lost.", text)
 
     # ---------- haggle
 
@@ -98,7 +98,7 @@ class PastimeActions:
             seller.trust = max(0, seller.trust + H["annoyed_trust"])
             self.advance(clock.TALK_MINUTES)
             self.narrate(f"THE GAME HAS DECIDED: the player tries to beat {seller.label()} down on a price ({intent.summary or text}) and gets nowhere: "
-                         "the price stands and the seller is a little cooler for being asked. Show the exchange briefly; nothing is bought.", text)
+                         "the price stands and the seller is a little cooler for being asked. Show the exchange; nothing is bought.", text)
             return
         self.haggle_factor = factor
         try:

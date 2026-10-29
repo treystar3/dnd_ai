@@ -99,7 +99,7 @@ fair_minute = (fair_day - 1) * 1440 + 120                       # day fair_day, 
 check("the town's own holiday is read off the calendar", towns.festival_today(world, "trading_square", fair_minute) == f.name
       and towns.festival_today(world, "trading_square", fair_minute + f.days * 1440) == "", (clock.day(fair_minute), fair_day))
 c = towns.condition(store, world, "trading_square", fair_minute)
-check("...and the town is festive, with full streets", c.name == "festive" and "throng" in c.crowd and c.why == f.name, (c.name, c.why))
+check("...and the town is festive, with full streets", c.name == "festive" and "crowded" in c.crowd and c.why == f.name, (c.name, c.why))
 store.journal(fair_minute - 1440, "npc_gone", "", "x3", "Hob is gone: died of a fever", {"how": "died of a fever", "place": "parth"})
 check("...mourning outranks a holiday", towns.condition(store, world, "trading_square", fair_minute).name == "mourning")
 
@@ -113,7 +113,7 @@ check("the narrator is given the town's condition and the landmarks here", any(l
 tv = sc.view(truth.INTERPRETER, "interpreter").lines("town")
 check("the town facet opens with the character and the condition", tv[0].startswith("Parth: A river-crossing market town") and tv[1].startswith("the town is mourning"), tv[:2])
 check("the town's named things are names a speaker may use", {"wend", "bridge", "granary", "sunburst", "sheep", "hill", "harvest", "fair"} <= sc.known_words())
-check("the crowd line is the condition's while it holds", any("keep to their own" in l for l in nv.streets()), nv.streets())
+check("the crowd line is the condition's while it holds", any("keep to themselves" in l for l in nv.streets()), nv.streets())
 
 # ---- the people made here are told about the town
 lines = towns.resident_lines(world, "trading_square", towns.condition(store, world, "trading_square", now))

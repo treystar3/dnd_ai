@@ -19,8 +19,7 @@ def check(n, ok, x=""):
 
 # ---- the rules as data
 V = voice_rules.V
-check("narration lengths are room in words, never sentence counts", all("words" in v["length"] and "sentence" not in v["length"] for v in V["narration"].values()), V["narration"])
-check("what people say and the frames are sized in words too", all("words" in v["length"] and "words" in v["frame"] and "sentence" not in v["frame"] for v in V["npc"].values()))
+check("(f375) no length is set: the voice rules hold no room for the narrator or for what people say", "narration" not in V and "npc" not in V and "points" not in V)
 check("the reasons a line gets a frame are declared", {"first", "trust", "reveal", "refuse", "gift", "leave"} <= set(V["frame_when"]))
 ex = V["exemplars"]
 check("exemplars: a few passages and a few replies", len(ex["passages"]) >= 4 and len(ex["speech"]) >= 6)
@@ -32,26 +31,26 @@ check("the narrator, the frames and the fight see the passages; townsfolk and hi
       and "HOW PEOPLE SOUND HERE" in __import__("scenes.party_prompts", fromlist=["TALK_SYSTEM"]).TALK_SYSTEM)
 check("the DM voice asks for sentence music as craft, not a quota", "a short one lands a blow" in voice.DM_VOICE and "under eight words" not in voice.DM_VOICE
       and "two before a noun" in voice.DM_VOICE and "trailing participle" in voice.DM_VOICE)
-check("the narrator is told to say what is new, and to give an arrival as one sentence and one person", "ALREADY SHOWN THIS VISIT" in wp.NARRATOR_SYSTEM
-      and "one person doing one thing" in wp.NARRATOR_SYSTEM and "room, not a target" in wp.NARRATOR_SYSTEM)
+check("the narrator is told to say what is new, and to give an arrival as the place and one person, with no length", "ALREADY SHOWN THIS VISIT" in wp.NARRATOR_SYSTEM
+      and "one person doing one thing" in wp.NARRATOR_SYSTEM and "LENGTH" not in wp.NARRATOR_SYSTEM and "sentence or two" not in wp.NARRATOR_SYSTEM
+      and "say less" not in wp.NARRATOR_SYSTEM + voice.DM_VOICE and "economical" not in voice.DM_VOICE)
 check("the frame never shows the character going back to work, never ends on the room", "going back to what they were doing" in wp.DIALOGUE_SYSTEM
       and "closing shot" in wp.DIALOGUE_SYSTEM and "WHY THIS LINE GETS A FRAME" in wp.DIALOGUE_SYSTEM)
 req = wp.narration_request("day 1, morning", types.SimpleNamespace(name="Parth", type="town", visible=["a well"]), [], "x", already=["the place itself", "the weather"])
 check("the narrator's request lists what was shown", "ALREADY SHOWN THIS VISIT" in req and "- the weather" in req, req)
 check("...and not when nothing was", "ALREADY SHOWN" not in wp.narration_request("t", types.SimpleNamespace(name="P", type="town", visible=[]), [], "x"))
+check("(f375) the narrator's request and a frame's carry no length", "LENGTH" not in req and "LENGTH" not in wp.DIALOGUE_SYSTEM + wp.EXCHANGE_SYSTEM
+      and "LENGTH" not in wp.dialogue_request("t", types.SimpleNamespace(name="P", visible=[]), [], "x", "l", "d", "m", False, "hi", "yes", "", False, []))
 
 # ---- short gestures
 sg = voice_rules.short_gesture
 check("a short gesture is kept", sg("wipes her hands on her apron.") == "wipes her hands on her apron")
-check("a long one is cut at its first clause", sg("glances at the door, then back to the ledger with a sigh") == "glances at the door", sg("glances at the door, then back to the ledger with a sigh"))
-check("...or dropped when even that is long", sg("turns the whetstone slowly in her scarred hands without looking up") == "")
+check("(f375) a long one is kept whole, never cut at a clause", sg("glances at the door, then back to the ledger with a sigh") == "glances at the door, then back to the ledger with a sigh"
+      and sg("turns the whetstone slowly in her scarred hands without looking up") == "turns the whetstone slowly in her scarred hands without looking up")
 check("nothing stays nothing", sg("") == "" and sg("  ") == "")
-check("a pair of adjectives is never cut apart", sg("gives a slow, deliberate nod") == "gives a slow, deliberate nod" and sg("offers a sharp, curt nod.") == "offers a sharp, curt nod")
-check("an adjective ending in -ing is not a clause break either", sg("gives a subtle, knowing wink and leans back against the counter") == "gives a subtle, knowing wink", sg("gives a subtle, knowing wink and leans back against the counter"))
-check("a comma before a gesture's participle is", sg("nods, turning back to the ledger with a sigh") == "nods")
 from engine import voice_rules as _vr
 check("the words decide a refusal, not the model's intent", _vr.refuses("No. Not for you, and not today.") and _vr.refuses("Mind your own business, stranger.") and not _vr.refuses("The mill is past the bridge, on the left."))
-check("a long gesture with only a bare comma is dropped whole", sg("gives a slow, deliberate nod toward the door of the inn") == "")
+check("...and a long gesture with a comma is kept too", sg("gives a slow, deliberate nod toward the door of the inn") == "gives a slow, deliberate nod toward the door of the inn")
 
 # ---- the frame contract holds what the instruction alone could not
 from pydantic import ValidationError
@@ -91,8 +90,8 @@ ws.narrate_dialogue(npc, npc.label(), npc.label(), "i ask what she makes", reply
 check("the first words with someone this visit are framed, and the frame is told why", printed[-1][0] == "frame" and "WHY THIS LINE GETS A FRAME: the first words" in asked[-1], (printed[-1], asked[-1][:300]))
 n = len(asked)
 ws.narrate_dialogue(npc, npc.label(), npc.label(), "and nails?", reply, False)
-check("an ordinary second line is the words alone: no frame call, a gesture cut to its first clause",
-      len(asked) == n and printed[-1] == ("says", npc.label(), "Horseshoes, a copper apiece.", "wipes her hands on her apron"), printed[-1])
+check("an ordinary second line is the words alone: no frame call, and the gesture whole (f375)",
+      len(asked) == n and printed[-1] == ("says", npc.label(), "Horseshoes, a copper apiece.", "wipes her hands on her apron, leaving a dark smear across the leather"), printed[-1])
 nudged = types.SimpleNamespace(speech="Aye, a copper.", gesture="", intent="small_talk", trust_change=1, gives=None)
 check("trust nudged by one is not a moment", ws.frame_reasons(npc, nudged) == [], ws.frame_reasons(npc, nudged))
 moved = types.SimpleNamespace(speech="Fine. Two copper, and that's a favour.", gesture="", intent="bargain", trust_change=2, gives=None)

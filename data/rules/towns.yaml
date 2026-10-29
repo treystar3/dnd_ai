@@ -17,25 +17,25 @@ conditions:
     crowd: ""
   mourning:
     hint: "The town has lost someone lately. Voices are low, there is black cloth on a door or two, and nobody is in a hurry."
-    crowd: "quieter than the hour would be; people keep to their own"
+    crowd: "The streets are quieter than usual, and people keep to themselves."
   hungry:
     hint: "Prices have climbed and it shows: thinner stalls, careful buying, and the sort of arguments money starts."
     crowd: ""
   festive:
     hint: "The town is keeping a holiday: bunting, more drink than usual, music somewhere, and strangers made welcome."
-    crowd: "thronged for the holiday, the square and the inn both full"
+    crowd: "The town is crowded for the holiday; the square and the inn are full."
   prospering:
     hint: "Trade is good lately: full carts on the road, new paint on a door or two, and people with coin to spend."
     crowd: ""
   besieged:
     hint: "Nobody is out who need not be. Doors are barred, the watch is doubled, and every traveller is looked over twice."
-    crowd: "nearly empty; shutters closed, the watch at the gates"
+    crowd: "The streets are nearly empty, the shutters are closed and the watch is at the gates."
   ruined:
     hint: "The town fell, and it shows: burnt roofs, rubble in the lanes, people picking through what is left, and too few of them."
-    crowd: "a handful of people in the lanes, clearing and salvaging; the rest gone or dead"
+    crowd: "A handful of people are clearing rubble in the lanes; the rest are gone or dead."
   rebuilding:
     hint: "The town is putting itself back up: new timber on old walls, carts of stone, the sound of hammers from first light, and the gaps where people were."
-    crowd: "builders and carters about, fewer faces than there were, and all of them busy"
+    crowd: "Builders and carters are busy in the streets, and there are fewer people than before."
 
 # How the condition is read, in order: the first rule that holds wins (a siege outranks a holiday).
 # danger / prices: the total of the active effects of that kind at the town and its places, in percent.

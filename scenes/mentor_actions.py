@@ -22,11 +22,11 @@ class MentorActions:
                   _I("mentor_named", 70, "mentor_named_turn", "her name in the line and no action in it, or a question"),
                   _I("mentor_hunt", 90, "mentor_go_hunt", "setting out for the hunt with her"))
 
-    def mentor_view(self):
+    def mentor_view(self, text: str = ""):
         """Her view of the moment from the truth layer (engine/truth.py, f315): the same scene everyone reads, as she may know it - Parth's
         people by name, the board as it is, what the town has and lacks."""
         from engine import truth
-        view = truth.scene_of(self).view(truth.MAREN, "maren")
+        view = truth.scene_of(self).view(truth.MAREN, "maren").asking(text)                  # (f375) the streets when asked
         console.debug("truth view for Maren: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         return view
 
@@ -66,10 +66,10 @@ class MentorActions:
             try:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, label, looks, doing, manner, not introduced,
-                                                  reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["length"],
+                                                  reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["shows"],
                                                   reach=within, moment=moment, already=self.shown_lines(),
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"]),
-                              DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=400,
+                              DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)}, tails=False)
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either
@@ -96,10 +96,7 @@ class MentorActions:
         if getattr(config, "FREE_MENTOR", True) and not any(isinstance(part, mentor.Fixed) for part in parts) and sum(len(x.split()) for x, _ in out) >= 12:
             lines = [x for x, _ in out]
             keep = list(dict.fromkeys(re.findall(r"#\w+", " ".join(lines)) + re.findall(r"(?<![A-Za-z])'([^']{3,60})'(?![A-Za-z])", " ".join(lines))))
-            top = max(2, min(4, (len(lines) + 1) // 2), len(lines) - 1)        # (f373) a script of four lines may come back as four paragraphs
-            if self.mentor_speak(lines, beat, must=keep, reply_to=reply_to, paragraphs=(1, top),
-                                 max_words=max(75, max(len(x.split()) for x in lines) + 20,      # a paragraph may hold her longest line, or two grouped
-                                               sum(sorted(len(x.split()) for x in lines)[-2:]) + 5)):
+            if self.mentor_speak(lines, beat, must=keep, reply_to=reply_to):          # (f375) as many paragraphs, as long, as she needs
                 return
         source = [x for x, fixed in out if not fixed]
         reply, voiced = self.mentor_voice(source, beat, reply_to) if source else ("", None)
@@ -114,7 +111,7 @@ class MentorActions:
         mentor.remember_said(self.player, " ".join(said))
 
     def mentor_speak(self, points: list[str], beat: str, must=(), reply_to: str = "", ends: str = "", ends_question: bool = False,
-                     paragraphs=(2, 5), ranks=None, max_words: int = 75) -> bool:
+                     ranks=None) -> bool:
         """She says this in her own paragraphs, not line by line: the points are what to cover, the must lines are said word for word, and
         the engine checks the facts. True if the model's speech was used; False means nothing was said and the written lines should be."""
         if not getattr(config, "VOICED_MENTOR", True):
@@ -123,9 +120,8 @@ class MentorActions:
         try:
             r = generate("mentor_speech", mentor.speech_system(self.player),
                          mentor.speech_request(self.player, self.place.name, beat, points, list(must), (reply_to or "").strip(), ends),
-                         MentorSpeech, temperature=0.8, max_tokens=min(1100, 150 + 90 * len(points)), retries=1,
-                         validation_context={"material": points, "must": list(must), "paragraphs": (paragraphs[0], paragraphs[1] + 1), "ends_question": ends_question,
-                                             "ranks": ranks, "max_words": max_words})
+                         MentorSpeech, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1,
+                         validation_context={"material": points, "must": list(must), "ends_question": ends_question, "ranks": ranks})
         except LLMError:
             return False
         self.mentor_show("\n\n".join(r.paragraphs), reply_to)
@@ -141,7 +137,7 @@ class MentorActions:
         try:
             r = generate("mentor_voice", mentor.voice_system(self.player),
                          mentor.voice_request(self.player, self.place.name, beat, source, reply_to),
-                         MentorLines, temperature=0.8, max_tokens=min(1000, 200 + 70 * len(source)), retries=1,
+                         MentorLines, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1,
                          validation_context={"source": source, "want_reply": bool(reply_to)})
         except LLMError:
             return "", None
@@ -181,7 +177,7 @@ class MentorActions:
                 self.flush(self.last_text)
                 r = fresh("narrate", wp.NARRATOR_SYSTEM,
                           wp.narration_request(self.time_label(), self.place, self.people_view(), event, (said or "").strip(), self.recent_narration, self.gear_line(),
-                                               self.store.load_place(self.player.location).marks, length="three short paragraphs"),
+                                               self.store.load_place(self.player.location).marks),
                           Narration, self.recent_narration)
                 text = r.text.strip()
             except LLMError:
@@ -275,9 +271,9 @@ class MentorActions:
         gesture = ""
         from engine import convo
         before = convo.find(pm, text)
-        manner = "wryly, and briefly; you are never unkind about anything painful"
+        manner = "wryly; you are never unkind about anything painful"
         fix = ""
-        view = self.mentor_view()
+        view = self.mentor_view(text)
         for attempt in range(2):
             ctx = {"recent": convo.others_lately(mine, before), "gesture_state": quirks.gesture_state(pm, self.gesturers(pm)), "known": view.scene.known_words()}
             try:
@@ -287,7 +283,7 @@ class MentorActions:
                                                 props=quirks.scene_props(None, self.place), leaned=quirks.leaned_on(pm),
                                                 again=convo.again_fact(before) if before else "",
                                                 again_how=convo.again_rule(manner) if before else "", fix=fix, truth_text=view.text()),
-                             MentorReply, temperature=0.8, max_tokens=320, validation_context=ctx, relaxed_context=dict(ctx, recent=[] if before else mine[-1:]))
+                             MentorReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, validation_context=ctx, relaxed_context=dict(ctx, recent=[] if before else mine[-1:]))
             except LLMError:
                 topic = mentor.pick_topic(text)
                 if topic:
@@ -401,7 +397,7 @@ class MentorActions:
         # to that settles her. An evasive or hostile answer is pressed once more; then she makes up her mind
         beat_p = "you are sizing up an armed stranger; you are cold and guarded, giving nothing away, and whatever they said about why they are in Parth has not yet shown you whether they are a bandit"
         probe = [gear, *(A["info_probe_badged"] if self.rank else A["info_probe_unbadged"])]
-        if not self.mentor_speak(probe, beat_p, reply_to=answer, ends_question=True, paragraphs=(1, 3), ends="the last paragraph asks the one pointed question"):
+        if not self.mentor_speak(probe, beat_p, reply_to=answer, ends_question=True, ends="the last paragraph asks the one pointed question"):
             self.mentor_say(A["speech_unbadged"][2:4] if not self.rank else A["speech_badged"], "So tell me: where did you come by that, and what do you do for a living?", reply_to=answer, beat=beat_p)
         proof = (console.ask() or "").strip()
         if proof:
@@ -409,11 +405,11 @@ class MentorActions:
         for _ in range(3):                                    # a question back, a hostile word or nothing at all is no answer: still cold, she presses (f279)
             if mentor.is_question(proof):
                 beat_q = "the stranger answered your question with a question of their own; you are still cold: give them a word or two, no name and nothing about yourself, and put your question to them again"
-                if not self.mentor_speak(A["info_probe_question"], beat_q, reply_to=proof, ends_question=True, paragraphs=(1, 2), ends="the last paragraph puts your question again"):
+                if not self.mentor_speak(A["info_probe_question"], beat_q, reply_to=proof, ends_question=True, ends="the last paragraph puts your question again"):
                     self.mentor_say("Someone who asks the questions in this town. I asked first: where did you come by that, and what do you do?", beat=beat_q, reply_to=proof)
             elif self.mentor_read(proof)[1] or not proof:
                 beat_q = "the stranger's answer did not settle you; still cold, press them once more"
-                if not self.mentor_speak(A["info_probe_again"], beat_q, reply_to=proof, ends_question=True, paragraphs=(1, 2), ends="the last paragraph presses them once more"):
+                if not self.mentor_speak(A["info_probe_again"], beat_q, reply_to=proof, ends_question=True, ends="the last paragraph presses them once more"):
                     self.mentor_say("That is not much of an answer. Are you a bandit, or not?", beat=beat_q, reply_to=proof)
             else:
                 break
@@ -423,7 +419,7 @@ class MentorActions:
         beat_a = ("the stranger has answered you and you are satisfied they are no bandit; the cold goes out of you, you react to what they said with your dry warmth, introduce yourself, and ask how well they know the guild")
         info = [*(A["info_thaw_badged"] if self.rank else A["info_thaw_unbadged"]), A["info_ask_know"]]
         self.player.mentor["introduced"] = True                 # from here her lines carry her name (f273)
-        if not self.mentor_speak(info, beat_a, reply_to=proof, ends_question=True, paragraphs=(2, 3), ends="the last paragraph asks how well they know the guild (its ranks and the contract board)"):
+        if not self.mentor_speak(info, beat_a, reply_to=proof, ends_question=True, ends="the last paragraph asks how well they know the guild (its ranks and the contract board)"):
             intro = [line.format(weapon_line=weapon_line) for line in A["speech_intro"] if line.strip() != "{weapon_line}" or weapon_line]
             badge = A["speech_badged"] if self.rank else A["speech_unbadged"]
             self.mentor_say(intro, badge, A["ask_know"], reply_to=proof, beat=beat_a)
@@ -471,11 +467,11 @@ class MentorActions:
         hostile = bool(re.search(self.HOSTILE, said.lower()))
         return (not hostile and len(said.split()) > 2), hostile
 
-    def mentor_chunk(self, facts: list, beat: str, must: list, reply_to: str, ends: str = "", paragraphs=(1, 3), ranks=None) -> str:
+    def mentor_chunk(self, facts: list, beat: str, must: list, reply_to: str, ends: str = "", ranks=None) -> str:
         """One piece of the lecture, in her words, and the player's answer to it (which she answers if it is a question). The ranks are
         checked rank by rank (engine/mentor.py check_speech ranks:) rather than recited word for word (f275)."""
         flat = [str(x) for part in facts for x in ([part] if isinstance(part, str) else part) if str(x).strip()]
-        if not self.mentor_speak(flat, beat, must=must, reply_to=reply_to, paragraphs=paragraphs, ends=ends, ranks=ranks):
+        if not self.mentor_speak(flat, beat, must=must, reply_to=reply_to, ends=ends, ranks=ranks):
             self.mentor_say(*facts, reply_to=reply_to, beat=beat)
         text = (console.ask() or "").strip()
         if text:
@@ -488,7 +484,7 @@ class MentorActions:
         A = M["approach"]
         reply = know
         steps = [
-            ([*A["info_chunk_ranks"], A["lesson_ranks"]], "you tell a newcomer, briefly and warmly, how the guild's ranks go", [],
+            ([*A["info_chunk_ranks"], A["lesson_ranks"]], "you tell a newcomer, warmly, how the guild's ranks go", [],
              A["info_chunk_after"]),
         ]                                                   # (f302) the board is shown at the hall itself (board_step), not lectured on in the street
         for k, (facts, beat, must, ends) in enumerate(steps):      # (f294) joining is no lesson of its own: she takes them to sign in
@@ -506,7 +502,7 @@ class MentorActions:
         fee = money.words(mentor.G["joining_fee"])
         flat = [x.format(fee=fee) for x in (A["info_chunk_end"] if not self.rank else A["info_chunk_end_member"])]
         if not self.mentor_speak(flat, "you have finished explaining the guild; you will take them to the hall and help them get registered, and they may ask you anything first",
-                                 must=[fee] if not self.rank else [], reply_to=reply, paragraphs=(1, 2),
+                                 must=[fee] if not self.rank else [], reply_to=reply,
                                  ends="invites questions; it does not tell them what to say or type"):
             self.mentor_say(M["guild_talk"]["ask_anything"].format(fee=fee) if not self.rank else flat, beat="you have finished explaining the guild and will take them to the hall", reply_to=reply)
         return False
@@ -545,7 +541,7 @@ class MentorActions:
         self.advance_quiet(max(1, found[1]))
         self.enter(hall)
         self.narrate(f"The player walks into {self.place.name} with Maren Holt, a broad woman in plate with a greatsword on her back, at their "
-                     "side. Describe the hall and the people in it in two or three sentences. Maren does not speak in this passage.")
+                     "side. Describe the hall and the people in it. Maren does not speak in this passage.")
         if not self.rank:
             if not self.clerk_here():
                 self.mentor_say(E["closed"], beat="the guild hall clerk is not in, so you tell them to come back when it is open and sign in then")
@@ -562,7 +558,7 @@ class MentorActions:
                       "neutral": "the clerk was businesslike"}[_bn.manner(clerk)]
             fee = money.words(G["joining_fee"])
             beat = f"{manner}; now the register is out and you turn to the newcomer: it is their turn to pay the fee of {fee} and sign, and they may ask you anything first"
-            if not self.mentor_speak([E["your_turn"].format(fee=fee)], beat, must=[fee], paragraphs=(1, 2)):
+            if not self.mentor_speak([E["your_turn"].format(fee=fee)], beat, must=[fee]):
                 self.mentor_say(E["your_turn"].format(fee=fee), beat=beat)
             mentor.set_stage(self.player, "sign")         # (f271) the player pays and signs themselves, or asks first; mentor_tick carries on
             self.store.save_player(self.player)
@@ -762,7 +758,7 @@ class MentorActions:
         """The last wolf drops and the fight is over. She tells them to skin the wolves; the troll comes when that is done."""
         beat = "the three wolves are dead; you tell the player to skin and butcher them, and that you will keep watch"
         fact, line, must = self.mentor_opening("wolves")
-        if not self.mentor_speak([*M["skin"]["info"], *([fact] if fact else [])], beat, must=["skin the wolves", *must], paragraphs=(2, 4),
+        if not self.mentor_speak([*M["skin"]["info"], *([fact] if fact else [])], beat, must=["skin the wolves", *must],
                                  ends="the last paragraph tells them to skin the wolves and that you will keep watch"):
             self.mentor_say(M["skin"]["speech"], *([line] if line else []), beat=beat)
         mentor.set_stage(self.player, "harvest")
@@ -820,7 +816,7 @@ class MentorActions:
         console.narrate(T["aftermath"])
         beat = "you have just killed the troll; you speak of it and of the world growing more dangerous, and say you will walk back to Parth together. No advice or warnings"
         fact, line, must = self.mentor_opening("troll")
-        if not self.mentor_speak([*M["harvest"]["info"], *([fact] if fact else [])], beat, must=["Parth", *must], paragraphs=(3, 5),
+        if not self.mentor_speak([*M["harvest"]["info"], *([fact] if fact else [])], beat, must=["Parth", *must],
                                  ends="the last paragraph says you will walk back to Parth together to get them paid"):
             self.mentor_say(M["troll_combat"]["after_speech"], T["speech_after"], *([line] if line else []), M["harvest"]["speech"], beat=beat)
         self.player.mentor["troll"] = False
@@ -835,7 +831,7 @@ class MentorActions:
         console.narrate(r["narrate"].strip())
         beat = "you are back in Parth; you tell them to hand the contract in at the guild hall and say goodbye"
         fact, line, must = self.mentor_opening("return")
-        if not self.mentor_speak([*r["info"], *([fact] if fact else [])], beat, must=["guild hall", *must], paragraphs=(1, 3)):
+        if not self.mentor_speak([*r["info"], *([fact] if fact else [])], beat, must=["guild hall", *must]):
             self.mentor_say(*([line] if line else []), r["speech"], beat=beat)
         console.narrate(r["leave"])
         self.mentor_leave_party()

@@ -5,6 +5,7 @@ Everything the model proposes is checked here before it touches saved state.
 
 import random
 import re
+import config
 
 from llm.contracts import NPCProfile, NPCReply, ResidentSet
 from llm.gateway import generate
@@ -12,7 +13,7 @@ from npc import land, names, prompts
 from npc.models import NPC, Memory
 from npc.traits import TraitCatalog, assign_traits, npc_rng
 from storage.campaign import CampaignStore
-from engine import money, clock, items, voice_rules, weather
+from engine import money, clock, items, weather
 from core.models import Item
 from ui import console
 from world.loader import World
@@ -300,7 +301,6 @@ def converse(
     convo: list[tuple[str, str]],
     player_text: str,
     extra: list[str] = (),
-    level: str = "short",
     truth_text: str = "",
     known=frozenset(),
     stance: str = "",
@@ -333,11 +333,11 @@ def converse(
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
                if world.roles[npc.role].commissions else []),
-            extra, voice_rules.npc(level)["length"], land.land_lines(world, npc.location), truth_text=truth_text,
+            extra, land.land_lines(world, npc.location), truth_text=truth_text,
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn),
         ),
-        NPCReply, temperature=0.8, max_tokens=voice_rules.npc(level)["tokens"],
+        NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
                             "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up

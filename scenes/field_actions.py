@@ -388,7 +388,7 @@ class FieldFunctions:
         pct = tier_value(F["barter"]["discount_percent"], ability.tier)
         self.fld["barter"] = {"pct": pct, "until": self.minutes + F["barter"]["expires_minutes"]}
         console.note(f"You have the measure of the market. Your next purchase or sale goes {pct}% better, if you make it soon.")
-        return "They settle into the easy confidence of someone about to strike a bargain. Describe it in a line."
+        return "They settle into the easy confidence of someone about to strike a bargain. Describe it."
 
     def barter_pct(self) -> int:
         b = self.fld.get("barter")
@@ -805,7 +805,7 @@ class FieldFunctions:
         self.advance(F["salvage"]["minutes"])
         self.store.save_player(self.player)
         console.ledger(f"You break down the {items.display_name(item)}: {', '.join(got)}.")
-        return f"They take {items.display_name(item)} apart piece by piece and keep the {', '.join(got)}. Describe the work briefly."
+        return f"They take {items.display_name(item)} apart piece by piece and keep the {', '.join(got)}. Describe the work."
 
     def field_soul_tether(self, ability, intent, text: str) -> str | None:
         c = self.player.character
@@ -858,7 +858,7 @@ class FieldFunctions:
         self.enter(dest)
         console.note(f"The world folds, and you stand in {self.world.places[dest].name}.")
         return (f"They speak the word and the world folds around them; they step out in {self.place.name}. "
-                f"Describe the arrival in a sentence or two.{self.brevity()}")
+                f"Describe the arrival.{self.brevity()}")
 
     # ---------- phantom steed ----------
 
@@ -871,7 +871,7 @@ class FieldFunctions:
         self.player.mount = "phantom_steed"
         console.note(f"Your phantom steed answers and you mount. Journeys are {round(tier_value(S['speed'], tier) * 100)}% shorter "
                      f"and {round(tier_value(S['stamina'], tier) * 100)}% less wearying. It cannot die.")
-        return "A spectral steed gathers out of the air and stands ready for them to ride. Describe it in a sentence."
+        return "A spectral steed gathers out of the air and stands ready for them to ride. Describe it."
 
 
 class FieldActions(FieldActionsBase, FieldFunctions):

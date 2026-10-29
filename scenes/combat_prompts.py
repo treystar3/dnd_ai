@@ -49,11 +49,10 @@ def interpret_request(abilities: list[str], enemies: list[str], text: str, usabl
 
 
 NARRATE_SYSTEM = DM_VOICE + """
-You are narrating one exchange of a fight, like a DM describing what the dice just decided. Write within the room LENGTH gives: it
-is room, not a target, and less is allowed; an exchange of two blows can be two sentences.
+You are narrating one exchange of a fight, like a DM describing what the dice just decided.
 
-Make it feel dangerous and alive: momentum, breath, sound, the weight of weapons, the ground underfoot. A blow is a short sentence;
-movement can run longer. One sentence tells one blow, never two.
+Make it feel dangerous and alive: momentum, breath, sound, the weight of weapons, the ground underfoot. One sentence tells one blow,
+never two.
 Build the player's part around what THE PLAYER SAID they do, but the outcome is only what the EVENTS say.
 
 Rules:
@@ -88,9 +87,9 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    length: str = "up to about 90 words", shown: list[str] = (), worn: list[str] = (), looks: list[str] = ()) -> str:
-    """length (f349): room in words, by the weight of the fight (voice.yaml narration.fight / fight_boss); shown: what the player has read
-    in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on."""
+                    shown: list[str] = (), worn: list[str] = (), looks: list[str] = ()) -> str:
+    """shown: what the player has read in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on.
+    (f375) No length is given."""
     return (
         f"PLACE: {place}\nTIME AND WEATHER: {time_label}\nTHE PLAYER FIGHTS WITH: {weapon}\n"
         f"THE PLAYER: {gear}\n"
@@ -98,7 +97,7 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         + (("ALREADY SHOWN IN THIS FIGHT (do not describe these again):\n" + "\n".join(f"  - {s}" for s in shown) + "\n") if shown else "")
         + (f"WORDS YOU HAVE WORN OUT (find other words): {', '.join(worn)}\n" if worn else "")
         + "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
-        f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\nLENGTH: {length}\n"
+        f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
         f'THE PLAYER SAID: "{player_words}"\n'
         + (("WHAT THE PLAYER'S ABILITIES LOOK LIKE (show each as this, with the weapon they carry; never as something thrown, cast or "
@@ -108,16 +107,16 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
 
 
 AFTERMATH_SYSTEM = DM_VOICE + """
-You narrate the moment just after a fight ends. Three to five sentences. The last foe is down. Describe the silence returning,
+You narrate the moment just after a fight ends. The last foe is down. Describe the silence returning,
 the player's breathing and wounds, the fallen, the place. If the player finds anything, describe them noticing it.
 No numbers, no game words. Respond only with JSON matching the schema, with the prose in "text"."""
 
 
 START_SYSTEM = DM_VOICE + """
-You narrate the moment a fight begins, or a creature is sighted. Two to four sentences. First acknowledge what the
+You narrate the moment a fight begins, or a creature is sighted. First acknowledge what the
 player was doing, then reveal what they've run into. Describe only the creatures in the EVENT, their manner and how
 far off they are - far means they are still at a distance, not lunging. Make THE ODDS felt through the scene.
-If the event says "BOSS ENTRANCE" the creature is the climax of a story: let it make an entrance (up to five sentences) and,
+If the event says "BOSS ENTRANCE" the creature is the climax of a story: let it make an entrance and,
 if it says what the boss says, quote that speech as spoken aloud. Add no new threats or facts.
 No numbers, no outcome. Respond only with JSON matching the schema, with the prose in "text"."""
 
@@ -125,4 +124,4 @@ THRESHOLD_EVENT = """The player has died again and stands once more at the Thres
 You are Orenna, and sending them back costs you: you are weaker every time. Never colder, never angry, never blaming them.
 The first time you are tired but steady and glad they came back, and worried it was so soon. By the fourth or fifth your voice is thin, your sentences short, and you sometimes trail off. After that you must rest between words, and the light around you is dim.
 It has cost them: {losses}. Their strength and gear were left to them.
-In two to four sentences, have her speak to them before they are sent back. Her last words may be "my child"; on later returns the words can catch or crack."""
+Have her speak to them before they are sent back. Her last words may be "my child"; on later returns the words can catch or crack."""

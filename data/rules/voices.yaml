@@ -9,23 +9,13 @@
 #
 # Rules for writing options: text is BEHAVIOUR, never words to say and never a sound (no "gravelly", "measured", "cadence", "tone",
 # "drawl", "lilt"). An empty text is the unmarked case: most people are unmarked on most axes. check is what the engine tests on the reply.
-# room moves the reply's length level (voice.yaml npc short/medium/long) by that many steps.
+# Nothing here is a length (f375).
 
 sound_words: [gravelly, measured, cadence, tone, drawl, lilt, rumble, rasp, pace, accent, timbre, husky, warm, low-pitched, melodic, lyrical]
 
+# (f375) No axis says how much a person says or how long their sentences run: `length` (terse, full) and `sentences` (short, long) are
+# gone, with their word caps. A kit kept on an old save's person may still name them; they are read past (kit_of keeps only these axes).
 axes:
-  length:                      # how much they say
-    weight: 3
-    options:
-      terse: {weight: 25, text: "says the least that answers: a word or one sentence where others would give three", check: {max_words: 28}, room: -1}
-      plain: {weight: 60, text: ""}
-      full:  {weight: 25, text: "gives the whole of it: the answer, the why of it and an aside besides", room: 1}
-  sentences:                   # the shape of them
-    weight: 2
-    options:
-      short: {weight: 30, text: "short sentences, one thing in each, none past twenty words, and never one that runs on", check: {max_sentence_words: 20}}
-      mixed: {weight: 60, text: ""}
-      long:  {weight: 25, text: "one long sentence that carries the whole thought with its turns and qualifications, rather than several short ones"}
   questions:                   # whether they want anything back
     weight: 3
     options:

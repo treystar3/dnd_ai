@@ -40,12 +40,12 @@ class ExploreActions:
         self.advance(self.rng.randint(*[h * 60 for h in X["hours"]]))
         if not discovery.room(data, here) or self.rng.random() >= chance:
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. They find nothing new "
-                         f"- only more of {place.name}. Describe the search and its fruitlessness in two sentences.", text)
+                         f"- only more of {place.name}. Describe the search and its fruitlessness.", text)
             return
         found = self.invent_discovery(here, seek, lead, data)
         if not found:
             self.narrate(f"The player goes looking beyond what they already know, searching for: {seek}. A promising lead "
-                         f"comes to nothing. Describe that in two sentences.", text)
+                         f"comes to nothing. Describe that.", text)
             return
         if lead:
             data = self.store.load_discoveries()
@@ -65,7 +65,7 @@ class ExploreActions:
             console.note(f"It runs from here to {self.world.places[r.to].name}, about "
                          f"{clock.describe_duration(found['minutes'])} on foot.")
             self.narrate(f"After searching for {seek}, the player finds {r.name}: {r.description} It leads to "
-                         f"{self.world.places[r.to].name}. Describe the discovery in two or three sentences.", text)
+                         f"{self.world.places[r.to].name}. Describe the discovery.", text)
         self.show_exits()
 
     def invent_discovery(self, anchor: str, seek: str, lead: dict | None, data: dict) -> dict | None:

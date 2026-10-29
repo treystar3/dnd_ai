@@ -475,7 +475,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if p.type in ("city", "town", "village") or not p.parent:    # (f347) a town or the open country earns a first sight; a shop inside a town does not
                 self.weight_hint = "major" if p.type == "city" else "rich"
         elif self.revisit:
-            self.weight_hint = "brief"                                   # (f347) seen before: what has changed, in a sentence or two
+            self.weight_hint = "brief"                                   # (f347) seen before: what has changed
         self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
         self.refresh_present()
         if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
@@ -532,7 +532,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def brevity(self) -> str:
         if getattr(self, "revisit", False):
-            return (" The player has been here before: the place and its people have been seen. In a sentence or two, say what the "
+            return (" The player has been here before: the place and its people have been seen. Say what the "
                     "GAME STATE shows has changed since; if nothing has, say only that they are back, and never invent a change.")
         return ""
 
@@ -594,7 +594,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.narrate(
                 "The player has just woken here, lying on the ground, returned from death. "
                 f"They remember the Threshold only faintly. {kit_text} Their first breath tears in. "
-                "Open with that single breath, described once in one sentence (mention the gasp only once in the whole passage), "
+                "Open with that single breath, described once (mention the gasp only once in the whole passage), "
                 "then describe what they see."
             )
         else:
@@ -1447,8 +1447,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def _narrate_now(self, event: str, player_text: str = "") -> None:
         marks = self.store.load_place(self.player.location).marks
-        rule = voice_rules.narration(self.weight_hint)
-        self.weight_hint = None
+        self.weight_hint = None                                          # (f375) a moment's weight no longer sets a length
         strict = voice_rules.NOTHING in event
         from engine import truth
         here = truth.scene_of(self).view(truth.NARRATOR, "narrator")
@@ -1461,13 +1460,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
-                                       unseen, rule["length"], streets=here.streets(),
+                                       unseen, streets=here.streets(),
                                        town=" ".join(prof.character.split()) if prof and not self.place.danger else "",
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
                                        already=self.shown_lines(),                                  # (f347) ...and what the player has read here already
                                        companions=self.companions_in(event),                        # (f349) ...and of a companion only when the event has them act
                                        worn=self.worn_words("prose"))                               # (f349) ...and which words it has worn out lately
-        result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=rule["tokens"],
+        result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
                        temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"))
         shown = self.unnamed(result.text)
         if strict and voice_rules.contradicts_nothing(shown):
@@ -1475,7 +1474,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             retry = generate("narrate", wp.NARRATOR_SYSTEM,
                              request + "\n\nYOUR DRAFT CLAIMED SOMETHING WAS GAINED, MADE OR FINISHED. Nothing was. Rewrite it so the player only "
                                        "tries: no coins, no objects appearing, no work completed, no change to their purse or pack.",
-                             Narration, temperature=0.2, max_tokens=rule["tokens"])
+                             Narration, temperature=0.2, max_tokens=config.PROSE_MAX_TOKENS)
             shown = self.unnamed(retry.text)
             if voice_rules.contradicts_nothing(shown):
                 shown = voice_rules.ATTEMPT_ONLY
@@ -1929,7 +1928,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return
         if not npc and not self.present:
             self.narrate("The player says or thinks this aloud, but no one is here to answer. Reflect the silence "
-                         "of the place back at them in a sentence or two.", text)
+                         "of the place back at them.", text)
             return
         if not npc:
             here = ", ".join(n.label() for n in self.present)
@@ -1976,14 +1975,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
-        level = voices.room(voices.kit_of(npc.speech), voice_rules.npc_level(npc, speech, self.convo, ctx, first_time))   # (f350) a terse person gets less room
-        self.npc_level = level
         town = pulse.town_of(self.world, self.player.location)
         from engine import truth
-        view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk")
+        view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk").asking(speech)      # (f375) the streets when asked
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
-                                   f"{speech} {check_note}".strip(), ctx, level, truth_text=view.text(), known=view.scene.known_words(),
+                                   f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"),
                                    house=voices.house_phrases(self, town, npc.id))          # (f350) what everyone else here has been saying
         voices.heard(self, town, npc.id, reply.speech)
@@ -2122,9 +2119,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 wp.dialogue_request(self.time_label(), self.place, others, known_as, self.unnamed(npc.description, npc), self.unnamed(npc.activity, npc),
                                     manner, first, player_did, reply.speech, self.unnamed(reply.gesture, npc),
                                     getattr(reply, "intent", "") == "leave", self.recent_narration,
-                                    voice_rules.npc(getattr(self, "npc_level", "short"))["frame"], reach=within, moment=moment,
+                                    reach=within, moment=moment,
                                     why=reasons, already=self.shown_lines(), worn=self.worn_words("prose")),
-                DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=450 if getattr(self, "npc_level", "short") == "short" else 700,
+                DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                 context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"), tails=False,
             )
         except LLMError:
@@ -2353,13 +2350,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         if not self.place.danger:
             self.narrate("The player searches the area. There is no wild game or danger here. Describe the search "
-                         "briefly and what ordinary things they notice instead.", text)
+                         "and what ordinary things they notice instead.", text)
             return
         if self.wildlife:
             seen = self.wildlife[0]
             if intent.seek and encounters.matching(self.world, [seen.id], intent.seek):
                 self.narrate(f"The {seen.name.lower()} they are looking for is right here, keeping its distance. "
-                             "Remind them briefly.", text)
+                             "Remind them.", text)
                 return
             self.wildlife = None
             console.debug(f"moving on from the {seen.name.lower()} in view")
@@ -2503,8 +2500,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             body.append("their tiredness lifts a little")
         feel = f" While they rest, {' and '.join(body)} (say so in the story; no numbers)." if body and not hit else ""
         self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
-                     f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now. Keep it to "
-                     "three or four sentences and mention at most two of the people present.", text)
+                     f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now, "
+                     "mentioning at most two of the people present.", text)
         if not hit and sleeping:
             self.after_sleep()
         if not hit:

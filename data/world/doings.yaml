@@ -4,324 +4,330 @@
 # writes only the look. Before this, every armed person in a town was sharpening a blade, for good, because a model asked for "what they
 # are doing" reaches for the same thing and nothing ever changed it.
 #
-# An entry is a phrase in the present participle with no subject ("checking a carter's papers at the gate"), or {text, when, weight}:
-# `when` lists the periods it may be chosen in (any, when absent), `weight` its share (1 when absent). Keep them concrete and small: a
-# thing a passer-by would see. The same wording reaches the narrator, the frames and the person's own replies as RIGHT NOW.
+# (f375) Each entry is a plain fact of two to five words, the way a passer-by would name it: "shoeing a horse", "fletching arrows". No
+# second clause, no figure of speech, no pronoun. The first set were little pieces of prose ("fletching an arrow with a goose feather
+# held in the teeth", "hammering a horseshoe, four blows and a turn"); the narrator, told not to reuse wording, paraphrased them and
+# scrambled their parts ("binds a goose feather to a shaft between her teeth", "holds a restless horse steady against an anvil").
+# A doing reaches only the narrator (and its frames), the person themselves as RIGHT NOW, and the reader of the player's words, so a
+# line like "the man shoeing the horse" finds him; nobody else who speaks is told what others are doing.
+#
+# An entry is a phrase in the present participle with no subject, or {text, when, weight}: `when` lists the periods it may be chosen in
+# (any, when absent), `weight` its share (1 when absent).
 
 anyone:                       # for a role with no list of its own, and when a role's list is spent
-  - "talking with a neighbour across a fence"
-  - "carrying a basket somewhere in a hurry"
-  - "mending something that will not stay mended"
-  - "eating with one hand and working with the other"
-  - "watching the road with nothing better to do"
-  - "shouting at a dog that is not listening"
-  - "sitting on a step with a mug, done for now"
+  - "talking with a neighbour"
+  - "carrying a basket"
+  - "mending a fence"
+  - "eating bread"
+  - "watching the road"
+  - "shouting at a dog"
+  - "sitting on a step"
 
 by_role:
   farmer:
-    - {text: "yoking an ox that would rather not", when: [dawn, morning]}
-    - {text: "walking a furrow, head down, looking for what the birds left", when: [morning, midday]}
-    - {text: "eating bread and cheese on the headland of the field", when: [midday]}
-    - {text: "mending a gate that a cow went through", when: [afternoon]}
-    - {text: "driving a cart of muck out to the fields", when: [morning, afternoon]}
-    - {text: "arguing with the miller's boy over a short sack", when: [afternoon, evening]}
-    - "scraping mud off a boot with a stick"
+    - {text: "yoking an ox", when: [dawn, morning]}
+    - {text: "walking a furrow", when: [morning, midday]}
+    - {text: "eating bread and cheese", when: [midday]}
+    - {text: "mending a gate", when: [afternoon]}
+    - {text: "driving a muck cart", when: [morning, afternoon]}
+    - {text: "arguing with the miller's boy", when: [afternoon, evening]}
+    - "scraping mud off a boot"
   shepherd:
-    - {text: "counting a flock through a gap in the wall", when: [dawn, morning, evening]}
-    - "whistling a dog round to the far side of the flock"
-    - {text: "holding a ewe down to look at a bad foot", when: [morning, midday, afternoon]}
-    - "leaning on a crook, looking at the hills as if they owed him money"
-    - {text: "shearing in a pen, wool to the elbows", when: [midday, afternoon]}
-    - "carrying a lamb under one arm"
+    - {text: "counting sheep", when: [dawn, morning, evening]}
+    - "whistling to a sheepdog"
+    - {text: "checking a ewe's foot", when: [morning, midday, afternoon]}
+    - "leaning on a crook"
+    - {text: "shearing sheep", when: [midday, afternoon]}
+    - "carrying a lamb"
   hunter:
-    - {text: "coming in with a brace of birds on a cord", when: [morning, midday]}
-    - "fletching an arrow with a goose feather held in the teeth"
-    - {text: "skinning a hare on a stump", when: [afternoon, evening]}
-    - "reading tracks in the mud at the edge of the road and not liking them"
-    - {text: "greasing a bowstring by a fire", when: [evening, night]}
-    - "arguing the price of a pelt with someone who does not want it"
+    - {text: "carrying a brace of birds", when: [morning, midday]}
+    - "fletching arrows"
+    - {text: "skinning a hare", when: [afternoon, evening]}
+    - "reading tracks by the road"
+    - {text: "greasing a bowstring", when: [evening, night]}
+    - "haggling over a pelt"
   herbalist:
-    - {text: "cutting leaves into a basket with a small knife", when: [morning, midday]}
-    - "tying bunches of something green to a rafter to dry"
-    - "grinding roots in a mortar, lips moving over a count"
-    - {text: "pouring a dark syrup into little bottles", when: [afternoon, evening]}
-    - "smelling a handful of leaves and throwing half of them away"
-    - "writing a label with a pen that keeps blotting"
+    - {text: "cutting leaves", when: [morning, midday]}
+    - "hanging herbs to dry"
+    - "grinding roots in a mortar"
+    - {text: "bottling a syrup", when: [afternoon, evening]}
+    - "sorting leaves"
+    - "writing labels"
   smith:
-    - {text: "working the bellows up for the first heat", when: [dawn, morning]}
-    - {text: "hammering a horseshoe, four blows and a turn", when: [morning, midday, afternoon]}
-    - "quenching something in the trough with a hiss and a cloud of steam"
-    - {text: "filing the edge off a hinge at the bench", when: [afternoon, evening]}
-    - "shoeing a horse that keeps shifting its weight"
-    - {text: "raking the forge down for the night", when: [evening, night]}
-    - "turning a bent nail over as if it had insulted him"
+    - {text: "working the bellows", when: [dawn, morning]}
+    - {text: "hammering a horseshoe", when: [morning, midday, afternoon]}
+    - "quenching hot iron"
+    - {text: "filing a hinge", when: [afternoon, evening]}
+    - "shoeing a horse"
+    - {text: "banking the forge", when: [evening, night]}
+    - "straightening a bent nail"
   miller:
-    - {text: "opening the sluice and watching the wheel take", when: [dawn, morning]}
-    - "hauling a sack up the ladder on a rope"
-    - {text: "dressing a millstone with a pick, white to the eyebrows", when: [afternoon]}
-    - "weighing flour against a stone and frowning at the scale"
-    - "arguing with a farmer over a short sack"
-    - {text: "shutting the sluice and listening to the wheel slow", when: [evening]}
+    - {text: "opening the sluice", when: [dawn, morning]}
+    - "hauling a flour sack"
+    - {text: "dressing a millstone", when: [afternoon]}
+    - "weighing flour"
+    - "arguing with a farmer"
+    - {text: "closing the sluice", when: [evening]}
   baker:
-    - {text: "raking the oven out, face red from the heat", when: [before dawn, dawn]}
-    - {text: "pulling the first loaves with a long peel", when: [dawn, morning]}
-    - "kneading at a floured board, leaning the whole body into it"
-    - {text: "selling the last of the morning's bread off a cloth", when: [midday, afternoon]}
-    - "scoring loaves with a blade, quick, one two three"
-    - "shooing a child away from the cooling rack"
+    - {text: "raking out the oven", when: [before dawn, dawn]}
+    - {text: "pulling loaves from the oven", when: [dawn, morning]}
+    - "kneading dough"
+    - {text: "selling bread", when: [midday, afternoon]}
+    - "scoring loaves"
+    - "shooing a child away"
   chandler:
-    - "dipping a rack of wicks into a pot of tallow"
-    - {text: "trimming candle ends with a knife at the counter", when: [morning, afternoon]}
-    - "stacking candles in a box by the dozen, counting under the breath"
-    - "scraping wax off the floor where it dripped"
-    - {text: "lighting one candle from another to try the wick", when: [evening, night]}
+    - "dipping candles"
+    - {text: "trimming candle ends", when: [morning, afternoon]}
+    - "boxing candles"
+    - "scraping wax off the floor"
+    - {text: "testing a wick", when: [evening, night]}
   tinker:
-    - "riveting a patch onto a pot held between the knees"
-    - "laying out spoons and needles on a cloth for anyone to look at"
-    - "turning a kettle over to find the leak"
-    - {text: "packing a donkey with a clatter of pans", when: [dawn, morning]}
-    - "telling someone what the road is like three towns off"
+    - "patching a pot"
+    - "laying out spoons and needles"
+    - "checking a kettle for leaks"
+    - {text: "loading a donkey", when: [dawn, morning]}
+    - "talking about the road"
   watch_captain:
-    - {text: "walking a line of the watch and finding fault with their boots", when: [dawn, morning]}
-    - "reading a report with a finger under the line"
-    - "listening to a complaint with arms folded"
-    - {text: "posting the night's watch from a list", when: [evening]}
-    - "standing on the step, looking at the whole street at once"
+    - {text: "inspecting the watch", when: [dawn, morning]}
+    - "reading a report"
+    - "hearing a complaint"
+    - {text: "posting the night watch", when: [evening]}
+    - "watching the street"
   guard:
-    - {text: "checking a carter's papers at the gate", when: [morning, midday, afternoon]}
-    - "leaning on the gatepost, watching the road"
-    - {text: "eating bread and an onion on the step", when: [midday]}
-    - {text: "walking the wall with a lantern", when: [evening, night, deep night, before dawn]}
-    - "arguing with a drover about where the cart may stand"
-    - {text: "stamping to keep warm, hands under the arms", when: [before dawn, dawn, night, deep night]}
-    - "telling a child to get down off the wall"
-    - {text: "running a whetstone along a spear", weight: 0.4}
-    - "lifting a dropped crate for someone, with a look that says it is the last time"
+    - {text: "checking a carter's papers", when: [morning, midday, afternoon]}
+    - "watching the road"
+    - {text: "eating bread on the step", when: [midday]}
+    - {text: "patrolling with a lantern", when: [evening, night, deep night, before dawn]}
+    - "arguing with a drover"
+    - {text: "stamping to keep warm", when: [before dawn, dawn, night, deep night]}
+    - "telling off a child"
+    - {text: "sharpening a spear", weight: 0.4}
+    - "helping lift a crate"
   guild_clerk:
-    - "writing in the ledger, tongue between the teeth"
-    - "pinning a new slip to the board and smoothing it flat"
-    - "counting coin into a box, twice"
-    - "reading a contract back to someone who cannot read it"
-    - {text: "sweeping the hall before anyone is in", when: [dawn, morning]}
-    - "sharpening a pen with a small knife"
+    - "writing in the ledger"
+    - "pinning up a contract"
+    - "counting coin"
+    - "reading a contract aloud"
+    - {text: "sweeping the hall", when: [dawn, morning]}
+    - "sharpening a pen"
   innkeeper:
-    - {text: "pulling ale with one hand and taking coin with the other", when: [evening, night]}
-    - "wiping a table that was clean already"
-    - {text: "rolling a barrel in from the yard", when: [morning, midday]}
-    - "arguing with a carter over the price of a cask"
-    - {text: "counting the night's take at the end of the bar", when: [deep night, before dawn]}
-    - "throwing a cloth over a shoulder and shouting toward the kitchen"
-    - {text: "lighting the lamps along the wall", when: [evening]}
+    - {text: "pulling ale", when: [evening, night]}
+    - "wiping a table"
+    - {text: "rolling in a barrel", when: [morning, midday]}
+    - "haggling with a carter"
+    - {text: "counting the night's takings", when: [deep night, before dawn]}
+    - "calling to the kitchen"
+    - {text: "lighting the lamps", when: [evening]}
   server:
-    - "carrying three mugs in one hand through the crowd"
-    - "scraping plates into a bucket for the pigs"
-    - {text: "laying the long table for a party that has not come", when: [afternoon, evening]}
-    - "wiping a spill with a foot and a rag"
-    - "leaning on the bar for the first time all evening"
+    - "carrying mugs"
+    - "scraping plates"
+    - {text: "laying a long table", when: [afternoon, evening]}
+    - "mopping a spill"
+    - "resting at the bar"
   cook:
-    - "stirring a pot big enough to bathe in"
-    - {text: "jointing a carcass on a block with a cleaver", when: [morning, midday]}
-    - "cursing the damp wood under the fire"
-    - "tasting from a spoon and adding salt without measuring"
-    - {text: "kneading for the morning in a cloud of flour", when: [evening, night]}
-    - "shouting a dish through the hatch"
+    - "stirring a big pot"
+    - {text: "jointing a carcass", when: [morning, midday]}
+    - "feeding the fire"
+    - "tasting the stew"
+    - {text: "kneading dough", when: [evening, night]}
+    - "calling out a dish"
   priest:
-    - {text: "lighting the lamps at the altar one by one", when: [dawn, evening]}
-    - "listening to someone's trouble with hands folded"
-    - "sweeping the step of the temple with a worn broom"
-    - {text: "reading from a book held close to a candle", when: [evening, night]}
-    - "blessing a child held up by its mother"
-    - "writing names on a tablet for the dead"
+    - {text: "lighting the altar lamps", when: [dawn, evening]}
+    - "listening to someone's trouble"
+    - "sweeping the temple step"
+    - {text: "reading by candlelight", when: [evening, night]}
+    - "blessing a child"
+    - "writing names of the dead"
   acolyte:
-    - "trimming lamp wicks with blackened fingers"
-    - "carrying water in two buckets on a yoke"
-    - "polishing a brass bowl that already shines"
-    - {text: "ringing a small bell at the door", when: [dawn, evening]}
-    - "scrubbing the flags on hands and knees"
+    - "trimming lamp wicks"
+    - "carrying water buckets"
+    - "polishing a brass bowl"
+    - {text: "ringing the door bell", when: [dawn, evening]}
+    - "scrubbing the floor"
   enchanter:
-    - "drawing a circle on a bench with a stick of chalk"
-    - "holding a ring up to the light and turning it"
-    - "grinding a blue powder that stains the fingers"
-    - "reading a scrap of parchment with a lens"
-    - "wrapping a wand in a cloth as if it might wake"
+    - "drawing a chalk circle"
+    - "studying a ring"
+    - "grinding blue powder"
+    - "reading through a lens"
+    - "wrapping a wand in cloth"
   guild_master:
-    - "reading a letter twice and putting it face down"
-    - "standing at the board with hands behind the back"
-    - "talking low with someone at the far end of the hall"
-    - "drinking from a cup and looking over its rim at the door"
-    - {text: "signing papers brought one at a time", when: [morning, afternoon]}
+    - "reading a letter"
+    - "standing at the board"
+    - "talking quietly with someone"
+    - "drinking from a cup"
+    - {text: "signing papers", when: [morning, afternoon]}
   guild_instructor:
-    - {text: "putting a recruit through sword forms in the yard", when: [morning, afternoon]}
-    - "oiling a practice shield that has taken a beating"
-    - "showing someone where their feet should be, with a stick"
-    - "binding a split knuckle with a strip of linen"
-    - "resting on a bench with a bad knee stretched out"
+    - {text: "drilling a recruit", when: [morning, afternoon]}
+    - "oiling a practice shield"
+    - "correcting someone's footwork"
+    - "bandaging a knuckle"
+    - "resting a bad knee"
   guild_contractor:
-    - "picking mud off a cloak with a knife"
-    - "reading the board with a thumb on each slip"
-    - "boasting to nobody in particular about a wolf"
-    - "counting arrows back into a quiver"
-    - {text: "asleep on a bench with a pack for a pillow", when: [midday, afternoon]}
-    - "restrapping a pack that will not sit right"
-    - {text: "running a whetstone along a blade", weight: 0.4}
+    - "cleaning mud off a cloak"
+    - "reading the board"
+    - "boasting about a wolf"
+    - "counting arrows"
+    - {text: "asleep on a bench", when: [midday, afternoon]}
+    - "fixing a pack strap"
+    - {text: "sharpening a blade", weight: 0.4}
   butcher:
-    - "hanging a carcass on a hook with a grunt"
-    - {text: "scrubbing the block with sand and water", when: [evening]}
-    - "weighing meat with a thumb nowhere near the scale"
-    - "waving flies off with a cloth"
-    - "sharpening a cleaver on a steel in quick strokes"
+    - "hanging a carcass"
+    - {text: "scrubbing the block", when: [evening]}
+    - "weighing meat"
+    - "waving off flies"
+    - "sharpening a cleaver"
   quartermaster:
-    - "turning a dented helm over and naming a price for it"
-    - "writing a list of what came in on a slate"
-    - "stacking pelts in a corner by size"
-    - "sniffing a flask and setting it well apart from the rest"
-    - "lifting a sack to guess its weight"
+    - "pricing a dented helm"
+    - "listing new stock"
+    - "stacking pelts"
+    - "checking a flask"
+    - "weighing a sack"
   orchard_keeper:
-    - {text: "pruning with a hooked knife, pockets full of twigs", when: [morning, afternoon]}
-    - "turning a wormy apple over and throwing it to the pigs"
-    - {text: "working a press with a long bar, juice running into a tub", when: [afternoon, evening]}
-    - "stacking baskets by a cart"
-    - "tying a sapling to a stake with a strip of cloth"
+    - {text: "pruning trees", when: [morning, afternoon]}
+    - "sorting apples"
+    - {text: "working the cider press", when: [afternoon, evening]}
+    - "stacking baskets"
+    - "staking a sapling"
   fisher:
-    - {text: "mending a net with a bone needle", when: [afternoon, evening]}
-    - "gutting fish on a plank and throwing the heads to the gulls"
-    - {text: "casting a net from the shallows", when: [dawn, morning]}
-    - "baling a boat with a wooden scoop"
-    - "laying fish out on a stone to sell"
-    - {text: "coiling a wet line over an elbow", when: [midday, afternoon]}
+    - {text: "mending a net", when: [afternoon, evening]}
+    - "gutting fish"
+    - {text: "casting a net", when: [dawn, morning]}
+    - "baling a boat"
+    - "selling fish"
+    - {text: "coiling a line", when: [midday, afternoon]}
   miner:
-    - {text: "coming off a shift, black to the eyes", when: [afternoon, evening]}
-    - "knocking the head of a pick back onto its haft"
-    - "coughing into a fist and spitting black"
-    - {text: "lining up at the shaft with a lamp", when: [dawn, morning]}
-    - "sorting ore from rubble on a bench"
+    - {text: "coming off a shift", when: [afternoon, evening]}
+    - "fixing a pick"
+    - "coughing up dust"
+    - {text: "lining up at the shaft", when: [dawn, morning]}
+    - "sorting ore"
   lumberjack:
-    - {text: "driving a wedge into a log with a maul", when: [morning, midday, afternoon]}
-    - "sitting on a stump with an axe across the knees"
-    - "stacking split wood against a wall, end out"
-    - "walking in with a log on one shoulder"
-    - "picking a splinter out of a palm with a knife point"
-    - {text: "filing an axe at a bench", weight: 0.5}
+    - {text: "splitting logs", when: [morning, midday, afternoon]}
+    - "resting on a stump"
+    - "stacking firewood"
+    - "carrying a log"
+    - "pulling out a splinter"
+    - {text: "filing an axe", weight: 0.5}
   stonemason:
-    - "chipping at a block with a chisel, a tap and a turn"
-    - "squinting along the edge of a stone"
-    - "mixing mortar in a trough with a hoe"
-    - "brushing dust off a carved face with a hand"
-    - {text: "marking a stone with a scribe and a square", when: [morning, afternoon]}
+    - "chiselling a block"
+    - "checking a stone's edge"
+    - "mixing mortar"
+    - "brushing dust off a carving"
+    - {text: "marking a stone", when: [morning, afternoon]}
   elven_warden:
-    - "standing so still against a trunk that the eye slides off"
-    - "stringing a bow with a knee"
-    - {text: "reading a broken twig as if it were writing", when: [morning, afternoon]}
-    - "listening with the head tilted, eyes shut"
-    - "walking the path's edge without a sound"
+    - "standing still by a tree"
+    - "stringing a bow"
+    - {text: "reading tracks", when: [morning, afternoon]}
+    - "listening to the forest"
+    - "walking the path's edge"
     - {text: "lighting a shuttered lamp", when: [evening, night]}
   loremaster:
-    - "copying from one book into another, nose nearly on the page"
-    - "arguing with someone over a date, pleasantly"
-    - "sanding wet ink and blowing it off"
-    - "searching a shelf with a finger running along the spines"
-    - "humming an old air and losing the thread of it"
+    - "copying a book"
+    - "debating a date"
+    - "drying fresh ink"
+    - "searching a bookshelf"
+    - "humming an old tune"
   engineer:
-    - "cranking a gear that turns another gear"
-    - "drawing with a rule on a sheet pinned to a board"
-    - "oiling a pin and working it back and forth"
-    - "swearing at a spring that has gone where springs go"
-    - {text: "measuring a wall with a knotted cord", when: [morning, afternoon]}
+    - "turning a gear"
+    - "drawing a plan"
+    - "oiling a pin"
+    - "fixing a spring"
+    - {text: "measuring a wall", when: [morning, afternoon]}
   trapper:
-    - "stretching a pelt on a frame with pegs"
-    - "setting a snare with cold-stiff fingers"
-    - "boiling bones in a pot for the glue"
-    - "coming in with a string of white hares"
-    - {text: "greasing boots by a fire", when: [evening, night]}
+    - "stretching a pelt"
+    - "setting a snare"
+    - "boiling bones for glue"
+    - "carrying in hares"
+    - {text: "greasing boots", when: [evening, night]}
   elder:
-    - "sitting in the sun with a stick between the knees"
-    - "settling an argument with one raised hand"
-    - "telling a story to children who have heard it"
-    - "walking slowly to the well and back, nodding to everyone"
-    - "shelling peas into a bowl, without looking at them"
+    - "sitting in the sun"
+    - "settling an argument"
+    - "telling children a story"
+    - "walking to the well"
+    - "shelling peas"
   dockhand:
-    - "rolling a barrel up a plank with a shoulder"
-    - "coiling a rope as thick as an arm"
-    - "waiting on a boat that is late, hands hanging"
-    - "arguing with a bargeman over a tally"
-    - {text: "eating from a cloth on a bollard", when: [midday]}
-    - "pushing a loaded barrow over the cobbles"
+    - "rolling a barrel"
+    - "coiling a rope"
+    - "waiting for a boat"
+    - "arguing over a tally"
+    - {text: "eating on a bollard", when: [midday]}
+    - "pushing a barrow"
   bargeman:
-    - "fending a barge off the wharf with a pole"
-    - "checking a mooring line with a tug"
-    - "handing crates up out of a hold one at a time"
-    - "smoking a pipe on a hatch and watching the water"
-    - {text: "sluicing a deck with a bucket", when: [morning]}
+    - "poling a barge"
+    - "checking a mooring line"
+    - "unloading crates"
+    - "smoking a pipe"
+    - {text: "washing the deck", when: [morning]}
   merchant:
-    - "counting coin into stacks of ten"
-    - "haggling with a farmer over a cart of something"
-    - "reading a bill of lading with a frown"
-    - "showing a bolt of cloth to someone who will not buy it"
-    - {text: "locking a strongbox and testing the lock", when: [evening]}
-    - "writing in a small book with a stub of pencil"
+    - "counting coin"
+    - "haggling with a farmer"
+    - "reading a bill of lading"
+    - "showing a bolt of cloth"
+    - {text: "locking a strongbox", when: [evening]}
+    - "writing in a small book"
   caravan_master:
-    - {text: "walking the line of carts, kicking a wheel here and there", when: [dawn, morning]}
-    - "paying off a driver from a purse at the belt"
-    - "studying a map on a cart's tail with a thumb on a road"
-    - "shouting a cart into its place"
-    - "checking a mule's hooves one by one"
+    - {text: "checking the carts", when: [dawn, morning]}
+    - "paying a carter"
+    - "studying a map"
+    - "directing the carts"
+    - "checking a mule's hooves"
   scout:
-    - "brushing a horse down with long strokes"
-    - "reading tracks at the edge of the road"
-    - {text: "rubbing the dust off a face with a wet cloth", when: [afternoon, evening]}
-    - "stitching a split in a saddlebag"
-    - "watching the horizon with a hand over the eyes"
-    - {text: "running a whetstone along a knife", weight: 0.4}
+    - "brushing a horse"
+    - "reading tracks"
+    - {text: "washing off road dust", when: [afternoon, evening]}
+    - "mending a saddlebag"
+    - "watching the horizon"
+    - {text: "sharpening a knife", weight: 0.4}
   water_priest:
-    - "pouring water from a jug over a stone, slowly"
-    - {text: "lighting lamps along a channel at dusk", when: [evening]}
-    - "listening to the sound of the water with eyes shut"
-    - "washing hands in a basin, over and over"
-    - "writing on a slate that is wiped and written again"
+    - "pouring water over a stone"
+    - {text: "lighting channel lamps", when: [evening]}
+    - "listening to the water"
+    - "washing hands in a basin"
+    - "writing on a slate"
   noble:
-    - "being fitted for a coat by someone on their knees"
-    - "reading a letter and handing it to someone else to burn"
-    - "looking out of a window at nothing"
-    - "tasting wine and sending it back"
-    - "giving an order to someone who already knew"
+    - "being fitted for a coat"
+    - "reading a letter"
+    - "looking out of a window"
+    - "tasting wine"
+    - "giving orders"
   courtier:
-    - "listening at a half-open door"
-    - "writing a note very small"
-    - "laughing at something that was not funny"
-    - "straightening a sleeve, waiting to be noticed"
-    - "walking a corridor as if late for something"
+    - "listening at a door"
+    - "writing a note"
+    - "laughing politely"
+    - "waiting to be noticed"
+    - "walking a corridor"
   royal_guard:
-    - "standing a post without moving the eyes"
-    - {text: "changing the watch with a stamp and a word", when: [dawn, midday, evening, deep night]}
-    - "checking a seal on a letter before letting it in"
-    - "polishing a breastplate with a cloth and spit"
-    - "walking a wall, counting the lamps"
+    - "standing guard"
+    - {text: "changing the watch", when: [dawn, midday, evening, deep night]}
+    - "checking a letter's seal"
+    - "polishing a breastplate"
+    - "walking the wall"
   monarch:
-    - "listening to a petition with the eyes half shut"
-    - "signing something held by someone else"
-    - "looking at a map with a finger on a river"
-    - "feeding a dog from the table"
+    - "hearing a petition"
+    - "signing a document"
+    - "studying a map"
+    - "feeding a dog"
   chamberlain:
-    - "reading a list and striking a name off it"
-    - "turning someone away from a door with a word"
-    - "straightening a hanging that was straight"
-    - "counting silver on a tray"
-    - "whispering a name to a page who runs"
+    - "reading a list"
+    - "turning someone away"
+    - "straightening a wall hanging"
+    - "counting silver"
+    - "sending a page off"
   relic_dealer:
-    - "unlocking a case to show one thing, then locking it again"
-    - "polishing a blade that has not been drawn in a hundred years"
-    - "reading the provenance of a thing from a scrap of vellum"
-    - "watching the door with the key in a fist"
-    - "turning a lamp down so the gold shows better"
+    - "opening a display case"
+    - "polishing an old blade"
+    - "reading an old document"
+    - "watching the door"
+    - "dimming a lamp"
   land_agent:
-    - "unrolling a plan of a house onto a table"
-    - "walking a plot with a cord and pegs"
-    - "writing a figure, crossing it out, writing a bigger one"
-    - "showing someone a door that sticks"
-    - "counting keys on a ring"
+    - "unrolling a house plan"
+    - "measuring a plot"
+    - "writing figures"
+    - "showing a door"
+    - "counting keys"
   traveling_player:
-    - "tuning a lute by the fire with one ear to it"
-    - "passing a cap round a table"
-    - "resting a voice with a mug of something warm"
-    - "telling a story that has grown since it was told last"
-    - {text: "packing a lute into a case with more care than the rest of the pack", when: [morning, dawn]}
+    - "tuning a lute"
+    - "passing a cap round"
+    - "resting with a warm drink"
+    - "telling a story"
+    - {text: "packing a lute", when: [morning, dawn]}

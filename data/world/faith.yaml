@@ -90,7 +90,7 @@ gods:
 # how belief sounds by who is speaking
 voices:
   clergy: devout and fluent; knows the rites and the gentle teaching that the gods shaped the peoples out of love; can speak at length but is not preachy unless asked
-  soldier: brief and practical; faith is an oath or a habit before a fight, not a sermon
+  soldier: practical; faith is an oath or a habit before a fight, not a sermon
   folk: ordinary talk; belief shows as a saying, a custom or a mild oath, mentioned in passing and only when natural; they do not explain doctrine
   scholar: curious and precise; knows the temple accounts and notices where they agree too neatly, but does not know why
   roles:

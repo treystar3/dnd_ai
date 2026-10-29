@@ -1,4 +1,4 @@
-"""How long the narrator and the people of the world should speak. The engine decides; the model fills the space."""
+"""The rules of the voices: stances, frames, refusals, partings, the exemplars. (f375) No length: nobody is told how long to speak."""
 
 import re
 from pathlib import Path
@@ -6,33 +6,6 @@ from pathlib import Path
 import yaml
 
 V = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "voice.yaml").read_text(encoding="utf-8"))
-
-
-def narration(weight: str | None) -> dict:
-    return V["narration"].get(weight or "normal", V["narration"]["normal"])
-
-
-def npc_level(npc, player_text: str, convo: list, extra: list, first: bool) -> str:
-    """short / medium / long, from what the moment asks for."""
-    P = V["points"]
-    low = player_text.lower()
-    score = 0
-    score += len(player_text.split()) >= P["long_player_message_words"]
-    score += any(w in low for w in P["open_question"])
-    score += min(2, sum(w in low for w in P["weighty"]))
-    score += first
-    score += npc.trust >= P["trust"]
-    score += len(convo) >= P["long_conversation_turns"] * 2
-    score += bool(extra) and any("quest" in str(e).lower() or "work" in str(e).lower() for e in extra)
-    quiet = any(t in V["quiet_traits"] for t in getattr(npc, "traits", []))
-    level = "short" if score == 0 else "medium" if score <= 2 else "long"
-    if quiet and level == "long":
-        level = "medium"
-    return level
-
-
-def npc(level: str) -> dict:
-    return V["npc"][level]
 
 
 _REFUSAL = re.compile(r"\b(no\.|i won'?t|i will not|i'?ll not|not (?:for|to) (?:you|strangers|the likes)|nothing (?:for|to) (?:you|say)|get out|"
@@ -46,21 +19,8 @@ def refuses(speech: str) -> bool:
 
 
 def short_gesture(gesture: str) -> str:
-    """(f347) A gesture short enough to print beside bare speech: kept whole when it is within gesture_words, cut at its first clause when
-    that is, otherwise dropped. 'wipes her hands on her apron' stays; 'glances at the door, then back to the ledger with a sigh' becomes
-    'glances at the door'; 'gives a slow, deliberate nod' is never cut inside its pair of adjectives."""
-    g = " ".join((gesture or "").split()).strip().rstrip(".")
-    if not g:
-        return ""
-    cap = V.get("gesture_words", 6)
-    if len(g.split()) <= cap:
-        return g
-    head = re.split(r";|, then |, and |, before |, while |, as |,\s+(?=(?:turning|looking|glancing|leaning|resting|setting|wiping|nodding|"
-                    r"shaking|pulling|returning|going|letting|watching|reaching|folding|crossing|rubbing|brushing|picking|putting|"
-                    r"settling|straightening|dropping|lowering|raising|lifting|leaving|smiling|laughing|frowning|sighing|squinting|pausing|"
-                    r"stepping|moving|tucking|tapping|giving|holding|keeping|casting|shifting|scratching|running|waving|pointing|"
-                    r"sweeping|wrapping|tightening|loosening|closing|opening)\b)| and then | and | then | before | while | as ", g, maxsplit=1)[0].strip()
-    return head if head and len(head.split()) <= cap else ""
+    """(f347) The gesture printed beside bare speech. (f375) Whole, however long: it was cut at its first clause past six words."""
+    return " ".join((gesture or "").split()).strip().rstrip(".")
 
 
 def roll_stance(npc, minutes: int, rng) -> str:

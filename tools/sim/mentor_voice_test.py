@@ -39,7 +39,7 @@ check("a new number is refused", "adds a number" in cv(src, [ok[0] + " Three of 
 check("a changed amount in words is refused", "how many" in cv(src, [ok[0], "Say 'search for wolves' and give it five minutes.", ok[2]]))
 check("talk of a game is refused", "game" in cv(src, [ok[0], "Say 'search for wolves' - it is how the game works.", ok[2]]))
 check("a question stays a question", "question" in cv(src, [ok[0], ok[1], "You are new, then."]))
-check("it cannot run on", "too long" in cv(src, [ok[0], ok[1], "How new are you " + "really " * 40 + "?"]))
+check("(f375) a long line is not refused for its length", "too long" not in cv(src, [ok[0], ok[1], "How new are you " + "really " * 40 + "?"]))
 check("a contraction is not a quoted phrase", mentor._facts_of("Don't look so worried. You can't know, isn't it?")[2] == set())
 
 shutil.rmtree("saves/mv", ignore_errors=True)
@@ -102,7 +102,7 @@ w.mentor_say(W, beat="test", reply_to="hello")
 check("a reply that states a number is refused and the written lines are said", SAID[-1][1] == W, SAID[-1])
 stub.reply = None
 check("the request shows what the player just said", "THE PLAYER JUST SAID: \"hello there\"" in mentor.voice_request(w.player, "Parth", "b", [W], "hello there"))
-check("reply checks", mentor.check_reply("Fine.") == "" and mentor.check_reply("") != "" and mentor.check_reply("It is a game.") != "" and mentor.check_reply("x " * 60) != "")
+check("reply checks", mentor.check_reply("Fine.") == "" and mentor.check_reply("") != "" and mentor.check_reply("It is a game.") != "" and mentor.check_reply("x " * 60) == "")      # (f375) no length
 # the request carries her manner, what was said, and the lines
 req = mentor.voice_request(w.player, "Parth", "a beat", [W])
 check("the request has the facts, the attitude, the talk and the lines", "ATTITUDE:" in req and "WHAT WAS SAID LATELY" in req and "1. " + W in req and "a beat" in req)
@@ -113,14 +113,14 @@ cs = mentor.check_speech
 ctxs = {"paragraphs": (2, 4), "must": ["#board"], "material": ["Type #board. You can hold 2."], "ends_question": True}
 okp = ["Type #board and read it. You can hold 2.", "How well do you know the guild?"]
 check("a clean speech passes", cs(okp, ctxs) == "", cs(okp, ctxs))
-check("too few paragraphs refused", "paragraphs" in cs(okp[:1], ctxs))
+check("(f375) any number of paragraphs is fine, but not none", cs(okp[:1] + ["How well do you know the guild?"], ctxs) == "" and cs([], ctxs) != "")
 check("a missing required phrase refused", "#board" in cs(["Read the board. You can hold 2.", okp[1]], ctxs))
 check("a new number refused", "number" in cs([okp[0] + " Take 7.", okp[1]], ctxs))
 check("a game mention refused", "game" in cs([okp[0] + " It is a game.", okp[1]], ctxs))
-check("a long paragraph refused", "too long" in cs(["#board " + "word " * 80, okp[1]], ctxs))
+check("(f375) a long paragraph is not refused for its length", "too long" not in cs(["#board " + "word " * 80, okp[1]], ctxs))
 check("must end on the question", "question" in cs([okp[0], "Fine then."], ctxs))
 SAID.clear()
-w.mentor_speak(["Type #board to read it.", "You can hold 2."], "test", must=["#board"], paragraphs=(1, 3))
+w.mentor_speak(["Type #board to read it.", "You can hold 2."], "test", must=["#board"])
 check("free speech is said as one block under her", len(SAID) == 1 and SAID[0][0] in (mentor.NAME, mentor.M["unnamed"]), SAID)
 old = config.VOICED_MENTOR
 config.VOICED_MENTOR = False
@@ -128,7 +128,7 @@ check("off means not spoken", w.mentor_speak(["x y z a b c"], "t") is False)
 config.VOICED_MENTOR = old
 stub.speech = lambda pts, musts: ["No."]
 SAID.clear()
-check("a failing speech falls back (returns False)", w.mentor_speak(["Type #board to read it.", "You can hold 2."], "t", must=["#board"], paragraphs=(2, 3)) is False and not SAID)
+check("a failing speech falls back (returns False)", w.mentor_speak(["Type #board to read it.", "You can hold 2."], "t", must=["#board"]) is False and not SAID)
 stub.speech = None
 
 # every plain speech is facts in, her words out

@@ -43,6 +43,7 @@ def hire(i, temper, motive):
 ms = [hire(i, t, mo) for i, (t, mo) in enumerate([(["blunt", "dry"], "protect"), (["gentle", "devout"], "coin"), (["wary"], "wander")])]
 check("every hire has a habit, a voice, a like and a dislike that differ", all(m["quirks"]["habit"] and m["quirks"]["voice"] and m["quirks"]["likes"] != m["quirks"]["dislikes"] for m in ms))
 check("the roll is kept", (quirks.roll(ms[0], random.Random(99)), ms[0]["quirks"]["habit"] == hire(0, ["blunt"], "protect")["quirks"]["habit"])[1])
+ms[0]["quirks"]["voice"] = "no_contractions"             # (f375) a voice with words to it: the draw no longer lands on one_sentence
 check("the core carries the voice, habit and leanings, and growth only once trusted", "In speech" in quirks.core_lines(ms[0]) and "A habit" in quirks.core_lines(ms[0]) and "Approves of" in quirks.core_lines(ms[0]) and "changed" not in quirks.core_lines(ms[0]))
 ms[0]["bond"] = 40
 check("growth appears at trusted, by temperament", "changed" in quirks.core_lines(ms[0]) and quirks.growth(ms[0]) == quirks.Q["growth"]["trusted"]["blunt"])

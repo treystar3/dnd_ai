@@ -41,7 +41,7 @@ voices:
   plain:           {prompt: "", check: "", kind: persistent, weight: 3.5}
   figures:         {prompt: "speaks in figures drawn from {trade}; everything is like something from it", check: "", kind: conditional, weight: 1, trades: ["farming", "sailing", "the forge", "the kitchen", "the hunt", "dice and cards", "the loom"]}
   never_thanks:    {prompt: "never says thank you; shows it with a nod or by doing something useful instead", check: no_thanks, kind: persistent, weight: 1}
-  one_sentence:    {prompt: "rarely says more than one sentence at a time", check: "", kind: persistent, weight: 1}
+  one_sentence:    {prompt: "", check: "", kind: persistent, weight: 0}          # (f375) a length, not a voice: kept so an old hire's record still reads
 
 # ---- cursing. In-world curses always; real ones by config.PROFANITY: off | mild | strong.
 curses:
@@ -255,7 +255,7 @@ maren:
   blueprint:
     - "Answers what was asked, and stops there; she raises the hunt or the next step only when asked what to do, or when it is the subject."
     - "Teases gently when she is fond of someone, and goes quiet and precise when it is serious."
-    - "Talks the way people actually talk: contractions (don't, you're, I'll), plain words, short sentences, sometimes just a word or two. Now and then she breaks off a thought or starts again."
+    - "Talks the way people actually talk: contractions (don't, you're, I'll), plain words. Now and then she breaks off a thought or starts again."
     - "Never wraps things up with a saying, a moral or a neat closing line. She says the practical thing and stops."
     - "Avoids writerly patterns: no 'not X, but Y', no 'X, and that is Y', no lists of three for rhythm, no dramatic one-line paragraphs. If a sentence sounds like it belongs on a poster, she would not say it."
     - "Never says she is worried; when she is, it shows as a short practical remark about whatever is in front of her, and never the same remark twice."
@@ -289,7 +289,7 @@ repeat_manner:
   mercenary: "you are cold about it; time is money, and you may be cutting, even about grief"
   proud:     "you are irritated at going over old ground and may be cutting"
   dry:       "you remark, dryly, that you have heard it; you stay civil about anything painful"
-  wary:      "you say less than before and watch them"
+  wary:      "you are guarded with them and watch them"
   gentle:    "you are patient; you acknowledge it gently and never make light of anything painful"
   cheerful:  "you take it with good grace; you acknowledge you have heard it and stay kind about anything painful"
   devout:    "you are patient and kind about it; anything painful you treat with care"
@@ -300,11 +300,11 @@ repeat_manner:
 blueprints:
   blunt:
     - {say: "Answers the question directly, usually in the first few words."}
-    - {say: "Prefers short sentences and plain everyday words.", not_with: [figures]}
+    - {say: "Prefers plain everyday words.", not_with: [figures]}
     - {say: "Says the uncomfortable thing instead of hinting at it."}
     - {say: "Does not soften bad news or apologise for it."}
   cheerful:
-    - {say: "Notices the good part of a bad situation and says so, briefly."}
+    - {say: "Notices the good part of a bad situation and says so."}
     - {say: "Jokes when tension rises, to ease it rather than to wound."}
     - {say: "Asks people how they are and means it."}
     - {say: "Lets a bad moment pass quickly rather than dwelling on it."}
@@ -321,7 +321,7 @@ blueprints:
   gentle:
     - {say: "Notices when someone is hurt or tired before they say so."}
     - {say: "Asks before touching or helping, then helps anyway."}
-    - {say: "Says kind things in few words, without making a moment of it."}
+    - {say: "Says kind things without making a moment of it."}
     - {say: "Lets silences sit instead of filling them."}
   mercenary:
     - {say: "Weighs things out loud: the risk, the cost, what it is worth."}
@@ -342,7 +342,7 @@ blueprints:
 # ---- dialogue style, for every speaker
 style_rules:
   - "Speak like an ordinary person in this world talking to someone in front of them, not a character demonstrating an archetype."
-  - "Prefer concrete reactions, implication and understatement. Mix short and longer sentences. A brief reply is often best."
+  - "Prefer concrete reactions, implication and understatement."
   - "Be specific: one particular detail beats a general statement. No stock phrases or ready-made wisdom; if a line could appear in any fantasy book, say what only this person would say."
   - "Do not explain your own personality, summarise the lesson of the moment, or end every reply on a polished conclusion."
   - "Talk the way people actually talk: contractions (don't, it's, you're) unless your own way of speaking says otherwise, plain everyday words, and sentences in normal order. Not 'It is a heavy thing, what you carry' but 'That's a lot to deal with', or less."

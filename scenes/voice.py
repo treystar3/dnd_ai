@@ -9,7 +9,7 @@ from llm.gateway import generate
 from llm.prompts import WORLD_RULES
 
 DM_VOICE = """You are the game master, running this world live for one player at the table. Speak to them the way a
-great DM does: present tense, second person, vivid and specific, but economical - every sentence earns its place.
+great DM does: present tense, second person, vivid and specific.
 - React to what the player actually said and did, including small touches (marking a tree, a joke, a hesitation).
   Show that it registered.
 - Keep it fresh. Never open the way RECENT NARRATION opened, and never reuse its images, phrases or sentence shapes.
@@ -22,7 +22,7 @@ great DM does: present tense, second person, vivid and specific, but economical 
   usually one too many, and two before a noun always are. Never end a sentence on a trailing participle ("..., his gaze
   returning to the road").
 - Narrate what changes, not what stands. The room, the weather and what people were doing, once given, are given: after that,
-  say what is new, or say less.
+  say what is new.
 - Let danger be felt before it lands. When the odds are bad, the world itself should warn the player - numbers,
   movement, the look in a foe's eyes - without you saying "this is dangerous".
 - Now and then, not every time, end on a beat that invites the player to act: a sound, an opening, a choice.
@@ -72,13 +72,15 @@ def participle_tails(text: str) -> list[str]:
 
 
 def fresh(task: str, system: str, request: str, schema, recent: list[str], fields=("text",),
-          temperature: float = 0.9, max_tokens: int = 600, context: dict | None = None, worn: list[str] | None = None, tails: bool = True):
+          temperature: float = 0.9, max_tokens: int | None = None, context: dict | None = None, worn: list[str] | None = None, tails: bool = True):
     """Generate narration; if it repeats recent phrasing or stock phrases, leans on words the writing has worn out (f349, `worn` from the
     scene's watch) or ends two or more sentences on a trailing participle, rewrite once with the habit called out. `context` is the
     schema's validation context (a frame's speaker and the others present, f347). (f374) tails=False for a frame around speech: a beat
     before and after a line is a sentence or two, the first playthrough rewrote half of them for this and the rewrite fixed it in half of
     those, at a second call each, before the player could read the line."""
     from engine import worn as _worn
+    import config
+    max_tokens = max_tokens or config.PROSE_MAX_TOKENS                     # (f375) a ceiling against a runaway, never a length
     result = generate(task, system, request, schema, temperature=temperature, max_tokens=max_tokens, validation_context=context)
     text = " ".join(getattr(result, f, "") or "" for f in fields)
     parts = []

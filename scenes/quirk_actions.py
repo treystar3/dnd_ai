@@ -147,7 +147,7 @@ class QuirkActions:
         for m in pick:                                       # one speaker (or the exchange failed): each says it on their own
             how = stances[m["id"]]
             now = [f"the player has just been {text}, in front of you, and you {'approve' if how == 'approve' else 'do not approve'}; you say so in your own way, "
-                   "in one or two sentences, without a speech about it"]
+                   "without a speech about it"]
             said = self.companion_line(m, now, f"(the player was {text})")
             if not said:
                 said = quirks.reaction_fallback(deed, how, self.quirk_rng(deed))
@@ -184,7 +184,7 @@ class QuirkActions:
                 self.store.save_player(self.player)
                 return
         for o in pick:                                       # one joins (or the exchange failed): each says it on their own
-            now = [f"{said}. You were listening, and you join in, in one or two sentences, speaking to {first} or the player, with "
+            now = [f"{said}. You were listening, and you join in, speaking to {first} or the player, with "
                    f"something of your own: never {first}'s words again, or the same turn of phrase"]
             hit = self.hit_level(o, plan.beat, others)
             line = self.companion_line(o, now, text, hit=hit, weight=plan.beat.weight)
@@ -236,7 +236,7 @@ class QuirkActions:
                                              m.get("talk", [])[-4:], player, heard, unsaid=banter.unsaid_rule(lately, q),
                                              notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place), leaned=quirks.leaned_on(m),
                                              offers=self.material_for(m), fix=fix, truth_text=view.text()),
-                             CompanionReply, temperature=0.85, max_tokens=220, retries=1, validation_context=ctx, relaxed_context=dict(ctx, recent=lately[-1:]))
+                             CompanionReply, temperature=0.85, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx, relaxed_context=dict(ctx, recent=lately[-1:]))
             except LLMError:
                 return ""
             fix = canon.settle(canon.read(m, m["name"], r.speech, q, self.minutes // 1440), attempt)
