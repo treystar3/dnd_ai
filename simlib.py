@@ -66,6 +66,11 @@ class Stub:
     def a_ActionPlan(self, u, k):
         return {"actions": self.plan or [{"kind": "look"}]}
 
+    def a_Ruling(self, u, k):
+        """(f395) The dungeon master's ruling: what a test or a scene gives (self.ruling), else it makes sense and is rolled for, as every
+        improvised act was before there was a ruling."""
+        return getattr(self, "ruling", None) or {"sense": "cost", "why": "", "needs": [], "requires": []}
+
     def a_CombatIntent(self, u, k):
         return self.bot.combat_choice()
 

@@ -63,6 +63,8 @@ tools:
   stonemason:       [a chisel, a mallet, a block of dressed stone]
   tinker:           [a kettle, a tray of small tools, a coil of wire]
   traveling_player: [a lute, a cap for coins, a pack]
+  hermit:           [a walking staff, a pot over a small fire, a bundle of driftwood]   # (f395)
+  wanderer:         [a pack, a walking staff, a waterskin]                            # (f395)
   trapper:          [a snare, a pelt, a skinning knife]
   watch_captain:    [a sword at the hip, a roster, a whistle]
   water_priest:     [a bowl of water, a holy symbol, a brass ewer]

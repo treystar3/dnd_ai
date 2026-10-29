@@ -87,8 +87,35 @@ def low_tide_text(minutes: int) -> str:
     return ("now, until " + at(end)) if state == "low" else f"from {at(start)} until {at(end)}"
 
 
+def now_of(e, minutes: int) -> dict[str, int]:
+    """(f395) What an attempt has made of this part that still holds: {state: until} (0: until something undoes it)."""
+    return {k: int(u) for k, u in (e.data.get("now") or {}).items() if k in F["becomes"] and (not u or int(u) > minutes)}
+
+
+def change(ws, e, becomes: str, degree: str = "success") -> str:
+    """(f395) A part made different by an attempt (features.yaml becomes): kept on the part, told on the turn. The line told, or ''."""
+    from engine import ledger
+    spec = F["becomes"].get(becomes)
+    if spec is None or e is None:
+        return ""
+    now = {k: u for k, u in (e.data.get("now") or {}).items() if k not in spec.get("undoes", []) and k != becomes}
+    hours = spec.get("hours", 0) / (2 if degree == "partial" else 1)
+    if spec.get("shows"):
+        now[becomes] = int(ws.minutes + hours * 60) if hours else 0
+    e.data["now"] = now
+    ws.store.save_entity(e)
+    said = f"{e.name[0].upper() + e.name[1:]} is {spec['shows'] or becomes} now" + (", for a while" if spec.get("shows") and hours else "") + "."
+    ledger.add("changed", ref=e.ref, name=e.name, to=becomes, say=said)
+    return said
+
+
 def open_now(e, minutes: int) -> tuple[bool, str]:
     """Whether the way to this part is open now; when not, why and when it opens, in the world's words."""
+    for k, until in now_of(e, minutes).items():
+        if F["becomes"][k].get("shuts"):
+            from engine import clock
+            return False, (f"The way to {e.name} is {F['becomes'][k]['shows']}"
+                           + (f"; it should be passable again in about {clock.describe_duration(max(15, round((until - minutes) / 15) * 15))}." if until else "."))
     if e.data.get("open") == "low_tide":
         state, until = tide(minutes)
         if state == "high":
@@ -290,8 +317,9 @@ def lines(ws) -> list[str]:
         if e.state == "unseen":
             continue
         ok, why = open_now(e, ws.minutes)
+        shows = [F["becomes"][k]["shows"] for k in now_of(e, ws.minutes) if F["becomes"][k].get("shows") and not F["becomes"][k].get("shuts")]
         out.append(f"{e.name}{' (where the player stands)' if at is not None and e.ref == at.ref else ''}: {e.data.get('what', '')}"
-                   + ("" if ok else f" Closed now: {why}"))
+                   + (f" Now {', '.join(shows)}." if shows else "") + ("" if ok else f" Closed now: {why}"))
     return out
 
 
@@ -307,6 +335,10 @@ def candidates(ws) -> list[tuple[str, str]]:
 
 def problems(world) -> list[str]:
     bad = []
+    for k, spec in F["becomes"].items():
+        for u in spec.get("undoes", []):
+            if u not in F["becomes"]:
+                bad.append(f"features.yaml becomes {k}: undoes '{u}', which is not listed")
     for k in F["kinds"]:
         if k not in F["looks"]:
             bad.append(f"features.yaml: kind '{k}' has no looks to name it by")
@@ -322,6 +354,9 @@ def problems(world) -> list[str]:
             for l in s.get("links", []):
                 if l not in ids:
                     bad.append(f"places.yaml {p.id}: part '{s.get('id')}' links to '{l}', which is not one of its parts")
+            for k in s.get("now", []):
+                if k not in F["becomes"]:
+                    bad.append(f"places.yaml {p.id}: part '{s.get('id')}' starts '{k}', which features.yaml becomes does not list")
             if s.get("open") not in (None, "low_tide"):
                 bad.append(f"places.yaml {p.id}: part '{s.get('id')}' opens at '{s.get('open')}', which the engine does not know")
     return bad

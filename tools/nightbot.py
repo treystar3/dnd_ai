@@ -89,6 +89,11 @@ class Bot:
     IMPROV = ["I fish in the river for supper.", "I whistle an old marching tune.", "I climb the nearest tree for a look around.",
               "I carve a mark into the signpost.", "I try my luck at a game of dice.", "I practise sword forms for an hour.",
               "I sketch the view in my notebook.", "I check my boots for wear and mend a strap."]
+    WILD_IMPROV = ["I climb up onto the ledge above me for a better look.", "I light a torch and hold it up to the dark.",   # (f395) sense, in the wild
+                   "I wedge a rock into the gap behind me.", "I wade into the shallows to see what is there.",
+                   "I dig at the loose earth by the wall.", "I call out to see if anyone is here."]
+    OUTLANDISH = ["I grow wings and fly away.", "I summon a dragon to carry me.", "I turn the nearest stone into gold.",   # (f395) the ruling's no
+                  "I walk straight through the wall."]
     SEARCH = ["I carefully search the area for tracks.", "I look around.", "I listen for anything unusual.", "I take a good look at the people here."]
     LEAVE = ["Thanks, I'll let you get on.", "That's all I wanted to know. Good day.", "I'd best be moving on."]
     JOB_KINDS = ("hunt", "bounty", "gather", "materials")
@@ -276,7 +281,7 @@ class Bot:
         goal = self.meta.get("goal", "") if self.meta.get("_fresh") else ""
         passage = self.passage()
         source = "template"
-        if self.persona and self.stub is None and self.run is not None and kind != "fight":
+        if self.persona and self.stub is None and self.run is not None and kind != "fight" and text not in self.OUTLANDISH:   # (f395) said as is
             line = self.model_line(text, intent, kind, passage)
             if line:
                 text, source = line, "model"
@@ -947,7 +952,10 @@ class Bot:
             text = rng.choice(["I look over the wares.", "I ask what a good blade would cost me.", "I order a meal and listen to the talk."])
             return text, self.intend("look"), "shop"
         if pick == "improv":
-            text = rng.choice([t for t in self.IMPROV if t != self.last_text])
+            from engine import features as _f
+            r = rng.random()
+            pool = self.OUTLANDISH if r < 0.12 else self.WILD_IMPROV if (p is not None and _f.grows_here(p) and r < 0.6) else self.IMPROV
+            text = rng.choice([t for t in pool if t != self.last_text] or pool)
             return text, self.intend("other", summary=text), "improv"
         if pick == "search":
             text = rng.choice(self.SEARCH)

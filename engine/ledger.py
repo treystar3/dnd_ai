@@ -2,7 +2,8 @@
 
 The engine used to report each outcome twice, as text, to two readers who never compared notes: the player read the notes, the narrator
 a loose description and the player's own words. A row here is what the engine did: `moved` to a part of a place, `found` a part,
-`made` an addition to the world, `refused` an attempt it said no to, and the rest as later slices add them. The narrator is given the
+`made` an addition to the world, `refused` an attempt it said no to, `changed` a part made different by an attempt (f395), and the rest
+as later slices add them. The narrator is given the
 turn's rows (told()); a night counts them (each turn row keeps this_turn()); the acceptance scenes count `made` (count()).
 
 begin() opens a turn and end() closes it (the scene's turn does both); add() outside a turn still counts, and is told with the next."""

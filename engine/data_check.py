@@ -267,6 +267,8 @@ def check() -> list[str]:
     bad += _hygiene.problems()
     from engine import entities as _entities                                                  # (f392) the lifecycles
     bad += _entities.problems()
+    from engine import ruling as _ruling                                                      # (f395) what a character can do beyond the ordinary
+    bad += _ruling.problems()
     from engine import features as _features                                                  # (f394) the parts of places
     from world.loader import load_world as _lw
     bad += _features.problems(_lw())

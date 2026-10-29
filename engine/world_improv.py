@@ -131,19 +131,38 @@ def what_of(words: str) -> str:
     return w.rstrip(".!").strip()[:80]
 
 
-def resolve(ws, words: str, text: str) -> None:
-    """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact."""
+def changed_text(ws, ruled: dict | None, degree: str) -> str:
+    """(f395) The parts the attempt made different (engine/ruling.change_parts), as the narrator is told them."""
+    if not (ruled or {}).get("changes"):
+        return ""
+    from engine import ruling
+    lines = ruling.change_parts(ws, ruled, degree)
+    return (" WHAT IS DIFFERENT NOW (real from now on; show it): " + " ".join(lines)) if lines else ""
+
+
+def resolve(ws, words: str, text: str, ruled: dict | None = None) -> None:
+    """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact. (f395) With the
+    dungeon master's ruling (engine/ruling.py): a plain yes is done without a roll; a cost is rolled on the ruling's check and how hard
+    it is; and what the world made for it is told as real."""
     from engine import checks, pools
     c = ws.player.character
     effect = read_effect(words or text)
-    if effect == "pose":                                    # (f386) shown, and nothing else: no roll, no mark, nothing barred
+    made = (ruled or {}).get("made") or []
+    room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
+    if effect == "pose" and not made and not (ruled or {}).get("changes"):                       # (f386) shown, and nothing else: no roll, no mark, nothing barred
         ws.advance(1)
         ws.narrate(f"THE GAME HAS DECIDED: the player does a small thing ({what_of(words or text)}) and nothing comes of it: it changes nothing "
                    "and nobody makes anything of it. Show it in passing, as it would be seen.", text)
         return
+    if effect == "pose":
+        effect = "attempt"
     e = W["effects"][effect]
-    odds = odds_for(c, effect)
-    degree, rolled = checks.roll(odds, ws.rng, c=c)
+    if ruled is not None and ruled.get("sense") == "yes" and not ruled.get("check"):
+        degree, rolled, odds = "success", 0, 100.0               # a plain yes: a dungeon master does not roll for lighting a torch
+    else:
+        from engine import ruling
+        odds = ruling.odds(ws, effect, ruled) if ruled is not None else odds_for(c, effect)
+        degree, rolled = checks.roll(odds, ws.rng, c=c)
     console.debug(f"improvised ({effect}): {odds:.0f}% - rolled {rolled}: {degree}")
     console.ledger(f"{effect.capitalize()} — {degree.replace('_', ' ')}")
     what = what_of(words or text)
@@ -159,8 +178,9 @@ def resolve(ws, words: str, text: str) -> None:
         if changed:
             console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
         ws.advance(5)
+        room += changed_text(ws, ruled, degree)
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
-                   + ". Show it done, as it would be seen, and what is different now. Nothing is gained that was not there, and no one is harmed.", text)
+                   + ". Show it done, as it would be seen, and what is different now. Nothing is gained that was not there, and no one is harmed." + room, text)
         return
     if degree == "partial":
         P = W["partial"]
@@ -168,8 +188,9 @@ def resolve(ws, words: str, text: str) -> None:
             ws.add_mark("roughly, " + mark)
         apply_changes(ws, effect, what, degree)
         ws.advance(P["minutes"])
+        room += changed_text(ws, ruled, degree)
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) half works - {P['text']}. Show it as it would be seen, "
-                   "the flaw in it plain. Nothing is gained that was not there.", text)
+                   "the flaw in it plain. Nothing is gained that was not there." + room, text)
         return
     F = W["fails"][e["fail"]]
     ws.advance(F["minutes"])
@@ -180,4 +201,4 @@ def resolve(ws, words: str, text: str) -> None:
         ws.add_mark(F["mark"].format(mark=mark))
     ws.store.save_player(ws.player)
     ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) FAILS - {F['text']}. Show the failure as it happens and what it "
-               "costs them, and stop there; no one gives them anything, and nobody speaks beyond a look or a word.", text)
+               "costs them, and stop there; no one gives them anything, and nobody speaks beyond a look or a word." + room, text)

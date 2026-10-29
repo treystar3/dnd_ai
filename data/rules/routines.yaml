@@ -26,6 +26,8 @@ roles:                       # by role, instead of chance; 0 = never (the hall's
   watch_captain: 0.15
   prisoner: 0
   traveling_player: 0
+  hermit: 0
+  wanderer: 0
   monarch: 0
   chamberlain: 0
   courtier: 0.2

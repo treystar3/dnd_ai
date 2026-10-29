@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT))
 import yaml
 
 SCENES = ROOT / "data" / "replay" / "scenes.yaml"
-BUILT = 1                     # the slices of the build plan built so far
+BUILT = 2                     # the slices of the build plan built so far
 
 
 def load(path=SCENES) -> list[dict]:

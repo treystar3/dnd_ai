@@ -134,8 +134,12 @@ class ExitActions:
             self.narrate(self.fork_text(gp, top), text)
         except LLMError:
             console.narrate(f"The road forks ahead: {', or '.join(exits.option_label(m) for m in members)}.")
+        chosen = exits.pick(gp, text)                 # (f395) the road the line already named: a night took the left fork after
+        if chosen:                                    # the player named the Cairn Road, because only the answers to the question were read
+            console.note(f"You take {exits.option_label(chosen)}.")
+            self.travel_route(chosen["to"], text, already=fork, events=events)
+            return
         console.note("The road forks: " + "; ".join(exits.option_label(m) for m in members) + ". Which way?")
-        chosen = None
         for _ in range(3):
             answer = console.ask()
             if exits.wants_back(answer):

@@ -53,6 +53,7 @@ from scenes.pastime_actions import PastimeActions
 from scenes import plan_repairs
 from scenes.plan_repairs import PlanRepairs
 from scenes.part_actions import PartActions
+from scenes.listening import Listening
 from scenes import markup
 from engine import entities, features, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
@@ -79,7 +80,7 @@ SEARCH = encounters.E
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
-                 PastimeActions, PlanRepairs, PartActions):
+                 PastimeActions, PlanRepairs, PartActions, Listening):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -2755,7 +2756,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             late = clock.period(self.minutes) in ("evening", "night", "deep night")
             self.on_wait(ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60), text)
             return                                          # (f386) a line that only goes to sleep is a rest, not a gamble rolled as hiding
-        world_improv.resolve(self, intent.summary or text, text)
+        spot = features.spot_of(self)
+        if spot is not None and spot.data.get("clue") and not spot.data.get("read") and \
+                any(w in f"{intent.summary} {text}".lower().split() for w in self.CLUE_WORDS) and self.search_part(intent, text):
+            return                                          # (f395) reading the marks where the player stands: what the part holds
+        from engine import ruling
+        ruling.run(self, intent.summary or text, text)      # (f395) the dungeon master's ruling: make room, set the stakes, or say no
 
 
 from scenes import intercepts as _intercepts                                     # noqa: E402

@@ -26,12 +26,13 @@ Give a short reason."""
 class AuditActions:
 
     def situation(self) -> ia.Situation:
+        from scenes.work_actions import offer_open
         sit = ia.Situation(
             present=__import__("engine.truth", fromlist=["scene_of"]).scene_of(self).present_ids(),   # (f313) the one list everyone reads
             abilities={k: a.name for a in self.player.character.actives for k in (a.id.lower(), a.name.lower())},
             place=self.place.name, wildlife=bool(self.wildlife),
             partner=self.partner.label() if self.partner else "",
-            workers={n.id for n in self.present if n.work_offer}, people_at=self.people_at)
+            workers={n.id for n in self.present if offer_open(n, self.minutes)}, people_at=self.people_at)
         sit.lines = [f"Place: {sit.place}.", "People here: " + (", ".join(sit.present.values()) or "no one") + ".",
                      "Talking with: " + (sit.partner or "no one") + ".",
                      "Pack: " + (", ".join(self.pack_names()) or "empty") + "."]

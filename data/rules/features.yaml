@@ -92,6 +92,21 @@ budget:
   adopt_per_passage: 2    # parts one passage of the narrator may name into being
   step_minutes: 5         # walking from one part of a place to the next
 
+# (f395) What an attempt may make of a part of the place (engine/ruling.py: the ruling's `changes`), kept on the part. hours: how long it
+# lasts (0: until something undoes it); shows: how it is told beside the part's name (empty: it only undoes others); shuts: the way to the
+# part is closed while it lasts; undoes: the states it ends. A partial result lasts half as long.
+becomes:
+  lit:       {hours: 8,  shows: "lit",       undoes: [dark]}
+  dark:      {hours: 0,  shows: "dark",      undoes: [lit]}
+  blocked:   {hours: 24, shows: "blocked",   shuts: true, undoes: []}
+  barred:    {hours: 0,  shows: "barred",    shuts: true, undoes: []}
+  opened:    {hours: 0,  shows: "",          undoes: [blocked, barred, collapsed]}
+  cleared:   {hours: 0,  shows: "",          undoes: [blocked, collapsed, flooded, fouled]}
+  flooded:   {hours: 6,  shows: "flooded",   shuts: true, undoes: []}
+  collapsed: {hours: 0,  shows: "collapsed", shuts: true, undoes: [lit]}
+  fouled:    {hours: 12, shows: "fouled",    undoes: []}
+  marked:    {hours: 0,  shows: "marked",    undoes: []}
+
 # The tide, for parts open only at low water (places.yaml: open: low_tide). A tide turns every 745 minutes (12 h 25 min); the first high
 # water of the world is at minute 360 (dawn on the first day). Low water is the 300 minutes around the middle of each turn.
 tide: {period: 745, first_high: 360, low_half_width: 150}

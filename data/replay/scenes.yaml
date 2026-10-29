@@ -151,12 +151,25 @@
       ruling: {sense: "yes", why: "a hermit living here would hear", needs: [{kind: person, name: "the hermit", what: "an old recluse who lives in the dry chamber", role: "hermit"}]}
       then: {refused: false, facade: false, present: hermit}
 
+- name: middle_block
+  slice: 2
+  about: wedging the way into the dry chamber shut keeps it shut, and walking there is told so
+  start: {place: tidepool_caves, minutes: 720, level: 10}
+  steps:
+    - say: "I wedge driftwood across the way into the dry chamber."
+      reads: [{kind: other, summary: "wedges driftwood across the way into the dry chamber"}]
+      ruling: {sense: "yes", why: "there is driftwood enough", needs: [], changes: [{part: "the dry chamber", becomes: "blocked"}]}
+      then: {refused: false, made: 0, told_has: ["blocked"]}
+    - say: "I go to the dry chamber."
+      reads: [{kind: move, destination: "the dry chamber"}]
+      then: {note_has: ["blocked"], facade: false}
+
 - name: grounded_coins
   slice: 2
   about: handing over the coins gives coins, never something else in the pack whose name holds 'silver'
   start: {place: trading_square, minutes: 720, level: 10, coins: 500, pack: [silverleaf], present: [{id: m1, name: Osric Vane, role: merchant}]}
   steps:
-    - say: "I hand over the coins to the merchant."
+    - say: "I hand over five silver coins to the merchant."
       reads: [{kind: give, item: "silverleaf", target: "m1"}]        # what the interpreter read on a night: the word 'silver' in the pack
       then: {has: [silverleaf], coins_spent: true}
 

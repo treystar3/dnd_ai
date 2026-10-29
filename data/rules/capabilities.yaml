@@ -1,0 +1,55 @@
+# WHAT A CHARACTER CAN DO BEYOND THE ORDINARY (f395, engine/ruling.py; GOAL.md: the engine knows what the character can and cannot do).
+# The dungeon master's ruling may say yes to anything that makes sense; a yes that needs one of these is a no unless the character has
+# it. "I grow wings and fly away" needs flight: a character with nothing that grants it is answered in the world, and nothing is made.
+#
+# Each: what it is (for the ruling), what grants it (a field use of an ability, a people, the character's own list - Character.capabilities,
+# given by the story or an item), and the in-world answer when it is lacking.
+
+flight:
+  about: flying under one's own power
+  grants: {}
+  lacking: "No wings answer. Your arms are only arms, and the ground keeps you."
+pass_through:
+  about: passing through walls or solid things
+  grants: {}
+  lacking: "The wall is a wall. It does not give."
+teleport:
+  about: being somewhere else in an instant, without the road between
+  grants: {}
+  lacking: "You will the distance away, and it stays. The road is the only way there."
+water_breathing:
+  about: breathing water as if it were air
+  grants: {look_element: [water]}
+  lacking: "Your lungs want air. Under the water, you would have only as long as one breath."
+shape_change:
+  about: taking another shape or size
+  grants: {}
+  lacking: "You are what you are; your body keeps its shape."
+mind_reading:
+  about: hearing another's thoughts
+  grants: {}
+  lacking: "Their face tells you what faces tell anyone, and no more."
+raise_dead:
+  about: bringing the dead back to life or unlife
+  grants: {}
+  lacking: "The dead stay dead. Nothing you know reaches that far."
+invisibility:
+  about: not being seen at all, in plain view
+  grants: {}
+  lacking: "There is nowhere to hide in plain sight; you are as seen as ever. Cover and shadow would serve better."
+speak_with_beasts:
+  about: talking with animals and understanding them
+  grants: {field: [beastspeak]}
+  lacking: "It watches you, and makes the sounds its kind makes. Whatever it knows, it keeps."
+speak_with_dead:
+  about: asking the dead and being answered
+  grants: {field: [speak_corpse]}
+  lacking: "The dead keep their counsel. Nothing you know can make them speak."
+darkvision:
+  about: seeing in darkness without light
+  grants: {people: [dwarf, elf, half_elf, gnome, orc]}
+  lacking: "It is dark, and your eyes need light. A torch, a lamp, or slow care feeling the way."
+summoning:
+  about: calling a creature or a being out of nothing
+  grants: {ability_effect: [summon]}
+  lacking: "Nothing comes when you call it out of the air; what you summon, you summon with an art you do not have."

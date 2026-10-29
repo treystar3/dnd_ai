@@ -246,7 +246,8 @@ def goal_lines(rows: list[dict], info: dict) -> list[str]:
     hours = float(info.get("hours") or 0) or 1.0
     return [f"| Facades met / dead ends | {kinds.get('facade', 0)} / {kinds.get('dead_end', 0)} |",
             f"| Attempts the world made room for / said no to in the world | {outcomes.get('made', 0)} / {kinds.get('refused', 0)} |",
-            f"| Additions to the world per hour | {outcomes.get('made', 0) / hours:.1f} |"]
+            f"| Additions to the world per hour | {outcomes.get('made', 0) / hours:.1f} |",
+            f"| Parts made different by an attempt (blocked, lit, cleared...) | {outcomes.get('changed', 0)} |"]
 
 
 def summarise(run_dir: Path) -> str:

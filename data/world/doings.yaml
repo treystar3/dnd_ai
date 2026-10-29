@@ -334,6 +334,18 @@ by_role:
     - "resting with a warm drink"
     - "telling a story"
     - {text: "packing a lute", when: [morning, dawn]}
+  hermit:                                   # (f395) made only when the world makes room for one (engine/ruling.py)
+    - "mending a net"
+    - "feeding a small fire"
+    - "sorting shells"
+    - "watching the water"
+    - {text: "sleeping under a ragged blanket", when: [night, deep night]}
+  wanderer:                                 # (f395) the same
+    - "resting sore feet"
+    - "shaking out a boot"
+    - "eating from a pack"
+    - "looking about"
+    - {text: "unrolling a bedroll", when: [evening, night]}
 
 by_person:
   maren:

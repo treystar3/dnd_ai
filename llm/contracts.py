@@ -455,6 +455,75 @@ class Clarify(BaseModel):
     _blank = blank_placeholders("line")
 
 
+class Need(BaseModel):
+    """(f395) Something the world must hold for an attempt, that it does not hold yet: a part of the place, a person, a thing, a way."""
+    kind: Literal["feature", "person", "thing", "way"] = "feature"
+    name: str = ""
+    what: str = ""
+    where: str = ""
+    role: str = ""
+
+
+class Stakes(BaseModel):
+    check: str = ""
+    hard: Literal["", "easy", "fair", "hard"] = ""
+
+
+class Change(BaseModel):
+    """(f395) What an attempt, if it works, makes different about a part of the place: its name (empty: where the player stands), and
+    what it becomes (features.yaml becomes)."""
+    part: str = ""
+    becomes: str = ""
+
+
+class Ruling(BaseModel):
+    """(f395) The dungeon master's ruling on one thing the player tries (engine/ruling.py; GOAL.md). sense: yes (it makes sense here and
+    they can simply do it), cost (it makes sense, at a cost: time, effort, a check, a risk), no (it does not make sense in this world, or
+    for this character). needs: what the world must hold for it that it does not hold yet. requires: what it needs beyond the ordinary,
+    from CAPABILITIES, whether or not the player has it (the game checks). For a no, answer: what happens instead, in the world."""
+    sense: Literal["yes", "cost", "no"]
+    why: str = ""
+    needs: list[Need] = []
+    requires: list[str] = []
+    stakes: Stakes = Stakes()
+    changes: list[Change] = []
+    answer: str = ""
+    instead: list[str] = []
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        caps = ctx.get("capabilities") or []
+        self.requires = [r.strip().lower() for r in self.requires if r and r.strip()]
+        wrong = [r for r in self.requires if caps and r not in caps]
+        if wrong:
+            raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
+        if self.sense == "no" and not self.answer.strip():
+            raise ValueError("a no needs `answer`: what happens instead, in one or two sentences of the world, as the player would see it")
+        if len(self.needs) > 2:
+            raise ValueError("at most two needs: only what the attempt cannot happen without")
+        if any(not n.name.strip() for n in self.needs):
+            raise ValueError("every need has a short name ('the high ledge', 'the hermit')")
+        if self.stakes.check and ctx.get("checks") and self.stakes.check not in ctx["checks"]:
+            self.stakes.check = ""
+        roles = ctx.get("roles") or []
+        for n in self.needs:
+            if n.kind == "person" and roles and n.role not in roles:
+                n.role = ""
+        self.instead = [i for i in self.instead if i and i.strip()][:2]
+        becomes = ctx.get("becomes") or []
+        for ch in self.changes:
+            ch.becomes = (ch.becomes or "").strip().lower()
+        wrong = [ch.becomes for ch in self.changes if becomes and ch.becomes not in becomes]
+        if wrong:
+            raise ValueError(f"changes: becomes is one of BECOMES ({', '.join(becomes)}), not {', '.join(wrong)}")
+        if len(self.changes) > 2:
+            raise ValueError("at most two changes: only what lasts")
+        if self.sense == "no":
+            self.changes = []
+        return self
+
+
 class PlayerLine(BaseModel):
     """(f368) What the night bot types next (tools/nightbot.py): one line as a player would type it, from the scene, the goal and what
     the game just said. The names the goal turns on (must_name in the context: a place, a person, a creature) must be in it, or the

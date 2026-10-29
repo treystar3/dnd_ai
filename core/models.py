@@ -256,6 +256,7 @@ class Character(BaseModel):
     look_text: str = ""                        # (f388) the one sentence the world sees ("A stocky dwarf woman with braided copper hair...")
     uses_companions: bool = False      # keeps companions: tamed, living creatures that grow with them
     start_weapon: str = ""            # (f389) the weapon chosen at the Threshold and shown on the attributes page; the kit hands it over
+    capabilities: list[str] = []      # (f395) what the story or an item has given them beyond the ordinary (data/rules/capabilities.yaml)
     summoner: bool = False             # makes summons with magic (engine/summons.py); a summon is never a companion
     bound_summon: str = ""             # the summon ability whose Bound summon walks with them now
     bound_broken: bool = False         # that Bound summon was unmade in a fight and has not been cast again

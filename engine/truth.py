@@ -281,8 +281,9 @@ def _present_people(ws) -> list[Present]:
     for n in ws.present:
         who = entities.identity(ws, n.id)                                    # (f392) she or he, and their people: never guessed at
         people = f"{who.pronoun}, {who.people}" if who else (ws.world.peoples[n.people].name if n.people in ws.world.peoples else n.people)
+        from scenes.work_actions import offer_open                  # (f395) an offer that still stands
         note = (f"Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
-                "and 'taking the pay' once it is done is part of that work." if n.work_offer else "")
+                "and 'taking the pay' once it is done is part of that work." if offer_open(n, ws.minutes) else "")
         out.append(Present(id=n.id, name=n.name or n.label(), label=n.label(), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
                            desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}." + (f" Lately: {n.mood}." if n.mood else ""),   # (f334) a mood shows
                            note=note, plain=n.description or "",
