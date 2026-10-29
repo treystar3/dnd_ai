@@ -134,6 +134,14 @@ def _v8_hire_pronouns(store) -> None:
     store.save_player(player)
 
 
+def _v9_entities(store) -> None:
+    """(f392) The registry. Nothing is moved into it: what it keeps is registered as it happens (engine/entities.py), and an older save
+    simply starts with it empty."""
+    from storage.campaign import SCHEMA_V3
+    for stmt in [s.strip() for s in SCHEMA_V3.split(";") if s.strip()]:
+        store.execute(stmt)
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -143,6 +151,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (6, "Maren after the lesson keeps the voice she was written with", _v6_maren_voice),
     (7, "Maren leaves Parth once the lesson is over, on the capital's work", _v7_maren_moves_on),
     (8, "every hire keeps the pronoun they were drawn with", _v8_hire_pronouns),
+    (9, "the registry of who someone is and what has become of them", _v9_entities),
 ]
 
 CURRENT = MIGRATIONS[-1][0]

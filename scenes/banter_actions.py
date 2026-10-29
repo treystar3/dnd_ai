@@ -7,6 +7,7 @@ from __future__ import annotations
 import random
 
 import config
+from engine import entities
 from engine import banter, clock, money, mentor, pulse, quirks, weather
 from engine import party as rules
 from llm.contracts import Exchange, PairDynamic
@@ -164,7 +165,8 @@ class BanterActions:
             frame = fresh("dialogue_frame", wp.EXCHANGE_SYSTEM,
                           wp.exchange_request(self.time_label(), self.place, speakers, others, spoken[0], spoken[-1], self.recent_narration,
                                               P["frame"]["exchange_fight" if in_fight else "exchange"], self.player.character.name,
-                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight)),
+                                              reach=reach.within("", self.place.type), moment=reach.moment(fight=in_fight),
+                                              who=entities.who_is_who(self)),                         # (f392) she, elf: never guessed at
                           DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS)
             after = "" if in_fight else frame.after
             self.remember_narration(" ".join(t for t in (frame.before, after) if t.strip()),
@@ -444,15 +446,18 @@ class BanterActions:
         emotion = severity.emotion(hit) or emotion                      # devastated: their own way of breaking, over any other feeling
         struck = severity.register(hit, in_fight) if hit else ""
         speak = quirks.blueprint(m, rng_v if query is not None else None)
+        own = rules.pronoun_of(m, self.store.meta.seed, self.player.party_used)
         v = quirks.voice_prompt(m, rng_v if query is not None else None)
         g = quirks.growth(m)
         from engine import voices
         kit = [f"{k[0].upper()}{k[1:]}." for k in voices.lines(voices.kit_of(m))]            # (f350) their kit: always, it is the voice
-        mine = kit + ([f"In speech, {v}."] if v else []) + ([f"With the player, they have changed: {g}; let it show, never say it."] if g else [])
+        mine = kit + ([f"In speech, {v}."] if v else []) + ([entities.gendered(f"With the player, they have changed: {g}; let it show, never say it.", own)] if g else [])
         room = self.HOW_BUDGET - len(speak) - len(mine) + len(kit)   # at most HOW_BUDGET lines on how they speak besides the kit, in any one reply
         profile = voice_profile.compile(m, rng_v, emotion, relation, toward, budget=room, feature=self.culture_now(m)) if query is not None else []
-        how = " ".join(([struck] if struck else []) + speak + mine + profile)
-        facts = f"A hired {m['role']}, {m.get('blurb', '')}." + (" " + voice_profile.who(m) if voice_profile.who(m) else "")
+        how = entities.gendered(" ".join(([struck] if struck else []) + speak + mine + profile), own)    # (f392) all of it about them, in their pronoun
+        me = entities.identity(self, f"hire:{m['id']}")                         # (f392) who they are: their own pronoun and people, never guessed
+        facts = entities.gendered(f"A hired {m['role']} ({me.tag() if me else own}), {m.get('blurb', '')}."
+                                  + (" " + voice_profile.who(m) if voice_profile.who(m) else ""), own)
         records = [r for r in self.companion_records(m) if r.get("kind") not in without]
         rng = random.Random(f"{self.store.meta.seed}:{self.minutes}:{m['id']}")
         chosen, notes = context.select(m, records, "full" if query is None else scene, query, self.minutes, rng)

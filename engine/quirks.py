@@ -23,8 +23,9 @@ PRONOUNS = {"she": ("her", "her", "she", "hands"), "he": ("his", "him", "he", "h
 
 
 def pronouns(member: dict) -> dict:
-    """{their, them, they, they_cap, hand}: a hire's pronouns are theirs if set, else 'they'."""
-    p = member.get("pronoun") or "they"
+    """{their, them, they, they_cap, hand}: a hire's own pronouns (f392: the one source, engine/party.pronoun_of; reading the row's field
+    directly gave 'they' to every hire whose pronoun had not been read yet, and the model guessed)."""
+    p = rules.pronoun_of(member)
     their, them, they, hand = PRONOUNS.get(p, PRONOUNS["they"])
     return {"their": their, "them": them, "they": they, "they_cap": they.capitalize(), "hand": hand}
 
@@ -170,7 +171,8 @@ def growth(member: dict) -> str:
     if not table:
         return ""
     temper = (member.get("temper") or [""])[0]
-    return table.get(temper) or table.get("default", "")
+    from engine.entities import gendered
+    return gendered(table.get(temper) or table.get("default", ""), rules.pronoun_of(member))     # (f392) 'turns her back', not 'their'
 
 
 def nickname(member: dict) -> str:
@@ -195,7 +197,8 @@ def core_lines(member: dict) -> str:
         bits.append(f"A weakness they know of: {f}.")
     g = growth(member)
     if g:
-        bits.append(f"With the player, they have changed: {g}.")
+        p = pronouns(member)["they"]
+        bits.append(f"With the player, {p} {'have' if p == 'they' else 'has'} changed: {g}.")
     return " ".join(bits)
 
 
@@ -605,7 +608,8 @@ def subtext(member: dict, situation: str) -> str:
     if not table:
         return ""
     temper = (member.get("temper") or [""])[0]
-    return table.get(temper) or table.get("default", "")
+    from engine.entities import gendered
+    return gendered(table.get(temper) or table.get("default", ""), rules.pronoun_of(member))     # (f392)
 
 
 # ---------- small personal details ----------

@@ -140,7 +140,7 @@ foe = combat.fighter_from_creature(world.bestiary["wolf"], 3, "normal", "e1", "r
 sc = CombatScene.__new__(CombatScene); sc.ws = ws; sc.fight = combat.Combat(fighters=[me, fen, m_f, foe], place="x", conditions=[])
 looks = sc.ally_looks()
 mine = next((l for l in looks if l.startswith(mage["name"])), "")
-check("the narrator is told each hire's pronoun and what they fight with", f"({party.pronoun_pair(mage['pronoun'])})" in mine and "never a bow, a crossbow" in mine, looks)
+check("the narrator is told each hire's pronoun and what they fight with", f"({party.pronoun_pair(mage['pronoun'])}" in mine and "never a bow, a crossbow" in mine, looks)
 check("...and the player's beast, as theirs, she or he, the same each time", any(l.startswith("Fenris (") and "the player's own wolf" in l for l in looks)
       and ws.player.character.companions[0].pronoun in ("she", "he"), looks)
 req = cp.narrate_request("x", "t", "hit it", ["You hit"], "fists", "fine", ["shark"], 2, allies=looks)

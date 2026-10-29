@@ -1,7 +1,7 @@
 """How hard a moment hits each companion (engine/severity.py): the same path for a death, a betrayal and something grim found; the level
 from how grave it is and what the one it concerns is to them; how it changes the way they speak; what it leaves behind, once; a hire
 killed mid-fight is reacted to at once, and the fight is always talked over afterwards. The stub stands in for the model."""
-import collections, random, shutil, sys, types
+import re, collections, random, shutil, sys, types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -79,8 +79,8 @@ SAID.clear()
 w.party_moment("Tamsin Reed has just been killed in front of them.", "heavy", "s3", "Tamsin Reed's death", in_fight=True)
 txt = reqs[-1] if reqs else ""
 check("killed mid-fight: everyone left speaks at once, in one exchange", sorted(w.last_plan.speaker_ids) == ["s1", "s2"], director.explain(w.last_plan, {m["id"]: m["name"] for m in crew}))
-check("...Bram is told he is devastated, and how he breaks", "This has devastated them" in txt and "Right now they are devastated" in txt, txt[:1500])
-check("...Isel only sobered", "This has sobered them" in txt, txt[:1500])
+check("...Bram is told he is devastated, and how he breaks", re.search(r"This has devastated (them|him|her)", txt) and re.search(r"Right now (they are|he is|she is) devastated", txt), txt[:1500])
+check("...Isel only sobered", re.search(r"This has sobered (them|him|her)", txt), txt[:1500])
 check("...and in the middle of the fight it is one outburst each", "one short outburst" in txt and "WRITE 1 TO 2 LINES" in txt and "Bram Voss may answer with no words" in txt, txt[-700:])
 check("...how Bram breaks is his own, kept on him", bool(bram["speech"]["tells"].get("devastated")), bram["speech"])
 

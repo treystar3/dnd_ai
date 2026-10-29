@@ -2,6 +2,7 @@
 tracking and the fight, can be talked to throughout, and a troll that should not be there turns up. The rules and the state are in
 engine/mentor.py; the fixed words are in data/world/mentor.yaml. Her free answers come from the model with a locked fact sheet, so
 she can't invent a rule. The first hunt can't be lost: the player's health holds at 1."""
+from engine import entities
 from engine import combat, encounters, inventory, mentor, money, pools, voice_rules
 import config
 import re
@@ -68,7 +69,8 @@ class MentorActions:
                               wp.dialogue_request(self.time_label(), self.place, others, label, looks, doing, manner, not introduced,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration, M["frame"]["shows"],
                                                   reach=within, moment=moment, already=self.shown_lines(),
-                                                  why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"]),
+                                                  why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"],
+                                                  who_is=entities.who_is_who(self, also=["maren"])),       # (f392)
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)})
                 before, after = frame.before, frame.after

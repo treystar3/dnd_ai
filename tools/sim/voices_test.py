@@ -129,7 +129,9 @@ ws.player.party.append(m)
 ws.quirked(m)
 check("an old save's hire gets a kit the first time they are spoken to", bool(voices.kit_of(m)))
 how, core = ws.companion_parts(m, "how are you", emotion="", relation="", toward="the player")
-check("a hire's HOW YOU SPEAK carries the kit", all(l[0].upper() + l[1:] in how for l in voices.lines(voices.kit_of(m))), how[:300])
+from engine import entities as _ent, party as _party
+check("a hire's HOW YOU SPEAK carries the kit, said with their pronoun", all(_ent.gendered(l[0].upper() + l[1:], _party.pronoun_of(m)) in how
+                                                                          for l in voices.lines(voices.kit_of(m))), how[:300])
 text = npr.conversation_prompt(types.SimpleNamespace(id="n1", name="Hesk", people="halfling", role="baker", location="parth", description="d", personality="p", voice="a slow gravelly rumble",
                                                      concern="c", activity="a", met_player=False, knows_player_as="", trust=50, memories=[], work_offer=None, stock=[],
                                                      speech={"kit": terse}, said=[], heard=[]),

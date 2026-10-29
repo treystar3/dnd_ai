@@ -265,6 +265,8 @@ def check() -> list[str]:
     bad += _guard.problems()
     from engine import hygiene as _hygiene                                                    # (f391) the output gate's rules
     bad += _hygiene.problems()
+    from engine import entities as _entities                                                  # (f392) the lifecycles
+    bad += _entities.problems()
     from engine import trust as _trust                                                        # (f362) trust moved by the engine, by a reply's intent
     import typing as _typing
     from llm.contracts import NPCReply as _NPCReply

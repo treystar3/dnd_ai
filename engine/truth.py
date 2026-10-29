@@ -277,8 +277,10 @@ def their_work(label: str, role: str) -> str:
 def _present_people(ws) -> list[Present]:
     from npc.life import manner
     out = []
+    from engine import entities
     for n in ws.present:
-        people = ws.world.peoples[n.people].name if n.people in ws.world.peoples else n.people
+        who = entities.identity(ws, n.id)                                    # (f392) she or he, and their people: never guessed at
+        people = f"{who.pronoun}, {who.people}" if who else (ws.world.peoples[n.people].name if n.people in ws.world.peoples else n.people)
         note = (f"Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
                 "and 'taking the pay' once it is done is part of that work." if n.work_offer else "")
         out.append(Present(id=n.id, name=n.name or n.label(), label=n.label(), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
@@ -287,14 +289,15 @@ def _present_people(ws) -> list[Present]:
                            local=ws.world.locals_group(n.location) or ""))
     her = ws.mentor_person()
     if her:
-        out.append(Present(id="maren", name=her[0], label=her[0], desc=her[1], doing=her[2], kind="maren",
+        out.append(Present(id="maren", name=her[0], label=her[0], desc=her[1].replace("(human)", "(she, human)", 1), doing=her[2], kind="maren",
                            note="travelling with the player; speech to her is talk with target maren"))
     for hid, name, desc, doing in ws.hire_people():
         out.append(Present(id=hid, name=name, label=name, desc=desc, doing=doing, kind="hire",
                            note=f"hired, travelling with the player; speech to them is talk with target {hid}"))
     for comp in [c for c in getattr(ws.player.character, "companions", None) or [] if c.active and c.name]:     # (f384) Fenris, at your side
         kind_of = (ws.world.bestiary[comp.creature].name.lower() if comp.creature in ws.world.bestiary else (comp.kind or "animal"))
-        out.append(Present(id=f"companion:{comp.id}", name=comp.name, label=comp.name, desc=f"the player's own {kind_of}, at their side",
+        out.append(Present(id=f"companion:{comp.id}", name=comp.name, label=comp.name,
+                           desc=f"({entities.identity(ws, f'companion:{comp.id}').pronoun}) the player's own {kind_of}, at the player's side",
                            doing="at the player's side", kind="companion",
                            note="the player's own companion: telling it to track, sniff out or hunt something is search; it is not talked with"))
     if ws.wildlife:

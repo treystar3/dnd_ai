@@ -9,6 +9,7 @@ import random
 import re
 import config
 
+from engine import entities
 from engine import arcs, party as rules, quests
 from engine.party import P
 from llm.contracts import ActionIntent, CompanionReply, PartyIntent
@@ -423,7 +424,8 @@ class PartyActions:
                 continue
             rank = m.get("rank") or rules.rank_of(m["level"])
             p = rules.pronoun_pair(rules.pronoun_of(m, self.store.meta.seed, self.player.party_used))         # (f385) the same she or he every time
-            out.append((f"hire:{m['id']}", m["name"], f"(a hired {m['role']}, rank {rank}; {p}) {m.get('blurb', '')} Manner: {self.temper_text(m)}.",
+            folk = entities.people_word(self.world, m.get("people", ""))                                      # (f392) and their people
+            out.append((f"hire:{m['id']}", m["name"], f"(a hired {m['role']}, rank {rank}; {p}{', ' + folk if folk else ''}) {m.get('blurb', '')} Manner: {self.temper_text(m)}.",
                         "travelling with the player, close at hand"))
         return out
 
@@ -613,7 +615,8 @@ class PartyActions:
             from scenes.voice import fresh
             others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present][:4] + [f"{o['name']}: travelling with the player" for o in self.player.party
                                                                                  if o is not m and o.get("permanent") and not o.get("story")][:3]
-            looks = f"({(m.get('people') or 'human').replace('_', '-')} {m.get('role', '')}, rank {m.get('rank', 'F')}) {m.get('blurb', '')}".strip()
+            who = entities.identity(self, f"hire:{m['id']}") if m.get("id") else None                # (f392) she, elf: never guessed at
+            looks = f"({who.tag() if who else (m.get('people') or 'human').replace('_', '-')}; {m.get('role', '')}, rank {m.get('rank', 'F')}) {m.get('blurb', '')}".strip()
             doing = "in the fight beside the player" if in_fight else "travelling with the player, close at hand"
             from engine import quirks as _q, reach              # (f344) what they carry and what the place offers; tense in a fight
             within = reach.within("", self.place.type, carries=[x.strip() for x in _q.CARRY.get(m.get("role", ""), "").split(",") if x.strip()])
@@ -622,7 +625,7 @@ class PartyActions:
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
                                                   P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
-                                                  why=why, already=self.shown_lines(), worn=self.worn_words("prose")),
+                                                  why=why, already=self.shown_lines(), worn=self.worn_words("prose"), who_is=entities.who_is_who(self)),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
                 after = "" if in_fight else frame.after

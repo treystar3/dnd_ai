@@ -11,6 +11,7 @@ import re
 
 from core.models import Item
 import config
+from engine import entities
 from engine import ability_traits as AT
 from engine import accessories, bosses, inventory, clock, combat, death, events, items, leveling, loot, mentor, money, party, pools, taming
 from llm.contracts import AccessoryName, CombatIntent, GoddessLine, LegendaryName, LootName, Narration
@@ -833,10 +834,11 @@ class CombatScene:
                 continue
             m = members.get(a.id) if a.ally_role else None
             if m is None and a.name == mentor.NAME:
-                m = {"sheet": "maren", "name": a.name, "blurb": "a guild veteran"}
+                m = {"sheet": "maren", "name": a.name, "blurb": "a guild veteran", "people": "human"}
             if m is not None:
                 p = party.pronoun_of(m, ws.store.meta.seed, ws.player.party_used)
-                out.append(f"{a.name} ({party.pronoun_pair(p)}): {m.get('blurb', '').strip()}; fights with {party.fights_as(m)}")
+                folk = entities.people_word(ws.world, m.get("people", ""))                      # (f392) and their people
+                out.append(f"{a.name} ({party.pronoun_pair(p)}{', ' + folk if folk else ''}): {m.get('blurb', '').strip()}; fights with {party.fights_as(m)}")
                 continue
             c = comps.get(a.id)
             if c is not None and combat.is_companion(a):
@@ -1197,6 +1199,7 @@ class CombatScene:
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
             f"PLACE: {self.ws.place.name}\nTIME AND WEATHER: {self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
             f"THE PLAYER IS: {combat.condition(self.fight.player)}\nTHE FALLEN: {fallen}\n"
+            + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS)

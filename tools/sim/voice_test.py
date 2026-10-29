@@ -172,11 +172,12 @@ m["quirks"]["voice"] = "curses"; m["temper"] = ["blunt", "dry"]
 vp.S["regard"].update(show=1, emotional=1)
 how_, _ = w.companion_parts(m, "how is the wound?", emotion="hurting", relation="affection", toward="the player")
 check("with three personality lines and a voice, only the two most pressing profile lines fit: feeling, then regard",
-      "Right now they are hurting" in how_ and "Toward the player" in how_ and "way of talking" not in how_ and "home shows through" not in how_, how_)
+      re.search(r"Right now (they are|she is|he is) hurting", how_) and "Toward the player" in how_ and "way of talking" not in how_ and "home shows through" not in how_, how_)
 vp.S["regard"].update(_R)
 m["bond"] = 40
 how_g, facts_g = w.companion_parts(m, "how is the wound?", emotion="hurting")
-check("how they have changed with the player is in how they speak, counted in the budget, not a fact they recite", "they have changed" in how_g and "they have changed" not in facts_g, (how_g, facts_g))
+check("how they have changed with the player is in how they speak, counted in the budget, not a fact they recite",
+      re.search(r"\b(they have|she has|he has) changed", how_g) and not re.search(r"\b(they have|she has|he has) changed", facts_g), (how_g, facts_g))
 check("the screen never shows what drives a hire", "motive" not in w.hire_facts(m))
 stub.companion = None
 shutil.rmtree("saves/vt", ignore_errors=True)

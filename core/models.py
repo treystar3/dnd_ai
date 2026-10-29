@@ -302,3 +302,25 @@ class Character(BaseModel):
     location: str = "unknown"
     aspirations: list[str] = []
 
+
+
+class Entity(BaseModel):
+    """(f392) One person or thing the player has to do with, in the registry (engine/entities.py, the save's `entities` table): who it is
+    and what has become of it. Townsfolk keep their own records (npc/models.py) and are read through the same identity; what is kept
+    here is what had no home of its own, or lost it: a companion who fell, a captive, a body, a beast at the player's side.
+    ref: 'hire:<id>', 'captive:<npc id>', 'companion:<id>', 'corpse:<n>'. state: a state of its kind's lifecycle (data/rules/lifecycles.yaml)."""
+    ref: str
+    kind: str
+    name: str
+    pronoun: str = "they"
+    people: str = ""                       # a people's id (data/world/peoples.yaml), or a creature's for a beast
+    look: str = ""
+    state: str = ""
+    since: int = 0                         # the minute it came to this state
+    deadline: int = 0                      # the minute something happens unless the player acts first (0: nothing is due)
+    place: str = ""
+    owner: str = ""                        # 'player' while it is the player's (a hire, a captive, a beast)
+    tags: dict[str, int] = {}              # a condition and the minute it ends (0: until it is lifted)
+    links: dict[str, str] = {}             # its other records: npc, fighter, creature, corpse_of
+    data: dict = {}                        # what its kind keeps: role, how they died, what the captive knows...
+    history: list[list] = []               # [minute, from, to, why], the newest last, a few kept

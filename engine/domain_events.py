@@ -42,6 +42,26 @@ class Event:
         return {f.name: getattr(self, f.name) for f in fields(self) if f.name not in ("kind", "minute")}
 
 
+# ---- (f392) the registry: someone moved from one state of their lifecycle to another (engine/entities.py)
+
+@dataclass(frozen=True)
+class StateChanged(Event):
+    kind: str = field(init=False, default="state_changed")
+    ref: str = ""
+    name: str = ""
+    of: str = ""                  # its kind: hire, captive, ...
+    was: str = ""
+    now: str = ""
+    why: str = ""
+
+    @property
+    def target(self) -> str:
+        return self.ref
+
+    def text(self) -> str:
+        return f"{self.name}: {self.was or 'new'} -> {self.now}" + (f" ({self.why})" if self.why else "")
+
+
 # ---- the party
 
 @dataclass(frozen=True)
