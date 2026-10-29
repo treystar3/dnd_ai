@@ -1830,6 +1830,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.go_to_person(row, text)
                 return
             if not any(dest.lower() in pl.name.lower() or dest == pl.id for pl in self.world.places.values()):
+                if self.fresh_trail() and self.toward_trail(dest, text):                 # (f381) going where the signs led
+                    self._following = True
+                    intent.seek = ""
+                    self.on_search(intent, text)
+                    return
+                if self.part_of_here(dest):                                             # (f381) a spot inside this place
+                    self.within_place(dest, text)
+                    return
                 if self.place.danger or self.place.type in ("hut", "camp", "grove", "spring", "shrine", "ford", "cabin", "cave",
                                                             "ruin", "hollow", "overlook") or self.looks_like_exploring(dest, text):
                     intent.seek = intent.seek or dest
@@ -2384,6 +2392,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import matters
         if matters.try_find(self, text):                          # (f317) a matter's find path points here
             return
+        if self.plant_sought(intent.seek):                        # (f381) looking for silverleaf is foraging, not hunting
+            self.on_forage(intent, text)
+            return
         if not self.place.danger:
             self.narrate("The player searches the area. There is no wild game or danger here. Describe the search "
                          "and what ordinary things they notice instead.", text)
@@ -2401,6 +2412,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         chance = SEARCH["chance_on_search"] + (SEARCH["tracker_bonus"] if self.has("tracker") is not None else 0)
         chance += (self.mech("patient_watch") + (self.mech("sniffer") if self.companion_here() else 0)) / 100
+        trail = self.fresh_trail()
+        following = self.__dict__.pop("_following", False)
+        if trail and (following or not intent.seek or self.TRAIL_WORDS.search(intent.seek)
+                      or encounters.matching(self.world, [trail["creature"]], intent.seek)):           # (f381) on the trail just found
+            intent.seek = self.world.bestiary[trail["creature"]].name
+            chance += SEARCH.get("trail", {}).get("bonus", 0)
         quarry = next((q for q in self.player.quests if q["kind"] in ("hunt", "bounty") and q.get("place") ==
                        self.player.location and q["progress"] < q["count"]), None) if self.owns("game_warden") else None
         if quarry:
@@ -2416,17 +2433,38 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 from scenes.combat_scene import CombatScene
                 self.combat = CombatScene.begin(self, creature, enemies, "You find the trail of your quarry:", initiated=True)
                 return
-        if self.maybe_encounter(min(0.95, chance), "Your search pays off:", intent.seek or text):
+        if self.maybe_encounter(min(0.95, chance), "You follow the signs:" if trail and intent.seek else "Your search pays off:",
+                                intent.seek or text):
+            self._trail = None
             return
         if self.wildlife:
             return
         roster = encounters.ensure_roster(self.store, self.world, self.player.location)
         wanted = encounters.matching(self.world, roster, intent.seek) if intent.seek else []
-        clue = self.world.bestiary[self.rng.choice(wanted or roster)].name.lower() if roster else ""
+        pick = self.rng.choice(wanted or roster) if roster else ""
+        clue = self.world.bestiary[pick].name.lower() if pick else ""
+        if pick:
+            self._trail = {"place": self.player.location, "creature": pick, "minutes": self.minutes}     # (f381) signs to follow
         self.narrate(f"The player spends {clue and 'a while '}searching but finds no creature this time. They do find "
                      f"fresh signs of {clue or 'nothing'}: tracks, droppings, or marks. Describe the search and the sign."
                      f"{' The creature they were looking for is not known to live here.' if intent.seek and not wanted else ''}",
                      text)
+
+    TRAIL_WORDS = re.compile(r"\b(tracks?|trail|signs?|prints?|spoor|droppings|marks|it|them|the beast|the creature)\b", re.I)
+
+    def fresh_trail(self) -> dict | None:
+        """(f381) The signs the last search here turned up, while they are fresh: {place, creature, minutes} or None."""
+        t = self.__dict__.get("_trail")
+        if t and t["place"] == self.player.location and self.minutes - t["minutes"] <= SEARCH.get("trail", {}).get("fresh_minutes", 120):
+            return t
+        return None
+
+    def toward_trail(self, dest: str, text: str) -> bool:
+        """(f381) Going where the signs lead: the place named is in the passage that told of them, or the line says to follow them."""
+        last = (self.recent_narration[-1] if self.recent_narration else "").lower()
+        words = [w for w in re.findall(r"[a-z]+", dest.lower()) if len(w) >= 4]
+        return any(re.search(rf"\b{re.escape(w)}", last) for w in words) or bool(re.search(r"\bfollow", text.lower())
+                                                                                   and self.TRAIL_WORDS.search(f"{dest} {text}"))
 
     def fight_buffs(self) -> list[str]:
         """The combat buffs the player named as they started a fight this turn - readied by name, or named in what they wrote (f248)."""

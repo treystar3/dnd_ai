@@ -2,6 +2,7 @@
 anything is there; the model invents what; the engine checks it, keeps it, and puts it on the map."""
 
 import random
+import re
 
 from engine import checks, clock, discovery, pulse
 from engine.discovery import X
@@ -11,7 +12,27 @@ from llm.gateway import LLMError, generate
 from ui import console
 
 
+NOT_A_SPOT = {"north", "south", "east", "west", "back", "away", "road", "path", "trail", "track", "tracks", "area", "place", "side",
+              "edge", "there", "here", "into", "toward", "towards", "deeper", "further", "beyond", "around", "near", "nearby", "other",
+              "over", "from", "with", "that", "this", "where", "somewhere", "something", "anywhere", "hidden", "secret", "shortcut"}
+
+
 class ExploreActions:
+
+    def part_of_here(self, dest: str) -> bool:
+        """(f381) Is `dest` a spot inside where the player is: named by this place's own description, or by the passage they just read?
+        At the Tidepool Caves, 'the dry chamber' is in the place's description and 'the dry chamber's threshold' was where the tracks
+        led; going there was read as setting out to find somewhere new, and the model was asked to invent it."""
+        words = [w for w in re.findall(r"[a-z]+", (dest or "").lower()) if len(w) >= 4 and w not in NOT_A_SPOT]
+        seen = " ".join(list(self.place.visible) + list(self.recent_narration[-1:])).lower()
+        return bool(words) and any(re.search(rf"\b{re.escape(w)}", seen) for w in words)
+
+    def within_place(self, dest: str, text: str) -> None:
+        """(f381) A few steps to that spot: no hours, no invention, nobody added."""
+        self.end_conversation()
+        self.advance(X.get("within_minutes", 5))
+        self.narrate(f"The player walks a short way, still within {self.place.name}, to {dest}. Describe getting there and what is "
+                     "there, from what this place is known to hold; add no one and nothing of value.", text)
 
     def ensure_discoveries(self) -> None:
         discovery.apply_all(self.world, self.store.load_discoveries())

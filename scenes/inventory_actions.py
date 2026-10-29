@@ -438,9 +438,22 @@ class InventoryActions:
         c = self.player.character
         return any(m.active for m in c.companions) or bool(c.bound_summon and not c.bound_broken)   # a companion, or the Bound summon
 
+    def plant_sought(self, seek: str):
+        """(f381) The plant a line is looking for ('search for silverleaf'), or None."""
+        low = (seek or "").lower()
+        return next((g for g in inv.GOODS.values() if g.grows_in and re.search(rf"\b{re.escape(g.name.lower())}", low)), None) if low else None
+
     def on_forage(self, intent, text: str) -> None:
         biome = self.place.biome
         herbs = [g for g in inv.GOODS.values() if biome in g.grows_in]
+        want = self.plant_sought(getattr(intent, "seek", "") or "")
+        if want and biome not in want.grows_in:                                          # (f381) told plainly, not a hunt for tracks
+            self.advance(R["forage_minutes"])
+            self.narrate(f"The player looks for {want.name}, but it does not grow in this kind of country. Describe the search "
+                         "coming up empty of it.", text)
+            return
+        if want:
+            herbs = [want] + [g for g in herbs if g is not want]                         # the plant they came for is looked for first
         if not herbs and not (biome in ("hills", "mountains") and self.owns("prospector")):
             self.narrate("The player looks for useful plants, but nothing worth gathering grows here.", text)
             return

@@ -2066,7 +2066,7 @@
   region: saltmarches
   visible:
     - Caves that flood twice a day, with a second beach of glowing tidepools behind the first chamber.
-    - A hermit lives in the dry chamber and will tell you when the water turns.
+    - The dry chamber stays above the tide; someone long gone scratched the turn of the water into its wall.   # (f381) the hermit it promised lived nowhere
   biome: coast
   danger: [1, 18]
 
