@@ -414,6 +414,26 @@ class CombatScene:
         ("focus", r"\b(take|attack|kill|hit|focus|target|go for|strike|cut down|finish off)\b"),
     )
 
+    NOT = r"\b(don'?t|do not|stop|quit|no more|never|not|no longer|cease)\b"
+    INSTEAD = {"heal": "focus", "guard": "focus", "hold": "focus", "focus": "hold"}      # told only what not to do: the other thing
+
+    def order_kind(self, low: str) -> str:
+        """(f383) Which order the line gives, read past the ones it says not to give: "do not heal me anymore, focus on attacking" was read
+        as heal, the first pattern in the table to match anywhere. An order inside a clause with a not before it, or anymore after it, is
+        not given; of the rest the first in the line is. A line that only says what not to do gives the other thing (stop healing: fight)."""
+        import re
+        hits = []
+        for k, pat in self.ORDER_WORDS:
+            for m in re.finditer(pat, low):
+                start = max(low.rfind(c, 0, m.start()) for c in (",", ";", ".", " but ", " then ", " and ", " instead"))
+                ends = [i for i in (low.find(c, m.end()) for c in (",", ";", ".", " but ", " then ", " and ")) if i >= 0]
+                before, after = low[max(0, start):m.start()], low[m.end():min(ends) if ends else len(low)]
+                hits.append((m.start(), k, bool(re.search(self.NOT, before)) or bool(re.search(r"\b(anymore|any more|no longer)\b", after))))
+        plain = sorted(h for h in hits if not h[2])
+        if plain:
+            return plain[0][1]
+        return self.INSTEAD[sorted(hits)[0][1]] if hits else ""
+
     def order_of(self, text: str):
         """('ally', kind, enemy id) when the line is an order to a party member by name (or to the party), else None. No model call: a plain
         pattern, so an order never costs a turn or a wait."""
@@ -428,7 +448,7 @@ class CombatScene:
         everyone = bool(re.search(r"\b(everyone|all of you|you all|party|you two|you both|team)\b", low))
         if not named and not everyone:
             return None
-        kind = next((k for k, pat in self.ORDER_WORDS if re.search(pat, low)), "")
+        kind = self.order_kind(low)
         if not kind:
             return None
         target = ""
@@ -442,22 +462,21 @@ class CombatScene:
     def give_orders(self, who, kind: str, target: str) -> None:
         f = self.fight
         told = []
+        again = f.order_round == f.round and f.round and any(a.id in f.ordered for a in who)      # (f383) putting this turn's order right
         for a in who:
-            problem = combat.give_order(f, a, kind, target)
+            problem = combat.give_order(f, a, kind, target, same_command=bool(told))     # one order a turn is one command, even to the whole party
             if problem:
                 console.note(problem)
                 if "already given" in problem:
                     return
                 continue
             told.append(a)
-            if len(who) > 1 and a is not who[-1]:
-                f.order_round = 0               # one order a turn is one command, even to the whole party
         if told:
-            f.order_round = f.round
             line = {"focus": "to attack {foe}", "guard": "to guard you", "hold": "to hold back", "heal": "to tend you"}[kind]
             foe = next((e.name for e in f.enemies() if e.id == target), "")
             foe = ("the " + foe) if foe and foe[0].islower() else foe        # "the troll", "the wolf 1", but "Old Brannoch" as is
-            console.narrate(f"You tell {' and '.join(a.name.split()[0] for a in told)} " + line.format(foe=foe or "their foe") + ".")
+            console.narrate(("Instead, you tell " if again else "You tell ") + " and ".join(a.name.split()[0] for a in told) + " "
+                            + line.format(foe=foe or "their foe") + ".")
         self.show()
         self.ws.store.save_combat(self.to_json())
 

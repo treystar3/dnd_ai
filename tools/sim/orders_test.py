@@ -32,6 +32,9 @@ def fight(roles=("fighter", "priest")):
 f, (fighter, priest), (w0, w1) = fight()
 check("a focus order sets the ally's target", combat.give_order(f, fighter, "focus", w1.id) == "" and fighter.order == "focus" and fighter.order_target == w1.id)
 check("only one order a turn", "already given" in combat.give_order(f, priest, "guard"))
+check("(f383) ...but the same ally told again this turn is a correction, and the new order stands", combat.give_order(f, fighter, "guard") == ""
+      and fighter.order == "guard")
+check("...while another ally still waits for the next turn", "already given" in combat.give_order(f, priest, "guard"))
 f.round = 2
 check("...and a new turn allows another", combat.give_order(f, priest, "guard") == "")
 f.round = 3
@@ -81,6 +84,25 @@ check("tending is a heal order", r and r[1] == "heal", r)
 r = sc.order_of("Ayla guard me")
 check("guard me is a guard order", r and r[1] == "guard", r)
 check("a question is not an order", sc.order_of("Ayla, how do I get my hit chance up?") is None)
+r = sc.order_of("Bram Voss, do not heal me anymore, focus on attacking")
+check("(f383) an order the line says not to give is not given: the other one is", r and r[1] == "focus", r)
+r = sc.order_of("Bram, don't heal me")
+check("...and told only what not to do, they do the other thing (stop healing: fight)", r and r[1] == "focus", r)
+r = sc.order_of("Ayla, don't let them reach me, cover me")
+check("...a not that belongs to another clause leaves the order alone", r and r[1] == "guard", r)
+f7, (fa7, pa7), _ = fight()
+sc.fight = f7
+NARR.clear()
+sc.show = lambda: None
+sc.to_json = lambda: {}
+sc.ws = type("WS", (), {"store": type("S", (), {"save_combat": lambda self, x: None})()})()
+sc.give_orders([pa7], "heal", "")
+sc.give_orders([pa7], "focus", f7.enemies()[0].id)
+check("...and a misread order is put right in the same turn, said as a change", pa7.order == "focus" and NARR and NARR[-1].startswith("Instead, you tell Bram"), (pa7.order, NARR))
+f7.round += 1
+sc.give_orders([fa7, pa7], "hold", "")
+check("...while next turn one order to the whole party is still one command", fa7.order == "hold" and pa7.order == "hold", (fa7.order, pa7.order))
+sc.fight = f4
 check("an order to nobody is not an order", sc.order_of("I attack the wolf") is None)
 
 # the damage breakdown names the passive that reduced a hit
