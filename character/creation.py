@@ -292,8 +292,10 @@ def build_character(
     aspiration: str | None,
     concept: str = "",
     who: dict | None = None,
+    weapon: str = "",
 ) -> Character:
-    """`who` (f388): the first page's choices (engine/look.py clean): people, pronoun, look, and the sentence the world sees."""
+    """`who` (f388): the first page's choices (engine/look.py clean): people, pronoun, look, and the sentence the world sees.
+    `weapon` (f389): the weapon chosen at the Threshold, which the kit hands over when they wake."""
     from engine import look as look_mod
     seen = look_mod.clean(who) if who else None
     return Character(
@@ -307,7 +309,7 @@ def build_character(
         class_summary=interp.summary,
         combat_identity=getattr(interp, "combat_identity", "") or "",
         concept=concept,
-        uses_companions=interp.uses_companions, summoner=bool(getattr(interp, "summoner", False)),
+        uses_companions=interp.uses_companions, summoner=bool(getattr(interp, "summoner", False)), start_weapon=weapon,
         primary_attributes=list(interp.primary_attributes),
         elements=list(getattr(interp, "elements", []) or []),
         casting_attribute=casting_attribute(interp) if any(a.resource.value == "mana" for a in actives) else "",

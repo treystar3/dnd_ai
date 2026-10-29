@@ -463,6 +463,9 @@ button.locked:disabled { opacity: .25; }
 .cr-attrs .val { text-align: center; font-size: 16px; font-weight: 700; }
 .cr-attrs .nt { font-size: 12px; color: var(--dim); }
 .cr-attrs .nt.main b { color: var(--accent); }
+.cr-weapon { font-size: 13px; color: var(--dim); margin: 2px 0 4px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+.cr-weapon b { color: var(--ink); }
+.cr-attrs .nt .wp { color: var(--accent); }
 .cr-derived { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--dim); }
 .cr-derived b { color: var(--ink); }
 .cr-say { display: flex; gap: 8px; margin-top: 14px; }

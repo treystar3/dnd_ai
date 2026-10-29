@@ -251,7 +251,8 @@ check("...and nobody is called armed for it", "armed stranger" not in open("data
 from character import kit
 check("a beast-master built around a heavy bludgeon carries one", {"club", "mace", "warhammer"} == {b.id for b in kit.weapon_named(
       "Heavy bludgeon and rhythmic intimidation Beast-Breaker Bard", kit.weapon_options())})
-check("...while one who names no weapon keeps the companion in its place", kit.weapon_named("A tamer who fights beside her wolves", kit.weapon_options()) == [])
+check("...while words that name no weapon name none (the model chooses one: everyone wakes armed, f389)",
+      kit.weapon_named("A tamer who fights beside her wolves", kit.weapon_options()) == [])
 from engine import voices
 check("a hire asks a question back now and then, not every time", all(voices.AXES["questions"]["options"][k]["text"].startswith("now and then, not every time")
                                                                       for k in ("after", "first")))

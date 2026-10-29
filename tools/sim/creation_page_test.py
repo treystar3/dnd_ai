@@ -120,6 +120,32 @@ if have_node:
     want = {p: pools.maximum(c, p) for p in pools.POOLS}
     check("the page's health, stamina and mana are the engine's for the character made", got == want, (got, want))
 
+# ---- (f389) the weapon they will wake with, on the attributes page
+from character import kit
+from engine import combat, items, mentor
+check("the weapon is chosen as the attributes page opens: her words name a hammer, so a warhammer", scene.weapon == "warhammer" and made.start_weapon == "warhammer",
+      (scene.weapon, made.start_weapon))
+check("...and the page shows it, the attribute it hits harder with, and marks that row", body["weapon"] and body["weapon"]["name"] == kit.starting_weapon("warhammer").name
+      and body["weapon"]["attrs"] == ["strength"] and [r["id"] for r in body["rows"] if r["weapon"]] == ["strength"], body["weapon"])
+check("...its blow and hit chance against a wolf grow as that attribute is raised", body["blow"][30] > body["blow"][10] and body["hit"][30] > body["hit"][10]
+      and body["foe"] == "a wolf", (body["blow"][10], body["blow"][30], body["hit"][10], body["hit"][30]))
+woke = made.model_copy(deep=True)
+woke.equipment = {}
+kit_text = kit.give_starting_kit(woke, "Ironbound Bulwark", False, world)
+held = woke.equipment.get("main_hand")
+check("...and it is the very weapon they wake with", held is not None and held.base == "warhammer" and held.name == body["weapon"]["name"], kit_text)
+f = combat.fighter_from_character(woke)
+wolf = combat.fighter_from_creature(world.bestiary[mentor.M["hunt"]["creature"]], 1, "normal", "e1")
+best = max(woke.attributes.strength, 0)
+check("...and the page's blow and hit chance are the fight's for the character made",
+      body["hit"][best] == round(combat.hit_parts(f, wolf, combat.Combat(fighters=[f, wolf]))[0])
+      and body["blow"][best] == round(combat.raw_damage(f, 1.0, {"always"}, random.Random(0), steady=True)), (body["hit"][best], body["blow"][best]))
+check("...and the terminal is told it with the attribute advice", any(g.startswith("You will wake with a ") and "strength" in g for g in scene.guidance), scene.guidance)
+if have_node:
+    best_js = re.search(r"function crWeaponBest\(b, v\) \{.*?\n\}\n", JS, re.S).group(0)
+    out = node(best_js + f"\nconsole.log(crWeaponBest({json.dumps(body)}, {json.dumps(made.attributes.model_dump())}));")
+    check("...and the page looks them up by the same attribute", out == str(made.attributes.strength), out)
+
 # ---- a note during creation is on the page, not behind it
 PAGES.clear()
 s2 = ThresholdScene()

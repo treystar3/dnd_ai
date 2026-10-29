@@ -1,9 +1,11 @@
-"""What a new character wakes up with: a rudimentary weapon - or, for a class that keeps companions, a companion instead - and some coin.
+"""What a new character wakes up with: a rudimentary weapon, a companion as well for a class that keeps companions, and some coin.
 
-A companion is a living creature, tamed, that grows with the player; it takes the weapon's place, unless the class's own words name the
-weapon it fights with (f385: a beast-master whose class was "heavy bludgeon and rhythmic intimidation" woke with a worg and empty hands,
-and punched its way through every fight); then it has both. (A summoner's Bound summon is not
-part of the kit: it is made by its summon ability, engine/summons.py, and the summoner carries a weapon like anyone else.)
+(f389) Everyone wakes armed. A companion is a living creature, tamed, that grows with the player; it used to take the weapon's place,
+and a beast-master woke with a worg and empty hands and punched its way through every fight (f385 armed only the ones whose words named
+a weapon). The weapon is chosen at the Threshold, when the attributes page opens, so the player sees what they will wake with while
+they decide what to raise (scenes/goddess.py); the kit hands over that one (Character.start_weapon) and chooses only for a character made
+without it. (A summoner's Bound summon is not part of the kit: it is made by its summon ability, engine/summons.py, and the summoner
+carries a weapon like anyone else.)
 
 The model only chooses from lists. The engine builds the items, the companion and the purse.
 """
@@ -14,7 +16,7 @@ import re
 from core.models import Character, Companion, Effect
 from engine import items, money
 from llm.contracts import StartingKit
-from llm.gateway import generate
+from llm.gateway import LLMError, generate
 from world.loader import World
 
 KIT_SYSTEM = """You equip a new character in a fantasy role-playing game with the plainest possible starting gear.
@@ -23,8 +25,8 @@ For an ordinary class, choose the one weapon id from WEAPON OPTIONS that best fi
   HOW THEY FIGHT comes first: a spearman carries a spear whatever else they are, an archer a bow, a swordsman a sword.
   Casters use a focus (wand, staff, charm), performers an instrument, archers a bow or sling,
   and martial artists who fight bare-handed use hand wraps.
-When COMPANION OPTIONS are listed, the class keeps a companion INSTEAD of a weapon: choose one creature id from them that fits
-  their theme, give it a short fitting name, and leave weapon empty.
+When COMPANION OPTIONS are listed, choose one creature id from them that fits their theme, give it a short fitting name, and
+  leave weapon empty: their weapon is chosen on its own.
 Respond only with JSON matching the schema."""
 
 from llm.prompts import WORLD_FACTS
@@ -67,7 +69,11 @@ GENERIC = {"heavy", "light", "simple", "thrown", "focus", "hand", "arcane", "war
 def named_weapons(text: str, options: list) -> list:
     """The weapons the class's own words name: a word of theirs that is a weapon word, or one with an agent's ending on it (spearman,
     bowman, axeman, lancer, swordsman), or a calling that means one (archer). The engine decides this; the model only chooses among
-    what fits, so a 'spearman hunter' is never handed a bow for the hunter in them."""
+    what fits, so a 'spearman hunter' is never handed a bow for the hunter in them. (f389) A word of the weapon's own wins over one
+    that fits many: 'heavy hammer and shield' is the warhammer, not every heavy weapon with it."""
+    own = weapon_named(text, options)
+    if own:
+        return own
     said = {w for w in re.findall(r"[a-z]+", (text or "").lower()) if len(w) >= 3}
     said |= {CALLINGS[w] for w in said if w in CALLINGS}
     fits = []
@@ -80,7 +86,7 @@ def named_weapons(text: str, options: list) -> list:
 
 def weapon_named(text: str, options: list) -> list:
     """(f385) The weapons a class's words name by a word of the weapon's own (hammer, bow, bludgeon), not one that fits many (heavy,
-    light): what a companion class carries besides its companion."""
+    light)."""
     said = {w for w in re.findall(r"[a-z]+", (text or "").lower()) if len(w) >= 3}
     said |= {CALLINGS[w] for w in said if w in CALLINGS}
     return [b for b in options if any(w == v + end for w in said for v in weapon_words(b) - GENERIC for end in AGENT_ENDINGS)]
@@ -97,6 +103,8 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
     bound = (f" {(made.summoned.name if made.summoned else made.name)}, the summon they made, stands bound to them."
              if made is not None else "")
     creatures = companion_options(world) if uses_companions else []
+    weapon = starting_weapon(c.start_weapon if _is_weapon(c.start_weapon) else choose_weapon(c, class_text))
+    c.equipment[items.base_of(weapon).slot] = weapon
     if creatures:
         kit = _ask_kit(c, class_text, uses_companions, [], creatures)
         creature = world.bestiary[kit.companion]
@@ -104,15 +112,24 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
         c.companions.append(Companion(id=_slug(name) or creature.id, name=name, creature=creature.id,
                                       kind=creature.category, description=f"a {creature.name.lower()}",
                                       source="bonded before the player woke"))
-        armed = weapon_named(f"{c.concept} {c.combat_identity} {c.custom_class}", weapon_options())
-        if armed:                                                   # (f385) the class names what it fights with: it carries that too
-            chosen = armed[0].id if len(armed) == 1 else _ask_kit(c, class_text, False, armed, []).weapon
-            weapon = items.make(chosen, rules["starting_rarity"])
-            c.equipment[items.base_of(weapon).slot] = weapon
-            return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion - and a {weapon.name} lies "
-                    f"beside them; they carry a small purse of {purse}.{bound}")
-        return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion, in place of any weapon -"
-                f" and they carry a small purse of {purse}.{bound}")
+        return (f"A {creature.name.lower()} named {name} is with them, bonded to them - their companion - and a {weapon.name} lies "
+                f"beside them; they carry a small purse of {purse}.{bound}")
+    return f"A {weapon.name} lies beside them, and they carry a small purse of {purse}.{bound}"
+
+
+def _is_weapon(base_id: str) -> bool:
+    return base_id in items.CATALOG and items.CATALOG[base_id].is_weapon
+
+
+def starting_weapon(base_id: str):
+    """The weapon itself, as the kit hands it over: the plainest make of it, the same every time (the page shows this name)."""
+    return items.make(base_id, items.RULES["starting_rarity"])
+
+
+def choose_weapon(c: Character, class_text: str) -> str:
+    """(f389) The weapon a new character wakes with, for any class: the class's own words decide when they name one (f342), a channeled
+    strike needs a melee weapon (f260), and the model chooses among what is left by how they fight and their strongest attributes. If the
+    model cannot answer, the one their strongest attribute drives best."""
     options = weapon_options()
     if any(getattr(a, "channel", False) for a in c.actives):      # its channeled strikes need a melee weapon in hand (f260)
         options = [b for b in options if b.reach in ("melee", "extended") and b.damage == "physical"] or options
@@ -120,12 +137,11 @@ def give_starting_kit(c: Character, class_text: str, uses_companions: bool, worl
     if named:
         options = named
     if len(options) == 1:
-        chosen = options[0].id
-    else:
-        chosen = _ask_kit(c, class_text, False, options, []).weapon
-    weapon = items.make(chosen, rules["starting_rarity"])
-    c.equipment[items.base_of(weapon).slot] = weapon
-    return f"A {weapon.name} lies beside them, and they carry a small purse of {purse}.{bound}"
+        return options[0].id
+    try:
+        return _ask_kit(c, class_text, c.uses_companions, options, []).weapon
+    except LLMError:
+        return max(options, key=lambda b: max(getattr(c.attributes, a, 0) for a in b.attributes)).id
 
 
 def _ask_kit(c: Character, class_text: str, uses_companions: bool, weapons: list, creatures: list):

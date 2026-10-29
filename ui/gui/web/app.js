@@ -1702,6 +1702,10 @@ function crPools(b, v) {
   }
   return out;
 }
+function crWeaponBest(b, v) {                       // (f389) the attribute the weapon goes by: the best of those it uses
+  return Math.max(...b.weapon_attrs.map((a) => v[a]));
+}
+
 function crBody(card, b) {
   if (!cr.vals) cr.vals = Object.assign({}, b.values);
   const v = cr.vals;
@@ -1714,6 +1718,12 @@ function crBody(card, b) {
   const reset = el("button", "cr-chip", "Reset"); reset.type = "button"; reset.onclick = () => { cr.vals = null; for (const k of Object.keys(b.values)) b.values[k] = b.base; showCreation(cr.d); };
   top.append(sug, reset);
   card.appendChild(top);
+  if (b.weapon) {                                   // (f389) what they will wake with, and what it hits harder with
+    const w = el("div", "cr-weapon");
+    w.append(el("span", "", "You'll wake with "), el("b", "", b.weapon.name),
+             el("span", "", " · hits harder with " + b.weapon.attrs.map((a) => a[0].toUpperCase() + a.slice(1)).join(" or ")));
+    card.appendChild(w);
+  }
   const rows = el("div", "cr-attrs");
   for (const r of b.rows) {
     const name = el("div", "an"); name.append(el("div", "lb", r.label), el("div", "ht", r.hint));
@@ -1723,13 +1733,16 @@ function crBody(card, b) {
     plus.onclick = () => { v[r.id] += 1; showCreation(cr.d); };
     const note = el("div", "nt" + (r.main ? " main" : ""), "");
     if (r.main) { note.append(el("b", "", "main"), document.createTextNode(" for your class")); } else note.textContent = r.note;
+    if (r.weapon) note.append(el("span", "wp", (note.textContent ? " · " : "") + "your " + b.weapon.label.toLowerCase() + (r.main ? "" : " uses it")));
     rows.append(name, minus, el("div", "val", String(v[r.id])), plus, note);
   }
   card.appendChild(rows);
   card.appendChild(el("div", "cr-sep"));
-  const pools = crPools(b, v), hit = b.hit[v.dexterity];
+  const pools = crPools(b, v), best = crWeaponBest(b, v), hit = b.hit[best], blow = b.blow[best];
   const derived = el("div", "cr-derived"); derived.appendChild(el("span", "", "You'd begin with"));
-  for (const [label, val] of [["Health", pools.health], ["Stamina", pools.stamina], ["Mana", pools.mana], ["Hit chance", hit === undefined ? "" : hit + "%"]]) {
+  for (const [label, val] of [["Health", pools.health], ["Stamina", pools.stamina], ["Mana", pools.mana],
+                              [(b.weapon ? b.weapon.label : "Fist") + " blow", blow === undefined ? "" : blow],
+                              ["Hit chance vs " + b.foe, hit === undefined ? "" : hit + "%"]]) {
     if (val === "") continue;
     const s = el("span", "dv"); s.append(document.createTextNode(label + " "), el("b", "", String(val))); derived.appendChild(s);
   }

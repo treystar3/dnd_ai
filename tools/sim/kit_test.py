@@ -1,5 +1,6 @@
-"""Starting kits: a class carries a weapon - or, if it keeps companions, a companion in its place (f222). A summoner's Bound summon is
-made by its ability, not given in the kit, and the narrator hears of it."""
+"""Starting kits: every class carries a weapon, and one that keeps companions a companion as well (f222, f389). A summoner's Bound
+summon is made by its ability, not given in the kit, and the narrator hears of it. The weapon chosen at the Threshold is the one handed
+over (f389)."""
 import sys, random, re
 sys.path.insert(0, ".")
 import simlib
@@ -32,8 +33,8 @@ c, _ = simlib.make_character("warrior", random.Random(1))
 c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0; c.actives = [a for a in c.actives if a.effect.value != "summon"]
 txt = K.give_starting_kit(c, "beast handler", True, world)
 check("a companion class gets its companion", len(c.companions) == 1, txt)
-check("...in place of a weapon", not any(items.base_of(i).is_weapon for i in c.equipment.values()), list(c.equipment))
-check("...and the narrator is told so", "named Rook" in txt and "in place of any weapon" in txt, txt)
+check("...and a weapon as well: everyone wakes armed (f389)", any(items.base_of(i).is_weapon for i in c.equipment.values()), list(c.equipment))
+check("...and the narrator is told of both", "named Rook" in txt and "lies beside them" in txt and "in place of" not in txt, txt)
 
 stub.cls = "summoner"
 c, _ = simlib.make_character("summoner", random.Random(1))
@@ -65,6 +66,27 @@ check("an archer is offered only bows, and the model picks among them", "bow" in
 check("...one call, among the bows", stub.calls.get("StartingKit", 0) == before + 1)
 check("words that name no weapon leave the choice whole", len(K.named_weapons("a hunter of beasts in the wild", K.weapon_options())) == 0
       and "wand" not in [b.id for b in K.named_weapons("a wandering healer", K.weapon_options())])
+
+# (f389) the weapon chosen at the Threshold is handed over, with no model call
+c, _ = simlib.make_character("warrior", random.Random(1))
+c.equipment = {}; c.companions = []; c.kit_given = False; c.coins = 0; c.start_weapon = "spear"
+before = stub.calls.get("StartingKit", 0)
+K.give_starting_kit(c, "warrior", False, world)
+check("the weapon chosen at the Threshold is the one they wake with", items.base_of(c.equipment["main_hand"]).id == "spear"
+      and c.equipment["main_hand"].name == K.starting_weapon("spear").name and stub.calls.get("StartingKit", 0) == before)
+check("a word of the weapon's own wins over one that fits many: 'heavy hammer' is the warhammer",
+      [b.id for b in K.named_weapons("Heavy hammer and shield", K.weapon_options())] == ["warhammer"])
+check("...while a word that fits many still narrows when nothing names a weapon", {"wand", "arcane_staff"} <= {b.id for b in K.named_weapons("an arcane focus", K.weapon_options())})
+def no_model(u, k):
+    raise RuntimeError("down")
+stub.a_StartingKit = no_model
+c, _ = simlib.make_character("warrior", random.Random(1))
+c.actives = [a for a in c.actives if not getattr(a, "channel", False)]
+c.concept, c.combat_identity, c.custom_class = "a wanderer", "whatever comes to hand", "Wanderer"
+got = K.choose_weapon(c, "Wanderer (warrior)")
+top = max(type(c.attributes).model_fields, key=lambda a: getattr(c.attributes, a))
+check("when the model cannot choose, the weapon their strongest attribute drives", top in items.CATALOG[got].attributes, (got, top))
+stub.a_StartingKit = a_StartingKit
 
 ctx = {"needs_companion": True, "weapons": ["dagger"], "companions": ["wolf"]}
 try:

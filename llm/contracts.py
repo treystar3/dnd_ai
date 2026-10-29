@@ -1016,7 +1016,7 @@ class StartingKit(BaseModel):
                 raise ValueError("companion must be one of the ids listed under COMPANION OPTIONS")
             if not self.companion_name.strip():
                 raise ValueError("give the companion a name")
-            self.weapon = ""                                       # a companion takes the weapon's place
+            self.weapon = ""                                       # (f389) the companion is asked for alone; the weapon on its own
         elif self.weapon not in ctx.get("weapons", []):
             raise ValueError("weapon must be one of the ids listed under WEAPON OPTIONS")
         return self

@@ -52,7 +52,7 @@ TAB_OF = {"who": "who", "name": "name", "concept": "calling", "confirm_class": "
 GROUPS = {"abilities": [("all", "All"), ("attack", "Attacks"), ("support", "Defence & support"), ("control", "Control"), ("healing", "Healing"),
                         ("outside", "Outside combat")],
           "traits": [("all", "All"), ("combat", "In a fight"), ("world", "Out in the world")]}
-ATTRIBUTE_HINT = {"strength": "heavy weapons, raw force", "dexterity": "hit chance, dodging, crits", "constitution": "health and stamina",
+ATTRIBUTE_HINT = {"strength": "heavy weapons, raw force", "dexterity": "dodging, crits, acting first", "constitution": "health and stamina",
                   "intelligence": "spells that use it", "wisdom": "perception, will", "charisma": "persuasion, prices, people"}
 
 EXPECTS = {
@@ -82,6 +82,7 @@ class ThresholdScene:
         self.actives = []
         self.passives = []
         self.values: dict[str, int] = {}
+        self.weapon = ""                                   # (f389) what they will wake with, chosen as the attributes page opens
         self.character: Character | None = None
         self.who_choice: dict | None = None                # (f388) the first page's choices (engine/look.py clean)
         self.last_line = ""                                # her last words, for the page
@@ -284,19 +285,47 @@ class ThresholdScene:
                         "line": " · ".join(line), "text": (text or o.description).rstrip(".") + ".", "tip": console.ability_tip(o)})
         return out
 
+    def probe(self, attributes: dict) -> Character:
+        """The character as it would be made with these attributes, to work out what the page shows."""
+        return creation.build_character(self.name or "you", self.interp, list(self.actives), list(self.passives), Attributes(**attributes),
+                                        None, concept=self.concept, weapon=self.weapon)
+
+    def choose_weapon(self) -> str:
+        """(f389) The weapon they will wake with, chosen once the abilities are (a channeled strike needs a blade in hand) and before
+        the attributes, by the class's own attributes, so the player can see what it hits harder with while they shape theirs."""
+        from character import kit
+        i = self.interp
+        return kit.choose_weapon(self.probe(stats.from_priorities(list(i.primary_attributes))), f"{i.custom_class} ({i.archetype.value}): {i.summary}")
+
+    def weapon_line(self) -> str:
+        from character import kit
+        from engine import items
+        w, b = kit.starting_weapon(self.weapon), items.CATALOG[self.weapon]
+        return f"You will wake with a {w.name}: it hits harder with {' or '.join(b.attributes)}."
+
     def body(self) -> dict:
-        """The attributes page: each attribute's place in this class, the suggestion, and what the page needs to work out the pools and
-        the hit chance as the player shapes them (the same sums as engine/pools.py and the stats sheet)."""
+        """The attributes page: each attribute's place in this class, the suggestion, and what the page needs to work out the pools as
+        the player shapes them (the same sums as engine/pools.py and the stats sheet). (f389) And the weapon they will wake with: the
+        attributes it hits harder with, and its blow and hit chance against the first thing they will fight (the Greywood wolf) for
+        each value of the best of those, so raising what the weapon uses shows."""
+        import random as _random
+        from character import kit
         from character.creation import casting_attribute as class_cast
         from core.models import Trigger
-        from engine import combat, pools
+        from engine import combat, items, mentor, pools
         i = self.interp
         uses_mana = any(a.resource.value == "mana" for a in self.actives)
         cast = class_cast(i) if uses_mana else ""
         mains = list(i.primary_attributes)
         suggest = stats.from_priorities(mains)
-        probe = Character(name=self.name or "you", archetype=i.archetype, custom_class=i.custom_class, actives=list(self.actives),
-                          passives=list(self.passives), casting_attribute=cast, attributes=Attributes(**suggest))
+        probe = self.probe(suggest)
+        weapon, wattrs = None, ["strength"]
+        if self.weapon:
+            w = kit.starting_weapon(self.weapon)
+            b = items.base_of(w)
+            probe.equipment[b.slot] = w
+            wattrs = list(b.attributes)
+            weapon = {"name": w.name, "label": (b.label or b.name).capitalize(), "attrs": wattrs, "line": self.weapon_line()}
         pool = {}
         for p in pools.POOLS:
             rule = pools.RULES.pools[p]
@@ -304,21 +333,24 @@ class ThresholdScene:
             pool[p] = {"base": rule.base, "w": dict(rule.attributes), "pct": pct, "flat": flat}
         m = pools.RULES.mana_casting
         pool["mana"].update(cast=pools.casting_attribute(probe), cast_w=m["cast_weight"], other_w=m["other_weight"], mental=list(pools.MENTAL))
-        hit = {}
+        creature = mentor._world().bestiary[mentor.M["hunt"]["creature"]]
+        foe = combat.fighter_from_creature(creature, 1, "normal", "e1", name=creature.name.lower())
+        hit, blow = {}, {}
         for v in range(stats.BASE, stats.CAP + 1):
-            probe.attributes = Attributes(**dict(suggest, dexterity=v))
+            probe.attributes = Attributes(**dict(suggest, **{a: v for a in wattrs}))
             f = combat.fighter_from_character(probe)
-            attr = f.best_attr(f.weapon_attrs)
-            foe = combat.Fighter(id="equal", name="an equal foe", side="enemy", level=f.level, attrs={a: attr for a in combat.ATTRIBUTES}, hp=1, max_hp=1)
             hit[v] = round(combat.hit_parts(f, foe, combat.Combat(fighters=[f, foe]))[0])
+            blow[v] = round(combat.raw_damage(f, combat.RULES["damage"]["multiplier"]["basic"], {Trigger.ALWAYS.value}, _random.Random(0), steady=True))
         rows = []
         for a in stats.STAT_NAMES:
             note = ("main for your class" if a in mains else "your spells use it" if a == cast else
                     "none of your abilities use it" if a == "intelligence" and not uses_mana else "")
-            rows.append({"id": a, "label": a.capitalize(), "hint": ATTRIBUTE_HINT.get(a, ""), "main": a in mains, "note": note})
+            rows.append({"id": a, "label": a.capitalize(), "hint": ATTRIBUTE_HINT.get(a, ""), "main": a in mains, "note": note,
+                         "weapon": bool(weapon) and a in wattrs})
         article = "an" if i.custom_class[:1].lower() in "aeiou" else "a"
         return {"rows": rows, "base": stats.BASE, "cap": stats.CAP, "total": stats.TOTAL, "values": self.values or {a: stats.BASE for a in stats.STAT_NAMES},
-                "suggested": suggest, "suggest_label": f"Suggested for {article} {i.custom_class}", "pools": pool, "hit": hit,
+                "suggested": suggest, "suggest_label": f"Suggested for {article} {i.custom_class}", "pools": pool, "weapon": weapon,
+                "weapon_attrs": wattrs, "hit": hit, "blow": blow, "foe": f"a {creature.name.lower()}",
                 "describe": "tough and strong, a little wise", "button": "This is how I'll be made"}
 
     def opening(self) -> None:
@@ -478,6 +510,8 @@ class ThresholdScene:
         self.passives = [self.passive_options[n - 1] for n in turn.picks]
         self.step = Step.STATS
         self.guidance = creation.attribute_guidance(self.interp, self.actives)
+        self.weapon = self.choose_weapon()
+        self.guidance.append(self.weapon_line())
         console.show_stat_rules(self.guidance)
         self.speak(
             f"The player chose {' and '.join(p.name for p in self.passives)}. Acknowledge it. "
@@ -520,7 +554,7 @@ class ThresholdScene:
     def finish(self) -> None:
         self.character = creation.build_character(
             self.name, self.interp, self.actives, self.passives,
-            Attributes(**self.values), None, concept=self.concept, who=self.who_choice,
+            Attributes(**self.values), None, concept=self.concept, who=self.who_choice, weapon=self.weapon,
         )
         path = creation.save_character(self.character)
         self.step = Step.DONE
