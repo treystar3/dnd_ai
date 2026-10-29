@@ -71,8 +71,8 @@ def tick(store, world, catalog, state: dict, t: int, rng: random.Random) -> bool
     from engine import pulse
     if not store.player_exists():
         return False
-    town = pulse.town_of(world, store.load_player().location)
-    if town not in world.places or world.places[town].danger or not world.peoples_at(town):
+    town = pulse.home_town(world, store.load_player().location)          # (f376) on a stop on the road, the end it is nearer: never the stop
+    if not pulse.known(world, town) or world.places[town].danger or not world.peoples_at(town):
         return False
     for rule, words in met(state, world, town, t):
         pulse.LAST["made_by"] = ""

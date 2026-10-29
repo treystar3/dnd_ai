@@ -332,6 +332,10 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         proposal, info = built
     if not known(world, proposal.place):
         proposal.place = place.id
+    if not known(world, proposal.place):                             # (f376) a stop on the road is gone once the player walks on: a situation
+        proposal.place = home_town(world, proposal.place)            # placed there broke the world's tick when it ended, every turn after
+        if not known(world, proposal.place):
+            return False
     days = rng.randint(*rule["days"])
     span = days * 1440
     times = [t + round(span * i / rule["stages"]) for i in range(rule["stages"])] + [t + span]
@@ -348,6 +352,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if info:
         thread.update(template=info["template"], severity=info["severity"], words=info["words"], streets=info.get("streets") or [],   # (f357)
                       town=(info.get("ids") or {}).get("town", ""))                               # the town it is about (a threat sits at the wild)
+        if thread["town"] and not known(world, thread["town"]):                                    # (f376) never a stop on the road
+            thread["town"] = town_of(world, proposal.place)
     thread["contract"] = proposal.contract.model_dump() if proposal.contract and proposal.contract.what else None
     state["threads"].append(thread)
     if pressure and pressure.id in world.pressures:
@@ -535,7 +541,9 @@ def resolver(store, world, th, rng) -> str:
                                  f"flush with coin from {th['title'].lower()}"])
             store.save_npc(n)
             return f"{n.name}, a guild contractor"
-    place = world.places[th["place"]]
+    place = world.places.get(th["place"])
+    if place is None:                                                # (f376) a place that is gone (an old save's stop on the road)
+        return "the people thereabouts"
     return "the watch" if place.residents.get("guard") or place.residents.get("watch_captain") else \
         f"the people of {place.name}"
 

@@ -19,6 +19,12 @@ from engine import pulselog
 from ui import console
 
 
+def known_danger(world, place_id: str) -> bool:
+    """(f376) A dangerous place of the world; a place that is gone (an old save's stop on the road) is none."""
+    p = world.places.get(place_id or "")
+    return bool(p and p.danger)
+
+
 def rules() -> dict:
     from engine.pulse import P
     return P.get("drift") or {}
@@ -188,7 +194,7 @@ def situations(store, world, state: dict, t: int) -> str:
             row["value"] += dp
         dd = round(D.get("danger", {}).get(kind, 0) * scale)
         if dd:
-            wilds = [pid for pid in towns.town_places(world, town) if world.places[pid].danger] or ([th["place"]] if world.places[th["place"]].danger else [])
+            wilds = [pid for pid in towns.town_places(world, town) if world.places[pid].danger] or ([th["place"]] if known_danger(world, th["place"]) else [])
             for pid in wilds:
                 row = lean.setdefault(("danger", pid), {"kind": "danger", "place": pid, "value": 0, "until": until, "cause": "drift", "thread": th["id"]})
                 row["value"] += dd
