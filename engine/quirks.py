@@ -276,7 +276,8 @@ def habit_line(member: dict, when: str, rng: random.Random, weapon: str = "", da
             return ""
     elif want != when:
         return ""
-    if q.get("habit_shown", 0) and rng.randrange(100) >= Q["habit_chance"]:
+    wear = Q.get("habit_wear") or [100, Q["habit_chance"]]          # (f386) the same line, seen often, is seen less: a night showed one 20 times
+    if q.get("habit_shown", 0) and rng.randrange(100) >= wear[min(q.get("habit_shown", 0), len(wear) - 1)]:
         return ""
     q["habit_shown"] = q.get("habit_shown", 0) + 1
     if day is not None:

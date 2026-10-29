@@ -43,6 +43,7 @@ banter:
   fight_easy_cooldown: 120    # and not within this many minutes of the last talk
   rest_chance: 50             # when the player rests or sleeps with the party beside them
   lines: [2, 4]               # only the most is used: the fewest is one line from each chosen speaker
+  turn_lines: 2               # (f386) no talk among the party after a turn that already showed this many companion lines (a night run had 14 in one)
   rules:
     - "People talk past each other, deflect, tease and change the subject. Not every line answers the last one, and a line may be a fragment."
     - "What brought the talk up is given; start from that, not from who you are. Your temperament shows in how you take it, never as the subject."

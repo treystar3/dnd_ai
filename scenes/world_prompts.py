@@ -11,6 +11,10 @@ SPOKEN ALOUD. When MARKUP is given below, follow it exactly. Unmarked text is re
 Split their message into the separate things they do, in order - usually one, at most three. "Thank Bram, go upstairs
 and sleep" is three actions. Small flourishes that are not actions of their own (a smile, scratching their head,
 pointing, a gesture) belong to the action they accompany. Several sentences spoken to the same person are one talk.
+Words for the whole party ("tell everyone...", "we need to...") are ONE talk, to one of them: the others hear it.
+A proposal to go somewhere or do something ("let's head for the Ironcrown Peaks", "we need to head toward Parth", "can we go to the
+inn now?", "may I search the tidepools for crabs?") is the player doing it - a move, a search, a wait - not talk, unless it asks the
+companions to choose ("should we go north or east?").
 
 Each action has:
 kind:

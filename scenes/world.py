@@ -338,6 +338,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
             if n.id in mine and (mine[n.id] or {}).get("escort") and not n.gone and all(p.id != n.id for p in self.present):
                 self.present.append(n)
+        for pid, info in mine.items():                                      # (f386) ...and wherever the player has walked them to: one taken
+            if (info or {}).get("escort") and all(p.id != pid for p in self.present) and self.store.npc_exists(pid):     # elsewhere was 'not here'
+                n = self.store.load_npc(pid)
+                if not n.gone:
+                    self.present.append(n)
         here = {n.id for n in self.present}
         self.visitors = [v for v in getattr(self, "visitors", []) if v[1] > self.minutes and v[2] == self.player.location and self.store.npc_exists(v[0])]
         for vid, _, _ in self.visitors:
@@ -1087,10 +1092,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.meta.turn += 1
 
     REPAIRS = (
+        plan_repairs.Repair("settle_targets", 12, "settle_targets", "a target written near enough to someone here is them: a tag like (elite), a stray space, a slip of the pen (f386)"),
         plan_repairs.Repair("scrub_markup", 10, "scrub_markup", "words in *asterisks* are never speech; a talk left wordless by that goes"),
         plan_repairs.Repair("wordless_talk", 20, "wordless_talk", "a second, wordless talk to the one the line already spoke to adds nothing (f299)"),
         plan_repairs.Repair("walk_after_word", 25, "walk_after_word", "a word, then a walk to the one it was said to: an acknowledgement on the way goes, else the walk does (f373)"),
         plan_repairs.Repair("move_to_present", 30, "move_to_present", "a move before a word or a deal with someone already here is no journey - unless the line names the place"),
+        plan_repairs.Repair("party_word", 35, "party_word", "the same words to each of the party are one talk; a proposal to go or search, read as talk to them, is doing it (f386)"),
         plan_repairs.Repair("narrated_talk", 40, "drop_narrated_talk", "a talk whose words narrate another step is not speech; the one it named gets the deed (f333)"),
         plan_repairs.Repair("local_building", 50, "local_building", "'the inn' with no town named is this town's inn, not a far one (f333)"),
         plan_repairs.Repair("join_guild", 150, "join_guild_rewrite", "paying or asking to join, said to the clerk, is joining - once (f271, f282)"),
@@ -1204,6 +1211,40 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if not (a.kind in ("other", "harvest") and k and any(b.kind == "harvest" for b in plan[:k])
                         and any(w in f"{a.summary} {a.item}".lower() for w in self.HARVEST_WORDS))] or plan
 
+    def settle_targets(self, text: str, plan: list) -> list:
+        """(f386) The plan repair that puts a step on the one it means. A night's runs had 'wildlife:hippogriff (elite)', 'wildlife: raven',
+        'bixdie_wigglewick' and a prisoner at the player's side all ruled 'not here', and the questions asked back made it worse."""
+        from engine.actions import TARGETED
+        for a in plan:
+            if a.kind in TARGETED and a.target:
+                a.target = self.settle_target(a.target)
+        return plan
+
+    def settle_target(self, target: str) -> str:
+        """The id of the one here a written target means: the id itself; without a tag in brackets or a stray space; 'wildlife:...' when
+        a creature is about; by name or by how the player knows them; or by a near spelling of any of those. Else as it was written."""
+        import difflib
+        from engine import truth
+        present = truth.scene_of(self).present_people()
+        ids = {p.id.lower(): p.id for p in present}
+        t = re.sub(r"\s*:\s*", ":", (target or "").strip().lower())
+        t = re.sub(r"\s*\([^)]*\)", "", t).strip()
+        if t in ids:
+            return ids[t]
+        if t.split(":", 1)[0] == "wildlife" and "wildlife" in ids:
+            return ids["wildlife"]
+        plain = lambda s: re.sub(r"^the\s+", "", re.sub(r"\s*\([^)]*\)", "", (s or "").strip().lower().replace("_", " ")))
+        bare = plain(t.split(":", 1)[-1])
+        pool = {}
+        for p in present:
+            for k in (p.id.lower(), plain(p.name), plain(p.label)):
+                if k:
+                    pool.setdefault(k, p.id)
+        if bare in pool:
+            return pool[bare]
+        near = difflib.get_close_matches(t, list(pool), n=1, cutoff=0.85) or difflib.get_close_matches(bare, list(pool), n=1, cutoff=0.85)
+        return pool[near[0]] if near else target
+
     def drop_narrated_talk(self, text: str, plan: list) -> list:
         """(f333) A talk step whose 'speech' is the player describing an action the plan already has ("I give Bram a healing draught" beside
         a give) is not words said: it is dropped, and the person it named is given to the deed when that lacks one. Spoken words in quotes
@@ -1314,6 +1355,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             problems = invariants.validate_campaign(self.store, self.world)
             console.note("The campaign checks out: nothing inconsistent found." if not problems else
                          f"{len(problems)} problem{'s' if len(problems) != 1 else ''} found:\n" + "\n".join(f"  - {p}" for p in problems[:40]))
+        elif name.split()[0] == "pronoun":                  # (f386) how the people of the world see the player: '#pronoun she|he|they'
+            from engine import truth
+            want = (name.split() + [""])[1]
+            if want in truth.SEEN_AS:
+                self.player.character.pronoun = want
+                self.store.save_player(self.player)
+            console.note(f"People see you as {'someone they cannot place' if truth.player_pronoun(self.player.character) == 'they' else truth.SEEN_AS[truth.player_pronoun(self.player.character)][3:]}"
+                         " (#pronoun she, #pronoun he or #pronoun they to change it).")
         elif name == "resetlayout":
             console.note("#resetlayout puts the info pane's buttons back in their original order. It works in the game window, where you can drag the buttons.")
         elif name in ("system", "sys", "character"):
@@ -2645,6 +2694,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def on_other(self, intent: ActionIntent, text: str) -> None:
         """(f321) What the interpreter could not name is an improvisation: read for what it is after, rolled, and made true either way."""
         from engine import world_improv
+        if world_improv.is_rest(text) and len(re.findall(r"[a-z']+", text.lower())) <= 12:
+            late = clock.period(self.minutes) in ("evening", "night", "deep night")
+            self.on_wait(ActionIntent(kind="wait", wait_until="morning" if late else "", wait_minutes=0 if late else 60), text)
+            return                                          # (f386) a line that only goes to sleep is a rest, not a gamble rolled as hiding
         world_improv.resolve(self, intent.summary or text, text)
 
 

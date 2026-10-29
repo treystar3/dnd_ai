@@ -124,6 +124,7 @@ class BanterActions:
         before, after = self.exchange_frame(merged)                # (f325) the narrator opens and closes the exchange, as it frames anyone's words
         if before:
             console.narrate(before)
+        self.note_party_said(len(merged))                                    # (f386)
         for who, text in merged:
             console.say(text, who)
             if severity.is_silent(text):                         # a gesture or silence: nothing was said to remember saying
@@ -220,6 +221,8 @@ class BanterActions:
         crew = self.banter_crew()
         if not crew:
             return
+        if self.party_said_now() >= BN["banter"].get("turn_lines", 2) and not (due == "fight" and (self.player.party_last_fight or {}).get("fallen")):
+            return                                          # (f386) the party has said enough this turn already; a death is still talked over
         rng = random.Random(self.store.meta.seed * 7919 + self.minutes)
         last = getattr(self, "_hire_last", None)
         just_talked = bool(last) and last[1] >= self.store.meta.turn - 1        # (f307) they have just spoken with the player, this turn

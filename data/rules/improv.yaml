@@ -12,6 +12,12 @@
 #   danger  - value, days: the place's own danger leans (percent); only where the place has danger (a snare in the wood, not in the square)
 #   news    - text, groups: word of it goes round (groups: locals for the place's own, else everyone)
 # {what} is what was attempted, {place} the place's name. A partial success applies closed and danger at half, and no news.
+#
+# needs (f386): words the line must hold for that reading to stand. A night's runs rolled "I lean against the wall and just watch the
+# shadows" as a block that barred the guild house to the player for twenty turns, pulling a cloak tight as a block, standing up and
+# wiping one's hands as hiding, going to sleep as hiding, and spitting on the floor as a signal the town talked of. A reading whose
+# words are missing gives way to the next closest; a gesture or a pose (leaning, watching, a shrug, settling in) is shown and changes
+# nothing - no roll, no mark (pose); and a line that only sleeps or rests is a rest (pose_words, rest_words below).
 
 base_odds: 50                    # with attribute_center and attribute_weight from checks.yaml: chance = base + (attr - 15) * 1.5 + odds
 min: 10
@@ -19,6 +25,7 @@ max: 90
 
 effects:
   block:   {about: "blocking, barring, propping or wedging a door or a way shut; building a barricade across it",
+            needs: "\\b(door|doors|gate|gates|entrance|entry|passage|hatch|window|tunnel|stair|stairs|bridge|barricade|bar|bars|barring|wedge|wedging|prop|propping|block|blocking|shut)\\b",
             attr: [strength, intelligence], odds: 5,  mark: "the way is blocked: {what}", fail: noise,
             changes: [{kind: closed, minutes: 90, text: "barred from inside: {what}"}]}
   force:   {about: "forcing, breaking, prying, smashing or kicking something open or apart",
@@ -32,15 +39,22 @@ effects:
   move:    {about: "dragging, carrying, heaving, overturning, pouring out or shifting a heavy or awkward thing",
             attr: [strength], odds: 0, mark: "moved: {what}", fail: hurt}
   hide:    {about: "hiding, stowing, burying or covering a thing, or covering your own tracks",
+            needs: "\\b(hide|hiding|hid|stow|stowing|bury|burying|cover|covering|conceal|concealing|tuck|tucking|stash|stashing|camouflage|tracks)\\b",
             attr: [dexterity, wisdom], odds: 0, mark: "hidden here: {what}", fail: noticed}
   signal:  {about: "shouting, ringing a bell, lighting a fire or a lamp, waving, making a signal or a noise on purpose",
+            needs: "\\b(shout|shouting|yell|yelling|call out|calling out|cry out|ring|ringing|bell|light|lighting|lamp|fire|torch|wave|waving|whistle|whistling|signal|signalling|signaling|horn|flare|beacon|bang|banging|drum)\\b",
             attr: [charisma, strength], odds: 10, mark: "", fail: noise,
             changes: [{kind: news, text: "A signal was raised at {place}: {what}.", groups: [locals]}]}
   practise: {about: "practice: practising, drilling, training, rehearsing, sparring alone, running through forms or exercises to keep a skill sharp",
+             needs: "\\b(practi[cs]e|practi[cs]ing|drill|drilling|train|training|rehearse|rehearsing|spar|sparring|forms|exercise|exercises|kata|warm up|warming up)\\b",
              attr: [dexterity, wisdom], odds: 15, mark: "", fail: time}
   examine: {about: "testing, tasting, listening at, tapping, measuring, taking apart, working something out by hand",
             attr: [wisdom, intelligence], odds: 10, mark: "", fail: time}
   attempt: {about: "", attr: [dexterity, intelligence, strength], odds: -5, mark: "", fail: time}      # what none of the above fits
+  pose:    {about: "a gesture or a pose that changes nothing: leaning, sitting, standing, watching, waiting, nodding, shrugging, stretching, sighing, wiping one's hands, pulling a cloak tight, tightening a grip, settling in", roll: false}
+
+pose_words: "\\b(lean|leans|leaning|sit|sits|sitting|stand|stands|standing|watch|watching|wait|waiting|nod|nodding|shrug|shrugging|stretch|stretching|sigh|sighing|wipe|wiping|pull my cloak|pulling my cloak|tighten|tightening|grip|settle|settling|cross my arms|crossing my arms|gaze|gazing|stare|staring|smile|smiling|frown|frowning|yawn|yawning|crack my knuckles|spit|spitting|scratch|scratching|rub|rubbing|adjust|adjusting|straighten|straightening|keep (?:my|an) eye|look around|looking around|scan|scanning|ready|readying|brace|bracing)\\b"
+rest_words: "\\b(go to sleep|fall asleep|sleep|sleeping|nap|lie down|lay down|bed down|get some rest|get some sleep|turn in for the night|rest my eyes)\\b"
 
 # What a failure costs. Every failure is told to the narrator as a thing that happened.
 fails:

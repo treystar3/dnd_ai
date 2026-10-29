@@ -11,7 +11,7 @@ import config
 
 from engine import arcs, party as rules, quests
 from engine.party import P
-from llm.contracts import CompanionReply, PartyIntent
+from llm.contracts import ActionIntent, CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
 from engine import actions, clock, money
@@ -96,7 +96,7 @@ class PartyActions:
             return False
         if self.companion_join(text):                       # (f309) hiring is the Board pane's alone; asking a friend along is still talk
             return True
-        low = text.lower()
+        low = re.sub(r"\badventurers?'?s?'?\s+guild", " ", text.lower())      # (f386) the guild's own name is not about a party
         if not any(h in low for h in HINTS):
             return False
         here = self.at_guild_hall()
@@ -109,8 +109,13 @@ class PartyActions:
             return False
         if kind in ("list", "hire"):
             return False                                    # (f309) talk about hiring is just talk; the hiring itself is done in the Board pane
+        if kind == "with" and self.player.party_mode == "with":
+            return False                                    # (f386) they are already with you: the line is about something else ("head back to
+                                                            # the guild house" was answered seven times with "your party moves beside you")
         getattr(self, f"party_{kind}")(intent.target, text, offered)
         self.store.save_player(self.player)
+        if kind in ("with", "hold") and self.party_proposal(text):
+            return False                                    # (f386) ...and where it says to go, they go
         return True
 
     # ---------- people who join you because they want to ----------
@@ -334,10 +339,78 @@ class PartyActions:
     ASSENT = re.compile(r"\b(go ahead|go for it|go on then|go on(?=\s*[,.!]|\s*$)|do it|do so|do that|sounds good|good to go)\b")
 
     def action_line(self, text: str) -> bool:
-        """A line that does something rather than answering someone: an action word outside the set phrases of assent, or the player doing
-        something in the first person (engine/actions.first_person_action)."""
+        """A line that does something rather than answering someone: an action word outside the set phrases of assent, the player doing
+        something in the first person (engine/actions.first_person_action), or a proposal to do it together (party_proposal)."""
         low = self.ASSENT.sub(" ", (text or "").strip().lower())
-        return bool(self.TALK_ACTIONS.search(low)) or actions.first_person_action(text)
+        return bool(self.TALK_ACTIONS.search(low)) or actions.first_person_action(text) or bool(self.party_proposal(text))
+
+    # (f386) "Let's keep moving toward the Ironcrown Peaks", "we need to head toward Parth", "can we go to the inn?", "may I search the
+    # tidepools for the crabs now?": the player proposing what they all do next. A night's bot said such things 582 times; more than
+    # half left it where it stood, answered by a companion's chatter, and one asked leave to search 22 times and was told "go ahead".
+    PROPOSAL = re.compile(r"^\W*(?:(?:ok(?:ay)?|right|alright|all right|come on|well|now|so|then)\W+)*"
+                          r"(?:let'?s|let us|we(?:'ll| will|'re| are)? ?(?:need to|have to|must|should|ought to|can|could|better|got to|gotta)?|"
+                          r"time to|i'?m ready to|i am ready to|ready to|can we|could we|shall we|should we|may i|can i|could i|may we|"
+                          r"keep|move|push|press)\b(?P<rest>.*)$", re.I)
+    GO_WORDS = re.compile(r"\b(go|going|head|heading|move|moving|move out|push on|push ahead|pushing|press on|set out|set off|make (?:our|my) way|"
+                          r"travel|travell?ing|walk|walking|return|returning|get back|get going|keep going|carry on|continue|march|ride|riding|"
+                          r"leave|leaving|cross|onward|onwards|forward)\b", re.I)
+    SEEK_WORDS = re.compile(r"\b(search|searching|look for|looking for|hunt|hunting|track|tracking|find|seek)\b", re.I)
+    REST_WORDS = re.compile(r"\b(rest|resting|make camp|camp|sleep|bed down|turn in for the night)\b", re.I)
+
+    def party_proposal(self, text: str) -> tuple[str, str] | None:
+        """(f386) ('move' | 'search' | 'wait', the words after the opening) when the line proposes doing it, else None. A question that
+        asks them to choose ('should we go north or east?') is a question, and stays theirs to answer."""
+        m = self.PROPOSAL.match((text or "").strip().replace("\u2019", "'"))
+        if not m:
+            return None
+        rest = m.group("rest") or ""
+        if re.search(r"\bor\b", rest, re.I) and "?" in text:
+            return None
+        for kind, rx in (("search", self.SEEK_WORDS), ("move", self.GO_WORDS), ("wait", self.REST_WORDS)):
+            if rx.search(rest):
+                return kind, rest
+        return None
+
+    def place_in_words(self, words: str) -> str:
+        """(f386) The place the words name: the most of its name's own words, the nearest first; '' when none is named."""
+        from engine import candidates, mapview
+        said = candidates.words(words)
+        if not said:
+            return ""
+        far = mapview.travel_times(mapview.graph(self.world), mapview.top_of(self.world, self.player.location))
+        best = sorted(((len(said & candidates.words(p.name)), -len(candidates.words(p.name) - said), -len(p.name.split()),
+                        -far.get(mapview.top_of(self.world, pid), 10 ** 9), pid)
+                       for pid, p in self.world.places.items() if p.type != "road" and pid != self.player.location
+                       and said & candidates.words(p.name)), reverse=True)
+        return best[0][-1] if best else ""
+
+    def seek_in_words(self, words: str) -> str:
+        """(f386) What a proposed search is for: the words after 'for', or after the verb ('for the Giant Crabs now', 'find those wolves')."""
+        tail = r"\s+(?:the\s+|some\s+|a\s+|an\s+|those\s+|these\s+|that\s+|this\s+)?(.+?)(?:\s+(?:now|then|again|here|first|today|tonight|before\b.*|while\b.*))?\s*[?.!]*$"
+        m = re.search(r"\bfor" + tail, words or "", re.I) or re.search(r"\b(?:find|hunt|track|seek|search out)" + tail, words or "", re.I)
+        return m.group(1).strip() if m else ""
+
+    def party_word(self, text: str, plan: list) -> list:
+        """(f386) The plan repair for words to the party. The same words to each of them are one talk, heard by all; and a proposal to go
+        somewhere or look for something, read as talk to them, is the player doing it - the move to the place it names, or the search."""
+        ids = {f"hire:{m['id']}" for m in self.player.party} | {"maren"} | {f"companion:{c.id}" for c in self.player.character.companions}
+        talks = [a for a in plan if a.kind == "talk" and a.target in ids]
+        if not talks:
+            return plan
+        plan = [a for a in plan if not (a.kind == "talk" and a.target in ids and a is not talks[0])]
+        prop = self.party_proposal(text)
+        if not prop or any(a.kind in ("move", "explore", "search", "wait", "delve", "leave_dungeon") for a in plan):
+            return plan
+        kind, rest = prop
+        step = None
+        if kind == "move":
+            dest = self.place_in_words(rest)
+            step = ActionIntent(kind="move", destination=dest, summary=f"heading for {self.world.places[dest].name}") if dest else None
+        elif kind == "search":
+            step = ActionIntent(kind="search", seek=self.seek_in_words(rest), summary="searching")
+        elif kind == "wait":
+            step = ActionIntent(kind="wait", summary="resting")
+        return [step if a is talks[0] else a for a in plan] if step else plan
 
     def hire_people(self) -> list[tuple[str, str, str, str]]:
         """The hired adventurers travelling with the player, as people here: (id, name, description, what they are doing). Nobody is listed
@@ -399,6 +472,8 @@ class PartyActions:
         low = (text or "").strip().lower()
         first = (name or "").split()[0].lower() if name else ""
         if "*" in text and (not first or first not in low):
+            return True
+        if self.party_proposal(text):                       # (f386) "let's keep moving toward Parth" is the player's next step
             return True
         if self.COMMAND.match(low) and "?" not in text and not low.startswith(("go on", "go ahead", "look,")):
             return True
@@ -506,6 +581,15 @@ class PartyActions:
             out.append(W["feeling"].format(feeling=feeling))
         return out
 
+    def note_party_said(self, n: int) -> None:
+        """(f386) Companion lines shown in this turn, counted: unprompted party talk waits when there have been enough (banter_tick)."""
+        turn, said = getattr(self, "_party_said", (None, 0))
+        self._party_said = (self.store.meta.turn, (said if turn == self.store.meta.turn else 0) + n)
+
+    def party_said_now(self) -> int:
+        turn, said = getattr(self, "_party_said", (None, 0))
+        return said if turn == self.store.meta.turn else 0
+
     def companion_show(self, m: dict, shown: str, reply_to: str = "", why: list[str] | None = None) -> None:
         """(f325) A companion's words on the page the way Maren's and the townsfolk's are: the narrator frames them with what they do as
         they speak - a beat before and after, a single beat in a fight - under their name, when the moment earns a frame (f347,
@@ -520,6 +604,7 @@ class PartyActions:
             gesture, speech = speech.strip("()").strip(), ""
         name = m["name"]
         in_fight = bool(self.combat)
+        self.note_party_said(1)                                        # (f386)
         if speech and why is None:
             why = self.hire_frame_reasons(m, reply_to, in_fight)
         if speech and why and getattr(config, "NARRATED_DIALOGUE", True) and getattr(config, "VOICED_MENTOR", True):

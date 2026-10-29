@@ -64,6 +64,21 @@ def echoes(text: str, heard: list[str]) -> str:
     return repeats(text, heard)
 
 
+HOLDING = re.compile(r"\bI(?:'m| am|'ve| have)?\s+(?:got |have |hold |holding |grip |gripping |clutch |clutching )"
+                     r"(?:[a-z']+\s+){0,3}?(?:my|this|the|a|our)\s+(?:[a-z]+\s+)?(staff|bow|sword|mace|dagger|daggers|satchel|shield|blade|axe|spear|"
+                     r"quiver|pack|holy symbol|symbol|crossbow|hammer|lute|knife|cloak|wand)\b", re.I)
+
+
+def holding_talk(text: str, said: str = "") -> str:
+    """(f386) A line that tells what the speaker is holding ('I have my staff gripped tight', 'I am holding this shield steady'), when
+    nobody asked about it: the thing held, else ''. One companion said it five turns running; what is held shows in a gesture or not at
+    all."""
+    m = HOLDING.search(text or "")
+    if not m or re.search(rf"\b{re.escape(m.group(1))}\b", said or "", re.I):
+        return ""
+    return m.group(1)
+
+
 def check_exchange(ex, ctx: dict) -> str:
     """Why an exchange can't be used, or ''. Names are fixed to the allowed ones as written, and nothing new is added."""
     speakers = {s.lower(): s for s in ctx.get("speakers", [])}
@@ -99,6 +114,10 @@ def check_exchange(ex, ctx: dict) -> str:
     first = ctx.get("first_speaker")
     if first and ex.lines and ex.lines[0].speaker != first and first not in silent_ok:    # someone struck hard need not open
         return f"{first} speaks first"
+    for ln in ex.lines:
+        held = holding_talk(ln.text)
+        if held:
+            return f"{ln.speaker} tells what they are holding ('{held}'): nobody asked; say something else, and let a gesture show it if it matters"
     dead = (ctx.get("must_name") or "").split(",")[0].split()
     if dead and not any(re.search(rf"\b{re.escape(dead[0])}\b", l.text, re.I) for l in ex.lines):
         return (f"this is about {dead[0]}, who died: someone says {dead[0]}'s name. 'They won't be coming back' about no one in "

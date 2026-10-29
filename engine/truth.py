@@ -111,7 +111,7 @@ class Scene:
     def key(ws) -> tuple:
         return (ws.store.meta.turn, ws.minutes, ws.player.location, tuple(n.id for n in ws.present), len(ws.player.quests),
                 tuple(m.get("id") for m in ws.player.party), ws.player.party_mode, bool(ws.combat), bool(ws.wildlife),
-                ws.player.mentor.get("stage", ""), ws.player.guild_rank)
+                ws.player.mentor.get("stage", ""), ws.player.guild_rank, player_pronoun(ws.player.character))     # (f386) '#pronoun' is seen at once
 
     def facts(self, name: str) -> list[Fact]:
         if name not in self._facts:
@@ -488,12 +488,30 @@ def _lately(scene: Scene):
     return out[-int(L.get("most", 8)):]
 
 
+_HE = re.compile(r"\b(he|him|his|himself|man|men|male|boy|lad|son|father|brother|husband|king|lord|mister|gentleman)\b", re.I)
+_SHE = re.compile(r"\b(she|her|hers|herself|woman|women|female|girl|lass|daughter|mother|sister|wife|queen|lady|madam|nun|priestess)\b", re.I)
+SEEN_AS = {"he": "is a man", "she": "is a woman",
+           "they": "you cannot tell at a glance whether a man or a woman: call them nothing that says (no sir, madam, lad or lass)"}
+
+
+def player_pronoun(c) -> str:
+    """(f386) she, he or they for the player, the same every time. Nothing kept it: across a night's runs the people of the world called
+    one player sir, madam, lad and lass, two of them in one turn. Read once from their own words at the Threshold and the reading of
+    their class, and kept; 'they' when those words do not say. '#pronoun' sets it."""
+    if c.pronoun in SEEN_AS:
+        return c.pronoun
+    words = f"{c.concept} {c.custom_class} {c.class_summary}"
+    he, she = len(_HE.findall(words)), len(_SHE.findall(words))
+    c.pronoun = "he" if he > she else "she" if she > he else "they"
+    return c.pronoun
+
+
 @facet("player")
 def _player(scene: Scene):
-    """What anyone can see of the player: the badge, the weapon, the company they keep."""
+    """What anyone can see of the player: whether a man or a woman, the badge, the weapon, the company they keep."""
     ws = scene.ws
     c = ws.player.character
-    out = []
+    out = [Fact("player", SEEN_AS[player_pronoun(c)])]
     out.append(Fact("player", f"wears a guild badge (rank {ws.rank})" if ws.rank else "wears no guild badge"))
     weapon = (c.equipment or {}).get("main_hand")
     if weapon:

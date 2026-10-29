@@ -29,6 +29,15 @@ def is_answer(rx: re.Pattern, text: str) -> bool:
     return len(re.findall(r"[a-z']+", rest)) <= ANSWER_TAIL and not actions.ACTION_RE.search(rest)
 
 
+def about_errand(rx: re.Pattern, text: str, m: dict) -> bool:
+    """(f386) A yes that goes on about the errand itself ("Sure, Fenna, let's go ask about Ferris Vane") is that yes: its words name what
+    was asked. A yes that goes on to a plan of its own ("okay, let's head to the inn first") is not."""
+    if not rx.match(text or ""):
+        return False
+    subject = [w for w in re.findall(r"[a-z]+", str((m.get("quirks") or {}).get("target") or "").lower()) if len(w) > 3]
+    return bool(subject) and any(re.search(rf"\b{w}\b", (text or "").lower()) for w in subject)
+
+
 def deed_situation(scene, deed: str) -> str:
     from engine import banter
     return banter.B["banter"]["situation"]["deed"].format(place=scene.place.name, deed=deed)
@@ -110,11 +119,16 @@ class QuirkActions:
     def habits(self, when: str) -> None:
         """Each companion's habit, if this is its moment."""
         crew = [self.quirked(m) for m in self.player.party if m.get("permanent") and not m.get("story")] if when in ("fight_start", "fight_end") else self.quirk_crew()
+        shown = set()
         for m in crew:
+            habit = (m.get("quirks") or {}).get("habit", "")
+            if habit in shown:                               # (f386) two of them 'take the first watch without being asked' in one moment
+                continue
             weapon = (rules.P["roles"].get(m["role"], {}).get("attacks") or ["blade"])[0]
             line = quirks.habit_line(m, when, self.quirk_rng(m["id"]), weapon=weapon, danger=bool(self.place.danger), day=clock.day(self.minutes),
                                      place_type=self.place.type)
             if line:
+                shown.add(habit)
                 console.narrate(line)
 
     # ---------- deeds ----------
@@ -165,9 +179,10 @@ class QuirkActions:
         everyone has a say. Often nobody does. Several who join are one exchange."""
         from engine import banter, party_director as director
         others = [o for o in self.quirk_crew() if o is not m]
-        if not others:
-            self.last_plan = None
+        if not others or getattr(self, "_chimed", None) == self.store.meta.turn:
+            self.last_plan = None                            # (f386) the others join in once a turn, however many the player spoke to
             return
+        self._chimed = self.store.meta.turn
         named, party, weight = director.read_words(text, m["name"], reply, others)
         plan = director.plan(director.beat_from_words(text, m["id"], named, party, weight), others, self.quirk_rng("chime:" + text), must_start=False,
                              bystanders=[m])
@@ -181,7 +196,7 @@ class QuirkActions:
         if len(pick) > 1:
             sit = banter.B["banter"]["situation"]["said"].format(place=self.place.name, addressee=first)
             scene = "pressing" if weight == "heavy" else "ease"
-            if self.talk_among([m] + others, pick, plan, sit, "said", said, None, {}, scene):
+            if self.talk_among([m] + others, pick, plan, sit, "said", said, None, {}, scene, span=(len(pick), len(pick))):     # (f386) a line each
                 self.store.save_player(self.player)
                 return
         for o in pick:                                       # one joins (or the exchange failed): each says it on their own
@@ -353,7 +368,7 @@ class QuirkActions:
         self._errand = None
         day = clock.day(self.minutes)
         extra = {"sum": money.words(E["cost"])} if "cost" in E else {}
-        if is_answer(YES, text):
+        if is_answer(YES, text) or about_errand(YES, text, m):
             c = self.player.character
             if "cost" in E:
                 if c.coins < E["cost"]:
@@ -381,7 +396,13 @@ class QuirkActions:
             rules.remember(m, day, quirks.errand_text(m, "memory_no", **extra), 3)
             self.store.save_player(self.player)
             return True
-        return False                                        # something else: the ask stands unanswered and they let it lie for today
+        q = m["quirks"]                                      # something else: the ask stands unanswered and they let it lie for today;
+        q["errand_ignored"] = q.get("errand_ignored", 0) + 1  # (f386) twice, and they let it go for good (one was asked six times,
+        if q["errand_ignored"] >= 2:                         # another seven)
+            q["errand"] = "let go"
+            rules.remember(m, day, "I asked them for my one small thing twice and got no answer; I have let it go.", 2)
+            self.store.save_player(self.player)
+        return False
 
     # ---------- secrets ----------
 

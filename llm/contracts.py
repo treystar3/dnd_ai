@@ -513,6 +513,14 @@ class ActionPlan(BaseModel):
     def at_most_three(self):
         if not self.actions:
             raise ValueError("give at least one action")
+        seen, kept = set(), []
+        for a in self.actions:                      # (f386) the same words to each of the party is one word, heard by all: three talks
+            key = " ".join(re.sub(r"[^a-z0-9 ]+", " ", (a.speech or "").lower()).split()) if a.kind == "talk" else ""
+            if key and key in seen:                 # used to fill the three and push the move they asked for off the end
+                continue
+            seen.add(key)
+            kept.append(a)
+        self.actions = kept
         self._dropped = list(self.actions[3:])
         self.actions = self.actions[:3]
         return self
@@ -718,6 +726,9 @@ class CompanionReply(BaseModel):
         hit = banter.echoes(self.speech, ctx.get("heard", []))          # (f382) another companion just said it
         if hit:
             raise ValueError(f"someone else has just said '{hit}': answer in your own words")
+        held = banter.holding_talk(self.speech, ctx.get("said") or "")
+        if held:                                                         # (f386) "I have my staff gripped tight", five turns running
+            raise ValueError(f"you tell what you are holding ('{held}'): nobody asked. Say something else; a gesture may show it if it matters")
         wrong = misaddressed(self.speech, ctx.get("others") or [], ctx.get("said") or "")
         if wrong:                                                        # (f385) "He isn't looking for company, Salith." to Bumbo
             raise ValueError(f"you are answering {ctx.get('player') or 'the player'}; {wrong} is someone else here. Do not call the player "

@@ -547,6 +547,7 @@ def show_help() -> None:
     print("  #prebuff  the buffs you cast before the first blow of a fight you start, e.g. #prebuff Stoneskin, Frost Armor (#prebuff none clears)")
     print("  #allocate spend attribute points from leveling, e.g. #allocate str 3 dex 2")
     print("  #enchant  see enchantments an enchanter here can bind into your gear")
+    print("  #pronoun  how people see you: #pronoun she, #pronoun he or #pronoun they")
     print("  #resetlayout  put the info pane's buttons back in their original order (drag a button to move it; game window only)")
     print("  #help     this list")
     print("  quit      save and exit")

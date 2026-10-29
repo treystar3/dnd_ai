@@ -5,6 +5,7 @@ that would do it, and something is made true either way: a mark on the place, a 
 Mirrors engine/combat_improv.py: AN ABILITY IS A PROMISE; AN IMPROVISATION IS A GAMBLE."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -16,16 +17,33 @@ W = yaml.safe_load((ROOT / "data" / "rules" / "improv.yaml").read_text(encoding=
 
 
 def read_effect(words: str) -> str:
-    """Which of the vocabulary the player is after, by meaning when the helper model is there, else 'attempt'."""
+    """Which of the vocabulary the player is after, by meaning when the helper model is there, else 'attempt'. (f386) A reading whose
+    `needs` words the line lacks gives way to the next closest; a line that is only a gesture or a pose is 'pose'."""
     from engine import relevance
-    named = {k: v["about"] for k, v in W["effects"].items() if v["about"]}
+    named = {k: v["about"] for k, v in W["effects"].items() if v.get("about")}
     try:
-        pick = relevance.pick(words, list(named.values()), 1, floor=0.3)
-        if pick:
-            return next(k for k, a in named.items() if a == pick[0])
+        for p in relevance.pick(words, list(named.values()), 3, floor=0.3):
+            k = next(k for k, a in named.items() if a == p)
+            need = W["effects"][k].get("needs")
+            if k == "pose" or not need or re.search(need, words or "", re.I):
+                return k
     except Exception:
         pass
-    return "attempt"
+    if is_pose(words):
+        return "pose"
+    return next((k for k, e in W["effects"].items() if e.get("needs") and re.search(e["needs"], words or "", re.I)), "attempt")
+
+
+def is_pose(words: str) -> bool:
+    """(f386) A gesture or a pose and nothing more: none of the effects' own words, and a word of standing, leaning, watching..."""
+    if not re.search(W["pose_words"], words or "", re.I):
+        return False
+    return not any(re.search(e["needs"], words or "", re.I) for k, e in W["effects"].items() if e.get("needs") and k != "practise")
+
+
+def is_rest(words: str) -> bool:
+    """(f386) A line that only sleeps or rests: a rest, not a gamble (going to sleep was rolled as hiding)."""
+    return bool(re.search(W["rest_words"], words or "", re.I))
 
 
 def odds_for(c, effect: str) -> float:
@@ -80,8 +98,13 @@ def apply_changes(ws, effect: str, what: str, degree: str) -> list[str]:
 
 
 def problems() -> list[str]:
-    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing."""
+    """What is wrong with improv.yaml's changes: a kind the engine cannot apply, or a field it needs missing; a `needs` that is no pattern."""
     bad = []
+    for name, e in (W.get("effects") or {}).items():
+        try:
+            re.compile(e.get("needs") or "")
+        except re.error as x:
+            bad.append(f"improv.yaml {name}: needs is not a pattern ({x})")
     need = {"closed": ("minutes",), "danger": ("value", "days"), "news": ("text",)}
     for name, e in (W.get("effects") or {}).items():
         for ch in e.get("changes") or []:
@@ -110,6 +133,11 @@ def resolve(ws, words: str, text: str) -> None:
     from engine import checks, pools
     c = ws.player.character
     effect = read_effect(words or text)
+    if effect == "pose":                                    # (f386) shown, and nothing else: no roll, no mark, nothing barred
+        ws.advance(1)
+        ws.narrate(f"THE GAME HAS DECIDED: the player does a small thing ({what_of(words or text)}) and nothing comes of it: it changes nothing "
+                   "and nobody makes anything of it. Show it in passing, as it would be seen.", text)
+        return
     e = W["effects"][effect]
     odds = odds_for(c, effect)
     degree, rolled = checks.roll(odds, ws.rng, c=c)

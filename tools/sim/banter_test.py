@@ -117,6 +117,7 @@ w._banter_loc = "parth"; w._banter_last = -10**9
 n = 0
 for k in range(40):
     st.meta.minutes = 5000 + k * 500
+    st.meta.turn += 1                                    # (f386) each arrival is a turn of its own: the party's lines are counted by turn
     w._banter_loc = "parth"; w._banter_last = -10**9
     SAID.clear()
     w.player.location = "greywood"

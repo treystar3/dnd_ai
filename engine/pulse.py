@@ -77,8 +77,10 @@ def danger_factor(store, place_id: str, now: int) -> float:
 
 
 def closed_reason(store, place_id: str, now: int) -> str:
+    """Why the way through a place is shut to the player now, or ''. (f386) Never a barring the player made themselves: they barred it
+    against others, and can unbar it (a night's run was shut out of the guild house for twenty turns by its own leaning on a wall)."""
     state = store.load_world_state()
-    hits = active_effects(state, now, "closed", place_id)
+    hits = [e for e in active_effects(state, now, "closed", place_id) if e.get("cause") != "improvised"]
     return hits[0]["text"] if hits else ""
 
 
@@ -97,7 +99,8 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
                 out.append(sign)
     for e in state.get("effects", []):
         if e["kind"] == "closed" and e["place"] == place_id and e["until"] > now:
-            out.append(f"The way is closed: {e['text']}")
+            out.append(f"The player has barred the way here themselves, and can unbar it: {e['text']}" if e.get("cause") == "improvised"
+                       else f"The way is closed: {e['text']}")                                # (f386) theirs, said as theirs
     return out
 
 
