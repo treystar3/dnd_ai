@@ -437,7 +437,7 @@ return:
     Maren has been a half step ahead the whole way back, watching the treeline. The sun is low by the time the town walls come up
     out of the fields.
   info:
-    - "You are back at the edge of Parth. Tell the player to hand the contract in at the guild hall: the clerk will have their coin and their first mark toward the next rank."
+    - "You are back at the edge of Parth. Send them to hand the contract in at the guild hall: the clerk will have their coin and their first mark toward the next rank."
     - "Part ways here: the capital did not send you south to sit in Parth, and your own party can catch you up on the road; you leave Parth today, on that work. Tell them they did well today, to stay alive, and that you expect to hear of them."
   speech:
     - "Take the contract in at the guild hall. The clerk's got your coin, and your first mark toward the next rank."

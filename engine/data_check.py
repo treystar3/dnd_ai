@@ -263,6 +263,8 @@ def check() -> list[str]:
     bad += _starts.problems(set(_load("data/rules/standing.yaml")["groups"]), set(_pulse_rules["tiers"]), set(_load("data/rules/guild.yaml")["ranks"]))
     from engine import guard as _guard                                                        # (f364) the content guard's categories
     bad += _guard.problems()
+    from engine import hygiene as _hygiene                                                    # (f391) the output gate's rules
+    bad += _hygiene.problems()
     from engine import trust as _trust                                                        # (f362) trust moved by the engine, by a reply's intent
     import typing as _typing
     from llm.contracts import NPCReply as _NPCReply

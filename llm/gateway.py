@@ -192,6 +192,11 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 if guard.guarded(task):
                     alien = guard.foreign(guard.strings_of(result), system + "\n" + str(messages[1]["content"]))   # (f390) another alphabet
                     cat, hit = ("script", alien) if alien else guard.check(guard.strings_of(result))
+                    if not cat:                                                  # (f391) the machinery in the prose: JSON, codes, 'the player'
+                        from engine import hygiene
+                        kind, found = hygiene.problem(task, result)
+                        if kind:
+                            reason = f"{hygiene.reason(kind)} (not '{found}')"
                     if cat:
                         reason = f"{guard.script_reason() if cat == 'script' else guard.reason(cat)} (not '{hit}')"   # (f370) the word named, or the model writes it again
                         try:

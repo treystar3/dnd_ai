@@ -106,6 +106,7 @@ class Run:
         console.header = lambda text: None
         console.debug = lambda message: None
         console.ask = self.ask
+        console.guard_outputs()                      # (f391) the transcript gets what the player would see, through the output gate
 
     def seen(self, who: str, text: str) -> None:
         if self.first_word is None and self.current is not None:

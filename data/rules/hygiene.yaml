@@ -1,0 +1,21 @@
+# THE OUTPUT GATE (f391, engine/hygiene.py). Two nights of play showed the machinery in the story: a reasoning fragment and a JSON
+# brace at the end of a passage, "mud_r_{road}", "silks_1827359406-bdcc-...", 'find_the_sinkhole', a literal "\n", "The player pulls
+# out...", "my own shadow" in the narrator's voice. Two places stop them:
+# - at the gateway, the prose fields of a model's answer are checked and an answer that carries any of these is sent back with the
+#   reason below, so the model writes it again (like the content guard);
+# - at the screen, every line the player sees (narration, speech, notes, the ledger) is cleaned on the way out, whoever drew it: the
+#   terminal, the window or a night's harness. This is the last resort for what got through, and for the engine's own lines.
+
+# Fields of an answer that are prose the player reads. Other fields (ids, intents, notes to the game) are not checked.
+prose_fields: [text, speech, gesture, before, after, line, scene, detail, paragraphs, title, news]
+
+# Tasks whose prose is the narrator's: second person, so "I" and "my" belong only inside someone's quoted speech.
+narrator_tasks: [narrate, combat_narrate, combat_aftermath, dialogue_frame, moment, road_event]
+
+reasons:
+  json: "write only the passage itself: no JSON, braces, code fences, field names or notes about your answer"
+  placeholder: "a word in braces is a template's, not the story's: write the plain words"
+  id: "a word joined with underscores or a code is the game's label, not a word of the story: write it in plain words"
+  escape: "write real line breaks, never a backslash and an n"
+  player: "speak of the player as 'you', never 'the player'"
+  first_person: "the narrator speaks to the player as 'you'; 'I', 'me' and 'my' belong only inside someone's quoted speech"

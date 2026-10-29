@@ -630,3 +630,28 @@ def status_block(when: str, weather: str, place_line: str, spot_line: str,
     print()
     for line in lines:
         print(f"  {line}")
+
+
+OUTPUTS = ("say", "narrate", "npc_says", "dialogue", "note", "wait", "ledger")
+
+
+def guard_outputs() -> None:
+    """(f391) Every line the player sees passes the output gate (engine/hygiene.py) on its way out: no JSON tail, code, placeholder,
+    escape or 'the player' reaches the page, whoever drew the line. The terminal's functions are gated as this module loads; the window
+    keeps them (it only takes stdout); a night's harness, which puts its own in place, calls this again. Gating twice is a no-op."""
+    import sys
+    from engine import hygiene
+    me = sys.modules[__name__]
+    for name in OUTPUTS:
+        fn = getattr(me, name)
+        if getattr(fn, "gated", False):
+            continue
+
+        def gated(*args, _fn=fn, **kwargs):
+            return _fn(*(hygiene.clean(a) if isinstance(a, str) else a for a in args),
+                       **{k: hygiene.clean(v) if isinstance(v, str) else v for k, v in kwargs.items()})
+        gated.gated, gated.inner = True, fn
+        setattr(me, name, gated)
+
+
+guard_outputs()

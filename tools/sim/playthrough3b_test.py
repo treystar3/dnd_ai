@@ -112,7 +112,7 @@ ws.on_look = lambda intent, text: None
 stub.plan = [{"kind": "look"}]
 ws.turn("I gaze at nothing in particular")
 ws.on_look = real_look
-check("a turn that showed nothing says so in one line", NOTES and "Nothing came of that" in NOTES[-1], NOTES[-2:])
+check("a turn that showed nothing says so in one line", NOTES and "Nothing comes of that" in NOTES[-1], NOTES[-2:])
 check("...and the refusal log keeps what ran", refusals.SESSION and refusals.SESSION[-1]["kind"] == "silent" and "look" in refusals.SESSION[-1]["why"],
       refusals.SESSION[-1:])
 NOTES.clear()

@@ -721,7 +721,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         One line says so, and the refusal log keeps what ran, so the handler that went quiet can be found and given its own reason."""
         from engine import refusals
         ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
-        console.note("Nothing came of that: the game found nothing it could do with it here. Try saying it another way.")
+        console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
 
     def reload_after_rollback(self) -> None:

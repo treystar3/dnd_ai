@@ -121,6 +121,9 @@ def problems() -> list[str]:
 def what_of(words: str) -> str:
     """The thing attempted, for a mark: the player's words, trimmed of the 'I' and kept short."""
     w = " ".join((words or "").split())
+    if w.lower().startswith("the player "):                 # (f391) a summary in the third person: "The player takes out their journal"
+        from engine import hygiene
+        w = hygiene.second_person(w, whole=True)[4:]
     for lead in ("i try to ", "i attempt to ", "i'll ", "i will ", "i "):
         if w.lower().startswith(lead):
             w = w[len(lead):]
