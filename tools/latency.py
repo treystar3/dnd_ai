@@ -146,7 +146,9 @@ def summarise(run_dir: Path) -> str:
         lines.append(f"{info.get('character', '?')}, {info.get('class', '?')}, level {info.get('level', '?')}, {info.get('deaths', 0)} deaths; "
                      f"{info.get('turns', len(turns))} turns in {info.get('hours', '?')} hours; stopped: {info.get('reason', '?')}; "
                      + (f"starting as {info['start']}, playing as {info.get('persona', '?')}; " if info.get("start") else "") +
-                     f"model {info.get('model', '?')}" + (" (stand-in)" if info.get("stub") else "") + ".")
+                     f"model {info.get('model', '?')}" + (" (stand-in)" if info.get("stub") else "")
+                     + (f", warm calls {(info.get('sampling') or {}).get('temp_add', 0):+g} temperature and {(info.get('sampling') or {}).get('repeat_add', 0):+g} repeat penalty"
+                        if any((info.get("sampling") or {}).values()) else "") + ".")
         lines.append("")
     lines += ["## Turns", ""]
     lines += turns_table(turns) if turns else ["No turns recorded."]

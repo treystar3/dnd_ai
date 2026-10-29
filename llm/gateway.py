@@ -74,6 +74,19 @@ def threads() -> dict:
     return {"num_thread": n} if n > 0 else {}
 
 
+def shifted(task: str, base: float, top: float, tuned: dict) -> tuple[float, float, dict]:
+    """(f387) config.TEMP_ADD and REPEAT_ADD applied: warm calls warmer (their retry ceiling with them), set penalties firmer. The cold
+    calls and the night bot's own lines are untouched."""
+    add, rep = float(getattr(config, "TEMP_ADD", 0) or 0), float(getattr(config, "REPEAT_ADD", 0) or 0)
+    if task in getattr(config, "BOT_TASKS", ()):
+        return base, top, tuned
+    if add and base >= getattr(config, "WARM_FROM", 0.5):
+        base, top = min(1.5, base + add), min(1.5, top + add)
+    if rep and "repeat_penalty" in tuned:
+        tuned = dict(tuned, repeat_penalty=round(tuned["repeat_penalty"] + rep, 3))
+    return base, top, tuned
+
+
 def generate(
     task: str,
     system: str,
@@ -121,6 +134,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     tuned = dict(getattr(config, "SAMPLING", {}).get(task, {}))
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2      # a retry warms a tuned task only a little
+    base, top, tuned = shifted(task, base, top, tuned)
     for attempt in range(retries + 1):
         start = time.perf_counter()
         try:

@@ -156,7 +156,7 @@ cd /workspace
 echo "boot $(date -u +%FT%TZ): unpacking the game"
 rm -rf dnd_ai && mkdir dnd_ai && tar -xzf dnd.tar.gz -C dnd_ai
 cd dnd_ai
-MSS_PROXY={mss} DND_NUM_THREAD={threads} RUNS={runs} HOURS={hours} PARALLEL={parallel} EXTRA="{extra}" bash tools/runpod_night.sh
+{env}MSS_PROXY={mss} DND_NUM_THREAD={threads} RUNS={runs} HOURS={hours} PARALLEL={parallel} EXTRA="{extra}" bash tools/runpod_night.sh
 echo "NIGHT DONE $(date -u +%FT%TZ)"
 """
 
@@ -172,6 +172,8 @@ def main() -> None:
     n.add_argument("--parallel", type=int, default=3); n.add_argument("--extra", default="")
     n.add_argument("--mss-proxy", action="store_true", help="route the pod's downloads through tools/mss_proxy.py (a path that drops big packets)")
     n.add_argument("--num-thread", type=int, default=0, help="CPU threads for the model runner (0: half the container's CPU quota when pinned, else Ollama's default)")
+    n.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                   help="(f387) a setting for the game, e.g. --env DND_TEMP_ADD=0.15 --env DND_REPEAT_ADD=0.1 (config.py reads DND_ settings)")
     t = sub.add_parser("tail"); t.add_argument("--lines", type=int, default=40); t.add_argument("--file", default="/workspace/night.log")
     sub.add_parser("status")
     args = ap.parse_args()
@@ -185,8 +187,12 @@ def main() -> None:
         tar = archive_repo()
         r = pod.upload(tar, "workspace/dnd.tar.gz")
         print(f"uploaded the game ({tar.stat().st_size // 1_000_000} MB) -> /{r.get('path')}")
+        import re as _re
+        env = [e for e in args.env if _re.fullmatch(r"DND_[A-Z_]+=[0-9.+-]+", e)]
+        if len(env) != len(args.env):
+            sys.exit("--env takes DND_NAME=number settings only")
         boot = BOOT.format(runs=args.runs, hours=args.hours, parallel=args.parallel, extra=args.extra.replace('"', ""), mss=int(args.mss_proxy),
-                           threads=args.num_thread)
+                           threads=args.num_thread, env="".join(e + " " for e in env))
         pod.run("import pathlib\npathlib.Path('/workspace/dnd_boot.sh').write_text(" + repr(boot) + ")\nprint('boot script written')")
         print(pod.sh("cd /workspace && (setsid nohup bash /workspace/dnd_boot.sh > /workspace/night.log 2>&1 < /dev/null &) ; sleep 3; echo started; head -3 /workspace/night.log"), end="")
     elif args.cmd == "tail":

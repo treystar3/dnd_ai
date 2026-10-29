@@ -564,7 +564,8 @@ def main() -> None:
                     "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
-                    "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL})
+                    "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
+                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD}})          # (f387) which voice this night tried
         if not args.stub:
             from llm.gateway import unload
             unload()
