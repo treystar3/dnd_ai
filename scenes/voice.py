@@ -77,7 +77,9 @@ def fresh(task: str, system: str, request: str, schema, recent: list[str], field
     scene's watch) or ends two or more sentences on a trailing participle, rewrite once with the habit called out. `context` is the
     schema's validation context (a frame's speaker and the others present, f347). (f374) tails=False for a frame around speech: a beat
     before and after a line is a sentence or two, the first playthrough rewrote half of them for this and the rewrite fixed it in half of
-    those, at a second call each, before the player could read the line."""
+    those, at a second call each, before the player could read the line. (f380) And none for a round of a fight: the second playthrough
+    rewrote 10 of 11 rounds, mostly for this; the rewrites ended as many sentences that way as the drafts did (29 against 31), and two of
+    them lost a blow's [hN] marker the draft had kept, so its figure was printed at the end of the passage instead of beside the blow."""
     from engine import worn as _worn
     import config
     max_tokens = max_tokens or config.PROSE_MAX_TOKENS                     # (f375) a ceiling against a runaway, never a length

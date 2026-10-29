@@ -17,20 +17,21 @@ D = yaml.safe_load((ROOT / "data" / "world" / "doings.yaml").read_text(encoding=
 STILL = ("prisoner",)                         # roles whose doing the story sets (a prisoner walks bound at your side)
 
 
-def entries(role: str) -> list[dict]:
-    raw = (D.get("by_role") or {}).get(role) or D["anyone"]
+def entries(role: str, person: str = "") -> list[dict]:
+    """A person's own doings when they have them (by_person, f380), else their role's, else anyone's."""
+    raw = (D.get("by_person") or {}).get(person) or (D.get("by_role") or {}).get(role) or D["anyone"]
     return [e if isinstance(e, dict) else {"text": e} for e in raw]
 
 
-def options(role: str, period: str) -> list[dict]:
+def options(role: str, period: str, person: str = "") -> list[dict]:
     """The doings open to this role at this period: those for the period, else those for any time, else anyone's."""
-    all_ = entries(role)
+    all_ = entries(role, person)
     out = [e for e in all_ if not e.get("when") or period in e["when"]]
     return out or [e for e in all_ if not e.get("when")] or [{"text": t} for t in D["anyone"]]
 
 
-def pick(role: str, period: str, rng: random.Random, taken=()) -> str:
-    opts = options(role, period)
+def pick(role: str, period: str, rng: random.Random, taken=(), person: str = "") -> str:
+    opts = options(role, period, person)
     fresh = [e for e in opts if e["text"] not in taken] or [{"text": t} for t in D["anyone"] if t not in taken] or opts
     return rng.choices(fresh, weights=[float(e.get("weight", 1)) for e in fresh])[0]["text"]
 
@@ -55,7 +56,7 @@ def doing_for(npc, seed, minutes: int, taken=(), moment: dict | None = None) -> 
         return over
     period = clock.period(minutes)
     rng = random.Random(f"{seed}:doing:{npc.id}:{clock.day(minutes)}:{period}")
-    return pick(npc.role, period, rng, taken)
+    return pick(npc.role, period, rng, taken, person=npc.id)
 
 
 def assign(store, people: list, minutes: int, moment: dict | None = None, save: bool = True, visiting=(), place_type: str = "") -> list[tuple]:
@@ -96,24 +97,26 @@ def problems(roles: set[str], periods: set[str]) -> list[str]:
     bad = []
     if not isinstance(D.get("anyone"), list) or len(D["anyone"]) < 4:
         bad.append("doings.yaml anyone: needs at least four doings for anyone")
-    for role, raw in (D.get("by_role") or {}).items():
-        if role not in roles:
+    lists = [(f"by_role.{r}", r, raw) for r, raw in (D.get("by_role") or {}).items()] + \
+        [(f"by_person.{p}", "", raw) for p, raw in (D.get("by_person") or {}).items()]          # (f380) a person's own, checked the same way
+    for where, role, raw in lists:
+        if role and role not in roles:
             bad.append(f"doings.yaml by_role: '{role}' is not a role in roles.yaml")
         texts = []
         for e in raw or []:
             e = e if isinstance(e, dict) else {"text": e}
             if not str(e.get("text", "")).strip():
-                bad.append(f"doings.yaml by_role.{role}: an entry has no text")
+                bad.append(f"doings.yaml {where}: an entry has no text")
             texts.append(e.get("text"))
             for w in e.get("when") or []:
                 if w not in periods:
-                    bad.append(f"doings.yaml by_role.{role}: '{w}' is not a period of the day")
+                    bad.append(f"doings.yaml {where}: '{w}' is not a period of the day")
             if "weight" in e and not (isinstance(e["weight"], (int, float)) and e["weight"] > 0):
-                bad.append(f"doings.yaml by_role.{role}: a weight must be above zero")
+                bad.append(f"doings.yaml {where}: a weight must be above zero")
         if len(texts) != len(set(texts)):
-            bad.append(f"doings.yaml by_role.{role}: a doing is listed twice")
+            bad.append(f"doings.yaml {where}: a doing is listed twice")
         if len(texts) < 3:
-            bad.append(f"doings.yaml by_role.{role}: fewer than three doings")
+            bad.append(f"doings.yaml {where}: fewer than three doings")
     for role in sorted(roles - set(D.get("by_role") or {}) - set(STILL)):
         bad.append(f"doings.yaml by_role: the role '{role}' has no doings")
     return bad

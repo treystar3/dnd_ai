@@ -1431,6 +1431,25 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc, p.doing)      # (f378) and their work
                 for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
 
+    FIRST_SEEN = 2
+
+    def first_seen(self, people: list[tuple[str, str, str]]) -> tuple[list[tuple[str, str, str]], int]:
+        """(f380) Walking in, the people the eye falls on first, and how many more there are. With no length to hold it (f375) an arrival
+        walked the room one person at a time: ten at the guild hall, each with a look and a doing, though the narrator was told 'the place
+        and one person'. So the engine chooses: those the player knows by name, then whoever the place is kept by (its first role: the
+        clerk at the hall, the keeper of an inn), then by chance; the rest are a number until the player looks."""
+        from engine import truth
+        ps = [p for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire")]
+        if len(people) <= self.FIRST_SEEN:
+            return people, 0
+        kept_by = next(iter(self.place.residents or {}), "")
+        rng = random.Random(f"{self.store.meta.seed}:first_seen:{self.player.location}:{self.minutes // 60}")
+        order = sorted(ps, key=lambda p: (0 if p.kind == "maren" or (p.name and p.label == p.name) else 1 if p.role and p.role == kept_by else 2,
+                                          rng.random()))
+        first = {p.label for p in order[:self.FIRST_SEEN]}
+        shown = [t for t in people if t[0] in first]
+        return shown, len(people) - len(shown)
+
     def seen_as(self, n) -> str:
         """(f378) A townsperson as the narrator's frames list them: how the player knows them, and their work when that does not say it."""
         from engine import truth
@@ -1465,7 +1484,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seen.update((self.player.location, h) for h in unseen)
         unseen = self.__dict__.pop("_arrival_lines", []) + unseen                                  # (f331) what changed here while the player was away, once
         self.__dict__.setdefault("_news_seen", set()).update(here.lines("news")[:3])              # (f349) news the narrator has been handed once
-        request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, player_text,
+        people, unlooked = self.people_view(), 0
+        if not self.__dict__.pop("_looking", False) and not (self.__dict__.get("_shown_here") or {}).get("place"):
+            people, unlooked = self.first_seen(people)                                       # (f380) walking in: who the eye falls on first
+        request = wp.narration_request(self.time_label(), self.place, people, event, player_text,
                                        self.recent_narration, self.gear_line(), marks,
                                        [inv.label(i) for i in self.ground_here()],
                                        unseen, streets=here.streets(),
@@ -1473,7 +1495,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        news=here.lines("news")[:3],                                 # (f331) the narrator hears what the town is talking about
                                        already=self.shown_lines(),                                  # (f347) ...and what the player has read here already
                                        companions=self.companions_in(event),                        # (f349) ...and of a companion only when the event has them act
-                                       worn=self.worn_words("prose"))                               # (f349) ...and which words it has worn out lately
+                                       worn=self.worn_words("prose"),                               # (f349) ...and which words it has worn out lately
+                                       unlooked=unlooked)
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
                        temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"))
         shown = self.unnamed(result.text)
@@ -1880,6 +1903,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import matters
         if intent.seek and matters.try_find(self, text):          # (f317) looking for something, where a matter's find path points
             return
+        self._looking = True                                                     # (f380) a look sees the whole room, an arrival or not
         room = (" The player has rented a small room upstairs here; if their words take them to it, describe the "
                 "room - simple, private, theirs for the night. " if self.has_room() else "")
         self.narrate(

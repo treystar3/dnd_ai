@@ -31,8 +31,8 @@ check("the narrator, the frames and the fight see the passages; townsfolk and hi
       and "HOW PEOPLE SOUND HERE" in __import__("scenes.party_prompts", fromlist=["TALK_SYSTEM"]).TALK_SYSTEM)
 check("the DM voice asks for sentence music as craft, not a quota", "a short one lands a blow" in voice.DM_VOICE and "under eight words" not in voice.DM_VOICE
       and "two before a noun" in voice.DM_VOICE and "trailing participle" in voice.DM_VOICE)
-check("the narrator is told to say what is new, and to give an arrival as the place and one person, with no length", "ALREADY SHOWN THIS VISIT" in wp.NARRATOR_SYSTEM
-      and "one person doing one thing" in wp.NARRATOR_SYSTEM and "LENGTH" not in wp.NARRATOR_SYSTEM and "sentence or two" not in wp.NARRATOR_SYSTEM
+check("the narrator is told to say what is new, and that walking in it is given the first people the eye falls on, with no length",
+      "ALREADY SHOWN THIS VISIT" in wp.NARRATOR_SYSTEM and "first people the eye falls on" in wp.NARRATOR_SYSTEM and "LENGTH" not in wp.NARRATOR_SYSTEM and "sentence or two" not in wp.NARRATOR_SYSTEM
       and "say less" not in wp.NARRATOR_SYSTEM + voice.DM_VOICE and "economical" not in voice.DM_VOICE)
 check("the frame never shows the character going back to work, never ends on the room", "going back to what they were doing" in wp.DIALOGUE_SYSTEM
       and "closing shot" in wp.DIALOGUE_SYSTEM and "WHY THIS LINE GETS A FRAME" in wp.DIALOGUE_SYSTEM)
