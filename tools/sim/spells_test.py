@@ -226,6 +226,29 @@ check("once cast, it is spent for the fight, and the cast is kept for the day", 
 c5.spell_days = {nm.id: 1000}
 check("...and is not ready again until a day has passed", spells.day_locked(c5, named, 1000 + 60) > 0 and spells.day_locked(c5, named, 1000 + 1440) == 0)
 
+# ---- heals and control spells on ranks (f399)
+from engine import healing
+from core.models import Ability
+pr, _ = simlib.make_character("priest", random.Random(9))
+heal = next(a for a in pr.actives if a.effect.value == "healing")
+check("a priest's heal is on ranks: rank I, its form's cooldown, a flat cost by rank and form",
+      heal.rank == 1 and heal.cooldown == spells.S["healing"]["forms"][heal.heal_form or "mend"]["cooldown"]
+      and spells.mana(heal) == round(spells.S["healing"]["mana"][0] * spells.S["healing"]["forms"][heal.heal_form or "mend"]["mana"]), heal)
+check("...it heals its rank's share of the target's health", healing.pct_of(heal) == spells.S["healing"]["percent"][0]
+      and f"{round(spells.S['healing']['percent'][0] * healing.FORMS[heal.heal_form or 'mend']['share'])}%" in healing.card_text(heal), healing.card_text(heal))
+leveling.level_up(pr, 29)
+spells.catch_up(pr)
+top_heal = spells.top(pr, heal.line)
+check("...and grows by rank like any spell: at level 30, rank III, a bigger share", top_heal.rank == 3
+      and healing.pct_of(top_heal) == spells.S["healing"]["percent"][2] > healing.pct_of(heal), (top_heal.rank, healing.pct_of(top_heal)))
+check("...out of a fight too", healing.pct_of(top_heal, outside=True) == spells.S["healing"]["outside"][2])
+ctl = Ability(id="hold", name="Binding Word", description="d", effect="control", tier="heavy", reach="ranged", resource="mana", context="combat",
+              cost=0, cooldown=3)
+spells.make_ranked(ctl, 3)
+check("a control spell on ranks: its strength is what its rank counts as, one cooldown, a flat cost", ctl.tier.value == spells.tier_for(3)
+      and ctl.cooldown == spells.S["control"]["cooldown"] and spells.mana(ctl) == spells.S["control"]["mana"][2] and spells.card(ctl) == "Rank III control")
+check("buffs and summons keep their tiers", not spells.takes_rank("buff", "mana") and not spells.takes_rank("summon", "mana"))
+
 # ---- the card
 from ui import console as real_console
 c4, _ = simlib.make_character("mage", random.Random(3))

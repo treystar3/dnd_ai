@@ -65,7 +65,7 @@ def is_control(eid: str) -> bool:
 def form_of(move) -> str:
     """The form a damage move strikes in: its own, or a blast for the old area reach. (f397) A ranked spell strikes as its form's
     delivery (data/rules/spells.yaml): a lance as a bolt does, harder."""
-    if getattr(move, "rank", 0):
+    if getattr(move, "rank", 0) and getattr(move, "effect", "") == "damage":
         from engine import spells
         return spells.delivery(move)
     f = getattr(move, "spell_form", "") or ""
@@ -83,7 +83,7 @@ def in_area(combat, att, zone_id: str, enemies: list) -> list:
 def targets(combat, att, move, target, enemies: list) -> tuple[list, float]:
     """(who is struck, the share each takes) for a damage move."""
     form = form_of(move)
-    ranked = bool(getattr(move, "rank", 0))
+    ranked = bool(getattr(move, "rank", 0)) and getattr(move, "effect", "") == "damage"
     if ranked and form in ("burst", "blast"):            # (f397) a ranked area spell's power is per foe; on a lone foe it spreads thin
         from engine import spells
         aim = target if target is not None and target.alive else (enemies[0] if enemies else None)
@@ -1017,7 +1017,7 @@ def lay_curse(combat, att, dfn, move, mult: float, rng) -> None:
     """A curse: its damage is fixed now, and comes over the target's next turns. It cannot miss."""
     F = FORMS["curse"]
     total, turns = F["total"], int(F["turns"])
-    if getattr(move, "rank", 0):                         # (f397) a ranked curse: its form's power is the whole of it
+    if getattr(move, "rank", 0) and getattr(move, "effect", "") == "damage":     # (f397) a ranked curse: its form's power is all of it
         from engine import spells
         total, turns = 1.0, int(spells.FORMS[spells.form_of(move)].get("turns", turns))
     trig = C.active_triggers(att, combat, dfn)

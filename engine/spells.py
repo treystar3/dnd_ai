@@ -33,16 +33,29 @@ def numeral(rank: int) -> str:
     return NUMERALS.get(int(rank), str(rank))
 
 
+KINDS = ("damage", "healing", "control")             # the kinds of spell on ranks; buffs and summons keep their tiers for now
+
+
 def is_ranked(x) -> bool:
-    """A spell on ranks (an Ability or a combat Move): rank 1 and up. Everything else (techniques, heals and buffs for now) is tiered."""
+    """A spell on ranks (an Ability or a combat Move): rank 1 and up. Everything else (techniques, buffs, summons) is tiered."""
     return int(getattr(x, "rank", 0) or 0) > 0
 
 
+def kind_of(x) -> str:
+    return str(getattr(getattr(x, "effect", ""), "value", getattr(x, "effect", "")))
+
+
+def is_ranked_damage(x) -> bool:
+    """A ranked damage spell: its rank and form set its damage (the others keep their own numbers, by rank)."""
+    return is_ranked(x) and kind_of(x) == "damage"
+
+
 def takes_rank(effect, resource, channel: bool = False) -> bool:
-    """Whether a new ability of this kind is a ranked spell: a mana damage spell, not a strike channelled through a weapon."""
+    """Whether a new ability of this kind is a ranked spell: a mana damage, healing or control spell, not a strike channelled through a
+    weapon."""
     ev = getattr(effect, "value", effect)
     rv = getattr(resource, "value", resource)
-    return ev == "damage" and rv == "mana" and not channel
+    return ev in KINDS and rv == "mana" and not channel
 
 
 def form_of(x) -> str:
@@ -77,9 +90,21 @@ def coefficient(x) -> float:
 
 
 def mana(x) -> int:
-    """A flat cost: the rank's mana times the form's."""
-    m = float(RANKS[int(x.rank)]["mana"]) * float(FORMS[form_of(x)]["mana"])
+    """A flat cost: the rank's mana times the form's (for a heal, its heal form's; for a control spell, the control table's)."""
+    r = int(x.rank)
+    kind = kind_of(x)
+    if kind == "healing":
+        hf = getattr(x, "heal_form", "") or "mend"
+        return max(1, round(float(S["healing"]["mana"][r - 1]) * float(S["healing"]["forms"].get(hf, {}).get("mana", 1.0))))
+    if kind == "control":
+        return max(1, round(float(S["control"]["mana"][r - 1])))
+    m = float(RANKS[r]["mana"]) * float(FORMS[form_of(x)]["mana"])
     return max(1, round(m * (float(S["named"]["mana"]) if getattr(x, "named", False) else 1.0)))
+
+
+def heal_percent(x, outside: bool = False) -> float:
+    """A ranked heal's share of its target's health, by rank (out of a fight: of the caster's own)."""
+    return float(S["healing"]["outside" if outside else "percent"][int(x.rank) - 1])
 
 
 def cooldown(form: str) -> int:
@@ -105,11 +130,32 @@ def form_text(form: str) -> str:
     return F["text"].format(cooldown=F.get("cooldown", 0), turns=F.get("turns", 3))
 
 
+def form_label(x) -> str:
+    """The form a ranked spell is cast in, as one word: lance, blast; mend, renew (a heal's); control."""
+    kind = kind_of(x)
+    if kind == "healing":
+        return getattr(x, "heal_form", "") or "mend"
+    if kind == "control":
+        return "control"
+    return FORMS[form_of(x)]["label"].lower()
+
+
+def form_description(x) -> str:
+    """What the form does, for the model naming a new rank."""
+    kind = kind_of(x)
+    if kind == "healing":
+        from engine import healing
+        return healing.FORMS.get(getattr(x, "heal_form", "") or "mend", {}).get("depict", "a heal")
+    if kind == "control":
+        return "a control spell: it hinders a foe rather than harming it"
+    return form_text(form_of(x))
+
+
 def card(x) -> str:
     """'Rank III lance': how a ranked spell is named in the book and the panes ('Named blast' for a codex's spell)."""
     if getattr(x, "named", False):
-        return f"Named {FORMS[form_of(x)]['label'].lower()}"
-    return f"Rank {numeral(x.rank)} {FORMS[form_of(x)]['label'].lower()}"
+        return f"Named {form_label(x)}"
+    return f"Rank {numeral(x.rank)} {form_label(x)}"
 
 
 # ---------- making and growing a spell
@@ -119,12 +165,18 @@ def make_ranked(a, rank: int, form: str = "") -> None:
     as where tiers are read."""
     from core.models import PowerTier
     a.rank = int(rank)
-    a.spell_form = form or form_of(a)
     a.line = a.line or a.id
     a.tier = PowerTier(tier_for(rank))
-    a.cooldown = cooldown(a.spell_form)
-    a.cast_turns = cast_turns(a.spell_form)
-    a.power = 0
+    kind = kind_of(a)
+    if kind == "healing":                         # (f399) a heal: its form's cooldown; its size by rank (engine/healing.py)
+        a.cooldown = int(S["healing"]["forms"].get(getattr(a, "heal_form", "") or "mend", {}).get("cooldown", 1))
+    elif kind == "control":                       # (f399) a control spell: its strength by the tier its rank counts as
+        a.cooldown = int(S["control"]["cooldown"])
+    else:
+        a.spell_form = form or form_of(a)
+        a.cooldown = cooldown(a.spell_form)
+        a.cast_turns = cast_turns(a.spell_form)
+        a.power = 0
     a.cost_percent = 0
     a.cost = mana(a)
 
@@ -361,6 +413,15 @@ def problems() -> list[str]:
             for f in weights:
                 if f not in FORMS:
                     bad.append(f"spells.yaml plan {reach} {tier}: '{f}' is not a form")
+    for k in ("percent", "outside", "mana"):
+        if len(S["healing"][k]) < TOP:
+            bad.append(f"spells.yaml healing {k}: a value for every rank")
+    if len(S["control"]["mana"]) < TOP:
+        bad.append("spells.yaml control mana: a value for every rank")
+    from engine import healing as _h
+    for hf in _h.FORMS:
+        if hf not in S["healing"]["forms"]:
+            bad.append(f"spells.yaml healing forms: '{hf}' (a healing.yaml form) has no mana and cooldown")
     for r, good in (S.get("books") or {}).items():
         g = inv.GOODS.get(good)
         if g is None or g.kind != "book" or g.rank != int(r):

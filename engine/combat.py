@@ -1756,7 +1756,7 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         cost = pool * (move.cost_percent or RULES["stamina_cost_percent"][move.tier]) / 100
     elif getattr(move, "rank", 0):
         from engine import spells
-        cost = spells.mana(move)                         # (f397) a ranked spell: a flat cost, its rank's times its form's
+        cost = spells.mana(move)                         # (f397) a ranked spell: a flat cost, by its rank and form
     else:
         pool = pools.reference_mana(f.level) if f.side == "player" else f.max_mana     # a share of what a dedicated caster has
         cost = pool * (move.cost_percent or RULES["ability_cost_percent"][move.tier]) / 100
@@ -2117,7 +2117,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
     if getattr(move, "cooldown_days", 0) and not echo:
         att.cooldowns[move.id] = 10 ** 6                     # (f397) a named spell: once this fight, and the day is kept (spells.day_cast)
         att.counters["day_cast"] = list(att.counters.get("day_cast", [])) + [move.id]
-    ranked = bool(getattr(move, "rank", 0))
+    ranked = bool(getattr(move, "rank", 0)) and move.effect == "damage"
     if ranked:
         from engine import spells
         mult = spells.power(move)                                           # (f397) a ranked spell: its form's power

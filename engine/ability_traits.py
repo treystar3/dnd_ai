@@ -118,7 +118,7 @@ def parts(a) -> list[tuple[str, str]]:
         out.append((shape_label(a.shape, getattr(a, "reach", "")), shape_text(a.shape)))
     if getattr(a, "rider", ""):
         out.append((RIDERS[a.rider]["label"], rider_text(a.rider, a.tier)))
-    if getattr(a, "rank", 0):                                     # (f397) a ranked spell: its rank, and its form from the spellbook
+    if getattr(a, "rank", 0) and getattr(a.effect, "value", a.effect) == "damage":   # (f397) a ranked spell: its rank, and its form
         from engine import spells
         out.append((spells.card(a), spells.form_text(spells.form_of(a))))
     elif getattr(a, "spell_form", "") and a.spell_form != "bolt":

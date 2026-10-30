@@ -59,8 +59,7 @@ class SpellActions:
         c = self.player.character
         line = spells.lines(c).get(t.line or t.id) or [t]
         req = (f"THE SPELL: {t.name} - {t.description}\n"
-               f"ITS ELEMENT: {t.element or 'none: plain force'}\nITS FORM: {spells.FORMS[spells.form_of(t)]['label']}: "
-               f"{spells.form_text(spells.form_of(t))}\n"
+               f"ITS ELEMENT: {t.element or 'none: plain force'}\nITS FORM: {spells.form_label(t)}: {spells.form_description(t)}\n"
                f"ITS RANKS SO FAR: {', '.join(f'{a.name} (rank {spells.numeral(a.rank)})' for a in line)}\n"
                f"THE NEW RANK: {spells.numeral(rank)} of {spells.numeral(spells.TOP)}\n"
                f"THE CHARACTER: {c.custom_class or c.archetype.value}")
@@ -144,7 +143,7 @@ class SpellActions:
         self.rank_options = ready
         console.note(f"{teacher.label().capitalize()} can teach you:")
         for i, (line, a, r) in enumerate(ready, 1):
-            console.note(f"  {i}. {a.name} to rank {spells.numeral(r)} ({spells.FORMS[spells.form_of(a)]['label'].lower()}) - "
+            console.note(f"  {i}. {a.name} to rank {spells.numeral(r)} ({spells.form_label(a)}) - "
                          f"{money.words(self.fee(spells.teacher_fee(r)))}, {spells.S['teach']['hours']} hours")
         console.note("Say which you'll learn.")
 

@@ -231,10 +231,13 @@ def _ability_facts(a, level: int) -> list[str]:
         from engine import spells
         facts.append(f"named {spells.FORMS[spells.form_of(a)]['label'].lower()}: {round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} "
                      f"damage; once a fight, then {a.cooldown_days} day{'s' if a.cooldown_days != 1 else ''} before it can be cast again")
-    elif getattr(a, "rank", 0):                       # (f397) a ranked spell: its rank and form say how hard it hits
+    elif getattr(a, "rank", 0) and a.effect.value == "damage":   # (f397) a ranked spell: its rank and form say how hard it hits
         from engine import spells
         facts.append(f"rank {spells.numeral(a.rank)}, {spells.FORMS[spells.form_of(a)]['label'].lower()}: "
                      f"{round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} damage")
+    elif getattr(a, "rank", 0):                       # (f399) a ranked heal or control spell
+        from engine import spells
+        facts.append(f"rank {spells.numeral(a.rank)} {spells.form_label(a)}")
     elif a.effect.value == "damage":                  # (f262) how hard it hits, against what it scales from
         pct = round((a.power or COMBAT["damage"]["multiplier"][a.tier.value]) * 100)
         facts.append(f"deals {pct}% of {'spell' if a.resource.value == 'mana' and not a.channel else 'weapon'} damage as {damage_kind(a)} damage")

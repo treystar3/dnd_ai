@@ -14,8 +14,9 @@
 # learn and a form you choose, like the spells of the old table-top games. Simulated against the old spells in the game's own combat
 # engine before it was built (same damage and mana per damage over fights of two to eight turns; the numbers below are that run's).
 #
-# Only damage spells are on ranks so far. Heals, buffs, control and summons keep their tiers until they get rank tables of their own;
-# `tier` on each rank is what a ranked spell counts as for the effects still measured by tier (riders, element expressions, field uses).
+# Damage spells, heals and control spells are on ranks (each kind's table below); buffs (one strength each) and summons keep their tiers
+# for now. `tier` on each rank is what a ranked spell counts as where tiers are still read (riders, element expressions, a control
+# spell's strength, field uses).
 
 coefficient: 0.5            # spell power's share of a rank's base, for a form of coefficient factor 1; the same at every rank
 
@@ -45,6 +46,25 @@ forms:
             text: "lays its damage on one foe over its next {turns} turns. It cannot miss."}
   charged: {delivery: gathered,  power: 3.0, mana: 2.4, cooldown: 3, coefficient: 1.25, cast_turns: 2, label: Charged,
             text: "takes two turns: begun on the first and released on the second, for a great blow. A stun or a fall breaks it."}
+
+# HEALS ON RANKS (f399): a heal's size is a share of its target's maximum health (engine/healing.py), by rank, before the caster's power;
+# its form (data/rules/healing.yaml: mend, renew, ward, cleanse, transfer, rescue) is its dial, with a mana factor and a cooldown.
+healing:
+  percent: [16, 20, 24, 28, 32, 36, 40]       # by rank, in a fight
+  outside: [18, 22, 26, 30, 35, 40, 45]       # by rank, out of a fight: a share of the caster's own health
+  mana:    [8, 15, 27, 44, 64, 88, 112]       # by rank, times the form's factor
+  forms:
+    mend:     {mana: 1.0, cooldown: 1}
+    renew:    {mana: 1.3, cooldown: 2}
+    ward:     {mana: 1.2, cooldown: 2}
+    cleanse:  {mana: 0.8, cooldown: 1}
+    transfer: {mana: 1.0, cooldown: 2}
+    rescue:   {mana: 2.5, cooldown: 4}
+
+# CONTROL SPELLS ON RANKS (f399): their strength is what their rank counts as (`tier` above); a flat cost and one cooldown.
+control:
+  mana: [8, 15, 27, 44, 64, 88, 112]
+  cooldown: 2
 
 # Which form a planned spell gets (engine/ability_slots.py), by how hard the plan meant it to hit (its tier) and its reach.
 plan:

@@ -2488,7 +2488,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif effect == "healing":
             top = pools.maximum(c, "health")
             from engine import healing as _heal
-            gain = top * _heal.H["outside"][ability.tier.value] / 100
+            gain = top * _heal.pct_of(ability, outside=True) / 100        # (f399) a ranked heal's share by rank
             c.health = min(top, pools.current(c, "health") + gain)
             result = "Their wounds close a little."
         elif ability.field_use:
