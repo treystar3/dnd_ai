@@ -146,7 +146,15 @@ check("...townsfolk alike", "a greeting gets a greeting back" in npc_prompts.CON
 from engine import voice_profile
 import yaml
 SP = yaml.safe_load(open("data/rules/speech.yaml", encoding="utf-8"))
-check("a dwarf's Common is blunt, not a caricature: no verb at the end", "verb at the end" not in SP["tongues"]["ironvein"]["habits"])
+member = {"id": "brokur", "name": "Brokur Durdal", "people": "dwarf", "said": [],
+          "speech": {"culture": next(c for c, s in voice_profile.S["cultures"].items() if s.get("tongue") == "ironvein"), "fluency": "learner",
+                     "strength": "light"}}
+acc = voice_profile.accent(member)
+check("(f410) a speaker with an accent has it in every reply, not on a roll", "verb at the end" in acc and "in every line" in acc, acc)
+rolled = [voice_profile.culture_feature(member, random.Random(i))[0] for i in range(200)]
+check("...and it is no longer one of the touches rolled per reply", "transfer" not in rolled, set(rolled))
+member["speech"]["fluency"] = "native"
+check("...someone raised on Common has none", voice_profile.accent(member) == "")
 from engine import mentor as _mentor
 check("Maren is told to say each point once, briefly", any("Use no more words than the points need" in r for r in _mentor.M["voice"]["speech_rules"]))
 check("a name run into a word with an underscore is written as words", hygiene.clean("Right_Nickkelly.") == "Right Nickkelly.")

@@ -59,8 +59,8 @@ culture:
   show: {light: 0.25, moderate: 0.4, strong: 0.6}   # the chance, per reply, that their culture shows
   weights:                                          # which feature, when it does
     dialect: 4                                      # a line of their culture's way of talking
-    transfer_learner: 4                             # their first tongue showing through their Common (still learning it)
-    transfer_fluent: 1.5                            # the same, for someone fluent
+    transfer_learner: 4                             # (f410) unused: an accent is in every reply now (engine/voice_profile.accent), not rolled
+    transfer_fluent: 1.5
     saying: 1.5                                     # a saying from home, offered to be said as it is
     imagery: 1                                      # one image from home, allowed as a turn of phrase
     word: 0                                         # a word of their home tongue (0: off for now - the model used them as filler; the words stay in the data)
@@ -167,7 +167,7 @@ cultures:
 tongues:
   ironvein:
     home: Ironvein under the Grey Mountains
-    habits: "says things bluntly and in few words; counts and measures things exactly; leaves out a small joining word now and then, in normal word order"     # (f409) a verb at the end read as a caricature
+    habits: "now and then puts the verb at the end of a sentence, the way their own tongue does; counts and measures things exactly; uses few small joining words"
     words: {khaz: "solid, well made, sound", brund: "a fool, fondly or not", orrum: "home, the hall", taak: "agreed, it is done"}
     offer: [brund, taak]
   eldervale:

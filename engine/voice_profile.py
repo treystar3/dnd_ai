@@ -70,7 +70,8 @@ def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tup
     member = {"id": npc.id, "name": npc.name, "speech": npc.speech, "said": list(npc.said), "people": npc.people}
     relation = relation_kind(score=getattr(npc, "trust", 50) - 50)
     feature = culture_feature(member, rng)
-    lines = voices.lines(voices.kit_of(npc.speech)) + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice
+    lines = voices.lines(voices.kit_of(npc.speech)) + ([accent(member)] if accent(member) else []) \
+        + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice; (f410) the accent always
     return who(member), lines, material_for_feature(member, feature)
 
 
@@ -199,9 +200,6 @@ def culture_feature(member: dict, rng: random.Random) -> tuple[str, object]:
     opts: list[tuple[float, str, object]] = []
     if c.get("dialect"):
         opts.append((W["dialect"], "dialect", rng.choice(c["dialect"])))
-    fl = sp.get("fluency", "native")
-    if t and fl != "native":
-        opts.append((W["transfer_learner" if fl == "learner" else "transfer_fluent"], "transfer", t.get("habits", "")))
     says = [x for x in c.get("sayings", []) if x.lower()[:24] not in lately]
     if says and (sp.get("saying_at") is None or len(said) - sp["saying_at"] >= S.get("saying_gap", 12)):
         opts.append((W["saying"], "saying", rng.choice(says)))
@@ -221,6 +219,20 @@ def culture_feature(member: dict, rng: random.Random) -> tuple[str, object]:
     if kind == "word":
         sp["word_at"] = n
     return kind, payload
+
+
+def accent(member: dict) -> str:
+    """(f410) How their Common sounds, in every reply: an accent is how someone talks, not a flourish rolled for some replies. A smith
+    whose first tongue puts the verb last said 'Hammer in hand, work to finish I have', and his next reply had no trace of it."""
+    sp = member.get("speech") or {}
+    t = tongue_of(member)
+    fl = sp.get("fluency", "native")
+    if not t or fl == "native" or not t.get("habits"):
+        return ""
+    if fl == "learner":
+        return (f"Their Common, in every line and the same each time (it is how they talk, not a flourish): {t['habits']}. "
+                "Never broken, never comic.")
+    return f"Their Common is good, with a light touch of home in most lines, the same each time: {t['habits']}. Never broken, never comic."
 
 
 def tell_for(member: dict, emotion: str) -> str:

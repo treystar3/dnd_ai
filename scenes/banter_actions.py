@@ -454,6 +454,7 @@ class BanterActions:
         g = quirks.growth(m)
         from engine import voices
         kit = [f"{k[0].upper()}{k[1:]}." for k in voices.lines(voices.kit_of(m))]            # (f350) their kit: always, it is the voice
+        kit += [voice_profile.accent(m)] if voice_profile.accent(m) else []              # (f410) and their accent: always, the same
         mine = kit + ([f"In speech, {v}."] if v else []) + ([entities.gendered(f"With the player, they have changed: {g}; let it show, never say it.", own)] if g else [])
         room = self.HOW_BUDGET - len(speak) - len(mine) + len(kit)   # at most HOW_BUDGET lines on how they speak besides the kit, in any one reply
         profile = voice_profile.compile(m, rng_v, emotion, relation, toward, budget=room, feature=self.culture_now(m)) if query is not None else []

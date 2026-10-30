@@ -83,7 +83,9 @@ for k in range(1000):
     feats.append(vp.culture_feature(learner, random.Random(k))[0])
 shown = sum(1 for f in feats if f) / 1000
 check("the culture budget: a moderate culture shows in about two replies in five, never more than one feature", 0.33 < shown < 0.47, shown)
-check("...and each feature turns up", {"dialect", "transfer", "saying"} <= set(feats), collections.Counter(feats))
+check("...and each feature turns up", {"dialect", "saying"} <= set(feats), collections.Counter(feats))
+check("(f410) a learner's accent is not rolled per reply: it is in every reply", "transfer" not in feats and vp.accent(learner)
+      and "in every line" in vp.accent(learner), vp.accent(learner))
 words = sum(1 for f in feats if f == "word") / 1000
 check("home words are off for now: none is offered (speech.yaml culture.weights.word is 0)", words == 0, words)
 learner["said"] = []
