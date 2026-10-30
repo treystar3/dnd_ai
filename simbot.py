@@ -511,7 +511,7 @@ class Bot:
         deaths0 = self.c.deaths
         for attempt in range(5):
             before, t0 = self.loc, self.ws.minutes
-            self.act({"kind": "move", "destination": dest}, f"go to {dest}", cat)
+            self.act({"kind": "move", "destination": dest}, self.move_words(dest), cat)
             if self.c.deaths > deaths0:
                 return False
             if self.loc == dest:
@@ -523,6 +523,18 @@ class Bot:
                 self.log("blocked", dest=dest, note=NOTES[-1][:90] if NOTES else "")
                 self.act({"kind": "wait", "wait_minutes": 180}, "wait", "rest")
         return self.loc == dest
+
+    def move_words(self, dest: str) -> str:
+        """What the bot says to go to dest. A building in another town is named with its town, as a player would: the game reads a
+        bare "go to guild_house" as the guild of the town they stand in, and from anywhere else (the south fields, where a character
+        starts and comes back to after a death) it answers that there is none here and asks where (WorldScene.on_move)."""
+        from engine import mapview
+        w = self.world
+        top = mapview.top_of(w, dest)
+        p = w.places.get(dest)
+        if p and p.type in WorldScene.BUILDING_TYPES and top in w.places and top != mapview.top_of(w, self.loc):
+            return f"go to {dest} in {w.places[top].name}"
+        return f"go to {dest}"
 
     def arrived(self, pid):
         if pid not in self.visited:
@@ -1373,6 +1385,17 @@ class Bot:
         return quests.done(q, self.pack)
 
     # ------------------------------------------------------------ grinding
+    def fighters(self, pid) -> list:
+        """The creatures on a place's roster that will fight this character. A passive one keeps its distance when a search finds it
+        (the horses, the mule and the weasel of the south fields), so ground with nothing else on its roster never comes to a fight."""
+        p = self.world.places[pid]
+        out = []
+        for r in encounters.ensure_roster(self.store, self.world, pid):
+            cr = self.world.bestiary.get(r)
+            if cr and self.ws.temperament(cr, p.danger[1]) != "passive":
+                out.append(cr)
+        return out
+
     def pick_zone(self):
         lv = self.c.level
         cands = []
@@ -1382,34 +1405,27 @@ class Bot:
             if not p.danger or p.type == "dungeon" or pid == "cracked_plains":
                 continue
             lo, hi = p.danger
-            if self.zone_ban.get(pid, 0) > lv:
-                continue
             if lo <= reach and hi >= lv * (0.3 if recent >= 3 else 0.7):
                 m = self.path_minutes(self.loc, pid) if pid != self.loc else 0
-                if m is not None:
-                    # how far from your level the enemies there will typically be (they are drawn across the zone's range)
-                    mids = []
-                    for cr in self.world.bestiary.values():
-                        if p.biome in cr.biomes and cr.roster is not False and not getattr(cr, "unique", False):
-                            a, b = max(lo, cr.levels[0]), min(hi, cr.levels[1])
-                            if a <= b:
-                                mids.append((a + b) / 2)
-                    if mids:      # what the zone's roster actually puts in front of you, not the width of its range
-                        gap = abs(sum(mids) / len(mids) - lv)
-                    else:
-                        span = range(max(1, lo), max(lo, hi) + 1)
-                        gap = sum(abs(x - lv) for x in span) / len(span)
-                    cands.append((m, pid, gap))
+                foes = self.fighters(pid) if m is not None else []
+                if foes:
+                    # how far from your level the enemies there will typically be: what the zone's roster actually puts in front of
+                    # you (an encounter draws one of its creatures, at a level across the part of the zone's range that creature covers)
+                    mid = sum(max(lo, cr.levels[0]) + min(hi, cr.levels[1]) for cr in foes) / (2 * len(foes))
+                    cands.append((m, pid, abs(mid - lv), self.zone_ban.get(pid, 0) > lv))
         if cands and recent < 3:
-            best = min(g for _, _, g in cands)
-            cands = [(m, pid) for m, pid, g in cands if g <= best * 1.25 + 3]       # only the ground that fights at your level
+            best = min(g for _, _, g, _ in cands)
+            fit = [c for c in cands if c[2] <= best * 1.25 + 3]       # only the ground that fights at your level
+            # a ban sends the character to other ground at its level until it is stronger; where it died on the only such ground (the
+            # greywood, at level 1) it goes back there rather than to ground that does not fit its level, where it could not grow stronger
+            cands = [c[:2] for c in ([c for c in fit if not c[3]] or fit)]
         else:
-            cands = [(m, pid) for m, pid, g in cands]
+            cands = [c[:2] for c in cands if not c[3]]
         if not cands:
             for pid, p in self.world.places.items():
                 if p.danger and p.type != "dungeon" and pid != "cracked_plains" and p.danger[0] <= max(1, lv // 2):
                     m = self.path_minutes(self.loc, pid) if pid != self.loc else 0
-                    if m is not None:
+                    if m is not None and self.fighters(pid):
                         cands.append((m, pid))
         if not cands:
             return "greywood"
