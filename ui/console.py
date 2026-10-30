@@ -203,6 +203,9 @@ def _ability_facts(a, level: int) -> list[str]:
     from engine.combat import RULES as COMBAT
     table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
     price = max(1, round(pools.reference_pool(a.resource.value, level) * COMBAT[table][a.tier.value] / 100))
+    if getattr(a, "rank", 0):
+        from engine import spells
+        price = spells.mana(a)                         # (f397) a ranked spell's flat cost
     if a.effect.value == "buff":
         price = max(1, round(price * at.T["buff_cost"]))
     if a.shape == "overcharge":
@@ -224,7 +227,11 @@ def _ability_facts(a, level: int) -> list[str]:
         facts[-1] = f"{body} stamina + {facts[-1]}"
     if a.cooldown:
         facts.append(f"cooldown {a.cooldown}")
-    if a.effect.value == "damage":                    # (f262) how hard it hits, against what it scales from
+    if getattr(a, "rank", 0):                         # (f397) a ranked spell: its rank and form say how hard it hits
+        from engine import spells
+        facts.append(f"rank {spells.numeral(a.rank)}, {spells.FORMS[spells.form_of(a)]['label'].lower()}: "
+                     f"{round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} damage")
+    elif a.effect.value == "damage":                  # (f262) how hard it hits, against what it scales from
         pct = round((a.power or COMBAT["damage"]["multiplier"][a.tier.value]) * 100)
         facts.append(f"deals {pct}% of {'spell' if a.resource.value == 'mana' and not a.channel else 'weapon'} damage as {damage_kind(a)} damage")
     facts.append(CONTEXT_WORD[a.context.value])

@@ -348,6 +348,9 @@ def plan(c, want: Want, rng: random.Random | None = None, n: int | None = None, 
     AS.buff_resources(slots)
     AS.split_poison_imbue(slots, offers)
     AS.assign_expressions(slots, rng)                     # what each element does, and each damage spell's form (engine/spellcraft.py)
+    from engine import spells
+    for s in slots:
+        s["rank"] = spells.highest_rank(c.level)          # (f397) a teacher teaches a new spell at the rank the level allows
     AS.assign_forms(slots, rng)
     AS.assign_martial(slots, list(view_.families or []), rng)   # a technique's form and maneuver (engine/martial.py)
     rng.shuffle(slots)
@@ -400,5 +403,5 @@ def build(slots: list[dict], names) -> list:
             movement=s.get("movement", ""), heal_form=s.get("heal_form", ""), element=s.get("element", ""),
             summon_form=s.get("summon_form", ""), expressions=list(s.get("expressions") or []), spell_form=s.get("spell_form", ""),
             power=s.get("power", 0), cost_percent=s.get("cost_percent", 0), cast_turns=s.get("cast_turns", 0),
-            martial_form=s.get("martial_form", ""), hits=s.get("hits", 0), maneuver=s.get("maneuver", ""))))
+            martial_form=s.get("martial_form", ""), hits=s.get("hits", 0), maneuver=s.get("maneuver", ""), rank=int(s.get("rank") or 0))))
     return out

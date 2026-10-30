@@ -83,7 +83,9 @@
 - {id: lumberjack, hours: [6, 18],    description: Fells and hauls timber from the woods.,                knowledge_groups: [hunters], buys: [wood]}
 - {id: stonemason, hours: [7, 18],    description: Cuts and dresses stone for building.,                  knowledge_groups: []}
 - {id: elven_warden, hours: [0, 24],  description: Guards the paths of the forest and the city within it., knowledge_groups: [guards, hunters]}
-- {id: loremaster, hours: [8, 20],    description: Keeps the old songs, records and histories.,           knowledge_groups: [scholars, mages]}
+- {id: loremaster, hours: [8, 20],    description: Keeps the old songs, records and histories.,           knowledge_groups: [scholars, mages],
+   sells: [{id: tome_second_circle, name: a tome of the second circle, price: 600, kind: item, item: tome_second_circle},       # (f397) spell books
+           {id: tome_third_circle, name: a tome of the third circle, price: 3000, kind: item, item: tome_third_circle}]}
 - {id: engineer, hours: [7, 19],      description: Designs the works, lifts and machines that keep the city running., knowledge_groups: [scholars]}
 - {id: trapper, hours: [5, 17],       description: Traps and hunts the frozen country for fur and meat.,  knowledge_groups: [hunters],
    buys: [hide, food]}

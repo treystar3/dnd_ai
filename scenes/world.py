@@ -54,6 +54,7 @@ from scenes import plan_repairs
 from scenes.plan_repairs import PlanRepairs
 from scenes.part_actions import PartActions
 from scenes.listening import Listening
+from scenes.spell_actions import SpellActions
 from scenes import markup
 from engine import entities, features, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
@@ -80,7 +81,7 @@ SEARCH = encounters.E
 
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
-                 PastimeActions, PlanRepairs, PartActions, Listening):
+                 PastimeActions, PlanRepairs, PartActions, Listening, SpellActions):
     def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
         self.store = store
         self.world = world
@@ -2464,6 +2465,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         pool = ability.resource.value
         table = "ability_cost_percent" if pool == "mana" else "stamina_cost_percent"
         cost = pools.reference_pool(pool, c.level) * COMBAT_RULES[table][ability.tier.value] / 100
+        if getattr(ability, "rank", 0):
+            from engine import spells
+            cost = spells.mana(ability)                 # (f397) a ranked spell's flat cost
         if pools.current(c, pool) < cost:
             self.narrate(f"The player tries to use {ability.name}, but they are too drained - not enough {pool}. "
                          "Describe the attempt faltering.", text)

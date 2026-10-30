@@ -927,6 +927,15 @@ class Bot:
         unasked = [m for m in ws.player.party if self.asked_hires.get(m.get("name")) != today]
         if unasked:
             options.append((8, "hire"))                 # a check-in at most once a game day per companion: a real player does not nag
+        from engine import spells as _sp               # (f397) a spell's next rank: from a teacher here, or a book in the pack
+        c = ws.player.character
+        if _sp.learnable(c):
+            if getattr(ws, "rank_options", None) and ws.rank_teacher():
+                options.append((60, "rank_pick"))
+            elif ws.rank_teacher():
+                options.append((30, "rank"))
+            if any(_sp.book_rank(i) and _sp.learnable(c, _sp.book_rank(i)) for i in ws.pack):
+                options.append((40, "book"))
         pick = "talk" if only == "talk" and present else rng.choices([o[1] for o in options], weights=[max(0.01, o[0]) for o in options])[0]
         self.label("idle:" + pick)
         if pick == "talk":
@@ -960,6 +969,18 @@ class Bot:
         if pick == "search":
             text = rng.choice(self.SEARCH)
             return text, self.intend("search" if "search" in text else "look"), "search"
+        if pick == "rank":
+            return rng.choice(["Can you teach me the next rank of my spells?", "I'd like to learn a stronger version of my spells.",
+                               "I ask the instructor to deepen my spells to the next rank."]), \
+                self.intend("train", item="the next rank of my spells"), "train"
+        if pick == "rank_pick":
+            return rng.choice(["I'll learn the first one.", "The first, please.", "I'll take number 1."]), \
+                self.intend("learn_ability", item="1"), "train"
+        if pick == "book":
+            book = next(i for i in ws.pack if _sp.book_rank(i) and _sp.learnable(c, _sp.book_rank(i)))
+            spell = _sp.learnable(c, _sp.book_rank(book))[0][1]
+            name = __import__("engine.inventory", fromlist=["label"]).GOODS[book.good].name
+            return f"I study the {name} for {_sp.plain_name(spell.name)}.", self.intend("use", item=name), "use"
         if pick == "hire":
             m = rng.choice(unasked)
             self.asked_hires[m.get("name")] = today

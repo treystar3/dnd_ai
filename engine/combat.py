@@ -68,6 +68,8 @@ class Move(BaseModel):
     uses: int = 0                  # a relic power: how many times a fight (0 = no limit)
     text: str = ""                 # a relic power: what it does, in words (for the ability list)
     relic: dict = {}               # a relic power: its kind and numbers (engine/relics.py)
+    rank: int = 0                  # (f397) a spell's rank (engine/spells.py): it and its form set its numbers
+    line: str = ""
 
 
 class Fighter(BaseModel):
@@ -477,7 +479,8 @@ def fighter_from_character(c: Character) -> Fighter:
                   element=a.element, expressions=list(getattr(a, "expressions", []) or []), power=getattr(a, "power", 0),
                   cost_percent=getattr(a, "cost_percent", 0), cast_turns=getattr(a, "cast_turns", 0),
                   martial_form=getattr(a, "martial_form", ""), hits=getattr(a, "hits", 0), maneuver=getattr(a, "maneuver", ""),
-                  spell_form=getattr(a, "spell_form", "")) for a in _loadout.prepared(c)] + relics      # only what is brought (engine/loadout.py)      # the planned element, never read from the words
+                  spell_form=getattr(a, "spell_form", ""), rank=getattr(a, "rank", 0), line=getattr(a, "line", ""))
+             for a in _loadout.prepared(c)] + relics      # only what is brought (engine/loadout.py)      # the planned element, never read from the words
     if weapon:
         b = items.base_of(weapon)
         wname, wdmg, wattrs, reach, dtype = weapon.name, items.value(weapon), b.attributes, b.reach, b.damage
@@ -1748,6 +1751,9 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         # Stamina is a rhythm: smaller flat costs (a share of a typical pool at your level), refilled by fighting
         pool = pools.reference_pool("stamina", f.level) if f.side == "player" else f.max_stamina
         cost = pool * (move.cost_percent or RULES["stamina_cost_percent"][move.tier]) / 100
+    elif getattr(move, "rank", 0):
+        from engine import spells
+        cost = spells.mana(move)                         # (f397) a ranked spell: a flat cost, its rank's times its form's
     else:
         pool = pools.reference_mana(f.level) if f.side == "player" else f.max_mana     # a share of what a dedicated caster has
         cost = pool * (move.cost_percent or RULES["ability_cost_percent"][move.tier]) / 100
@@ -2105,7 +2111,12 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         tell(combat, f"the first working costs {who(att)} nothing - the effort echoes back (Echoing)")
     if move.cooldown and not echo:
         att.cooldowns[move.id] = move.cooldown + 1
-    mult = move.power or RULES["damage"]["multiplier"][move.tier]          # an ability's own power, or its tier's
+    ranked = bool(getattr(move, "rank", 0))
+    if ranked:
+        from engine import spells
+        mult = spells.power(move)                                           # (f397) a ranked spell: its form's power
+    else:
+        mult = move.power or RULES["damage"]["multiplier"][move.tier]          # an ability's own power, or its tier's
     if move.effect == "damage" and not move.rider and not move.shape and not move.expressions and not move.maneuver \
             and move.martial_form in ("", "strike"):
         mult *= 1 + AT.T["plain_damage"]                  # Honed: a plain damage ability is never strictly worse than a decorated one
@@ -2135,8 +2146,12 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
             att.weapon_attrs = [cast_attr]
             focus = (att.weapon_damage if att.damage_type == "magical" else 0) + gear_power
             att.damage_type = "magical"
-            base_part = RULES["spell_base_damage"] * growth(att.level)
-            att.spell_kind, att.spell_parts = "spell", [["spell base", base_part]] + ([["spell power", focus]] if focus else [])
+            if ranked:                                   # (f397) the rank's base, and the form's share of the caster's spell power
+                base_part, focus = spells.base(move.rank), focus * spells.coefficient(move)
+                att.spell_kind, att.spell_parts = "spell", [[f"rank {spells.numeral(move.rank)}", base_part]] + ([["spell power", focus]] if focus else [])
+            else:
+                base_part = RULES["spell_base_damage"] * growth(att.level)
+                att.spell_kind, att.spell_parts = "spell", [["spell base", base_part]] + ([["spell power", focus]] if focus else [])
             att.weapon_damage = focus + base_part
         from engine import spellcraft
         form = spellcraft.form_of(move)
@@ -2150,8 +2165,8 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         if spellcraft.cast_turns(move) > 1 and not att.counters.get("charged_release"):
             spellcraft.wind_up(combat, att, move, targets[0] if targets else None)
             targets = []
-        elif form == "charged":
-            mult *= spellcraft.FORMS["charged"]["mult"]
+        elif form == "charged" and not ranked:
+            mult *= spellcraft.FORMS["charged"]["mult"]       # a ranked spell's power is all in its form
         elif mform == "windup":
             mult *= martial.FORMS["windup"]["mult"]
         if mform == "counter":

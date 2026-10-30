@@ -1,6 +1,7 @@
 # GOODS - things that stack: herbs, food and consumables.
 #
-# kind:       herb | food | consumable
+# kind:       herb | food | consumable | book
+# rank:       for a book (f397): the spell rank it teaches (data/rules/spells.yaml books)
 # price:      value in copper (100 copper = 1 silver). Merchants buy at a fraction of this.
 # stack:      how many fit in one pack slot
 # restores:   for consumables and food - percent of each pool restored when used
@@ -38,3 +39,17 @@
    description: "A pitch-soaked brand; burns for a long delve."}
 - {id: trail_ration,    name: trail ration,    kind: consumable, price: 15,  stack: 10, combat: false,
    feeds: 35, restores: {stamina: 30, health: 5}, description: "Dried meat and hard bread, seasoned to keep."}
+
+# (f397) Spell books: each teaches one rank of one of your spells, once your level allows that rank (engine/spells.py).
+- {id: tome_second_circle,  name: tome of the second circle,  kind: book, rank: 2, price: 600,    stack: 5,
+   description: "A thumbed primer of the second circle: how a first spell is driven harder."}
+- {id: tome_third_circle,   name: tome of the third circle,   kind: book, rank: 3, price: 3000,   stack: 5,
+   description: "A journeyman's workbook of the third circle, its margins thick with corrections."}
+- {id: tome_fourth_circle,  name: tome of the fourth circle,  kind: book, rank: 4, price: 12000,  stack: 5,
+   description: "A bound treatise of the fourth circle, clasped in brass."}
+- {id: tome_fifth_circle,   name: tome of the fifth circle,   kind: book, rank: 5, price: 45000,  stack: 5,
+   description: "A master's grimoire of the fifth circle, its ink still faintly warm."}
+- {id: tome_sixth_circle,   name: tome of the sixth circle,   kind: book, rank: 6, price: 140000, stack: 5,
+   description: "A heavy codex of the sixth circle, written in three hands across three lifetimes."}
+- {id: tome_seventh_circle, name: tome of the seventh circle, kind: book, rank: 7, price: 400000, stack: 5,
+   description: "A sealed codex of the seventh circle; few who open it can read it."}

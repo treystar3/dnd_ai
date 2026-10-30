@@ -170,6 +170,9 @@ class InventoryActions:
 
     def on_use(self, intent, text: str) -> None:
         item = inv.find(self.pack, intent.item or text)
+        if item is not None and item.good and inv.GOODS[item.good].kind == "book":
+            self.read_spell_book(item, text)                       # (f397) a spell book teaches a rank (scenes/spell_actions.py)
+            return
         if not item or not item.good or inv.GOODS[item.good].kind == "herb":
             console.note("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
             self.halted = True

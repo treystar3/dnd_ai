@@ -134,6 +134,8 @@ class Ability(BaseModel):
     spell_form: str = ""   # a mana damage spell: bolt, blast, burst, curse or charged (data/rules/spellcraft.yaml)
     element: str = ""      # the element it carries, set by the engine when it was planned; the model only narrates it
     field_use: str = ""   # what it does outside combat: scout, shelter, haste, influence, shadow, recall or showmanship (engine/field.py)
+    rank: int = 0         # (f397) a spell's rank (engine/spells.py): it and the form set its numbers; 0 = a tiered ability (techniques)
+    line: str = ""        # (f397) the spell line it belongs to: the id of its first rank
 
 
 class Passive(BaseModel):

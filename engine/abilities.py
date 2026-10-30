@@ -50,7 +50,7 @@ def materialize_active(p: ActiveProposal) -> Ability:
     context = p.context
     if context != UseContext.COMBAT and not use and not field.SELF_FUNCTIONED.get(p.effect.value):
         context = UseContext.COMBAT        # nothing it could do outside a fight: keep it a combat ability
-    return Ability(
+    a = Ability(
         id=slugify(p.name),
         name=p.name.strip(),
         description=p.description.strip(),
@@ -70,6 +70,10 @@ def materialize_active(p: ActiveProposal) -> Ability:
         martial_form=getattr(p, "martial_form", ""), hits=getattr(p, "hits", 0), maneuver=getattr(p, "maneuver", ""),
         field_use=use if context != UseContext.COMBAT else "",
     )
+    from engine import spells
+    if spells.takes_rank(a.effect, a.resource, a.channel):           # (f397) a damage spell: its rank and form set its numbers
+        spells.make_ranked(a, getattr(p, "rank", 0) or 1, a.spell_form)
+    return a
 
 
 def materialize_passive(p: PassiveProposal, offered: dict | None = None) -> Passive:
