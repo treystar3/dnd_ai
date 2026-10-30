@@ -20,3 +20,4 @@ reasons:
   player: "speak of the player as 'you', never 'the player'"
   first_person: "the narrator speaks to the player as 'you'; 'I', 'me' and 'my' belong only inside someone's quoted speech"
   note: "write only the story: no note to yourself in square brackets (a blow's tag is [h1], [h2] and nothing else)"
+  broken: "a character came out broken: write the passage again in plain letters"

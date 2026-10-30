@@ -130,10 +130,19 @@ class ArcActions:
         q["deadline"] = None
         first = arcs.node(arc, "n1")
         tpl = arcs.TEMPLATES[arc["template"]]
-        self.log_arc(arc, tpl["words"]["start"].format(name=s["victim_name"], looks=s["victim_looks"].rstrip("."),
+        self.log_arc(arc, tpl["words"]["start"].format(name=self.mid_sentence(s["victim_name"]), looks=s["victim_looks"].rstrip("."),
                                                        place=self.pname(first["place"])))
         self.store.save_arcs(data)
         console.note(f"Lead: {arc['log'][-1]}")
+
+    COMMON_OPENERS = {"a", "an", "the", "some", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "pieces",
+                      "fragments", "several", "half", "one", "every", "all"}
+
+    def mid_sentence(self, name: str) -> str:
+        """(f406) A thing's name inside a sentence: 'Word of four pieces of a map...', not 'Word of Four pieces...'; a proper name
+        (the Sunstone, Old Brannoch) keeps its capital."""
+        first = (name or "").split(" ", 1)[0]
+        return name[:1].lower() + name[1:] if first.lower() in self.COMMON_OPENERS and " " in (name or "") else name
 
     def dress_arc(self, arc: dict, q: dict) -> dict:
         """The one model call: names, clues and colour for a skeleton the engine already fixed."""

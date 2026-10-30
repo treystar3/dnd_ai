@@ -59,6 +59,9 @@ def problem(task: str, value) -> tuple[str, str]:
             continue
         if "\\n" in t:
             return "escape", "\\n"
+        m = CONTROL.search(t)                               # (f407) a stray escape in the model's JSON: "still\\but" read as backspace + "ut"
+        if m:
+            return "broken", t[max(0, m.start() - 12):m.start() + 12]
         for kind, pat in (("json", JSON_BITS), ("placeholder", PLACEHOLDER), ("id", CODED), ("id", SNAKE), ("id", TRAILING), ("note", NOTE)):
             m = pat.search(t)
             if m:
@@ -124,6 +127,10 @@ def clean(text: str) -> str:
     if not isinstance(text, str) or not text:
         return text
     t = text
+    if CONTROL.search(t):                                   # (f407) never a box on the page: "still\x08ut" was shown as "still\u25a1ut"
+        t = re.sub(r"[ \t]*([\x08\x0c])", lambda m: EATEN[m.group(1)], t)
+        t = CONTROL.sub("", t)
+        REPAIRS["broken"] += 1
     if "\\n" in t:
         t = t.replace("\\n", "\n")
         REPAIRS["escape"] += 1
@@ -216,6 +223,22 @@ def undash(text: str) -> str:
     return s
 
 
+LONE_BREAK = re.compile(r"(?<!\n)[ \t]*\n[ \t]*(?!\n)")
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+EATEN = {"\x08": " b", "\x0c": " f"}          # the letter a JSON escape swallowed (\b, \f) put back, when the model was not asked again
+
+
+def unwrap(text: str) -> str:
+    """(f407) The model's prose without line breaks of its own inside a paragraph: a paragraph is what a blank line ends. A night's play had
+    Maren's arrival come back broken after nearly every clause, and every break shown as a paragraph of its own."""
+    if not isinstance(text, str) or "\n" not in text:
+        return text
+    t = LONE_BREAK.sub(" ", text)
+    if t != text:
+        REPAIRS["wrap"] += 1
+    return t
+
+
 def undash_answer(task: str, value) -> None:
     """(f396) An answer from the model, mended in place: its prose fields carry no dashes. (f403) Every task's, speech and gestures too:
     the narrator was held to it and the people it voices were not, and their dashes showed as often as the narrator's had."""
@@ -224,11 +247,11 @@ def undash_answer(task: str, value) -> None:
     for key in list(getattr(type(value), "model_fields", {}) or {}):
         v = getattr(value, key, None)
         if isinstance(v, str) and key in PROSE:
-            setattr(value, key, undash(v))
+            setattr(value, key, undash(unwrap(v)))
         elif isinstance(v, list):
             for j, x in enumerate(v):
                 if isinstance(x, str) and key in PROSE:
-                    v[j] = undash(x)
+                    v[j] = undash(unwrap(x))
                 elif hasattr(x, "model_fields"):
                     undash_answer(task, x)
         elif hasattr(v, "model_fields"):
@@ -240,7 +263,7 @@ def problems() -> list[str]:
     for k in ("prose_fields", "narrator_tasks", "reasons"):
         if not H.get(k):
             bad.append(f"hygiene.yaml: needs {k}")
-    for kind in ("json", "placeholder", "id", "escape", "player", "first_person", "note"):
+    for kind in ("json", "placeholder", "id", "escape", "player", "first_person", "note", "broken"):
         if kind not in (H.get("reasons") or {}):
             bad.append(f"hygiene.yaml: needs a reason for {kind}")
     return bad

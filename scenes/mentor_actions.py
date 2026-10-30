@@ -236,10 +236,17 @@ class MentorActions:
         return True
 
     def mentor_narrate(self, text: str) -> None:
-        """Scene text written in several paragraphs: each is narrated on its own, so the window spaces them like any other passage."""
+        """Scene text written in several paragraphs: each is narrated on its own, so the window spaces them like any other passage. (f406)
+        A paragraph that is all a quotation is her saying it, shown under her name ('"Good hunting."' was shown as narration)."""
         for para in str(text).strip().split("\n"):
-            if para.strip():
-                console.narrate(para.strip())
+            p = para.strip()
+            if not p:
+                continue
+            spoken = re.fullmatch(r'["\u201c](.+)["\u201d]', p)
+            if spoken:
+                console.say(spoken.group(1).strip(), self.mentor_label())
+            else:
+                console.narrate(p)
 
     def mentor_in_town(self) -> bool:
         p = self.place

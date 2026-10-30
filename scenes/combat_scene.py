@@ -430,6 +430,7 @@ class CombatScene:
 
     ORDER_WORDS = (                                  # (f384) any form of the verb ("Fenris attacks the troll"), and the ways a blow is asked for
         ("hold", r"\b(hold (back|off|here)|stay back|hang back|stand down|stand back|keep back|stay out of it)\b"),
+        ("back", r"\b(behind me|fall back|to the back|back row)\b"),                 # (f406) "get behind me": the back row, still acting
         ("heal", r"\b(heal|mend|tend|patch me|bandage|look after me)(?:s|es|ed|ing)?\b"),
         ("guard", r"\b(guard|protect|cover|shield|watch over|defend me|stay (close|near|with) me|stand (by|with) me|have my back|watch my back)(?:s|es|ed|ing)?\b"),
         ("focus", r"\b(take|attack|kill|hit|focus|target|go for|strike|cut down|finish off|shoot|loose|bite|maul|savage|tear into|grab|seize|pin|"
@@ -437,7 +438,7 @@ class CombatScene:
     )
 
     NOT = r"\b(don'?t|do not|stop|quit|no more|never|not|no longer|cease)\b"
-    INSTEAD = {"heal": "focus", "guard": "focus", "hold": "focus", "focus": "hold"}      # told only what not to do: the other thing
+    INSTEAD = {"heal": "focus", "guard": "focus", "hold": "focus", "focus": "hold", "back": "focus"}      # told only what not to do: the other thing
 
     def order_kind(self, low: str) -> str:
         """(f383) Which order the line gives, read past the ones it says not to give: "do not heal me anymore, focus on attacking" was read
@@ -474,6 +475,12 @@ class CombatScene:
         if not kind:
             return None
         target = ""
+        if kind == "heal":                                   # (f406) "heal yourself", "Jorn, heal Bryn": who the heal is for
+            if re.search(r"\b(yourself|yourselves|himself|herself|themselves|themself|your own)\b", low):
+                target = "self"
+            elif len(named) >= 2:
+                order = sorted(named, key=lambda a: low.find(a.name.split()[0].lower()))
+                return [order[0]], kind, order[1].id
         if kind == "focus":
             foes = [e for e in self.fight.enemies() if e.alive and not e.fled]
             hit = next((e for e in foes if e.name.lower() in low or any(w in low for w in (e.name.lower().split()[-1],))), None)
@@ -494,7 +501,9 @@ class CombatScene:
                 continue
             told.append(a)
         if told:
-            line = {"focus": "to attack {foe}", "guard": "to guard you", "hold": "to hold back", "heal": "to tend you"}[kind]
+            whom = next((a.name.split()[0] for a in f.allies() if a.id == target), "") if kind == "heal" else ""
+            line = {"focus": "to attack {foe}", "guard": "to guard you", "hold": "to hold back", "back": "to get behind you",
+                    "heal": "to tend their own wounds" if target == "self" else (f"to tend {whom}" if whom else "to tend you")}[kind]
             foe = next((e.name for e in f.enemies() if e.id == target), "")
             foe = ("the " + foe) if foe and foe[0].islower() else foe        # "the troll", "the wolf 1", but "Old Brannoch" as is
             console.narrate(("Instead, you tell " if again else "You tell ") + " and ".join(a.name.split()[0] for a in told) + " "
@@ -516,9 +525,30 @@ class CombatScene:
         order = self.order_of(text)
         if order:
             self.give_orders(*order)
+            mine = self.own_part(text, order[0])
+            if mine and self.ws.combat is self and not f.over:      # (f406) "Jorn, heal yourself. I use spark bolt": both are done
+                self.act(self.interpret(mine), mine)
             return
         intent = self.interpret(text)
         self.act(intent, text)
+
+    def own_part(self, text: str, told) -> str:
+        """(f406) The player's own action in a line that also gives an order: the clauses that do not name whoever was told, and that say
+        what the player does ('I cast...', 'I use...', or an ability of theirs by name). '' when the line is only the order. A night's play
+        had 'Jorn, heal yourself. I use spark bolt' give the order and drop the spell, and the player typed the spell again."""
+        import re
+        names = [a.name.split()[0].lower() for a in told]
+        moves = [m.name.lower() for m in self.fight.player.moves if m.name]
+        clauses = re.split(r'(?<=[.!;])\s+|["\u201c\u201d]+|\s+(?:and then|then|while)\s+|\s+and\s+(?=i\b)', text, flags=re.I)
+        mine = []
+        for c in clauses:
+            c = (c or "").strip(" .,;:!")
+            low = c.lower()
+            if not low or any(re.search(r"\b" + re.escape(n) + r"\b", low) for n in names):
+                continue
+            if re.match(r"(i|i'll|i'm|i will|let me|now i|and i)\b", low) or any(m in low for m in moves):
+                mine.append(c)
+        return ". ".join(mine)
 
     def outside_ability(self, intent, text: str) -> str:
         """(f373) The note for an ability of the player's that works only outside a fight, when the line uses it here; '' otherwise. Beast

@@ -72,7 +72,8 @@ class RoadActions:
         if named:
             passing = f" They travel by {', then '.join(r.name for r in named)}: " + \
                 " ".join(r.description for r in named[:2]) + (passing or "")
-        happened = f" On the way: {' '.join(log[-4:])}" if log else ""
+        happened = (f" On the way (the player has read this already, back where it happened on the road: do not tell it again or put it "
+                    f"here): {' '.join(log[-4:])}") if log else ""      # (f406) a dropped ledger on the road was told again, lying at the hollow
         if self.quiet_return(log, text):                                   # (f349) back somewhere seen, nothing new: a line, and no narrator
             self.weight_hint = None
             line = f"You are back at {self.place.name}." if walk < 15 else f"After {clock.walk_words(walk)}, you are back at {self.place.name}."
@@ -157,6 +158,11 @@ class RoadActions:
                     "Not a fight; kind sight. Describe the unseen watchers and the tension, in the traveler's view")
         else:
             must = "a happening that is not a fight"
+        prize = None
+        if not hostile and not deterred:                     # (f406) what a find gives is rolled first, and the scene shows that thing
+            prize = self.road_prize(tier, a, b)
+            must += (f". IF IT IS A FIND (kind find), what the traveler finds and takes is exactly this: {inv.label(prize)} "
+                     f"({prize.rarity}). The scene shows that thing; nothing else there can be taken")
         if matter and (hostile or not deterred):
             must += matters.road_lines(matter[0], matter[1], hostile)
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
@@ -178,7 +184,7 @@ class RoadActions:
         if matter and (hostile or not deterred):
             matters.road_shown(self, matter[0]["id"], carried=not hostile)
         if not hostile:
-            self.road_outcome(ev, tier, a, b, near)
+            self.road_outcome(ev, tier, a, b, near, prize)
         if hostile or interrupts:
             role = ev.meets_role if ev.meets_role in self.world.roles and not hostile else ""
             stop = roads.make_stop(self.world, a, b, frac, minutes, ev.scene, role, ev.title, ev.detail, stop_name)
@@ -237,17 +243,24 @@ class RoadActions:
                                          "until": t + max(1, min(lim_d, e.days or 3)) * 1440, "cause": ev.title})
         self.store.save_world_state(state)
 
-    def road_outcome(self, ev, tier, a, b, near) -> None:
+    def road_prize(self, tier, a, b):
+        """What a find on this road gives: rolled before the scene is written, so the scene shows the thing taken (f406: a road's find
+        told of a dropped clerk's ledger, and the player took wool slippers)."""
         c = self.player.character
         rng = self.rng
         wilds = roads.nearby_wilds(self.world, a, b)
         level = max(1, round(sum(self.world.places[wilds[0]].danger) / 2)) if wilds else max(1, c.level // 2)
         level = min(level, max(1, c.level))
+        rolls = R["find"]["rarity_rolls"][tier]
+        best = max((loot.roll_rarity(rng) for _ in range(rolls)), key=RARITY.index)
+        floor = R["find"]["rare_min"] if tier == "rare" else "common"
+        return loot.make_drop(level, max(best, floor, key=RARITY.index), rng, loot.keeps_companions(c))
+
+    def road_outcome(self, ev, tier, a, b, near, prize=None) -> None:
+        c = self.player.character
+        rng = self.rng
         if ev.kind == "find":
-            rolls = R["find"]["rarity_rolls"][tier]
-            best = max((loot.roll_rarity(rng) for _ in range(rolls)), key=RARITY.index)
-            floor = R["find"]["rare_min"] if tier == "rare" else "common"
-            item = loot.make_drop(level, max(best, floor, key=RARITY.index), rng, loot.keeps_companions(c))
+            item = prize or self.road_prize(tier, a, b)
             left = inv.add(self.pack, item, self.pack_slots())
             console.ledger(f"You take: {inv.label(item)}." if left is None else
                          f"You find {inv.label(item)}, but your pack is full - you leave it.")

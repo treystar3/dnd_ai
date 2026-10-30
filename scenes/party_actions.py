@@ -630,7 +630,7 @@ class PartyActions:
                 frame = fresh("dialogue_frame", wp.DIALOGUE_SYSTEM,
                               wp.dialogue_request(self.time_label(), self.place, others, name, looks, doing, self.temper_text(m), False,
                                                   reply_to or "(listening)", speech, gesture, False, self.recent_narration,
-                                                  P["frame"]["fight" if in_fight else "talk"], reach=within, moment=reach.moment(fight=in_fight),
+                                                  self.frame_for(m, P["frame"]["fight" if in_fight else "talk"]), reach=within, moment=reach.moment(fight=in_fight),
                                                   why=why, already=self.shown_lines(), worn=self.worn_words("prose"), who_is=entities.who_is_who(self)),
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
                               context={"speaker": [name], "others": self.other_names(name)}, worn=self.worn_words("prose"))
@@ -795,6 +795,14 @@ class PartyActions:
         console.note("Your party moves beside you. Together you are loud.")
 
     # ---------- what happens to them ----------
+
+    def frame_for(self, m: dict, frame: str) -> str:
+        """(f406) What a companion's frame shows, with their own pronoun: the frame text says 'how they listen' of anyone, and a hire who is
+        he was framed as 'they' ('a slight nod follows as they speak')."""
+        p = rules.pronoun_of(m) if m.get("id") else ""
+        if p in ("he", "she"):
+            return f"{frame}. {m['name'].split()[0]} is {p}: write {p}, {'him' if p == 'he' else 'her'} and {'his' if p == 'he' else 'her'}, never they"
+        return frame
 
     def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False) -> None:
         """Who went down, who limps on, whose trust moved. Old-style hirelings who went down do not get back up; a permanent hire may be carried out."""

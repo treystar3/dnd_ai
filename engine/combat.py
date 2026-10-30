@@ -133,7 +133,7 @@ class Fighter(BaseModel):
     mech_names: dict[str, str] = {}        # mechanic id -> what the passive or gear that gives it is called, for the damage breakdown
     can_heal: bool = False                # a story companion who can tend wounds
     order: str = ""                       # what the player told this ally to do: focus | guard | hold | heal ("" = fight on their own)
-    order_target: str = ""                # the enemy a focus order names
+    order_target: str = ""                # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id)
     story_id: str = ""                    # the party member this fighter is, when their wounds carry between fights
     always_miss: bool = False            # the first fight's troll: its blows go wide until the mentor steps in
     spell_parts: list = []                # while a spell is cast: [[label, value]] making up its weapon_damage, for the hit breakdown
@@ -2884,7 +2884,7 @@ def act_interpose(combat: Combat, f: Fighter, ally: Fighter | None) -> None:
     tell(combat, f"{who(f)} {vb(f, 'plant', 'plants')} {'yourself' if f.side == 'player' else 'itself'} between {who(ally)} and whatever comes")
 
 
-ORDERS = ("focus", "guard", "hold", "heal")
+ORDERS = ("focus", "guard", "hold", "heal", "back")     # (f406) back: behind the player, in the back row, acting from there
 GUARD_CHANCE = 0.4          # an enemy that would strike the player strikes a guarding ally instead this often
 
 
@@ -2909,6 +2909,12 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
         if not t:
             return "There is nothing there for them to take."
         ally.order_target = t.id
+    elif kind == "heal":
+        ally.order_target = target_id if target_id == "self" or any(x.id == target_id for x in combat.allies()) else ""
+    elif kind == "back":                                 # (f406) "get behind me": out of the press, into the back row
+        from engine import battlefield as bf
+        bf.release(combat, ally)
+        bf.to_row(combat, ally, "back")
     ally.order = kind
     combat.order_round = combat.round
     if ally.id not in combat.ordered:
@@ -2941,7 +2947,8 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             return
     from engine import techniques
     if a.order == "heal":
-        hurt = combat.player if combat.player.hp < combat.player.max_hp else None
+        whom = a if a.order_target == "self" else next((x for x in combat.allies() if x.id == a.order_target and x.alive), combat.player)
+        hurt = whom if whom.alive and whom.hp < whom.max_hp else None          # (f406) "heal yourself", "heal Bryn": the one named
         kit_heal = techniques.healing(a.ally_role)
         if hurt and kit_heal:                                      # (f396) told to heal: their own heal, every turn they are told to
             m = techniques.spell(a, kit_heal)
@@ -2975,6 +2982,14 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
         target = ordered or next((e for e in enemies if e.id == combat.focus), None) or min(enemies, key=lambda e: e.hp)
         from engine import battlefield as bf
         access = bf.attack_access(combat, a, target)
+        if a.order == "back":                                      # (f406) told to keep behind the player: they go to no one
+            near = [e for e in enemies if e.id in a.engaged_with] or [e for e in enemies if bf.attack_access(combat, a, e).ok
+                                                                       and a.reach in ("ranged", "area")]
+            if not near:
+                combat.log.append(f"{a.name} keeps behind {combat.player.name}")
+                tell(combat, f"{who(a)} {vb(a, 'keep', 'keeps')} behind {who(combat.player)}, as told")
+                return
+            target, access = near[0], bf.attack_access(combat, a, near[0])
         if not access.ok:
             reachable = next((e for e in enemies if bf.attack_access(combat, a, e).ok), None)
             if reachable is None and access.can_approach:
@@ -2983,7 +2998,7 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
                 tell(combat, f"{who(a)} {story}")
                 return
             target = reachable or target
-        if a.reach not in ("ranged", "area") and a.zone_id == target.zone_id:
+        if a.reach not in ("ranged", "area") and a.zone_id == target.zone_id and a.order != "back":
             bf.engage(combat, a, target)
         inspire = mechanics(combat.player, combat).get("inspire", 0)
         if techniques.offence(combat, a, target, 1.0 + inspire / 100, rng):
