@@ -805,7 +805,7 @@ class MentorActions:
                 e.always_miss = True
 
         self.player.mentor["troll"] = True
-        scene = CombatScene.begin(self, creature, [foe], C["how"], prepare=prepare)
+        scene = CombatScene.begin(self, creature, [foe], C["how"], prepare=prepare, told=T["narrate_arrive"].strip())
         self.combat = scene
         console.narrate(C["join_narrate"])
         self.store.save_combat(scene.to_json())

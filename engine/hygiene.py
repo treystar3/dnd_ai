@@ -28,6 +28,9 @@ COMMAND = re.compile(r"(#[a-z]+(?:\s+[A-Za-z0-9_<>]+)?)")
 PLAYER = re.compile(r"\b([Tt])he player(?!s)(?!\s+of\b)('s)?(\s+([A-Za-z]+))?")
 QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
 FIRST = re.compile(r"\b(I|[Mm]e|[Mm]y|[Mm]ine|[Mm]yself)\b")
+# (f404) "[h4_damage_implied/hidden_by_rules? No wait, use events only.]": the model's note to itself. A bracket that is not a blow's tag
+# and has the marks of one: an underscore, a question, a slash, a broken tag (h4...), or four words or more.
+NOTE = re.compile(r"[ \t]*\[(?!\s*h\d+\s*\])(?=[^\]\n]*(?:_|\?|/|\bh\d|(?:\S+\s+){3}\S))[^\]\n]{1,240}\]")
 TO_BE = {"is": "are", "was": "were", "has": "have", "does": "do", "goes": "go"}
 NOT_VERBS = {"as", "his", "this", "us", "was", "is", "has", "does", "goes", "always", "perhaps", "towards", "afterwards"}
 
@@ -56,7 +59,7 @@ def problem(task: str, value) -> tuple[str, str]:
             continue
         if "\\n" in t:
             return "escape", "\\n"
-        for kind, pat in (("json", JSON_BITS), ("placeholder", PLACEHOLDER), ("id", CODED), ("id", SNAKE), ("id", TRAILING)):
+        for kind, pat in (("json", JSON_BITS), ("placeholder", PLACEHOLDER), ("id", CODED), ("id", SNAKE), ("id", TRAILING), ("note", NOTE)):
             m = pat.search(t)
             if m:
                 return kind, m.group(0).strip()
@@ -102,6 +105,17 @@ def second_person(text: str, whole: bool = False) -> str:
         out = re.sub(r"\bthemselves\b", "yourself", out)
         out = re.sub(r"\bthem\b", "you", out)
     return out
+
+
+def unnote(text: str) -> str:
+    """(f404) A story line without the model's notes to itself in square brackets; a blow's tag ([h1]) stays for its figure."""
+    if not isinstance(text, str) or "[" not in text:
+        return text
+    t = NOTE.sub("", text)
+    if t != text:
+        REPAIRS["note"] += 1
+        t = re.sub(r"[ \t]+([.,;:!?])", r"\1", t)
+    return t
 
 
 def clean(text: str) -> str:
@@ -150,14 +164,16 @@ DASH = re.compile(r"[ \t]*(?:\u2014|\u2013|--)[ \t]*|[ \t]+-[ \t]+")
 RANGE = re.compile(r"(\d)\s*[\u2013\u2014]\s*(\d)")
 CLOSING = "\"\u201d'\u2019)"
 OPENING = "\"\u201c'\u2018("
-GO_ON = {"and", "but", "or", "nor", "then", "yet", "so", "no", "not", "until", "before", "after", "as", "like", "only", "just", "maybe",
-         "perhaps", "or", "if", "though", "although", "because", "while", "when", "where", "which", "who", "whose", "even", "still", "almost"}
+GO_ON = {"and", "but", "or", "nor", "then", "yet", "so", "not", "until", "before", "after", "as", "like", "only", "just", "maybe",
+         "perhaps", "if", "though", "although", "because", "while", "when", "where", "which", "who", "whose", "even", "still", "almost"}
+BREAK_OFF = {"no", "wait", "never", "listen", "look", "forget", "nevermind"}     # (f403) a thought broken off: "I was going to... no"
 
 
 def undash(text: str) -> str:
     """The same passage without dashes: a dash that breaks off speech is an ellipsis, one that opens a line is dropped, a pair around an
     aside are commas, one before 'and', 'but', 'then' and the like is a comma, and one before the rest of a thought is a colon (or a
-    comma, when the sentence has a colon already)."""
+    comma, when the sentence has a colon already). (f403) In speech: a stammer ("I-I") and a thought broken off ("I was going to- no")
+    are an ellipsis."""
     if not isinstance(text, str) or not text or not ("\u2014" in text or "\u2013" in text or "--" in text or " - " in text or "\t-" in text):
         return text
     t = RANGE.sub(r"\1 to \2", text)
@@ -181,6 +197,9 @@ def undash(text: str) -> str:
             rep = ""
         elif sentence_has:
             rep = ", "                                            # a pair around an aside
+        elif (re.search(r"([A-Za-z']+)$", prev) or [None, ""])[1].lower() == (re.match(r"[A-Za-z']+", nxt) or [""])[0].lower() \
+                or (re.match(r"[A-Za-z']+", nxt) or [""])[0].lower() in BREAK_OFF:
+            rep = "... "                                          # a stammer, or a thought broken off
         elif (re.match(r"[A-Za-z']+", nxt) or [""])[0].lower() in GO_ON or ":" in t[start + 1:m.start()] + after[:end]:
             rep = ", "
         else:
@@ -198,16 +217,17 @@ def undash(text: str) -> str:
 
 
 def undash_answer(task: str, value) -> None:
-    """(f396) A narrator's answer, mended in place: its prose fields carry no dashes (speech and gestures are the speakers' own)."""
-    if task not in NARRATOR or value is None:
+    """(f396) An answer from the model, mended in place: its prose fields carry no dashes. (f403) Every task's, speech and gestures too:
+    the narrator was held to it and the people it voices were not, and their dashes showed as often as the narrator's had."""
+    if value is None:
         return
     for key in list(getattr(type(value), "model_fields", {}) or {}):
         v = getattr(value, key, None)
-        if isinstance(v, str) and key in PROSE and key not in ("speech", "gesture"):
+        if isinstance(v, str) and key in PROSE:
             setattr(value, key, undash(v))
         elif isinstance(v, list):
             for j, x in enumerate(v):
-                if isinstance(x, str) and key in PROSE and key not in ("speech", "gesture"):
+                if isinstance(x, str) and key in PROSE:
                     v[j] = undash(x)
                 elif hasattr(x, "model_fields"):
                     undash_answer(task, x)
@@ -220,7 +240,7 @@ def problems() -> list[str]:
     for k in ("prose_fields", "narrator_tasks", "reasons"):
         if not H.get(k):
             bad.append(f"hygiene.yaml: needs {k}")
-    for kind in ("json", "placeholder", "id", "escape", "player", "first_person"):
+    for kind in ("json", "placeholder", "id", "escape", "player", "first_person", "note"):
         if kind not in (H.get("reasons") or {}):
             bad.append(f"hygiene.yaml: needs a reason for {kind}")
     return bad

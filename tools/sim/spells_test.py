@@ -255,6 +255,17 @@ c4, _ = simlib.make_character("mage", random.Random(3))
 a = next(a for a in c4.actives if spells.is_ranked(a))
 facts = " · ".join(real_console._ability_facts(a, 50))
 check("an ability's card says its rank and its flat mana, at any level", f"{spells.mana(a)} mana" in facts and "rank I" in facts, facts)
+# (f401) at character creation every spell is rank I, so the cards there leave it unsaid
+from scenes.goddess import ThresholdScene
+ts = ThresholdScene.__new__(ThresholdScene)
+ranked_opts = [x for x in c4.actives if spells.is_ranked(x)]
+cards = ts.cards(ranked_opts, "actives")
+said = [(cd["line"], cd["text"], " ".join(t[1] for t in cd["tip"])) for cd in cards]
+check("the creation cards never say a spell's rank", ranked_opts and not any("rank I" in x or "Rank I" in x for s in said for x in s), said[:2])
+check("...but still say its form", all(spells.FORMS[spells.form_of(x)]["label"].lower() in (cd["line"] + cd["text"] + " ".join(t[1] for t in cd["tip"])).lower()
+                                       for x, cd in zip(ranked_opts, cards) if spells.is_ranked_damage(x)), said[:2])
+lines_ = "\n".join(real_console.ability_lines(a, 1, 1, rank=False))
+check("...the terminal's creation list too", "rank I" not in lines_ and "Rank I" not in lines_, lines_)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

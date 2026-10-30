@@ -101,8 +101,9 @@ def ability_buff_text(a) -> str:
     return buff_text(a.buff)
 
 
-def parts(a) -> list[tuple[str, str]]:
-    """(label, text) for each trait an ability carries beyond its tier."""
+def parts(a, rank: bool = True) -> list[tuple[str, str]]:
+    """(label, text) for each trait an ability carries beyond its tier. rank=False leaves a spell's rank unsaid (at creation every spell
+    is rank I, f401)."""
     out = []
     if getattr(a, "command", "") and tier_of(a.effect) == "command":
         out.append((COMMANDS[a.command]["label"], command_text(a.command, a.tier)))
@@ -120,7 +121,7 @@ def parts(a) -> list[tuple[str, str]]:
         out.append((RIDERS[a.rider]["label"], rider_text(a.rider, a.tier)))
     if getattr(a, "rank", 0) and getattr(a.effect, "value", a.effect) == "damage":   # (f397) a ranked spell: its rank, and its form
         from engine import spells
-        out.append((spells.card(a), spells.form_text(spells.form_of(a))))
+        out.append((spells.card(a) if rank else spells.form_label(a), spells.form_text(spells.form_of(a))))
     elif getattr(a, "spell_form", "") and a.spell_form != "bolt":
         from engine import spellcraft
         out.append((spellcraft.FORMS[a.spell_form]["label"], spellcraft.form_text(a.spell_form)))

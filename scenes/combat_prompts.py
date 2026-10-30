@@ -75,6 +75,8 @@ Rules:
   fight starting over: the boss was dead on its feet and is not. A fall is an ending - slow down for it, let it land.
   Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
+- A foe that falls leaves its body where it fell: fire chars it and blades cut it, but nothing turns a body to ash or dust or makes it
+  vanish unless an event says so. (Bodies are skinned, searched and buried after a fight.)
 - An event that tells several strikes "in one motion" is ONE attack (a volley, a flurry, a combination): tell it as one action and say
   how many struck home, never as separate attacks one after another, and give its one marker once, at the end of that telling.
 - Some events end with a marker such as [h2]. It stands for that blow's damage figure, which the game fills in. Copy each marker
@@ -111,7 +113,8 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
 AFTERMATH_SYSTEM = DM_VOICE + """
 You narrate the moment just after a fight ends. The last foe is down. Describe the silence returning,
 the player's breathing and wounds, the fallen, the place. If the player finds anything, describe them noticing it and taking it: it is
-already in their pack or purse, never left lying.
+already in their pack or purse, never left lying. THE BODIES and WHAT THE FIGHT CALLED UP are facts: keep to them, whatever the
+narration before said.
 No numbers, no game words. Respond only with JSON matching the schema, with the prose in "text"."""
 
 

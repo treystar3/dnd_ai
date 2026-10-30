@@ -270,7 +270,7 @@ class ThresholdScene:
                 out.append({"n": n, "name": o.name, "group": self.group_of(o, kind), "cost": "", "line": "", "text": o.effect_text(),
                             "tip": console.passive_tip(o)})
                 continue
-            facts = console._ability_facts(o, 1)
+            facts = console._ability_facts(o, 1, rank=False)          # (f401) every spell is rank I here: it goes unsaid
             cost = next((f for f in facts if re.search(r"\d+ (stamina|mana)", f)), "")
             line = [x for x in facts if x not in (cost,) and not x.startswith("deals ") and x != console.CONTEXT_WORD.get(o.context.value)]
             from engine import field
@@ -282,7 +282,7 @@ class ThresholdScene:
                 text = healing.card_text(o)
                 text = text[:1].upper() + text[1:]
             out.append({"n": n, "name": o.name, "group": self.group_of(o, kind), "cost": re.sub(r"\s*\([A-Z]{3}\)", "", cost),
-                        "line": " · ".join(line), "text": (text or o.description).rstrip(".") + ".", "tip": console.ability_tip(o)})
+                        "line": " · ".join(line), "text": (text or o.description).rstrip(".") + ".", "tip": console.ability_tip(o, rank=False)})
         return out
 
     def probe(self, attributes: dict) -> Character:

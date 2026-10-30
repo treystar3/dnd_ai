@@ -15,8 +15,10 @@
 <div id="app">
   <main id="main">
     <div id="log" aria-live="polite"></div>
-    <button id="more" hidden title="New text below">↓ More below</button>   <!-- (f396) shown while the reader is scrolled up and new text has come -->
-    <div id="busy" hidden><span>The world is thinking…</span></div>
+    <div id="dock">   <!-- (f402) floats over the foot of the story: showing or hiding what is in it never moves the text -->
+      <button id="more" hidden title="New text below" aria-label="New text below">↓</button>   <!-- (f396) shown while the reader is scrolled up and new text has come -->
+      <div id="busy" hidden><span>The world is thinking…</span></div>
+    </div>
     <form id="form" autocomplete="off">
       <span class="caret">&gt;</span>
       <input id="input" type="text" spellcheck="false" autofocus placeholder="What do you do?">

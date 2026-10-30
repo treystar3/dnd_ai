@@ -61,7 +61,7 @@ body { background: var(--bg); color: var(--ink); display: flex; flex-direction: 
 .ticker .tk.gain { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* ---------- (f326) the story column: a book's measure; the fiction in a reading face (Literata, OFL, ui/gui/web/fonts), everything else in the machine's ---------- */
-#log { flex: 1; overflow-y: auto; padding: 16px var(--gutter) 32px; }
+#log { flex: 1; overflow-y: auto; padding: 16px var(--gutter) 40px; }     /* (f402) the foot leaves room for the thinking line over it */
 /* Scrollbars in the app's own colours, thin and without arrow buttons: the thumb is the panel's rule colour, the track is the panel.
    WebView2 and every other Chromium honour the WebKit parts only while the standard properties are unset, so those are kept for the
    engines that lack the parts (Firefox). */
@@ -96,11 +96,17 @@ body { background: var(--bg); color: var(--ink); display: flex; flex-direction: 
 #log .echo .pc { color: var(--accent); }
 #log .echo .stamp { margin-left: auto; color: var(--dim); font-size: 11.5px; white-space: nowrap; }
 #log .sys { color: var(--accent); margin-top: 12px; }
-#more { align-self: center; position: relative; z-index: 2; margin: -44px 0 12px; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--line);
-        background: var(--panel); color: var(--accent); font-size: 13px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+/* (f402) The thinking line and the more-below button float over the story's foot, taking no room of their own: a turn makes several calls
+   to the model and the line came and went with each, and the story jumped up and down a line every time. */
+#dock { position: relative; height: 0; z-index: 2; }
+#more { position: absolute; left: 50%; transform: translateX(-50%); bottom: 44px; margin: 0; width: 36px; height: 36px; padding: 0;
+        display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--line);
+        background: var(--panel); color: var(--accent); font-size: 18px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+#more[hidden] { display: none; }        /* (f402) just an arrow: its display above would otherwise outlast `hidden` */
 #more:hover { filter: brightness(1.15); }
-#busy { padding: 6px var(--gutter); color: var(--dim); font: italic 13.5px var(--serif); animation: pulse 1.4s ease-in-out infinite; }
-#busy > span { display: block; max-width: var(--measure); margin: 0 auto; }
+#busy { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px var(--gutter) 6px; color: var(--dim); font: italic 13.5px var(--serif);
+        background: linear-gradient(to bottom, transparent, var(--bg) 55%); pointer-events: none; }
+#busy > span { display: block; max-width: var(--measure); margin: 0 auto; animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .45; } }
 #form { display: flex; align-items: center; gap: 10px; padding: 12px max(var(--gutter), calc((100% - var(--measure)) / 2 - 30px)) 14px; border-top: 1px solid var(--line); background: var(--panel); }
 .caret { color: var(--accent); font-size: 18px; line-height: 1; }
@@ -191,6 +197,7 @@ body.no-strip .strip { display: none; }
 .mv .mvs.ready { color: var(--sp); font-weight: 600; }
 .mv .mvs.wait { color: var(--combat); }
 .mv.cool .mvn > span:first-child { color: var(--dim); }
+.mv.hoverrow:hover .mvn > span:first-child { color: var(--accent); }     /* (f405) an ability's card on hover */
 .clog { max-height: 42vh; overflow-y: auto; }
 .cr { color: var(--accent); font-size: 11px; letter-spacing: .08em; margin-top: 8px; text-transform: uppercase; }
 .cl { display: flex; justify-content: space-between; gap: 8px; padding: 3px 4px; border-radius: 4px; cursor: help; }
