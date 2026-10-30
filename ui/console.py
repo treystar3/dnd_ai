@@ -650,6 +650,7 @@ def status_block(when: str, weather: str, place_line: str, spot_line: str,
 
 
 OUTPUTS = ("say", "narrate", "npc_says", "dialogue", "note", "wait", "ledger")
+STORY = ("say", "narrate", "npc_says", "dialogue")      # (f403) the story's own lines, narration and speech: no dashes (the game's notes keep theirs)
 
 
 def guard_outputs() -> None:
@@ -664,7 +665,7 @@ def guard_outputs() -> None:
         if getattr(fn, "gated", False):
             continue
 
-        mend = (lambda s: hygiene.undash(hygiene.clean(s))) if name == "narrate" else hygiene.clean   # (f396) the narrator writes no dashes
+        mend = (lambda s: hygiene.undash(hygiene.clean(s))) if name in STORY else hygiene.clean   # (f396, f403) no dashes in the story
 
         def gated(*args, _fn=fn, _mend=mend, **kwargs):
             return _fn(*(_mend(a) if isinstance(a, str) else a for a in args),

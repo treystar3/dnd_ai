@@ -210,7 +210,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 _tally(task, True, attempt + 1)
                 try:
                     from engine import hygiene
-                    hygiene.undash_answer(task, result)                  # (f396) the narrator writes no dashes
+                    hygiene.undash_answer(task, result)                  # (f396, f403) no dashes in the story, the narrator's or a speaker's
                 except Exception:
                     pass
                 return result

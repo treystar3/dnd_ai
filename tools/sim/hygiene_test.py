@@ -82,14 +82,27 @@ answers = iter(['{"text": "The gate creaks \u2014 then holds."}'])
 gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
 got = gw.generate("narrate", "You narrate.", "The gate.", Narration)
 check("a narrator's answer reaches the game without its dashes", got.text == "The gate creaks, then holds.", got.text)
-reply = NPCReply.model_construct(speech="I was going to \u2014 no. Never mind.")
+# (f403) speakers too: a townsperson's, a hire's, Maren's
+reply = NPCReply.model_construct(speech="He's just near enough to see from where we are standing\u2014he does his trade-work by the river market.",
+                                 gesture="She smiles \u2014 briefly \u2014 and turns.")
 hygiene.undash_answer("npc_conversation", reply)
-check("a speaker's own words are theirs: only the narrator is held to it", "\u2014" in reply.speech)
+check("a speaker's answer reaches the game without dashes, speech and gesture", "\u2014" not in reply.speech + reply.gesture
+      and "standing: he does his trade-work" in reply.speech and reply.gesture == "She smiles, briefly, and turns.", (reply.speech, reply.gesture))
+check("a stammer is an ellipsis", hygiene.undash('"I\u2014I don\'t know."') == '"I... I don\'t know."', hygiene.undash('"I\u2014I don\'t know."'))
+check("...and a thought broken off", hygiene.undash("I was going to \u2014 no. Never mind.") == "I was going to... no. Never mind.",
+      hygiene.undash("I was going to \u2014 no. Never mind."))
+check("a dash before 'just' is a comma", hygiene.undash("Depends on what you need\u2014just so we're clear, I sell nothing fancy.")
+      == "Depends on what you need, just so we're clear, I sell nothing fancy.")
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     console.narrate("The tide turns \u2014 slowly.")
     console.say("I \u2014 I don't know.", "Osric")
-check("the screen gets no dash from the narrator, and a speaker's dash stays", "turns: slowly" in buf.getvalue() and "I \u2014 I don't know" in buf.getvalue(), buf.getvalue())
+    console.npc_says("Brokur", "Gear is what I do\u2014best.", "He sets the hammer down \u2014 slowly.")
+    console.note("Learned Fire Bolt - rank II.")
+out = buf.getvalue()
+check("the screen gets no dash from the narrator or from anyone speaking", "turns: slowly" in out and "I... I don't know" in out
+      and "\u2014" not in out and "do: best" in out, out)
+check("...the game's own notes keep theirs", "Fire Bolt - rank II" in out, out)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
