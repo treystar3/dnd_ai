@@ -197,8 +197,9 @@ def ability_kind(a) -> str:
     return KIND_WORD.get(a.effect.value, a.effect.value.capitalize())
 
 
-def _ability_facts(a, level: int) -> list[str]:
-    """What an ability is and costs, as the short facts that head its card."""
+def _ability_facts(a, level: int, rank: bool = True) -> list[str]:
+    """What an ability is and costs, as the short facts that head its card. rank=False leaves a spell's rank unsaid: at character creation
+    every spell is rank I, so it says nothing (f401)."""
     from engine import ability_traits as at, pools
     from engine.combat import RULES as COMBAT
     table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
@@ -234,11 +235,11 @@ def _ability_facts(a, level: int) -> list[str]:
                      f"damage; once a fight, then {a.cooldown_days} day{'s' if a.cooldown_days != 1 else ''} before it can be cast again")
     elif getattr(a, "rank", 0) and a.effect.value == "damage":   # (f397) a ranked spell: its rank and form say how hard it hits
         from engine import spells
-        facts.append(f"rank {spells.numeral(a.rank)}, {spells.FORMS[spells.form_of(a)]['label'].lower()}: "
+        facts.append((f"rank {spells.numeral(a.rank)}, " if rank else "") + f"{spells.FORMS[spells.form_of(a)]['label'].lower()}: "
                      f"{round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} damage")
     elif getattr(a, "rank", 0):                       # (f399) a ranked heal or control spell
         from engine import spells
-        facts.append(f"rank {spells.numeral(a.rank)} {spells.form_label(a)}")
+        facts.append(f"rank {spells.numeral(a.rank)} {spells.form_label(a)}" if rank else spells.form_label(a))
     elif a.effect.value == "damage":                  # (f262) how hard it hits, against what it scales from
         pct = round((a.power or COMBAT["damage"]["multiplier"][a.tier.value]) * 100)
         facts.append(f"deals {pct}% of {'spell' if a.resource.value == 'mana' and not a.channel else 'weapon'} damage as {damage_kind(a)} damage")
@@ -246,11 +247,11 @@ def _ability_facts(a, level: int) -> list[str]:
     return facts
 
 
-def ability_tip(a, level: int = 1) -> list[list[str]]:
+def ability_tip(a, level: int = 1, rank: bool = True) -> list[list[str]]:
     """An ability as hover lines [class, text]: its name, what it is and costs, what it looks like, what makes it special, and what it does."""
     from engine import ability_traits as at, field
-    out = [["h", a.name], ["dim", " · ".join(_ability_facts(a, level))], ["", a.description]]
-    out += [["", f"✦ {label}: {text}"] for label, text in at.parts(a)]
+    out = [["h", a.name], ["dim", " · ".join(_ability_facts(a, level, rank))], ["", a.description]]
+    out += [["", f"✦ {label}: {text}"] for label, text in at.parts(a, rank)]
     fight = field.fight_text(a)
     if fight:
         out.append(["", f"⚔ In a fight: {fight}"])
@@ -266,7 +267,7 @@ def passive_tip(p) -> list[list[str]]:
     return [["h", p.name], ["", p.effect_text()], ["dim", p.description]]
 
 
-def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) -> list[str]:
+def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2, rank: bool = True) -> list[str]:
     """One ability as a small card: name, what it is and costs, what it looks like, what makes it special, what it does outside a fight."""
     from engine import ability_traits as at, field, pools
     from engine.combat import RULES as COMBAT
@@ -274,10 +275,10 @@ def ability_lines(a, level: int = 1, index: int | None = None, indent: int = 2) 
     body = pad + " " * (5 if index is not None else 2)
     head = f"{pad}{index:>2}.  " if index is not None else f"{pad}◆ "
     lines = [f"{head}{a.name}"]
-    facts = _ability_facts(a, level)
+    facts = _ability_facts(a, level, rank)
     lines.append(body + " · ".join(facts))
     lines += textwrap.wrap(a.description, WIDTH - len(body), initial_indent=body, subsequent_indent=body)
-    for label, text in at.parts(a):
+    for label, text in at.parts(a, rank):
         lines += textwrap.wrap(f"✦ {label}: {text}", WIDTH - len(body), initial_indent=body, subsequent_indent=body + "  ")
     fight = field.fight_text(a)
     if fight:
@@ -304,9 +305,10 @@ def summon_text(a) -> str:
 
 
 def show_actives(abilities, level: int = 1) -> None:
+    """The abilities offered at character creation, where every spell is rank I: the rank goes unsaid (f401)."""
     print(f"\n{RULE}\n ACTIVE ABILITIES   ✦ special effect   ☼ what it does outside combat\n{RULE}")
     for i, a in enumerate(abilities, 1):
-        print("\n".join(ability_lines(a, level, i)))
+        print("\n".join(ability_lines(a, level, i, rank=False)))
         print()
 
 
