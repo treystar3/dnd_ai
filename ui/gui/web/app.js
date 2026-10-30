@@ -902,9 +902,9 @@ function renderButtons() {
     b.ondrop = (e) => { e.preventDefault(); const from = dragCmd; dragCmd = null; moveButton(from, cmd); };
     box.appendChild(b);
   }
-  if (combat.active) {
+  if (combat.active || combat.ended) {                       // (f405) after a fight, its pane stays to be read back until the next
     const b = document.createElement("button");
-    b.textContent = "⚔ Combat"; b.className = combat.mode === "combat" ? "on" : "";
+    b.textContent = combat.ended ? "⚔ Last fight" : "⚔ Combat"; b.className = combat.mode === "combat" ? "on" : "";
     b.onclick = () => { combat.mode = "combat"; paintSide(); };
     box.insertBefore(b, box.firstChild);
   }
@@ -1201,7 +1201,7 @@ document.addEventListener("mousemove", (e) => {
 
 // ---------- combat pane ----------
 function onCombat(d) {
-  if (!combat.active) { combat.active = true; combat.rows = []; combat.seen = new Set(); }
+  if (!combat.active || combat.ended) { combat.active = true; combat.ended = false; combat.rows = []; combat.seen = new Set(); }
   combat.data = d; combat.mode = "combat";
   for (const h of d.hits || []) {
     hitsMap[h.id] = h;
@@ -1236,16 +1236,23 @@ function fighterBlock(x, isYou) {
 }
 function renderCombat() {
   const d = combat.data; if (!d) return;
+  if (combat.ended) {                                         // (f405) the fight is over: how it ended, then the log first, to read back
+    const how = { victory: "Won", defeat: "Lost", fled: "Got away", stalemate: "Broken off" }[d.over] || "Over";
+    side.appendChild(el("div", "dimrow", `${how}, in ${d.round} round${d.round === 1 ? "" : "s"}. This is the last fight, kept to read back until the next one.`));
+    renderCombatLog();
+  }
   side.appendChild(el("div", "h2", "ENEMIES"));
   if (!d.enemies.length) side.appendChild(el("div", "dimrow", "None standing."));
   for (const e of d.enemies) side.appendChild(fighterBlock(e, false));
   if (d.reserves) side.appendChild(el("div", "dimrow", `+ ${d.reserves} more still in the camp`));
   if (d.allies.length) { side.appendChild(el("div", "h2", "ALLIES")); for (const a of d.allies) side.appendChild(fighterBlock(a, false)); }
   side.appendChild(el("div", "h2", "YOU")); side.appendChild(fighterBlock(d.you, true));
-  side.appendChild(el("div", "h2", "ABILITIES"));
+  if (combat.ended) return;                                   // abilities and items are for a fight still going
+  side.appendChild(el("div", "h2", "ABILITIES")); side.lastChild.appendChild(el("span", "sub", "hover one for what it does"));
   if (!d.moves.length) side.appendChild(el("div", "dimrow", "None."));
   for (const m of d.moves) {
-    const row = el("div", "mv" + (m.ready ? "" : " cool"));
+    const row = el("div", "mv hoverrow" + (m.ready ? "" : " cool"));
+    if (m.tip) { row.dataset.tip = "mv:" + m.id; tipMap["mv:" + m.id] = m.tip; }     // (f405) its full card, as the character pane shows it
     const nm = el("div", "mvn"); nm.appendChild(el("span", "", m.name)); nm.appendChild(el("span", "mvc", (m.stamina_cost ? `${m.stamina_cost} stamina + ` : "") + `${m.cost} ${m.resource}` + (m.cooldown ? ` · cooldown ${m.cooldown}` : "")));
     row.appendChild(nm);
     row.appendChild(el("div", "mvs " + (m.ready ? "ready" : "wait"), m.ready ? "Ready" : m.reason));
@@ -1262,6 +1269,9 @@ function renderCombat() {
       side.appendChild(row);
     }
   }
+  renderCombatLog();
+}
+function renderCombatLog() {
   side.appendChild(el("div", "h2", "COMBAT LOG")); side.lastChild.appendChild(el("span", "sub", "hover a line for the working"));
   const logEl = el("div", "clog"); let lastRound = null;
   for (const h of combat.rows) {
@@ -1276,13 +1286,13 @@ function renderCombat() {
 }
 const labelOf = (cmd) => { const c = [...COMMANDS, ["Pulse", "#pulse"], ["Places", "#places"], ["Book", "#book"]].find((x) => x[1] === cmd); return c ? c[0] : (cmd || "").replace(/^#/, ""); };
 function paintSide() {
-  const showCombat = combat.active && combat.mode === "combat";
+  const showCombat = (combat.active || combat.ended) && combat.mode === "combat";
   const keep = side.scrollTop;
   side.textContent = "";
   if (showCombat) {
     renderCombat(); side.scrollTop = keep;
-    const t = $("sidetitle"); t.textContent = "⚔ Combat";
-    if (combat.data) t.appendChild(el("span", "sub", `round ${combat.data.round}` + (combat.data.danger ? ` · ${combat.data.danger}` : "")));
+    const t = $("sidetitle"); t.textContent = combat.ended ? "⚔ Last fight" : "⚔ Combat";
+    if (combat.data && !combat.ended) t.appendChild(el("span", "sub", `round ${combat.data.round}` + (combat.data.danger ? ` · ${combat.data.danger}` : "")));
   }
   else if (lastView) {
     if (lastView.panel && lastView.panel.name === "shop") renderShop(lastView.panel.data);
@@ -1493,7 +1503,7 @@ function handle(ev) {
     case "side_begin": sideRaw = ""; sidePanel = null; state.current = ev.cmd; $("sidetitle").textContent = labelOf(ev.cmd); break;
     case "side_end": lastView = { raw: sideRaw, panel: sidePanel, cmd: state.current }; paintSide(); break;
     case "combat": onCombat(ev.data); break;
-    case "combat_end": combat.active = false; combat.mode = "view"; paintSide(); break;
+    case "combat_end": combat.active = false; combat.ended = !!combat.data; paintSide(); renderButtons(); break;   // (f405) the pane stays
     case "status": Strip.update(ev); if (!!ev.debug !== !!state.debug) { state.debug = !!ev.debug; renderButtons(); } break;
     case "prompt": state.prompt = true; state.atMain = !!ev.main; state.menuOk = !!ev.menu; updateInput(); break;
     case "busy": setBusy(ev.on); break;

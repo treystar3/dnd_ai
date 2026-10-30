@@ -197,6 +197,7 @@ body.no-strip .strip { display: none; }
 .mv .mvs.ready { color: var(--sp); font-weight: 600; }
 .mv .mvs.wait { color: var(--combat); }
 .mv.cool .mvn > span:first-child { color: var(--dim); }
+.mv.hoverrow:hover .mvn > span:first-child { color: var(--accent); }     /* (f405) an ability's card on hover */
 .clog { max-height: 42vh; overflow-y: auto; }
 .cr { color: var(--accent); font-size: 11px; letter-spacing: .08em; margin-top: 8px; text-transform: uppercase; }
 .cl { display: flex; justify-content: space-between; gap: 8px; padding: 3px 4px; border-radius: 4px; cursor: help; }

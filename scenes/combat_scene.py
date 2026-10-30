@@ -345,7 +345,8 @@ class CombatScene:
                 reason = ""
             moves.append({"id": m.id, "name": m.name, "resource": m.resource, "cost": combat.cost_of(p, m, f),
                           "stamina_cost": combat.stamina_part(p, m, f), "effect": m.effect,
-                          "tier": m.tier, "cooldown": m.cooldown, "left": max(0, left - 1), "ready": not reason, "reason": reason})
+                          "tier": m.tier, "cooldown": m.cooldown, "left": max(0, left - 1), "ready": not reason, "reason": reason,
+                          "tip": self.move_tip(m)})
         items_now = []
         for it in self.ws.player.character.inventory:
             if not it.good or not inventory.GOODS[it.good].combat:
@@ -358,7 +359,15 @@ class CombatScene:
         you["buffs"] = [[b.get("name", k), b.get("rounds", 0)] for k, b in p.buffs.items()]
         return {"round": f.round, "danger": danger, "enemies": [fighter(e) for e in f.enemies()],
                 "reserves": len(f.reserves), "allies": [fighter(a) for a in f.allies()], "you": you,
-                "moves": moves, "items": items_now, "hits": f.hits}
+                "moves": moves, "items": items_now, "hits": f.hits, "over": f.over or ""}
+
+    def move_tip(self, m) -> list:
+        """(f405) An ability's full card on hover, as the character pane shows it; a relic's power by what it does."""
+        c = self.ws.player.character
+        a = next((x for x in c.actives if x.id == m.id), None)
+        if a is not None:
+            return console.ability_tip(a, c.level)
+        return [["h", m.name]] + ([["", m.text]] if getattr(m, "text", "") else [])
 
     def show(self, danger: str = "") -> None:
         if console.combat_state(self.pane_data(danger)):
