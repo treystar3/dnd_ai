@@ -34,6 +34,10 @@ def game():
             return
         if t == "long":
             console.narrate(LONG)
+        elif t == "think":                                 # (f402) a turn of several calls to the model: the thinking line comes and goes
+            for _ in range(4):
+                b.busy(True); time.sleep(0.3); b.busy(False); time.sleep(0.12)
+            console.narrate("The answer, after some thought.")
         elif t == "later":
             console.narrate("A short answer.")
             time.sleep(2.0)
@@ -89,6 +93,23 @@ const { chromium } = require('playwright');
   await say('short');
   await page.waitForFunction(() => document.querySelectorAll('#log .echo').length >= 3, null, { timeout: 10000 });
   await wait(400);
+  await say('think');
+  await page.waitForFunction(() => document.querySelectorAll('#log .echo').length >= 4, null, { timeout: 10000 });
+  await wait(150);
+  const samples = [];
+  while (!(await log(() => document.getElementById('log').innerText.includes('after some thought')))) {
+    samples.push(await log(() => { const l = document.getElementById('log'); const b = document.getElementById('busy');
+      return [l.clientHeight, l.scrollTop, !b.hidden]; }));
+    await wait(40);
+    if (samples.length > 200) break;
+  }
+  out.think_heights = [...new Set(samples.map((s) => s[0]))];
+  out.think_tops = [...new Set(samples.map((s) => s[1]))];
+  out.think_busy_seen = samples.filter((s) => s[2]).length;
+  out.think_busy_gaps = samples.slice(samples.findIndex((s) => s[2])).filter((s) => !s[2]).length;
+  await say('short');
+  await page.waitForFunction(() => document.querySelectorAll('#log .echo').length >= 5, null, { timeout: 10000 });
+  await wait(400);
   out.own_line_bottom = await atBottom();
   out.own_line_more = await more();
   await say('quit');
@@ -115,6 +136,10 @@ else:
     check("a reader who has scrolled up, even a little, is not pulled down by new text", abs((out.get("after_later") or 0) - (out.get("held") or -99)) <= 2, out)
     check("...and is told there is more below", out.get("later_more"), out)
     check("the player's own line brings the log down to it", out.get("own_line_bottom") and not out.get("own_line_more"), out)
+    check("(f402) while the world thinks, the story never moves: its height and place stay put as the thinking line comes and goes",
+          len(out.get("think_heights") or []) == 1 and len(out.get("think_tops") or []) == 1, out)
+    check("...the thinking line shows, and stays up through the gaps between one turn's calls", (out.get("think_busy_seen") or 0) > 5
+          and out.get("think_busy_gaps") == 0, out)
 
 srv.shutdown()
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)
