@@ -198,9 +198,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def remember_narration(self, text: str, shown: dict | None = None) -> None:
         """Keep what the model should remember, and what the player saw (as pieces, so a reload draws it the same way)."""
         from engine import hygiene
-        text = hygiene.undash(text)                         # (f396) what the narrator is shown of itself carries no dashes to copy
+        text = hygiene.undash(hygiene.unnote(text))         # (f396) what the narrator is shown of itself carries no dashes to copy; (f404) no notes
         if shown:
-            shown = {k: hygiene.undash(v) if k in ("text", "before", "after") and isinstance(v, str) else v for k, v in shown.items()}
+            shown = {k: hygiene.undash(hygiene.unnote(v)) if k in ("text", "before", "after") and isinstance(v, str) else v for k, v in shown.items()}
         if text.strip():
             self.recent_narration = (self.recent_narration + [text])[-6:]
             self.store.save_story(self.recent_narration, shown or {"type": "narration", "text": text})
@@ -2549,6 +2549,36 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         lines.append(f"The season is {clock.season(self.minutes)}.")
         return lines
 
+    def seek_person(self, seek: str, text: str) -> bool:
+        """(f404) 'I look for Brokur Durdal': someone the player names is found, or said to be elsewhere. A night's play had the player
+        look for the smith they had been told of, standing ten paces off as 'the soot-stained smith', and get a search for wild game
+        instead: the narrator, told there was none, described a woman scraping mud from a boot, and the player went to ask her."""
+        from engine import retrieval
+        rows = retrieval.named_in(self.store, seek)
+        if len(rows) != 1:
+            return False
+        here = next((n for n in self.present if n.id == rows[0].id), None)
+        if here is not None:
+            look = here.label()
+            if not here.name_known_to_player:
+                here.name_known_to_player = True                  # asked after by name and pointed out: they are known by it now
+                self.store.save_npc(here)
+            self.advance(2)
+            self.narrate(f"The player looks for {here.name} and finds them here: {look}"
+                         + (f", {here.activity}" if here.activity else "") + f". That is {here.name}. Show the player picking "
+                         f"{here.name} out (someone points, or a name called and answered); add no one else.", text)
+            return True
+        o = self.store.load_npc(rows[0].id)
+        if not (o.met_player or o.heard_of or o.name_known_to_player):
+            return False                                          # a name the player has no way to know: an ordinary search
+        if o.location == self.player.location:
+            console.note(f"{o.name} isn't about just now. Try again later in the day.")
+        else:
+            console.note(f"{o.name} isn't here. " + (f"You can find {o.name.split()[0]} at {self.where_name(o.location)}." if o.location
+                                                      else "Nobody here knows where to find them."))
+        self.halted = True
+        return True
+
     def on_search(self, intent: ActionIntent, text: str) -> None:
         if self.mentor_search():
             return
@@ -2562,6 +2592,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         if self.plant_sought(intent.seek):                        # (f381) looking for silverleaf is foraging, not hunting
             self.on_forage(intent, text)
+            return
+        if intent.seek and self.seek_person(intent.seek, text):  # (f404) looking for someone by name
             return
         if not self.place.danger:
             self.narrate("The player searches the area. There is no wild game or danger here. Describe the search "

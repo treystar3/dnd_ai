@@ -191,7 +191,8 @@ class CombatScene:
     @classmethod
     def begin(cls, ws, creature, enemies: list[combat.Fighter], how: str, reserves: list[combat.Fighter] | None = None,
               wave: tuple[int, int, int] = (2, 2, 1), prepare=None, duel: str = "", big: str = "",
-              initiated: bool = False) -> "CombatScene":
+              initiated: bool = False, told: str = "") -> "CombatScene":
+        # told (f404): the passage that already showed the foe arrive, a scripted entrance; the fight's opening is not narrated again
         c = ws.player.character
         if not duel:
             events.recruit_allies(ws, enemies)
@@ -267,8 +268,12 @@ class CombatScene:
                  f"{duel} Neither fighter means to kill: the first clean blow that would end the other decides it. THE ODDS: {odds.get(label, label)}.")
         if opening_events:
             event += " As the fight begins: " + "; ".join(opening_events)
-        ws.narrate_with(cp.START_SYSTEM, event)
-        scene.note_fight_shown(ws.recent_narration[-1] if ws.recent_narration else "")      # (f349) the opening passage is read
+        if told:                                             # (f404) a scripted entrance already showed it: told once, not twice
+            ws.remember_narration(told)
+            scene.note_fight_shown(told)
+        else:
+            ws.narrate_with(cp.START_SYSTEM, event)
+            scene.note_fight_shown(ws.recent_narration[-1] if ws.recent_narration else "")      # (f349) the opening passage is read
         for line in prep + tether_notes:
             console.note(line)
         if pools.mechanic(c, "keen_judge") is not None:
@@ -1225,6 +1230,7 @@ class CombatScene:
                             for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
             + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
+            + self.aftermath_facts(dead, skinnable) +
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS)
         console.narrate(aftermath.text)
@@ -1243,6 +1249,20 @@ class CombatScene:
         if skinnable:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")
+
+    def aftermath_facts(self, dead: list, skinnable: int) -> str:
+        """(f404) What the after-fight passage keeps to: the bodies lie where they fell, whole (a night's play had wolves burnt to ash and
+        then skinned for three hides), and whatever the fight's magic called up ends with it (Ghostly Afterburn's echoes hovered on after
+        the last wolf fell, and Maren turned to look at them)."""
+        out = ""
+        if dead:
+            out += ("THE BODIES: each of the fallen lies where it fell, its body whole: burnt, cut or broken, never ash, dust or gone"
+                    + ("; they can still be skinned and butchered" if skinnable else "") + "\n")
+        echoes = self.fight.player.counters.pop("echoes", 0)
+        if echoes:
+            out += (f"WHAT THE FIGHT CALLED UP (gone now): the spectral echo{'es' if echoes != 1 else ''} the kills left "
+                    f"fade{'s' if echoes == 1 else ''} as the fight ends, with nothing left to repeat\n")
+        return out
 
     def survivor_yields(self) -> None:
         """(f392) A won fight against outlaws can leave one who lives and yields (arcs.yaml prisoner.chance): chosen here among the fallen,

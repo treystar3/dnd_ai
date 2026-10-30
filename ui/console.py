@@ -665,7 +665,7 @@ def guard_outputs() -> None:
         if getattr(fn, "gated", False):
             continue
 
-        mend = (lambda s: hygiene.undash(hygiene.clean(s))) if name in STORY else hygiene.clean   # (f396, f403) no dashes in the story
+        mend = (lambda s: hygiene.undash(hygiene.unnote(hygiene.clean(s)))) if name in STORY else hygiene.clean   # (f396, f403) no dashes in the story; (f404) no notes
 
         def gated(*args, _fn=fn, _mend=mend, **kwargs):
             return _fn(*(_mend(a) if isinstance(a, str) else a for a in args),

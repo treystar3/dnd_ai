@@ -28,6 +28,9 @@ COMMAND = re.compile(r"(#[a-z]+(?:\s+[A-Za-z0-9_<>]+)?)")
 PLAYER = re.compile(r"\b([Tt])he player(?!s)(?!\s+of\b)('s)?(\s+([A-Za-z]+))?")
 QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
 FIRST = re.compile(r"\b(I|[Mm]e|[Mm]y|[Mm]ine|[Mm]yself)\b")
+# (f404) "[h4_damage_implied/hidden_by_rules? No wait, use events only.]": the model's note to itself. A bracket that is not a blow's tag
+# and has the marks of one: an underscore, a question, a slash, a broken tag (h4...), or four words or more.
+NOTE = re.compile(r"[ \t]*\[(?!\s*h\d+\s*\])(?=[^\]\n]*(?:_|\?|/|\bh\d|(?:\S+\s+){3}\S))[^\]\n]{1,240}\]")
 TO_BE = {"is": "are", "was": "were", "has": "have", "does": "do", "goes": "go"}
 NOT_VERBS = {"as", "his", "this", "us", "was", "is", "has", "does", "goes", "always", "perhaps", "towards", "afterwards"}
 
@@ -56,7 +59,7 @@ def problem(task: str, value) -> tuple[str, str]:
             continue
         if "\\n" in t:
             return "escape", "\\n"
-        for kind, pat in (("json", JSON_BITS), ("placeholder", PLACEHOLDER), ("id", CODED), ("id", SNAKE), ("id", TRAILING)):
+        for kind, pat in (("json", JSON_BITS), ("placeholder", PLACEHOLDER), ("id", CODED), ("id", SNAKE), ("id", TRAILING), ("note", NOTE)):
             m = pat.search(t)
             if m:
                 return kind, m.group(0).strip()
@@ -102,6 +105,17 @@ def second_person(text: str, whole: bool = False) -> str:
         out = re.sub(r"\bthemselves\b", "yourself", out)
         out = re.sub(r"\bthem\b", "you", out)
     return out
+
+
+def unnote(text: str) -> str:
+    """(f404) A story line without the model's notes to itself in square brackets; a blow's tag ([h1]) stays for its figure."""
+    if not isinstance(text, str) or "[" not in text:
+        return text
+    t = NOTE.sub("", text)
+    if t != text:
+        REPAIRS["note"] += 1
+        t = re.sub(r"[ \t]+([.,;:!?])", r"\1", t)
+    return t
 
 
 def clean(text: str) -> str:
@@ -226,7 +240,7 @@ def problems() -> list[str]:
     for k in ("prose_fields", "narrator_tasks", "reasons"):
         if not H.get(k):
             bad.append(f"hygiene.yaml: needs {k}")
-    for kind in ("json", "placeholder", "id", "escape", "player", "first_person"):
+    for kind in ("json", "placeholder", "id", "escape", "player", "first_person", "note"):
         if kind not in (H.get("reasons") or {}):
             bad.append(f"hygiene.yaml: needs a reason for {kind}")
     return bad
