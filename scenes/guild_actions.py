@@ -554,6 +554,14 @@ class GuildActions:
                                      thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
             console.ledger(f"Completed: [{q['letter']}] {q['title']}. {payer.label().capitalize()} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
+            if q["guild"]:
+                import random as _r
+                from engine import spells
+                codex = spells.contract_codex(q["letter"], c.level, _r.Random(f"{self.store.meta.seed}:codex:{q['id']}"))
+                if codex is not None:                                       # (f397) the guild's highest contracts sometimes pay a codex
+                    self.name_codex(codex, f"the contract '{q['title']}'")
+                    self.to_pack(codex)
+                    console.ledger(f"The guild adds a {codex.name} to the payment.")
             handed.append(f"the finished {'contract' if q['guild'] else 'request'} '{q['title']}', paid {money.words(coins)}")
             from engine import stakes
             stakes.done(self, q)                                            # (f322) the result lands; the issuer and the town remember

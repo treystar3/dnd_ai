@@ -68,3 +68,16 @@ book_drops:                 # chance a fallen foe leaves a spell book of the ran
   boss: 0.5
   elite: 0.06
   normal: 0.01
+
+# NAMED SPELLS: rare, great workings found in codices (data/world/goods.yaml codex) that bosses guard and the guild's highest contracts pay
+# with. One is a spell of its own, named by the model when the codex is found, built at the rank the codex's level allows and never
+# ranked up: power and mana are multiples of its form's, it can be cast once a fight, and then not again for `cooldown_days` days.
+named:
+  min_level: 40             # no codex is found before this level
+  power: 2.5
+  mana: 3.0
+  cooldown_days: 1
+  read_below: 10            # a codex can be read by a character up to this many levels below the level it was found at
+  forms: {blast: 30, lance: 25, charged: 25, burst: 20}
+  boss_chance: 0.15         # a boss at min_level or above leaves a codex this often
+  contract_chance: {A: 0.25, S: 0.5}    # a finished guild contract of this rank pays a codex too, this often

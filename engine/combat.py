@@ -70,6 +70,8 @@ class Move(BaseModel):
     relic: dict = {}               # a relic power: its kind and numbers (engine/relics.py)
     rank: int = 0                  # (f397) a spell's rank (engine/spells.py): it and its form set its numbers
     line: str = ""
+    named: bool = False            # (f397) a named spell: stronger, once a fight
+    cooldown_days: int = 0         # ...and then not again for this many days (the scene keeps the day on the character)
 
 
 class Fighter(BaseModel):
@@ -479,7 +481,8 @@ def fighter_from_character(c: Character) -> Fighter:
                   element=a.element, expressions=list(getattr(a, "expressions", []) or []), power=getattr(a, "power", 0),
                   cost_percent=getattr(a, "cost_percent", 0), cast_turns=getattr(a, "cast_turns", 0),
                   martial_form=getattr(a, "martial_form", ""), hits=getattr(a, "hits", 0), maneuver=getattr(a, "maneuver", ""),
-                  spell_form=getattr(a, "spell_form", ""), rank=getattr(a, "rank", 0), line=getattr(a, "line", ""))
+                  spell_form=getattr(a, "spell_form", ""), rank=getattr(a, "rank", 0), line=getattr(a, "line", ""),
+                  named=getattr(a, "named", False), cooldown_days=getattr(a, "cooldown_days", 0))
              for a in _loadout.prepared(c)] + relics      # only what is brought (engine/loadout.py)      # the planned element, never read from the words
     if weapon:
         b = items.base_of(weapon)
@@ -2111,6 +2114,9 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         tell(combat, f"the first working costs {who(att)} nothing - the effort echoes back (Echoing)")
     if move.cooldown and not echo:
         att.cooldowns[move.id] = move.cooldown + 1
+    if getattr(move, "cooldown_days", 0) and not echo:
+        att.cooldowns[move.id] = 10 ** 6                     # (f397) a named spell: once this fight, and the day is kept (spells.day_cast)
+        att.counters["day_cast"] = list(att.counters.get("day_cast", [])) + [move.id]
     ranked = bool(getattr(move, "rank", 0))
     if ranked:
         from engine import spells

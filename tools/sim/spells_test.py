@@ -163,6 +163,22 @@ ws.ranks_in_reach(45)
 check("a level-up that brings no new rank says nothing of ranks", not any("within your reach" in n for n in NOTES), NOTES)
 ws.ranks_in_reach(44)
 check("...reaching level 45 says rank IV is within reach", any("Rank IV" in n for n in NOTES), NOTES)
+cx = spells.make_codex(40, random.Random(3), "cold")
+ws.name_codex(cx, "the frost giant")
+ws.to_pack(cx)
+ws.halted = False
+ws.on_use(ActionIntent(kind="use", item="codex"), "I open the codex and study it.")
+known = next((a for a in c.actives if a.named), None)
+check("a codex found and named is read in the world: its named spell is learned and the codex spent",
+      known is not None and known.element == "cold" and not any(spells.is_codex(i) for i in ws.pack), [a.name for a in c.actives][-3:])
+from scenes.combat_scene import CombatScene
+c.spell_days = {known.id: ws.minutes - 60}
+wolf = combat.fighter_from_creature(world.bestiary["wolf"], 45, "normal", "w1", "wolf", start="near")
+cs = CombatScene.begin(ws, world.bestiary["wolf"], [wolf], "x")
+check("a named spell cast within the day is not ready in the next fight", cs.fight.player.cooldowns.get(known.id, 0) > 1000,
+      cs.fight.player.cooldowns)
+ws.combat = None
+ws.store.save_combat(None)
 store.close()
 shutil.rmtree("saves/spells_test", ignore_errors=True)
 
@@ -172,6 +188,43 @@ drops = [spells.book_drop(30, "boss", r) for _ in range(200)]
 got = [d for d in drops if d is not None]
 check("a boss leaves a spell book of the rank its level allows about half the time", 70 < len(got) < 130 and all(d.good == "tome_third_circle" for d in got), len(got))
 check("...an ordinary foe at level 5 leaves none (rank I is everyone's)", all(spells.book_drop(5, "boss", r) is None for _ in range(50)))
+
+# ---- named spells: codices from bosses and the highest contracts
+r = random.Random(7)
+check("no codex is found below the named spells' level", all(spells.codex_drop(30, r) is None for _ in range(200)))
+got = [spells.codex_drop(60, r, "fire") for _ in range(400)]
+got = [g for g in got if g is not None]
+check("a boss at level 60 leaves a codex now and then (about 15%)", 30 < len(got) < 95 and all(g.spell["element"] == "fire" and g.spell["rank"] == 4
+      and g.spell["form"] in spells.N["forms"] for g in got), len(got))
+check("an S contract pays one about half the time, an E contract never", 140 < sum(spells.contract_codex("S", 60, r) is not None for _ in range(400)) < 260
+      and all(spells.contract_codex("E", 60, r) is None for _ in range(100)))
+cx = got[0]
+cx.spell.update(name="Starfall", description="The sky opens.")
+c5, _ = simlib.make_character("mage", random.Random(8))
+leveling.level_up(c5, 59)
+spells.catch_up(c5)
+check("a codex found at level 60 cannot be read at level 40", "beyond you until level 50" in spells.can_read(c5.model_copy(update={"level": 40}), cx))
+before = spells.distinct(c5.actives)
+named = spells.learn_named(c5, cx)
+check("reading it gives a named spell: its form, its rank, stronger and costlier than a ranked one, a day between casts",
+      named.named and named.rank == 4 and named.cooldown_days == 1 and spells.power(named) == spells.FORMS[named.spell_form]["power"] * spells.N["power"]
+      and spells.mana(named) == round(spells.RANKS[4]["mana"] * spells.FORMS[named.spell_form]["mana"] * spells.N["mana"]), named)
+check("...it never ranks up, and does not take an ability's room", named.line not in spells.lines(c5) and spells.distinct(c5.actives) == before)
+from ui import console as real_console
+check("...and its card says so", "named" in spells.card(named).lower() and "once a fight" in " · ".join(real_console._ability_facts(named, 60)))
+f5 = combat.fighter_from_character(c5)
+nm = next((m for m in f5.moves if m.named), None)
+check("a named spell is brought when there is room", nm is not None, [m.name for m in f5.moves])
+dummy5 = combat.fighter_from_creature(world.bestiary["bandit"], 60, "normal", "d", "dummy", start="near")
+dummy5.max_hp = dummy5.hp = 10 ** 7
+fight5 = combat.Combat(fighters=[f5, dummy5], place="x", conditions=[])
+combat.ensure_field(fight5)
+f5.mana = f5.max_mana = 10 ** 4
+combat.act_ability(fight5, f5, nm, dummy5, random.Random(1))
+check("once cast, it is spent for the fight, and the cast is kept for the day", combat.can_use(f5, nm, fight5) is not None
+      and nm.id in f5.counters.get("day_cast", []))
+c5.spell_days = {nm.id: 1000}
+check("...and is not ready again until a day has passed", spells.day_locked(c5, named, 1000 + 60) > 0 and spells.day_locked(c5, named, 1000 + 1440) == 0)
 
 # ---- the card
 from ui import console as real_console

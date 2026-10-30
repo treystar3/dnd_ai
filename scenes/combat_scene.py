@@ -197,6 +197,11 @@ class CombatScene:
             events.recruit_allies(ws, enemies)
         prep = [] if duel else ws.field_prep(enemies)
         fighters = [combat.fighter_from_character(c)]
+        from engine import spells
+        for m in fighters[0].moves:                       # (f397) a named spell cast within its days is not ready this fight
+            a = next((x for x in c.actives if x.id == m.id), None)
+            if a is not None and spells.day_locked(c, a, ws.minutes):
+                fighters[0].cooldowns[m.id] = 10 ** 6
         near, later = ([], []) if duel else cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
         fighters += near
         tether_notes = ws.tether_for(near)
@@ -971,6 +976,8 @@ class CombatScene:
     def sync_player(self) -> None:
         c, p = self.ws.player.character, self.fight.player
         c.health, c.stamina, c.mana = float(p.hp), float(p.stamina), float(p.mana)
+        for mid in p.counters.pop("day_cast", []):      # (f397) a named spell cast: the day is kept, for its cooldown in days
+            c.spell_days = {**c.spell_days, mid: self.ws.minutes}
         if c.orenna_breath and not p.breath:
             c.orenna_breath = False
             from engine import orenna
@@ -1158,6 +1165,11 @@ class CombatScene:
                     if prize.rarity in ("rare", "epic", "legendary"):
                         self.name_item(prize, e.name)
                     found.append(prize)
+                from engine import spells
+                codex = spells.codex_drop(e.level, self.rng, e.element)          # (f397) now and then, a codex: a named spell
+                if codex is not None:
+                    self.ws.name_codex(codex, e.name)
+                    found.append(codex)
                 if prizes:
                     bodies[e.id]["carried"] = inventory.label(prizes[0])
                 kit = (e.boss or {}).get("kit") or bosses.kit_for(e.category)

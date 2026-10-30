@@ -68,7 +68,8 @@ def base(rank: int) -> float:
 
 
 def power(x) -> float:
-    return float(FORMS[form_of(x)]["power"])
+    p = float(FORMS[form_of(x)]["power"])
+    return p * float(S["named"]["power"]) if getattr(x, "named", False) else p
 
 
 def coefficient(x) -> float:
@@ -77,7 +78,8 @@ def coefficient(x) -> float:
 
 def mana(x) -> int:
     """A flat cost: the rank's mana times the form's."""
-    return max(1, round(float(RANKS[int(x.rank)]["mana"]) * float(FORMS[form_of(x)]["mana"])))
+    m = float(RANKS[int(x.rank)]["mana"]) * float(FORMS[form_of(x)]["mana"])
+    return max(1, round(m * (float(S["named"]["mana"]) if getattr(x, "named", False) else 1.0)))
 
 
 def cooldown(form: str) -> int:
@@ -104,7 +106,9 @@ def form_text(form: str) -> str:
 
 
 def card(x) -> str:
-    """'Rank III lance': how a ranked spell is named in the book and the panes."""
+    """'Rank III lance': how a ranked spell is named in the book and the panes ('Named blast' for a codex's spell)."""
+    if getattr(x, "named", False):
+        return f"Named {FORMS[form_of(x)]['label'].lower()}"
     return f"Rank {numeral(x.rank)} {FORMS[form_of(x)]['label'].lower()}"
 
 
@@ -129,7 +133,7 @@ def lines(c) -> dict[str, list]:
     """The character's spell lines: line -> its ranks they know, lowest first."""
     out: dict[str, list] = {}
     for a in c.actives:
-        if is_ranked(a):
+        if is_ranked(a) and not getattr(a, "named", False):          # a named spell never ranks up
             out.setdefault(a.line or a.id, []).append(a)
     return {k: sorted(v, key=lambda a: a.rank) for k, v in out.items()}
 
@@ -169,7 +173,7 @@ def waiting(c) -> list[tuple[str, object, int]]:
 
 def distinct(actives: list) -> int:
     """How many abilities the character holds, counting a spell line once: a new rank is not a new ability."""
-    return sum(1 for a in actives if not is_ranked(a)) + len({a.line or a.id for a in actives if is_ranked(a)})
+    return sum(1 for a in actives if not is_ranked(a)) + len({a.line or a.id for a in actives if is_ranked(a) and not getattr(a, "named", False)})
 
 
 def plain_name(name: str) -> str:
@@ -245,6 +249,88 @@ def teaches(npc) -> bool:
     return getattr(npc, "role", "") in (S["teach"].get("roles") or [])
 
 
+# ---------- named spells (codices)
+
+N = S["named"]
+
+
+def is_codex(item) -> bool:
+    from engine import inventory as inv
+    g = inv.GOODS.get(getattr(item, "good", "") or "")
+    return g is not None and g.kind == "codex" and bool(getattr(item, "spell", None))
+
+
+def make_codex(level: int, rng: random.Random, element: str = ""):
+    """A codex holding one named spell, unnamed yet (the scene has the model name it when it is found): its form drawn, its element
+    the one given (a boss's own) or drawn, its rank the one its level allows."""
+    from engine import elements as EL, inventory as inv
+    forms = N["forms"]
+    form = rng.choices(list(forms), weights=list(forms.values()))[0]
+    element = element if element in EL.ELEMENTS else rng.choice(sorted(EL.ELEMENTS))
+    item = inv.make_good("codex", 1)
+    item.spell = {"name": "", "description": "", "element": element, "form": form, "rank": highest_rank(level), "level": int(level)}
+    return item
+
+
+def codex_drop(level: int, rng: random.Random, element: str = ""):
+    """A boss's codex, now and then, once the world is deep enough for one."""
+    if level < N["min_level"] or rng.random() >= float(N["boss_chance"]):
+        return None
+    return make_codex(level, rng, element)
+
+
+def contract_codex(letter: str, level: int, rng: random.Random):
+    """A codex paid with a finished guild contract of the highest ranks, now and then."""
+    chance = float((N.get("contract_chance") or {}).get(letter, 0))
+    if level < N["min_level"] or rng.random() >= chance:
+        return None
+    return make_codex(level, rng)
+
+
+def codex_name(item) -> str:
+    sp = getattr(item, "spell", None) or {}
+    return f"codex of {sp['name']}" if sp.get("name") else "sealed codex"
+
+
+def can_read(c, item) -> str:
+    """'' if the character can learn the codex's spell; else why not."""
+    sp = item.spell
+    if c.level < int(sp.get("level", 0)) - int(N["read_below"]):
+        return f"The working in the {codex_name(item)} is beyond you until level {int(sp['level']) - int(N['read_below'])}."
+    if any(getattr(a, "named", False) and a.name == sp.get("name") for a in c.actives):
+        return f"You already know {sp['name']}."
+    return ""
+
+
+def learn_named(c, item):
+    """The codex's spell, learned: a named spell of its own, brought at once when there is room."""
+    from core.models import Ability, Effect, PowerTier, Reach, Resource, UseContext
+    from engine.abilities import slugify
+    sp = item.spell
+    form = sp.get("form") or "blast"
+    ids = {a.id for a in c.actives}
+    aid = slugify(sp.get("name") or "named spell")
+    while aid in ids:
+        aid += "_"
+    a = Ability(id=aid, name=sp.get("name") or "Named Working", description=sp.get("description") or "", effect=Effect.DAMAGE,
+                tier=PowerTier(tier_for(int(sp.get("rank") or 1))), reach=Reach("area" if FORMS[form]["delivery"] in ("area", "around") else "ranged"),
+                resource=Resource.MANA, context=UseContext.COMBAT, cost=0, cooldown=0, element=sp.get("element", ""),
+                attribute=c.casting_attribute or "intelligence", spell_form=form, rank=int(sp.get("rank") or 1), line=aid, named=True,
+                cooldown_days=int(N["cooldown_days"]))
+    a.cost = mana(a)
+    c.actives.append(a)
+    return a
+
+
+def day_locked(c, a, minutes: int) -> int:
+    """Minutes before a named spell can be cast again (0 when it can)."""
+    days = int(getattr(a, "cooldown_days", 0) or 0)
+    last = (getattr(c, "spell_days", None) or {}).get(a.id)
+    if not days or last is None:
+        return 0
+    return max(0, int(last) + days * 1440 - int(minutes))
+
+
 RANK_WORDS = re.compile(r"\b(rank|ranks|circle|stronger version|greater version|next level of|deepen|improve my|strengthen my|upgrade|"
                         r"higher form|more powerful version|advanced version)\b", re.I)
 
@@ -281,4 +367,10 @@ def problems() -> list[str]:
             bad.append(f"spells.yaml books {r}: '{good}' is not a goods.yaml book of rank {r}")
     if len(S["teach"]["fee_per_rank"]) < TOP:
         bad.append("spells.yaml teach: a fee for every rank")
+    for f in N.get("forms") or {}:
+        if f not in FORMS:
+            bad.append(f"spells.yaml named forms: '{f}' is not a form")
+    g = inv.GOODS.get("codex")
+    if g is None or g.kind != "codex":
+        bad.append("goods.yaml: a codex good (kind codex) for the named spells")
     return bad

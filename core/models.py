@@ -136,6 +136,8 @@ class Ability(BaseModel):
     field_use: str = ""   # what it does outside combat: scout, shelter, haste, influence, shadow, recall or showmanship (engine/field.py)
     rank: int = 0         # (f397) a spell's rank (engine/spells.py): it and the form set its numbers; 0 = a tiered ability (techniques)
     line: str = ""        # (f397) the spell line it belongs to: the id of its first rank
+    named: bool = False   # (f397) a named spell from a codex: stronger, once a fight, then not again for its cooldown_days
+    cooldown_days: int = 0
 
 
 class Passive(BaseModel):
@@ -201,6 +203,7 @@ class Item(BaseModel):
     origin: str = ""        # for meat and what is cooked from it: the family of the beast it came from, when the player hunted it (Symbiosis)
     quantity: int = 1       # stack size for goods and raw materials
     reforged: bool = False  # its rolls have been reforged once; never again
+    spell: dict = {}        # (f397) a codex: the named spell sealed in it {name, description, element, form, rank, level}
 
 
 class KeyItem(BaseModel):
@@ -268,6 +271,7 @@ class Character(BaseModel):
     attributes: Attributes = Attributes()
     actives: list[Ability] = []                # the book: every ability learned (engine/loadout.py)
     prepared: list[str] = []                   # the ids of the abilities brought - spells and techniques each have their own room
+    spell_days: dict[str, int] = {}            # (f397) a named spell's id -> the game minute it was last cast (its cooldown is in days)
     book_seen: list[str] = []                  # abilities the loadout has already considered (a newly learned one comes along if there is room)
     loadout_day: int = 0                       # the day the loadout was last changed (once a day)
     loadout_free: bool = True                  # the first change costs nothing

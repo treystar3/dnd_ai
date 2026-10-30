@@ -1,6 +1,6 @@
 # GOODS - things that stack: herbs, food and consumables.
 #
-# kind:       herb | food | consumable | book
+# kind:       herb | food | consumable | book | codex
 # rank:       for a book (f397): the spell rank it teaches (data/rules/spells.yaml books)
 # price:      value in copper (100 copper = 1 silver). Merchants buy at a fraction of this.
 # stack:      how many fit in one pack slot
@@ -53,3 +53,7 @@
    description: "A heavy codex of the sixth circle, written in three hands across three lifetimes."}
 - {id: tome_seventh_circle, name: tome of the seventh circle, kind: book, rank: 7, price: 400000, stack: 5,
    description: "A sealed codex of the seventh circle; few who open it can read it."}
+
+# (f397) A codex: one named spell, sealed in it when it is found (the item carries the spell; engine/spells.py named).
+- {id: codex, name: sealed codex, kind: codex, price: 50000, stack: 1,
+   description: "A codex bound in something older than leather, holding one great working."}

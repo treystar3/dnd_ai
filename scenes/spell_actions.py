@@ -24,15 +24,27 @@ higher rank of it, a stronger working of the same magic. Give the new rank a nam
 Respond only with JSON matching the schema."""
 
 
+NAMED_SYSTEM = """You name a great spell in a fantasy role-playing game: a named working, rare and old, sealed in a codex found after a hard
+fight. Give it a name of its own that fits its element and the way it is cast - two to four words, grand and specific (Starfall, The Drowning
+Bell, Ashen Crown). Never a numeral, never another game's spell names (Ultima, Flare, Meteor, Holy, Firaga and the like).
+description: one sentence of how it looks and feels when it is cast, in the second person.
+Respond only with JSON matching the schema."""
+
+
 class SpellActions:
     INTERCEPTS = (Intercept("spell_book", 75, "spell_book_turn", "reading a spell book the player carries (f397)"),)
 
     def spell_book_turn(self, text: str) -> bool:
-        """'I study the tome of the third circle': a spell book in the pack, named, with a reading verb, is read; never left to a guess."""
+        """'I study the tome of the third circle': a spell book in the pack, named, with a reading verb, is read; never left to a guess.
+        A codex the same."""
         if getattr(self, "combat", None) or not BOOK_VERBS.search(text or ""):
             return False
         from engine import inventory as inv
         low = (text or "").lower()
+        codex = next((i for i in self.pack if spells.is_codex(i) and re.search(r"\bcodex\b", low)), None)
+        if codex is not None:
+            self.read_codex(codex, text)
+            return True
         book = next((i for i in self.pack if spells.book_rank(i) and (inv.GOODS[i.good].name in low or re.search(r"\b(tome|spell ?book|grimoire|codex)\b", low))), None)
         if book is None:
             return False
@@ -158,6 +170,37 @@ class SpellActions:
         if new is not None:
             console.note(f"Paid {money.fmt(fee)}.")
         return True
+
+    # ---- a codex: a named spell
+    def name_codex(self, item, found_with: str = "") -> None:
+        """The model names the spell a codex holds when it is found; a plain name when it cannot."""
+        sp = item.spell
+        req = (f"ITS ELEMENT: {sp['element']}\nITS FORM: {spells.FORMS[sp['form']]['label']}: {spells.form_text(sp['form'])}\n"
+               f"FOUND: {('after ' + found_with) if found_with else 'in the world'}")
+        try:
+            r = generate("named_spell", NAMED_SYSTEM, req, SpellRankName, temperature=0.9, retries=2, max_tokens=200,
+                         validation_context={"taken": [a.name for a in self.player.character.actives]})
+            sp["name"], sp["description"] = r.name, r.description
+        except LLMError:
+            sp["name"] = f"The {sp['element'].capitalize()} {spells.FORMS[sp['form']]['label']}"
+            sp["description"] = ""
+        item.name = spells.codex_name(item)
+
+    def read_codex(self, item, text: str) -> None:
+        c = self.player.character
+        why = spells.can_read(c, item)
+        if why:
+            console.note(why)
+            self.halted = True
+            return
+        self.pack.remove(item)
+        a = spells.learn_named(c, item)
+        self.advance(int(spells.S["teach"]["hours"] * 60))
+        self.store.save_player(self.player)
+        console.note(f"Learned {a.name}: a named {spells.FORMS[spells.form_of(a)]['label'].lower()}, {spells.mana(a)} mana, once a fight and "
+                     f"then not again for {a.cooldown_days} day{'s' if a.cooldown_days != 1 else ''}.")
+        self.narrate(f"The player spends hours over the {item.name}, and learns {a.name}: {a.description} The codex is spent in the learning. "
+                     "Show the study, and the first stirring of the working.", text)
 
     # ---- telling the player
     def ranks_in_reach(self, old_level: int) -> None:

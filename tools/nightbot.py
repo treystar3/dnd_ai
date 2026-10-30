@@ -929,6 +929,8 @@ class Bot:
             options.append((8, "hire"))                 # a check-in at most once a game day per companion: a real player does not nag
         from engine import spells as _sp               # (f397) a spell's next rank: from a teacher here, or a book in the pack
         c = ws.player.character
+        if any(_sp.is_codex(i) and not _sp.can_read(c, i) for i in ws.pack):
+            options.append((40, "codex"))
         if _sp.learnable(c):
             if getattr(ws, "rank_options", None) and ws.rank_teacher():
                 options.append((60, "rank_pick"))
@@ -976,6 +978,9 @@ class Bot:
         if pick == "rank_pick":
             return rng.choice(["I'll learn the first one.", "The first, please.", "I'll take number 1."]), \
                 self.intend("learn_ability", item="1"), "train"
+        if pick == "codex":
+            return rng.choice(["I open the codex and study the working inside.", "I sit down with the codex and learn its spell."]), \
+                self.intend("use", item="codex"), "use"
         if pick == "book":
             book = next(i for i in ws.pack if _sp.book_rank(i) and _sp.learnable(c, _sp.book_rank(i)))
             spell = _sp.learnable(c, _sp.book_rank(book))[0][1]

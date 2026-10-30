@@ -227,7 +227,11 @@ def _ability_facts(a, level: int) -> list[str]:
         facts[-1] = f"{body} stamina + {facts[-1]}"
     if a.cooldown:
         facts.append(f"cooldown {a.cooldown}")
-    if getattr(a, "rank", 0):                         # (f397) a ranked spell: its rank and form say how hard it hits
+    if getattr(a, "named", False):                    # (f397) a named spell from a codex
+        from engine import spells
+        facts.append(f"named {spells.FORMS[spells.form_of(a)]['label'].lower()}: {round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} "
+                     f"damage; once a fight, then {a.cooldown_days} day{'s' if a.cooldown_days != 1 else ''} before it can be cast again")
+    elif getattr(a, "rank", 0):                       # (f397) a ranked spell: its rank and form say how hard it hits
         from engine import spells
         facts.append(f"rank {spells.numeral(a.rank)}, {spells.FORMS[spells.form_of(a)]['label'].lower()}: "
                      f"{round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} damage")
