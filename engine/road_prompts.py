@@ -17,7 +17,12 @@ When the event says it must be an ambush, the CREATURES are given: describe how 
 them, and nothing else about the outcome. Otherwise never include a fight.
 
 Write:
-  title: a short name for it.  scene: what the player sees and hears, second person - two or three sentences, but four to six when TIER is rare
+  title: a short name for it.
+  journey: the walk BEFORE the happening, second person, two or three sentences, from THE JOURNEY: the player setting out (or already
+    well on the way), the road under their feet and the country it crosses, the weather and the light, anyone walking with them (as
+    WHO IS WITH THEM says, nothing more), and roughly how long they have been walking. The player should feel the road go by, so the
+    happening comes in the middle of a journey, not out of nowhere. Never the happening itself, and never the arrival.
+  scene: what the player sees and hears, second person - two or three sentences, but four to six when TIER is rare
   ("You...") - concrete, no decisions or actions for the player.  kind, detail, check (hazards only).
   meets_role: ONLY if the event says the player is stopped here - a role id from ROLES for someone who is there
     (a stranded merchant, a pilgrim, a patrol). Otherwise leave empty.
@@ -30,8 +35,10 @@ Respond only with JSON matching the schema."""
 
 
 def user(road_text: str, tier: str, season: str, when: str, sky: str, world_now: str, lore: str, must: str,
-         checks: list[str], roles: list[str], roads: str, stops: bool) -> str:
+         checks: list[str], roles: list[str], roads: str, stops: bool, journey: str = "", company: list[str] = ()) -> str:
     return (f"ROAD: {road_text}\nTIER: {tier}\nSEASON: {season}\nTIME: {when}; weather: {sky}\n"
+            + (f"THE JOURNEY: {journey}\n" if journey else "")
+            + f"WHO IS WITH THEM (each one's pronoun and people: never write them otherwise): {'; '.join(company) if company else 'no one: they walk alone'}\n"
             f"THE WORLD NOW: {world_now or 'nothing in particular'}\nLORE: {lore or 'nothing special'}\n"
             f"MUST BE: {must}\n"
             f"{'THE PLAYER IS STOPPED HERE: give meets_role if someone is present.' if stops else 'The player keeps walking after this.'}\n"

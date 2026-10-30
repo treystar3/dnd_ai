@@ -1528,6 +1528,7 @@ class MotiveStep(BaseModel):
 class RoadEvent(BaseModel):
     """Something that happens on the road. The model describes it; the engine rolls any check, loot or fight."""
     title: str
+    journey: str = ""              # (f408) the walk before it: setting out, the road, the company, the time on it; never the happening
     scene: str                     # what the player sees and hears, two or three sentences, second person
     kind: Literal["find", "meeting", "hazard", "sight", "aid", "ambush"]
     detail: str = ""               # find: what is found. hazard: the obstacle. meeting/aid: who, and what they say or need

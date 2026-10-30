@@ -167,7 +167,7 @@ cultures:
 tongues:
   ironvein:
     home: Ironvein under the Grey Mountains
-    habits: "now and then puts the verb at the end of a sentence, the way their own tongue does; counts and measures things exactly; uses few small joining words"
+    habits: "says things bluntly and in few words; counts and measures things exactly; leaves out a small joining word now and then, in normal word order"     # (f409) a verb at the end read as a caricature
     words: {khaz: "solid, well made, sound", brund: "a fool, fondly or not", orrum: "home, the hall", taak: "agreed, it is done"}
     offer: [brund, taak]
   eldervale:

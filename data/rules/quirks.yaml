@@ -347,6 +347,8 @@ blueprints:
 
 # ---- dialogue style, for every speaker
 style_rules:
+  - "Answer what was just said, first and plainly, the way a person would: a greeting gets a greeting back, a question its answer, thanks a word or a nod. Then stop, or add the one thing that matters to you."     # (f409)
+  - "Match the length of what was said to you: a few words get a few words back; small talk is a sentence or two, never a speech."     # (f409)
   - "Speak like an ordinary person in this world talking to someone in front of them, not a character demonstrating an archetype."
   - "Prefer concrete reactions, implication and understatement."
   - "Be specific: one particular detail beats a general statement. No stock phrases or ready-made wisdom; if a line could appear in any fantasy book, say what only this person would say."
@@ -356,6 +358,7 @@ style_rules:
   - "Do not name or interpret the other person's feelings back to them ('what you carry', 'I can see this weighs on you', 'that must be hard'). People show they care with a plain word, a question, a joke or something practical."
   - "Avoid writerly patterns: 'not X, but Y', 'X, and that is Y', lists of three for rhythm, solemn one-line pronouncements."
   - "Do not mention your profession, motive, values or traits unless the moment is about them."
+  - "Leave the weather, the air and the light out of what you say unless you are asked or it changes something; and no images where a plain word does."     # (f409) 'hello' was answered with the morning air
 invention_rules:
   - "Never invent: numbers or amounts, names of people or places, guild rules or procedures, events involving the player, or facts about other people present."
   - "Free to invent, as colour: images and comparisons, opinions and feelings, small physical details of this moment, and small personal things about yourself that the facts do not cover (a habit, a taste, something from your childhood), as long as they contradict nothing given."

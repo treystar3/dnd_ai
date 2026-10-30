@@ -95,7 +95,22 @@ a, b = road.from_, road.to
 before = {id(i) for i in ws.pack}
 hostile_was = ra.R["hostile"]
 ra.R["hostile"] = 0
-ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [])
+road_out = io.StringIO()
+with contextlib.redirect_stdout(road_out):
+    ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [], walked=40)
+told = road_out.getvalue()
+check("(f408) a road's happening comes in the middle of a journey: where from, where to, how long, before it",
+      f"You set out from {world.places[a].name}" in told and told.index("set out") < told.index("A ledger lies"), told[:400])
+check("...and the model is told the journey and who walks with the player", "THE JOURNEY: set out from" in seen.get("user", "")
+      and "WHO IS WITH THEM" in seen.get("user", "") and "Jorn Elliston" in seen.get("user", ""), seen.get("user", "")[:600])
+def fake_generate2(task, system, user, schema, **k):
+    return RoadEvent(title="The Ford", journey="The road runs on under a grey sky, Jorn a step behind you.", scene="A ford, swollen.",
+                     kind="sight")
+ra.generate = fake_generate2
+road_out = io.StringIO()
+with contextlib.redirect_stdout(road_out):
+    ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [], walked=40)
+check("...the model's own telling of the walk when it gives one", "grey sky, Jorn a step behind you" in road_out.getvalue(), road_out.getvalue()[:300])
 ra.R["hostile"] = hostile_was
 ra.generate = real_gen
 new = [i for i in ws.pack if id(i) not in before]
@@ -106,6 +121,10 @@ ws.narrate = lambda req, text="", *a, **k: asked.append(req)
 ws.quiet_return = lambda *a, **k: False
 ws.finish_journey([a, b], 60, "I walk on", ["The Dropped Ledger: A ledger lies in a rut."])
 check("the arrival is told the road's happening is read already, and not to tell it again", asked and "do not tell it again" in asked[-1], asked[-1:])
+ws.finish_journey([a, b], 90, "I walk on", [])
+check("(f408) a long walk with nothing on the way is felt on arrival", "sentences of the walk itself" in asked[-1], asked[-1:])
+ws.finish_journey([a, b], 20, "I walk on", [])
+check("...a short one is not", "Say little of the road" in asked[-1], asked[-1:])
 
 # ---- Maren's farewell, a lead's name, a hire's pronoun
 said = []
@@ -115,6 +134,22 @@ check("a quoted line in her scene text is her speaking, under her name", said an
 check("a thing's name inside a sentence is not capitalised mid-sentence", ws.mid_sentence("Four pieces of a map to a dragon's hoard")
       == "four pieces of a map to a dragon's hoard" and ws.mid_sentence("Old Brannoch's ring") == "Old Brannoch's ring")
 check("a hire who is he is framed as he, never they", "Jorn is he" in ws.frame_for(jorn, "how they listen") and "never they" in ws.frame_for(jorn, "x"))
+# ---- (f409) dialogue that sounds like people
+from engine import quirks, voice_rules, hygiene
+from npc import prompts as npc_prompts
+from scenes import party_prompts
+block = quirks.style_block()
+check("every speaker is told to answer what was said first, and to keep a short exchange short",
+      "a greeting gets a greeting back" in block and "a few words get a few words back" in block, block[:300])
+check("...and to leave the weather out of what they say", "Leave the weather" in block)
+check("...townsfolk alike", "a greeting gets a greeting back" in npc_prompts.CONVERSATION_SYSTEM)
+from engine import voice_profile
+import yaml
+SP = yaml.safe_load(open("data/rules/speech.yaml", encoding="utf-8"))
+check("a dwarf's Common is blunt, not a caricature: no verb at the end", "verb at the end" not in SP["tongues"]["ironvein"]["habits"])
+from engine import mentor as _mentor
+check("Maren is told to say each point once, briefly", any("Use no more words than the points need" in r for r in _mentor.M["voice"]["speech_rules"]))
+check("a name run into a word with an underscore is written as words", hygiene.clean("Right_Nickkelly.") == "Right Nickkelly.")
 store.close()
 shutil.rmtree("saves/playthrough_1030b_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

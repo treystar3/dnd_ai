@@ -56,7 +56,7 @@ class RoadActions:
             a, b, m = stretches[i]
             if m < R["min_edge_minutes"] or self.rng.random() >= R["chance_per_leg"] * quiet:
                 continue
-            outcome = self.road_event(route, a, b, m, frac, text, log)
+            outcome = self.road_event(route, a, b, m, frac, text, log, walked=done)
             if outcome:
                 events += 1
             if outcome in ("stopped", "fight"):
@@ -81,9 +81,11 @@ class RoadActions:
             console.narrate(line)
             self.remember_narration(line)
         else:
+            road = ("Begin with two or three sentences of the walk itself (the road, the country it crosses, the light changing over the "
+                    "hours, anyone walking with them), so the player feels the journey; then the arrival. " if walk >= 45 and not log
+                    else "Say little of the road. ")               # (f408) a long walk is felt; a short one, or one already told, is not
             self.narrate(f"After {clock.describe_duration(walk)} on foot, the player arrives at {self.place.name}.{passing}{happened} "
-                         f"Give the place and one person doing one thing; the rest waits until they look. "
-                         f"Say little of the road.{self.brevity()}", text)
+                         f"{road}Give the place and one person doing one thing; the rest waits until they look.{self.brevity()}", text)
         self.show_exits()
         if self.arc_arrival():
             return
@@ -95,6 +97,14 @@ class RoadActions:
         self.maybe_encounter(encounters.E["chance_on_arrival"], "As you arrive,")
 
     # ---------- one event ----------
+
+    def road_company(self) -> list[str]:
+        """(f408) Who walks the road with the player, as they must be written."""
+        from engine import entities
+        try:
+            return entities.who_is_who(self)
+        except Exception:
+            return []
 
     def bandit_road(self, a: str, b: str) -> bool:
         """Is something about outlaws acting on this road right now - a world event the pulse or a road event made?"""
@@ -114,7 +124,21 @@ class RoadActions:
         ends = [pulse.danger_factor(self.store, pulse.town_of(self.world, p), self.minutes) for p in (a, b)]
         return f * (sum(ends) / 2) * self.danger_multiplier(b, True)
 
-    def road_event(self, route, a, b, minutes, frac, text, log, resume: str | None = None, stop_name: str = ""):
+    def journey_facts(self, route, a, b, walked: int) -> str:
+        """(f408) Where the player set out from, where they are bound, the road they are on and how long they have walked."""
+        r = self.world.road_between(a, b)
+        way = r.name if r else f"the way toward {self.world.places[b].name}"
+        return (f"set out from {self.world.places[route[0]].name}, bound for {self.world.places[route[-1]].name}; now on {way}, "
+                f"{clock.describe_duration(max(5, walked))} into the walk")
+
+    def journey_line(self, route, a, b, walked: int) -> str:
+        """(f408) The walk before a happening, when the model gave none: where from, where to, by what road, how long."""
+        r = self.world.road_between(a, b)
+        way = r.name if r else f"the way toward {self.world.places[b].name}"
+        return (f"You set out from {self.world.places[route[0]].name} by {way}, bound for {self.world.places[route[-1]].name}. "
+                f"You have been walking {clock.describe_duration(max(5, walked))}.")
+
+    def road_event(self, route, a, b, minutes, frac, text, log, resume: str | None = None, stop_name: str = "", walked: int = 0):
         """`resume` is where a won fight carries on to (default: the end of the route); `stop_name` names a stop on the road."""
         tier = roads.roll_tier(self.rng)
         wilds = roads.nearby_wilds(self.world, a, b)
@@ -171,12 +195,14 @@ class RoadActions:
                 "road_event", SYSTEM,
                 user(roads.road_text(self.world, a, b), tier, clock.season(self.minutes), clock.period(self.minutes), sky,
                      "; ".join(threads + [h["text"] for h in state.get("history", [])[-3:]]), lore, must, list(checks.CHECKS),
-                     sorted(self.world.roles), ", ".join(rkeys.values()), interrupts or hostile),
+                     sorted(self.world.roles), ", ".join(rkeys.values()), interrupts or hostile,
+                     self.journey_facts(route, a, b, walked), self.road_company()),
                 RoadEvent, temperature=0.95, max_tokens=900,
                 validation_context={"hostile": hostile, "checks": list(checks.CHECKS)})
         except LLMError as e:
             console.debug(f"road: nothing happened this time ({e})")
             return None
+        console.narrate(ev.journey.strip() or self.journey_line(route, a, b, walked))      # (f408) the road goes by before it happens
         console.ledger(f"On the road - {ev.title}")
         console.narrate(ev.scene)
         log.append(f"{ev.title}: {ev.scene}")
