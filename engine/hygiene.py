@@ -165,6 +165,8 @@ def clean(text: str) -> str:
         if t2 != t:
             REPAIRS["player"] += 1
             t = t2
+    from engine import names                              # (f412) 'Odly lowers his blade' for a she
+    t = names.mend_pronouns(t)
     if t != text:
         t = re.sub(r"[ \t]{2,}", " ", t).replace(" .", ".").replace(" ,", ",")
     return t

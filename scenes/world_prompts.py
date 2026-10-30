@@ -145,11 +145,17 @@ def _who_head() -> str:
     return WHO_HEAD
 
 
+# (f412) A companion's habit at its moment (quirks.yaml habits): true now, and the narrator's to tell as part of the passage.
+HABITS_HEAD = ("WHAT THE COMPANIONS DO NOW (a habit of each; true: fold each into the passage in your own words, as part of the scene - "
+               "never word for word, never a sentence standing on its own at the end)")
+
+
 def narration_request(time_label: str, place, people: list[tuple[str, str, str]], event: str, player_text: str = "",
                       recent: list[str] = (), gear: str = "", marks: list[str] = (), ground: list[str] = (),
                       happenings: list[str] = (), streets: list[str] = (), town: str = "",
                       news: list[str] = (), already: list[str] = (), companions: list[str] = (), worn: list[str] = (),
-                      unlooked: int = 0, who: list[str] = (), fallen: list[str] = (), parts: list[str] = (), told: list[str] = ()) -> str:
+                      unlooked: int = 0, who: list[str] = (), fallen: list[str] = (), parts: list[str] = (), told: list[str] = (),
+                      habits: list[str] = ()) -> str:
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
@@ -167,6 +173,7 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (("ALREADY SHOWN THIS VISIT (the player has read these here; do not describe them again - say what is new):\n"
             + "\n".join(f"  - {x}" for x in already) + "\n") if already else "")
         + (f"WITH THE PLAYER (companions the event has act; show only what the event says they do): {', '.join(companions)}\n" if companions else "")
+        + (f"{HABITS_HEAD}: {' '.join(habits)}\n" if habits else "")
         + (f"{_who_head()}: {'; '.join(who)}\n" if who else "")
         + (f"{_fallen_head()}: {'; '.join(fallen)}\n" if fallen else "")
         + (("THE PARTS OF THIS PLACE (real: the player can go to each; name no other part of it):\n" + "\n".join(f"  - {x}" for x in parts) + "\n")

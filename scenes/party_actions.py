@@ -715,7 +715,7 @@ class PartyActions:
         if gesture and not reply:
             console.narrate(f"{m['name']} {gesture.rstrip('.')}.")
         elif reply:
-            self.companion_show(m, quirks.shown(reply, gesture, m["name"]), text)          # (f325) framed like Maren's and the townsfolk's
+            self.companion_show(m, quirks.shown(reply, gesture, m["name"], rules.pronoun_of(m)), text)   # (f325) framed like Maren's and the townsfolk's
             rules.said(m, reply)
         quirks.note_line(m, gesture)
         said = [["Player", text[:250]]] + ([[m["name"].split()[0], reply[:300]]] if reply else ([[m["name"].split()[0], f"({gesture})"]] if gesture else []))
@@ -804,6 +804,20 @@ class PartyActions:
             return f"{frame}. {m['name'].split()[0]} is {p}: write {p}, {'him' if p == 'he' else 'her'} and {'his' if p == 'he' else 'her'}, never they"
         return frame
 
+    def mourn(self, dead: dict, by: str = "") -> None:
+        """(f412) A companion has died: everyone who travelled with them keeps who it was, where, and by whose hand, so they can speak of
+        them days later (a night's run had three companions die and never be named again). Kept on each survivor ('mourns')."""
+        here = self.place.name if self.place else ""
+        how = (f" by {by}" if by and by != "you" else "") + (f" at {here}" if here else "")
+        for m in self.player.party:
+            if m is dead or not m.get("permanent") or m.get("story") or m.get("id") == dead.get("id"):
+                continue
+            kept = m.setdefault("mourns", [])
+            if any(x.get("id") == dead.get("id") for x in kept):
+                continue
+            kept.append({"id": dead.get("id"), "name": dead.get("name", ""), "minute": self.minutes, "place": self.player.location, "how": how})
+            del kept[:-6]
+
     def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False) -> None:
         """Who went down, who limps on, whose trust moved. Old-style hirelings who went down do not get back up; a permanent hire may be carried out."""
         import random
@@ -825,6 +839,7 @@ class PartyActions:
                         seen.append((m, 0.05))
                         console.note(f"{m['name']} is carried out of the fight, badly hurt but alive.")
                         continue
+                    self.mourn(m)
                     svc.bury(m)
                 else:
                     svc.kill(m)                                  # an old-style hireling who went down does not get back up

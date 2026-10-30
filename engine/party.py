@@ -168,7 +168,7 @@ def bond_tier(member: dict) -> str:
 # party_perm_test fails on any field not in one of them, so a new field is decided about once, where it is made.
 WHO = ("temper", "motive", "line", "quirks", "details", "secrets", "detail_kinds", "detail_weights", "people", "speech")   # who they are: rolled or written once
 TALK = ("said", "talk", "memories", "impression", "gestured", "talked_day", "convo", "topics_used", "raised", "mood", "mood_at", "since_gesture", "heavy_at",
-        "_culture_key", "_culture", "banter_at", "started_at", "mood_for", "hit_by")  # what play has given them
+        "_culture_key", "_culture", "banter_at", "started_at", "mood_for", "hit_by", "mourns")  # what play has given them
 STANDING = ("id", "name", "pronoun", "blurb", "role", "level", "rank", "permanent", "base_level", "hired_at", "hired_day", "bond", "fights_since", "fights_total",
             "warned", "hp_frac", "hp_at", "mana_frac", "mana_at", "capped", "hungover_until", "pocketed", "bragged_day", "down_fate")   # from the roster, and the engine's own numbers
 

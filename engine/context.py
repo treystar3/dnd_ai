@@ -37,7 +37,7 @@ COOLDOWN = {"promotion": 2 * 1440, "motive": 1440}                    # game min
 def scene_for_hook(hook_kind: str) -> str:
     if hook_kind in PRESSING_HOOKS:
         return "pressing"
-    if hook_kind in ("promotion", "personal", "motive", "shared"):
+    if hook_kind in ("promotion", "personal", "motive", "shared", "remembered"):
         return "about"
     return "ease"
 

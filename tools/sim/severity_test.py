@@ -111,7 +111,7 @@ w.player.party = crew = [bram, isel, tam]
 
 # ---- the fight: the moment they go down, whether they are dead is decided, shown, and reacted to
 from scenes.combat_scene import CombatScene
-fake_fight = types.SimpleNamespace(story=[], fighters=[], get=lambda fid: types.SimpleNamespace(id=fid, name="Tamsin Reed", alive=False, counters={}) if fid == "ally_s3" else None)
+fake_fight = types.SimpleNamespace(story=[], fighters=[], felled_by={}, get=lambda fid: types.SimpleNamespace(id=fid, name="Tamsin Reed", alive=False, counters={}) if fid == "ally_s3" else None)
 fake = types.SimpleNamespace(fight=fake_fight, ws=w, rng=random.Random(0))
 outcomes = collections.Counter()
 for k in range(200):

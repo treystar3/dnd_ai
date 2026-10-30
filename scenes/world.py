@@ -709,6 +709,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         canon.IDS[mentor.NAME] = "maren"
         canon.IDS[self.player.character.name] = "player"
         canon.JOURNAL = lambda kind, actor, target, text, data: self.store.journal(self.minutes, kind, actor, target, text, data, self.last_text[:80])
+        from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
+        names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
     def turn(self, text: str) -> bool:
         """One whole turn as one unit: everything the action and what follows it write is committed together at the end, or, if the model
@@ -1625,7 +1627,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                        who=entities.who_is_who(self),                               # (f392) who is who, never guessed at
                                        fallen=here.lines("fallen"),                                 # ...and who fell, never seen alive again
                                        parts=features.lines(self),                                  # (f394) the parts of this place, real
-                                       told=ledger.told())                                          # ...and what the engine did this turn
+                                       told=ledger.told(),                                          # ...and what the engine did this turn
+                                       habits=self.arrival_habits() + self.habits_due("rest"))      # (f412) ...and the companions' habits, to fold in
         result = fresh("narrate", wp.NARRATOR_SYSTEM, request, Narration, self.recent_narration, max_tokens=config.PROSE_MAX_TOKENS,
                        temperature=0.4 if strict else 0.9, worn=self.worn_words("prose"), said=player_text or "")         # (f384) no invented speech
         shown = self.unnamed(result.text)
@@ -2773,6 +2776,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif eased >= 5:
             body.append("their tiredness lifts a little")
         feel = f" While they rest, {' and '.join(body)} (say so in the story; no numbers)." if body and not hit else ""
+        if not hit:
+            self.habits("rest")                                # (f412) told in the rest's passage, not after it
         self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
                      f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now, "
                      "mentioning at most two of the people present.", text)

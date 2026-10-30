@@ -191,8 +191,12 @@ def check() -> list[str]:
     # ---- banter
     hooks = B.get("banter", {}).get("hooks", {})
     for h in ("hurt", "carried", "hard_fight", "lost_fight", "fallen", "promotion", "warned", "player", "mood", "news", "arrival", "weather",
-              "mundane", "personal", "shared"):
+              "mundane", "personal", "shared", "remembered"):
         need(h in hooks, f"banter.yaml hooks: missing '{h}'")
+    RM = B.get("banter", {}).get("remembered") or {}
+    need(all(isinstance(RM.get(k), (int, float)) for k in ("where_they_fell", "at_rest")) and bool(RM.get("by_days"))
+         and all(isinstance(x, (int, float)) for x in RM.get("by_days") or []),
+         "banter.yaml remembered: where_they_fell, at_rest and by_days (weights for the dead remembered, by weeks since)")
     R = S.get("regard", {})
     need(all(isinstance(R.get(k), (int, float)) and 0 <= R[k] <= 1 for k in ("show", "emotional")),
          "speech.yaml regard: needs show and emotional, each a chance from 0 to 1")

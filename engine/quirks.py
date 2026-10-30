@@ -589,9 +589,11 @@ def bare_gesture(g: str, name: str = "") -> str:
     return g[m.end():] if m else g
 
 
-def shown(speech: str, gesture: str, name: str) -> str:
-    """Speech with its gesture before it, as one block under the speaker's name."""
-    g = bare_gesture(" ".join((gesture or "").split()).rstrip("."), name)
+def shown(speech: str, gesture: str, name: str, pronoun: str = "") -> str:
+    """Speech with its gesture before it, as one block under the speaker's name. (f412) The gesture is theirs: 'grips their sword hilt'
+    is said with their own pronoun when it is he or she."""
+    from engine import names
+    g = bare_gesture(" ".join(names.gesture(gesture or "", pronoun).split()).rstrip("."), name)
     if not g:
         return speech
     first = name.split()[0]

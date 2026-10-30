@@ -75,6 +75,8 @@ Rules:
   fight starting over: the boss was dead on its feet and is not. A fall is an ending - slow down for it, let it land.
   Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
+- (f412) A companion on the player's side who falls, falls to the blow the EVENTS name, never to the player's or another companion's:
+  the player never strikes a companion. One who goes down alive lies where they fell; they do not stand, walk or speak again this fight.
 - A foe that falls leaves its body where it fell: fire chars it and blades cut it, but nothing turns a body to ash or dust or makes it
   vanish unless an event says so. (Bodies are skinned, searched and buried after a fight.)
 - An event that tells several strikes "in one motion" is ONE attack (a volley, a flurry, a combination): tell it as one action and say
@@ -111,10 +113,12 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
 
 
 AFTERMATH_SYSTEM = DM_VOICE + """
-You narrate the moment just after a fight ends. The last foe is down. Describe the silence returning,
-the player's breathing and wounds, the fallen, the place. If the player finds anything, describe them noticing it and taking it: it is
-already in their pack or purse, never left lying. THE BODIES and WHAT THE FIGHT CALLED UP are facts: keep to them, whatever the
-narration before said.
+You narrate the moment just after a fight ends. The last foe is down. Begin where OPEN ON says, and not the way the passages under DO NOT
+BEGIN LIKE THESE began; a returning silence, a held breath or a heaving chest open it only if OPEN ON asks for that. Then what this fight
+leaves that is its own: the fallen, a wound that matters, the place, anything found. The player's companions come in only for what is
+given about them (who died, who is down, what they do now); never go round them one pose each. If the player finds anything, describe
+them noticing it and taking it: it is already in their pack or purse, never left lying. THE BODIES and WHAT THE FIGHT CALLED UP are facts:
+keep to them, whatever the narration before said.
 No numbers, no game words. Respond only with JSON matching the schema, with the prose in "text"."""
 
 

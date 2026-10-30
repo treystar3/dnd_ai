@@ -53,13 +53,12 @@ ms[0]["bond"] = 15
 w.player.party = ms[:2]; w.player.party_mode = "with"
 for m in ms[:2]:
     m["quirks"]["habit"] = "first_watch" if m is ms[0] else "counts_fights"
-NARR.clear(); w.habits("rest")
-check("a rest habit shows at a rest, the first time for certain", any("first watch" in t for t in NARR), NARR)
-NARR.clear(); w.habits("arrival")
-check("...and not at another moment", not NARR)
+got = w.habit_lines("rest")                              # (f412) handed to the rest's passage, never a line of their own
+check("a rest habit shows at a rest, the first time for certain", any("first watch" in t for t in got), got)
+check("...and not at another moment", not w.habit_lines("arrival"))
 ms[1]["fights_total"] = 7
-NARR.clear(); w.habits("fight_end")
-check("a fight-count habit says the real count", any("7" in t and "Isel" in t for t in NARR), NARR)
+got = w.habit_lines("fight_end")
+check("a fight-count habit says the real count", any("7" in t and "Isel" in t for t in got), got)
 
 # deeds and reactions
 ms[0]["quirks"]["likes"], ms[0]["quirks"]["dislikes"] = "harvest", "flee"

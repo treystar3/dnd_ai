@@ -100,7 +100,7 @@ banter:
     most: {idle: 3, pressing: 3, grave: 2, deed: 3, said: 3}     # the most who speak, by kind of moment (a heavy one: everyone)
     # How heavy each kind of moment is. Heavy: everyone present has a say. Anything not listed is light. What the player says is weighed
     # by the model (read_words below).
-    hook_weight: {fallen: heavy, carried: heavy, hurt: personal, lost_fight: personal, hard_fight: personal, warned: personal}
+    hook_weight: {fallen: heavy, carried: heavy, hurt: personal, lost_fight: personal, hard_fight: personal, warned: personal, remembered: heavy}
     read_words: >-
       The player has just said something to one companion, with others travelling along and listening. Judge from its meaning alone.
       about: the names of those ALSO PRESENT whom the words are about or speak to (not the one addressed); usually none.
@@ -122,6 +122,10 @@ banter:
       answer: "{a} answers {b}"
       join: "{a} joins in, answering {b}"
       know_player: {close: "are close to them", known: "know them well enough", distant: "barely know them"}
+  # (f412) How likely the dead come up when nothing presses: most where they fell, then by weeks since (the first week, the second, and
+  # after), and more at rest, when people talk of such things. Not held to gravity's table for heavy topics: that is for a confidence of
+  # one's own, which waits for trust; a companion who fell is everyone's, and comes up walking as well as at rest.
+  remembered: {where_they_fell: 4, by_days: [2, 1, 0.5], at_rest: 1.5}
   # What brought it up. The engine picks one from the real state; the first kinds are preferred when they apply.
   hooks:
     hurt:        "{name} is still {health} from the last fight."
@@ -130,6 +134,8 @@ banter:
     lost_fight:  "The party came off worse in the last fight."
     fallen:      "{name} was killed in the last fight. {name} is dead, and the rest of them are still taking it in."
     fallen_many: "{names} were killed in the last fight. All of them are dead, and the rest are still taking it in."   # (f392) every one, not the first
+    # (f412) Long after: a companion who fell, remembered by one who travelled with them (a night's run named its dead never again).
+    remembered:  "{name} is thinking of {dead}, who travelled with you all and was killed {when}{how}. {name} may speak of {dead} now, by name, or let it show; nobody here has forgotten."
     promotion:   "{name} has gone as far as their rank allows; whether the player will pay to have them raised is a sore point, or a hope, depending on the day."
     warned:      "{name} has told the player plainly that this might not be worth it, and the air has not cleared."
     relationship: "Between {a} and {b}: {dynamic} They are {words}."

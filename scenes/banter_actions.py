@@ -111,7 +111,8 @@ class BanterActions:
             if l.speaker in holders:
                 quirks.note_line(holders[l.speaker], l.gesture)
         from engine import severity
-        return [(l.speaker, quirks.shown(l.text, l.gesture, l.speaker) if (l.text or l.gesture) else severity.silent_line(l.speaker)) for l in r.lines]
+        return [(l.speaker, quirks.shown(l.text, l.gesture, l.speaker, rules.pronoun_of(holders[l.speaker]) if l.speaker in holders else "")
+                 if (l.text or l.gesture) else severity.silent_line(l.speaker)) for l in r.lines]
 
     def show_exchange(self, lines: list[tuple[str, str]]) -> None:
         merged: list[list[str]] = []
@@ -320,6 +321,19 @@ class BanterActions:
                 from engine import gravity                      # how heavy a topic may be decides whether it fits this moment
                 mo = gravity.moment(kind, bool(fresh and (last.get("fallen") or not last.get("won", True))))
                 scene = self.banter_scene()
+                for m in pick:                                  # (f412) a companion who fell, remembered by those who travelled with them
+                    for d in m.get("mourns", []):
+                        if not context.due(m, f"mourn:{d['id']}", now):
+                            continue
+                        days = (now - d.get("minute", now)) // 1440
+                        w = (BN["banter"]["remembered"]["where_they_fell"] if self.player.location == d.get("place") else
+                             BN["banter"]["remembered"]["by_days"][min(len(BN["banter"]["remembered"]["by_days"]) - 1, days // 7)])
+                        if kind == "rest":
+                            w *= BN["banter"]["remembered"]["at_rest"]
+                        when = "earlier today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+                        options.append((w, "remembered",                # not held to the heavy-topic table: grief is not a confidence
+                                        H["remembered"].format(name=m["name"], dead=d["name"], when=when, how=d.get("how", "")), m, "heavy",
+                                        d["name"]))
                 for m in pick:
                     got = self.personal_topic(m, rng, mo, scene=scene)
                     if got:
@@ -346,6 +360,10 @@ class BanterActions:
             if r <= 0:
                 chosen = o
                 break
+        if chosen[1] == "remembered":                           # (f412) the dead are spoken of: not again by them for a day
+            for d in chosen[3].get("mourns", []):
+                context.mark(chosen[3], f"mourn:{d['id']}", now)
+            self._remembered = chosen[5]
         if len(chosen) > 4 and chosen[4] == "heavy":            # a heavy thing raised unasked: not again for a while, by either of them
             from engine import gravity
             for m in ([chosen[3]] if chosen[3] is not None else pick):
@@ -656,7 +674,7 @@ class BanterActions:
             if hook_kind in ("hurt", "carried"):
                 sit_kind = "hurt_self" if m is about else "caretaker"
             else:
-                sit_kind = {"lost_fight": "lost", "hard_fight": "hard_win", "fallen": "fallen"}.get(hook_kind, "")
+                sit_kind = {"lost_fight": "lost", "hard_fight": "hard_win", "fallen": "fallen", "remembered": "fallen"}.get(hook_kind, "")
                 if hook_kind == "warned" and m is about:
                     sit_kind = "warned_self"
             st = quirks.subtext(m, sit_kind) if sit_kind else ""
@@ -688,7 +706,8 @@ class BanterActions:
                     all_speak=len(pick) > 1, interaction=director.interaction(plan, names) if plan else "",
                     first_speaker=pick[0]["name"] if plan and len(pick) > 1 else "",
                     moment=hook_kind in context.PRESSING_HOOKS or hook_kind in ("said", "deed", "fallen", "event"), silent_ok=silent_ok,
-                    must_name=((self.player.party_last_fight or {}).get("fallen") or [""])[0] if hook_kind == "fallen" else "")   # (f385)
+                    must_name=((self.player.party_last_fight or {}).get("fallen") or [""])[0] if hook_kind == "fallen" else
+                    (self.__dict__.get("_remembered", "") if hook_kind == "remembered" else ""))   # (f385, f412)
         span = span or (len(pick), hi)                            # no minimum beyond each chosen speaker saying something: some people do not talk much
         span = (max(1, span[0] - len(silent_ok)), max(1, span[1]))  # those allowed silence are not counted toward the lines that must be written
         if plan and plan.beat.weight != "light":                  # as it hit each of them, before anything it leaves behind changes their records

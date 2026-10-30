@@ -21,6 +21,12 @@ from scenes import goddess_prompts as gp
 from scenes.voice import fresh
 from ui import console
 
+
+def whose_blow(by: str) -> str:
+    """(f412) 'the third pirate's blow', 'your blow': the blow that put someone down, from who struck it."""
+    return "your blow" if by == "you" else f"{by}'s blow"
+
+
 ROLE_PROFILES = {
     "striker": {"strength": 14, "dexterity": 15, "constitution": 11, "intelligence": 6, "wisdom": 10, "charisma": 6},
     "guardian": {"strength": 15, "dexterity": 9, "constitution": 16, "intelligence": 6, "wisdom": 10, "charisma": 6},
@@ -268,10 +274,14 @@ class CombatScene:
                  f"{duel} Neither fighter means to kill: the first clean blow that would end the other decides it. THE ODDS: {odds.get(label, label)}.")
         if opening_events:
             event += " As the fight begins: " + "; ".join(opening_events)
+        start_habits = ws.habits_due("fight_start")             # (f412) the companions' habits as it begins, told in the opening
         if told:                                             # (f404) a scripted entrance already showed it: told once, not twice
             ws.remember_narration(told)
             scene.note_fight_shown(told)
         else:
+            if start_habits:
+                from scenes import world_prompts as wp
+                event += f" {wp.HABITS_HEAD}: {' '.join(start_habits)}"
             ws.narrate_with(cp.START_SYSTEM, event)
             scene.note_fight_shown(ws.recent_narration[-1] if ws.recent_narration else "")      # (f349) the opening passage is read
         for line in prep + tether_notes:
@@ -675,6 +685,13 @@ class CombatScene:
             self.show()
             self.ws.store.save_combat(self.to_json())
 
+    def down_but_alive(self) -> list[str]:
+        """(f412) The player's companions on the ground at the end of a fight, alive: they are carried out, and the passage after the fight
+        shows them so (a night's narration had one walking by the water and talking, the same turn he was carried out)."""
+        f = self.fight
+        return [m["name"] for m in self.ws.player.party if m.get("down_fate") == "carried"
+                and (a := f.get(f"ally_{m['id']}")) is not None and not a.alive]
+
     def hires_down(self) -> list[dict]:
         """Hired companions who have just gone down: whether each is dead is decided now (kept on them until the fight is over), so the
         narration shows it as it happens and those who saw it can react at once. Returns those killed."""
@@ -691,12 +708,16 @@ class CombatScene:
                 continue
             if m.get("down_fate"):                          # already decided when they went down
                 continue
+            by = f.felled_by.get(a.id, "")                  # (f412) the blow was the foe's: never the player's, never another companion's
             if self.ws.party_service.decide_down(m, self.rng, in_fight=True) == "dead":
                 a.counters["dead"] = 1                      # beyond any healing: a Rescue cannot raise the dead
-                combat.tell(f, f"{a.name} takes a killing blow and does not get up: {a.name} is dead")
+                combat.tell(f, f"{a.name} takes a killing blow{' from ' + by if by else ''} and does not get up: {a.name} is dead"
+                               + (f" (killed by {by}, not by you)" if by and by != "you" else ""))
                 killed.append(m)
+                self.ws.mourn(m, by)
             else:
-                combat.tell(f, f"{a.name} goes down hard and lies still")
+                combat.tell(f, f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but out of the fight, "
+                               "and they will have to be carried")
         return killed
 
     def talk(self, intent, target, text: str) -> None:
@@ -1260,18 +1281,28 @@ class CombatScene:
         if yielded:
             fallen += (f". THOSE WHO YIELDED (alive and beaten, waiting on the player's choice: tell nothing of what becomes of them): "
                        f"{', '.join(combat.who(e) for e in yielded)}")
+        from scenes import world_prompts as wp
+        end_habits = self.ws.habits_due("fight_end")             # (f412) the companions' habits as it ends, folded into this passage
         aftermath = fresh(
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
+            self.aftermath_opening() +
             f"PLACE: {self.ws.place.name}\nTIME AND WEATHER: {self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
             f"THE PLAYER IS: {combat.condition(self.fight.player)}\nTHE FALLEN: {fallen}\n"
-            + (f"THE PLAYER'S OWN WHO DIED IN THIS FIGHT (their companions; the passage does not pass over them): {'; '.join(lost)}\n"
-               if (lost := [f"{e.name} ({e.pronoun}, {entities.people_word(self.ws.world, e.people)})"
+            + (f"THE PLAYER'S OWN WHO DIED IN THIS FIGHT (their companions; the passage does not pass over them, and gives each death to the "
+               f"one named, never to the player): {'; '.join(lost)}\n"
+               if (lost := [f"{e.name} ({e.pronoun}, {entities.people_word(self.ws.world, e.people)}"
+                            + (f"; killed by {by}" if (by := self.killer_of(e)) else "") + ")"
                             for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
+            + (f"DOWN BUT ALIVE (the player's companions, on the ground and carried from here: they do not stand, walk or talk at length): "
+               f"{', '.join(carried)}\n" if (carried := self.down_but_alive()) else "")
             + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
+            + (f"{wp.HABITS_HEAD}: {' '.join(end_habits)}\n" if end_habits else "")
             + self.aftermath_facts(dead, skinnable) +
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),
-            Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS)
+            Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
+        self.ws.__dict__.setdefault("_after_starts", []).append(" ".join(aftermath.text.split()[:5]))
+        del self.ws._after_starts[:-4]
         console.narrate(aftermath.text)
         self.ws.remember_narration(aftermath.text)
         taken = self.take_prisoners(yielded)
@@ -1288,6 +1319,26 @@ class CombatScene:
         if skinnable:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")
+
+    def aftermath_opening(self) -> str:
+        """(f412) Where the passage after a fight begins, chosen by the engine and never the last two places, and how the last few began:
+        the night's runs opened some 200 such passages with 'Silence rushes back', 'The heavy thud' or 'The roar of', and went round the
+        companions one pose each."""
+        AF = combat.RULES["aftermath"]
+        used = self.ws.__dict__.setdefault("_after_opened", [])
+        with_party = any(m.get("permanent") for m in self.ws.player.party) and self.ws.player.party_mode == "with"
+        choices = [o for o in AF["openings"] if o not in used[-AF["not_again"]:] and (with_party or "companion" not in o)]
+        pick = self.rng.choice(choices or AF["openings"])
+        used.append(pick)
+        del used[:-6]
+        starts = self.ws.__dict__.get("_after_starts") or []
+        return (f"OPEN ON: {pick}\n"
+                + (f"DO NOT BEGIN LIKE THESE (how the last passages after a fight began): {' / '.join(starts[-3:])}\n" if starts else ""))
+
+    def killer_of(self, ent) -> str:
+        """(f412) Who struck a fallen companion down in this fight, as the story named them; '' when the fight did not record it."""
+        mid = str(getattr(ent, "ref", "")).split(":", 1)[-1]
+        return self.fight.felled_by.get(f"ally_{mid}", "")
 
     def aftermath_facts(self, dead: list, skinnable: int) -> str:
         """(f404) What the after-fight passage keeps to: the bodies lie where they fell, whole (a night's play had wolves burnt to ash and

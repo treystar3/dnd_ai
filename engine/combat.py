@@ -243,6 +243,8 @@ class Combat(BaseModel):
     mentor_saved: int = 0          # how many times the floor has held
     mentor_beats: list[str] = []   # lessons already given
     burn_told: bool = False        # (f349) the element on the player's blade has been told to the narrator once; after that it is a figure, not a sentence
+    felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
+                                    # pirate's killing blow on a companion to the player's own blade
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
@@ -1601,7 +1603,10 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     combat_perks.after_hit(combat, att, dfn, outcome, taken, rng)
     if not dfn.alive:
         combat.log.append(f"{dfn.name} falls")
-        tell(combat, f"{who(dfn)} {vb(dfn, 'fall', 'falls')}" + (" - and the world goes dark" if dfn.side == "player" else " and does not rise"))
+        if att is not dfn:
+            combat.felled_by[dfn.id] = who(att)
+        by = f" to {whose(att)} blow" if att is not dfn and dfn.side != "enemy" else ""     # (f412) on the player's side, whose blow it was
+        tell(combat, f"{who(dfn)} {vb(dfn, 'fall', 'falls')}{by}" + (" - and the world goes dark" if dfn.side == "player" else " and does not rise"))
         att.kill_round = combat.round
         combat_perks.on_kill(combat, att, dfn, rng, echo=bool(att.counters.get("echo_cast")))
         if "thrall" in A and att.side == "player" and dfn.side == "enemy" and not combat.thrall_used:
