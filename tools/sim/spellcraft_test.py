@@ -266,7 +266,7 @@ for seed in range(60):
             bad.append("area slot without area form")
 check("the planner gives elemental slots expressions of their element or a neighbor's", len(seen_expr) >= 6, seen_expr)
 check("...which replace the rider", rider_on_elemental == 0)
-check("...and mana damage slots forms", {"blast", "burst", "bolt", "curse", "charged"} <= seen_form, seen_form)
+check("...and mana damage slots forms (f397: the spellbook's, lance among them)", {"blast", "burst", "bolt", "curse", "charged", "lance"} <= seen_form, seen_form)
 s = dict(AS._base(), effect="control", resource="mana", reach="ranged", element="fire", expressions=["burning_ground"], n=1)
 check("the model is told a control expression deals no damage", "NO damage" in AS.mechanic_text(s), AS.mechanic_text(s))
 

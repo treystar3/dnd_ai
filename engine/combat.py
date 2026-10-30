@@ -68,6 +68,10 @@ class Move(BaseModel):
     uses: int = 0                  # a relic power: how many times a fight (0 = no limit)
     text: str = ""                 # a relic power: what it does, in words (for the ability list)
     relic: dict = {}               # a relic power: its kind and numbers (engine/relics.py)
+    rank: int = 0                  # (f397) a spell's rank (engine/spells.py): it and its form set its numbers
+    line: str = ""
+    named: bool = False            # (f397) a named spell: stronger, once a fight
+    cooldown_days: int = 0         # ...and then not again for this many days (the scene keeps the day on the character)
 
 
 class Fighter(BaseModel):
@@ -121,6 +125,7 @@ class Fighter(BaseModel):
     crit_resist: float = 0
     offhand_spell: float = 0              # an off-hand focus's spell power
     spell_mult: float = 1.0               # while a spell is cast: 1 + its casting attribute / spell_attribute
+    spell_share: float = 1.0              # (f400) a hire's spells: the share of a player's spell of the same rank they hit and heal for
     adaptive: bool = False
     legendary: dict[str, float] = {}     # legendary effect id -> value
     slays: dict[str, float] = {}         # creature category -> bonus % (dragonslayer etc.)
@@ -477,7 +482,9 @@ def fighter_from_character(c: Character) -> Fighter:
                   element=a.element, expressions=list(getattr(a, "expressions", []) or []), power=getattr(a, "power", 0),
                   cost_percent=getattr(a, "cost_percent", 0), cast_turns=getattr(a, "cast_turns", 0),
                   martial_form=getattr(a, "martial_form", ""), hits=getattr(a, "hits", 0), maneuver=getattr(a, "maneuver", ""),
-                  spell_form=getattr(a, "spell_form", "")) for a in _loadout.prepared(c)] + relics      # only what is brought (engine/loadout.py)      # the planned element, never read from the words
+                  spell_form=getattr(a, "spell_form", ""), rank=getattr(a, "rank", 0), line=getattr(a, "line", ""),
+                  named=getattr(a, "named", False), cooldown_days=getattr(a, "cooldown_days", 0))
+             for a in _loadout.prepared(c)] + relics      # only what is brought (engine/loadout.py)      # the planned element, never read from the words
     if weapon:
         b = items.base_of(weapon)
         wname, wdmg, wattrs, reach, dtype = weapon.name, items.value(weapon), b.attributes, b.reach, b.damage
@@ -1283,6 +1290,9 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     if "concealed" in att.position_tags:
         att.counters["struck_hidden"] = 1               # striking from hiding gives you away, once the action is done
     A, D = mechanics(att, combat, dfn), mechanics(dfn, combat, att)
+    if att.counters.get("blessed"):
+        from engine import techniques
+        multiplier *= techniques.blessed(att, combat)              # (f396) a hired priest's Blessing
     if fights_for_you(att):
         multiplier *= 1 + max(0, companion_boost(combat, "companion_damage")) / 100
         if "press" in A:
@@ -1741,10 +1751,16 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         return 0
     if f.counters.get("free_fire") and getattr(move, "element", "") == "fire":
         return 0                                        # Phoenix Spark (f268): the next fire costs nothing
-    if move.resource == "stamina":
+    if move.effect == "buff":
+        from engine import spells
+        cost = spells.buff_mana(f.level)                 # (f400) a buff: no tier, a flat cost by the rank the caster's level allows
+    elif move.resource == "stamina":
         # Stamina is a rhythm: smaller flat costs (a share of a typical pool at your level), refilled by fighting
         pool = pools.reference_pool("stamina", f.level) if f.side == "player" else f.max_stamina
         cost = pool * (move.cost_percent or RULES["stamina_cost_percent"][move.tier]) / 100
+    elif getattr(move, "rank", 0):
+        from engine import spells
+        cost = spells.mana(move)                         # (f397) a ranked spell: a flat cost, by its rank and form
     else:
         pool = pools.reference_mana(f.level) if f.side == "player" else f.max_mana     # a share of what a dedicated caster has
         cost = pool * (move.cost_percent or RULES["ability_cost_percent"][move.tier]) / 100
@@ -1755,8 +1771,6 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         cost *= AT.SHAPES["overcharge"]["cost"]
     if move.channel:
         cost *= RULES["channel"]["cost"]                 # the mana half of a channeled strike (its stamina is stamina_part)
-    if move.effect == "buff":
-        cost *= AT.T["buff_cost"]
     from engine import combat_perks
     cost = combat_perks.cost(combat, f, move, cost)
     return max(1, math.ceil(cost)) if cost > 0 else 0
@@ -2005,7 +2019,7 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
             return why
     if echo:
         att.counters["echo_cast"] = 1
-    att.counters["tier_now"] = combat_perks.TIER_CODE.get(move.tier, 0)
+    att.counters["tier_now"] = 0 if move.effect == "buff" else combat_perks.TIER_CODE.get(move.tier, 0)    # (f400) a buff has no tier
     att.counters["reach_now"] = {"ranged": 1, "melee": 2, "extended": 2, "area": 3}.get(move.reach, 0)
     try:
         return _act_ability(combat, att, move, target, rng, give, echo)
@@ -2102,7 +2116,15 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         tell(combat, f"the first working costs {who(att)} nothing - the effort echoes back (Echoing)")
     if move.cooldown and not echo:
         att.cooldowns[move.id] = move.cooldown + 1
-    mult = move.power or RULES["damage"]["multiplier"][move.tier]          # an ability's own power, or its tier's
+    if getattr(move, "cooldown_days", 0) and not echo:
+        att.cooldowns[move.id] = 10 ** 6                     # (f397) a named spell: once this fight, and the day is kept (spells.day_cast)
+        att.counters["day_cast"] = list(att.counters.get("day_cast", [])) + [move.id]
+    ranked = bool(getattr(move, "rank", 0)) and move.effect == "damage"
+    if ranked:
+        from engine import spells
+        mult = spells.power(move) * att.spell_share                         # (f397) a ranked spell: its form's power (f400: a hire's share)
+    else:
+        mult = move.power or RULES["damage"]["multiplier"][move.tier]          # an ability's own power, or its tier's
     if move.effect == "damage" and not move.rider and not move.shape and not move.expressions and not move.maneuver \
             and move.martial_form in ("", "strike"):
         mult *= 1 + AT.T["plain_damage"]                  # Honed: a plain damage ability is never strictly worse than a decorated one
@@ -2132,8 +2154,12 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
             att.weapon_attrs = [cast_attr]
             focus = (att.weapon_damage if att.damage_type == "magical" else 0) + gear_power
             att.damage_type = "magical"
-            base_part = RULES["spell_base_damage"] * growth(att.level)
-            att.spell_kind, att.spell_parts = "spell", [["spell base", base_part]] + ([["spell power", focus]] if focus else [])
+            if ranked:                                   # (f397) the rank's base, and the form's share of the caster's spell power
+                base_part, focus = spells.base(move.rank), focus * spells.coefficient(move)
+                att.spell_kind, att.spell_parts = "spell", [[f"rank {spells.numeral(move.rank)}", base_part]] + ([["spell power", focus]] if focus else [])
+            else:
+                base_part = RULES["spell_base_damage"] * growth(att.level)
+                att.spell_kind, att.spell_parts = "spell", [["spell base", base_part]] + ([["spell power", focus]] if focus else [])
             att.weapon_damage = focus + base_part
         from engine import spellcraft
         form = spellcraft.form_of(move)
@@ -2147,8 +2173,8 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         if spellcraft.cast_turns(move) > 1 and not att.counters.get("charged_release"):
             spellcraft.wind_up(combat, att, move, targets[0] if targets else None)
             targets = []
-        elif form == "charged":
-            mult *= spellcraft.FORMS["charged"]["mult"]
+        elif form == "charged" and not ranked:
+            mult *= spellcraft.FORMS["charged"]["mult"]       # a ranked spell's power is all in its form
         elif mform == "windup":
             mult *= martial.FORMS["windup"]["mult"]
         if mform == "counter":
@@ -2263,7 +2289,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
                     r.buffs.pop(k)                    # one of each kind: a new casting replaces the old
             r.buffs[move.id] = {"rounds": rounds + (1 if r is not att else 0), "mech": dict(mech), "drain": 0, "collapse": "",
                                 "name": move.name, "kind": move.buff, "element": move.element or "fire", "from": att.id,
-                                "exprs": list(move.expressions) if move.buff == "imbue" else [], "etier": move.tier}
+                                "exprs": list(move.expressions) if move.buff == "imbue" else [], "etier": AT.imbue_strength()}
             if move.buff == "stoneform":
                 r.statuses["slowed"] = max(r.statuses.get("slowed", 0), rounds + (1 if r is not att else 0))   # the price of stone
         text = AT.ability_buff_text(move)
@@ -2913,8 +2939,16 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{a.name} hangs back")
             tell(combat, F["line"].format(name=a.name.split()[0]))
             return
+    from engine import techniques
     if a.order == "heal":
         hurt = combat.player if combat.player.hp < combat.player.max_hp else None
+        kit_heal = techniques.healing(a.ally_role)
+        if hurt and kit_heal:                                      # (f396) told to heal: their own heal, every turn they are told to
+            m = techniques.spell(a, kit_heal)
+            if m is not None:
+                a.cooldowns.pop(m.id, None)                        # (f400) told to: every turn, for as long as their mana lasts
+            if techniques.cast_heal(combat, a, kit_heal, hurt, rng):
+                return
         if hurt and (a.ally_role == "priest" or a.can_heal):
             amount = hurt.max_hp * RULES["ally_heal"]["pct"] / 100 * 1.5
             amount, _ = combat_perks.mend(combat, a, hurt, amount)        # one path for every heal: withering and perks apply
@@ -2922,7 +2956,9 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{a.name} heals {hurt.name} for {round(amount)}")
             tell(combat, f"{who(a)} {vb(a, 'tend', 'tends')} {who(hurt)}, and the wounds close")
             return
-    if a.ally_role == "priest" and "heal" not in a.cooldowns:
+    if techniques.kit(a.ally_role) and a.order != "focus" and techniques.support(combat, a, rng):
+        return                                                     # (f396) a heal, a blessing or a shield, on their own judgement
+    if a.ally_role == "priest" and "heal" not in a.cooldowns and not techniques.healing(a.ally_role):
         hurt = [f for f in [combat.player] + combat.allies() if f.alive and f.hp < f.max_hp * RULES["ally_heal"]["below"]]
         if hurt:
             t = min(hurt, key=lambda f: f.hp / f.max_hp)
@@ -2950,6 +2986,8 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
         if a.reach not in ("ranged", "area") and a.zone_id == target.zone_id:
             bf.engage(combat, a, target)
         inspire = mechanics(combat.player, combat).get("inspire", 0)
+        if techniques.offence(combat, a, target, 1.0 + inspire / 100, rng):
+            return                                                 # (f396) a technique of their own at the foe in reach
         apply_damage(combat, a, target, 1.0 + inspire / 100, "attacks", rng)
 
 

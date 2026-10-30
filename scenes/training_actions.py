@@ -42,6 +42,11 @@ class TrainingActions:
         return a["starting"] + self.player.character.level // a["levels_per_new"]
 
     def on_train(self, intent, text: str) -> None:
+        from engine import spells
+        words = f"{intent.item} {text}".lower()
+        if self.rank_teacher() and (spells.RANK_WORDS.search(words) or not self.instructor_here()):
+            self.offer_ranks(self.rank_teacher(), text)                # (f397) the next rank of a spell (scenes/spell_actions.py)
+            return
         teacher = self.instructor_here()
         if not teacher:
             console.note("Training is with the guild's instructor, at the guild house during working hours.")
@@ -134,9 +139,10 @@ class TrainingActions:
     def offer_abilities(self, teacher, request: str) -> None:
         """The instructor offers a few lessons - abilities and passive traits - leaning toward the request, plus a wildcard."""
         c, a, p = self.player.character, T["abilities"], T["passives"]
-        can_a, can_p = len(c.actives) < self.ability_slots(), len(c.passives) < self.passive_slots()
+        from engine import spells
+        can_a, can_p = spells.distinct(c.actives) < self.ability_slots(), len(c.passives) < self.passive_slots()   # (f397) a line counts once
         if not (can_a or can_p):
-            nxt = min((len(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
+            nxt = min((spells.distinct(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
             console.note(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
             self.halted = True
             return
@@ -158,6 +164,8 @@ class TrainingActions:
         console.note(f"Learning one costs {price} and {hours} hours. Say which you'll learn.")
 
     def on_learn_ability(self, intent, text: str) -> None:
+        if getattr(self, "rank_options", None) and self.take_rank_lesson(intent, text):
+            return                                                  # (f397) a rank the teacher offered
         options = getattr(self, "learn_options", None)
         teacher = self.instructor_here()
         if not options or not teacher:
@@ -176,7 +184,8 @@ class TrainingActions:
         c = self.player.character
         passive = isinstance(pick, Passive)
         a = T["passives" if passive else "abilities"]
-        if (len(c.passives) >= self.passive_slots()) if passive else (len(c.actives) >= self.ability_slots()):
+        from engine import spells
+        if (len(c.passives) >= self.passive_slots()) if passive else (spells.distinct(c.actives) >= self.ability_slots()):
             console.note(f"You have no room for another {'trait' if passive else 'ability'} yet.")
             self.halted = True
             return

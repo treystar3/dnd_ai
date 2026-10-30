@@ -208,6 +208,11 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                 _log(task, attempt, elapsed, messages, raw, None, usage)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)
                 _tally(task, True, attempt + 1)
+                try:
+                    from engine import hygiene
+                    hygiene.undash_answer(task, result)                  # (f396) the narrator writes no dashes
+                except Exception:
+                    pass
                 return result
             last_error = LLMError(reason)
         except ValidationError as e:

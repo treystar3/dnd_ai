@@ -1,0 +1,109 @@
+# THE SPELLBOOK (f397, engine/spells.py). A spell is a RANK, cast in a FORM, of an ELEMENT.
+#
+#   rank     learned over the game, from spell books found in the world and from teachers: its base damage and its mana. Each rank of a
+#            spell is a spell of its own in the book (the lower ones stay: cheap, and weaker), with a name of its own.
+#   form     how it is cast - the dial: how strong, how costly, how slow, how often. Forms are data: a new one is a row here with one of
+#            the deliveries the engine knows.
+#   element  what it does besides damage (data/rules/spellcraft.yaml expressions), as before.
+#
+#   damage = (rank base + coefficient x the form's coefficient factor x spell power) x (1 + casting attribute / spell_attribute) x form power
+#   mana   = the rank's mana x the form's mana factor, a flat cost (not a share of a pool)
+#
+# Light, moderate and heavy stay with weapon techniques and channelled strikes (magic struck through a weapon). Why: a spell was a ranged
+# weapon technique with a tier, and grew with the caster's level on its own, so it never needed replacing. A spell now has a rank you
+# learn and a form you choose, like the spells of the old table-top games. Simulated against the old spells in the game's own combat
+# engine before it was built (same damage and mana per damage over fights of two to eight turns; the numbers below are that run's).
+#
+# Damage spells, heals and control spells are on ranks (each kind's table below). Buffs have no tier and no rank at all (buffs below);
+# summons keep their tiers for now. `tier` on each rank is what a ranked spell counts as where tiers are still read (riders, element
+# expressions, a control spell's strength, field uses).
+
+coefficient: 0.5            # spell power's share of a rank's base, for a form of coefficient factor 1; the same at every rank
+
+ranks:                      # rank, the level it can be learned from, a bolt's base damage and mana, what it counts as where tiers are read
+  - {rank: 1, learn: 1,   base: 15.2,  mana: 9,   tier: light}
+  - {rank: 2, learn: 10,  base: 26.2,  mana: 18,  tier: light}
+  - {rank: 3, learn: 25,  base: 42.2,  mana: 32,  tier: moderate}
+  - {rank: 4, learn: 45,  base: 66.6,  mana: 52,  tier: moderate}
+  - {rank: 5, learn: 70,  base: 93.1,  mana: 76,  tier: heavy}
+  - {rank: 6, learn: 100, base: 128.7, mana: 105, tier: heavy}
+  - {rank: 7, learn: 130, base: 174.4, mana: 133, tier: heavy}
+
+# delivery: how the engine casts it (engine/spellcraft.py): single (one foe), area (every foe in the target's area), around (every foe
+# in your own area), over_time (laid now, ticking over the target's next turns; cannot miss), gathered (begun one turn, released the
+# next). power and mana are multiples of a bolt's; coefficient multiplies the spell power coefficient (a slow cast draws more from gear).
+# lone: for an area form, its power when it finds only one foe (so a bolt stays the single-target spell).
+forms:
+  bolt:    {delivery: single,    power: 1.0, mana: 1.0, cooldown: 0, coefficient: 1.0,  label: Bolt,
+            text: "strikes one foe."}
+  lance:   {delivery: single,    power: 1.8, mana: 2.0, cooldown: 2, coefficient: 1.0,  label: Lance,
+            text: "one heavy strike at one foe, ready again after {cooldown} rounds."}
+  blast:   {delivery: area,      power: 1.3, mana: 2.4, cooldown: 1, coefficient: 1.0,  lone: 0.6, label: Blast,
+            text: "strikes every foe in the target's area; on a lone foe it spreads thin."}
+  burst:   {delivery: around,    power: 1.3, mana: 2.4, cooldown: 1, coefficient: 1.0,  lone: 0.6, label: Burst,
+            text: "strikes every foe in your own area; on a lone foe it spreads thin."}
+  curse:   {delivery: over_time, power: 1.8, mana: 1.4, cooldown: 3, coefficient: 1.0,  turns: 3, label: Curse,
+            text: "lays its damage on one foe over its next {turns} turns. It cannot miss."}
+  charged: {delivery: gathered,  power: 3.0, mana: 2.4, cooldown: 3, coefficient: 1.25, cast_turns: 2, label: Charged,
+            text: "takes two turns: begun on the first and released on the second, for a great blow. A stun or a fall breaks it."}
+
+# HEALS ON RANKS (f399): a heal's size is a share of its target's maximum health (engine/healing.py), by rank, before the caster's power;
+# its form (data/rules/healing.yaml: mend, renew, ward, cleanse, transfer, rescue) is its dial, with a mana factor and a cooldown.
+healing:
+  percent: [16, 20, 24, 28, 32, 36, 40]       # by rank, in a fight
+  outside: [18, 22, 26, 30, 35, 40, 45]       # by rank, out of a fight: a share of the caster's own health
+  mana:    [8, 15, 27, 44, 64, 88, 112]       # by rank, times the form's factor
+  forms:
+    mend:     {mana: 1.0, cooldown: 1}
+    renew:    {mana: 1.3, cooldown: 2}
+    ward:     {mana: 1.2, cooldown: 2}
+    cleanse:  {mana: 0.8, cooldown: 1}
+    transfer: {mana: 1.0, cooldown: 2}
+    rescue:   {mana: 2.5, cooldown: 4}
+
+# CONTROL SPELLS ON RANKS (f399): their strength is what their rank counts as (`tier` above); a flat cost and one cooldown.
+control:
+  mana: [8, 15, 27, 44, 64, 88, 112]
+  cooldown: 2
+
+# BUFFS (f400): no tier and no rank. Each does one thing at one strength (data/rules/ability_traits.yaml buffs), lasts its rounds, and
+# rests a while after (buff_rest there). Their cost is flat and the same for every buff: by the highest rank the caster's level allows
+# (`learn` above), about a bolt and a fifth of that rank. A share of a pool no more.
+buffs:
+  mana: [11, 22, 38, 62, 91, 126, 160]
+
+# Which form a planned spell gets (engine/ability_slots.py), by how hard the plan meant it to hit (its tier) and its reach.
+plan:
+  single: {light: {bolt: 70, curse: 30}, moderate: {lance: 45, charged: 20, curse: 15, bolt: 20}, heavy: {lance: 55, charged: 45}}
+  area:   {light: {blast: 60, burst: 40}, moderate: {blast: 60, burst: 40}, heavy: {blast: 60, burst: 40}}
+
+# Learning a rank: a spell book of that rank (data/world/goods.yaml, kind book) or a teacher (a guild instructor or a loremaster),
+# once the character's level allows it. The new rank is a new spell of the same line; the model names it, told its rank.
+teach:
+  roles: [guild_instructor, loremaster]
+  fee_per_rank: [0, 400, 2000, 8000, 30000, 90000, 250000]     # copper, by rank (I is everyone's from the start)
+  hours: 3
+books:                      # the goods that teach a rank: rank -> good id
+  2: tome_second_circle
+  3: tome_third_circle
+  4: tome_fourth_circle
+  5: tome_fifth_circle
+  6: tome_sixth_circle
+  7: tome_seventh_circle
+book_drops:                 # chance a fallen foe leaves a spell book of the rank its level allows, by its rank
+  boss: 0.5
+  elite: 0.06
+  normal: 0.01
+
+# NAMED SPELLS: rare, great workings found in codices (data/world/goods.yaml codex) that bosses guard and the guild's highest contracts pay
+# with. One is a spell of its own, named by the model when the codex is found, built at the rank the codex's level allows and never
+# ranked up: power and mana are multiples of its form's, it can be cast once a fight, and then not again for `cooldown_days` days.
+named:
+  min_level: 40             # no codex is found before this level
+  power: 2.5
+  mana: 3.0
+  cooldown_days: 1
+  read_below: 10            # a codex can be read by a character up to this many levels below the level it was found at
+  forms: {blast: 30, lance: 25, charged: 25, burst: 20}
+  boss_chance: 0.15         # a boss at min_level or above leaves a codex this often
+  contract_chance: {A: 0.25, S: 0.5}    # a finished guild contract of this rank pays a codex too, this often

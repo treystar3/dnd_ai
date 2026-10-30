@@ -311,6 +311,9 @@ class LawActions:
         pool = ab.resource.value
         table = "ability_cost_percent" if pool == "mana" else "stamina_cost_percent"
         cost = pools.reference_pool(pool, c.level) * COMBAT_RULES[table][ab.tier.value] / 100
+        if getattr(ab, "rank", 0):
+            from engine import spells
+            cost = spells.mana(ab)                      # (f397) a ranked spell's flat cost
         if pools.current(c, pool) < cost:
             console.note(f"You have no {pool} left for {ab.name}.")
             return None

@@ -38,15 +38,63 @@ roles:
             blurb: ["a field priest with steady hands", "a wandering healer of the old faith", "a cleric who has seen too much", "a brisk temple medic"]}
   rogue:   {profile: striker,  attacks: [dagger], fee: 1.0, scout: true, fights_as: "a pair of daggers, quick and close",
             blurb: ["a lean cutpurse gone straight", "a quiet blade who likes the dark", "a former spy with light feet", "a nimble sneak-thief"]}
-  mage:    {profile: support,  attacks: [bolt],  fee: 1.3, fights_as: "a staff, and bolts of force cast from the hand: never a bow, a crossbow or anything loosed",
+  mage:    {profile: caster,   attacks: [bolt],  fee: 1.3, fights_as: "a staff, and bolts of force cast from the hand: never a bow, a crossbow or anything loosed",
             blurb: ["a hedge-mage with scorched sleeves", "a battle-wizard in a patched robe", "a young arcanist with something to prove", "a sullen spellcaster"]}
 maren_fights_as: "a greatsword, two-handed, in plate armour"
+
+# (f396) WHAT A HIRE CAN DO BESIDES A PLAIN BLOW (engine/techniques.py). Each role has two techniques of its own, used on the hire's own
+# judgement in a fight, the first listed first when both would serve; each is ready again `cooldown` rounds after it is used. Why: hired
+# fighters, archers, rogues and mages fought with one plain blow, and a priest healed a twelfth of a wound every fourth round once someone
+# was badly hurt, so a player who hired a priest never saw them heal. does:
+#   heal    the player (or, if the player is well, the most hurt of the party) once below `below` of their health: `pct` of their health
+#   bless   in the first rounds: the player and the party strike `pct` percent harder for `rounds` rounds (once a fight)
+#   guard   the player below `below` of their health and in reach: until the hire's next turn, blows meant for the player land on them
+#   strike  a heavier blow at the foe they are fighting, `power` times a plain one; `engaged`: only at a foe already busy with another
+#   hinder  a blow at `power` that also leaves the foe `status` for `rounds` rounds
+#   burst   a blow at `power` at every foe near the one they are fighting, when there are at least `foes` of them
+kits:
+  fighter:
+    - {id: shield_wall,   name: Shield Wall,   does: guard,  below: 0.6, cooldown: 3}
+    - {id: crushing_blow, name: Crushing Blow, does: strike, power: 1.8, cooldown: 3}
+  archer:
+    - {id: pinning_shot,  name: Pinning Shot,  does: hinder, power: 0.8, status: slowed, rounds: 2, cooldown: 4}
+    - {id: aimed_shot,    name: Aimed Shot,    does: strike, power: 2.0, cooldown: 3}
+  priest:
+    - {id: healing_word,  does: heal,  form: mend, below: 0.75,
+       names: [Healing Word, Mending Prayer, Restoring Light, Word of Renewal, Grace of Dawn, Mercy's Tide, Miracle of Life]}
+    - {id: blessing,      name: Blessing,      does: bless,  pct: 15, rounds: 3, cooldown: 99}     # a buff: no tier, no rank, a buff's mana
+  rogue:
+    - {id: backstab,      name: Backstab,      does: strike, power: 2.3, engaged: true, cooldown: 2}
+    - {id: hamstring,     name: Hamstring,     does: hinder, power: 0.9, status: slowed, rounds: 2, cooldown: 4}
+  mage:
+    - {id: arcane_burst,  does: spell, form: blast, foes: 2,
+       names: [Arcane Burst, Force Wave, Shattering Ring, Thunder Sigil, Starfall Ring, Ruinous Tide, Sundering Storm]}
+    - {id: force_lance,   does: spell, form: lance,
+       names: [Force Lance, Arcane Spear, Piercing Ray, Riven Lance, Starfire Spear, Lance of Ruin, Unmaking Ray]}
+    - {id: force_bolt,    does: spell, form: bolt,
+       names: [Force Bolt, Arcane Dart, Shatterbolt, Riven Spark, Starfire Shard, Ruinlight, Unmaking]}
+
+# (f400) Hires who cast use the player's spells (data/rules/spells.yaml) at the highest rank their level allows: a level 30 mage casts
+# rank III, and each rank has a name of its own (names above, one per rank). They have mana as a player of their level and casting
+# attribute has (data/rules/pools.yaml), pay a spell's flat cost from it, and get it back with time between fights as a player does;
+# out of mana, they fight with what is in their hands. A blessing is a buff: no tier, no rank, a buff's mana (spells.yaml buffs).
+casting:
+  roles: {mage: intelligence, priest: wisdom}
+  power: 0.7          # a hire's spells hit and heal at this share of a player's of the same rank and form: a hire helps, and does not
+                      # carry the fight (about what hires did before spells had ranks, from level 25 up; more below that)
+
+# (f396) A priest's care outside a fight: after a fight they came through on their feet, and when the player asks them to see to their
+# wounds (once in `asked_every` minutes; it takes `minutes`). Hurt hires are tended too.
+# (f400) How much is the priest's own heal out of a fight, at their rank (spells.yaml healing outside): after a fight `after_fight`
+# times it, asked `asked` times it (rank I: 25% and 35% of the player's health, as before ranks).
+tending: {after_fight: 1.4, hires_pct: 30, asked: 2.0, asked_every: 120, minutes: 10}
 
 profiles:
   striker:  {strength: 14, dexterity: 15, constitution: 11, intelligence: 6, wisdom: 10, charisma: 6}
   guardian: {strength: 15, dexterity: 9, constitution: 16, intelligence: 6, wisdom: 10, charisma: 6}
   scout:    {strength: 8, dexterity: 16, constitution: 10, intelligence: 8, wisdom: 14, charisma: 6}
   support:  {strength: 8, dexterity: 12, constitution: 11, intelligence: 10, wisdom: 15, charisma: 10}
+  caster:   {strength: 8, dexterity: 12, constitution: 11, intelligence: 15, wisdom: 10, charisma: 10}    # (f400) a mage casts with intelligence
 
 # Bond: how much a hire has come to trust you. It starts from their temperament, rises as you fight side by side, and falls when you
 # leave them hurt. Low bond brings a warning, then they go.

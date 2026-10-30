@@ -15,7 +15,7 @@ from engine.party import P
 from llm.contracts import ActionIntent, CompanionReply, PartyIntent
 from llm.gateway import LLMError, generate
 from scenes import party_prompts as ppr
-from engine import actions, clock, money
+from engine import actions, clock, ledger, money
 from ui import console
 
 G = quests.G
@@ -214,7 +214,9 @@ class PartyActions:
                 "armor": round(f.armor), "ward": round(f.ward), "description": comp.description}
 
     def adventurer_row(self, m: dict) -> dict:
-        row = {"name": m["name"], "role": m["role"], "level": m["level"], "rank": m.get("rank") or rules.rank_of(m["level"])}
+        from engine import techniques
+        row = {"name": m["name"], "role": m["role"], "level": m["level"], "rank": m.get("rank") or rules.rank_of(m["level"]),
+               "kit": techniques.describe(m.get("role", ""), m.get("level", 1))}                   # (f396) what they can do in a fight
         if m.get("permanent"):
             row.update(self.hire_facts(m))
             row["promote"] = money.fmt(rules.promotion_fee(m)) if m.get("capped") and rules.next_rank(row["rank"]) else ""
@@ -242,6 +244,9 @@ class PartyActions:
                          f"{m['armor']} armor, {m['ward']} ward. {m['state']}.")
         if data["adventurers"]:
             console.note("Your party: " + "; ".join(self.party_lines()) + f". They are {data['mode']}.")
+            for a in data["adventurers"]:
+                if a.get("kit"):
+                    console.note(f"  {a['name'].split()[0]} can use: {a['kit']}.")
         if data["companions"]:
             console.note("  #name <companion> = <new name>   to rename one")
 
@@ -492,6 +497,7 @@ class PartyActions:
         if not m:
             return False
         self.advance(clock.TALK_MINUTES)
+        self.tend_when_asked(m, text)                      # (f396) "Aldo, see to my wounds": done, then answered in their own voice
         self.hire_talk(m, text)
         return True
 
@@ -819,6 +825,8 @@ class PartyActions:
             elif m.get("permanent") and fid in by_id:
                 a = by_id[fid]
                 seen.append((m, a.hp / a.max_hp if a.max_hp else 1.0))
+                if getattr(a, "max_mana", 0):                    # (f400) a hire who casts carries what mana is left into the next fight
+                    m["mana_frac"], m["mana_at"] = max(0.0, a.mana / a.max_mana), self.minutes
         for note in rules.after_fight(seen, won, hard, self.minutes):
             console.note(note)
         for m, _ in seen:
@@ -847,6 +855,52 @@ class PartyActions:
                         self.pair_event(a, b, "came off worse in a fight together.", "personal")
         if changed or seen:
             self.store.save_player(self.player)
+
+    def tend_after_fight(self) -> bool:
+        """(f396) After a fight: a hire who can heal and came through it on their feet sees to the player's wounds and the hurt hires'."""
+        from engine import pools, techniques
+        if self.player.party_mode != "with":
+            return False
+        healer = techniques.tender(self.player.party)
+        c = self.player.character
+        if healer is None or (pools.current(c, "health") >= pools.maximum(c, "health") and
+                              all(rules.health_now(m, self.minutes) >= 0.95 for m in self.player.party if m.get("permanent"))):
+            return False
+        gained, tended = techniques.tend(c, self.player.party, techniques.tend_pct(healer, "after_fight"), self.minutes, healer)
+        if not gained and not tended:
+            return False
+        first = healer["name"].split()[0]
+        console.note(f"{first} sees to the wounds after the fight" + (f": +{gained} health" if gained else "")
+                     + (f", and tends {', '.join(n.split()[0] for n in tended)}" if tended else "") + ".")
+        ledger.add("tended", name=healer["name"], say=f"After the fight, {healer['name']} tended the player's wounds"
+                   + (f" and {', '.join(tended)}'s" if tended else "") + ".")
+        self.store.save_player(self.player)
+        return True
+
+    HEAL_ASK = re.compile(r"\b(heal|mend|tend|patch|bandage|see to|look at|treat|fix)\b[^.?!]*\b(me|my|us|wounds?|cuts?|injur(?:y|ies)|arm|leg|side)\b", re.I)
+
+    def tend_when_asked(self, m: dict, text: str) -> bool:
+        """(f396) A hire who can heal, asked to see to the player's wounds outside a fight: they do, once in a while, and it takes a little
+        time. Their answer in their own voice follows (hire_talk). True if the line was such an ask."""
+        from engine import pools, techniques
+        if not techniques.healing(m.get("role", "")) or not self.HEAL_ASK.search(text or ""):
+            return False
+        T = techniques.P["tending"]
+        c = self.player.character
+        first = m["name"].split()[0]
+        if pools.current(c, "health") >= pools.maximum(c, "health") * 0.98:
+            console.note(f"{first} looks you over: there is nothing that needs tending.")
+            return True
+        if self.minutes - m.get("tended_at", -10 ** 9) < T["asked_every"]:
+            console.note(f"{first} has done what can be done for now; the rest wants rest and time.")
+            return True
+        self.advance(T["minutes"])
+        gained, tended = techniques.tend(c, self.player.party, techniques.tend_pct(m, "asked"), self.minutes, m)
+        m["tended_at"] = self.minutes
+        console.note(f"{first} sees to your wounds: +{gained} health" + (f", and tends {', '.join(n.split()[0] for n in tended)}" if tended else "") + ".")
+        ledger.add("tended", name=m["name"], say=f"{m['name']} has just tended the player's wounds; they feel better for it.")
+        self.store.save_player(self.player)
+        return True
 
     def party_disband(self, arc_id: str | None, why: str) -> None:
         gone = self.party_service.disband(arc_id, why)

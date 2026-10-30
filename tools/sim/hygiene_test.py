@@ -68,5 +68,28 @@ got = gw.generate("narrate", "You narrate.", "The square in the rain.", Narratio
 check("a passage with a template's placeholder is sent back and written again", got.text == "Rain turns the square to slick patches of mud." and len(SENT) == 2, got.text)
 check("...told why, the word named", "braces" in SENT[1][-1]["content"] and "{road}" in SENT[1][-1]["content"], SENT[1][-1]["content"])
 
+# ---- (f396) the narrator writes no dashes
+check("a dash before the rest of a thought is a colon", hygiene.undash("You turn \u2014 the wolf is already there.") == "You turn: the wolf is already there.")
+check("a pair around an aside are commas", hygiene.undash("Three of them \u2014 no, four \u2014 circle the fire.") == "Three of them, no, four, circle the fire.")
+check("a dash before 'and' is a comma", hygiene.undash("You reach the ridge\u2014and stop.") == "You reach the ridge, and stop.")
+check("speech broken off ends in an ellipsis", hygiene.undash('"Wait\u2014" she says.') == '"Wait..." she says.')
+check("a spaced hyphen and a double hyphen are dashes; a hyphenated word is not",
+      hygiene.undash("A half-elf watches you - hand on the hilt - and says nothing.") == "A half-elf watches you, hand on the hilt, and says nothing."
+      and hygiene.undash("One thing is clear -- the bridge is out.") == "One thing is clear: the bridge is out.")
+check("a dash opening a line is dropped, the line capitalised", hygiene.undash("He waits.\n\u2014 and then the door opens.") == "He waits.\nAnd then the door opens.")
+check("a range is 'to'", hygiene.undash("It is 3\u20135 miles north.") == "It is 3 to 5 miles north.")
+answers = iter(['{"text": "The gate creaks \u2014 then holds."}'])
+gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
+got = gw.generate("narrate", "You narrate.", "The gate.", Narration)
+check("a narrator's answer reaches the game without its dashes", got.text == "The gate creaks, then holds.", got.text)
+reply = NPCReply.model_construct(speech="I was going to \u2014 no. Never mind.")
+hygiene.undash_answer("npc_conversation", reply)
+check("a speaker's own words are theirs: only the narrator is held to it", "\u2014" in reply.speech)
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    console.narrate("The tide turns \u2014 slowly.")
+    console.say("I \u2014 I don't know.", "Osric")
+check("the screen gets no dash from the narrator, and a speaker's dash stays", "turns: slowly" in buf.getvalue() and "I \u2014 I don't know" in buf.getvalue(), buf.getvalue())
+
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

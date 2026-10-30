@@ -117,7 +117,8 @@ class ActiveProposal(BaseModel):
     martial_form: str = ""     # a technique's form, its flurry hits and its maneuver - engine-planned (data/rules/martial.yaml)
     hits: int = 0
     maneuver: str = ""
-    spell_form: str = ""       # a mana damage spell's form (bolt, blast, burst, curse, charged), engine-planned
+    spell_form: str = ""       # a mana damage spell's form (data/rules/spells.yaml forms), engine-planned
+    rank: int = 0              # (f397) a spell's rank, engine-planned (0: the first, or the tier for anything that is not a spell)
     element: str = ""          # the engine-planned element (data/rules/elements.yaml); the model never chooses it
     buff_stat: Literal["", "armor", "ward", "both"] = ""
     command: Literal["", "focus", "guard", "press", "hold", "distract"] = ""
@@ -307,8 +308,32 @@ class SlotNames(BaseModel):
                 heal_form=s.get("heal_form", ""), element=s.get("element", ""), summon_form=s.get("summon_form", ""),
                 expressions=list(s.get("expressions") or []), spell_form=s.get("spell_form", ""),
                 power=s.get("power", 0), cost_percent=s.get("cost_percent", 0), cast_turns=s.get("cast_turns", 0),
-                martial_form=s.get("martial_form", ""), hits=s.get("hits", 0), maneuver=s.get("maneuver", "")))
+                martial_form=s.get("martial_form", ""), hits=s.get("hits", 0), maneuver=s.get("maneuver", ""),
+                rank=int(s.get("rank") or 0)))
         return out
+
+
+class SpellRankName(BaseModel):
+    """(f397) The name of a spell's new rank (scenes/spell_actions.py): a name of its own, grander than the rank below, with no numeral
+    and no other game's naming; and how it looks when cast."""
+    name: str
+    description: str = ""
+
+    @model_validator(mode="after")
+    def check(self, info: ValidationInfo):
+        ctx = _ctx(info)
+        self.name = " ".join((self.name or "").split()).strip(" .\"'")
+        if not self.name or len(self.name) > 40 or len(self.name.split()) > 5:
+            raise ValueError("name: a spell's name, two to four words")
+        if re.search(r"(?:^|\s)[IVX]+$|\d", self.name):
+            raise ValueError("name: no numeral - a name of its own")
+        if re.search(r"\b(fira|firaga|firaja|blizzara|blizzaga|blizzaja|thundara|thundaga|thundaja|aerora|aeroga|watera|waterga|"
+                     r"stonera|stonega|cura|curaga|curaja)\b", self.name, re.I):
+            raise ValueError("name: not another game's spell names - a name of its own")
+        if self.name.lower() in {t.lower() for t in ctx.get("taken") or []}:
+            raise ValueError("name: that is already the name of one of their spells - a new one")
+        self.description = " ".join((self.description or "").split())[:300]
+        return self
 
 
 class PassiveProposal(BaseModel):

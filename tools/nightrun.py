@@ -536,6 +536,8 @@ def main() -> None:
         leveling.level_up(char, level - 1)
         spend_points(char, spec)
         outfit(char, spec, level, rng)
+        from engine import spells
+        spells.catch_up(char)                                           # (f397) the spell ranks they would have learned on the way
     player = PlayerState(character=char, location=world.start_location)
     if level > 1:
         player.guild_rank = point.get("rank") or quests.letter_for_level(level)   # (f366) past the tutorial means a member: the board, contracts and the hall's notice are play

@@ -20,7 +20,7 @@ RAW_STACK = 10
 class Good(BaseModel):
     id: str
     name: str
-    kind: str                       # herb | food | consumable
+    kind: str                       # herb | food | consumable | book
     price: int
     stack: int = 10
     restores: dict[str, float] = {}
@@ -30,6 +30,7 @@ class Good(BaseModel):
     grows_in: dict[str, float] = {}
     drops_from: list[str] = []
     description: str = ""
+    rank: int = 0                   # a book (f397): the spell rank it teaches (engine/spells.py)
 
 
 class Ingredient(BaseModel):

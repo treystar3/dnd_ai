@@ -197,6 +197,11 @@ class CombatScene:
             events.recruit_allies(ws, enemies)
         prep = [] if duel else ws.field_prep(enemies)
         fighters = [combat.fighter_from_character(c)]
+        from engine import spells
+        for m in fighters[0].moves:                       # (f397) a named spell cast within its days is not ready this fight
+            a = next((x for x in c.actives if x.id == m.id), None)
+            if a is not None and spells.day_locked(c, a, ws.minutes):
+                fighters[0].cooldowns[m.id] = 10 ** 6
         near, later = ([], []) if duel else cls.allies(ws, hold=bool(getattr(ws, "camp_fight", None)))
         fighters += near
         tether_notes = ws.tether_for(near)
@@ -394,7 +399,8 @@ class CombatScene:
             if m.effect == "mobility":
                 from engine import movement as _mv
                 extra = ("[movement, whole turn] " if _mv.whole_turn(m) else "[movement, alongside an action] ") + extra
-            abilities.append(f"{m.id}: {m.name} ({m.tier} {m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource}"
+            grade = __import__("engine.spells", fromlist=["grade"]).grade(m)       # (f397) a spell's rank and form; (f400) none for a buff
+            abilities.append(f"{m.id}: {m.name} ({(grade + ' ') if grade else ''}{m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource}"
                              + (f" + {combat.stamina_part(p, m, self.fight)} stamina" if combat.stamina_part(p, m, self.fight) else "") + ")"
                              f"{' [' + extra + ']' if extra else ''} - {note}")
         enemies = [f"{e.id}: {e.name}, {self.spot(e)}" for e in self.fight.enemies()]
@@ -970,6 +976,8 @@ class CombatScene:
     def sync_player(self) -> None:
         c, p = self.ws.player.character, self.fight.player
         c.health, c.stamina, c.mana = float(p.hp), float(p.stamina), float(p.mana)
+        for mid in p.counters.pop("day_cast", []):      # (f397) a named spell cast: the day is kept, for its cooldown in days
+            c.spell_days = {**c.spell_days, mid: self.ws.minutes}
         if c.orenna_breath and not p.breath:
             c.orenna_breath = False
             from engine import orenna
@@ -1091,6 +1099,8 @@ class CombatScene:
             ws.orenna_fight_over("defeat")
             ws.assault_fight_over("defeat")
             self.defeat()
+        if f.over in ("victory", "fled") and ws.player.party:
+            ws.tend_after_fight()                          # (f396) a priest on their feet sees to the wounds
         events.release_allies(ws)
         ws.store.save_player(ws.player)
 
@@ -1155,6 +1165,11 @@ class CombatScene:
                     if prize.rarity in ("rare", "epic", "legendary"):
                         self.name_item(prize, e.name)
                     found.append(prize)
+                from engine import spells
+                codex = spells.codex_drop(e.level, self.rng, e.element)          # (f397) now and then, a codex: a named spell
+                if codex is not None:
+                    self.ws.name_codex(codex, e.name)
+                    found.append(codex)
                 if prizes:
                     bodies[e.id]["carried"] = inventory.label(prizes[0])
                 kit = (e.boss or {}).get("kit") or bosses.kit_for(e.category)
@@ -1181,6 +1196,11 @@ class CombatScene:
                     self.name_item(item, e.name)
                 found.append(item)
                 bodies[e.id]["carried"] = inventory.label(item)
+        from engine import spells
+        for e in dead:
+            book = spells.book_drop(e.level, e.rank, self.rng)               # (f397) now and then, a spell book of the rank its level allows
+            if book is not None:
+                found.append(book)
         state.bodies = self.ws.keep_bodies(state.bodies + list(bodies.values()))
         self.ws.store.save_place(state)
         coins = self.ws.flaws_on_loot(coins)
@@ -1219,6 +1239,7 @@ class CombatScene:
                 console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
         if levels:
             console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
         if skinnable:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")

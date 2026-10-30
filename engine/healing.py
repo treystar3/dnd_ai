@@ -24,12 +24,20 @@ def form_of(move) -> str:
     return getattr(move, "heal_form", "") or "mend"
 
 
+def pct_of(move, outside: bool = False) -> float:
+    """(f399) The heal's share of its target's health: by rank for a ranked heal (data/rules/spells.yaml healing), else by tier."""
+    if getattr(move, "rank", 0):
+        from engine import spells
+        return spells.heal_percent(move, outside)
+    tier = getattr(move.tier, "value", move.tier)
+    return H["outside" if outside else "percent"].get(tier, H["outside" if outside else "percent"]["light"])
+
+
 def card_text(move) -> str:
     """What a healing ability does in a fight, in plain words with its numbers (f250)."""
     form = form_of(move)
     spec = FORMS.get(form, FORMS["mend"])
-    tier = getattr(move.tier, "value", move.tier)
-    pct = H["percent"][tier]
+    pct = pct_of(move)
     mana = getattr(getattr(move, "resource", ""), "value", getattr(move, "resource", "")) == "mana"
     attr = (getattr(move, "attribute", "") or "casting attribute").capitalize() if mana else "Constitution"
     grow = f" (more with a higher {attr})"
@@ -49,8 +57,7 @@ def card_text(move) -> str:
 
 
 def outside_text(move) -> str:
-    tier = getattr(move.tier, "value", move.tier)
-    return f"heals you for {H['outside'][tier]}% of your health"
+    return f"heals you for {pct_of(move, outside=True):g}% of your health"
 
 
 def power(att: C.Fighter, move) -> float:
@@ -63,7 +70,7 @@ def power(att: C.Fighter, move) -> float:
 
 
 def base(att: C.Fighter, move, target: C.Fighter) -> float:
-    return target.max_hp * H["percent"].get(move.tier, H["percent"]["light"]) / 100 * power(att, move)
+    return target.max_hp * pct_of(move) / 100 * power(att, move) * getattr(att, "spell_share", 1.0)     # (f400) a hire heals at a share
 
 
 def wither_factor(target: C.Fighter) -> float:

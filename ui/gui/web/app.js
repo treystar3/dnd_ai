@@ -19,7 +19,42 @@ async function api(path, body) {
 
 // ---------- text rendering (shared by the main panel and the side pane) ----------
 let cur = null, lastBlank = true;
-function nearBottom() { return log.scrollHeight - log.scrollTop - log.clientHeight < 80; }
+function nearBottom() { return log.scrollHeight - log.scrollTop - log.clientHeight < 24; }
+// ---------- following the story (f396): new text never pulls a reader down ----------
+// The log follows new text only while the reader is at the bottom; once they scroll up by themselves it stays where they are and a
+// button says there is more below. Even while following it never scrolls past the start of new text, nor past the line the player just
+// typed while that line is in view: a long passage is read from its top, not landed on at its end.
+let follow = true, turnLine = null, ourScroll = -1, unreadAt = -1;
+const MORE = $("more");
+function scrollLogTo(y) { log.scrollTop = y; ourScroll = log.scrollTop; }
+function yOf(node) { return log.scrollTop + node.getBoundingClientRect().top - log.getBoundingClientRect().top; }
+function moreBelow(on) { if (MORE) MORE.hidden = !on; if (!on) unreadAt = -1; }
+log.addEventListener("scroll", () => {
+  if (Math.abs(log.scrollTop - ourScroll) <= 2) return;         // the log's own move, not the reader's
+  ourScroll = -1;
+  follow = nearBottom();
+  if (follow) moreBelow(false);
+});
+function settle(from) {                                          // after new text: from is where it starts (the log's height before it)
+  if (!follow) { if (unreadAt < 0) unreadAt = from; moreBelow(true); return; }
+  const bottom = log.scrollHeight - log.clientHeight;
+  let cap = from - 48;                                           // the new text's first line stays in view, under a line of what came before
+  if (turnLine && turnLine.isConnected) {
+    const t = yOf(turnLine);
+    if (t >= log.scrollTop) cap = Math.min(cap, t - 8);           // and the player's own line, while it is still on screen
+  }
+  const to = Math.max(log.scrollTop, Math.min(bottom, cap));
+  if (to > log.scrollTop) scrollLogTo(to);
+  if (to < bottom - 2) { follow = false; unreadAt = from; moreBelow(true); }
+}
+function toBottom() { follow = true; moreBelow(false); scrollLogTo(log.scrollHeight - log.clientHeight); }
+if (MORE) MORE.onclick = () => {
+  const bottom = log.scrollHeight - log.clientHeight;
+  const to = unreadAt >= 0 ? Math.min(bottom, Math.max(log.scrollTop + 1, unreadAt - 48)) : bottom;
+  if (to >= bottom - 2) { toBottom(); return; }
+  unreadAt = -1; scrollLogTo(to);
+  follow = false; moreBelow(true);
+};
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 const RULE = /^\s*[═─━]{8,}\s*$/;
 const BULLET = /^(?:[-•◆★✦✧⚔☼⚑!]|\d+\.)\s+/;
@@ -108,25 +143,25 @@ function tickerDraw() {
 }
 function addText(text, kind) {
   if (kind === "ledger") { tickerAdd(text); return; }
-  const stick = nearBottom();
+  const from = log.scrollHeight;
   if (!cur || cur.dataset.kind !== kind) {
     cur = document.createElement("div"); cur.className = "blk k-" + kind; cur.dataset.kind = kind; log.appendChild(cur);
   }
   renderInto(cur, text, "main", true, kind);
-  if (stick) log.scrollTop = log.scrollHeight;
+  settle(from);
 }
-function addEcho(text) {
-  const stick = nearBottom();
+function addEcho(text) {                                         // the player's own line: the log goes to it, wherever they were reading
   cur = null; lastBlank = true;
   const d = el("div", "echo"); d.append(el("span", "pc", "›"), el("span", "", text), el("span", "stamp", state.when || ""));
   log.appendChild(d);
-  if (stick) log.scrollTop = log.scrollHeight;
+  turnLine = d;
+  toBottom();
 }
 function addBlock(cls, text) {
-  const stick = nearBottom();
+  const from = log.scrollHeight;
   cur = null; lastBlank = true;
   const d = document.createElement("div"); d.className = cls; d.textContent = text; log.appendChild(d);
-  if (stick) log.scrollTop = log.scrollHeight;
+  settle(from);
 }
 
 // ---------- shop panel: buy and sell buttons (they send hidden commands the game runs itself; no model call) ----------
@@ -439,6 +474,7 @@ function renderBoard(d) {
       const row = el("div", "shoprow"), info = el("div", "info");
       info.appendChild(el("div", "nm", `${h.name} · ${h.who}, rank ${h.rank}, level ${h.level}`));
       info.appendChild(el("div", "dt", `${h.blurb}; ${h.temper} · ${h.fee}`));
+      if (h.kit) info.appendChild(el("div", "dt", `Can use: ${h.kit}`));          // (f396) what they can do in a fight
       if (h.why) info.appendChild(el("div", "warn", h.why));
       const act = el("div", "act");
       const b = shopButton("Hire", `#boardhire ${h.id}`, h.ok);
@@ -519,6 +555,7 @@ function renderParty(d) {
     const row = el("div", "shoprow"), info = el("div", "info");
     info.appendChild(el("div", "nm", a.name));
     info.appendChild(el("div", "dt", `${a.role} · rank ${a.rank} · level ${a.level}`));
+    if (a.kit) info.appendChild(el("div", "dt", `Can use: ${a.kit}`));               // (f396) what they can do in a fight
     if (a.bond) {
       info.appendChild(el("div", "dt", `${a.bond} · ${a.health}% health`));
       info.appendChild(el("div", "dt", a.temper));
@@ -1395,6 +1432,7 @@ function hideHome() {
   $("homepage").hidden = true;
   homeView = "menu";                                      // the next time it opens (#menu), it opens on the menu
   log.textContent = "";                                   // the story of the game left behind is not this character's
+  turnLine = null; follow = true; moreBelow(false);
   side.textContent = ""; lastView = null; $("sidetitle").textContent = "";
   tickerClear();
   input.focus();
@@ -1450,7 +1488,7 @@ function handle(ev) {
     case "combat_end": combat.active = false; combat.mode = "view"; paintSide(); break;
     case "status": Strip.update(ev); if (!!ev.debug !== !!state.debug) { state.debug = !!ev.debug; renderButtons(); } break;
     case "prompt": state.prompt = true; state.atMain = !!ev.main; state.menuOk = !!ev.menu; updateInput(); break;
-    case "busy": $("busy").hidden = !ev.on; if (ev.on && nearBottom()) log.scrollTop = log.scrollHeight; break;
+    case "busy": { const was = follow && nearBottom(); $("busy").hidden = !ev.on; if (ev.on && was) scrollLogTo(log.scrollHeight - log.clientHeight); break; }
     case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); if (!$("homepage").hidden) homeEnded(); break;
     case "fatal": addBlock("sys", ev.text); if (!$("homepage").hidden) homeFatal(ev.text); break;
     case "update": showUpdateButton(ev.data); break;

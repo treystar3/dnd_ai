@@ -30,6 +30,16 @@ def _rank(a) -> tuple:
     return (order.index(eff) if eff in order else len(order), tier)
 
 
+def _tops(actives: list) -> list:
+    """(f397) The abilities worth bringing on their own: a spell line's lower ranks stay in the book unless chosen."""
+    best: dict[str, int] = {}
+    for a in actives:
+        if getattr(a, "rank", 0):
+            k = a.line or a.id
+            best[k] = max(best.get(k, 0), a.rank)
+    return [a for a in actives if not getattr(a, "rank", 0) or a.rank == best[a.line or a.id]]
+
+
 def _spread(cands: list, n: int) -> list:
     """An automatic pick: one of each kind first, in priority order, then the strongest of what is left."""
     out, kinds = [], set()
@@ -57,16 +67,17 @@ def settle(c) -> None:
         for extra in mine[n:]:
             prepared.remove(extra)                       # never more than the room (it only grows, but be safe)
         mine = mine[:n]
+        tops = _tops(c.actives)
         if first:
-            pick = _spread([a for a in c.actives if pool_of(a) == pool], n)
+            pick = _spread([a for a in tops if pool_of(a) == pool], n)
             prepared += [a.id for a in pick if a.id not in prepared]
             continue
-        for a in c.actives:                              # newly learned, and there is room: it comes along
+        for a in tops:                                   # newly learned, and there is room: it comes along
             if a.id not in seen and pool_of(a) == pool and a.id not in prepared and len(mine) < n:
                 prepared.append(a.id)
                 mine.append(a.id)
         if n > c.loadout_room and len(mine) < n:        # a level brought more room: the best of the book fills the new places
-            left = [a for a in c.actives if pool_of(a) == pool and a.id not in prepared]
+            left = [a for a in tops if pool_of(a) == pool and a.id not in prepared]
             for a in _spread(left, n - len(mine)):
                 prepared.append(a.id)
                 mine.append(a.id)
@@ -150,7 +161,8 @@ def lines(c, day: int, in_combat: bool) -> list[str]:
             num += 1
             mark = "*" if a.id in c.prepared else " "
             eff = getattr(a.effect, "value", a.effect)
-            out.append(f"  {mark} {num}. {a.name} ({getattr(a.tier, 'value', a.tier)} {eff})")
+            from engine import spells
+            out.append(f"  {mark} {num}. {a.name} ({' '.join(w for w in (spells.grade(a), eff) if w)})")     # (f400) a buff: no tier
     why = can_change(c, day, in_combat)
     out.append("* = brought. " + (why if why else "Change it with: #prepare <names or numbers, separated by commas>"
                                   + (" - your first change is free." if c.loadout_free else " - once a day.")))

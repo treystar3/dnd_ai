@@ -203,8 +203,12 @@ def _ability_facts(a, level: int) -> list[str]:
     from engine.combat import RULES as COMBAT
     table = "ability_cost_percent" if a.resource.value == "mana" else "stamina_cost_percent"
     price = max(1, round(pools.reference_pool(a.resource.value, level) * COMBAT[table][a.tier.value] / 100))
+    if getattr(a, "rank", 0):
+        from engine import spells
+        price = spells.mana(a)                         # (f397) a ranked spell's flat cost
     if a.effect.value == "buff":
-        price = max(1, round(price * at.T["buff_cost"]))
+        from engine import spells
+        price = spells.buff_mana(level)               # (f400) a buff: no tier, a flat cost by the rank the level allows
     if a.shape == "overcharge":
         price = round(price * at.SHAPES["overcharge"]["cost"])
     body = 0
@@ -224,7 +228,18 @@ def _ability_facts(a, level: int) -> list[str]:
         facts[-1] = f"{body} stamina + {facts[-1]}"
     if a.cooldown:
         facts.append(f"cooldown {a.cooldown}")
-    if a.effect.value == "damage":                    # (f262) how hard it hits, against what it scales from
+    if getattr(a, "named", False):                    # (f397) a named spell from a codex
+        from engine import spells
+        facts.append(f"named {spells.FORMS[spells.form_of(a)]['label'].lower()}: {round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} "
+                     f"damage; once a fight, then {a.cooldown_days} day{'s' if a.cooldown_days != 1 else ''} before it can be cast again")
+    elif getattr(a, "rank", 0) and a.effect.value == "damage":   # (f397) a ranked spell: its rank and form say how hard it hits
+        from engine import spells
+        facts.append(f"rank {spells.numeral(a.rank)}, {spells.FORMS[spells.form_of(a)]['label'].lower()}: "
+                     f"{round(spells.power(a) * 100)}% of a bolt's {damage_kind(a)} damage")
+    elif getattr(a, "rank", 0):                       # (f399) a ranked heal or control spell
+        from engine import spells
+        facts.append(f"rank {spells.numeral(a.rank)} {spells.form_label(a)}")
+    elif a.effect.value == "damage":                  # (f262) how hard it hits, against what it scales from
         pct = round((a.power or COMBAT["damage"]["multiplier"][a.tier.value]) * 100)
         facts.append(f"deals {pct}% of {'spell' if a.resource.value == 'mana' and not a.channel else 'weapon'} damage as {damage_kind(a)} damage")
     facts.append(CONTEXT_WORD[a.context.value])
@@ -647,9 +662,11 @@ def guard_outputs() -> None:
         if getattr(fn, "gated", False):
             continue
 
-        def gated(*args, _fn=fn, **kwargs):
-            return _fn(*(hygiene.clean(a) if isinstance(a, str) else a for a in args),
-                       **{k: hygiene.clean(v) if isinstance(v, str) else v for k, v in kwargs.items()})
+        mend = (lambda s: hygiene.undash(hygiene.clean(s))) if name == "narrate" else hygiene.clean   # (f396) the narrator writes no dashes
+
+        def gated(*args, _fn=fn, _mend=mend, **kwargs):
+            return _fn(*(_mend(a) if isinstance(a, str) else a for a in args),
+                       **{k: _mend(v) if isinstance(v, str) else v for k, v in kwargs.items()})
         gated.gated, gated.inner = True, fn
         setattr(me, name, gated)
 

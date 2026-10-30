@@ -63,7 +63,11 @@ def is_control(eid: str) -> bool:
 # ---- who an attack strikes ------------------------------------------------------------------------------------------------------
 
 def form_of(move) -> str:
-    """The form a damage move strikes in: its own, or a blast for the old area reach."""
+    """The form a damage move strikes in: its own, or a blast for the old area reach. (f397) A ranked spell strikes as its form's
+    delivery (data/rules/spells.yaml): a lance as a bolt does, harder."""
+    if getattr(move, "rank", 0) and getattr(move, "effect", "") == "damage":
+        from engine import spells
+        return spells.delivery(move)
     f = getattr(move, "spell_form", "") or ""
     if f:
         return f
@@ -79,6 +83,12 @@ def in_area(combat, att, zone_id: str, enemies: list) -> list:
 def targets(combat, att, move, target, enemies: list) -> tuple[list, float]:
     """(who is struck, the share each takes) for a damage move."""
     form = form_of(move)
+    ranked = bool(getattr(move, "rank", 0)) and getattr(move, "effect", "") == "damage"
+    if ranked and form in ("burst", "blast"):            # (f397) a ranked area spell's power is per foe; on a lone foe it spreads thin
+        from engine import spells
+        aim = target if target is not None and target.alive else (enemies[0] if enemies else None)
+        hit = in_area(combat, att, att.zone_id if form == "burst" else (aim.zone_id if aim else ""), enemies) if (aim or form == "burst") else []
+        return hit, (1.0 if len(hit) >= 2 else spells.lone(move))
     if form == "burst":
         return in_area(combat, att, att.zone_id, enemies), FORMS["burst"]["share"]
     if form == "blast":
@@ -1006,13 +1016,17 @@ def on_cross(combat, f, old: str, new: str) -> None:
 def lay_curse(combat, att, dfn, move, mult: float, rng) -> None:
     """A curse: its damage is fixed now, and comes over the target's next turns. It cannot miss."""
     F = FORMS["curse"]
+    total, turns = F["total"], int(F["turns"])
+    if getattr(move, "rank", 0) and getattr(move, "effect", "") == "damage":     # (f397) a ranked curse: its form's power is all of it
+        from engine import spells
+        total, turns = 1.0, int(spells.FORMS[spells.form_of(move)].get("turns", turns))
     trig = C.active_triggers(att, combat, dfn)
-    dmg = C.raw_damage(att, mult * F["total"], trig, rng, steady=True)
+    dmg = C.raw_damage(att, mult * total, trig, rng, steady=True)
     taken, _ = C.mitigate(dfn, dmg, att.damage_type, att.level, combat, att)
-    per = taken / F["turns"]
-    dfn.curses = list(dfn.curses) + [{"by": att.id, "per": per, "left": int(F["turns"]), "name": move.name,
+    per = taken / turns
+    dfn.curses = list(dfn.curses) + [{"by": att.id, "per": per, "left": turns, "name": move.name,
                                       "element": move.element, "exprs": exprs_of(move), "tier": move.tier}]
-    combat.log.append(f"{att.name} lays {move.name} on {dfn.name}: {round(per)} a turn for {F['turns']} turns")
+    combat.log.append(f"{att.name} lays {move.name} on {dfn.name}: {round(per)} a turn for {turns} turns")
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'lay', 'lays')} {move.name} on {C.who(dfn)}, and it settles in to do its work")
 
 

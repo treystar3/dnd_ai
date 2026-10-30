@@ -358,6 +358,8 @@ class Bot:
             self.violation("allocate", err)
             return
         leveling.allocate(c, spend)
+        from engine import spells
+        spells.catch_up(c)                       # (f397) the balance bots learn each spell rank as it comes within reach
 
     # ------------------------------------------------------------ fighting
     def combat_choice(self) -> dict:

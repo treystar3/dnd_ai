@@ -148,7 +148,7 @@ buffs:          # (f235) rebuilt from scratch: each doing one thing nothing else
   acidcoat:   {label: Acid Coating, weapon: true, element: acid, rounds: 3, pct: 10, cap: 75, allies: true,
                text: "for {rounds} rounds, every weapon hit strips {pct}% of the enemy's armor and ward for the rest of the fight, up to {cap}% (the hit itself deals no extra damage)",
                fits: [rogue, artisan, ranger, warlock, alchemist], words: [acid, corrode, caustic, dissolve, etch, rust, burn, oil, vitriol, coat]}
-  imbue:      {label: Imbue, weapon: true, rounds: 3, pct: 15, allies: true,
+  imbue:      {label: Imbue, weapon: true, rounds: 3, pct: 15, allies: true, expression: moderate,     # its element's effect, at this strength
                text: "for {rounds} rounds, every weapon hit deals {pct}% of the hit again as the ability's element, and that element's effect lands with it",
                fits: [warrior, paladin, ranger, monk, rogue, mage, berserker, artisan], words: [flame, frost, storm, fire, ice, lightning, venom, enchant, imbue, brand, infuse, wreathe]}
   precision:  {label: Precision, rounds: 3, crit: 15, allies: true,
@@ -200,6 +200,5 @@ commands:      # what a command ability tells your companions to do (effect comm
              fits: [guardian, paladin, ranger, summoner, necromancer, druid, bard], words: [taunt, goad, distract, bait, lure, provoke, jeer, decoy, challenge, draw]}
 
 buff_rest: 3               # (f247) a buff's cooldown is its rounds plus this: buffs are powerful moments, not upkeep to keep running
-buff_cost: 0.6            # a buff deals no damage, so it costs this share of what a moderate damaging ability costs (buffs have no tiers)
 bulwark_floor: 0.4        # a bulwark counts for at least this share of a basic suit of protection for your level, so cloth wearers benefit too
 thorns_floor: 0.4

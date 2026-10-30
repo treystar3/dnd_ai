@@ -230,7 +230,8 @@ def plan(interp, offers: dict, minimum: int, rng: random.Random | None = None) -
 
 
 def buff_resources(slots: list[dict]) -> None:
-    """Every buff is magic (f238): it costs mana, whatever the class's habits - every character has some mana - and has one strength."""
+    """Every buff is magic (f238): it costs mana, whatever the class's habits - every character has some mana - and has one strength.
+    (f400) It has no tier: an ability must carry one, and nothing reads it for a buff (its cost: spells.buff_mana)."""
     for s in slots:
         if s.get("effect") == "buff" or s.get("field_use") == "pass_without_trace":
             s["resource"] = "mana"                                 # buffs, in a fight or out of one, are magic
@@ -560,19 +561,23 @@ def _rehome_rider(slots: list[dict], rider: str) -> None:
 
 
 def assign_forms(slots: list[dict], rng: random.Random) -> None:
-    """A mana damage spell (not a channeled strike) gets its form: bolt, blast, burst, curse or charged (data/rules/spellcraft.yaml)."""
-    from engine import spellcraft as SC
-    W = SC.S["form_weights"]
+    """A mana damage spell (not a channeled strike) gets its form (data/rules/spells.yaml forms, f397): the tier the plan gave it says
+    how hard it was meant to hit, and the form is chosen to match (a heavy single-target spell is a lance or a charged spell; a light
+    one a bolt or a curse). The tier then only says what it counts as where tiers are read: its rank sets its numbers."""
+    from engine import spells
+    W = spells.S["plan"]
     for s in slots:
         s["spell_form"] = ""
         if s.get("effect", "") != "damage" or s.get("resource", "") != "mana" or s.get("channel"):
             continue
+        tier = s.get("tier") or "light"
         if s.get("reach", "") == "area":
-            s["spell_form"] = _weighted(rng, W["area"]) or "blast"
+            s["spell_form"] = _weighted(rng, W["area"][tier]) or "blast"
         elif s.get("shape", ""):
             s["spell_form"] = "bolt"
         else:
-            s["spell_form"] = _weighted(rng, W["single"], forbidden=("curse",) if s.get("rider", "") else ()) or "bolt"
+            s["spell_form"] = _weighted(rng, W["single"][tier], forbidden=("curse",) if s.get("rider", "") else ()) or "bolt"
+        s["rank"] = max(1, int(s.get("rank") or 1))
 
 
 # ---------- what the model is told ----------
@@ -622,7 +627,7 @@ def mechanic_text(s: dict) -> str:
         parts.append(E.get(eff, eff))
     if s["buff"]:
         b = s["buff"]
-        txt = AT.imbue_text(s.get("element", ""), s.get("expressions") or [], s["tier"]) if b == "imbue" else \
+        txt = AT.imbue_text(s.get("element", ""), s.get("expressions") or [], AT.imbue_strength()) if b == "imbue" else \
             AT.attunement_text(s.get("element", "")) if b == "attunement" else AT.buff_text(b)
         parts.append(f"{AT.BUFFS[b]['label']}: {txt}")
     if s["command"]:
@@ -633,7 +638,15 @@ def mechanic_text(s: dict) -> str:
     if s["rider"]:
         r = s["rider"]
         parts.append(f"{AT.RIDERS[r]['label']}: {AT.rider_text(r, s['tier'])}")
-    if s.get("spell_form") and s["spell_form"] != "bolt":
+    if s.get("spell_form") and eff == "damage" and s.get("resource") == "mana" and not s.get("channel"):
+        from engine import spells                                         # (f397) a ranked spell: its form, and its rank for the name
+        r = max(1, int(s.get("rank") or 1))
+        if s["spell_form"] != "bolt":
+            parts.append(f"{spells.FORMS[s['spell_form']]['label']}: {spells.form_text(s['spell_form'])}")
+        parts.append(f"a rank {spells.numeral(r)} spell of {spells.TOP}: " + ("an apprentice's working - give it a plain, simple name"
+                     if r <= 2 else "a seasoned working - give it a grander name than a first spell would have" if r <= 4 else
+                     "a master's working - give it a name to match"))
+    elif s.get("spell_form") and s["spell_form"] != "bolt":
         from engine import spellcraft as SC
         parts.append(f"{SC.FORMS[s['spell_form']]['label']}: {SC.form_text(s['spell_form'])}")
     from engine import spellcraft as SC

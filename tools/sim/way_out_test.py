@@ -34,6 +34,7 @@ char, _ = simlib.make_character("warrior", random.Random(2))
 store.save_player(PlayerState(character=char, location="trading_square", guild_rank="E"))
 ws = WorldScene(store, world, load_traits(), store.load_player())
 ws.player.mentor["never"] = True
+ws.rng = random.Random(7)          # the journeys below take the same time every run: the closure's days left are checked against it
 ws.ensure_dungeons()
 d = store.load_dungeons()[0]
 wild, mouth = d["place"], d["entrance"]

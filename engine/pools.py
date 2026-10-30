@@ -98,6 +98,15 @@ def reference_mana(level: int) -> float:
     return raw
 
 
+def mana_of(level: int, attrs: dict, cast: str) -> int:
+    """(f400) The mana of someone with these attributes who casts with `cast`, as a character's is figured before gear and perks: what a
+    hire who casts has."""
+    rule, m = RULES.pools["mana"], RULES.mana_casting
+    others = max(attrs.get(a, 10) for a in MENTAL if a != cast)
+    raw = rule.base + rule.per_level * (max(1, level) - 1) + m["cast_weight"] * attrs.get(cast, 10) + m["other_weight"] * others
+    return max(1, round(raw))
+
+
 def maximum(c: Character, pool: str) -> int:
     from engine import stats
     rule = RULES.pools[pool]
