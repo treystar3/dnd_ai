@@ -14,9 +14,9 @@
 # learn and a form you choose, like the spells of the old table-top games. Simulated against the old spells in the game's own combat
 # engine before it was built (same damage and mana per damage over fights of two to eight turns; the numbers below are that run's).
 #
-# Damage spells, heals and control spells are on ranks (each kind's table below); buffs (one strength each) and summons keep their tiers
-# for now. `tier` on each rank is what a ranked spell counts as where tiers are still read (riders, element expressions, a control
-# spell's strength, field uses).
+# Damage spells, heals and control spells are on ranks (each kind's table below). Buffs have no tier and no rank at all (buffs below);
+# summons keep their tiers for now. `tier` on each rank is what a ranked spell counts as where tiers are still read (riders, element
+# expressions, a control spell's strength, field uses).
 
 coefficient: 0.5            # spell power's share of a rank's base, for a form of coefficient factor 1; the same at every rank
 
@@ -65,6 +65,12 @@ healing:
 control:
   mana: [8, 15, 27, 44, 64, 88, 112]
   cooldown: 2
+
+# BUFFS (f400): no tier and no rank. Each does one thing at one strength (data/rules/ability_traits.yaml buffs), lasts its rounds, and
+# rests a while after (buff_rest there). Their cost is flat and the same for every buff: by the highest rank the caster's level allows
+# (`learn` above), about a bolt and a fifth of that rank. A share of a pool no more.
+buffs:
+  mana: [11, 22, 38, 62, 91, 126, 160]
 
 # Which form a planned spell gets (engine/ability_slots.py), by how hard the plan meant it to hit (its tier) and its reach.
 plan:

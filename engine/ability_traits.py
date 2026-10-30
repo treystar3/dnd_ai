@@ -95,7 +95,7 @@ def attunement_text(element: str) -> str:
 def ability_buff_text(a) -> str:
     """What this ability's buff does, as its card shows it."""
     if getattr(a, "buff", "") == "imbue":
-        return imbue_text(getattr(a, "element", ""), getattr(a, "expressions", None) or [], tier_of(getattr(a, "tier", "light")))
+        return imbue_text(getattr(a, "element", ""), getattr(a, "expressions", None) or [], imbue_strength())
     if getattr(a, "buff", "") == "attunement":
         return attunement_text(getattr(a, "element", ""))
     return buff_text(a.buff)
@@ -167,6 +167,12 @@ def buff_mech(buff: str, tier=None, stat: str = "", magical: bool = False) -> di
             "frostarmor": {"bulwark_armor": b.get("pct", 0), "frost_armor": 1},
             "stoneform": {"stoneform": b.get("pct", 0)}, "envenom": {"envenom_weapon": 1},
             "acidcoat": {"acid_weapon": b.get("pct", 0)}, "thorns": {"thorn_flat": b.get("flat", 0), "thorn_pct": b.get("pct", 0)}}.get(buff, {})
+
+
+def imbue_strength() -> str:
+    """(f400) How strongly Imbue's element lands on each hit, on the element expressions' scale (data/rules/spellcraft.yaml): one strength,
+    like every buff, whoever casts it."""
+    return str(BUFFS["imbue"].get("expression", "moderate"))
 
 
 def buff_rounds(buff: str) -> int:

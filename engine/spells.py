@@ -33,7 +33,7 @@ def numeral(rank: int) -> str:
     return NUMERALS.get(int(rank), str(rank))
 
 
-KINDS = ("damage", "healing", "control")             # the kinds of spell on ranks; buffs and summons keep their tiers for now
+KINDS = ("damage", "healing", "control")             # the kinds of spell on ranks; a buff has no tier or rank (buff_mana), summons keep tiers
 
 
 def is_ranked(x) -> bool:
@@ -156,6 +156,20 @@ def card(x) -> str:
     if getattr(x, "named", False):
         return f"Named {form_label(x)}"
     return f"Rank {numeral(x.rank)} {form_label(x)}"
+
+
+def buff_mana(level: int) -> int:
+    """(f400) A buff's flat cost: by the highest rank the caster's level allows. A buff has no tier and no rank of its own."""
+    return int(S["buffs"]["mana"][highest_rank(level) - 1])
+
+
+def grade(x) -> str:
+    """How strong an ability is, in the word a list shows: a spell's rank and form, nothing for a buff (one strength), else its tier."""
+    if getattr(x, "rank", 0):
+        return card(x)
+    if getattr(getattr(x, "effect", ""), "value", getattr(x, "effect", "")) == "buff":
+        return ""
+    return getattr(x.tier, "value", x.tier)
 
 
 # ---------- making and growing a spell
@@ -418,6 +432,8 @@ def problems() -> list[str]:
             bad.append(f"spells.yaml healing {k}: a value for every rank")
     if len(S["control"]["mana"]) < TOP:
         bad.append("spells.yaml control mana: a value for every rank")
+    if len(S["buffs"]["mana"]) < TOP or any(b >= a for a, b in zip(S["buffs"]["mana"][1:], S["buffs"]["mana"])):
+        bad.append("spells.yaml buffs mana: a value for every rank, each above the one before")
     from engine import healing as _h
     for hf in _h.FORMS:
         if hf not in S["healing"]["forms"]:

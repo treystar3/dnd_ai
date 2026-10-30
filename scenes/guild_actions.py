@@ -179,7 +179,7 @@ class GuildActions:
             why = "Your party is full." if full else ("Join the guild first." if not self.rank else "") or away or (f"Wants {money.fmt(m['fee'])}; your purse holds {money.fmt(c.coins)}." if c.coins < m["fee"] else "")
             out.append({"id": m["id"], "name": m["name"], "who": f"{(m.get('people') or 'human').replace('_', '-')} {m['role']}", "rank": m["rank"], "level": m["level"],
                         "blurb": m["blurb"], "temper": self.temper_text(m), "fee": money.fmt(m["fee"]), "ok": not why, "why": why,
-                        "kit": __import__("engine.techniques", fromlist=["describe"]).describe(m["role"])})      # (f396) what they can do
+                        "kit": __import__("engine.techniques", fromlist=["describe"]).describe(m["role"], m["level"])})      # (f396) what they can do
         return out
 
     def show_board(self) -> None:

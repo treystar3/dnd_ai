@@ -70,7 +70,7 @@ def power(att: C.Fighter, move) -> float:
 
 
 def base(att: C.Fighter, move, target: C.Fighter) -> float:
-    return target.max_hp * pct_of(move) / 100 * power(att, move)
+    return target.max_hp * pct_of(move) / 100 * power(att, move) * getattr(att, "spell_share", 1.0)     # (f400) a hire heals at a share
 
 
 def wither_factor(target: C.Fighter) -> float:

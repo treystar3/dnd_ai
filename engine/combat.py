@@ -125,6 +125,7 @@ class Fighter(BaseModel):
     crit_resist: float = 0
     offhand_spell: float = 0              # an off-hand focus's spell power
     spell_mult: float = 1.0               # while a spell is cast: 1 + its casting attribute / spell_attribute
+    spell_share: float = 1.0              # (f400) a hire's spells: the share of a player's spell of the same rank they hit and heal for
     adaptive: bool = False
     legendary: dict[str, float] = {}     # legendary effect id -> value
     slays: dict[str, float] = {}         # creature category -> bonus % (dragonslayer etc.)
@@ -1750,7 +1751,10 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         return 0
     if f.counters.get("free_fire") and getattr(move, "element", "") == "fire":
         return 0                                        # Phoenix Spark (f268): the next fire costs nothing
-    if move.resource == "stamina":
+    if move.effect == "buff":
+        from engine import spells
+        cost = spells.buff_mana(f.level)                 # (f400) a buff: no tier, a flat cost by the rank the caster's level allows
+    elif move.resource == "stamina":
         # Stamina is a rhythm: smaller flat costs (a share of a typical pool at your level), refilled by fighting
         pool = pools.reference_pool("stamina", f.level) if f.side == "player" else f.max_stamina
         cost = pool * (move.cost_percent or RULES["stamina_cost_percent"][move.tier]) / 100
@@ -1767,8 +1771,6 @@ def cost_of(f: Fighter, move: Move, combat: Combat | None = None) -> int:
         cost *= AT.SHAPES["overcharge"]["cost"]
     if move.channel:
         cost *= RULES["channel"]["cost"]                 # the mana half of a channeled strike (its stamina is stamina_part)
-    if move.effect == "buff":
-        cost *= AT.T["buff_cost"]
     from engine import combat_perks
     cost = combat_perks.cost(combat, f, move, cost)
     return max(1, math.ceil(cost)) if cost > 0 else 0
@@ -2017,7 +2019,7 @@ def act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | None
             return why
     if echo:
         att.counters["echo_cast"] = 1
-    att.counters["tier_now"] = combat_perks.TIER_CODE.get(move.tier, 0)
+    att.counters["tier_now"] = 0 if move.effect == "buff" else combat_perks.TIER_CODE.get(move.tier, 0)    # (f400) a buff has no tier
     att.counters["reach_now"] = {"ranged": 1, "melee": 2, "extended": 2, "area": 3}.get(move.reach, 0)
     try:
         return _act_ability(combat, att, move, target, rng, give, echo)
@@ -2120,7 +2122,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
     ranked = bool(getattr(move, "rank", 0)) and move.effect == "damage"
     if ranked:
         from engine import spells
-        mult = spells.power(move)                                           # (f397) a ranked spell: its form's power
+        mult = spells.power(move) * att.spell_share                         # (f397) a ranked spell: its form's power (f400: a hire's share)
     else:
         mult = move.power or RULES["damage"]["multiplier"][move.tier]          # an ability's own power, or its tier's
     if move.effect == "damage" and not move.rider and not move.shape and not move.expressions and not move.maneuver \
@@ -2287,7 +2289,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
                     r.buffs.pop(k)                    # one of each kind: a new casting replaces the old
             r.buffs[move.id] = {"rounds": rounds + (1 if r is not att else 0), "mech": dict(mech), "drain": 0, "collapse": "",
                                 "name": move.name, "kind": move.buff, "element": move.element or "fire", "from": att.id,
-                                "exprs": list(move.expressions) if move.buff == "imbue" else [], "etier": move.tier}
+                                "exprs": list(move.expressions) if move.buff == "imbue" else [], "etier": AT.imbue_strength()}
             if move.buff == "stoneform":
                 r.statuses["slowed"] = max(r.statuses.get("slowed", 0), rounds + (1 if r is not att else 0))   # the price of stone
         text = AT.ability_buff_text(move)
@@ -2942,8 +2944,11 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
         hurt = combat.player if combat.player.hp < combat.player.max_hp else None
         kit_heal = techniques.healing(a.ally_role)
         if hurt and kit_heal:                                      # (f396) told to heal: their own heal, every turn they are told to
-            techniques.heal_on(combat, a, hurt, techniques.heal_amount(hurt, kit_heal), kit_heal["name"])
-            return
+            m = techniques.spell(a, kit_heal)
+            if m is not None:
+                a.cooldowns.pop(m.id, None)                        # (f400) told to: every turn, for as long as their mana lasts
+            if techniques.cast_heal(combat, a, kit_heal, hurt, rng):
+                return
         if hurt and (a.ally_role == "priest" or a.can_heal):
             amount = hurt.max_hp * RULES["ally_heal"]["pct"] / 100 * 1.5
             amount, _ = combat_perks.mend(combat, a, hurt, amount)        # one path for every heal: withering and perks apply

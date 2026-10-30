@@ -207,7 +207,8 @@ def _ability_facts(a, level: int) -> list[str]:
         from engine import spells
         price = spells.mana(a)                         # (f397) a ranked spell's flat cost
     if a.effect.value == "buff":
-        price = max(1, round(price * at.T["buff_cost"]))
+        from engine import spells
+        price = spells.buff_mana(level)               # (f400) a buff: no tier, a flat cost by the rank the level allows
     if a.shape == "overcharge":
         price = round(price * at.SHAPES["overcharge"]["cost"])
     body = 0

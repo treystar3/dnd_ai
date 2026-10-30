@@ -230,7 +230,8 @@ def plan(interp, offers: dict, minimum: int, rng: random.Random | None = None) -
 
 
 def buff_resources(slots: list[dict]) -> None:
-    """Every buff is magic (f238): it costs mana, whatever the class's habits - every character has some mana - and has one strength."""
+    """Every buff is magic (f238): it costs mana, whatever the class's habits - every character has some mana - and has one strength.
+    (f400) It has no tier: an ability must carry one, and nothing reads it for a buff (its cost: spells.buff_mana)."""
     for s in slots:
         if s.get("effect") == "buff" or s.get("field_use") == "pass_without_trace":
             s["resource"] = "mana"                                 # buffs, in a fight or out of one, are magic
@@ -626,7 +627,7 @@ def mechanic_text(s: dict) -> str:
         parts.append(E.get(eff, eff))
     if s["buff"]:
         b = s["buff"]
-        txt = AT.imbue_text(s.get("element", ""), s.get("expressions") or [], s["tier"]) if b == "imbue" else \
+        txt = AT.imbue_text(s.get("element", ""), s.get("expressions") or [], AT.imbue_strength()) if b == "imbue" else \
             AT.attunement_text(s.get("element", "")) if b == "attunement" else AT.buff_text(b)
         parts.append(f"{AT.BUFFS[b]['label']}: {txt}")
     if s["command"]:

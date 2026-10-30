@@ -170,7 +170,7 @@ WHO = ("temper", "motive", "line", "quirks", "details", "secrets", "detail_kinds
 TALK = ("said", "talk", "memories", "impression", "gestured", "talked_day", "convo", "topics_used", "raised", "mood", "mood_at", "since_gesture", "heavy_at",
         "_culture_key", "_culture", "banter_at", "started_at", "mood_for", "hit_by")  # what play has given them
 STANDING = ("id", "name", "pronoun", "blurb", "role", "level", "rank", "permanent", "base_level", "hired_at", "hired_day", "bond", "fights_since", "fights_total",
-            "warned", "hp_frac", "hp_at", "capped", "hungover_until", "pocketed", "bragged_day", "down_fate")   # from the roster, and the engine's own numbers
+            "warned", "hp_frac", "hp_at", "mana_frac", "mana_at", "capped", "hungover_until", "pocketed", "bragged_day", "down_fate")   # from the roster, and the engine's own numbers
 
 
 def lived_keys() -> tuple:
@@ -302,7 +302,18 @@ def fighter(member: dict, fid: str | None = None, minutes: int | None = None) ->
         f.weapon_damage *= quirks.Q["flaws"]["drinker"]["damage_mult"]
     if minutes is not None and member.get("permanent"):
         f.hp = max(1.0, f.max_hp * health_now(member, minutes))
+    from engine import techniques
+    techniques.equip(f, member, minutes)                 # (f400) a hire who casts: mana, and their spells at the rank their level allows
     return f
+
+
+def mana_now(member: dict, minutes: int | None) -> float:
+    """(f400) How much of their mana a hire who casts has: it comes back with time, as a player's does (data/rules/pools.yaml)."""
+    from engine import pools
+    if minutes is None:
+        return 1.0
+    hours = max(0, minutes - member.get("mana_at", 0)) / 60
+    return min(1.0, member.get("mana_frac", 1.0) + hours * pools.RULES.regen_per_hour["mana"])
 
 
 def is_scout(member: dict) -> bool:

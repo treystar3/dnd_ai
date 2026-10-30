@@ -216,7 +216,7 @@ class PartyActions:
     def adventurer_row(self, m: dict) -> dict:
         from engine import techniques
         row = {"name": m["name"], "role": m["role"], "level": m["level"], "rank": m.get("rank") or rules.rank_of(m["level"]),
-               "kit": techniques.describe(m.get("role", ""))}                                        # (f396) what they can do in a fight
+               "kit": techniques.describe(m.get("role", ""), m.get("level", 1))}                   # (f396) what they can do in a fight
         if m.get("permanent"):
             row.update(self.hire_facts(m))
             row["promote"] = money.fmt(rules.promotion_fee(m)) if m.get("capped") and rules.next_rank(row["rank"]) else ""
@@ -825,6 +825,8 @@ class PartyActions:
             elif m.get("permanent") and fid in by_id:
                 a = by_id[fid]
                 seen.append((m, a.hp / a.max_hp if a.max_hp else 1.0))
+                if getattr(a, "max_mana", 0):                    # (f400) a hire who casts carries what mana is left into the next fight
+                    m["mana_frac"], m["mana_at"] = max(0.0, a.mana / a.max_mana), self.minutes
         for note in rules.after_fight(seen, won, hard, self.minutes):
             console.note(note)
         for m, _ in seen:
@@ -864,7 +866,7 @@ class PartyActions:
         if healer is None or (pools.current(c, "health") >= pools.maximum(c, "health") and
                               all(rules.health_now(m, self.minutes) >= 0.95 for m in self.player.party if m.get("permanent"))):
             return False
-        gained, tended = techniques.tend(c, self.player.party, techniques.P["tending"]["after_fight_pct"], self.minutes, healer)
+        gained, tended = techniques.tend(c, self.player.party, techniques.tend_pct(healer, "after_fight"), self.minutes, healer)
         if not gained and not tended:
             return False
         first = healer["name"].split()[0]
@@ -893,7 +895,7 @@ class PartyActions:
             console.note(f"{first} has done what can be done for now; the rest wants rest and time.")
             return True
         self.advance(T["minutes"])
-        gained, tended = techniques.tend(c, self.player.party, T["asked_pct"], self.minutes, m)
+        gained, tended = techniques.tend(c, self.player.party, techniques.tend_pct(m, "asked"), self.minutes, m)
         m["tended_at"] = self.minutes
         console.note(f"{first} sees to your wounds: +{gained} health" + (f", and tends {', '.join(n.split()[0] for n in tended)}" if tended else "") + ".")
         ledger.add("tended", name=m["name"], say=f"{m['name']} has just tended the player's wounds; they feel better for it.")

@@ -399,8 +399,8 @@ class CombatScene:
             if m.effect == "mobility":
                 from engine import movement as _mv
                 extra = ("[movement, whole turn] " if _mv.whole_turn(m) else "[movement, alongside an action] ") + extra
-            grade = __import__("engine.spells", fromlist=["card"]).card(m) if m.rank else m.tier       # (f397) a spell's rank and form
-            abilities.append(f"{m.id}: {m.name} ({grade} {m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource}"
+            grade = __import__("engine.spells", fromlist=["grade"]).grade(m)       # (f397) a spell's rank and form; (f400) none for a buff
+            abilities.append(f"{m.id}: {m.name} ({(grade + ' ') if grade else ''}{m.effect}, {m.reach}, {combat.cost_of(p, m, self.fight)} {m.resource}"
                              + (f" + {combat.stamina_part(p, m, self.fight)} stamina" if combat.stamina_part(p, m, self.fight) else "") + ")"
                              f"{' [' + extra + ']' if extra else ''} - {note}")
         enemies = [f"{e.id}: {e.name}, {self.spot(e)}" for e in self.fight.enemies()]

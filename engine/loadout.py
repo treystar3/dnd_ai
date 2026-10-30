@@ -161,7 +161,8 @@ def lines(c, day: int, in_combat: bool) -> list[str]:
             num += 1
             mark = "*" if a.id in c.prepared else " "
             eff = getattr(a.effect, "value", a.effect)
-            out.append(f"  {mark} {num}. {a.name} ({getattr(a.tier, 'value', a.tier)} {eff})")
+            from engine import spells
+            out.append(f"  {mark} {num}. {a.name} ({' '.join(w for w in (spells.grade(a), eff) if w)})")     # (f400) a buff: no tier
     why = can_change(c, day, in_combat)
     out.append("* = brought. " + (why if why else "Change it with: #prepare <names or numbers, separated by commas>"
                                   + (" - your first change is free." if c.loadout_free else " - once a day.")))

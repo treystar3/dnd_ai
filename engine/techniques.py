@@ -3,16 +3,21 @@
 Why: a hired fighter, archer, rogue or mage fought with one plain blow, and a priest healed a twelfth of a wound every fourth round once
 someone was badly hurt: a player who hired a priest never saw them heal. Now each role has two techniques, used on the hire's own
 judgement: the engine decides when, the numbers are data, and the narrator is told the technique by name. Support (heal, bless, guard)
-is weighed before the hire looks for a foe; offence (strike, hinder, burst) once they have one in reach."""
+is weighed before the hire looks for a foe; offence (strike, hinder, burst, spell) once they have one in reach.
+
+(f400) A hire who casts (party.yaml casting: a mage, a priest) casts the player's spells (engine/spells.py) at the highest rank their
+level allows, through the same engine a player's spell goes through: its rank and form set its damage or its heal, its flat mana cost
+comes out of a pool like a player's, its form sets its cooldown. Each rank has a name of its own in the kit, so a rank shows in play."""
 from __future__ import annotations
 
 import random
 
-from engine import combat as C
+from engine import combat as C, spells
 from engine.party import P
 
 SUPPORT = ("heal", "bless", "guard")
-OFFENCE = ("strike", "hinder", "burst")
+OFFENCE = ("strike", "hinder", "burst", "spell")
+SPELLS = ("heal", "spell")                                        # (f400) what a hire casts as a ranked spell
 
 
 def kit(role: str) -> list[dict]:
@@ -24,21 +29,89 @@ def healing(role: str) -> dict | None:
     return next((t for t in kit(role) if t["does"] == "heal"), None)
 
 
+def casts(role: str) -> str:
+    """(f400) The attribute a role casts with, or '' for a role that does not cast."""
+    return str(((P.get("casting") or {}).get("roles") or {}).get(role or "", ""))
+
+
+def name_of(t: dict, level: int = 1) -> str:
+    """A technique's name; a spell's, by the rank the hire's level allows (party.yaml kits names, one per rank)."""
+    names = t.get("names") or []
+    if names:
+        return names[min(len(names), spells.highest_rank(level)) - 1]
+    return t.get("name") or t["id"]
+
+
+def move_of(t: dict, level: int, role: str) -> C.Move:
+    """(f400) A hire's spell, as the engine casts it: the player's spell of the same rank and form, cast with the role's attribute."""
+    r = spells.highest_rank(level)
+    common = dict(id=f"kit_{t['id']}", name=name_of(t, level), tier=spells.tier_for(r), resource="mana", attribute=casts(role) or "wisdom",
+                  rank=r, line=t["id"])
+    if t["does"] == "heal":
+        form = t.get("form", "mend")
+        return C.Move(effect="healing", reach="extended", heal_form=form,
+                      cooldown=int(spells.S["healing"]["forms"].get(form, {}).get("cooldown", 1)), **common)
+    form = t.get("form", "bolt")
+    area = spells.FORMS[form]["delivery"] in ("area", "around")
+    return C.Move(effect="damage", reach="area" if area else "ranged", spell_form=form, cooldown=spells.cooldown(form),
+                  cast_turns=spells.cast_turns(form), **common)
+
+
+def equip(f: C.Fighter, member: dict, minutes: int | None = None) -> None:
+    """(f400) A hire who casts: mana as a player of their level and casting attribute has (what is left of it since the last fight), the
+    share of a spell they cast for, and their spells as moves."""
+    from engine import party, pools
+    attr = casts(member.get("role", ""))
+    if not attr:
+        return
+    f.max_mana = pools.mana_of(f.level, f.attrs, attr)
+    f.mana = f.max_mana * (party.mana_now(member, minutes) if member.get("permanent") else 1.0)
+    f.spell_share = float((P.get("casting") or {}).get("power", 1.0))
+    f.moves = [move_of(t, f.level, member.get("role", "")) for t in kit(member.get("role", "")) if t["does"] in SPELLS]
+
+
+def spell(a: C.Fighter, t: dict) -> C.Move | None:
+    m = next((m for m in a.moves if m.id == f"kit_{t['id']}"), None)
+    if m is None and casts(a.ally_role) and not any(x.id.startswith("kit_") for x in a.moves):
+        equip(a, {"role": a.ally_role})          # a hire made before spells had ranks (a fight saved then): their spells now, mana full
+        m = next((m for m in a.moves if m.id == f"kit_{t['id']}"), None)
+    return m
+
+
 WHAT = {"heal": "heals the hurt", "bless": "the party strikes harder", "guard": "shields you when you are hurt",
         "strike": "a heavier blow", "hinder": "slows a foe", "burst": "hits every foe bunched together"}
 
 
-def describe(role: str) -> str:
-    """'Healing Word (heals the hurt), Blessing (the party strikes harder)': what a hire of this role can do, for the panes."""
-    return ", ".join(f"{t['name']} ({'a heavy blow at a foe busy with someone else' if t.get('engaged') else WHAT.get(t['does'], t['does'])})"
-                     for t in kit(role))
+def describe(role: str, level: int = 1) -> str:
+    """'Healing Word (heals the hurt), Blessing (the party strikes harder)': what a hire of this role can do, for the panes. (f400) A spell
+    says its rank and form: 'Shattering Ring (rank III blast: strikes every foe in the target's area...)'."""
+    out = []
+    for t in kit(role):
+        if t["does"] == "spell":
+            what = f"rank {spells.numeral(spells.highest_rank(level))} {spells.FORMS[t['form']]['label'].lower()}: " \
+                   + spells.form_text(t["form"]).rstrip(".")
+        elif t["does"] == "heal" and t.get("form"):
+            what = f"rank {spells.numeral(spells.highest_rank(level))} heal"
+        else:
+            what = "a heavy blow at a foe busy with someone else" if t.get("engaged") else WHAT.get(t["does"], t["does"])
+        out.append(f"{name_of(t, level)} ({what})")
+    return ", ".join(out)
 
 
 def ready(a: C.Fighter, t: dict) -> bool:
+    if t["does"] in SPELLS:
+        m = spell(a, t)
+        return m is not None and C.can_use(a, m) is None          # its cooldown, and the mana for it
+    if t["does"] == "bless" and a.max_mana and a.mana < spells.buff_mana(a.level):
+        return False                                              # a blessing is a buff: a buff's mana
     return a.cooldowns.get(t["id"], 0) <= 0
 
 
 def spend(a: C.Fighter, t: dict) -> None:
+    if t["does"] in SPELLS:
+        return                                                    # the engine paid for the spell and set its cooldown
+    if t["does"] == "bless" and a.max_mana:
+        a.mana = max(0.0, a.mana - spells.buff_mana(a.level))
     a.cooldowns[t["id"]] = int(t.get("cooldown", 0)) + 1           # the round it is used counts, as for every ability
 
 
@@ -61,7 +134,19 @@ def offence(combat: C.Combat, a: C.Fighter, target: C.Fighter, mult: float, rng:
 
 
 def heal_amount(f: C.Fighter, t: dict) -> float:
+    """A heal technique without a rank: its share of the target's health (party.yaml pct)."""
     return f.max_hp * float(t.get("pct", 0)) / 100
+
+
+def cast_heal(combat: C.Combat, a: C.Fighter, t: dict, target: C.Fighter, rng: random.Random) -> bool:
+    """(f400) A hire's heal on someone: a ranked heal cast as the player's is, paid from their mana. True if it was cast."""
+    m = spell(a, t)
+    if m is None:
+        if not t.get("pct"):
+            return False
+        heal_on(combat, a, target, heal_amount(target, t), name_of(t, a.level))
+        return True
+    return C.act_ability(combat, a, m, None, rng, give=[target]) is None
 
 
 def _heal(combat, a, t, rng, **_) -> bool:
@@ -74,8 +159,17 @@ def _heal(combat, a, t, rng, **_) -> bool:
         if not hurt:
             return False
         who_ = min(hurt, key=lambda f: f.hp / max(1, f.max_hp))
-    heal_on(combat, a, who_, heal_amount(who_, t), t["name"])
-    return True
+    return cast_heal(combat, a, t, who_, rng)
+
+
+def _spell(combat, a, t, rng, target=None, **_) -> bool:
+    """(f400) A hire's damage spell at the foe in reach: an area form only when foes are bunched in the target's area (`foes`)."""
+    m = spell(a, t)
+    if m is None or target is None or not target.alive:
+        return False
+    if m.reach == "area" and sum(1 for e in combat.enemies() if e.alive and e.zone_id == target.zone_id) < int(t.get("foes", 2)):
+        return False
+    return C.act_ability(combat, a, m, target, rng) is None
 
 
 def heal_on(combat: C.Combat, a: C.Fighter, target: C.Fighter, amount: float, name: str) -> None:
@@ -96,9 +190,9 @@ def _bless(combat, a, t, rng, **_) -> bool:
     for f in [combat.player] + combat.allies():
         if f.alive:
             f.counters["blessed"] = [until, pct]
-    combat.log.append(f"{a.name} uses {t['name']}: the party strikes {pct}% harder until round {until}")
+    combat.log.append(f"{a.name} uses {name_of(t, a.level)}: the party strikes {pct}% harder until round {until}")
     C.tell(combat, f"{C.who(a)} {C.vb(a, 'raise', 'raises')} a hand and {C.vb(a, 'speak', 'speaks')} a blessing over you all, and every arm "
-                   f"feels surer for it ({t['name']})")
+                   f"feels surer for it ({name_of(t, a.level)})")
     return True
 
 
@@ -152,7 +246,7 @@ def _burst(combat, a, t, rng, target=None, mult=1.0, **_) -> bool:
     return True
 
 
-DOES = {"heal": _heal, "bless": _bless, "guard": _guard, "strike": _strike, "hinder": _hinder, "burst": _burst}
+DOES = {"heal": _heal, "bless": _bless, "guard": _guard, "strike": _strike, "hinder": _hinder, "burst": _burst, "spell": _spell}
 
 
 # ---------- a priest's care outside a fight
@@ -160,6 +254,13 @@ DOES = {"heal": _heal, "bless": _bless, "guard": _guard, "strike": _strike, "hin
 def tender(party: list[dict]) -> dict | None:
     """The hire who can tend wounds: a role with a heal, on their feet (not carried out of the last fight)."""
     return next((m for m in party if healing(m.get("role", "")) and not m.get("npc") and m.get("hp_frac", 1.0) > 0.05), None)
+
+
+def tend_pct(member: dict, when: str) -> float:
+    """(f400) How much of the player's health a hire's care gives back: their heal out of a fight, at the rank their level allows
+    (spells.yaml healing outside), times party.yaml tending `after_fight` or `asked`."""
+    r = spells.highest_rank(member.get("level", 1))
+    return min(100.0, float(spells.S["healing"]["outside"][r - 1]) * float(P["tending"][when]))
 
 
 def tend(character, party: list[dict], pct: float, minutes: int, healer: dict | None = None) -> tuple[int, list[str]]:
@@ -192,12 +293,18 @@ def problems() -> list[str]:
         for t in ts:
             if t.get("does") not in DOES:
                 bad.append(f"party.yaml kits {role}: '{t.get('id')}' does '{t.get('does')}', which the engine does not know")
-            if not t.get("name") or not t.get("id"):
-                bad.append(f"party.yaml kits {role}: every technique needs an id and a name")
+            if not (t.get("name") or t.get("names")) or not t.get("id"):
+                bad.append(f"party.yaml kits {role}: every technique needs an id and a name (or a name for each rank)")
+            if t.get("names") and len(t["names"]) < spells.TOP:
+                bad.append(f"party.yaml kits {role}: '{t['id']}' needs a name for each of the {spells.TOP} ranks")
+            if t.get("does") == "spell" and t.get("form") not in spells.FORMS:
+                bad.append(f"party.yaml kits {role}: '{t['id']}' casts form '{t.get('form')}', which spells.yaml does not have")
+            if t.get("does") in SPELLS and t.get("names") and not casts(role):
+                bad.append(f"party.yaml kits {role}: '{t['id']}' is a spell, and party.yaml casting gives the role no attribute to cast with")
     for role in roles:
         if role not in (P.get("kits") or {}):
             bad.append(f"party.yaml kits: the role '{role}' has no techniques")
-    for k in ("after_fight_pct", "hires_pct", "asked_pct", "asked_every", "minutes"):
+    for k in ("after_fight", "hires_pct", "asked", "asked_every", "minutes"):
         if k not in (P.get("tending") or {}):
             bad.append(f"party.yaml tending: needs {k}")
     return bad

@@ -44,10 +44,11 @@ f.player.hp = f.player.max_hp * 0.6
 before = f.player.hp
 combat.ally_turn(f, priest, random.Random(2))
 spec = techniques.healing("priest")
-check("a priest heals the player once they are hurt, by a share worth having", f.player.hp >= before + f.player.max_hp * spec["pct"] / 100 * 0.9,
-      (before, f.player.hp, f.player.max_hp))
-check("...shown in the fight's record by name", any(h.get("outcome") == "heal" and spec["name"] in h.get("label", "") and h.get("att") == priest.name
-                                                   for h in f.hits), f.hits[-1:])
+from engine import healing
+want = healing.base(priest, techniques.spell(priest, spec), f.player)          # (f400) a ranked heal, at the hire's share
+check("a priest heals the player once they are hurt, by a share worth having", f.player.hp >= min(f.player.max_hp, before + want * 0.9)
+      and want >= f.player.max_hp * 0.15, (before, f.player.hp, f.player.max_hp, want))
+check("...shown in the fight's record by name", any(techniques.name_of(spec, 5) in l and priest.name in l for l in f.log[-3:]), f.log[-3:])
 f.round = 3
 f.player.hp = f.player.max_hp * 0.5
 mid = f.player.hp

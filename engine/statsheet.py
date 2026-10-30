@@ -54,7 +54,16 @@ def sheet(f: combat.Fighter) -> dict:
         mult = 1 + f.attrs.get(attr_name, 10) / RULES["spell_attribute"]
         offense.append(["Spell power", _n(power), "added to a spell's base power from a magical weapon, a focus or gear; "
                                                   + ("none of those yet" if not power else "before your casting attribute multiplies it")])
-        offense.append(["Spell damage", _n((base + power) * mult), f"an average spell before its ability's own power and armor or ward: (base {_n(base)} + spell power) x {_n(mult, 2)} from {attr_name.capitalize()}"])
+        ranks = [mv.rank for mv in casts if mv.rank and mv.effect == "damage" and not mv.named]
+        if ranks:                                           # (f400) the spellbook: a bolt of the highest rank they cast
+            from engine import spells
+            r, coef, share = max(ranks), float(spells.S["coefficient"]), f.spell_share
+            offense.append(["Spell damage", _n((spells.base(r) + coef * power) * mult * share),
+                            f"a rank {spells.numeral(r)} bolt before armor or ward: (base {_n(spells.base(r))} + {_n(coef, 2)} x spell power) x "
+                            f"{_n(mult, 2)} from {attr_name.capitalize()}" + (f", at {round(share * 100)}% for a hire" if share != 1 else "")
+                            + "; other forms are multiples of it"])
+        elif f.side != "ally":                              # a hire with no damage spell (a priest) has no spell damage to show
+            offense.append(["Spell damage", _n((base + power) * mult), f"an average spell before its ability's own power and armor or ward: (base {_n(base)} + spell power) x {_n(mult, 2)} from {attr_name.capitalize()}"])
     if f.armor_pierce:
         offense.append(["Armor pierce", _pct(f.armor_pierce), "of a foe's armor ignored"])
     ev = combat.bonus(f, "evasion", always)
