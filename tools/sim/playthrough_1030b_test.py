@@ -16,6 +16,7 @@ from scenes.world import WorldScene
 from scenes.combat_scene import CombatScene
 from storage.campaign import CampaignStore, PlayerState
 from world.loader import load_world
+from engine.hygiene import clean as hygiene_clean
 
 bad = []
 def check(n, ok, x=""):
@@ -93,8 +94,9 @@ real_gen, ra.generate = ra.generate, fake_generate
 road = next(iter(world.roads.values()))
 a, b = road.from_, road.to
 before = {id(i) for i in ws.pack}
-hostile_was = ra.R["hostile"]
+hostile_was, kinds_was = ra.R["hostile"], ra.R.get("kinds")
 ra.R["hostile"] = 0
+ra.R["kinds"] = {"find": 1}                              # (f411) the engine picks the kind; a find here
 road_out = io.StringIO()
 with contextlib.redirect_stdout(road_out):
     ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [], walked=40)
@@ -111,6 +113,42 @@ road_out = io.StringIO()
 with contextlib.redirect_stdout(road_out):
     ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [], walked=40)
 check("...the model's own telling of the walk when it gives one", "grey sky, Jorn a step behind you" in road_out.getvalue(), road_out.getvalue()[:300])
+# ---- (f411) what the examples showed: every happening a find, the walk left out, an odd fallback line, a stray backslash
+ra.R["kinds"] = {"meeting": 1}
+ra.generate = fake_generate
+found_user, pack_was = seen.get("user", ""), list(ws.pack)
+with contextlib.redirect_stdout(io.StringIO()):
+    ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [], walked=40)
+check("the engine picks what kind of happening it is, and the model is told it", "KIND: meeting" in seen.get("user", "")
+      and "finds and takes" not in seen.get("user", ""), seen.get("user", "")[-400:])
+seen["user"] = found_user
+ws.pack[:] = pack_was
+ra.R["kinds"] = kinds_was
+check("...the kinds are weighted in the rules, finds not the only one", len(kinds_was or {}) >= 4 and kinds_was.get("find", 0) < sum(kinds_was.values()) / 2,
+      kinds_was)
+import json as _json
+from pydantic import ValidationError
+ctx = {"hostile": False, "checks": ["perception"], "kind": "meeting", "want_journey": True}
+def road_ok(**kw):
+    body = dict(title="T", journey="You walk an hour.", scene="A carter waves.", kind="meeting")
+    body.update(kw)
+    try:
+        RoadEvent.model_validate_json(_json.dumps(body), context=ctx)
+        return True
+    except ValidationError:
+        return False
+check("...and a happening of another kind is sent back", road_ok() and not road_ok(kind="find"))
+check("the walk before a happening is required: left out, it is sent back", not road_ok(journey="  ")
+      and "journey" in RoadEvent.model_json_schema().get("required", []))
+unnamed = next(((x, y) for x in world.places for y in world.places if x != y and world.road_between(x, y) is None), None)
+if unnamed:
+    line = ws.journey_line([unnamed[0], unnamed[1]], unnamed[0], unnamed[1], 90)
+    check("...the fallback on a way with no named road says no 'by the way toward'", "way toward" not in line
+          and f"bound for {world.places[unnamed[1]].name}" in line, line)
+check("a stray backslash before punctuation is taken out", hygiene_clean("the iron shears.\\, nearby") == "the iron shears., nearby"
+      and hygiene_clean("a path\\ winds") == "a path winds")
+from engine import hygiene as _hy
+check("...and the walk is prose the gateway checks, like the scene", "journey" in _hy.PROSE and "scene" in _hy.PROSE)
 ra.R["hostile"] = hostile_was
 ra.generate = real_gen
 new = [i for i in ws.pack if id(i) not in before]

@@ -12,6 +12,10 @@ max_per_trip: 4            # the most events one journey can hold
 hostile: 0.4
 hostile_max: 0.9
 
+# (f411) What kind a happening that is not a fight is: the engine picks, so they vary (left to the model, told what a find would give,
+# every one of them was a find).
+kinds: {find: 30, meeting: 25, sight: 20, hazard: 15, aid: 10}
+
 # How big an event is. Only the tiers listed under interrupt stop the journey and leave the player on the road.
 tiers:
   normal:   {weight: 70}

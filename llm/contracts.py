@@ -9,7 +9,7 @@ validation context passed to llm.gateway.generate.
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
+from pydantic import ConfigDict, BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
 
 from core.models import (
     COMPANION_TARGETS,
@@ -1525,8 +1525,15 @@ class MotiveStep(BaseModel):
     gossip: str = ""       # what others might say about it, if anything
 
 
+def _journey_required(schema: dict, model) -> None:
+    """(f411) The model writes the walk before a road's happening: an optional field is one it leaves out."""
+    if "journey" in schema.get("properties", {}) and "journey" not in schema.setdefault("required", []):
+        schema["required"].insert(1, "journey")
+
+
 class RoadEvent(BaseModel):
     """Something that happens on the road. The model describes it; the engine rolls any check, loot or fight."""
+    model_config = ConfigDict(json_schema_extra=_journey_required)
     title: str
     journey: str = ""              # (f408) the walk before it: setting out, the road, the company, the time on it; never the happening
     scene: str                     # what the player sees and hears, two or three sentences, second person
@@ -1542,6 +1549,10 @@ class RoadEvent(BaseModel):
         ctx = _ctx(info)
         if ctx.get("hostile") and self.kind != "ambush":
             raise ValueError("this event is a hostile encounter: kind must be ambush")
+        if ctx.get("kind") and self.kind != ctx["kind"]:
+            raise ValueError(f"this event is a {ctx['kind']}: kind must be {ctx['kind']}")
+        if ctx.get("want_journey") and not self.journey.strip():
+            raise ValueError("write the journey: the walk before the happening, two or three sentences")
         if not ctx.get("hostile") and self.kind == "ambush":
             raise ValueError("this event is NOT a fight: pick find, meeting, hazard, sight or aid")
         if self.kind == "hazard" and self.check not in ctx.get("checks", []):

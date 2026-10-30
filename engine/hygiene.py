@@ -134,6 +134,11 @@ def clean(text: str) -> str:
     if "\\n" in t:
         t = t.replace("\\n", "\n")
         REPAIRS["escape"] += 1
+    if "\\" in t:                                          # (f411) a stray backslash before punctuation: "iron shears.\, nearby"
+        t2 = re.sub(r"\\+(?=[\s,.;:!?'\"]|$)", "", t)
+        if t2 != t:
+            REPAIRS["escape"] += 1
+            t = t2
     lead = re.match(r'^\s*\{\s*"[A-Za-z_]+"\s*:\s*"', t)
     if lead:
         t = t[lead.end():]

@@ -134,8 +134,8 @@ class RoadActions:
     def journey_line(self, route, a, b, walked: int) -> str:
         """(f408) The walk before a happening, when the model gave none: where from, where to, by what road, how long."""
         r = self.world.road_between(a, b)
-        way = r.name if r else f"the way toward {self.world.places[b].name}"
-        return (f"You set out from {self.world.places[route[0]].name} by {way}, bound for {self.world.places[route[-1]].name}. "
+        by = f" by {r.name}" if r else ""                 # (f411) no named road: no "by the way toward Elmshade, bound for Elmshade"
+        return (f"You set out from {self.world.places[route[0]].name}{by}, bound for {self.world.places[route[-1]].name}. "
                 f"You have been walking {clock.describe_duration(max(5, walked))}.")
 
     def road_event(self, route, a, b, minutes, frac, text, log, resume: str | None = None, stop_name: str = "", walked: int = 0):
@@ -182,11 +182,15 @@ class RoadActions:
                     "Not a fight; kind sight. Describe the unseen watchers and the tension, in the traveler's view")
         else:
             must = "a happening that is not a fight"
-        prize = None
-        if not hostile and not deterred:                     # (f406) what a find gives is rolled first, and the scene shows that thing
-            prize = self.road_prize(tier, a, b)
-            must += (f". IF IT IS A FIND (kind find), what the traveler finds and takes is exactly this: {inv.label(prize)} "
-                     f"({prize.rarity}). The scene shows that thing; nothing else there can be taken")
+        prize, kind = None, ("ambush" if hostile else "sight" if deterred else "")
+        if not hostile and not deterred:                     # (f411) the engine picks the kind, so they vary
+            kinds = R.get("kinds") or {"find": 1, "meeting": 1, "sight": 1, "hazard": 1, "aid": 1}
+            kind = self.rng.choices(list(kinds), weights=list(kinds.values()))[0]
+            must += f". KIND: {kind}"
+            if kind == "find":                               # (f406) what a find gives is rolled first, and the scene shows that thing
+                prize = self.road_prize(tier, a, b)
+                must += (f". What the traveler finds and takes is exactly this: {inv.label(prize)} ({prize.rarity}). The scene shows "
+                         f"that thing; nothing else there can be taken")
         if matter and (hostile or not deterred):
             must += matters.road_lines(matter[0], matter[1], hostile)
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
@@ -198,7 +202,7 @@ class RoadActions:
                      sorted(self.world.roles), ", ".join(rkeys.values()), interrupts or hostile,
                      self.journey_facts(route, a, b, walked), self.road_company()),
                 RoadEvent, temperature=0.95, max_tokens=900,
-                validation_context={"hostile": hostile, "checks": list(checks.CHECKS)})
+                validation_context={"hostile": hostile, "checks": list(checks.CHECKS), "kind": kind, "want_journey": True})
         except LLMError as e:
             console.debug(f"road: nothing happened this time ({e})")
             return None

@@ -62,6 +62,7 @@ def check(texts) -> tuple[str, str]:
 
 
 _WORD = re.compile(r"[^\W\d_]+")
+WORDS = set((G.get("script") or {}).get("words") or [])
 
 
 def _foreign(ch: str) -> bool:
@@ -70,13 +71,16 @@ def _foreign(ch: str) -> bool:
 
 def foreign(texts, allowed: str = "") -> str:
     """(f390) The first word written in another alphabet or script (그의, 彼の, лишь) in these texts, or ''. A word that `allowed` (the
-    request) already carries is not counted: it came from the player or the game, not from the model losing its language."""
+    request) already carries is not counted: it came from the player or the game, not from the model losing its language. (f411) So is
+    a word of another language in Latin letters, from the list in guard.yaml ("watching you avec a steady focus")."""
     for t in texts:
-        if not t or t.isascii():
+        if not t:
             continue
         for m in _WORD.finditer(t):
             word = m.group(0)
-            if any(_foreign(ch) for ch in word) and word not in allowed:
+            if word in WORDS and not re.search(rf"(?<!\w){re.escape(word)}(?!\w)", allowed):
+                return word
+            if not word.isascii() and any(_foreign(ch) for ch in word) and word not in allowed:
                 return word
     return ""
 
