@@ -1297,10 +1297,11 @@ class CombatScene:
         self.ws.store.save_place(state)
         coins = self.ws.flaws_on_loot(coins)
         c.coins += coins
-        for item in found:
-            self.ws.to_pack(item)
+        stowed = [self.ws.to_pack(item) for item in found]
         levels = leveling.gain_xp(c, total_xp)
-        noticed = [items.display_name(i) if i.rarity == "legendary" else inventory.label(i) for i in found]
+        name_of = lambda i: items.display_name(i) if i.rarity == "legendary" else inventory.label(i)
+        noticed = [name_of(st.kept) for st in stowed if st.kept is not None]
+        lying = [name_of(st.left) for st in stowed if st.left is not None]    # (f417) no room: left here, and told so, never pocketed
         if coins:
             noticed.append("a few coins")
         noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
@@ -1326,8 +1327,10 @@ class CombatScene:
                f"{'; '.join(feet)}\n" if (feet := self.on_their_feet()) else "")
             + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "")
             + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(done) + "\n")
-               if (done := ledger.told()) else "") +                                                          # (f416)
-            f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
+               if (done := ledger.told(but=("gained", "left"))) else "") +            # (f416) the finds are told below, under their own heads
+            f"THE PLAYER FINDS: {'; '.join(noticed) or 'nothing'}\n"                  # (f417) '; ': a name can hold a comma
+            + (f"LEFT LYING HERE (no room in the player's pack: they see it and leave it; never taken, pocketed or carried): "
+               f"{'; '.join(lying)}\n" if lying else "")
             + (f"{wp.HABITS_HEAD}: {' '.join(end_habits)}\n" if end_habits else "")
             + self.aftermath_facts(dead, skinnable) +
             "RECENT NARRATION:\n" + "\n".join(f"  - {r}" for r in self.ws.recent_narration[-3:]),

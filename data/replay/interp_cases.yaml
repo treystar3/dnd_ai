@@ -332,6 +332,17 @@
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
   plan: [{kind: sell, target: s1, item: longsword}]
   expect: {handled_by: interpret, kinds: [sell], first: {target: s1}}
+# (f417) a word and a deal with the same person: the deal is settled first, so their answer knows how it went
+- name: a_word_then_a_sale_settles_the_sale_first
+  text: "I ask Odo whether he'll give a fair price, and sell him my old longsword"
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
+  plan: [{kind: talk, target: s1, speech: "Will you give me a fair price for this?"}, {kind: sell, target: s1, item: longsword}]
+  expect: {handled_by: interpret, kinds: [sell, talk], first: {target: s1}}
+- name: a_word_then_a_walk_keeps_its_order
+  text: "I tell Odo I'll be back, and walk to the inn"
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
+  plan: [{kind: talk, target: s1, speech: "I'll be back."}, {kind: move, destination: tilted_plough}]
+  expect: {handled_by: interpret, kinds: [talk, move]}
 - name: asking_who_buys_is_talk
   text: "Would anyone here buy wolf hides?"
   scene: {place: trading_square, present: [{id: h1, name: Tamsin, role: hunter}], pack: ["raw:wolf_hide"]}

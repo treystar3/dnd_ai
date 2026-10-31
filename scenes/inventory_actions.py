@@ -5,13 +5,20 @@ Mixed into WorldScene, so every method can use the scene's state (player, place,
 
 import random
 import re
+from typing import NamedTuple
 
 from core.models import Item, KeyItem
-from engine import clock, crafting, encounters, equipment, inventory as inv, items, money, needs, pools, property as property_rules
+from engine import clock, crafting, encounters, equipment, inventory as inv, items, ledger, money, needs, pools, property as property_rules
 from npc.models import Memory
 from ui import console
 
 R = inv.RULES
+
+
+class Stowed(NamedTuple):
+    """(f417) What to_pack did with a thing: the part that went into the pack, and the part left on the ground for want of room."""
+    kept: Item | None
+    left: Item | None
 
 
 def quality_name(item: Item) -> str:
@@ -27,14 +34,23 @@ class InventoryActions:
     def pack(self) -> list[Item]:
         return self.player.character.inventory
 
-    def to_pack(self, item: Item, why: str = "") -> None:
-        """Add to the pack; anything that does not fit is left on the ground here."""
+    def to_pack(self, item: Item, why: str = "") -> Stowed:
+        """Add to the pack; anything that does not fit is left on the ground here. (f417) It says which, and the turn's record keeps both,
+        so no passage pockets what lies on the ground: a night's after-fight passage slid an amulet into a pocket a line after the game
+        had left it on the ground, and the player reached for it later and was told it was not there."""
         leftover = inv.add(self.pack, item, self.pack_slots())
+        kept = item if leftover is None else item.model_copy(update={"quantity": item.quantity - leftover.quantity}) \
+            if leftover.quantity < item.quantity else None
+        if kept is not None:
+            ledger.add("gained", item=kept.uid, say=f"{inv.label(kept)} is in the player's pack now.")
         if leftover:
             state = self.store.load_place(self.player.location)
             inv.leave_on_ground(state, leftover, self.minutes)
             self.store.save_place(state)
             console.note(f"No room in your pack - {inv.label(leftover)} left on the ground here.")
+            ledger.add("left", item=leftover.uid, say=f"{inv.label(leftover)} is LEFT LYING here: there was no room in the player's pack. "
+                                                       "Never show it taken, pocketed or carried.")
+        return Stowed(kept, leftover)
 
     def ground_here(self) -> list[Item]:
         state = self.store.load_place(self.player.location)
@@ -486,12 +502,12 @@ class InventoryActions:
             self.to_pack(extra)
             found_note = items.MATERIALS[extra.material].name
             console.ledger(f"Among the stones: raw {found_note}.")
-        for gid, n in found.items():
-            self.to_pack(inv.make_good(gid, n))
+        lying = [st.left for st in (self.to_pack(inv.make_good(gid, n)) for gid, n in found.items()) if st.left is not None]
         self.store.save_player(self.player)
         got = ", ".join(f"{n} {inv.GOODS[g].name}" for g, n in found.items())
         console.ledger(f"Gathered: {got}.")
-        self.narrate(f"The player spends half an hour foraging and gathers {got}.", text)
+        self.narrate(f"The player spends half an hour foraging and gathers {got}."
+                     + (f" Their pack is full: {', '.join(inv.label(i) for i in lying)} they leave where it grew." if lying else ""), text)
 
     def on_craft(self, intent, text: str) -> None:
         recipe = inv.find_recipe(intent.item or text)

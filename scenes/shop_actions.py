@@ -78,11 +78,12 @@ class ShopActions:
             self.player.room, self.player.room_until = self.player.location, nights_end
             effect = "They are shown a small room upstairs that is theirs until mid-morning tomorrow."
         elif ware.kind == "material" and ware.item:
-            self.to_pack(items.make_raw(ware.item))
-            effect = f"They take {ware.name}."
+            st = self.to_pack(items.make_raw(ware.item))
+            effect = f"They take {ware.name}." if st.left is None else f"They have {ware.name}, but no room to carry it: it is set down here."
         elif ware.kind == "item" and ware.item:
-            self.to_pack(inv.make_good(ware.item, 1))
-            effect = f"They put {inv.GOODS[ware.item].name} in their pack."
+            st = self.to_pack(inv.make_good(ware.item, 1))           # (f417) a full pack: it is bought, and set down here, not pocketed
+            effect = (f"They put {inv.GOODS[ware.item].name} in their pack." if st.left is None
+                      else f"They have {inv.GOODS[ware.item].name}, but no room in their pack for it: it is set down here.")
         elif ware.kind in ("meal", "drink"):
             meal = needs.N["meal"]
             share = {"stamina": 0.25, "health": meal["health"] / 100} if ware.kind == "meal" else {"stamina": 0.08, "health": 0.0}
@@ -98,6 +99,8 @@ class ShopActions:
         self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(seller.id,), npc=seller.id, name=seller.label(),
                            item=ware.name, coins=ware.price, bought=True), seller)
         self.store.save_player(self.player)
+        from engine import ledger                       # (f417) settled: what the seller says after it, and the passage, read it
+        ledger.add("paid", to=seller.id, amount=ware.price, say=f"The player has paid {seller.label()} for {ware.name}; it is settled.")
         console.ledger(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
         if quiet:
             if ware.kind == "room":
@@ -129,14 +132,17 @@ class ShopActions:
         from engine.domain_events import Traded
         self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
                            item=item.name, coins=price, bought=True), npc)
-        self.to_pack(item)
+        st = self.to_pack(item)
         self.store.save_player(self.player)
+        from engine import ledger
+        ledger.add("paid", to=npc.id, amount=price, say=f"The player has bought {item.name} from {npc.label()}; it is settled.")   # (f417)
         console.note(f"Bought {quality_name(item)} (lv {item.item_level}) for {money.fmt(price)}. "
                      f"Purse: {money.fmt(c.coins)}")
         if item.uid.startswith("relic_"):
             self.weight_hint = "major"
         if not quiet:
-            self.narrate(f"The player buys {item.name} from {npc.label()} for {money.words(price)}.", text)
+            self.narrate(f"The player buys {item.name} from {npc.label()} for {money.words(price)}."
+                         + (" Their pack is full: it is set down here, not carried." if st.left is not None else ""), text)
         return True
 
     def finish_sale(self, sold, buyer, text: str = "", quiet: bool = False) -> int:
@@ -150,6 +156,9 @@ class ShopActions:
         self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(buyer.id,), npc=buyer.id, name=buyer.label(),
                            item=inv.label(sold), coins=paid, bought=False), buyer)
         self.store.save_player(self.player)
+        from engine import ledger
+        ledger.add("received", by=buyer.id, amount=paid,                                                  # (f417)
+                   say=f"{buyer.label()} has bought {inv.label(sold)} from the player and paid for it; it is settled.")
         console.note(f"Sold {inv.label(sold)} to {buyer.label()} for {money.fmt(paid)}. Purse: {money.fmt(self.player.character.coins)}")
         if not quiet:
             self.narrate(f"The player sells {inv.label(sold)} to {buyer.label()}, who pays {money.words(paid)}.", text)

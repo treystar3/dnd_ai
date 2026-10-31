@@ -120,8 +120,8 @@ You narrate the moment just after a fight ends. The last foe is down. Begin wher
 BEGIN LIKE THESE began; a returning silence, a held breath or a heaving chest open it only if OPEN ON asks for that. Then what this fight
 leaves that is its own: the fallen, a wound that matters, the place, anything found. The player's companions come in only for what is
 given about them (who died, who is down, what they do now); never go round them one pose each. If the player finds anything, describe
-them noticing it and taking it: it is already in their pack or purse, never left lying. THE BODIES and WHAT THE FIGHT CALLED UP are facts:
-keep to them, whatever the narration before said.
+them noticing it and taking it: what THE PLAYER FINDS is already in their pack or purse, never left lying; what is LEFT LYING HERE they
+see and leave, for want of room. THE BODIES and WHAT THE FIGHT CALLED UP are facts: keep to them, whatever the narration before said.
 No numbers, no game words. Respond only with JSON matching the schema, with the prose in "text"."""
 
 

@@ -69,13 +69,15 @@ def count(kind: str) -> int:
     return TOTALS[kind]
 
 
-def told() -> list[str]:
+def told(but: tuple[str, ...] = ()) -> list[str]:
     """The turn's rows as the narrator is given them: plain facts, the engine's, to tell and never contradict. Each is handed over once:
-    (f416) a row told in one passage is not told again in the next."""
+    (f416) a row told in one passage is not told again in the next. but: kinds the caller tells under heads of its own (the passage after
+    a fight lists what was found and what was left), marked told and not returned."""
     out = []
     for r in ROWS:
         if r.get("say") and not r.get("told"):
-            out.append(r["say"])
+            if r["kind"] not in but:
+                out.append(r["say"])
             r["told"] = True
     return out
 

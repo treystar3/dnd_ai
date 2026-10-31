@@ -726,6 +726,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.ran = []
                 self.handle(text)
+                if self.resume_pending and not self.combat and not getattr(self, "held_yield", None):
+                    self.resume_road()                     # (f417) a won road fight walks on once the player has said what becomes of who yielded
                 heard = self.hire_said_marks()
                 self.sync_heard()
                 self.orenna_tick()
@@ -1080,7 +1082,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if self.combat:
             self.combat.turn(text)
             self.took(text, "combat")
-            if not self.combat and self.resume_pending:
+            if not self.combat and self.resume_pending and not getattr(self, "held_yield", None):
                 self.resume_road()
             return
         for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)

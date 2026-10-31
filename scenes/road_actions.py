@@ -191,8 +191,12 @@ class RoadActions:
             must += f". KIND: {kind}"
             if kind == "find":                               # (f406) what a find gives is rolled first, and the scene shows that thing
                 prize = self.road_prize(tier, a, b)
-                must += (f". What the traveler finds and takes is exactly this: {inv.label(prize)} ({prize.rarity}). The scene shows "
-                         f"that thing; nothing else there can be taken")
+                if inv.fits(self.pack, prize, self.pack_slots()):
+                    must += (f". What the traveler finds and takes is exactly this: {inv.label(prize)} ({prize.rarity}). The scene shows "
+                             f"that thing; nothing else there can be taken")
+                else:                                        # (f417) room is checked first: a full pack leaves it where it lies
+                    must += (f". What the traveler finds is exactly this: {inv.label(prize)} ({prize.rarity}), but their pack is full and "
+                             f"they leave it where it lies. The scene shows that thing left behind; nothing there is taken")
         if matter and (hostile or not deterred):
             must += matters.road_lines(matter[0], matter[1], hostile)
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
@@ -296,6 +300,10 @@ class RoadActions:
             left = inv.add(self.pack, item, self.pack_slots())
             console.ledger(f"You take: {inv.label(item)}." if left is None else
                          f"You find {inv.label(item)}, but your pack is full - you leave it.")
+            from engine import ledger                       # (f417) and the arrival is told which
+            ledger.add("gained" if left is None else "left", item=item.uid,
+                       say=f"On the road the player found {inv.label(item)}" + (" and took it." if left is None
+                                                                               else ", and left it there: their pack was full. Never show it carried."))
         elif ev.kind == "hazard":
             odds, _ = checks.chance(c, ev.check, self.check_triggers(ev.check, False))
             degree, _ = checks.roll(odds, rng, c=c)
@@ -329,7 +337,8 @@ class RoadActions:
         if outcome == "victory" and road.get("camp"):
             self.loot_camp(road.pop("camp"))
         if outcome == "victory" and road.get("resume"):
-            self.resume_pending = (road["resume"], road.get("text", ""))
+            road["log"] = (road.get("log", []) + [f"{road.get('title') or 'On the road'}: the player fought it out there, won, and went on."])[-6:]
+            self.resume_pending = (road["resume"], road.get("text", ""))     # (f417) the arrival is told the fight; the walk waits on any yield
         elif outcome == "defeat":
             self.player.road = None
         road["resume"] = ""
@@ -345,6 +354,10 @@ class RoadActions:
         left = inv.add(self.pack, item, self.pack_slots())
         console.note(f"You search the camp. Stolen coin: {money.fmt(coins)}. " +
                      (f"And {inv.label(item)}." if left is None else f"There is {inv.label(item)} too, but your pack is full."))
+        from engine import ledger                                           # (f417)
+        ledger.add("gained" if left is None else "left", item=item.uid,
+                   say=f"In the outlaws' camp the player finds stolen coin and {inv.label(item)}" + (", and takes both." if left is None
+                       else "; the coin is taken, the rest left: their pack is full. Never show it carried."))
         self.store.save_player(self.player)
 
     def resume_road(self) -> None:
