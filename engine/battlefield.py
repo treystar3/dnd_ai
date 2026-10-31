@@ -319,7 +319,7 @@ def narrative_snapshot(fight) -> str:
         bits = []
         for f in here:
             tied = [o.name for o in here if o.id in f.engaged_with]
-            bits.append(f.name + (f" (on {tied[0]})" if tied else (f" ({f.row})" if f.row != "loose" else "")))
+            bits.append(f.name + (f" (fighting {tied[0]})" if tied else (f" ({f.row})" if f.row != "loose" else "")))   # (f419) not '(on X)'
         tags = f" [{', '.join(z.tags)}]" if z.tags else ""
         out.append(f"{z.name}{tags}: " + ", ".join(bits))
     return "\n".join(out)

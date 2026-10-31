@@ -102,7 +102,7 @@ fa = fa_save
 lines_before = len(cmb.log)
 _r = random.Random(6)
 for _ in range(80): combat.apply_damage(cmb, fa, foe, 1.0, "hits", _r, how="with a sword")
-check("elemental damage follows the blow", any("fire damage burns" in l for l in cmb.log[lines_before:]), str(cmb.log[-2:]))
+check("elemental damage follows the blow", any("fire damage from gear hits" in l for l in cmb.log[lines_before:]), str(cmb.log[-2:]))
 sword.properties = [ItemProperty(modifies="crit_damage", trigger="always", magnitude=30)]
 ch.equipment = {"main_hand": sword}
 fa = combat.fighter_from_character(ch)

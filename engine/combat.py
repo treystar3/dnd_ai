@@ -7,6 +7,7 @@ the danger estimate shown to the player, and the balance simulator (tools/balanc
 import copy
 import math
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -313,8 +314,23 @@ def severity(dealt: float, max_hp: int) -> str:
     return "a devastating blow"
 
 
+def possessive(f: Fighter) -> str:
+    """(f419) Whose weapon, said rightly: 'your' for the player, a companion's own his or her (engine/names.py CAST, Maren hers), 'their'
+    for any other person, 'its' for a beast or a thing. Every ally was 'its' before: 'Odly strikes with its sword'."""
+    if f.side == "player":
+        return "your"
+    from engine import names
+    pron = names.CAST.get(f.name.split()[0]) if f.side == "ally" and f.name else None
+    if pron is None and f.side == "ally" and f.name == "Maren Holt":
+        pron = "she"
+    if pron in names.POSSESSIVE:
+        return names.POSSESSIVE[pron]
+    from engine.arcs import A as ARCS
+    return "their" if f.ally_role or f.category in ARCS["people_categories"] else "its"
+
+
 def weapon_phrase(f: Fighter) -> str:
-    return f"with {'your' if f.side == 'player' else 'its'} {f.weapon_name}"
+    return f"with {possessive(f)} {f.weapon_name}"
 
 
 def tell(combat: Combat, text: str, rec: dict | None = None) -> None:
@@ -618,7 +634,7 @@ def fighter_from_creature(creature, level: int, rank: str, fid: str, name: str =
         eased = 1.0 if level <= soft["soft_until_level"] else \
             (soft["full_by_level"] - level) / (soft["full_by_level"] - soft["soft_until_level"])
         dmg *= 1 - (1 - soft["factor"]) * eased
-    attack = next((a for a in creature.attacks), "strike")
+    attack = re.sub(r"\s*\([^)]*\)", "", next((a for a in creature.attacks), "strike")).strip() or "strike"   # (f419) no '(Fiend Form Only)
     fighter = Fighter(
         id=fid, name=name or creature.name.lower(), side="enemy", level=level, size=creature.size,
         category=creature.category, creature=creature.id, rank=rank, attrs=attrs, hp=max_hp, max_hp=max_hp,
@@ -1505,11 +1521,12 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             dealt = take_damage(combat, dfn, part, att, rng, "magical")
             att.hit_element = held
             taken += dealt
-            combat.log.append(f"{att.name}'s {el} damage burns {dfn.name}: {dealt}")
+            combat.log.append(f"{att.name}'s {el} damage from gear hits {dfn.name}: {dealt}")       # (f419) lightning does not burn
             if rec is not None:
                 rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
             if not combat.burn_told or not dfn.alive:           # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
-                tell(combat, f"{el} damage follows the blow into {who(dfn)}" + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+                tell(combat, f"{el} damage follows the {'spell' if att.spell_kind == 'spell' else 'blow'} into {who(dfn)}"
+                     + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
                 combat.burn_told = True
     if "acid_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
         cap = AT.BUFFS.get("acidcoat", {}).get("cap", 75)
@@ -1526,7 +1543,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         held, att.hit_element = att.hit_element, el
         extra = take_damage(combat, dfn, part, att, rng, "magical")
         att.hit_element = held
-        combat.log.append(f"{att.name}'s {el} weapon burns {dfn.name}: {extra}")
+        combat.log.append(f"{att.name}'s {el} weapon hits {dfn.name}: {extra}")
         if rec is not None:
             rec["extras"].append([f"{el.capitalize()} weapon", f"+{round(extra)}"])
         tell(combat, f"{el} flares along the blow and bites into {who(dfn)} ({buff.get('name') or 'Elemental Weapon'})")
@@ -1562,7 +1579,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             heal = round(taken * leech / 100)
             if heal:
                 restore(combat, att, heal)
-                tell(combat, f"the weapon drinks from the wound, and {heal} health flows back into {who(att)}")
+                tell(combat, f"the weapon drinks from the wound, and strength flows back into {who(att)}")        # (f419) no figure, no game word
         if att.max_mana:
             att.mana = min(att.max_mana, att.mana + att.max_mana * bonus(att, "siphon_mana", always) / 100)
         if att.max_stamina:
@@ -2076,8 +2093,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         if aim and not access.ok:                         # the action is spent getting there, and the ability is kept
             story = bf.approach(combat, att, aim) if access.can_approach else ""
             combat.log.append(f"{att.name}: {access.why} ({move.name} is kept)")
-            tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else "") +
-                 f", so {move.name} is not spent")
+            tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))   # (f419) what is kept is the log's
             return None
     cost = cost_of(att, move, combat) if not echo else 0
     body = stamina_part(att, move, combat) if not echo else 0   # a channeled strike's stamina (f260)
@@ -2760,7 +2776,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{e.name} is befuddled and turns on {target.name}")
             tell(combat, f"{who(e)} lashes out blindly at {who(target)}")
             if target.side == e.side:
-                apply_damage(combat, e, target, 1.0, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+                apply_damage(combat, e, target, 1.0, f"attacks ({e.weapon_name})", rng)
                 return
     if "frightened" in e.statuses and _pressed(combat, e) != "engaged" and "grappled" not in e.statuses:
         combat.log.append(f"{e.name} hangs back, afraid")
@@ -2829,7 +2845,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         tell(combat, f"{who(e)} cannot bring its arms to bear, and guards instead")
         behaviors.after_turn(combat, e, rng)
         return
-    landed = apply_damage(combat, e, target, mult, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+    landed = apply_damage(combat, e, target, mult, f"attacks ({e.weapon_name})", rng)
     behaviors.after_hit(combat, e, target, landed, rng)
     behaviors.after_turn(combat, e, rng)
     if e.boss and e.alive and combat.player.alive:

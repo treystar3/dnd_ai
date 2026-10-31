@@ -36,8 +36,15 @@ ROLE_PROFILES = {
 }
 
 
-TAG = re.compile(r"\s*[\[\(\{]\s*h\d+\s*[\]\)\}]", re.IGNORECASE)
-TAG_N = re.compile(r"\s*[\[\(\{]\s*h(\d+)\s*[\]\)\}]", re.IGNORECASE)
+# (f419) a marker the model wrapped in a parenthesis or wrote with a '#' ('([h3])', '(#h4)') is taken whole: before, the inner one was
+# taken and '()' was left on the screen
+TAG = re.compile(r"\s*(?:\(\s*[\[\{]\s*#?\s*h\d+\s*[\]\}]\s*\)|[\[\(\{]\s*#?\s*h\d+\s*[\]\)\}])", re.IGNORECASE)
+TAG_N = re.compile(r"\s*(?:\(\s*[\[\{]\s*#?\s*h(\d+)\s*[\]\}]\s*\)|[\[\(\{]\s*#?\s*h(\d+)\s*[\]\)\}])", re.IGNORECASE)
+
+
+def tag_number(m) -> int:
+    """The blow a TAG_N match marks, whichever form it took."""
+    return int(m.group(1) or m.group(2))
 
 
 _END = re.compile(r"[.!?]+[\"'”’]*(?=\s|$)")
@@ -85,7 +92,7 @@ def seat_missing(text: str, hits: list[dict], story: list[str]) -> str:
         at = {}
         for i, (a, b) in enumerate(spans):
             for m in TAG_N.finditer(text[a:b]):
-                at.setdefault(int(m.group(1)), i)
+                at.setdefault(tag_number(m), i)
         if k in at:
             continue
         before = [i for n, i in at.items() if n < k]
@@ -93,7 +100,7 @@ def seat_missing(text: str, hits: list[dict], story: list[str]) -> str:
         lo, hi = (max(before) + 1 if before else 0), (min(after) if after else len(spans))
         if lo >= hi and after:                         # told in the same sentence as the blow after it: just before that blow's tag
             a, b = spans[hi]
-            nxt = next(m for m in TAG_N.finditer(text[a:b]) if int(m.group(1)) > k)
+            nxt = next(m for m in TAG_N.finditer(text[a:b]) if tag_number(m) > k)
             text = text[:a + nxt.start()] + f" [h{k}]" + text[a + nxt.start():]
             continue
         told = _sense(TAG_N.sub("", next((s for s in story if f"[h{k}]" in s), "")))
@@ -116,7 +123,7 @@ def place_figures(text: str, hits: list[dict], window: bool, story: list[str] = 
     def fig(h):
         return f"⟦{h['id']}|{h['figure']}⟧" if window else h['figure']
     def sub(m):
-        h = by_tag.get('h' + m.group(1))
+        h = by_tag.get(f'h{tag_number(m)}')
         if not h or h['tag'] in used:
             return ''
         used.add(h['tag'])
@@ -1337,8 +1344,9 @@ class CombatScene:
             Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"))
         self.ws.__dict__.setdefault("_after_starts", []).append(" ".join(aftermath.text.split()[:5]))
         del self.ws._after_starts[:-4]
-        console.narrate(aftermath.text)
-        self.ws.remember_narration(aftermath.text)
+        after_text = self.ws.unnamed(aftermath.text)                 # (f419) a name the player was never told stays hidden here too
+        console.narrate(after_text)
+        self.ws.remember_narration(after_text)
         taken = self.take_prisoners(yielded)
         self.ws.hold_yielded([e for e in yielded if e not in taken])         # (f385) the rest wait on the player's word
         console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
