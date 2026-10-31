@@ -70,7 +70,12 @@ class Result:
 
 
 def _key(step) -> tuple:
+    """What makes two steps the same step. (f420) An improvised act is nothing but its summary, so for 'other' the summary counts:
+    without it, the audit's own corrected reading ("attempts to grow wings and fly away") compared equal to the joke it replaced and
+    was thrown away, and two improvised acts in one line were merged into one."""
     d = step.model_dump(exclude={"summary", "mark", "checks"})
+    if step.kind == "other":
+        d["summary"] = " ".join(re.sub(r"[^a-z0-9' ]+", " ", (step.summary or "").lower()).split())
     return tuple(sorted((k, str(v)) for k, v in d.items()))
 
 
@@ -122,11 +127,26 @@ def _mentions(text: str, *names: str) -> bool:
     return bool(stems) and any(w[:4] in stems for w in _words(text))
 
 
+def party_proposal(plan: list) -> bool:
+    """(f420) "Gallen, let's head for the guild hall" read as a word to the companion and the walk it names is one thing said and done,
+    not two intents to check: the audit flagged it, asked again, and the walk was lost."""
+    from engine import actions
+    if len(plan) != 2:
+        return False
+    talk = next((a for a in plan if a.kind == "talk" and str(a.target).startswith("hire:")), None)
+    deed = next((a for a in plan if a.kind in ("move", "search", "explore")), None)
+    if talk is None or deed is None:
+        return False
+    words = actions.BY_KIND[deed.kind].verbs + actions.BY_KIND[deed.kind].words + ("let's", "lets", "head", "make our way", "look for", "hunt")
+    low = (talk.speech or "").lower()
+    return any(re.search(r"\b" + re.escape(w) + r"\b", low) for w in words)
+
+
 def risk_flags(text: str, plan: list, sit: Situation) -> list[str]:
     flags = []
     low = text.lower()
     kinds = {s.kind for s in plan}
-    if len(plan) >= 2:
+    if len(plan) >= 2 and not party_proposal(plan):
         flags.append("multi_intent")
     if "other" in kinds:
         flags.append("other_intent")

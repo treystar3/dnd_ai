@@ -222,7 +222,7 @@ class InventoryActions:
     def on_pick_up(self, intent, text: str) -> None:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
-        if not item and any(w in (intent.item or text).lower() for w in self.COIN_WORDS):        # (f384) loot coin goes straight to the purse
+        if not item and self.coin_word(intent.item or text):        # (f384) loot coin goes straight to the purse
             self.refuse(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
             return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
@@ -234,7 +234,15 @@ class InventoryActions:
         self.store.save_player(self.player)
         self.narrate(f"The player picks up {inv.label(item)}.", text)
 
-    COIN_WORDS = ("coin", "silver", "gold", "copper", "money", "payment", "fee")
+    # (f420) coin as a whole word: never 'silverleaf', 'golden', 'feet', and never 'a silver signet ring' - a metal named before a thing
+    # is that thing; it is coin alone, with a number, or with 'coins', 'pieces' and the like
+    COIN = re.compile(r"\b(?:coins?|money|payment|fee|purse)\b|\b\d+\s*(?:gold|silver|copper)\b|\b(?:gold|silver|copper)"
+                      r"(?:\s+(?:coins?|pieces?|crowns?|bits?))?(?=\s*$|\s*[.,!?;:]|\s+(?:to|for|and|or|in|into|on|onto|from|as|with|at|"
+                      r"over|instead|then|now|here|there)\b)", re.I)
+
+    def coin_word(self, words: str) -> bool:
+        """(f420) Do these words name coin? The one test every coin check uses."""
+        return bool(self.COIN.search(words or ""))
     NUMBER_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
                     "eight": 8, "nine": 9, "ten": 10, "twenty": 20, "fifty": 50, "hundred": 100}
 
@@ -332,7 +340,7 @@ class InventoryActions:
         """Coins into a temple's box. True if that is what this was (and it has been dealt with)."""
         from engine import standing
         named = (intent.item or "").lower()
-        if self.place.type != "temple" or not any(w in named for w in self.COIN_WORDS) or inv.find(self.pack, named):
+        if self.place.type != "temple" or not self.coin_word(named) or inv.find(self.pack, named):
             return False
         low = f"{text} {intent.summary}".lower()
         if intent.target and any(n.id == intent.target for n in self.present) and not any(w in low for w in self.TITHE_WORDS):
@@ -354,6 +362,43 @@ class InventoryActions:
                      f"nobody makes a fuss.", text)                      # (f413) no length (f375)
         return True
 
+    def give_to_hire(self, m: dict, intent, text: str) -> None:
+        """(f420) Coin or a thing from the pack handed to a companion: it is theirs, they remember it, and a draught given to one who is
+        hurt is drunk. Before, only townsfolk could be given anything: 'I hand Odly the silver' was refused, there being no one here."""
+        from engine import party as rules
+        c, first, day = self.player.character, m["name"].split()[0], clock.day(self.minutes)
+        if self.coin_word(intent.item or "") and not inv.find(self.pack, intent.item or ""):
+            amount = self.coin_amount(intent.item or "") or self.coin_amount(text)
+            if not amount:
+                self.refuse("How much? Say an amount.")
+                return
+            if c.coins < amount:
+                self.refuse(f"You only have {money.words(c.coins)}.")
+                return
+            c.coins -= amount
+            console.ledger(f"Gave {first} {money.fmt(amount)}. Purse: {money.fmt(c.coins)}")
+            rules.remember(m, day, f"The player gave me {money.words(amount)}.", 2)
+            what, drunk = "some coin", False
+        else:
+            item = inv.take(self.pack, intent.item or text, 1)
+            if not item:
+                self.refuse("You aren't carrying that.")
+                return
+            g = inv.GOODS.get(item.good) if item.good else None
+            drunk = bool(g and g.restores.get("health") and m.get("hp_frac", 1.0) < 1.0)
+            if drunk:
+                m["hp_frac"] = min(1.0, m.get("hp_frac", 1.0) + g.restores["health"] / 100)
+            else:
+                m.setdefault("given", []).append(inv.label(item))
+                del m["given"][:-10]
+            console.ledger(f"Gave {first} {inv.label(item)}.")
+            rules.remember(m, day, f"The player gave me {inv.label(item)}" + (" when I was hurt, and I drank it." if drunk else "."), 2)
+            what = inv.label(item)
+        m["bond"] = m.get("bond", 0) + 1
+        self.store.save_player(self.player)
+        ledger.add("given", to=m["id"], say=f"The player has handed {first} {what}" + (", and they drink it." if drunk else "; it is theirs now."))
+        self.narrate(f"The player hands {first} {what}." + (f" {first} drinks it down." if drunk else ""), text)
+
     def on_give(self, intent, text: str) -> None:
         if self.tithe_box(intent, text):
             return
@@ -361,6 +406,12 @@ class InventoryActions:
         if not self.rank and self.clerk_here() and _mt.stage(self.player) == "sign" and not intent.target:
             from llm.contracts import ActionIntent                 # at the clerk's desk with Maren, coin held out is the joining fee (f283)
             self.on_join_guild(ActionIntent(kind="join_guild"), text)
+            return
+        hire = self.hire_by_id(intent.target) if str(intent.target).startswith("hire:") else None
+        if hire is None and not any(n.id == intent.target for n in self.present):
+            hire = self.hire_named(text)
+        if hire is not None and self.player.party_mode == "with":
+            self.give_to_hire(hire, intent, text)                 # (f420) a companion is someone to give to as well
             return
         npc = next((n for n in self.present if n.id == intent.target), None) or \
             (self.partner if self.partner in self.present else None)
@@ -372,7 +423,7 @@ class InventoryActions:
             self.refuse("There's no one here to give that to.")
             return
         named = (intent.item or "").lower()
-        if any(w in named for w in self.COIN_WORDS) and not inv.find(self.pack, named):
+        if self.coin_word(named) and not inv.find(self.pack, named):
             self.pay_with_coins(intent, text, npc)
             return
         key = None if inv.find(self.pack, intent.item or text) else self.find_key(intent.item or text)

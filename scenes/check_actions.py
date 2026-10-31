@@ -70,7 +70,7 @@ class CheckActions:
         if "stealth" in wanted and intent.kind in ("attack", "ability") and getattr(self, "wildlife", None):
             wanted.remove("stealth")                    # creeping up to strike: the fight rolls it, after any buffs go up (f248)
             self.sneaking = True
-        if intent.kind == "give" and any(w in (intent.item or "").lower() for w in self.COIN_WORDS):
+        if intent.kind == "give" and self.coin_word(intent.item or ""):
             wanted = [c for c in wanted if c != "persuasion"]       # offering coin rolls its own persuasion check (a bribe)
         if not wanted:
             return False

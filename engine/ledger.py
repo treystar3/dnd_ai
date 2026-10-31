@@ -31,6 +31,7 @@ KINDS = {                                     # what each row means; add() refus
     "gained": "a thing now in the player's pack",
     "left": "a thing left lying here, not taken",
     "paid": "coin the player paid out",
+    "given": "coin or a thing the player handed to a companion",
     "received": "coin paid to the player",
     "departed": "someone gone from the place",
     "worked": "work done for someone",

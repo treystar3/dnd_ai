@@ -907,6 +907,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         item = equipment.find(c, query, "inventory")
         if not item:
+            worn = equipment.find(c, query, "equipment") or next((i for i in c.equipment.values() if query.strip().lower()
+                                                                  in (items.base_of(i).name.lower(), items.base_of(i).slot.replace("_", " "))), None)
+            if worn:                                                  # (f420) already in hand: that is a yes, quietly, never "not carrying"
+                from engine.names import cap_first
+                console.note(f"{cap_first(items.display_name(worn))} is already {'in hand' if items.base_of(worn).slot in ('main_hand', 'off_hand') else 'on'}.")
+                return
             console.note(f"You aren't carrying anything matching '{query}'.")
             return
         console.note(equipment.equip(c, item))
@@ -1348,7 +1354,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 verbs = {w for b in plan if b is not a and b.kind != "talk" for w in actions.BY_KIND[b.kind].verbs + actions.BY_KIND[b.kind].words}
                 lead = re.findall(r"[a-z']+", said)[:2]                  # "give bram", "throw dice", "offer the": the action is in the first two words
                 narrated = any(w in verbs for w in lead) or any(" ".join(lead).startswith(v + " ") for v in verbs if " " in v)
-                first_person = re.match(r"^\W*(?:i|we)\b", speech.lower()) is not None and any(b.kind != "talk" for b in plan)
+                here = any(n.id == a.target for n in self.present)
+                first_person = actions.first_person_action(speech, here) and any(b.kind != "talk" for b in plan)   # (f420) the one definition
                 to_someone = re.search(r"\b(you|your|yours|you're|you've|you'll|please|thanks|thank you)\b", speech.lower()) is not None
                 if narrated or (same and first_person and not to_someone):   # the whole line, told in the first person to nobody, is the player narrating
                     console.debug(f"dropped a talk narrating the {[b.kind for b in plan if b is not a]} step: {a.speech[:60]!r}")
@@ -1878,8 +1885,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return any(w in t for w in ("follow", "shortcut", "short cut", "trail", "track", "path", "explore", "find a way",
                                     "see where", "wander", "look for a way", "cut through", "hidden"))
 
-    GENERIC_WORDS = {"the", "of", "and", "hall", "house", "guild", "guildhall", "inn", "shop", "temple", "forge", "smithy", "market",
-                     "square", "tavern", "workshop", "yard", "trading", "village", "town"}
+    GENERIC_WORDS = __import__("engine.candidates", fromlist=["GENERIC"]).GENERIC     # (f420) the one list, in interpret.yaml generic_words
 
     BUILDING_TYPES = ("shop", "inn", "temple", "guild", "workshop", "smithy", "yard", "guardpost")
     # who works in a kind of building: in a town with no such building, "go to the smithy" means walk over to them
@@ -2258,7 +2264,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif reply.offers_quest and reply.offers_quest.what.strip() and not npc.quest_offer:
             self.record_quest_offer(reply.offers_quest, npc)
         elif not npc.work_offer and not (reply.offers_quest and reply.offers_quest.what.strip()) and self.promises_pay(reply.speech):
-            self.record_work_offer(self.inferred_offer(npc, reply.speech), npc)      # pay was promised in words: make it a real, payable offer
+            if (offer := self.inferred_offer(npc, reply.speech)) is not None:       # pay was promised in words: make it a real, payable offer
+                self.record_work_offer(offer, npc)
         if reply.gives and reply.gives.name.strip() and reply.intent != "bargain" and self.story_object(reply.gives.name):
             self.receive_key_item(reply.gives, npc)
         elif reply.gives:

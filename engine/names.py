@@ -122,6 +122,12 @@ OTHERS = {"is", "was", "asks", "tells", "gives", "shows", "hands", "offers", "le
           "takes", "calls", "names", "wants", "needs", "likes", "misses", "loves", "hates", "knows", "finds", "leaves", "joins", "pays"}
 
 
+def cap_first(text: str) -> str:
+    """(f420) The first letter made a capital and nothing else touched: str.capitalize() wrote 'Albert bain' and 'The guard captain of
+    riverhaven'."""
+    return text[:1].upper() + text[1:] if text else text
+
+
 def set_cast(cast: dict[str, str]) -> None:
     CAST.clear()
     CAST.update({k: v for k, v in cast.items() if k and v in ("he", "she")})

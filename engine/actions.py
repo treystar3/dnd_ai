@@ -171,17 +171,29 @@ STATIVE = ("am", "'m", "was", "were", "do", "don't", "did", "didn't", "have", "'
            "suppose", "hope", "see", "saw", "understand", "mean", "meant", "want", "wanted", "need", "reckon", "agree", "disagree", "like", "feel", "felt",
            "remember", "believe", "trust", "owe", "hear", "heard", "wonder", "doubt", "bet", "got", "get", "prefer", "expect", "imagine", "figure", "say",
            "said", "tell", "told", "thank", "promise", "swear", "admit", "confess", "apologise", "apologize", "hate", "love", "miss", "appreciate", "wish",
-           "fear", "suspect", "assume", "insist", "mind", "care", "dare", "intend", "plan", "forgot", "forget", "wasn't", "weren't", "ain't", "hadn't")
-FIRST_PERSON = re.compile(r"^(?:i|we)\s+(?!(?:" + "|".join(re.escape(w) for w in STATIVE) + r")\b)([a-z]+)\b")
+           "fear", "suspect", "assume", "insist", "mind", "care", "dare", "intend", "plan", "forgot", "forget", "wasn't", "weren't", "ain't", "hadn't",
+           "be")                                                       # (f420) "I'll be fine" is how they are, not a deed
+_NOT_STATIVE = r"(?!(?:" + "|".join(re.escape(w) for w in STATIVE) + r")\b)"
+FIRST_PERSON = re.compile(r"^(?:i|we)\s+" + _NOT_STATIVE + r"([a-z]+)\b")
+# (f420) what the player says they are about to do: "I'll check these woods", "I am going to scan the trees", "I'm taking the bounty"
+INTENDING = re.compile(r"^(?:i|we)(?:'ll|\s+will|\s+shall|'m going to|'m gonna|\s+am going to|'re going to|\s+are going to)\s+" + _NOT_STATIVE
+                       + r"([a-z]+)\b|^(?:i|we)(?:'m|\s+am|'re|\s+are)\s+(?!(?:thinking|wondering|hoping|feeling|guessing|wanting|needing|going|getting|"
+                       r"sorry|fine|good|okay|ok|ready|here|not|just|still)\b)([a-z]+ing)\b")
 
 
-def first_person_action(text: str) -> bool:
+def first_person_action(text: str, addressee_present: bool = False) -> bool:
     """(f369) 'I whistle an old tune', 'I take the road to Eldervale', 'I practise sword forms': a line that opens on the player doing
     something is an action, whatever words follow, and never an answer to the hire who spoke last. 'I think so', 'I don't know, Bram' and
-    'I'm fine' open on what the player thinks or is, and stay answers."""
-    low = (text or "").strip().lower().lstrip("\"'")
-    m = FIRST_PERSON.match(low)
-    return bool(m) and not low.rstrip().endswith("?")
+    'I'm fine' open on what the player thinks or is, and stay answers. (f420) So does what they say they are about to do ("I'll check
+    these woods for any more black bears", "I'm going to scan the trees"): those went to the hire as chat, and the woods were never
+    searched. But said to someone who is here ("I'll take the contract", to the clerk), it is words said to them (addressee_present):
+    five contracts taken that way lost their words, and the clerk never answered."""
+    low = (text or "").strip().lower().lstrip("\"'").replace("\u2019", "'")
+    if low.rstrip().endswith("?"):
+        return False
+    if INTENDING.match(low):
+        return not addressee_present
+    return bool(FIRST_PERSON.match(low))
 
 
 def action_re(extra: tuple[str, ...] = ()) -> re.Pattern:

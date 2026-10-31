@@ -41,7 +41,7 @@ class Listening:
             named = next((inv.label(i) for i in self.pack if said(inv.label(i), low)), None)
             if named:
                 a.item = named                                    # the staff they named, not the wand the reading picked
-            elif a.kind == "give" and any(w in low for w in self.COIN_WORDS) and not self.is_coin(a.item):
+            elif a.kind == "give" and self.coin_word(low) and not self.is_coin(a.item):
                 a.item = "coins"                                  # coin they named, not a thing whose name has 'silver' in it
 
     def is_coin(self, item: str) -> bool:

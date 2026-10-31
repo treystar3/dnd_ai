@@ -70,7 +70,8 @@ def brief(plan: list) -> str:
 
 
 GOING = re.compile(r"\b(go|goes|going|walk|head|travel|ride|set out|set off|make for|off to|over to|leave for|to the|towards?|visit|return)\b")
-WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|the bar|the counter|a table|the table|the corner|the hearth|the fire|"
+# (f420) "our rooms", "my quarters": a room in the inn, never a journey
+WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|our rooms?|my quarters|our quarters|rooms?|quarters|the bar|the counter|a table|the table|the corner|the hearth|the fire|"
                     r"the window|the back room|the kitchen|the cellar|the loft|the stairs|a seat|a bench|the benches)\b")
 CLIMB = re.compile(r"\b(climb|clamber|scale|scramble|haul (myself|me) up|pull (myself|me) up|get up onto)\b")
 HIGH = re.compile(r"\b(roof|rooftop|wall|tree|ledge|rafters|chimney|eaves|balcony|cliff|rocks?|boulder)\b")
