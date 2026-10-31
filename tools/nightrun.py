@@ -230,11 +230,20 @@ class Run:
                 who = self.cast.setdefault(comp.name, {"kind": "companion", "pronoun": party.companion_pronoun(comp), "people": comp.creature,
                                                        "first_turn": ws.store.meta.turn})
                 who["last_turn"] = ws.store.meta.turn
+            from engine import entities                     # (f414) and the captives and townsfolk met, so the page's pronoun count covers them
+            for e in ws.store.find_entities(kind="captive"):
+                if e.name:
+                    self.cast.setdefault(e.name, {"kind": "captive", "pronoun": e.pronoun, "people": e.people, "first_turn": ws.store.meta.turn})
+            for n in list(getattr(ws, "present", []) or []):
+                if getattr(n, "name", "") and entities.GENDER.get(getattr(n, "gender", "")) and n.name not in self.cast:
+                    self.cast[n.name] = {"kind": "townsfolk", "pronoun": entities.GENDER[n.gender], "people": getattr(n, "people", ""),
+                                         "first_turn": ws.store.meta.turn}
             today = clock.day(ws.minutes)
             held = [today - int(v.get("day", today)) for v in (p.prisoners or {}).values()]
             return {"place": p.location, "spot": getattr(p, "spot", ""), "minutes": ws.minutes, "delve": bool(p.delve), "at_dungeon": ws.dungeon_here() is not None,
                     "party_mode": getattr(p, "party_mode", "with"), "party": [m.get("name", "") for m in p.party],
-                    "prisoners": len(held), "prisoner_days": max(held, default=0)}
+                    "prisoners": len(held), "prisoner_days": max(held, default=0),
+                    "foes": [e.level for e in ws.combat.fight.enemies()] if getattr(ws, "combat", None) else []}   # (f414) for the page's level-gap count
         except Exception as e:
             return {"error": str(e)[:120]}
 
