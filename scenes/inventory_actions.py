@@ -481,6 +481,10 @@ class InventoryActions:
         console.ledger(f"Stored: {inv.label(item)}. Item box {len(self.player.stash)}/{self.stash_cap()}.")
 
     def on_retrieve(self, intent, text: str) -> None:
+        held = inv.find(self.pack, intent.item or text) if (intent.item or "").strip() else None
+        if held is not None and not inv.find(self.player.stash, intent.item or text):
+            console.note(f"{cap_first(inv.label(held))} is already in your pack.")     # (f429) "I pocket the wand" just picked up: a yes
+            return
         if not self.can_store():
             self.refuse("There's no item box here.")
             return

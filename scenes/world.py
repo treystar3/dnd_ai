@@ -912,6 +912,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not item:
             worn = equipment.find(c, query, "equipment") or next((i for i in c.equipment.values() if query.strip().lower()
                                                                   in (items.base_of(i).name.lower(), items.base_of(i).slot.replace("_", " "))), None)
+            if worn is None and re.search(r"\b(blade|weapon|steel|arms|sword)\b", query.lower()):
+                worn = c.equipment.get("main_hand")                   # (f429) "I draw my blade" with a mace in hand: the mace
             if worn:                                                  # (f420) already in hand: that is a yes, quietly, never "not carrying"
                 console.note(f"{cap_first(items.display_name(worn))} is already {'in hand' if items.base_of(worn).slot in ('main_hand', 'off_hand') else 'on'}.")
                 return
