@@ -75,7 +75,8 @@ How we check: the blind readers' notes on voices and identity drift, voice tests
 The prose is judged "through the lens of an expert writer especially someone with a high understanding of fantasy like Tolkien". It
 should feel natural, never "unnatural and ai".
 
-- No dashes in the story. This is the owner's one exception to leaving the narrator's style alone.
+- No dashes in the story. This is the owner's one exception to leaving the narrator's style alone. The game's own italic notes may
+  keep theirs.
 - No length limits on the narrator or the speakers. "Remove all restrictions from the llm narrator and npc responses that have to do
   with length." A passage is long or short by what it holds.
 - Nothing stamps out the same paragraph shape every time (fight rounds, after-fight passages, monster entrances).
@@ -138,6 +139,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 
 | Decision | Feature |
 | --- | --- |
+| "The games own italic notes with dashes can stay." No dashes is for the story (narration, speech, and what the narrator is handed); the game's own notes, lists and labels keep theirs. | f413 |
 | Companion habits ("counts her coin on arriving") are handed to the narrator and told inside the passage of their moment, never on a line of their own. | f412 |
 | An accent is in every line a speaker says, not rolled for some. | f410 |
 | Travel is narrated; road events sit inside the journey. Dialogue must keep moving toward sounding human. | f408, f409 |
