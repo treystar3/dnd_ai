@@ -156,7 +156,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 | Bad-weather and storm rules apply only under open sky: "yes only under open sky" | review Q14 |
 | Road stops and dungeon mouths for the rules of settlements: "they shouldn't count as settled. If a road stop is sufficiently populated it may" | review Q15 |
 | The "Roads leave..." lines: "roads leave lines should come from map.yaml" | review Q16 |
-| A far place named only in part: "For major cities they need to say it exactly but for places off a road or locations it can ask." | review Q17 |
+| A far place named only in part: "For major cities they need to say it exactly but for places off a road or locations it can ask."; major cities are "places the map types as a city or major town" | review Q17 |
 | Place names the narrator or a townsperson coins: "They should be walkable aliases." | review Q18 |
 | A companion on an errand: "They do actually leave but still count as being in your party. They can be gone but the party pane still shows where they are and what they're doing if they're not with you." | review Q19 |
 | Companions keeping gifts or coin: "Memory only for now but maybe return to this." | review Q20 |
@@ -170,7 +170,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 | A bounty taken alive counts: "at hand over" | review Q28 |
 | Ransoming captives: "remove that state and for now have it just raise reputation in the place you turned the captive over to" | review Q29 |
 | An escaped captive coming back with a grudge: "It should be possible" | review Q30 |
-| The cap of deeds in one line: "Raise the cap but keep an upper limit for a clear runaway case. Maybe a limit of 15 or 99." | review Q31 |
+| The cap of deeds in one line: "Raise the cap but keep an upper limit for a clear runaway case. Maybe a limit of 15 or 99."; the limit: "15 works for now" | review Q31 |
 | Summoning, whether the engine knows what each summoner may call: "The engine should know" | review Q32 |
 | A sensible improvised act can yield a real item: "this should be possible to create a real item for improvised acts" | review Q33 |
 | Props for an act: "catalogued goods must be carried and trifles can be supplied by the place" | review Q34 |
