@@ -479,6 +479,16 @@ class Clarify(BaseModel):
 
     _blank = blank_placeholders("line")
 
+    @model_validator(mode="after")
+    def in_the_world(self):
+        """(f422) The question is asked in the world, never in the game's words: 'end the current quest' reached the page."""
+        from engine import mentor
+        low = (self.line or "").lower()
+        hit = sorted(set(re.findall(r"[a-z]+", low)) & (mentor.BANNED_WORDS | {"quest", "action", "command", "input", "intent"}))
+        if hit or re.search(r"(current|active) (quest|task|contract)", low):
+            raise ValueError(f"ask it as someone in the world would, in plain words: no '{(hit or ['quest'])[0]}'")
+        return self
+
 
 class Need(BaseModel):
     """(f395) Something the world must hold for an attempt, that it does not hold yet: a part of the place, a person, a thing, a way."""
@@ -1000,6 +1010,9 @@ def _no_tics(speech: str, last: str = "") -> None:
         raise ValueError(f"you opened your last line on '{o.capitalize()}' too; open this one on what you have to say")
 
 
+NO_WORDS = re.compile(r"\W*(?:none|n/?a|nothing|silence|no reply|no answer|\.\.\.)?\W*", re.I)      # (f422) speech that says nothing
+
+
 class NPCReply(BaseModel):
     speech: str
     gesture: str = ""
@@ -1032,6 +1045,8 @@ class NPCReply(BaseModel):
 
     @model_validator(mode="after")
     def said_again(self, info: ValidationInfo):
+        if NO_WORDS.fullmatch(self.speech or "") and not (self.gesture or "").strip():          # (f422) "None." was printed under their name
+            raise ValueError("say something: speech is the words they say aloud; for an answer with no words, put what they do in gesture")
         if "*" in self.speech or "_" in self.speech:
             raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _no_tics(self.speech, _ctx(info).get("last") or "")
@@ -1205,6 +1220,13 @@ class DialogueFrame(BaseModel):
             if first in theirs and first not in mine and first not in ("the", "a", "an"):
                 who = ctx.get("speaker", ["the speaker"])[0]
                 raise ValueError(f"the frame is about {who}, but it opens on {theirs[first]}: write it about {who}, by name or as they are known")
+        said = re.findall(r"[a-z']+", str(ctx.get("speech") or "").lower())       # (f422) the words are printed between the parts, once
+        if len(said) >= 4:
+            runs = {" ".join(said[i:i + 4]) for i in range(len(said) - 3)}
+            for field in (self.before, self.after):
+                mine_ = re.findall(r"[a-z']+", (field or "").lower())
+                if any(" ".join(mine_[i:i + 4]) in runs for i in range(len(mine_) - 3)):
+                    raise ValueError("the frame repeats the words said; they are printed between before and after: never quote or retell them")
         return self
 
 

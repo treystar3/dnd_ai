@@ -11,6 +11,7 @@ import random
 
 from engine import features, ledger
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 
 class PartActions:
@@ -76,7 +77,7 @@ class PartActions:
         if h == "resource" and e.data.get("good"):
             from engine import inventory
             g = inventory.GOODS.get(e.data["good"])
-            return f"{g.name.capitalize()} grows here. " if g else ""
+            return f"{cap_first(g.name)} grows here. " if g else ""
         if h == "hazard" and first and not e.data.get("met"):
             return self.meet_hazard(e)
         if h == "hazard":

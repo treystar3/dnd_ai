@@ -731,8 +731,9 @@ class CombatScene:
                 killed.append(m)
                 self.ws.mourn(m, by)
             else:
-                combat.tell(f, f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but out of the fight, "
-                               "and they will have to be carried")
+                combat.tell(f, entities.gendered(f"{a.name} goes down hard{' under ' + whose_blow(by) if by else ''} and lies still: alive, but "
+                                                 "out of the fight, and they will have to be carried",            # (f422) in their own pronoun
+                                                 party.pronoun_of(m, self.ws.store.meta.seed, self.ws.player.party_used)))
         return killed
 
     def talk(self, intent, target, text: str) -> None:
@@ -1426,9 +1427,12 @@ class CombatScene:
             return [e for e in yielded if e.name == leader]
         self.ws.surrender_took = True
         rng = random.Random(f"{self.ws.store.meta.seed}:surrender:{self.ws.minutes}")
-        for e in ppl:
-            name = rng.choice(R["prisoner"]["names"])
-            kind = re.sub(r" ?\d+$", "", e.name)
+        taken = {n.split()[0].lower() for n in self.ws.store.npc_names() if n}            # (f422) no two captives, or a captive and a
+        for e in ppl:                                                                       # townsman, share a name in one save
+            free = [n for n in R["prisoner"]["names"] if n.split()[0].lower() not in taken] or R["prisoner"]["names"]
+            name = rng.choice(free)
+            taken.add(name.split()[0].lower())
+            kind = re.sub(r" ?\d+$", "", re.sub(r"\s*\([^)]*\)", "", e.name)).strip()            # (f422) no "(bounty)" on what they are
             self.ws.make_prisoner(name, "", tip=rng.random() < R["prisoner"]["tip_chance"], named=False, kind=kind, fighter=e)
         self.ws.store.save_player(self.ws.player)
         return ppl + [e for e in yielded if e.name == leader]

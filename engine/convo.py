@@ -18,10 +18,20 @@ def _norm(t: str) -> set[str]:
     return set(w.split("'")[0] for w in re.findall(r"[a-z']{3,}", (t or "").lower())) - STOP - {"again", "tell", "please"}
 
 
+QUESTION = re.compile(r"\?\s*[\"']?\s*$|^\W*(?:who|what|where|when|why|how|which|whose|do|does|did|is|are|was|were|can|could|would|will|"
+                      r"have|has|had|should|shall|may|might|tell me|any)\b", re.I)
+
+
+def is_question(text: str) -> bool:
+    """(f422) Only a question can be asked again: 'Thanks, Odly' and 'Let's go' were matched to earlier lines and answered as asked
+    before, on some sixty lines a night that asked nothing."""
+    return bool(QUESTION.search((text or "").strip()))
+
+
 def find(holder: dict, text: str) -> dict | None:
     """The earlier question this is much the same as, or None. By meaning when the helper model is there, else by shared words."""
     log = holder.get("convo", [])
-    if not log or not (text or "").strip():
+    if not log or not (text or "").strip() or not is_question(text):
         return None
     from llm import embed
     sims = embed.whole(text, [e["asked"] for e in log])
@@ -39,8 +49,8 @@ def find(holder: dict, text: str) -> dict | None:
 
 
 def record(holder: dict, text: str, reply: str, now: int) -> None:
-    """After they answer: the question and the answer are kept (the latest answer, if asked again)."""
-    if not (text or "").strip():
+    """After they answer: the question and the answer are kept (the latest answer, if asked again). Only a question is kept."""
+    if not (text or "").strip() or not is_question(text):
         return
     e = find(holder, text)
     if e:
@@ -66,9 +76,10 @@ def again_fact(e: dict) -> str:
 
 
 def again_rule(manner: str) -> str:
-    """Asked the same thing again: the same facts (the answer is still true), usually shorter. That they asked before may be noticed, in their
-    way, but it is not the subject. Saying the same thing again is allowed here (the answer is not checked against the last one)."""
-    return ("Answer with the same facts as before; they are still true. Usually shorter. You may notice they asked before, as you would ("
+    """Asked the same thing again: the same facts, usually shorter. That they asked before may be noticed, in their way, but it is not the
+    subject. Saying the same thing again is allowed here (the answer is not checked against the last one). (f422) "they are still true"
+    was read as a line to say."""
+    return ("Answer with the same facts as before. Usually shorter. You may notice they asked before, as you would ("
             + manner + "), but the asking again is not what the reply is about.")
 
 

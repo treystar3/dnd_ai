@@ -169,7 +169,7 @@ kinds = {tuple(quirks.detail_subjects({}, random.Random(k))) for k in range(30)}
 check("no two hires are built from the same subjects (mostly)", len(kinds) > 25, len(kinds))
 reqs.clear(); stub.companion = lambda u: (reqs.append(u), {"speech": "Under the mountain, among the deep halls of my people."})[1]
 w.hire_talk(m, "Where were you raised, and what did your family do?")
-check("...and where they were raised comes in when they are asked about it", "Raised in Ironvein" in reqs[0] and "Their family were" in reqs[0], reqs[0][:1500])
+check("...and where they were raised comes in when they are asked about it", "Raised in Ironvein" in reqs[0] and "family were" in reqs[0], reqs[0][:1500])
 m["quirks"]["voice"] = "curses"; m["temper"] = ["blunt", "dry"]
 vp.S["regard"].update(show=1, emotional=1)
 how_, _ = w.companion_parts(m, "how is the wound?", emotion="hurting", relation="affection", toward="the player")

@@ -165,7 +165,7 @@ errands:
     minutes: 60
   revenge:
     where: guild
-    ask: "Before we go. I want to ask the clerk after a name. {target}. It will take no time."
+    ask: "Before we go. I want to ask the clerk after {target}. It will take no time."
     yes_line: "{name} speaks to the clerk a while, low, and comes back with nothing new in {their} face."
     no_line: "{name} says the name once more, under {their} breath, and lets it go for now."
     memory_yes: "They let me ask after {target} at the guild hall."
@@ -291,9 +291,9 @@ promotion_fact: >
   other procedure.
 # how someone takes being asked or told the same thing again, by first temperament
 repeat_manner:
-  blunt:     "you are impatient with it and say so plainly; you can be harsh, even about something painful, though not for the sake of it"
-  mercenary: "you are cold about it; time is money, and you may be cutting, even about grief"
-  proud:     "you are irritated at going over old ground and may be cutting"
+  blunt:     "you are impatient with it and say so plainly, though never about something painful"
+  mercenary: "you are cool about it; time is money, and you say so, though not about grief"
+  proud:     "you are irritated at going over old ground, and let it show"
   dry:       "you remark, dryly, that you have heard it; you stay civil about anything painful"
   wary:      "you are guarded with them and watch them"
   gentle:    "you are patient; you acknowledge it gently and never make light of anything painful"
@@ -312,12 +312,12 @@ blueprints:
   cheerful:
     - {say: "Notices the good part of a bad situation and says so."}
     - {say: "Jokes when tension rises, to ease it rather than to wound."}
-    - {say: "Asks people how they are and means it."}
+    - {say: "Asks how people are doing and means it."}
     - {say: "Lets a bad moment pass quickly rather than dwelling on it."}
   wary:
     - {say: "Answers questions with as little as will do.", not_with: [questions]}
     - {say: "Asks a question back before giving anything away.", not_with: [one_sentence]}
-    - {say: "Notices small changes in tone and comments on them."}
+    - {say: "Notices small changes in tone and comments on each."}
     - {say: "Never volunteers anything about their own past."}
   proud:
     - {say: "Keeps a working distance, courteous and businesslike even when friendly."}

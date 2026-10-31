@@ -72,7 +72,7 @@ class MentorActions:
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"],
                                                   who_is=entities.who_is_who(self, also=["maren"])),       # (f392)
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)})
+                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME), "speech": speech})
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either
                     before, after = (re.sub(r"\bMaren( Holt)?\b", "the woman", x) for x in (before, after))

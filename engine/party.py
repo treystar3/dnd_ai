@@ -54,7 +54,8 @@ def roster(seed, hall: str, day: int, player_level: int, rank_coins: int, used: 
         from engine import voices
         voices.ensure(speech, rng, [o["speech"]["kit"] for o in out])      # (f350) no two on one list sound alike
         out.append({"id": f"{week}-{i}", "name": name, "role": role, "level": level, "rank": rank_of(level),
-                    "blurb": rng.choice(P["roles"][role]["blurb"]), "fee": 0, "hall": hall, "people": people, "speech": speech,
+                    "blurb": rng.choice([b for b in P["roles"][role]["blurb"] if all(o["blurb"] != b for o in out)]   # (f422) no two alike
+                                        or P["roles"][role]["blurb"]), "fee": 0, "hall": hall, "people": people, "speech": speech,
                     "pronoun": "she" if gender == "female" else "he", **roll_personality(rng)})
     rng.shuffle(out)
     for m in out:

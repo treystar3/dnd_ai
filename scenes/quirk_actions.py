@@ -378,8 +378,7 @@ class QuirkActions:
             self.companion_show(m, said or ask, "(on arriving)")
             rules.said(m, said or ask)
             m["quirks"]["errand_day"] = day
-            self._errand = (m, E)
-            console.note(f"[{m['name'].split()[0]} is asking something of you. Say yes, or no.]")
+            self._errand = (m, E)                                              # (f422) the ask is in their own words; no bracketed note under it
             self.store.save_player(self.player)
             return
 

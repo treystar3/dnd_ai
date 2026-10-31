@@ -272,7 +272,7 @@ def who(f: Fighter) -> str:
         return "you"
     if f.side == "ally":
         return f.name
-    name = f.name.replace(" (elite)", "")
+    name = re.sub(r"\s*\((?!elite\))[^)]*\)\s*$", "", f.name).replace(" (elite)", "")   # (f422) a tag such as "(bounty)" is not their name
     if name.lower().startswith(("the ", "a ", "an ", "one of ")) or (f.boss and name[:1].isupper()):
         return name                                   # already says what it is, or is a person with a name of their own
     prefix = "the hulking " if "(elite)" in f.name else "the "

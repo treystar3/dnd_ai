@@ -13,6 +13,7 @@ from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
 from llm.gateway import generate
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 H = law.H
 
@@ -284,7 +285,7 @@ class LawActions:
             self.open_lock(lock, "key")
             return ""
         changed = " Their key no longer fits - the lock has been changed." if self.has_key(lock) else ""
-        console.note(f"{lock['name'].capitalize()} is locked.{changed}")
+        console.note(f"{cap_first(lock['name'])} is locked.{changed}")
         return (f"The player reaches for what is kept in {lock['name']}, but it is locked and they cannot get at it.{changed} "
                 f"Describe the closed door or lid. Do not invent anything they find; the lock must be opened first.")
 

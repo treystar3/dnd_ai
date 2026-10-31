@@ -2,6 +2,7 @@
 
 from engine import money, mounts
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 
 class MountActions:
@@ -82,7 +83,7 @@ class MountActions:
         c = self.player.character
         result = mounts.buy(self.player, c, mount, price)
         if result == "short":
-            console.note(f"{mount['name'].capitalize()} costs {money.words(price)}; you have {money.words(c.coins)}.")
+            console.note(f"{cap_first(mount['name'])} costs {money.words(price)}; you have {money.words(c.coins)}.")
         elif result:
             console.note(result)
         else:

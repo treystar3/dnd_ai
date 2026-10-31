@@ -7,6 +7,7 @@ import re
 from core.models import KeyItem
 from engine import clock, combat, inventory as inv, leveling, money, quests
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 G = quests.G
 
@@ -463,7 +464,7 @@ class GuildActions:
         for e in dead:
             if getattr(e, "spawn", ""):
                 for s in events.on_kills(self.store, [e], self.minutes, self.world):
-                    console.note(f"{s['name'].capitalize()} is dead." if s["boss"] else f"The {s['name']} that were troubling this place are broken.")
+                    console.note(f"{cap_first(s['name'])} is dead." if s["boss"] else f"The {s['name']} that were troubling this place are broken.")
             self.notice(CreatureKilled(minute=self.minutes, place=self.player.location, creature=e.creature, level=e.level, rank=e.rank,
                                        spawn=getattr(e, "spawn", "")))
         changed = False
@@ -546,7 +547,7 @@ class GuildActions:
             self.notice(ContractDone(minute=self.minutes, place=q.get("place") if q.get("thread") and q.get("place") else self.player.location,
                                      witnesses=(payer.id,), npc=payer.id, name=payer.label(), quest=str(q["id"]), title=q["title"],
                                      thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
-            console.ledger(f"Completed: [{q['letter']}] {q['title']}. {payer.label().capitalize()} pays "
+            console.ledger(f"Completed: [{q['letter']}] {q['title']}. {cap_first(payer.label())} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
             if q["guild"]:
                 import random as _r

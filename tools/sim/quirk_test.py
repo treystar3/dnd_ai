@@ -158,7 +158,8 @@ check("an oath left over from a voice they no longer have is not theirs", quirks
 check("their own words are theirs", quirks.borrowed(br, "Ashes and rot.", [iq]) == "")
 
 # repeats follow the temperament; voices are told before, not refused after
-check("a blunt one may be harsh about a repeat; a gentle one never unkind", "harsh" in quirks.repeat_manner({"temper": ["blunt"]}) and "never" in quirks.repeat_manner({"temper": ["gentle"]}))
+check("a blunt one is plain about a repeat, never harsh (f422); a gentle one never unkind", "plainly" in quirks.repeat_manner({"temper": ["blunt"]})
+      and "harsh" not in quirks.repeat_manner({"temper": ["blunt"]}) and "never" in quirks.repeat_manner({"temper": ["gentle"]}))
 br2 = {"name": "Bram Voss", "quirks": {"voice": "curses", "curses": ["ashes and rot", "damn"]}, "said": ["Ashes and rot, that hurts."]}
 check("the request says he has just cursed, and lists nobody's words (a list is a list the model reaches into)", "Only Bram uses" not in quirks.voice_notes(br2) and "ashes" not in quirks.voice_notes(br2) and "cursed only just now" in quirks.voice_notes(br2))
 br2["said"] = ["Fine.", "Let us go."]

@@ -11,6 +11,7 @@ from core.models import Item, KeyItem
 from engine import clock, crafting, encounters, equipment, inventory as inv, items, ledger, money, needs, pools, property as property_rules
 from npc.models import Memory
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 R = inv.RULES
 
@@ -106,7 +107,7 @@ class InventoryActions:
             return False
         key = self.find_key(name)
         if key:
-            self.refuse(f"{key.name.capitalize()} is a {'quest' if key.kind == 'quest' else 'key'} item - you can't {what} it.")
+            self.refuse(f"{cap_first(key.name)} is a {'quest' if key.kind == 'quest' else 'key'} item - you can't {what} it.")
             return True
         return False
 
@@ -151,7 +152,7 @@ class InventoryActions:
             self.refuse("You don't have that.")
             return
         kind = "quest" if key.kind == "quest" else "key"
-        console.note(f"{key.name.capitalize()} is a {kind} item. Discard it for good? (y/n)")
+        console.note(f"{cap_first(key.name)} is a {kind} item. Discard it for good? (y/n)")
         if console.ask().lower() not in ("y", "yes"):
             console.note("Kept.")
             self.halted = True                                  # (f416) the player's choice, not a refusal
@@ -622,7 +623,7 @@ class InventoryActions:
         material, have = crafting.pick_material(self.pack, base.family, words, need)
         if not material:
             got = ", ".join(f"{n} {items.MATERIALS[m].name}" for m, n in have.items()) or "none"
-            self.refuse(f"{base.name.capitalize()} takes {need} {base.family} materials of one kind. You have: {got}.")
+            self.refuse(f"{cap_first(base.name)} takes {need} {base.family} materials of one kind. You have: {got}.")
             return
         fee = spot.get("fee", 0)
         if fee and self.owns("workshop_regular") and self.town_rep() >= 10:
@@ -708,7 +709,7 @@ class InventoryActions:
                 item = Item.model_validate(order["item"])
                 self.player.commissions.remove(order)
                 self.to_pack(item)
-                console.note(f"{order['npc_name'].capitalize()} hands over your commission: {quality_name(item)} "
+                console.note(f"{cap_first(order['npc_name'])} hands over your commission: {quality_name(item)} "
                              f"(lv {item.item_level}).")
                 self.store.save_player(self.player)
 
@@ -789,7 +790,7 @@ class InventoryActions:
         item = inv.find(self.pack, intent.item or text)
         if not item:
             worn = equipment.find(self.player.character, intent.item or text, "equipped")
-            self.refuse(f"{items.display_name(worn).capitalize()} is equipped. Unequip it first." if worn else "You aren't carrying that.")
+            self.refuse(f"{cap_first(items.display_name(worn))} is equipped. Unequip it first." if worn else "You aren't carrying that.")
             return
         cat = inv.category(item)
         buyers = [n for n in self.present if cat in self.world.roles[n.role].buys or "any" in self.world.roles[n.role].buys]

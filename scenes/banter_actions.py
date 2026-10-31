@@ -483,7 +483,7 @@ class BanterActions:
         records = [r for r in self.companion_records(m) if r.get("kind") not in without]
         rng = random.Random(f"{self.store.meta.seed}:{self.minutes}:{m['id']}")
         chosen, notes = context.select(m, records, "full" if query is None else scene, query, self.minutes, rng)
-        facts += (" " + " ".join(chosen) if chosen else "")
+        facts += (" " + entities.gendered(" ".join(chosen), own) if chosen else "")          # (f422) what is chosen about them, in their pronoun too
         note = context.raised_note(notes)
         return how + (" " + note if note else ""), facts
 

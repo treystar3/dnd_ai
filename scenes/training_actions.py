@@ -10,6 +10,7 @@ from engine import lessons
 from llm.gateway import LLMError
 from scenes import lesson_ask
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
 T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
@@ -140,7 +141,7 @@ class TrainingActions:
             nxt = min((spells.distinct(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
             self.refuse(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
             return
-        console.wait(f"{teacher.label().capitalize()} considers what to teach you.")
+        console.wait(f"{cap_first(teacher.label())} considers what to teach you.")
         want = lesson_ask.read_request(c, request)
         slots = lessons.plan(c, want, can_active=can_a, can_passive=can_p)
         try:

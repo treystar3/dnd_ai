@@ -5,6 +5,7 @@ import random
 from engine import combat, dungeons, items, loot, money
 from engine import field as _field
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 D = dungeons.D
 
@@ -31,7 +32,7 @@ class DungeonActions:
                 if d is not None:
                     if self.player.delve and self.player.delve.get("dungeon") == d["id"]:
                         self.player.delve = None
-                        console.note(f"{d['name'].capitalize()} has shifted and been remade - your progress there is lost.")
+                        console.note(f"{cap_first(d['name'])} has shifted and been remade - your progress there is lost.")
                     fresh["entrance"] = d["entrance"]
                     self.void_dungeon_contracts(d["id"], fresh)
                 known[place.id] = fresh
@@ -94,7 +95,7 @@ class DungeonActions:
         nxt = dungeons.next_chamber(d)
         if nxt is None:
             days = max(0, (d["made"] + D["respawn_days"] * 1440 - self.minutes) // 1440)
-            self.refuse(f"{d['name'].capitalize()} is cleared to the bottom. It will be remade in {days} days.")
+            self.refuse(f"{cap_first(d['name'])} is cleared to the bottom. It will be remade in {days} days.")
             return
         f, c = nxt
         floor = d["floors"][f]

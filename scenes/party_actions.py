@@ -171,7 +171,7 @@ class PartyActions:
     # ---------- the actions ----------
 
     def temper_text(self, m: dict) -> str:
-        return " and ".join(P["temperaments"][t]["say"] for t in m.get("temper", []) if t in P["temperaments"]) or "keeps to themselves"
+        return "; ".join(P["temperaments"][t]["say"] for t in m.get("temper", []) if t in P["temperaments"]) or "keeps to themselves"   # (f422) each its own clause
 
     def hire_facts(self, m: dict) -> dict:
         """What the game knows about a permanent hire: the plain facts a voice would be given."""

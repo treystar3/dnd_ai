@@ -8,6 +8,7 @@ import random
 
 from engine import behaviors, checks
 from engine import combat as C
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 T = C.RULES["talk"]
 APPROACHES = ("intimidate", "persuade", "deceive")
@@ -16,10 +17,10 @@ APPROACHES = ("intimidate", "persuade", "deceive")
 def why_not(target) -> str | None:
     """Why this enemy cannot be spoken to, or None."""
     if target.boss:
-        return f"{target.name.capitalize()} is past parley - it will fight."
+        return f"{cap_first(target.name)} is past parley - it will fight."
     fam = behaviors.FAMILIES.get(target.family, {})
     if fam.get("talk") is False or target.category not in T["categories"]:
-        return f"{target.name.capitalize()} cannot be reasoned with - it only understands the fight."
+        return f"{cap_first(target.name)} cannot be reasoned with - it only understands the fight."
     if target.talked:
         return f"You have already spoken to {target.name}. Words will not work again this fight."
     return None

@@ -72,7 +72,9 @@ def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tup
     feature = culture_feature(member, rng)
     lines = voices.lines(voices.kit_of(npc.speech)) + ([accent(member)] if accent(member) else []) \
         + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice; (f410) the accent always
-    return who(member), lines, material_for_feature(member, feature)
+    from engine import entities                                     # (f422) about them, in their own pronoun: a she was told "they have its
+    pron = entities.GENDER.get(getattr(npc, "gender", ""), "")      # way of talking"
+    return who(member), [entities.gendered(l, pron) for l in lines], material_for_feature(member, feature)
 
 
 def roll_background(rng: random.Random, culture: str) -> str:

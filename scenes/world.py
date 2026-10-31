@@ -58,6 +58,7 @@ from scenes.spell_actions import SpellActions
 from scenes import markup
 from engine import entities, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
 from llm.contracts import ActionIntent, ActionPlan, DialogueFrame, Narration
@@ -356,7 +357,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         seed = self.store.meta.seed
         street, cast = self.streets_now()                                                               # (f357)
         self.present = [n for n in self.residents
-                        if clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
+                        if not n.gone                                                                     # (f422) the dead and departed are not here
+                        and clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
                         and not routines.away(self.world, seed, n, self.minutes, cast)]                 # (f352) at the inn this evening, not here
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
@@ -910,7 +912,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             worn = equipment.find(c, query, "equipment") or next((i for i in c.equipment.values() if query.strip().lower()
                                                                   in (items.base_of(i).name.lower(), items.base_of(i).slot.replace("_", " "))), None)
             if worn:                                                  # (f420) already in hand: that is a yes, quietly, never "not carrying"
-                from engine.names import cap_first
                 console.note(f"{cap_first(items.display_name(worn))} is already {'in hand' if items.base_of(worn).slot in ('main_hand', 'off_hand') else 'on'}.")
                 return
             console.note(f"You aren't carrying anything matching '{query}'.")
@@ -1001,7 +1002,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                  if n.heard_of and not (n.met_player and n.name_known_to_player)]
         known = self.player.character.knowledge
         from engine import matters
-        found = [f"{e.name.capitalize()}, {self.where_name(e.place)}: {e.data['clue'].replace('{low_tide}', features.low_tide_text(self.minutes))}"
+        found = [f"{cap_first(e.name)}, {self.where_name(e.place)}: {e.data['clue'].replace('{low_tide}', features.low_tide_text(self.minutes))}"
                  for e in self.store.find_entities(kind="feature") if e.data.get("read") and e.data.get("clue")]          # (f394)
         return {"groups": out, "heard": heard, "facts": [self.world.lore[f].text for f in known if f in self.world.lore] + found,
                 "history": list(self.player.character.item_history), "matters": matters.journal(self)}
@@ -2295,7 +2296,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if reply.intent == "leave" and npc.role in ("guild_clerk",):
             reply.intent = "small_talk"            # the clerk stays at the desk: the guild must stay reachable
         if reply.intent == "leave" and npc.id not in self.player.prisoners:
-            console.narrate(f"{npc.label().capitalize()} lets the talk end there and steps away.")        # (f325) fiction, not a system note
+            console.narrate(f"{cap_first(npc.label())} lets the talk end there and steps away.")        # (f325) fiction, not a system note
             npc.away_until = self.minutes + 30
             self.store.save_npc(npc)
             self.end_conversation()
@@ -2367,6 +2368,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f347) The words alone, with the person's own gesture when it is short enough to read as one (voice_rules.short_gesture)."""
         from engine import quirks
         gesture = voice_rules.short_gesture(quirks.bare_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc), npc.name))   # no 'Rossy gives...': the label is printed
+        from llm.contracts import NO_WORDS
+        if NO_WORDS.fullmatch(reply.speech or ""):                     # (f422) no words: what they do, and no name over an empty line
+            done = self.unnamed(getattr(reply, "gesture", "") or "", npc).strip()
+            line = f"{speaker} {done}" if done and not done.lower().startswith(speaker.lower()) else (done or f"{speaker} says nothing.")
+            console.narrate(cap_first(line.rstrip(".") + "."))
+            self.remember_narration(line)
+            return
         console.npc_says(speaker, reply.speech, gesture)
         self.remember_narration(f'{speaker}: "{reply.speech}"', {"type": "says", "speaker": speaker, "speech": reply.speech, "gesture": gesture})
 
@@ -2393,7 +2401,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                     why=reasons, already=self.shown_lines(), worn=self.worn_words("prose"),
                                     who_is=entities.who_is_who(self, also=[npc.id])),                 # (f392)
                 DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc)}, worn=self.worn_words("prose"),
+                context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc), "speech": reply.speech}, worn=self.worn_words("prose"),
             )
         except LLMError:
             self.show_speech(speaker, reply, npc)

@@ -202,9 +202,9 @@ tells:
 
 # How each person shows what they feel toward someone. One of each, rolled once.
 expression:
-  affection: ["teases and checks on them in the same breath", "shows it by small practical help, hardly ever in words", "says gruff things that mean the opposite", "remembers small things they said and brings them back"]
+  affection: ["teases and checks on the other in the same breath", "shows it by small practical help, hardly ever in words", "says gruff things that mean the opposite", "remembers small things the other said and brings those back"]
   irritation: ["turns sarcastic", "goes clipped and formal", "says exactly what annoys them, once, and then drops it", "pointedly speaks to someone else"]
-  respect: ["asks for their opinion", "defers to them on what they know best", "says so plainly, once, and moves on"]
+  respect: ["asks what the other thinks of it", "defers to the other on what the other knows best", "says so plainly, once, and moves on"]
 regard:                      # how often their warmth or irritation toward the other shows in a reply: most replies are just the words
   show: 0.3
   emotional: 0.6             # when the engine knows they are feeling something right now

@@ -5,6 +5,7 @@ import re
 from engine import clock, inventory as inv, money, pools, property as prop
 from engine.property import P
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 BUY_WORDS = re.compile(r"\b(house|home|cottage|property|deed|townhouse|villa|longhouse|lodge|estate|lot)\b")
 
@@ -122,7 +123,7 @@ class PropertyActions:
             return True
         h = P["homes"][town]
         if c.coins < h["price"]:
-            self.refuse(f"{h['name'].capitalize()} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")
+            self.refuse(f"{cap_first(h['name'])} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")
             return True
         c.coins -= h["price"]
         self.player.homes[town] = {"day": clock.day(self.minutes), "upgrades": [], "last_garden": -1, "last_hearth": -1}

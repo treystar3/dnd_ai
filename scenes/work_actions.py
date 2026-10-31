@@ -10,6 +10,7 @@ from engine import clock, crafting, inventory as inv, items, loot, money, pools
 from llm.contracts import WorkOffer
 from llm.gateway import generate
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
 W = yaml.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
@@ -92,7 +93,7 @@ class WorkActions:
             self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
                                task=job["task"], paid=job["pay"]), npc)
             self.store.save_player(self.player)
-            console.note(f"Work done: {job['task']}. {npc.label().capitalize()} pays you {money.fmt(job['pay'])}. "
+            console.note(f"Work done: {job['task']}. {cap_first(npc.label())} pays you {money.fmt(job['pay'])}. "
                          f"Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player spends {clock.describe_duration(job['minutes'])} working: {job['task']}. When "
                          f"it's done, {npc.label()} pays them as agreed. Tell it as a short "
