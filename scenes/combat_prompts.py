@@ -91,9 +91,10 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    shown: list[str] = (), worn: list[str] = (), looks: list[str] = (), allies: list[str] = ()) -> str:
+                    shown: list[str] = (), worn: list[str] = (), looks: list[str] = (), allies: list[str] = (), gone: list[str] = ()) -> str:
     """shown: what the player has read in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on.
-    (f375) No length is given. (f385) allies: everyone on the player's side, with she, he or it and what they fight with."""
+    (f375) No length is given. (f385) allies: everyone on the player's side, with she, he or it and what they fight with. (f415) gone: foes
+    alive but out of the fight (yielded or fled); each ally's line ends with how hurt they are now."""
     return (
         f"PLACE: {place}\nTIME AND WEATHER: {time_label}\nTHE PLAYER FIGHTS WITH: {weapon}\n"
         f"THE PLAYER: {gear}\n"
@@ -103,7 +104,9 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         + "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
         f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
-        + (("ON THE PLAYER'S SIDE (keep each as written here, every time: the same she, he or it, and only what they fight with):\n"
+        + (f"OUT OF THE FIGHT (alive, but they do not strike, block or come back): {'; '.join(gone)}\n" if gone else "")
+        + (("ON THE PLAYER'S SIDE (keep who each is as written here, every time: the same she, he or it, and only what they fight with; "
+            "how hurt each is NOW is a fact):\n"
             + "\n".join(f"  - {a}" for a in allies) + "\n") if allies else "")
         + f'THE PLAYER SAID: "{player_words}"\n'
         + (("WHAT THE PLAYER'S ABILITIES LOOK LIKE (show each as this, with the weapon they carry; never as something thrown, cast or "

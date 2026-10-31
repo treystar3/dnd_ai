@@ -692,6 +692,14 @@ class CombatScene:
         return [m["name"] for m in self.ws.player.party if m.get("down_fate") == "carried"
                 and (a := f.get(f"ally_{m['id']}")) is not None and not a.alive]
 
+    def on_their_feet(self) -> list[str]:
+        """(f415) The player's own still standing when a fight ends, and how hurt each is: the passage after a fight was told who died and
+        who is carried, never who walks away, or how hurt. Summons and risen foes are left out: they are the player's
+        doing, not companions."""
+        f = self.fight
+        return [f"{a.name}, {combat.condition(a)}" for a in f.fighters
+                if a.side == "ally" and a.alive and not a.fled and not a.summon_form and not a.id.startswith("thrall")]
+
     def hires_down(self) -> list[dict]:
         """Hired companions who have just gone down: whether each is dead is decided now (kept on them until the fight is over), so the
         narration shows it as it happens and those who saw it can react at once. Returns those killed."""
@@ -903,6 +911,7 @@ class CombatScene:
         for a in f.fighters:
             if a.side != "ally" or a is f.player:
                 continue
+            n = len(out)
             m = members.get(a.id) if a.ally_role else None
             if m is None and a.name == mentor.NAME:
                 m = {"sheet": "maren", "name": a.name, "blurb": "a guild veteran", "people": "human"}
@@ -910,20 +919,38 @@ class CombatScene:
                 p = party.pronoun_of(m, ws.store.meta.seed, ws.player.party_used)
                 folk = entities.people_word(ws.world, m.get("people", ""))                      # (f392) and their people
                 out.append(f"{a.name} ({party.pronoun_pair(p)}{', ' + folk if folk else ''}): {m.get('blurb', '').strip()}; fights with {party.fights_as(m)}")
-                continue
-            c = comps.get(a.id)
-            if c is not None and combat.is_companion(a):
+            elif (c := comps.get(a.id)) is not None and combat.is_companion(a):
                 kind_of = ws.world.bestiary[c.creature].name.lower() if c.creature in ws.world.bestiary else (c.kind or "beast")
                 out.append(f"{a.name} ({party.pronoun_pair(party.companion_pronoun(c))}): the player's own {kind_of}"
                            + (f", {c.description.strip().rstrip('.')}" if c.description else "") + "; fights with teeth, claws and weight")
             elif a.summon_form or a.id.startswith("thrall"):
                 out.append(f"{a.name} (it/its): {'summoned by the player' if a.summon_form else 'a fallen foe risen to fight for the player'}")
+            if len(out) > n:                                    # (f415) and how hurt they are now, which nothing said before
+                out[-1] += "; NOW: " + ("down, out of the fight" if not a.alive else "gone from the fight" if a.fled else combat.condition(a))
         return out
+
+    def foes_now(self) -> tuple[list[str], list[str]]:
+        """(f415) The foes as the narrator must keep them: those still fighting, with how hurt each is, and those alive but out of it. Before,
+        a foe who had yielded or fled was still under FOES NOW with its wounds, as if it fought on, and one turned by the player's magic
+        (Dominate, Dread Regent) was listed as a foe like any other."""
+        fighting, out = [], []
+        for e in self.fight.fighters:
+            if e.side != "enemy" or not e.alive:
+                continue
+            if e.surrendered:
+                out.append(f"{combat.who(e)} has yielded: beaten, unarmed and out of the fight")
+            elif e.fled:
+                out.append(f"{combat.who(e)} has fled and is gone")
+            elif e.counters.get("turned"):
+                fighting.append(f"{combat.who(e)}, {combat.condition(e)}, turned: it fights for the player now, against its own side")
+            else:
+                fighting.append(f"{combat.who(e)}, {combat.condition(e)}")
+        return fighting, out
 
     def narrate_round(self, text: str) -> None:
         f = self.fight
         p = f.player
-        foes = [f"{combat.who(e)}, {combat.condition(e)}" for e in f.fighters if e.side == "enemy" and e.alive]
+        foes, gone = self.foes_now()
         you = combat.condition(p) + (", up on high ground" if "elevated" in p.position_tags else "")
         from engine import battlefield as bfm, voice_rules
         boss = any(e.boss for e in f.fighters if e.side == "enemy" and e.alive) or any(e.startswith("BOSS") for e in f.story)
@@ -932,7 +959,7 @@ class CombatScene:
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
-                                          looks=self.ability_looks(), allies=self.ally_looks()),                                # (f373, f385)
+                                          looks=self.ability_looks(), allies=self.ally_looks(), gone=gone),                     # (f373, f385, f415)
                        Narration, self.ws.recent_narration, max_tokens=config.PROSE_MAX_TOKENS, worn=self.ws.worn_words("prose"), said=text)
         text_out = place_figures(result.text, f.hits, console.damage_tags, f.story)
         console.narrate(text_out)
@@ -1186,7 +1213,7 @@ class CombatScene:
         console.note(f"The killing blow lands - and {items.display_name(item)} burns white. You rise from the ashes at half strength; "
                      f"the fight is over. (It cannot do this again for {wait:g} days.)")
         ws.narrate("A killing blow falls on the player, but their Phoenix relic flares and refuses it. They stagger up, alive, the "
-                   "enemies recoiling or gone. Describe it in two vivid sentences.")
+                   "enemies recoiling or gone.")                                                   # (f415) no length (f375)
         return True
 
     def victory(self) -> None:
@@ -1295,6 +1322,8 @@ class CombatScene:
                             for e in self.ws.store.find_entities(kind="hire", state="dead") if e.since >= self.ws.minutes - 30]) else "")
             + (f"DOWN BUT ALIVE (the player's companions, on the ground and carried from here: they do not stand, walk or talk at length): "
                f"{', '.join(carried)}\n" if (carried := self.down_but_alive()) else "")
+            + (f"ON THEIR FEET (the player's companions still standing, and how hurt: a fact for when they come in, not a pose each): "
+               f"{'; '.join(feet)}\n" if (feet := self.on_their_feet()) else "")
             + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
             + (f"{wp.HABITS_HEAD}: {' '.join(end_habits)}\n" if end_habits else "")

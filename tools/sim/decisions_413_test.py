@@ -27,7 +27,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 # ---- f375: no length on what the narrator or a speaker writes
-COUNT = re.compile(r"\b(?:one|two|three|four|five|six)(?: or (?:two|three|four))? sentences\b|\bfour to six\b|\bbriefly\b", re.I)   # a count of sentences, not 'one sentence tells one blow'
+COUNT = re.compile(r"\b(?:one|two|three|four|five|six)(?: or (?:two|three|four))?(?: [a-z]+)? sentences\b|\bfour to six\b|\bbriefly\b", re.I)   # a count of sentences ('two vivid sentences' too, f415), not 'one sentence tells one blow'
 prose_prompts = {"DM_VOICE": voice.DM_VOICE, "NARRATOR_SYSTEM": wp.NARRATOR_SYSTEM, "DIALOGUE_SYSTEM": wp.DIALOGUE_SYSTEM,
                  "EXCHANGE_SYSTEM": wp.EXCHANGE_SYSTEM, "NARRATE_SYSTEM": cp.NARRATE_SYSTEM, "AFTERMATH_SYSTEM": cp.AFTERMATH_SYSTEM,
                  "START_SYSTEM": cp.START_SYSTEM, "TALK_SYSTEM": pp.TALK_SYSTEM, "CONVERSATION_SYSTEM": npcp.CONVERSATION_SYSTEM}
