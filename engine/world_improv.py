@@ -158,7 +158,7 @@ def resolve(ws, words: str, text: str, ruled: dict | None = None) -> None:
         effect = "attempt"
     e = W["effects"][effect]
     if ruled is not None and ruled.get("sense") == "yes" and not ruled.get("check"):
-        degree, rolled, odds = "success", 0, 100.0               # a plain yes: a dungeon master does not roll for lighting a torch
+        degree, rolled, odds = "success", 0, 100.0               # a plain yes: a dungeon master does not roll for calling out
     else:
         from engine import ruling
         odds = ruling.odds(ws, effect, ruled) if ruled is not None else odds_for(c, effect)
@@ -179,8 +179,11 @@ def resolve(ws, words: str, text: str, ruled: dict | None = None) -> None:
             console.debug(f"improvised ({effect}): made true - {', '.join(changed)}")
         ws.advance(5)
         room += changed_text(ws, ruled, degree)
+        lasting = bool(changed or room or mark)                  # (f421) asked what is different when nothing is, the narrator made something up
         ws.narrate(f"THE GAME HAS DECIDED: what the player attempts ({what}) WORKS" + (" cleanly and well" if degree == "strong success" else "")
-                   + ". Show it done, as it would be seen, and what is different now. Nothing is gained that was not there, and no one is harmed." + room, text)
+                   + (". Show it done, as it would be seen, and what is different now." if lasting
+                      else ". Show it done, as it would be seen. Nothing lasting is different.")
+                   + " Nothing is gained that was not there, and no one is harmed." + room, text)
         return
     if degree == "partial":
         P = W["partial"]

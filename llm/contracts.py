@@ -520,11 +520,16 @@ class Ruling(BaseModel):
         ctx = _ctx(info)
         caps = ctx.get("capabilities") or []
         self.requires = [r.strip().lower() for r in self.requires if r and r.strip()]
+        checks = ctx.get("checks") or []
+        moved = [r for r in self.requires if r in checks and r not in caps]
+        if moved:                                  # (f421) a check named where a capability goes is the check: moved, not sent back
+            self.stakes.check = self.stakes.check or moved[0]
+            self.requires = [r for r in self.requires if r not in moved]
         wrong = [r for r in self.requires if caps and r not in caps]
         if wrong:
             raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
         if self.sense == "no" and not self.answer.strip():
-            raise ValueError("a no needs `answer`: what happens instead, in one or two sentences of the world, as the player would see it")
+            raise ValueError("a no needs `answer`: what happens instead, in the world, as the player would see it")     # (f421) no length
         if len(self.needs) > 2:
             raise ValueError("at most two needs: only what the attempt cannot happen without")
         if any(not n.name.strip() for n in self.needs):

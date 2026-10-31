@@ -13,7 +13,7 @@
 - {line: "I dig through the rockfall at the back of the tunnel.", at: tidepool_caves, expect: "cost", needs: [feature]}
 - {line: "I call out for the hermit who lives here.", at: tidepool_caves, expect: "yes", needs: [person]}
 - {line: "I look for a dry place to sit out the tide.", at: tidepool_caves, expect: "yes", needs: [feature]}
-- {line: "I light a torch and hold it up to the ceiling.", at: tidepool_caves, expect: "yes", needs: []}
+- {line: "I hold my hand up to feel for a draught along the ceiling.", at: tidepool_caves, expect: "yes", needs: []}   # (f421) not a torch they lack
 - {line: "I search the rocks for crabs to cook.", at: tidepool_caves, expect: "cost", needs: []}
 - {line: "I follow the tracks deeper into the wood.", at: greywood, expect: "yes", needs: [feature]}
 - {line: "I climb the tallest tree for a look around.", at: greywood, expect: "cost", needs: [feature]}
