@@ -43,7 +43,7 @@ class RoadActions:
         for nid in self.store.load_place(road["id"]).residents:
             npc = self.store.load_npc(nid)
             if not npc.gone:
-                pulse.remove_npc(self.store, self.world, npc, "moved on along the road", self.minutes)
+                pulse.remove_npc(self.store, self.world, npc, "moved on along the road", self.minutes, dead=False)
         self.player.road = None
         self.world.places.pop(road["id"], None)
         self.end_conversation()

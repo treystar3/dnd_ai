@@ -194,7 +194,7 @@ def on_kills(store, dead, now: int, world=None) -> list[dict]:
         if s.get("npc") and world is not None and store.npc_exists(s["npc"]):
             n = store.load_npc(s["npc"])
             if not n.gone:
-                _pulse().remove_npc(store, world, n, "fell at the head of the war host", now)
+                _pulse().remove_npc(store, world, n, "fell at the head of the war host", now, dead=True)
                 _vacancy(store, world, n, now, random.Random())
     return won
 
@@ -228,7 +228,7 @@ def expire_camps(store, world, state, t: int) -> None:
                 continue
             n = store.load_npc(nid)
             if n.role == camp["role"] and n.tier == "background" and not n.gone:
-                pulse.remove_npc(store, world, n, "packed up the camp and moved on", t)
+                pulse.remove_npc(store, world, n, "packed up the camp and moved on", t, dead=False)
                 break
     state["camps"] = keep
 
@@ -651,7 +651,7 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
         if f"ally_{m['id']}" in fallen_ids:
             n = ws.store.load_npc(m["npc"])
             if rng.random() < E["allies"]["death_when_down"]:
-                pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes)
+                pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes, dead=True)
                 console.note(f"{n.name} is dead. They gave their life in the fight.")
                 _vacancy(ws.store, ws.world, n, ws.minutes, random.Random())
                 state = ws.store.load_world_state() or pulse.empty_state(ws.minutes)
@@ -1063,7 +1063,7 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
         else:
             how = (f"killed when {world.places[town].name} fell to {th['antagonist']}" if fell
                    else f"killed defending {world.places[town].name} against {th['antagonist']}")
-            pulse.remove_npc(store, world, n, how, t)
+            pulse.remove_npc(store, world, n, how, t, dead=True)
             out["dead"].append(n.name + (f" ({n.role.replace('_', ' ')})" if n.role.startswith("guild") or n.role in ("priest", "smith") else ""))
             if n.role == "monarch":                                              # (f324) the crown is dead: the whole kingdom hears
                 from engine import matters

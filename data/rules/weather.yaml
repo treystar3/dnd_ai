@@ -19,6 +19,10 @@ conditions:
 # Temperature steps, coldest first.
 temperatures: [freezing, cold, cool, mild, warm, hot]
 
+# (f430) The season moves every step: a summer night is never freezing, a winter afternoon is never warm. The f425 night told
+# "freezing" rain through high summer, 244 frosts on one run, because the season was not reckoned at all.
+by_season: {spring: 0, summer: 1, autumn: -1, winter: -2}
+
 # Base temperature step (index into the list above) for each time of day.
 by_period:
   deep night: 1

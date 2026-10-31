@@ -270,6 +270,9 @@ def check() -> list[str]:
             need(False, f"road.yaml {'.'.join(path_)}: {e_}")
     for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
         need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
+    W_ = _load("data/rules/weather.yaml")                                                     # (f430) the season moves the temperature
+    seasons_ = set(_load("data/rules/pulse.yaml")["seasons"]["order"])
+    need(set(W_.get("by_season") or {}) == seasons_, f"weather.yaml by_season: needs exactly the seasons {sorted(seasons_)}")
     from engine import routines as _routines                                                  # (f352) routines by period and kind of place
     bad += _routines.problems(_types, set(_clock.PERIOD_NAMES), _roles)
     from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
