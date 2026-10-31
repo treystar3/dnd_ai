@@ -91,7 +91,20 @@ def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role
         name = old.name if old else f"the way near {world.places[aa].name}"
     name = name or f"{r.name if r else 'the way'} between {world.places[aa].name} and {world.places[bb].name}"
     pid = f"road_{uuid.uuid4().hex[:8]}"
+
+    def real_end(pid_: str, other: str, minutes_: int) -> tuple[str, int]:
+        """(f426) A stop is joined to real places only: an end that is itself a stop (a journey resumed from one) is replaced by that
+        stop's own far end, the walk to it added. A stop joined to an older stop broke every route once the older one was tidied away."""
+        p = world.places.get(pid_)
+        if p is None or p.type != "road" or p.parent or not p.connects:
+            return pid_, minutes_
+        ends = {k: v for k, v in p.connects.items() if k != other} or dict(p.connects)
+        k = min(ends, key=ends.get)
+        return real_end(k, other, minutes_ + ends[k])
+    ra, ma = real_end(a, b, ta)
+    rb, mb = real_end(b, a, tb)
+    connects = {ra: ma, rb: mb} if ra != rb else {a: ta, b: tb}
     place = Place(id=pid, name=name, type="road", region=world.places[a].region, biome=world.places[near].biome,
-                  connects={a: ta, b: tb}, peoples=dict(world.places[near].peoples), residents={role: 1} if role else {},
+                  connects=connects, peoples=dict(world.places[near].peoples), residents={role: 1} if role else {},
                   visible=[scene] if scene else [], origin=detail.strip() if role else "")
     return {"id": pid, "from": a, "to": b, "title": title, "place": place.model_dump(mode="json")}

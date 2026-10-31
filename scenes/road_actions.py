@@ -228,7 +228,8 @@ class RoadActions:
             stop.update(log=log[-6:], text=text, resume=(route[-1] if resume is None else resume) if hostile and not interrupts else "")
             if camp:
                 stop["camp"] = max(1, round(sum(self.world.places[wild].danger) / 2))
-            self.leave_road(stop["id"])                     # (f423) the stop they stood at is tidied away before the new one: its people too
+            if (self.player.road or {}).get("id") not in stop["place"]["connects"]:      # (f426) never one the new stop is joined to
+                self.leave_road(stop["id"])                 # (f423) the stop they stood at is tidied away before the new one: its people too
             self.player.road = stop
             self.ensure_road_place()
             self.enter(stop["id"])
@@ -322,6 +323,8 @@ class RoadActions:
                 console.ledger(f"It costs you {clock.describe_duration(delay)}{lost}.")
         elif ev.kind == "aid":
             lo, hi = R["aid"]["coins"][tier]
+            wilds = roads.nearby_wilds(self.world, a, b)              # (f426) the land's level, as the find's prize reckons it (road_prize)
+            level = min(max(1, round(sum(self.world.places[wilds[0]].danger) / 2)) if wilds else max(1, c.level // 2), max(1, c.level))
             pay = rng.randint(lo, hi) * max(1, level // 4)
             c.coins += pay
             town = pulse.town_of(self.world, near)
