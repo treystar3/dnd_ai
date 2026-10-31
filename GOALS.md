@@ -80,7 +80,8 @@ should feel natural, never "unnatural and ai".
 - No length limits on the narrator or the speakers. "Remove all restrictions from the llm narrator and npc responses that have to do
   with length." A passage is long or short by what it holds.
 - Nothing stamps out the same paragraph shape every time (fight rounds, after-fight passages, monster entrances).
-- Nothing jarring or sudden. Travel is narrated, and a road event comes in the middle of a journey, not out of nowhere.
+- Nothing jarring or sudden. Travel is narrated, and a road event comes in the middle of a journey, not out of nowhere. A road event
+  where something noteworthy happens stops the walk there, so the player can act on it.
 - No machinery in the story: no JSON, ids, notes, checklists, foreign words or broken text ever reaches the page.
 
 How we check: the prose analysis by task, and the blind readings.
@@ -139,10 +140,48 @@ Newest first. Each is a call the owner made about what the game should be; follo
 
 | Decision | Feature |
 | --- | --- |
+| A new game's start: "Leave the start to chance." | review Q1 |
+| Road events: "road events should stop, all road events that something noteworthy happens should be a stop for the player" | review Q2 |
+| Things that settle a matter: "have key items turn in be handed off but have a separate category for keepsakes which the player keeps" | review Q3 |
+| Part pay for a late or ended contract: "Leave for balancing." | review Q4 |
+| Flaws told only inside a passage, so they fire less: "Accept that it fires less." | review Q5 |
+| A teaching hint (the skinning note): "Once per save per kind." | review Q6 |
+| Companions and dithering: "They aren't explicitly told to react to dithering." | review Q7 |
+| Nudging idle or looping play: "Nothing for now." | review Q8 |
+| Fight prose: "Every blow stays in the prose." | review Q9 |
+| Damage markers: "Rely on engine alignment alone for now and see if we can come up with a more elegant solution for consistency." | review Q10 |
+| Encounters and XP scaled to the party: "We will come back to this in the balance phase." | review Q11 |
+| Beasts far outmatched by the party: "far outmatched beasts should have a far smaller chance of attacking" | review Q12 |
+| The kill XP curve and contract XP: "Leave for balance pass." | review Q13 |
+| Bad-weather and storm rules apply only under open sky: "yes only under open sky" | review Q14 |
+| Road stops and dungeon mouths for the rules of settlements: "they shouldn't count as settled. If a road stop is sufficiently populated it may" | review Q15 |
+| The "Roads leave..." lines: "roads leave lines should come from map.yaml" | review Q16 |
+| A far place named only in part: "For major cities they need to say it exactly but for places off a road or locations it can ask." | review Q17 |
+| Place names the narrator or a townsperson coins: "They should be walkable aliases." | review Q18 |
+| A companion on an errand: "They do actually leave but still count as being in your party. They can be gone but the party pane still shows where they are and what they're doing if they're not with you." | review Q19 |
+| Companions keeping gifts or coin: "Memory only for now but maybe return to this." | review Q20 |
+| Dropping the "questions" voice quirk for saved hires: "Accept it." | review Q21 |
+| Who joins a party exchange: "ideally it would depend on if the companions all have something to say. It shouldn't come off as a roll call but a real conversation" | review Q22 |
+| Figure-of-speech habits against the f409 style rules: "Drop these habits for now." | review Q23 |
+| Townsfolk get histories of their own: "npc's shouldn't feel like they were just spawned in they should feel like characters with a real backstory and history" | review Q24 |
+| Old saves with wrong-gender profiles: "Whatever is the least work, don't worry about old saves for now." | review Q25 |
+| People a companion's request is about: "Improvised people should be able to become real people if a narrative calls for it." | review Q26 |
+| Foes yielding: "Foes anywhere can yield but they need a sufficiently high intelligence score to yield." | review Q27 |
+| A bounty taken alive counts: "at hand over" | review Q28 |
+| Ransoming captives: "remove that state and for now have it just raise reputation in the place you turned the captive over to" | review Q29 |
+| An escaped captive coming back with a grudge: "It should be possible" | review Q30 |
+| The cap of deeds in one line: "Raise the cap but keep an upper limit for a clear runaway case. Maybe a limit of 15 or 99." | review Q31 |
+| Summoning, whether the engine knows what each summoner may call: "The engine should know" | review Q32 |
+| A sensible improvised act can yield a real item: "this should be possible to create a real item for improvised acts" | review Q33 |
+| Props for an act: "catalogued goods must be carried and trifles can be supplied by the place" | review Q34 |
+| Item categories: "Item categories grow material families" | review Q35 |
+| Notes raised by time in the middle of a turn print after the passage: "Below" | review Q36 |
+| Model sampling (temperature, repeat penalty): "Keep them as they are for now." | review Q37 |
+| Invented non-words in the prose: "Only reported." | review Q38 |
 | "The games own italic notes with dashes can stay." No dashes is for the story (narration, speech, and what the narrator is handed); the game's own notes, lists and labels keep theirs. | f413 |
 | Companion habits ("counts her coin on arriving") are handed to the narrator and told inside the passage of their moment, never on a line of their own. | f412 |
 | An accent is in every line a speaker says, not rolled for some. | f410 |
-| Travel is narrated; road events sit inside the journey. Dialogue must keep moving toward sounding human. | f408, f409 |
+| Travel is narrated; road events sit inside the journey (changed by review Q2: a noteworthy road event stops the walk). Dialogue must keep moving toward sounding human. | f408, f409 |
 | The fight pane stays after a fight with that fight's log. Hovering an ability shows its full card. | f405 |
 | While the world is thinking, the text does not move. "More below" is a clickable down arrow. | f402 |
 | No dashes in speech either: every speaker, not only the narrator. | f403 |
