@@ -141,7 +141,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 | Decision | Feature |
 | --- | --- |
 | A new game's start: "Leave the start to chance." | review Q1 |
-| Road events: "road events should stop, all road events that something noteworthy happens should be a stop for the player" | review Q2 |
+| Road events: "road events should stop, all road events that something noteworthy happens should be a stop for the player"; a passing sight is not one: "no passing sights shouldn't stop" | review Q2 |
 | Things that settle a matter: "have key items turn in be handed off but have a separate category for keepsakes which the player keeps" | review Q3 |
 | Part pay for a late or ended contract: "Leave for balancing." | review Q4 |
 | Flaws told only inside a passage, so they fire less: "Accept that it fires less." | review Q5 |
