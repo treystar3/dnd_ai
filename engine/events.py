@@ -542,7 +542,7 @@ def grand_reward(ws, state, th: dict) -> list[str]:
     console.note("The survivors give what they can: " + "; ".join(lines) + ".")
     ws.weight_hint = "major"
     ws.narrate(f"The player has ended '{th['title']}'. The people it threatened gather to thank them and press gifts into their "
-               f"hands: {'; '.join(lines)}. Describe the moment in two or three sentences, warm and a little awed.")
+               f"hands: {'; '.join(lines)}. Describe the moment, warm and a little awed.")       # (f413) no length (f375)
     ws.store.save_player(ws.player)
     return lines
 

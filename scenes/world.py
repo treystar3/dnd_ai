@@ -56,7 +56,7 @@ from scenes.part_actions import PartActions
 from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
-from engine import entities, features, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
+from engine import entities, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
 from engine import crafting
 from engine import clock, equipment, items, leveling, money, pools, voice_rules, weather
@@ -227,6 +227,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return w[kind].worn(keep)
 
     def narrate_with(self, system: str, event: str) -> None:
+        event = hygiene.undash(event)                                    # (f413) no dashes to copy (f403)
         self.flush(self.last_text)
         result = fresh("narrate", system,
                        wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
@@ -641,8 +642,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 else:
                     console.narrate(shown.get("text", ""))
             else:
-                self.narrate("The player is here, picking up where they left off. Describe the scene in two or three "
-                             "sentences, mentioning at most two of the people present.")
+                self.narrate("The player is here, picking up where they left off. Describe the scene, mentioning at most two "
+                             "of the people present.")                    # (f413) no length (f375)
             if kit_text:
                 c = self.player.character
                 held = [i.name for i in c.equipment.values()] + [f"{m.name} ({m.description})" for m in c.companions]
@@ -1593,6 +1594,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     last_social = None
 
     def _narrate_now(self, event: str, player_text: str = "") -> None:
+        event = hygiene.undash(event)                                    # (f413) what the narrator is told happened has no dashes to copy (f403)
         marks = self.store.load_place(self.player.location).marks
         self.weight_hint = None                                          # (f375) a moment's weight no longer sets a length
         strict = voice_rules.NOTHING in event
@@ -2778,6 +2780,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         feel = f" While they rest, {' and '.join(body)} (say so in the story; no numbers)." if body and not hit else ""
         if not hit:
             self.habits("rest")                                # (f412) told in the rest's passage, not after it
+            self.mentor_rest_habit()                           # (f413) and Maren's with them
         self.narrate(f"The player {how} at {self.place.name} for {clock.describe_duration(minutes)}. It is now {clock.period(self.minutes)}."
                      f"{changes}{interrupted}{feel} Describe the player resting and the passing of time, then the scene now, "
                      "mentioning at most two of the people present.", text)

@@ -116,7 +116,6 @@ class QuirkActions:
                            late=sleeping and clock.period(self.minutes) in ("midday", "afternoon", "evening"), slept=sleeping))
         self.flaws_at_rest(sleeping)
         self.secrets()
-        self.mentor_rest_habit()
 
     # ---------- habits ----------
 
@@ -374,8 +373,10 @@ class QuirkActions:
                 continue
             extra = {"sum": money.words(E["cost"])} if "cost" in E else {}
             ask = quirks.errand_text(m, "ask", **extra)
-            console.say(ask, m["name"])
-            rules.said(m, ask)
+            said = self.companion_line(m, [f"you are asking the player for this small thing, now, in your own words, keeping its meaning: {ask}"],
+                                       "(on arriving)", retell={"text": ask, "others": []})      # (f413) in their voice, accent and all (f410)
+            self.companion_show(m, said or ask, "(on arriving)")
+            rules.said(m, said or ask)
             m["quirks"]["errand_day"] = day
             self._errand = (m, E)
             console.note(f"[{m['name'].split()[0]} is asking something of you. Say yes, or no.]")
@@ -447,9 +448,11 @@ class QuirkActions:
     # ---------- Maren ----------
 
     def mentor_rest_habit(self) -> None:
+        """(f413) Maren's small attention at a rest, handed to the rest's passage with the companions' habits (f412), never a line of its own."""
         if not self.mentor_with_you() or self.combat or self.quirk_rng("maren").randrange(100) >= 50:
             return
-        console.narrate(self.quirk_rng("maren-line").choice(quirks.Q["maren"]["rest_habits"]))
+        self.__dict__.setdefault("_habits_due", {}).setdefault("rest", []).append(
+            self.quirk_rng("maren-line").choice(quirks.Q["maren"]["rest_habits"]))
 
     def mentor_opening(self, beat: str) -> tuple[str, str, list[str]]:
         """(fact for the model, line for the fallback, words that must survive) for one of her beats; ('', '', []) if already told."""

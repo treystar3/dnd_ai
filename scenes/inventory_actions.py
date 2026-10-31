@@ -344,8 +344,8 @@ class InventoryActions:
         self.notice(Tithe(minute=self.minutes, place=self.player.location, name=self.place.name, amount=amount, weight=standing.tithe_weight(amount)))
         self.store.save_player(self.player)
         console.note(f"You leave {money.fmt(amount)} in the tithe box. Purse: {money.fmt(c.coins)}")
-        self.narrate(f"The player drops {money.words(amount)} into the tithe box at {self.place.name}. Two sentences, quiet and unhurried; "
-                     f"nobody makes a fuss.", text)
+        self.narrate(f"The player drops {money.words(amount)} into the tithe box at {self.place.name}. Quiet and unhurried; "
+                     f"nobody makes a fuss.", text)                      # (f413) no length (f375)
         return True
 
     def on_give(self, intent, text: str) -> None:

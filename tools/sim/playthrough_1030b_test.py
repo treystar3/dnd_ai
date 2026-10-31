@@ -160,7 +160,8 @@ ws.quiet_return = lambda *a, **k: False
 ws.finish_journey([a, b], 60, "I walk on", ["The Dropped Ledger: A ledger lies in a rut."])
 check("the arrival is told the road's happening is read already, and not to tell it again", asked and "do not tell it again" in asked[-1], asked[-1:])
 ws.finish_journey([a, b], 90, "I walk on", [])
-check("(f408) a long walk with nothing on the way is felt on arrival", "sentences of the walk itself" in asked[-1], asked[-1:])
+check("(f408) a long walk with nothing on the way is felt on arrival", "Tell the walk itself" in asked[-1], asked[-1:])
+check("(f413) ...told with no length set (f375)", "sentences" not in asked[-1], asked[-1:])
 ws.finish_journey([a, b], 20, "I walk on", [])
 check("...a short one is not", "Say little of the road" in asked[-1], asked[-1:])
 

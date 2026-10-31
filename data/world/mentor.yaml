@@ -342,9 +342,9 @@ troll_combat:
   no_run:
     - "No. You can't outrun that, and I'm not letting you try. Hold."
   run_fail:
-    - "you turn to run, but the troll is on you in two strides and a fist like a felled log slams into the ground across your path - there is nowhere to go"
+    - "you turn to run, but the troll is on you in two strides and a fist like a felled log slams into the ground across your path: there is nowhere to go"
     - "you break for the trees, but the troll is far faster than it looks, and it cuts you off, its long arms spread wide across every way out"
-    - "you scramble away, but the troll's huge shadow falls over you and its bulk fills the gap - you cannot get past it"
+    - "you scramble away, but the troll's huge shadow falls over you and its bulk fills the gap, and you cannot get past it"
   no_talk:
     - "It's a troll. It's not going to listen. Hold your ground."
   round_one_hint: "Maren: Hold it, I'm coming."

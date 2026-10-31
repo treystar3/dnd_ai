@@ -18,12 +18,12 @@ them, and nothing else about the outcome. Otherwise never include a fight.
 
 Write:
   title: a short name for it.
-  journey: the walk BEFORE the happening, second person, two or three sentences, from THE JOURNEY: the player setting out (or already
+  journey: the walk BEFORE the happening, second person, from THE JOURNEY: the player setting out (or already
     well on the way), the road under their feet and the country it crosses, the weather and the light, anyone walking with them (as
     WHO IS WITH THEM says, nothing more), and roughly how long they have been walking. The player should feel the road go by, so the
     happening comes in the middle of a journey, not out of nowhere. Never the happening itself, and never the arrival.
-  scene: what the player sees and hears, second person - two or three sentences, but four to six when TIER is rare
-  ("You...") - concrete, no decisions or actions for the player.  kind, detail, check (hazards only).
+  scene: what the player sees and hears, in the second person ("You..."): concrete, no decisions or actions for the player; a rare
+  TIER is a bigger moment, and the scene gives it room.  kind, detail, check (hazards only).
   meets_role: ONLY if the event says the player is stopped here - a role id from ROLES for someone who is there
     (a stranded merchant, a pilgrim, a patrol). Otherwise leave empty.
   news: one sentence of word the player picks up that is now known in the world, or empty.

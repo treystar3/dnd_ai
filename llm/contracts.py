@@ -1552,7 +1552,7 @@ class RoadEvent(BaseModel):
         if ctx.get("kind") and self.kind != ctx["kind"]:
             raise ValueError(f"this event is a {ctx['kind']}: kind must be {ctx['kind']}")
         if ctx.get("want_journey") and not self.journey.strip():
-            raise ValueError("write the journey: the walk before the happening, two or three sentences")
+            raise ValueError("write the journey: the walk before the happening, in the second person")
         if not ctx.get("hostile") and self.kind == "ambush":
             raise ValueError("this event is NOT a fight: pick find, meeting, hazard, sight or aid")
         if self.kind == "hazard" and self.check not in ctx.get("checks", []):

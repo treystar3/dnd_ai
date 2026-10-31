@@ -74,16 +74,18 @@ class RoadActions:
                 " ".join(r.description for r in named[:2]) + (passing or "")
         happened = (f" On the way (the player has read this already, back where it happened on the road: do not tell it again or put it "
                     f"here): {' '.join(log[-4:])}") if log else ""      # (f406) a dropped ledger on the road was told again, lying at the hollow
-        if self.quiet_return(log, text):                                   # (f349) back somewhere seen, nothing new: a line, and no narrator
+        if walk < 45 and self.quiet_return(log, text):                     # (f349) back somewhere seen, nothing new: a line, and no narrator;
+                                                                            # (f413) never after a long walk, which is always told (f408)
             self.weight_hint = None
             line = f"You are back at {self.place.name}." if walk < 15 else f"After {clock.walk_words(walk)}, you are back at {self.place.name}."
             self.flush(text)                                                # anything held back from earlier actions goes first, in order
             console.narrate(line)
             self.remember_narration(line)
         else:
-            road = ("Begin with two or three sentences of the walk itself (the road, the country it crosses, the light changing over the "
-                    "hours, anyone walking with them), so the player feels the journey; then the arrival. " if walk >= 45 and not log
-                    else "Say little of the road. ")               # (f408) a long walk is felt; a short one, or one already told, is not
+            road = ("Tell the walk itself first (the road, the country it crosses, the light changing over the hours, anyone walking with "
+                    "them), so the player feels the journey; then the arrival. " if walk >= 45
+                    else "Say little of the road. ")               # (f408) a long walk is felt, a short one is not; (f413) a walk with a
+                                                                    # happening on it too (only the happening is not told again), and no length
             self.narrate(f"After {clock.describe_duration(walk)} on foot, the player arrives at {self.place.name}.{passing}{happened} "
                          f"{road}Give the place and one person doing one thing; the rest waits until they look.{self.brevity()}", text)
         self.show_exits()

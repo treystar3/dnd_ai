@@ -230,10 +230,14 @@ check("...the truths are hers to tell when asked", "brother" in mentor.facts(w.p
       mentor.facts(w.player, "Greywood", "Do you have family back home? A brother or sister?")[-400:])
 NARR.clear()
 w.mentor_with_you = lambda: True
+fussed = 0
 for k in range(30):
     st.meta.minutes = 1800 + k * 13
+    w._habits_due = {}
     w.mentor_rest_habit()
-check("at rests she fusses, now and then, in a visible way", 3 < len(NARR) < 30 and all("Maren" in t for t in NARR), len(NARR))
+    fussed += len(w.habits_due("rest"))
+check("at rests she fusses, now and then, in a visible way", 3 < fussed < 30, fussed)
+check("(f413) ...handed to the rest's passage, never a line of its own", not NARR, NARR)
 
 # the whole-loop hooks exist
 import scenes.world as _w

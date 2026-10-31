@@ -146,7 +146,7 @@ def _who_head() -> str:
 
 
 # (f412) A companion's habit at its moment (quirks.yaml habits): true now, and the narrator's to tell as part of the passage.
-HABITS_HEAD = ("WHAT THE COMPANIONS DO NOW (a habit of each; true: fold each into the passage in your own words, as part of the scene - "
+HABITS_HEAD = ("WHAT THE COMPANIONS DO NOW (a habit of each, and true: fold each into the passage in your own words, as part of the scene; "
                "never word for word, never a sentence standing on its own at the end)")
 
 

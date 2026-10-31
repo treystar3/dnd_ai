@@ -482,8 +482,8 @@ class LawActions:
     def arrest(self, guard, town: str, forced: bool = False) -> None:
         heat = law.current_heat(self.player, town, clock.day(self.minutes))
         fine = law.fine(heat)
-        self.narrate(f"{guard.label()} and the watch take hold of the player: they are wanted here. Describe the arrest in two "
-                     f"sentences. Do not resolve anything; the game will.", "")
+        self.narrate(f"{guard.label()} and the watch take hold of the player: they are wanted here. Describe the arrest. "
+                     f"Do not resolve anything; the game will.", "")      # (f413) no length (f375)
         if self.owns("above_the_law"):
             menu = (f"You are under arrest - but your kind are not jailed. Pay the fine ({money.fmt(fine)}); what your purse cannot cover, "
                     f"your name will. Or offer a bribe, or run.")

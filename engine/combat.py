@@ -319,6 +319,8 @@ def weapon_phrase(f: Fighter) -> str:
 
 def tell(combat: Combat, text: str, rec: dict | None = None) -> None:
     """Add an event to this round's story. A blow's event carries its tag ([h2]) so the narrator can place the figure."""
+    from engine import hygiene
+    text = hygiene.undash(text)                     # (f413) the story the narrator is handed has no dashes to copy (f403)
     if rec is not None:
         text += f" [{rec['tag']}]"
     combat.story.append(text[0].upper() + text[1:])
