@@ -325,11 +325,11 @@ blueprints:
   cheerful:
     - {say: "Notices the good part of a bad situation and says so."}
     - {say: "Jokes when tension rises, to ease it rather than to wound."}
-    - {say: "Asks how people are doing and means it."}
+    - {say: "Asks how people are doing and means it.", not_with_kit: [questions:never]}
     - {say: "Lets a bad moment pass quickly rather than dwelling on it."}
   wary:
     - {say: "Answers questions with as little as will do.", not_with: [questions]}
-    - {say: "Asks a question back before giving anything away.", not_with: [one_sentence]}
+    - {say: "Asks a question back before giving anything away.", not_with: [one_sentence], not_with_kit: [questions:never]}
     - {say: "Notices small changes in tone and comments on each."}
     - {say: "Never volunteers anything about their own past."}
   proud:
@@ -339,7 +339,7 @@ blueprints:
     - {say: "Takes credit plainly when it is due, without boasting."}
   gentle:
     - {say: "Notices when someone is hurt or tired before they say so."}
-    - {say: "Asks before touching or helping, then helps anyway."}
+    - {say: "Asks before touching or helping, then helps anyway.", not_with_kit: [questions:never]}
     - {say: "Says kind things without making a moment of it."}
     - {say: "Lets silences sit instead of filling them."}
   mercenary:

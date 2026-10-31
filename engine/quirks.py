@@ -627,9 +627,13 @@ def blueprint(member: dict, rng: random.Random | None = None) -> list[str]:
     the first ones (for writing about them)."""
     q = member.get("quirks") or {}
     voice = q.get("voice", "")
+    from engine import voices
+    kit = voices.kit_of(member)                                      # (f431) and minus any line their kit forbids: one who never asks back
+    marks = {f"{a}:{o}" for a, o in kit.items()}                     # is never told to ask a question back before giving anything away
     out = []
     for n, t in zip((2, 1), (member.get("temper") or [])[:2]):
-        lines = [b["say"] for b in Q["blueprints"].get(t, []) if voice not in b.get("not_with", []) and b["say"] not in out]
+        lines = [b["say"] for b in Q["blueprints"].get(t, []) if voice not in b.get("not_with", []) and b["say"] not in out
+                 and not marks & set(b.get("not_with_kit", []))]
         out += (rng.sample(lines, min(n, len(lines))) if rng else lines[:n])
     return out
 

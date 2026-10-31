@@ -19,10 +19,17 @@ PROSE = set(H["prose_fields"])
 NARRATOR = set(H["narrator_tasks"])
 REPAIRS: collections.Counter = collections.Counter()      # what clean() mended on the way to the screen, by kind
 
-JSON_BITS = re.compile(r'```|^\s*[\{\[]\s*"|"\s*,\s*"?[A-Za-z0-9_%]+"?\s*:\s|\{\s*"[A-Za-z_]+"\s*:|"\s*\}|\}\s*$')
+JSON_BITS = re.compile(r'```|^\s*[\{\[]\s*"|"\s*,\s*"?[A-Za-z0-9_%]+"?\s*:\s|\{\s*"[A-Za-z_]+"\s*:|"\s*\}|\}\s*$|\}"\w')
 PLACEHOLDER = re.compile(r"\{[A-Za-z_]+\}")
 CODED = re.compile(r"\b[A-Za-z]+_[0-9a-f]{6,}(?:-[0-9a-f]+)*")             # silks_1827359406-bdcc-...
-SNAKE = re.compile(r"(?<![#`/\w])[A-Za-z]+(?:_[A-Za-z0-9]+)+\b")             # find_the_sinkhole, (f409) Right_Nickkelly (not #commands)
+SNAKE = re.compile(r"(?<![#`/\w])[A-Za-z]+(?:_[A-Za-z0-9]+)+_*(?![\w{])")      # find_the_sinkhole, (f409) Right_Nickkelly (not #commands), (f431) window_pane_
+# (f431) what got past both gates on the f425 night: "parchment,#her eyes", a passage cut off on "beside you,{", "]h1[", a line headed
+# "REASON: ...", "kind: ambush, detail: 1 x ghost, creatures: ghost", '}"v1_0"'
+STRAY = re.compile(r"(?<=[^\s#\w])#(?=[A-Za-z])|(?<=\s)#(?=\s)")
+DANGLING = re.compile(r"[ \t]*[\{\[]+[ \t]*$|\]h\d+\[")
+LABEL = re.compile(r"(?m)^[ \t]*(?:REASON|NOTE|KIND|DETAIL|SCENE|TITLE|VERDICT|MEANING|SUMMARY|CREATURES|SPEECH|GESTURE)\s*:.*$")
+FIELDS = re.compile(r"\b(?:kind|detail|creatures|check|meets_role|title|scene)\s*:\s*[^,.;\n]+(?:,\s*(?:kind|detail|creatures|check|meets_role|title|scene)"
+                    r"\s*:\s*[^,.;\n]+)+")
 TRAILING = re.compile(r"\b([A-Za-z]+)_(?![\w{])")                         # arches_
 COMMAND = re.compile(r"(#[a-z]+(?:\s+[A-Za-z0-9_<>]+)?)")
 PLAYER = re.compile(r"\b([Tt])he player(?!s)(?!\s+of\b)('s)?(\s+([A-Za-z]+))?")
@@ -62,7 +69,8 @@ def problem(task: str, value) -> tuple[str, str]:
         m = CONTROL.search(t)                               # (f407) a stray escape in the model's JSON: "still\\but" read as backspace + "ut"
         if m:
             return "broken", t[max(0, m.start() - 12):m.start() + 12]
-        for kind, pat in (("json", JSON_BITS), ("placeholder", PLACEHOLDER), ("id", CODED), ("id", SNAKE), ("id", TRAILING), ("note", NOTE)):
+        for kind, pat in (("json", JSON_BITS), ("json", LABEL), ("json", FIELDS), ("json", DANGLING), ("placeholder", PLACEHOLDER), ("id", CODED),
+                          ("id", SNAKE), ("id", TRAILING), ("note", NOTE), ("broken", STRAY)):
             m = pat.search(t)
             if m:
                 return kind, m.group(0).strip()
@@ -142,6 +150,11 @@ def clean(text: str) -> str:
         if t2 != t:
             REPAIRS["escape"] += 1
             t = t2
+    for pat, rep, kind in ((LABEL, "", "json"), (FIELDS, "", "json"), (DANGLING, "", "json"), (STRAY, " ", "broken")):    # (f431)
+        t2 = pat.sub(rep, t)
+        if t2 != t:
+            REPAIRS[kind] += 1
+            t = t2
     lead = re.match(r'^\s*\{\s*"[A-Za-z_]+"\s*:\s*"', t)
     if lead:
         t = t[lead.end():]
@@ -157,7 +170,7 @@ def clean(text: str) -> str:
             t = t2
     if "_" in t:
         parts = COMMAND.split(t)                          # a #command and what it takes are typed as they stand: '#goto trading_square'
-        t2 = "".join(p if i % 2 else TRAILING.sub(r"\1", SNAKE.sub(lambda m: m.group(0).replace("_", " "),
+        t2 = "".join(p if i % 2 else TRAILING.sub(r"\1", SNAKE.sub(lambda m: m.group(0).rstrip("_").replace("_", " "),
                                                                     CODED.sub(lambda m: m.group(0).split("_")[0], p)))
                      for i, p in enumerate(parts))
         if t2 != t:
@@ -170,8 +183,14 @@ def clean(text: str) -> str:
             t = t2
     from engine import names                              # (f412) 'Odly lowers his blade' for a she
     t = names.mend_pronouns(t)
+    if "{" in t or "}" in t:                              # (f431) a brace is never the story's: '}"v1_0"' left in a passage
+        t = re.sub(r'[{}]+(?:"[\w.]{0,24}")?', "", t)
+        REPAIRS["json"] += 1
     if t != text:
         t = re.sub(r"[ \t]{2,}", " ", t).replace(" .", ".").replace(" ,", ",")
+        t = re.sub(r"(?<!\.)\.\s?\.(?!\.)", ".", t)          # (f431) a cut field run leaves "ghost.. It"
+        if not text[:1].isspace():
+            t = t.lstrip()
     return t
 
 

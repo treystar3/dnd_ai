@@ -270,6 +270,12 @@ def check() -> list[str]:
             need(False, f"road.yaml {'.'.join(path_)}: {e_}")
     for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
         need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
+    from engine import voices as _vk                                                         # (f431) a blueprint line a kit forbids
+    for t_, lines_ in (Q.get("blueprints") or {}).items():
+        for b_ in lines_:
+            for mark_ in b_.get("not_with_kit", []):
+                ax_, _, op_ = mark_.partition(":")
+                need(op_ in (_vk.AXES.get(ax_, {}).get("options") or {}), f"quirks.yaml blueprints.{t_}: not_with_kit '{mark_}' is no voice kit option")
     W_ = _load("data/rules/weather.yaml")                                                     # (f430) the season moves the temperature
     seasons_ = set(_load("data/rules/pulse.yaml")["seasons"]["order"])
     need(set(W_.get("by_season") or {}) == seasons_, f"weather.yaml by_season: needs exactly the seasons {sorted(seasons_)}")

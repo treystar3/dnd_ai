@@ -101,6 +101,7 @@ class PlayerState(BaseModel):
     field: dict = {}               # field-ability state (scenes/field_actions.py): cd, camp, haste, edge, shadow, scouted, lit, shows
     heat: dict[str, dict] = {}     # how wanted you are, by town id: {"heat", "day"} (engine/law.py)
     standing: dict[str, dict] = {}   # how the groups of each town regard you, hidden: town -> group -> [value, day] (engine/standing.py)
+    standing_told: dict[str, dict] = {}   # (f431) the word last said for each: town -> group -> word, so it is said again only when it changes
     orenna: dict = {}                    # progress of the quest Orenna (engine/orenna.py)
     mentor: dict = {}                    # progress of the mentor's first contract (engine/mentor.py)
     trial: dict = {}                     # the trial of rank (scenes/trial_actions.py): pending rank, examiner, tries, wait_until, told_day

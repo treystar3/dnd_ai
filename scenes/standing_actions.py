@@ -29,9 +29,14 @@ class StandingActions:
         landed = standing.arrivals(self.store, self.world, self.player, town, self.minutes, day)
         if landed:
             console.debug(f"standing: news arrived in {town}: " + ", ".join(f"{g} {d:+.1f}" for g, d in landed))
+        told = self.player.standing_told.setdefault(town, {})
         for group, v in standing.strongest(self.player, town, day):
+            word = standing.word(v)
+            if told.get(group) == word:                    # (f431) said once, and again only when it changes: the f425 night said
+                continue                                   # "The guild here think well of you (trusted)." 29 to 42 times a run
+            told[group] = word
             who = GROUP_NAMES[group]
-            console.note(f"{who.capitalize()} here {'think well of you' if v > 0 else 'do not think well of you'} ({standing.word(v)}).")
+            console.note(f"{who.capitalize()} here {'think well of you' if v > 0 else 'do not think well of you'} ({word}).")
 
     def standing_price(self) -> float:
         return standing.price_factor(self.player, self.standing_town(), clock.day(self.minutes))
