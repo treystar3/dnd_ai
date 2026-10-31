@@ -905,7 +905,7 @@ class CombatScene:
         story = " ".join(self.fight.story)
         out = []
         for a in getattr(self.ws.player.character, "actives", []) or []:
-            if a.name and a.description and re.search(rf"\b{re.escape(a.name)}\b", story):
+            if a.name and len((a.description or "").split()) >= 3 and re.search(rf"\b{re.escape(a.name)}\b", story):   # (f424) a word or two shows nothing
                 out.append(f"{a.name}: {a.description.strip()}")
         return out[:3]
 

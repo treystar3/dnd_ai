@@ -16,7 +16,7 @@ script:
   # (f411) ...and words of another language in Latin letters, which the alphabet check cannot see ("It simply sits there among the
   # rocks, watching you avec a steady, unblinking focus"). Whole words, lower case only, none of them English or a name in this world
   # ("Aber" begins names; "und" ends them, inside a word).
-  words: [avec, nicht, sehr, und, très, também, porque, dass, mais, leurs, mentre, của]     # the last three: the f395 night's prose
+  words: [avec, nicht, sehr, und, très, também, porque, dass, mais, leurs, leur, mentre, của]     # leurs, mentre, của: the f395 night's prose; leur (f424)
 
 skip_tasks: [interpret_action, combat_interpret, audit_meaning, audit_compare, canon_extract, canon_check, overheard, party_intent,
              work_offer_read, classify_field, camp_intent, stranger_read, event_judge, clarify, plausible_object]

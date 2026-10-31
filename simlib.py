@@ -580,7 +580,8 @@ def make_character(cls_key: str, rng: random.Random, perks: bool = False):
     actives = []
     extra = TRAIT_ACTIVES.get(cls_key, []) if os.environ.get("SIM_TRAITS") == "1" else []
     for nm, effect, tier, reach, res, *more in list(spec["actives"]) + extra:
-        d = dict(name=nm, description="d", effect=effect, tier=tier, reach=reach, resource=res, context="combat")
+        d = dict(name=nm, description=f"a {tier} {effect.replace('_', ' ')} worked at {reach.replace('_', ' ')} reach, drawing on {res}",   # (f424) words
+                 effect=effect, tier=tier, reach=reach, resource=res, context="combat")                                                     # a reader can see
         if more:
             d.update(more[0])
         if effect == "summon":

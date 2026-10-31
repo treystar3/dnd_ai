@@ -127,6 +127,9 @@ def clean(text: str) -> str:
     if not isinstance(text, str) or not text:
         return text
     t = text
+    if "\r" in t:                                         # (f424) a carriage return is a space, before the control characters go: 'the\rgate' was 'thegate'
+        t = re.sub(r"\r\n?", lambda m: "\n" if m.group(0) == "\r\n" else " ", t)
+        REPAIRS["escape"] += 1
     if CONTROL.search(t):                                   # (f407) never a box on the page: "still\x08ut" was shown as "still\u25a1ut"
         t = re.sub(r"[ \t]*([\x08\x0c])", lambda m: EATEN[m.group(1)], t)
         t = CONTROL.sub("", t)

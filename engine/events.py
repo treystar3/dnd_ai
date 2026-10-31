@@ -333,13 +333,16 @@ def _won_over(state: dict, since: int, npc_id: str) -> bool:
     return any(d.get("degree") == "strong success" for d in mine) or len(mine) >= 2
 
 
-def path_met(path: dict, state: dict, thread: dict) -> bool:
+def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None) -> bool:
+    """near (f424): the places a kill counts at for a matter with nothing spawned - its own place, its town's and the wild on their
+    doorstep. A wolf killed three regions away ended the Greywood's wolves before."""
     made = thread["made"]
     if path["kind"] == "kill":
         if path.get("spawn"):
             s = next((x for x in state.get("spawns", []) if x["id"] == path["spawn"]), None)
             return bool(s and s["defeated"])
-        return any(d.get("creature") == path["target"] for d in deeds.since(state, made, ["kill"]))
+        return any(d.get("creature") == path["target"] and (near is None or d.get("place") in near)
+                   for d in deeds.since(state, made, ["kill"]))
     if path["kind"] == "horde":
         ids = [i for i in path.get("spawn", "").split(",") if i]
         found = [x for x in state.get("spawns", []) if x["id"] in ids]
@@ -386,7 +389,10 @@ def after_deed(ws, deed: dict) -> None:
                 changed = True
                 continue
         if th.get("paths"):                                           # (f317) every tier has real ways to end it
-            met = next((p for p in th["paths"] if not p["done"] and path_met(p, state, th)), None)
+            from engine import towns as _towns
+            near = ({th["place"], th.get("wild", "")} | _towns.town_places(world, pulse.town_of(world, th["place"]))
+                    if th.get("place") in world.places else None)
+            met = next((p for p in th["paths"] if not p["done"] and path_met(p, state, th, near)), None)
             if met:
                 met["done"] = True
                 th["won_path"] = met
@@ -476,6 +482,7 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
     th["result"] = "player"
     th["ending"] = ending
+    th["touched"] = True                                # (f424) the journal shows the matter the player ended
     deeds.log(store, "settled", t, th["place"], thread=th["id"], title=th["title"], tier=th["tier"], how=how)   # (f363) a situation ended by the player: the deed a campaign is earned by
     from engine import pulselog
     pulselog.mark("end", f"{th['title']} - ended by {name}: {how}", t, how="player", place=th["place"], tier=th["tier"])   # (f355) the player's own endings: the log's best rows
