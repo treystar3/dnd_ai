@@ -89,14 +89,12 @@ class DungeonActions:
     def on_delve(self, intent, text: str) -> None:
         d = self.dungeon_here()
         if not d:
-            console.note("You need to be at a dungeon's entrance to go down.")
-            self.halted = True
+            self.refuse("You need to be at a dungeon's entrance to go down.")
             return
         nxt = dungeons.next_chamber(d)
         if nxt is None:
             days = max(0, (d["made"] + D["respawn_days"] * 1440 - self.minutes) // 1440)
-            console.note(f"{d['name'].capitalize()} is cleared to the bottom. It will be remade in {days} days.")
-            self.halted = True
+            self.refuse(f"{d['name'].capitalize()} is cleared to the bottom. It will be remade in {days} days.")
             return
         f, c = nxt
         floor = d["floors"][f]

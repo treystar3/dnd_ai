@@ -13,7 +13,7 @@ from core.models import Item
 import config
 from engine import entities
 from engine import ability_traits as AT
-from engine import accessories, bosses, inventory, clock, combat, death, events, items, leveling, loot, mentor, money, party, pools, taming
+from engine import accessories, bosses, inventory, clock, combat, death, events, items, ledger, leveling, loot, mentor, money, party, pools, taming
 from llm.contracts import AccessoryName, CombatIntent, GoddessLine, LegendaryName, LootName, Narration
 from llm.gateway import LLMError, generate
 from scenes import combat_prompts as cp
@@ -1238,10 +1238,10 @@ class CombatScene:
             self.ws.reputation_add(self.ws.nearest_town(self.ws.player.location), 1)
         pack = combat.RULES["creatures"].get("pack", {})
         pack_xp = (pack.get("health", 1) + pack.get("damage", 1)) / 2
-        ledger = 1 + (pools.mechanic(c, "deaths_ledger") or 0) / 100
+        deaths_ledger = 1 + (pools.mechanic(c, "deaths_ledger") or 0) / 100
         total_xp = round(sum(leveling.kill_xp(c.level, e.level, e.rank)
                              * (pack_xp if self.ws.world.bestiary[e.creature].group[0] >= 2 else 1)
-                             * (ledger if e.category == "undead" else 1) for e in dead))
+                             * (deaths_ledger if e.category == "undead" else 1) for e in dead))
         total_xp += round(sum(leveling.kill_xp(c.level, e.level, e.rank) for e in yielded) * combat.RULES["talk"]["surrender_reward"])
         coins, found = 0, []
         scavenger = pools.mechanic(c, "scavenger") or 0
@@ -1324,7 +1324,9 @@ class CombatScene:
                f"{', '.join(carried)}\n" if (carried := self.down_but_alive()) else "")
             + (f"ON THEIR FEET (the player's companions still standing, and how hurt: a fact for when they come in, not a pose each): "
                f"{'; '.join(feet)}\n" if (feet := self.on_their_feet()) else "")
-            + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "") +
+            + (f"{entities.WHO_HEAD}: {'; '.join(who)}\n" if (who := entities.who_is_who(self.ws)) else "")
+            + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(done) + "\n")
+               if (done := ledger.told()) else "") +                                                          # (f416)
             f"THE PLAYER FINDS: {', '.join(noticed) or 'nothing'}\n"
             + (f"{wp.HABITS_HEAD}: {' '.join(end_habits)}\n" if end_habits else "")
             + self.aftermath_facts(dead, skinnable) +

@@ -65,8 +65,7 @@ class PropertyActions:
         if self.place.type == "home":
             if self.home_ruined():
                 if not re.search(r"\b(rebuild|repair|restore|mend)\b", words):
-                    console.note(f"Your house is a ruin. Say 'rebuild the house' ({money.fmt(self.rebuild_cost())}).")
-                    self.halted = True
+                    self.refuse(f"Your house is a ruin. Say 'rebuild the house' ({money.fmt(self.rebuild_cost())}).")
                     return True
                 cost = self.rebuild_cost()
                 if c.coins < cost:
@@ -111,23 +110,19 @@ class PropertyActions:
             return False
         town = prop.town_of(self.world, self.player.location)
         if not prop.for_sale(town):
-            console.note("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
+            self.refuse("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
                          if town in P["homes"] else "No houses are for sale here.")
-            self.halted = True
             return True
         agent = next((n for n in self.present if n.role == P["agent_role"]), None)
         if not agent:
-            console.note("The land agent isn't here right now.")
-            self.halted = True
+            self.refuse("The land agent isn't here right now.")
             return True
         if town in self.player.homes:
-            console.note("You already own a house here. Walk over to it to build.")
-            self.halted = True
+            self.refuse("You already own a house here. Walk over to it to build.")
             return True
         h = P["homes"][town]
         if c.coins < h["price"]:
-            console.note(f"{h['name'].capitalize()} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"{h['name'].capitalize()} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")
             return True
         c.coins -= h["price"]
         self.player.homes[town] = {"day": clock.day(self.minutes), "upgrades": [], "last_garden": -1, "last_hearth": -1}

@@ -53,14 +53,12 @@ class PastimeActions:
         c = self.player.character
         who = next((n for n in self.present if n.id == intent.target), None) or next((n for n in self.present if n.role in G["roles"]), None)
         if who is None:
-            console.note("Nobody here will play.")
-            self.halted = True
+            self.refuse("Nobody here will play.")
             return
         stake = self.coin_amount(intent.item or "") or self.coin_amount(text) or G["default_stake"]
         stake = min(stake, int(c.coins * G["max_share"]))
         if stake <= 0:
-            console.note(f"You have nothing to stake. Purse: {money.fmt(c.coins)}")
-            self.halted = True
+            self.refuse(f"You have nothing to stake. Purse: {money.fmt(c.coins)}")
             return
         odds = G["odds"] + (c.attributes.wisdom - checks.RULES["attribute_center"]) * G["insight_weight"]
         degree, rolled = checks.roll(max(checks.RULES["min"], min(checks.RULES["max"], odds)), self.rng, c=c)
@@ -85,8 +83,7 @@ class PastimeActions:
         sellers = [n for n in self.present if self.world.roles[n.role].sells or self.world.roles[n.role].stock]
         seller = next((n for n in sellers if n.id == intent.target), None) or (sellers[0] if sellers else None)
         if seller is None:
-            console.note("No one here is selling anything.")
-            self.halted = True
+            self.refuse("No one here is selling anything.")
             return
         if seller.tier == "background":
             from npc.life import promote

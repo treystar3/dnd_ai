@@ -68,8 +68,7 @@ class ShopActions:
                 self.halted = True
             return False
         if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
-            console.note("You already have a room here until mid-morning tomorrow. No charge.")
-            self.halted = True
+            self.refuse("You already have a room here until mid-morning tomorrow. No charge.")
             return False
         c.coins -= ware.price
         effect = ""

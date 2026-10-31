@@ -90,8 +90,7 @@ class InventoryActions:
             return False
         key = self.find_key(name)
         if key:
-            console.note(f"{key.name.capitalize()} is a {'quest' if key.kind == 'quest' else 'key'} item - you can't {what} it.")
-            self.halted = True
+            self.refuse(f"{key.name.capitalize()} is a {'quest' if key.kind == 'quest' else 'key'} item - you can't {what} it.")
             return True
         return False
 
@@ -133,14 +132,13 @@ class InventoryActions:
             if inv.find(self.pack, intent.item or text):
                 self.on_drop(intent, text)
                 return
-            console.note("You don't have that.")
-            self.halted = True
+            self.refuse("You don't have that.")
             return
         kind = "quest" if key.kind == "quest" else "key"
         console.note(f"{key.name.capitalize()} is a {kind} item. Discard it for good? (y/n)")
         if console.ask().lower() not in ("y", "yes"):
             console.note("Kept.")
-            self.halted = True
+            self.halted = True                                  # (f416) the player's choice, not a refusal
             return
         c = self.player.character
         c.key_items.remove(key)
@@ -156,8 +154,7 @@ class InventoryActions:
         thing = (f"{key.name} ({key.description})" if key else
                  (lambda i: f"{items.display_name(i)} ({items.summary(i)})" if i else "")(inv.find(self.pack, intent.item or text)))
         if not thing:
-            console.note("You don't have that to show.")
-            self.halted = True
+            self.refuse("You don't have that to show.")
             return
         if not npc or npc not in self.present:
             self.narrate(f"The player takes out {thing} and looks it over.", text)
@@ -177,8 +174,7 @@ class InventoryActions:
             self.read_codex(item, text)                            # (f397) a codex teaches its named spell
             return
         if not item or not item.good or inv.GOODS[item.good].kind == "herb":
-            console.note("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
-            self.halted = True
+            self.refuse("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
             return
         used = inv.take(self.pack, inv.GOODS[item.good].name, 1)
         effect = self.consume(used)
@@ -197,8 +193,7 @@ class InventoryActions:
             return
         item = inv.take(self.pack, intent.item or text, max(1, intent.count))
         if not item:
-            console.note("You aren't carrying that.")
-            self.halted = True
+            self.refuse("You aren't carrying that.")
             return
         state = self.store.load_place(self.player.location)
         inv.leave_on_ground(state, item, self.minutes)
@@ -212,8 +207,7 @@ class InventoryActions:
         state = self.store.load_place(self.player.location)
         item = inv.pick_up(state, intent.item or text, self.minutes)
         if not item and any(w in (intent.item or text).lower() for w in self.COIN_WORDS):        # (f384) loot coin goes straight to the purse
-            console.note(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
-            self.halted = True
+            self.refuse(f"Any coin worth taking is already in your purse ({money.fmt(self.player.character.coins)}); none lies here.")
             return
         if not item:                                         # not an item the game keeps: an ordinary bit of the scenery is narrated, and kept nowhere
             from scenes import world_prompts as wp
@@ -250,12 +244,10 @@ class InventoryActions:
             self.on_buy(intent, text)
             return
         if not amount:
-            console.note("How much? Say an amount, or what you're paying for.")
-            self.halted = True
+            self.refuse("How much? Say an amount, or what you're paying for.")
             return
         if c.coins < amount:
-            console.note(f"You only have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"You only have {money.words(c.coins)}.")
             return
         if self.is_bribe(intent, text):
             self.offer_bribe(intent, text, npc, amount)
@@ -332,12 +324,10 @@ class InventoryActions:
         c = self.player.character
         amount = self.coin_amount(intent.item or "") or self.coin_amount(text)
         if not amount:
-            console.note("How much? Say an amount.")
-            self.halted = True
+            self.refuse("How much? Say an amount.")
             return True
         if c.coins < amount:
-            console.note(f"You only have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"You only have {money.words(c.coins)}.")
             return True
         c.coins -= amount
         from engine.domain_events import Tithe
@@ -363,8 +353,7 @@ class InventoryActions:
             if key and key.for_whom:
                 npc = next((n for n in self.present if self.is_recipient(n, key.for_whom)), None)
         if not npc or npc not in self.present:
-            console.note("There's no one here to give that to.")
-            self.halted = True
+            self.refuse("There's no one here to give that to.")
             return
         named = (intent.item or "").lower()
         if any(w in named for w in self.COIN_WORDS) and not inv.find(self.pack, named):
@@ -396,8 +385,7 @@ class InventoryActions:
             return
         item = inv.take(self.pack, intent.item or text, 1)
         if not item:
-            console.note("You aren't carrying that.")
-            self.halted = True
+            self.refuse("You aren't carrying that.")
             return
         from engine.domain_events import Gift                 # a thing given for nothing: taken, remembered, and the companions have a view
         self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), item=inv.label(item)), npc)
@@ -411,13 +399,11 @@ class InventoryActions:
         if self.refuse_key(intent.item or text, "store"):
             return
         if not self.can_store():
-            console.note("There's no item box here.")
-            self.halted = True
+            self.refuse("There's no item box here.")
             return
         item = inv.take(self.pack, intent.item or text, max(1, intent.count or 99))
         if not item:
-            console.note("You aren't carrying that.")
-            self.halted = True
+            self.refuse("You aren't carrying that.")
             return
         leftover = inv.add(self.player.stash, item, self.stash_cap())
         if leftover:
@@ -428,13 +414,11 @@ class InventoryActions:
 
     def on_retrieve(self, intent, text: str) -> None:
         if not self.can_store():
-            console.note("There's no item box here.")
-            self.halted = True
+            self.refuse("There's no item box here.")
             return
         item = inv.take(self.player.stash, intent.item or text, max(1, intent.count or 99))
         if not item:
-            console.note("That isn't in your item box.")
-            self.halted = True
+            self.refuse("That isn't in your item box.")
             return
         self.to_pack(item)
         self.store.save_player(self.player)
@@ -516,13 +500,11 @@ class InventoryActions:
             return
         if not recipe:
             names = ", ".join(inv.GOODS[next(iter(r.makes))].name for r in inv.RECIPES.values())
-            console.note(f"You don't know how to make that. You can make: {names}.")
-            self.halted = True
+            self.refuse(f"You don't know how to make that. You can make: {names}.")
             return
         missing = inv.can_craft(self.pack, recipe)
         if missing:
-            console.note(f"You need {', '.join(missing)}.")
-            self.halted = True
+            self.refuse(f"You need {', '.join(missing)}.")
             return
         c = self.player.character
         origin = ""
@@ -562,28 +544,24 @@ class InventoryActions:
             spot = {"owner": "", "fee": 0}
         if spot is None:
             where = [p.name for p in self.world.places.values() if station in p.stations]
-            console.note(f"Making {base.name} needs a {station.replace('_', ' ')}"
+            self.refuse(f"Making {base.name} needs a {station.replace('_', ' ')}"
                          + (f" - there's one at {', '.join(where)}." if where else "."))
-            self.halted = True
             return
         owner = next((n for n in self.present if n.role == spot.get("owner")), None) if spot.get("owner") else None
         if spot.get("owner") and not owner:
-            console.note(f"The {station.replace('_', ' ')} belongs to the {spot['owner'].replace('_', ' ')}, who isn't here right now.")
-            self.halted = True
+            self.refuse(f"The {station.replace('_', ' ')} belongs to the {spot['owner'].replace('_', ' ')}, who isn't here right now.")
             return
         need = crafting.units_for(base)
         material, have = crafting.pick_material(self.pack, base.family, words, need)
         if not material:
             got = ", ".join(f"{n} {items.MATERIALS[m].name}" for m, n in have.items()) or "none"
-            console.note(f"{base.name.capitalize()} takes {need} {base.family} materials of one kind. You have: {got}.")
-            self.halted = True
+            self.refuse(f"{base.name.capitalize()} takes {need} {base.family} materials of one kind. You have: {got}.")
             return
         fee = spot.get("fee", 0)
         if fee and self.owns("workshop_regular") and self.town_rep() >= 10:
             fee = 0
         if fee and c.coins < fee:
-            console.note(f"Using the {station.replace('_', ' ')} costs {money.words(fee)}, and you have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"Using the {station.replace('_', ' ')} costs {money.words(fee)}, and you have {money.words(c.coins)}.")
             return
         c.coins -= fee
         saved = sum(1 for _ in range(need) if random.random() < crafting.mechanic(c, "thrifty") / 100)
@@ -618,8 +596,7 @@ class InventoryActions:
         crafter = next((n for n in crafters if base and base.family in self.world.roles[n.role].commissions), None)
         if not crafter or not base:
             offers = "; ".join(f"{n.label()} makes {', '.join(self.world.roles[n.role].commissions)} gear" for n in crafters)
-            console.note("No one here can make that." + (f" {offers}." if offers else ""))
-            self.halted = True
+            self.refuse("No one here can make that." + (f" {offers}." if offers else ""))
             return
         need = crafting.units_for(base)
         own, have = crafting.pick_material(self.pack, base.family, words, need)
@@ -636,9 +613,8 @@ class InventoryActions:
         haggle = 1 - (crafting.mechanic(c, "haggler") + crafting.mechanic(c, "commission_broker")) / 100
         price = round((common_value * crafting.RULES["commission_labor"] + materials_cost) * haggle)
         if c.coins < price:
-            console.note(f"{crafter.label()} would want {money.words(price)} for {base.name} in "
+            self.refuse(f"{crafter.label()} would want {money.words(price)} for {base.name} in "
                          f"{items.MATERIALS[material].name}; you have {money.words(c.coins)}.")
-            self.halted = True
             return
         c.coins -= price
         if use_own:
@@ -741,16 +717,14 @@ class InventoryActions:
         item = inv.find(self.pack, intent.item or text)
         if not item:
             worn = equipment.find(self.player.character, intent.item or text, "equipped")
-            console.note(f"{items.display_name(worn).capitalize()} is equipped. Unequip it first." if worn else "You aren't carrying that.")
-            self.halted = True
+            self.refuse(f"{items.display_name(worn).capitalize()} is equipped. Unequip it first." if worn else "You aren't carrying that.")
             return
         cat = inv.category(item)
         buyers = [n for n in self.present if cat in self.world.roles[n.role].buys or "any" in self.world.roles[n.role].buys]
         buyer = next((n for n in buyers if n.id == intent.target), None) or \
             (sorted(buyers, key=lambda n: -(self.world.roles[n.role].buy_rate or R["sell_rate"]))[0] if buyers else None)
         if not buyer:
-            console.note(f"No one here buys {cat}.")
-            self.halted = True
+            self.refuse(f"No one here buys {cat}.")
             return
         sold = inv.take(self.pack, intent.item or text, max(1, intent.count))
         self.finish_sale(sold, buyer, text)

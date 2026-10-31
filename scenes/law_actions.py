@@ -343,8 +343,7 @@ class LawActions:
         if not lock:
             lock = self.invent_lock(owner, what, text)
             if not lock:
-                console.note("There is no lock here that you can find.")
-                self.halted = True
+                self.refuse("There is no lock here that you can find.")
                 return
         L = law.L["lock"]
         lock_owner = next((n for n in self.present if n.id == lock["owner"]), None)

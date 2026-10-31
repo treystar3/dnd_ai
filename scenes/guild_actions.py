@@ -321,15 +321,13 @@ class GuildActions:
         clerk = self.clerk_here()
         c = self.player.character
         if not clerk:
-            console.note("You'd need to find the guild clerk to sign the register.")
-            self.halted = True
+            self.refuse("You'd need to find the guild clerk to sign the register.")
             return
         if self.rank:
             console.note(f"You're already a member, rank {self.rank}.")
             return
         if c.coins < G["joining_fee"]:
-            console.note(f"The joining fee is {money.words(G['joining_fee'])}; you have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"The joining fee is {money.words(G['joining_fee'])}; you have {money.words(c.coins)}.")
             return
         c.coins -= G["joining_fee"]
         self.player.guild_rank = "F"
@@ -371,13 +369,11 @@ class GuildActions:
             self.take_personal(npc)
             return
         if not self.rank:
-            console.note(f"Only guild members can take contracts. Joining costs {money.words(G['joining_fee'])} - "
+            self.refuse(f"Only guild members can take contracts. Joining costs {money.words(G['joining_fee'])} - "
                          "ask the clerk.")
-            self.halted = True
             return
         if not self.clerk_here():
-            console.note("Contracts are taken from the board, with the clerk to record them.")
-            self.halted = True
+            self.refuse("Contracts are taken from the board, with the clerk to record them.")
             return
         board = self.ensure_board()
         q = self.pick_posting(board, f"{intent.item} {text}")
@@ -386,24 +382,20 @@ class GuildActions:
             self.halted = True
             return
         if not quests.at_or_below(q["letter"], self.rank):
-            console.note(f"That's a rank-{q['letter']} contract; you're rank {self.rank}.")
-            self.halted = True
+            self.refuse(f"That's a rank-{q['letter']} contract; you're rank {self.rank}.")
             return
         if q["kind"] == "delve":
             dd = next((x for x in self.store.load_dungeons() if x["id"] == q.get("dungeon")), None)
             if dd is None or q.get("floor", 0) >= len(dd["floors"]):
-                console.note("That posting is out of date - the place has been remade. The clerk strikes it from the board.")
                 board[:] = [x for x in board if x is not q]
-                self.halted = True
+                self.refuse("That posting is out of date - the place has been remade. The clerk strikes it from the board.")
                 return
         limit = G["base_active"] + self.guild_perks()["active"]
         if sum(1 for x in self.player.quests if x["guild"]) >= limit:
-            console.note(f"You can hold {limit} guild contracts at once - finish or abandon one first.")
-            self.halted = True
+            self.refuse(f"You can hold {limit} guild contracts at once - finish or abandon one first.")
             return
         if q["kind"] == "missing" and any(x["kind"] == "missing" for x in self.player.quests):
-            console.note("You are already looking for someone. Finish or drop that contract first.")
-            self.halted = True
+            self.refuse("You are already looking for someone. Finish or drop that contract first.")
             return
         gid = self.hall_here()
         if not q.get("mentor"):
@@ -419,6 +411,9 @@ class GuildActions:
                 source="the adventurers' guild", day=clock.day(self.minutes), for_whom=q["to_role"].replace("_", " ")))
         self.player.quests.append(q)
         self.store.save_player(self.player)
+        from engine import ledger                                           # (f416) and the turn's record: a contract taken by a line the
+        ledger.add("took", quest=str(q["id"]),                              # clerk never answered was told 'Nothing comes of that here'
+                   say=f"The player has taken the contract '{q['title']}' at the board; the clerk records it. It is theirs now.")
         from engine import stakes                                           # (f326) no ledger line: the board pane and the clerk's own words carry it
         stakes.taken(self, q)                                               # (f322) the issuer hears who took it
         from engine.domain_events import ContractTaken
@@ -431,8 +426,7 @@ class GuildActions:
     def on_abandon_quest(self, intent, text: str) -> None:
         q = self.pick_posting(self.player.quests, f"{intent.item} {text}")
         if not q:
-            console.note("You have no contract like that.")
-            self.halted = True
+            self.refuse("You have no contract like that.")
             return
         if q.get("mentor"):
             from engine import mentor
@@ -606,5 +600,7 @@ class GuildActions:
                 source=npc.name, day=clock.day(self.minutes), for_whom=q.get("to_role", "")))
         self.player.quests.append(q)
         self.store.save_player(self.player)
+        from engine import ledger
+        ledger.add("took", quest=str(q["id"]), say=f"The player has taken on {npc.label()}'s request, '{q['title']}'. It is theirs now.")  # (f416)
         console.ledger(f"Request taken: [{q['letter']}] {q['title']} (for {npc.name}). "
                      + ("No time limit." if q.get("deadline") is None else f"Due in {G['ranks'][q['letter']]['deadline_days']} days."))

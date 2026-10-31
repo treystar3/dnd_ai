@@ -232,7 +232,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         result = fresh("narrate", system,
                        wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
                                             self.recent_narration, self.gear_line(),
-                                            self.store.load_place(self.player.location).marks),
+                                            self.store.load_place(self.player.location).marks,
+                                            told=ledger.told()),                       # (f416) what the turn did: a fight's opening, a sighting
                        Narration, self.recent_narration)
         console.narrate(result.text)
         self.remember_narration(result.text)
@@ -747,11 +748,37 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def said_nothing(self, text: str) -> None:
         """(f385) The turn showed the player nothing at all: no passage, no line, no note. That is never the answer to something typed.
-        One line says so, and the refusal log keeps what ran, so the handler that went quiet can be found and given its own reason."""
+        (f416) When the engine did something all the same (a contract taken from the board, and the clerk's words never came), that is
+        told, in the world; only a turn that did nothing says so, and the refusal log keeps what ran, so the handler that went quiet can
+        be found and given its own reason."""
         from engine import refusals
+        if ledger.untold():
+            self._narrate_now("Tell what the game did this turn, as the player would see it, and nothing more.", text)
+            return
         ran = ", ".join(getattr(self, "ran", []) or []) or "nothing"
         console.note("Nothing comes of that here. Try it another way, or say plainly what you want to happen.")   # (f391) in the world's words
         refusals.note("silent", text, f"the turn showed nothing; actions run: {ran}", self.player.location, self.store.meta.turn)
+
+    step = None                                      # (f416) the plan's step being done, while one is
+
+    def refuse(self, say: str, needed_by_rest: bool | None = None) -> None:
+        """(f416) The game says no to a step. The player reads why; the turn's record keeps what did not happen, so the passage that tells
+        the rest of the line never shows it done (a whetstone the player did not have rasped along their blade, a dungeon they were not
+        at was walked into); the refusal log keeps it, so the night's count of refusals is every one the page shows; and the steps after
+        it are not done only when they rest on this one (engine/actions.py needed_by_rest), unless the handler says otherwise."""
+        from engine import actions, refusals
+        console.note(say)
+        st = self.step
+        kind = st.kind if st is not None else ""
+        what = (getattr(st, "summary", "") or "").strip() if st is not None else ""
+        reason = hygiene.undash(" ".join(say.split())).rstrip(".")
+        ledger.add("refused", step=kind, what=what, why=reason,
+                   say=(f"NOT DONE, never show it done: {what} ({reason})." if what else f"NOT DONE, never show it done: {reason}."))
+        refusals.note("refused", self.last_text or "", f"{kind or 'outside a plan'}: {reason}", self.player.location, self.store.meta.turn)
+        if needed_by_rest is None:
+            needed_by_rest = actions.BY_KIND[kind].needed_by_rest if kind in actions.BY_KIND else True
+        if needed_by_rest:
+            self.halted = True
 
     def reload_after_rollback(self) -> None:
         """The database was rolled back to before the turn; what the scene holds in memory must match it again."""
@@ -765,7 +792,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
         self.refresh_present()
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
-        self.pending, self.buffering, self.halted = [], False, False
+        self.pending, self.buffering, self.halted, self.step = [], False, False, None
 
     def pane_arrival(self, before: str) -> None:
         """Arriving by a pane button (the map, the places list) counts like arriving by a typed line: what is due on arrival happens now."""
@@ -1086,6 +1113,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 break
             console.debug(f"intent {i + 1}/{len(plan)}: {intent.model_dump(exclude_defaults=True)}")
             self.pending_check, self.pending_beats = "", []
+            self.step = intent                                 # (f416) what a refusal says did not happen
             if not self.run_checks(intent, text):
                 from engine import actions
                 if intent.kind not in actions.BY_KIND:
@@ -1108,11 +1136,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.turn_in(intent.target)
             if intent.kind in TIME_COST:
                 self.advance(TIME_COST[intent.kind])
+        self.step = None
         undone = self.__dict__.pop("dropped_steps", [])
         if undone:                                             # (f332) the game does at most three things a line: say what it did not do
             from engine import refusals
             console.note("Three things at a time: not done - " + "; ".join(undone) + ". Say it again when you are ready.")
             refusals.note("undone", text, "more than three actions in one line: " + "; ".join(undone), self.player.location, self.store.meta.turn)
+            ledger.add("not_done", steps=undone, say="NOT DONE this turn, never show them done: " + "; ".join(undone) + ".")   # (f416)
         self.ensure_dungeons()
         self.run_pulse()
         self.flush(text)
@@ -1908,8 +1938,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.walk_over(npc)
         else:
             usual = routines.usual_line(self.world, self.store.meta.seed, row)
-            console.note(f"{row.label()} works here, but is not about at this hour." + (f" You might find them {usual}." if usual else ""))
-            self.halted = True
+            self.refuse(f"{row.label()} works here, but is not about at this hour." + (f" You might find them {usual}." if usual else ""))
 
     def names_far_place(self, dest: str, text: str) -> bool:
         """Do the player's own words name this place (or its town)? A bare noun like 'the smithy' does not."""
@@ -1994,8 +2023,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.on_explore(intent, text)
                     return
                 console.debug(f"'{dest}' is not a place - stopping the action chain")
-                console.note("There's no such place.")
-                self.halted = True
+                self.refuse("There's no such place.")
                 return
         if dest in self.world.places:
             from engine import mapview
@@ -2014,9 +2042,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 tgt = self.world.places[dest]
                 found = self.world.path(self.player.location, dest)
                 away = f", {clock.describe_duration(found[1])} away" if found else ""
-                console.note(f"There is no {tgt.type} in {here_town}. The nearest is {tgt.name} in "
+                self.refuse(f"There is no {tgt.type} in {here_town}. The nearest is {tgt.name} in "
                              f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Say where you want to go to head there.")
-                self.halted = True
                 return
         self.travel_route(dest, text)
 
@@ -2024,8 +2051,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk."""
         found = self.world.path(self.player.location, dest) if dest in self.world.places else None
         if not found:
-            console.note("You don't know a way there from here.")
-            self.halted = True
+            self.refuse("You don't know a way there from here.")
             self.show_exits()
             return
         route, walk = found
@@ -2043,8 +2069,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             when = (" Nobody can say when it will open again." if not 0 < left <= 30 * 1440 else
                     f" It should open again in about {days} day{'s' if days != 1 else ''}." if days else
                     f" It should open again in about {hours} hour{'s' if hours != 1 else ''}.")
-            console.note(f"The way through {self.world.places[blocked[0]].name} is closed: {blocked[1].rstrip('.')}.{when}")
-            self.halted = True
+            self.refuse(f"The way through {self.world.places[blocked[0]].name} is closed: {blocked[1].rstrip('.')}.{when}")
             return
         if passed:
             console.note(f"The way through {self.world.places[passed[0]].name} is closed to anyone going in, but you are already "
@@ -2100,14 +2125,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not npc and resident:
             from engine import court
             if court.is_gated(self.world, resident) and not court.admitted(self, resident.location):
-                console.note(court.absent_line(self, resident))                  # (f320) behind a door that has not opened to them
-                self.halted = True
+                self.refuse(court.absent_line(self, resident))                  # (f320) behind a door that has not opened to them
             elif resident.away_until > self.minutes:
-                console.note(f"{resident.label()} has stepped away. Give it a little while.")
-                self.halted = True
+                self.refuse(f"{resident.label()} has stepped away. Give it a little while.")
             else:
-                console.note(f"{resident.label()} isn't here at this hour.")
-                self.halted = True
+                self.refuse(f"{resident.label()} isn't here at this hour.")
             return
         if not npc and self.store.npc_exists(target_id):
             away = self.store.load_npc(target_id)
@@ -2123,8 +2145,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return
             npc = next((n for n in self.present if n.id == target_id), None)
             if not npc:
-                console.note(f"{away.label()} is not about at this hour.")
-                self.halted = True
+                self.refuse(f"{away.label()} is not about at this hour.")
                 return
         if not npc and not self.present:
             self.narrate("The player says or thinks this aloud, but no one is here to answer. Reflect the silence "
@@ -2181,6 +2202,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                                                          if npc.journal_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ([back] if back else []) + ctx + secret_lines
+        if decided := ledger.decided():                                  # (f416) what the turn has settled so far: never answered against
+            ctx = ctx + ["WHAT THE GAME HAS DECIDED THIS TURN (true; say nothing against it): " + " ".join(decided)]
         if npc.id in self.player.prisoners:
             self.player.prisoners[npc.id]["asked"] = self.player.prisoners[npc.id].get("asked", 0) + 1
         from engine import voices
@@ -2409,16 +2432,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         seller = next((n for n in sellers if n.id == intent.target), None) or (sellers[0] if sellers else None)
         if not seller:
-            console.note("No one here is selling anything.")
-            self.halted = True
+            self.refuse("No one here is selling anything.")
             return
         wares = self.world.roles[seller.role].sells
         wanted = intent.ware.lower().strip()
         ware = next((w for w in wares if w.id == wanted), None) or \
             next((w for w in wares if wanted and (wanted in w.name.lower() or w.id in wanted)), None)
         if not ware:
-            console.note(f"{seller.label()} sells: " + ", ".join(f"{w.name} ({money.words(w.price)})" for w in wares))
-            self.halted = True
+            self.refuse(f"{seller.label()} sells: " + ", ".join(f"{w.name} ({money.words(w.price)})" for w in wares))
             return
         self.buy_ware(seller, ware, text)
 
@@ -2430,14 +2451,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             next((a for a in brought if a.name.lower() in text.lower()), None)
         left = next((a for a in loadout.book(c) if a.id == intent.ability or a.name.lower() in text.lower()), None)
         if not ability and left is not None:
-            console.note(f"{left.name} is in your book, but you did not bring it. (#book to see what you bring; #prepare to change it, out of a fight, once a day.)")
-            self.halted = True
+            self.refuse(f"{left.name} is in your book, but you did not bring it. (#book to see what you bring; #prepare to change it, out of a fight, once a day.)")
             return
         if not ability:
             named = (intent.ability or "").strip()
             if named and not any(named.lower() in (a.name.lower(), a.id.lower()) for a in c.actives):
-                console.note(f"You don't have an ability called '{named}'.")
-                self.halted = True
+                self.refuse(f"You don't have an ability called '{named}'.")
                 return
             self.on_other(intent, text)
             return
@@ -2456,16 +2475,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if self.wildlife:                                        # a fighting ability turned on something hostile starts the fight with it
                 self.on_attack(intent, text, opener=ability.id)
                 return
-            console.note(f"{ability.name} is a fighting technique - save it for a fight"
+            self.refuse(f"{ability.name} is a fighting technique - save it for a fight"
                          + (" (name it as you start one, or set it with #prebuff)." if ability.effect.value == "buff" else "."))
-            self.halted = True
             return
         self.ensure_field_uses()
         if ability.field_use:
             refusal = self.field_precheck(ability, intent, text)
             if refusal:
-                console.note(refusal)
-                self.halted = True
+                self.refuse(refusal)
                 return
         pool = ability.resource.value
         table = "ability_cost_percent" if pool == "mana" else "stamina_cost_percent"
@@ -2704,8 +2721,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         camped = self.camp_active()
         if self.place.type == "dungeon" and self.player.delve and not self.player.delve.get("rest") and not camped \
                 and self.has("safe_camp") is None and not (barrow and self.owns("tomb_sleeper")):
-            console.note("It's too dangerous to rest here. Find a quiet chamber, or climb back out.")
-            self.halted = True
+            self.refuse("It's too dangerous to rest here. Find a quiet chamber, or climb back out.")
             return
         if intent.wait_until:
             minutes = clock.minutes_until(self.minutes, intent.wait_until)

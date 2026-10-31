@@ -125,7 +125,8 @@ Rules:
   never name an expression, and never call a face unreadable, a mask, or weary.
 - If the PLAYER'S WORDS ask about something specific, answer that first and directly.
 - Never speak for anyone. Never invent dialogue.
-- Never decide outcomes. Only describe what the GAME EVENT says happened.
+- Never decide outcomes. Only describe what WHAT THE GAME DID THIS TURN and the GAME EVENT say happened; the PLAYER'S WORDS are what
+  they typed, and a part of them the game did not do does not happen.
 - Never repeat sentences, images or details from RECENT NARRATION. Find something new to notice.
 Respond only with JSON matching the schema, with the prose in "text"."""
 
@@ -159,13 +160,15 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
     """already (f347): what the player has read about this place this visit (scenes/world.py shown_lines), so the narrator says what is new.
     companions (f349): the hires the event has act, the only ones the narrator hears of; worn: words recent passages leaned on. (f375) No
     length is given: the narrator writes what the moment holds. unlooked (f380): on walking in, PEOPLE HERE is only who the eye falls on
-    first (scenes/world.py first_seen); this many more are here, met when the player looks."""
+    first (scenes/world.py first_seen); this many more are here, met when the player looks. (f416) What the game did comes just before
+    the event, and the player's words after it, marked as only what they typed: a night's passages acted out the words, refused part and
+    all."""
     visible = "\n".join(f"  - {v}" for v in list(place.visible) + list(streets))       # (f313) the crowd, the watch, the town's state and landmarks, from the truth layer
     present = "\n".join(f"  - {label}: {desc} Right now: {activity}" for label, desc, activity in people) or "  (no one)"
     if unlooked:
         present += (f"\n  - and {unlooked} {'other' if unlooked == 1 else 'others'} the player has not looked at yet: at most a word for them "
                     "together, never one by one")
-    said = f'\nPLAYER\'S WORDS: "{player_text}"' if player_text else ""
+    said = f'\nPLAYER\'S WORDS (what they typed; only what the game did happens): "{player_text}"' if player_text else ""
     return (
         f"GAME STATE\nTIME: {time_label}\n{('THE PLAYER: ' + gear + chr(10)) if gear else ''}PLACE: {place.name} ({place.type})\n"
         + (f"THE TOWN (its character; let it colour the scene, never recite it): {town}\n" if town else "")
@@ -178,7 +181,6 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (f"{_fallen_head()}: {'; '.join(fallen)}\n" if fallen else "")
         + (("THE PARTS OF THIS PLACE (real: the player can go to each; name no other part of it):\n" + "\n".join(f"  - {x}" for x in parts) + "\n")
            if parts else "")
-        + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(told) + "\n") if told else "")
         + (f"WORDS YOU HAVE WORN OUT (leaned on in recent passages; find other words): {', '.join(worn)}\n" if worn else "") + "\n"
         + (f"LASTING MARKS ON THIS PLACE (still there; mention them when they'd be noticed): {'; '.join(marks)}\n"
            if marks else "")
@@ -186,8 +188,9 @@ def narration_request(time_label: str, place, people: list[tuple[str, str, str]]
         + (f"WHAT'S GOING ON HERE LATELY (let it show in the scene when it would be noticed): {_sentences(happenings)}\n"
            if happenings else "")
         + (f"WHAT PEOPLE HERE ARE TALKING ABOUT (background only; nobody recites it, nobody addresses the player with it): {' '.join(news)}\n"
-           if news else "") +
-        f"GAME EVENT: {event}{said}\n"
+           if news else "")
+        + (("WHAT THE GAME DID THIS TURN (true; tell it, and nothing that contradicts it): " + " ".join(told) + "\n") if told else "")
+        + f"GAME EVENT: {event}{said}\n"                                    # (f416) what the game did first, the player's words after
         "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)")
     )
 

@@ -157,8 +157,7 @@ class SpellActions:
         m = re.search(r"\b([1-9])\b", words)
         line = ready[int(m.group(1)) - 1][0] if m and int(m.group(1)) <= len(ready) else self.pick_line(ready, words)
         if line is None:
-            console.note("Which one? Say its number or name.")
-            self.halted = True
+            self.refuse("Which one? Say its number or name.")
             return True
         r = spells.next_rank(self.player.character, line)
         fee = self.fee(spells.teacher_fee(r))
@@ -189,8 +188,7 @@ class SpellActions:
         c = self.player.character
         why = spells.can_read(c, item)
         if why:
-            console.note(why)
-            self.halted = True
+            self.refuse(why)
             return
         self.pack.remove(item)
         a = spells.learn_named(c, item)

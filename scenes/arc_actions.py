@@ -728,13 +728,11 @@ class ArcActions:
         from engine import law
         npc = self.prisoner_here(intent)
         if not npc:
-            console.note("There is no prisoner here to hand over.")
-            self.halted = True
+            self.refuse("There is no prisoner here to hand over.")
             return
         guard = next((n for n in self.present if n.role in law.L["heat"]["guard_roles"] and n.id not in self.player.prisoners), None)
         if not guard:
-            console.note("There is no one from the watch here to hand them to. Find a guard or a watch captain.")
-            self.halted = True
+            self.refuse("There is no one from the watch here to hand them to. Find a guard or a watch captain.")
             return
         pr = self.player.prisoners.get(npc.id, {})
         coins = max(1, pr.get("level", 1)) * PR["turn_in"]["coin_per_level"]
@@ -785,8 +783,7 @@ class ArcActions:
                 console.note(f"You release {freed.name} back to the wild.")
                 self.narrate(f"The player lets their tamed companion {freed.name} go back to the wild. Describe the parting.", text)
                 return
-            console.note("There's no one here to let go.")
-            self.halted = True
+            self.refuse("There's no one here to let go.")
             return
         self.settle_prisoner(npc, "release", text)
 

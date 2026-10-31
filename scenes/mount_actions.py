@@ -70,8 +70,7 @@ class MountActions:
             return False
         if not town:
             if mounts.find(everything, words) or mounts.WORDS.search(f"{intent.ware} {intent.item}"):
-                console.note("Mounts are sold at the stables of the great cities.")
-                self.halted = True
+                self.refuse("Mounts are sold at the stables of the great cities.")
                 return True
             return False
         self.halted = True

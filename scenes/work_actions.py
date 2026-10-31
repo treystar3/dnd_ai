@@ -120,8 +120,7 @@ class WorkActions:
         state.carcasses = [k for k in state.carcasses if self.minutes - k["minute"] < limit]
         if not state.carcasses:
             self.store.save_place(state)
-            console.note("There's nothing here to skin or butcher.")
-            self.halted = True
+            self.refuse("There's nothing here to skin or butcher.")
             return
         c = self.player.character
         chance = W["skin_chance"] + min(0.3, c.crafting_skill / 333)
