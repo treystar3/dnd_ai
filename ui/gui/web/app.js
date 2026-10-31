@@ -50,9 +50,10 @@ function settle(from) {                                          // after new te
 // (f402) The thinking line: it floats over the story's foot, so it never moves the text; and it stays up through the short gaps between
 // one turn's calls to the model, rather than blinking off and on with each.
 let busyOff = 0;
-function setBusy(on) {
+function setBusy(on, text) {
   clearTimeout(busyOff);
-  if (on) $("busy").hidden = false;
+  const span = $("busy").querySelector("span");                     // (f423) the wait's own words, when it has some
+  if (on) { if (span) span.textContent = text || "The world is thinking…"; $("busy").hidden = false; }
   else busyOff = setTimeout(() => { $("busy").hidden = true; }, 400);
 }
 function toBottom() { follow = true; moreBelow(false); scrollLogTo(log.scrollHeight - log.clientHeight); }
@@ -1506,7 +1507,7 @@ function handle(ev) {
     case "combat_end": combat.active = false; combat.ended = !!combat.data; paintSide(); renderButtons(); break;   // (f405) the pane stays
     case "status": Strip.update(ev); if (!!ev.debug !== !!state.debug) { state.debug = !!ev.debug; renderButtons(); } break;
     case "prompt": state.prompt = true; state.atMain = !!ev.main; state.menuOk = !!ev.menu; updateInput(); break;
-    case "busy": setBusy(ev.on); break;
+    case "busy": setBusy(ev.on, ev.text); break;
     case "ended": state.prompt = false; updateInput(); addBlock("sys", "The game has ended. You can close this window."); if (!$("homepage").hidden) homeEnded(); break;
     case "fatal": addBlock("sys", ev.text); if (!$("homepage").hidden) homeFatal(ev.text); break;
     case "update": showUpdateButton(ev.data); break;

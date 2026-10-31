@@ -10,7 +10,8 @@ runs them one after another, and every change is recorded by the rule's name - i
 and in the evaluator's count of which rules fire. data_check refuses to start a game whose table is inconsistent.
 
 A repair is a scene method `fn(text, plan) -> list | None`: it may change the steps in place (None) or return the steps to keep. It only
-ever moves a field, changes a kind or drops a step; none adds a step the model did not read. Every rule here is pinned offline by a case
+ever moves a field, changes a kind, drops a step or (f417) puts a deal before the word said with it; none adds a step the model did not
+read. Every rule here is pinned offline by a case
 in data/replay/interp_cases.yaml that carries the model's own reading, so a rule that stops working is caught without a model."""
 from __future__ import annotations
 
@@ -69,7 +70,8 @@ def brief(plan: list) -> str:
 
 
 GOING = re.compile(r"\b(go|goes|going|walk|head|travel|ride|set out|set off|make for|off to|over to|leave for|to the|towards?|visit|return)\b")
-WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|the bar|the counter|a table|the table|the corner|the hearth|the fire|"
+# (f420) "our rooms", "my quarters": a room in the inn, never a journey
+WITHIN = re.compile(r"\b(upstairs|downstairs|my room|the room|a room|our rooms?|my quarters|our quarters|rooms?|quarters|the bar|the counter|a table|the table|the corner|the hearth|the fire|"
                     r"the window|the back room|the kitchen|the cellar|the loft|the stairs|a seat|a bench|the benches)\b")
 CLIMB = re.compile(r"\b(climb|clamber|scale|scramble|haul (myself|me) up|pull (myself|me) up|get up onto)\b")
 HIGH = re.compile(r"\b(roof|rooftop|wall|tree|ledge|rafters|chimney|eaves|balcony|cliff|rocks?|boulder)\b")
@@ -114,7 +116,10 @@ class PlanRepairs:
         Repair("drop_restatements", 130, "drop_restatements", "a step that only says again what another does goes: the attack after the spell, the ingredient beside the craft, a look nobody asked for"),
         Repair("buy_what_was_named", 135, "buy_what_was_named", "a piece of stock the line never named, bought beside the asking for something else, goes: the asking stands (f342)"),
         Repair("name_the_target", 140, "name_the_target", "a step aimed at someone, with nobody named in it, is for the one person the line names"),
+        Repair("deal_then_word", 165, "deal_then_word", "a word to someone, then a deal with them: the deal is settled first, so what they say knows how it went (f417)"),
     )
+    DEALS = ("buy", "sell", "give", "show", "work", "accept_quest", "commission", "haggle", "gamble", "train")
+    GOING = ("move", "explore", "delve", "leave_dungeon")
 
     # ---------- the runner
 
@@ -181,6 +186,25 @@ class PlanRepairs:
                 lead = re.findall(r"[a-z']+", said)[:2]
                 if lead and lead[0] in PARTING:
                     a.speech = ""
+
+    def deal_then_word(self, text: str, plan: list) -> list | None:
+        """(f417) A word to someone and a deal with them in one line ("I ask the smith if he takes cloth, and sell him the hood") are done
+        deal first, so the answer is given knowing how it went: a night's smith said he did not deal in cloth and then bought the hood,
+        an innkeeper agreed to a room that was never let. Steps after a journey are left where they are."""
+        partner = self.partner.id if self.partner else ""
+        for k, a in enumerate(plan):
+            who = a.target or partner
+            if a.kind != "talk" or not who:
+                continue
+            last = None
+            for j, b in enumerate(plan[k + 1:], k + 1):
+                if b.kind in self.GOING:
+                    break
+                if b.kind in self.DEALS and (b.target == who or (not b.target and b.kind not in actions.TARGETED)):
+                    last = j                         # a deal aimed at them; a buy with no one named may be from anyone
+            if last is not None:
+                return plan[:k] + plan[k + 1:last + 1] + [a] + plan[last + 1:]
+        return None
 
     # ---------- a talk that is a deed
 

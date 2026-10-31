@@ -145,10 +145,17 @@ def resident_lines(world, place_id: str, cond: Condition | None) -> list[str]:
     if t.character:
         out.append(L["character"].format(character=" ".join(t.character.split())))
     if cond and cond.name != "calm" and cond.hint:
-        out.append(L["condition"].format(hint=cond.hint, name=cond.name))
+        out.append(L["condition"].format(hint=cond.hint, name=cond.name) + mourned(cond))
     if t.trouble:
         out.append(L["trouble"].format(trouble=" ".join(t.trouble)))
     return out
+
+
+def mourned(cond) -> str:
+    """(f423) Who a mourning town mourns, so its people and the narrator can name them: before, a town grieved for no one in particular."""
+    if cond is None or cond.name != "mourning" or not cond.why.endswith(" lost lately"):
+        return ""
+    return f" The one mourned: {cond.why.removesuffix(' lost lately')}."
 
 
 def thread_lines(world, place_id: str, big: bool = False) -> list[str]:

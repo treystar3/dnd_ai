@@ -275,9 +275,11 @@ def addresses(text: str, npc) -> bool:
     """Does the player's line name this person - their name, their role or a word of how they are described?"""
     low = (text or "").lower()
     words = set()
-    for src in (npc.name, npc.epithet or "", npc.role.replace("_", " ")):
+    for src in (npc.name, npc.epithet or ""):
         words |= {w for w in src.lower().replace("-", " ").replace("'", " ").split() if len(w) > 2 and w not in _STOP}
-    return any(w in low for w in words)
+    role = npc.role.replace("_", " ").lower()
+    words |= {role, role.split()[-1]}                  # (f420) "guild clerk" or "clerk", never "guild" alone: "the guild hall" named her
+    return any(re.search(rf"\b{re.escape(w)}\b", low) for w in words if w)          # whole words: "Wren" is not in "wrench"
 
 
 def named(text: str) -> bool:

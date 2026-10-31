@@ -13,6 +13,7 @@ from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
 from llm.gateway import generate
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 H = law.H
 
@@ -284,7 +285,7 @@ class LawActions:
             self.open_lock(lock, "key")
             return ""
         changed = " Their key no longer fits - the lock has been changed." if self.has_key(lock) else ""
-        console.note(f"{lock['name'].capitalize()} is locked.{changed}")
+        console.note(f"{cap_first(lock['name'])} is locked.{changed}")
         return (f"The player reaches for what is kept in {lock['name']}, but it is locked and they cannot get at it.{changed} "
                 f"Describe the closed door or lid. Do not invent anything they find; the lock must be opened first.")
 
@@ -343,8 +344,7 @@ class LawActions:
         if not lock:
             lock = self.invent_lock(owner, what, text)
             if not lock:
-                console.note("There is no lock here that you can find.")
-                self.halted = True
+                self.refuse("There is no lock here that you can find.")
                 return
         L = law.L["lock"]
         lock_owner = next((n for n in self.present if n.id == lock["owner"]), None)
@@ -482,8 +482,8 @@ class LawActions:
     def arrest(self, guard, town: str, forced: bool = False) -> None:
         heat = law.current_heat(self.player, town, clock.day(self.minutes))
         fine = law.fine(heat)
-        self.narrate(f"{guard.label()} and the watch take hold of the player: they are wanted here. Describe the arrest in two "
-                     f"sentences. Do not resolve anything; the game will.", "")
+        self.narrate(f"{guard.label()} and the watch take hold of the player: they are wanted here. Describe the arrest. "
+                     f"Do not resolve anything; the game will.", "")      # (f413) no length (f375)
         if self.owns("above_the_law"):
             menu = (f"You are under arrest - but your kind are not jailed. Pay the fine ({money.fmt(fine)}); what your purse cannot cover, "
                     f"your name will. Or offer a bribe, or run.")
@@ -503,7 +503,7 @@ class LawActions:
                 law.set_heat(self.player, town, H["after_paid"], day)
                 self.notice(FinePaid(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(), amount=fine), guard)
                 console.note(f"You pay {money.fmt(fine)}. Purse: {money.fmt(c.coins)}")
-                self.narrate(f"The player pays {guard.label()} {money.words(fine)}. The guard counts it and lets them go with a warning.", "")
+                self.narrate(f"The player pays {guard.label()} the fine. The guard counts it and lets them go with a warning.", "")
             else:
                 console.note("You cannot cover the fine.")
                 self.serve_time(guard, town, fine)
@@ -547,7 +547,7 @@ class LawActions:
             self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
                               worked=True, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.ledger(f"The coins vanish. Purse: {money.fmt(c.coins)}")
-            self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away.", "")
+            self.narrate(f"The player slips {guard.label()} some coin. The guard pockets it and turns away.", "")
         else:
             guard.trust = max(0, guard.trust + B["trust"][degree])
             self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
@@ -582,5 +582,5 @@ class LawActions:
         self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), walked=True), guard)
         console.note(f"No cell for you. You pay {money.fmt(paid)}" + (f"; the rest ({money.fmt(owed)}) is paid in standing here ({-lost})" if owed else "")
                      + f". Purse: {money.fmt(c.coins)} (Above the Law)")
-        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes {money.words(paid)}"
+        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes what coin they have"
                      + (" and makes sure the whole street knows the rest went unpaid" if owed else "") + ".", "")

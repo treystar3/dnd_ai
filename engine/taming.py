@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 from core.models import Companion
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
 T = yaml.safe_load((ROOT / "data" / "rules" / "taming.yaml").read_text(encoding="utf-8"))
@@ -38,13 +39,13 @@ def check(character, enemy, creature) -> str:
     if not character.uses_companions:
         return "You have no gift for binding wild creatures."
     if creature is None or creature.unique or enemy.rank in T["refuse_ranks"]:
-        return f"{enemy.name.capitalize()} cannot be bound."
+        return f"{cap_first(enemy.name)} cannot be bound."
     if creature.category not in T["categories"]:
-        return f"{enemy.name.capitalize()} is not something that can be tamed."
+        return f"{cap_first(enemy.name)} is not something that can be tamed."
     if enemy.level > character.level + T["level_margin"]:
-        return f"{enemy.name.capitalize()} is far too strong for you to bind."
+        return f"{cap_first(enemy.name)} is far too strong for you to bind."
     if enemy.hp > enemy.max_hp * T["max_health_share"]:
-        return f"{enemy.name.capitalize()} is still too strong and wild - wear it down first."
+        return f"{cap_first(enemy.name)} is still too strong and wild - wear it down first."
     if len(tamed(character)) >= cap(character.level):
         return "You already keep as many tamed companions as you can lead - release one first."
     return ""
@@ -95,13 +96,13 @@ def bind_check(character, enemy, creature) -> str:
     B = T["bind"]
     comp = character.uses_companions
     if creature is None or creature.unique or enemy.rank in T["refuse_ranks"]:
-        return f"{enemy.name.capitalize()} cannot be bound."
+        return f"{cap_first(enemy.name)} cannot be bound."
     if creature.category not in T["categories"]:
-        return f"{enemy.name.capitalize()} is not something that can be bound."
+        return f"{cap_first(enemy.name)} is not something that can be bound."
     if not comp and creature.rarity in B["refuse_rarity"]:
-        return f"{enemy.name.capitalize()} is far beyond anything you could bind."
+        return f"{cap_first(enemy.name)} is far beyond anything you could bind."
     if enemy.level > character.level + (T["level_margin"] if comp else B["level_margin"]):
-        return f"{enemy.name.capitalize()} is too strong for you to bind."
+        return f"{cap_first(enemy.name)} is too strong for you to bind."
     if len(tamed(character)) >= cap(character.level):
         return "You already keep as many bound creatures as you can lead - release one first."
     return ""

@@ -369,8 +369,11 @@ class Stub:
     def a_RoadEvent(self, u, k):
         hostile = "MUST BE: an ambush" in u
         stopped = "THE PLAYER IS STOPPED HERE" in u
-        kind = "ambush" if hostile else self.rng.choice(["find", "meeting", "hazard", "sight", "aid"])
-        out = {"title": f"Event {self.rng.randrange(10**5)}", "scene": "You see something on the road.", "kind": kind,
+        told = re.search(r"KIND: (\w+)", u)
+        kind = "ambush" if hostile else (told.group(1) if told else "sight" if "kind sight" in u.lower() else
+                                         self.rng.choice(["find", "meeting", "hazard", "sight", "aid"]))
+        out = {"title": f"Event {self.rng.randrange(10**5)}", "journey": "You walk on, the road long under your feet.",
+               "scene": "You see something on the road.", "kind": kind,
                "detail": "d", "check": "perception" if kind == "hazard" else "", "news": self.rng.choice(["Word spreads of trouble on the road.", "A cart came in late and its driver would not say why.",
                                         "Travellers are going in company now.", "The watch rode out along the road at dawn."]) if self.rng.random() < 0.3 else "",
                "meets_role": "merchant" if stopped and not hostile else "", "effects": []}
@@ -577,7 +580,8 @@ def make_character(cls_key: str, rng: random.Random, perks: bool = False):
     actives = []
     extra = TRAIT_ACTIVES.get(cls_key, []) if os.environ.get("SIM_TRAITS") == "1" else []
     for nm, effect, tier, reach, res, *more in list(spec["actives"]) + extra:
-        d = dict(name=nm, description="d", effect=effect, tier=tier, reach=reach, resource=res, context="combat")
+        d = dict(name=nm, description=f"a {tier} {effect.replace('_', ' ')} worked at {reach.replace('_', ' ')} reach, drawing on {res}",   # (f424) words
+                 effect=effect, tier=tier, reach=reach, resource=res, context="combat")                                                     # a reader can see
         if more:
             d.update(more[0])
         if effect == "summon":

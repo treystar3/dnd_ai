@@ -57,8 +57,7 @@ class ExploreActions:
         here = self.player.location
         place = self.world.places[here]
         if place.type in ("road", "dungeon") or self.combat:
-            console.note("Not from here. Get to a proper place first.")
-            self.halted = True
+            self.refuse("Not from here. Get to a proper place first.")
             return
         if self.explore_parts(intent, text):                       # (f394) further into this place, or to a part of it
             return

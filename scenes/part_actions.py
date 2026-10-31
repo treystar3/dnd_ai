@@ -11,6 +11,7 @@ import random
 
 from engine import features, ledger
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 
 class PartActions:
@@ -76,7 +77,7 @@ class PartActions:
         if h == "resource" and e.data.get("good"):
             from engine import inventory
             g = inventory.GOODS.get(e.data["good"])
-            return f"{g.name.capitalize()} grows here. " if g else ""
+            return f"{cap_first(g.name)} grows here. " if g else ""
         if h == "hazard" and first and not e.data.get("met"):
             return self.meet_hazard(e)
         if h == "hazard":
@@ -173,8 +174,8 @@ class PartActions:
             self.advance(15)
             console.ledger(f"Found at {e.name}: {money.fmt(coins)}")
             ledger.add("found", ref=e.ref, what="cache", coins=coins, say=f"At {e.name} the player finds {e.data.get('sign', 'a cache')} "
-                                                                             f"holding {money.fmt(coins)} in old coin.")
-            self.narrate(f"The player searches {e.name} and finds {e.data.get('sign', 'a cache')}, with {money.fmt(coins)} in old coin "
+                                                                             f"holding old coin.")
+            self.narrate(f"The player searches {e.name} and finds {e.data.get('sign', 'a cache')}, with old coin "
                          "inside. Describe the find; nothing else is in it.", text)
             return True
         if h == "resource" and e.data.get("good"):
@@ -182,10 +183,12 @@ class PartActions:
             e.data["found"] = True
             self.store.save_entity(e)
             item = inventory.make_good(e.data["good"], 2)
-            self.to_pack(item)
+            st = self.to_pack(item)
             self.advance(20)
+            console.ledger(f"Gathered: {inventory.label(item)}.")              # (f424) a real find shows its line, like the clue and the cache
             ledger.add("found", ref=e.ref, what="resource", say=f"The player gathers {inventory.label(item)} at {e.name}.")
-            self.narrate(f"The player gathers {inventory.label(item)} at {e.name}. Describe it.", text)
+            self.narrate(f"The player gathers {inventory.label(item)} at {e.name}. Describe it."
+                         + (" Their pack is full: what will not fit is left where it grew." if st.left is not None else ""), text)
             return True
         return False
 

@@ -129,7 +129,7 @@ config.AUDIT_ENABLED = False
 ws.interpret = lambda text, hint="": [A(kind="talk", target="g1", speech="x"), A(kind="buy", ware="trail_rations", count=2)]
 ws.audit_asker = lambda: (_ for _ in ()).throw(AssertionError("audit should be off"))
 ws.handle("I give the guard 5 silver to look away")
-check("with the audit off the plan runs as read", [r[0] for r in ran] == ["on_talk", "on_buy"], ran)
+check("with the audit off the plan runs as read (the buy from the guard first: f417 deal_then_word)", [r[0] for r in ran] == ["on_buy", "on_talk"], ran)
 config.AUDIT_ENABLED = True
 
 # replay cases

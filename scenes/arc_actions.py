@@ -15,6 +15,7 @@ from npc.life import _unique_id
 from npc.models import NPC
 from npc.traits import assign_traits, npc_rng
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 
 def combat_who(f) -> str:
@@ -130,10 +131,19 @@ class ArcActions:
         q["deadline"] = None
         first = arcs.node(arc, "n1")
         tpl = arcs.TEMPLATES[arc["template"]]
-        self.log_arc(arc, tpl["words"]["start"].format(name=s["victim_name"], looks=s["victim_looks"].rstrip("."),
+        self.log_arc(arc, tpl["words"]["start"].format(name=self.mid_sentence(s["victim_name"]), looks=s["victim_looks"].rstrip("."),
                                                        place=self.pname(first["place"])))
         self.store.save_arcs(data)
         console.note(f"Lead: {arc['log'][-1]}")
+
+    COMMON_OPENERS = {"a", "an", "the", "some", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "pieces",
+                      "fragments", "several", "half", "one", "every", "all"}
+
+    def mid_sentence(self, name: str) -> str:
+        """(f406) A thing's name inside a sentence: 'Word of four pieces of a map...', not 'Word of Four pieces...'; a proper name
+        (the Sunstone, Old Brannoch) keeps its capital."""
+        first = (name or "").split(" ", 1)[0]
+        return name[:1].lower() + name[1:] if first.lower() in self.COMMON_OPENERS and " " in (name or "") else name
 
     def dress_arc(self, arc: dict, q: dict) -> dict:
         """The one model call: names, clues and colour for a skeleton the engine already fixed."""
@@ -383,8 +393,8 @@ class ArcActions:
         self.residents = self.residents + [npc]
         self.refresh_present()
         w = entities.WORDS[entities.GENDER[gender]]
-        console.note(f"{npc.label().capitalize()} throws down {w['their']} weapon and yields. Question {w['them']}, let {w['them']} go, "
-                     "hand them to the watch, or put an end to it.")
+        console.note(f"{cap_first(npc.label())} throws down {w['their']} weapon and yields. Question {w['them']}, let {w['them']} go, "
+                     f"hand {w['them']} to the watch, or put an end to it.")
         return npc
 
     def captives_lost(self, how: str) -> int:
@@ -513,7 +523,7 @@ class ArcActions:
 
     def trail_goes_cold(self, data: dict, arc: dict, n: dict, npc) -> None:
         """They will not talk. The trail turns up another way - slower."""
-        console.note(f"{npc.label().capitalize()} will say no more. You find the thread another way, at a cost of time.")
+        console.note(f"{cap_first(npc.label())} will say no more. You find the thread another way, at a cost of time.")
         n["clue_given"] = True
         text = self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""})
         self.advance_arc(data, arc, n, True, text)
@@ -688,7 +698,7 @@ class ArcActions:
             chance = min(X["chance_most"], X["chance_per_day"] * (day + 1))
             if random.Random(f"{self.store.meta.seed}:{e.ref}:slip:{day}").random() < chance:
                 w = entities.WORDS.get(e.pronoun, {"them": "them", "their": "their"})
-                console.note(f"{npc.label().capitalize()} has worked {w['their']} bonds loose and slipped away while you were not watching.")
+                console.note(f"{cap_first(npc.label())} has worked {w['their']} bonds loose and slipped away while you were not watching.")
                 self.drop_prisoner(npc, "slipped their bonds and got away", partial_node=True, state="escaped")
 
     def bring_prisoners(self, place_id: str) -> None:
@@ -719,13 +729,11 @@ class ArcActions:
         from engine import law
         npc = self.prisoner_here(intent)
         if not npc:
-            console.note("There is no prisoner here to hand over.")
-            self.halted = True
+            self.refuse("There is no prisoner here to hand over.")
             return
         guard = next((n for n in self.present if n.role in law.L["heat"]["guard_roles"] and n.id not in self.player.prisoners), None)
         if not guard:
-            console.note("There is no one from the watch here to hand them to. Find a guard or a watch captain.")
-            self.halted = True
+            self.refuse("There is no one from the watch here to hand them to. Find a guard or a watch captain.")
             return
         pr = self.player.prisoners.get(npc.id, {})
         coins = max(1, pr.get("level", 1)) * PR["turn_in"]["coin_per_level"]
@@ -738,7 +746,7 @@ class ArcActions:
         self.end_conversation()
         self.drop_prisoner(npc, "handed over to the watch", partial_node=bool(node_pending), state="handed_over")
         self.standing_report("prisoner_handed_over", [guard], npc.label())
-        console.note(f"{guard.label().capitalize()} takes {npc.label()} into custody. Paid: {money.fmt(coins)}"
+        console.note(f"{cap_first(guard.label())} takes {npc.label()} into custody. Paid: {money.fmt(coins)}"
                      + (" - and it counts toward your bounty." if bounty else "."))
         self.weight_hint = "brief"
         self.narrate(f"The player hands the bound captive {npc.name} over to {guard.name}, {guard.label()}. "
@@ -776,8 +784,7 @@ class ArcActions:
                 console.note(f"You release {freed.name} back to the wild.")
                 self.narrate(f"The player lets their tamed companion {freed.name} go back to the wild. Describe the parting.", text)
                 return
-            console.note("There's no one here to let go.")
-            self.halted = True
+            self.refuse("There's no one here to let go.")
             return
         self.settle_prisoner(npc, "release", text)
 
@@ -803,7 +810,7 @@ class ArcActions:
                 f"A traveler broke a promise of mercy and killed a captive." if broke else "A traveler put a captive outlaw to the sword.")
         pulse.add_news(state, news, pulse.town_of(self.world, self.player.location), self.minutes, ["outlaws", "hunters"])
         self.store.save_world_state(state)
-        console.note(f"{npc.label().capitalize()} is {verdict}. Outlaws will hear of it ({delta:+d} with them).")
+        console.note(f"{cap_first(npc.label())} is {verdict}. Outlaws will hear of it ({delta:+d} with them).")
         self.weight_hint = "brief"
         self.narrate(f"The player has {verdict} the captive {npc.name}, who {tell}. "
                      + ("They had been promised mercy. " if pr.get("deal") and how == "kill" else "")

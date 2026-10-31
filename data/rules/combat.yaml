@@ -2,6 +2,20 @@
 
 round_seconds: 6
 
+# (f412) Where the passage after a fight begins (scenes/combat_scene.py aftermath_opening): the engine picks one, never one of the last
+# not_again, so the passages do not all open on the silence coming back. An opening about a companion is only offered with a party along.
+aftermath:
+  not_again: 2
+  openings:
+    - "the last foe: how it lies, or what it did as it went down"
+    - "the player's own body: a hurt that has started to tell, a hand, the weapon still up"
+    - "the ground and what the fight did to it"
+    - "the first sound that comes back, or one that has stopped"
+    - "whatever the player finds or takes up"
+    - "a companion: the first thing they do"
+    - "the light or the weather, as it is now"
+    - "the first thing the player does now the fight is over"
+
 hit:
   base: 75          # chance to hit an equal opponent
   spread: 40        # how far an accuracy advantage can swing it

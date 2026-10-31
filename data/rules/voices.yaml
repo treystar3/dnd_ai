@@ -19,8 +19,8 @@ axes:
   questions:                   # whether they want anything back
     weight: 3
     options:
-      never: {weight: 30, text: "never asks the stranger anything back, not one question; what they want is their own business", check: {no_question: true}}
-      after: {weight: 25, text: "now and then, not every time, answers and then wants to know something in return: who they are, where from, what for"}   # (f385) a hire asked back after nearly every reply
+      never: {weight: 30, text: "never asks the stranger anything back, not one question; what the stranger wants is the stranger's own business", check: {no_question: true}}
+      after: {weight: 25, text: "now and then, not every time, answers and then wants to know something in return: who the stranger is, where from, what for"}   # (f385) a hire asked back after nearly every reply
       first: {weight: 15, text: "now and then, not every time, wants to know what the asking is for before they give an answer"}
       none:  {weight: 60, text: ""}
   opening:                     # how a line begins
@@ -39,8 +39,8 @@ axes:
     weight: 1
     options:
       none:   {weight: 40, text: "never addresses the stranger by any word: no 'friend', no 'stranger', no 'you there'", check: {no_address: true}}
-      taken:  {weight: 15, text: "addresses the stranger by what they take them for: traveller, sellsword, guild hand"}
-      kindly: {weight: 15, text: "calls them lad, lass or child whatever their age"}
+      taken:  {weight: 15, text: "addresses the stranger by what they take the stranger for: traveller, sellsword, guild hand"}
+      kindly: {weight: 15, text: "calls the stranger lad, lass or child whatever the stranger's age"}
       formal: {weight: 10, text: "says sir or madam to anyone they have not known for years"}
       usual:  {weight: 60, text: ""}
   refusing:                    # how a no comes out

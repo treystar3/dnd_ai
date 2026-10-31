@@ -10,6 +10,7 @@ from engine import clock, crafting, inventory as inv, items, loot, money, pools
 from llm.contracts import WorkOffer
 from llm.gateway import generate
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
 W = yaml.safe_load((ROOT / "data" / "rules" / "work.yaml").read_text(encoding="utf-8"))
@@ -37,19 +38,22 @@ class WorkActions:
         """Does an NPC's line promise pay for a task, whether or not the reply carried a structured offer?"""
         return bool(PAY_WORDS.search(speech) and TASK_WORDS.search(speech))
 
-    def inferred_offer(self, npc, speech: str) -> WorkOffer:
-        """The NPC promised pay without making a formal offer: read the task off what they said, at honest wages."""
+    def inferred_offer(self, npc, speech: str) -> WorkOffer | None:
+        """The NPC promised pay without making a formal offer: read the task off what they said, at honest wages. (f420) A reading with
+        no real task ('', 'none', '0') is no offer: before, it became 'odd jobs at a fair wage', half the night's offers were made up so,
+        and people then spoke of work they never offered."""
         try:
             got = generate("work_offer_read",
                            "Read the villager's line. If they are offering the stranger paid work, give the task as a short phrase "
                            "(like 'load the grain onto the wagon'), how many minutes it should take, and the pay in copper "
                            "(0 if no amount was named). Respond only with JSON.",
                            f"{npc.label()} says: {speech}", WorkOffer, temperature=0.1, max_tokens=120)
-            if got.task.strip():
-                return got
         except Exception:
-            pass
-        return WorkOffer(task=f"do some odd jobs for {npc.label()}", pay=0, minutes=60)
+            return None
+        task = got.task.strip().strip(".").lower()
+        if not task or task.isdigit() or task in ("none", "no", "n/a", "nothing", "no task", "not an offer") or task in PLACEHOLDER_TASKS:
+            return None
+        return got
 
     def record_work_offer(self, offer, npc) -> None:
         """Keep an NPC's job offer, held to honest wages. An offer with no real task (empty, 'none', a template echo) is not an offer."""
@@ -89,10 +93,10 @@ class WorkActions:
             self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
                                task=job["task"], paid=job["pay"]), npc)
             self.store.save_player(self.player)
-            console.note(f"Work done: {job['task']}. {npc.label().capitalize()} pays you {money.fmt(job['pay'])}. "
+            console.note(f"Work done: {job['task']}. {cap_first(npc.label())} pays you {money.fmt(job['pay'])}. "
                          f"Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player spends {clock.describe_duration(job['minutes'])} working: {job['task']}. When "
-                         f"it's done, {npc.label()} pays them {money.words(job['pay'])} as agreed. Tell it as a short "
+                         f"it's done, {npc.label()} pays them as agreed. Tell it as a short "
                          "passage of honest work and its end. Exactly ONE job was done, over that time: do not describe it as instant, "
                          "and do not mention any other jobs or any further payment.", text)
             return
@@ -120,8 +124,7 @@ class WorkActions:
         state.carcasses = [k for k in state.carcasses if self.minutes - k["minute"] < limit]
         if not state.carcasses:
             self.store.save_place(state)
-            console.note("There's nothing here to skin or butcher.")
-            self.halted = True
+            self.refuse("There's nothing here to skin or butcher.")
             return
         c = self.player.character
         chance = W["skin_chance"] + min(0.3, c.crafting_skill / 333)

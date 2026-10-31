@@ -93,6 +93,33 @@
   text: "I look around"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
   expect: {handled_by: interpret, kinds: [look]}
+# (f420) what the player says they are about to do is a deed, not words to the hire who spoke last (mage T112-128: the woods were never
+# searched); said to someone here about a deal, it is words to them (five contracts taken that way lost the clerk's answer)
+- name: our_rooms_at_the_inn_is_not_a_journey
+  text: "I head up to our rooms for the night"
+  scene: {place: tilted_plough, present: [{id: i1, name: Hollis, role: innkeeper}]}
+  plan: [{kind: move, destination: our rooms, summary: head up to our rooms}]
+  expect: {handled_by: interpret, kinds: [look]}
+- name: ill_check_these_woods_after_a_hire_spoke_is_a_search
+  text: "I'll check these woods for any more Black Bears"
+  scene: {place: greywood, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
+  plan: [{kind: search, seek: black bears, summary: "check the woods for black bears"}]
+  expect: {handled_by: interpret, kinds: [search]}
+- name: im_going_to_scan_the_trees_is_a_search
+  text: "I'm going to scan the trees for any sign of them"
+  scene: {place: greywood, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
+  plan: [{kind: search, summary: "scan the trees"}]
+  expect: {handled_by: interpret, kinds: [search]}
+- name: ill_take_the_contract_to_the_clerk_keeps_the_words
+  text: "I'll take the contract to hunt three merrows"
+  scene: {place: guild_house, rank: F, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
+  plan: [{kind: talk, target: c1, speech: "I'll take the contract to hunt three merrows"}, {kind: accept_quest, item: hunt three merrows}]
+  expect: {handled_by: interpret, kinds: [accept_quest, talk]}
+- name: im_taking_the_bounty_to_the_clerk_keeps_the_words
+  text: "I'm taking the bounty on the bandit captain"
+  scene: {place: guild_house, rank: F, present: [{id: c1, name: Ida Marrow, role: guild_clerk}]}
+  plan: [{kind: talk, target: c1, speech: "I'm taking the bounty on the bandit captain"}, {kind: accept_quest, item: bandit captain}]
+  expect: {handled_by: interpret, kinds: [accept_quest, talk]}
 - name: question_after_a_hire_spoke_goes_on
   text: "where are you from?"
   scene: {place: trading_square, party: [{name: Bram Tollis, role: fighter}], hire_last: Bram Tollis}
@@ -332,6 +359,17 @@
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
   plan: [{kind: sell, target: s1, item: longsword}]
   expect: {handled_by: interpret, kinds: [sell], first: {target: s1}}
+# (f417) a word and a deal with the same person: the deal is settled first, so their answer knows how it went
+- name: a_word_then_a_sale_settles_the_sale_first
+  text: "I ask Odo whether he'll give a fair price, and sell him my old longsword"
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
+  plan: [{kind: talk, target: s1, speech: "Will you give me a fair price for this?"}, {kind: sell, target: s1, item: longsword}]
+  expect: {handled_by: interpret, kinds: [sell, talk], first: {target: s1}}
+- name: a_word_then_a_walk_keeps_its_order
+  text: "I tell Odo I'll be back, and walk to the inn"
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
+  plan: [{kind: talk, target: s1, speech: "I'll be back."}, {kind: move, destination: tilted_plough}]
+  expect: {handled_by: interpret, kinds: [talk, move]}
 - name: asking_who_buys_is_talk
   text: "Would anyone here buy wolf hides?"
   scene: {place: trading_square, present: [{id: h1, name: Tamsin, role: hunter}], pack: ["raw:wolf_hide"]}
@@ -768,12 +806,12 @@
   plan: [{kind: talk, target: s1, speech: 'Odo, forge me a spear from this bronze', summary: Asking the smith to forge a spear}, {kind: give, item: raw bronze, summary: Handing over raw bronze for the commission}, {kind: commission, item: spear, summary: Requesting a spear be forged}]
   expect: {first: {target: s1}, handled_by: interpret, kinds: [commission]}
   note: "as the model read asking_the_smith_to_forge_is_commission"
-- name: taking_a_contract_narrated_as_talk_is_dropped
+- name: taking_a_contract_said_to_the_clerk_keeps_the_words
   text: "I'll take the first contract"
   scene: {board: true, place: guild_house, present: [{id: c1, name: Wenna, role: guild_clerk}], rank: F}
   plan: [{kind: talk, target: c1, speech: I'll take the first contract, summary: The player tells the clerk they want the first contract.}, {kind: accept_quest, item: '1', summary: The player accepts the first contract.}]
-  expect: {first: {item: '1'}, handled_by: interpret, kinds: [accept_quest]}
-  note: "as the model read taking_the_first_contract"
+  expect: {first: {item: '1'}, handled_by: interpret, kinds: [accept_quest, talk]}
+  note: "as the model read taking_the_first_contract; (f420) words said to the clerk stay words, after the taking, so the clerk answers"
 - name: asking_to_be_taught_read_as_talk_is_train
   text: "I ask the instructor to teach me something new"
   scene: {place: guild_house, present: [{id: t1, name: Master Orrin, role: guild_instructor}], rank: F}

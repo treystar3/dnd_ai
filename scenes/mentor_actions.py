@@ -72,7 +72,7 @@ class MentorActions:
                                                   why=["the first words between them" if not introduced else "a moment of her walking the player through the guild"],
                                                   who_is=entities.who_is_who(self, also=["maren"])),       # (f392)
                               DialogueFrame, self.recent_narration, fields=("before", "after"), max_tokens=config.PROSE_MAX_TOKENS,
-                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME)})
+                              context={"speaker": [mentor.NAME, label, "the woman", "she"], "others": self.other_names(mentor.NAME), "speech": speech})
                 before, after = frame.before, frame.after
                 if not introduced:                            # she has not given her name: the frame must not either
                     before, after = (re.sub(r"\bMaren( Holt)?\b", "the woman", x) for x in (before, after))
@@ -236,10 +236,17 @@ class MentorActions:
         return True
 
     def mentor_narrate(self, text: str) -> None:
-        """Scene text written in several paragraphs: each is narrated on its own, so the window spaces them like any other passage."""
+        """Scene text written in several paragraphs: each is narrated on its own, so the window spaces them like any other passage. (f406)
+        A paragraph that is all a quotation is her saying it, shown under her name ('"Good hunting."' was shown as narration)."""
         for para in str(text).strip().split("\n"):
-            if para.strip():
-                console.narrate(para.strip())
+            p = para.strip()
+            if not p:
+                continue
+            spoken = re.fullmatch(r'["\u201c](.+)["\u201d]', p)
+            if spoken:
+                console.say(spoken.group(1).strip(), self.mentor_label())
+            else:
+                console.narrate(p)
 
     def mentor_in_town(self) -> bool:
         p = self.place

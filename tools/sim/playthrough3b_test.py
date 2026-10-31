@@ -144,7 +144,7 @@ check("the narrator is told each hire's pronoun and what they fight with", f"({p
 check("...and the player's beast, as theirs, she or he, the same each time", any(l.startswith("Fenris (") and "the player's own wolf" in l for l in looks)
       and ws.player.character.companions[0].pronoun in ("she", "he"), looks)
 req = cp.narrate_request("x", "t", "hit it", ["You hit"], "fists", "fine", ["shark"], 2, allies=looks)
-check("...under its own heading, to be kept as written", "ON THE PLAYER'S SIDE (keep each as written here" in req and mine in req)
+check("...under its own heading, to be kept as written", "ON THE PLAYER'S SIDE (keep who each is as written here" in req and mine in req)
 desc = {n: d for _, n, d, _ in ws.hire_people()}
 ws.player.party_mode = "with"
 desc = {n: d for _, n, d, _ in ws.hire_people()}

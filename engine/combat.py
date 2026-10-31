@@ -7,6 +7,7 @@ the danger estimate shown to the player, and the balance simulator (tools/balanc
 import copy
 import math
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -133,7 +134,7 @@ class Fighter(BaseModel):
     mech_names: dict[str, str] = {}        # mechanic id -> what the passive or gear that gives it is called, for the damage breakdown
     can_heal: bool = False                # a story companion who can tend wounds
     order: str = ""                       # what the player told this ally to do: focus | guard | hold | heal ("" = fight on their own)
-    order_target: str = ""                # the enemy a focus order names
+    order_target: str = ""                # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id)
     story_id: str = ""                    # the party member this fighter is, when their wounds carry between fights
     always_miss: bool = False            # the first fight's troll: its blows go wide until the mentor steps in
     spell_parts: list = []                # while a spell is cast: [[label, value]] making up its weapon_damage, for the hit breakdown
@@ -243,6 +244,8 @@ class Combat(BaseModel):
     mentor_saved: int = 0          # how many times the floor has held
     mentor_beats: list[str] = []   # lessons already given
     burn_told: bool = False        # (f349) the element on the player's blade has been told to the narrator once; after that it is a figure, not a sentence
+    felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
+                                    # pirate's killing blow on a companion to the player's own blade
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
@@ -269,7 +272,7 @@ def who(f: Fighter) -> str:
         return "you"
     if f.side == "ally":
         return f.name
-    name = f.name.replace(" (elite)", "")
+    name = re.sub(r"\s*\((?!elite\))[^)]*\)\s*$", "", f.name).replace(" (elite)", "")   # (f422) a tag such as "(bounty)" is not their name
     if name.lower().startswith(("the ", "a ", "an ", "one of ")) or (f.boss and name[:1].isupper()):
         return name                                   # already says what it is, or is a person with a name of their own
     prefix = "the hulking " if "(elite)" in f.name else "the "
@@ -311,12 +314,29 @@ def severity(dealt: float, max_hp: int) -> str:
     return "a devastating blow"
 
 
+def possessive(f: Fighter) -> str:
+    """(f419) Whose weapon, said rightly: 'your' for the player, a companion's own his or her (engine/names.py CAST, Maren hers), 'their'
+    for any other person, 'its' for a beast or a thing. Every ally was 'its' before: 'Odly strikes with its sword'."""
+    if f.side == "player":
+        return "your"
+    from engine import names
+    pron = names.CAST.get(f.name.split()[0]) if f.side == "ally" and f.name else None
+    if pron is None and f.side == "ally" and f.name == "Maren Holt":
+        pron = "she"
+    if pron in names.POSSESSIVE:
+        return names.POSSESSIVE[pron]
+    from engine.arcs import A as ARCS
+    return "their" if f.ally_role or f.category in ARCS["people_categories"] else "its"
+
+
 def weapon_phrase(f: Fighter) -> str:
-    return f"with {'your' if f.side == 'player' else 'its'} {f.weapon_name}"
+    return f"with {possessive(f)} {f.weapon_name}"
 
 
 def tell(combat: Combat, text: str, rec: dict | None = None) -> None:
     """Add an event to this round's story. A blow's event carries its tag ([h2]) so the narrator can place the figure."""
+    from engine import hygiene
+    text = hygiene.undash(text)                     # (f413) the story the narrator is handed has no dashes to copy (f403)
     if rec is not None:
         text += f" [{rec['tag']}]"
     combat.story.append(text[0].upper() + text[1:])
@@ -614,7 +634,7 @@ def fighter_from_creature(creature, level: int, rank: str, fid: str, name: str =
         eased = 1.0 if level <= soft["soft_until_level"] else \
             (soft["full_by_level"] - level) / (soft["full_by_level"] - soft["soft_until_level"])
         dmg *= 1 - (1 - soft["factor"]) * eased
-    attack = next((a for a in creature.attacks), "strike")
+    attack = re.sub(r"\s*\([^)]*\)", "", next((a for a in creature.attacks), "strike")).strip() or "strike"   # (f419) no '(Fiend Form Only)
     fighter = Fighter(
         id=fid, name=name or creature.name.lower(), side="enemy", level=level, size=creature.size,
         category=creature.category, creature=creature.id, rank=rank, attrs=attrs, hp=max_hp, max_hp=max_hp,
@@ -1501,11 +1521,12 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             dealt = take_damage(combat, dfn, part, att, rng, "magical")
             att.hit_element = held
             taken += dealt
-            combat.log.append(f"{att.name}'s {el} damage burns {dfn.name}: {dealt}")
+            combat.log.append(f"{att.name}'s {el} damage from gear hits {dfn.name}: {dealt}")       # (f419) lightning does not burn
             if rec is not None:
                 rec["extras"].append([f"{el.capitalize()} damage from gear", f"+{round(dealt)}"])
             if not combat.burn_told or not dfn.alive:           # (f349) told once a fight (lightning was narrated 56 rounds running); a kill by it is always told
-                tell(combat, f"{el} damage follows the blow into {who(dfn)}" + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
+                tell(combat, f"{el} damage follows the {'spell' if att.spell_kind == 'spell' else 'blow'} into {who(dfn)}"
+                     + (f" - {who(dfn)} {vb(dfn, 'are', 'is')} {condition(dfn)}" if dfn.alive else ""))
                 combat.burn_told = True
     if "acid_weapon" in A and dfn.alive and taken > 0 and att.spell_kind != "spell" and not warded(dfn, "acid"):
         cap = AT.BUFFS.get("acidcoat", {}).get("cap", 75)
@@ -1522,7 +1543,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
         held, att.hit_element = att.hit_element, el
         extra = take_damage(combat, dfn, part, att, rng, "magical")
         att.hit_element = held
-        combat.log.append(f"{att.name}'s {el} weapon burns {dfn.name}: {extra}")
+        combat.log.append(f"{att.name}'s {el} weapon hits {dfn.name}: {extra}")
         if rec is not None:
             rec["extras"].append([f"{el.capitalize()} weapon", f"+{round(extra)}"])
         tell(combat, f"{el} flares along the blow and bites into {who(dfn)} ({buff.get('name') or 'Elemental Weapon'})")
@@ -1558,7 +1579,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             heal = round(taken * leech / 100)
             if heal:
                 restore(combat, att, heal)
-                tell(combat, f"the weapon drinks from the wound, and {heal} health flows back into {who(att)}")
+                tell(combat, f"the weapon drinks from the wound, and strength flows back into {who(att)}")        # (f419) no figure, no game word
         if att.max_mana:
             att.mana = min(att.max_mana, att.mana + att.max_mana * bonus(att, "siphon_mana", always) / 100)
         if att.max_stamina:
@@ -1601,7 +1622,10 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
     combat_perks.after_hit(combat, att, dfn, outcome, taken, rng)
     if not dfn.alive:
         combat.log.append(f"{dfn.name} falls")
-        tell(combat, f"{who(dfn)} {vb(dfn, 'fall', 'falls')}" + (" - and the world goes dark" if dfn.side == "player" else " and does not rise"))
+        if att is not dfn:
+            combat.felled_by[dfn.id] = who(att)
+        by = f" to {whose(att)} blow" if att is not dfn and dfn.side != "enemy" else ""     # (f412) on the player's side, whose blow it was
+        tell(combat, f"{who(dfn)} {vb(dfn, 'fall', 'falls')}{by}" + (" - and the world goes dark" if dfn.side == "player" else " and does not rise"))
         att.kill_round = combat.round
         combat_perks.on_kill(combat, att, dfn, rng, echo=bool(att.counters.get("echo_cast")))
         if "thrall" in A and att.side == "player" and dfn.side == "enemy" and not combat.thrall_used:
@@ -2069,8 +2093,7 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         if aim and not access.ok:                         # the action is spent getting there, and the ability is kept
             story = bf.approach(combat, att, aim) if access.can_approach else ""
             combat.log.append(f"{att.name}: {access.why} ({move.name} is kept)")
-            tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else "") +
-                 f", so {move.name} is not spent")
+            tell(combat, f"{who(att)} {vb(att, 'are', 'is')} {access.why}" + (f" - {who(att)} {story}" if story else ""))   # (f419) what is kept is the log's
             return None
     cost = cost_of(att, move, combat) if not echo else 0
     body = stamina_part(att, move, combat) if not echo else 0   # a channeled strike's stamina (f260)
@@ -2753,7 +2776,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
             combat.log.append(f"{e.name} is befuddled and turns on {target.name}")
             tell(combat, f"{who(e)} lashes out blindly at {who(target)}")
             if target.side == e.side:
-                apply_damage(combat, e, target, 1.0, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+                apply_damage(combat, e, target, 1.0, f"attacks ({e.weapon_name})", rng)
                 return
     if "frightened" in e.statuses and _pressed(combat, e) != "engaged" and "grappled" not in e.statuses:
         combat.log.append(f"{e.name} hangs back, afraid")
@@ -2822,7 +2845,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         tell(combat, f"{who(e)} cannot bring its arms to bear, and guards instead")
         behaviors.after_turn(combat, e, rng)
         return
-    landed = apply_damage(combat, e, target, mult, f"{e.weapon_name}s" if not e.weapon_name.endswith("s") else e.weapon_name, rng)
+    landed = apply_damage(combat, e, target, mult, f"attacks ({e.weapon_name})", rng)
     behaviors.after_hit(combat, e, target, landed, rng)
     behaviors.after_turn(combat, e, rng)
     if e.boss and e.alive and combat.player.alive:
@@ -2884,7 +2907,7 @@ def act_interpose(combat: Combat, f: Fighter, ally: Fighter | None) -> None:
     tell(combat, f"{who(f)} {vb(f, 'plant', 'plants')} {'yourself' if f.side == 'player' else 'itself'} between {who(ally)} and whatever comes")
 
 
-ORDERS = ("focus", "guard", "hold", "heal")
+ORDERS = ("focus", "guard", "hold", "heal", "back")     # (f406) back: behind the player, in the back row, acting from there
 GUARD_CHANCE = 0.4          # an enemy that would strike the player strikes a guarding ally instead this often
 
 
@@ -2909,6 +2932,12 @@ def give_order(combat: Combat, ally: Fighter, kind: str, target_id: str = "", sa
         if not t:
             return "There is nothing there for them to take."
         ally.order_target = t.id
+    elif kind == "heal":
+        ally.order_target = target_id if target_id == "self" or any(x.id == target_id for x in combat.allies()) else ""
+    elif kind == "back":                                 # (f406) "get behind me": out of the press, into the back row
+        from engine import battlefield as bf
+        bf.release(combat, ally)
+        bf.to_row(combat, ally, "back")
     ally.order = kind
     combat.order_round = combat.round
     if ally.id not in combat.ordered:
@@ -2941,7 +2970,8 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
             return
     from engine import techniques
     if a.order == "heal":
-        hurt = combat.player if combat.player.hp < combat.player.max_hp else None
+        whom = a if a.order_target == "self" else next((x for x in combat.allies() if x.id == a.order_target and x.alive), combat.player)
+        hurt = whom if whom.alive and whom.hp < whom.max_hp else None          # (f406) "heal yourself", "heal Bryn": the one named
         kit_heal = techniques.healing(a.ally_role)
         if hurt and kit_heal:                                      # (f396) told to heal: their own heal, every turn they are told to
             m = techniques.spell(a, kit_heal)
@@ -2975,6 +3005,14 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
         target = ordered or next((e for e in enemies if e.id == combat.focus), None) or min(enemies, key=lambda e: e.hp)
         from engine import battlefield as bf
         access = bf.attack_access(combat, a, target)
+        if a.order == "back":                                      # (f406) told to keep behind the player: they go to no one
+            near = [e for e in enemies if e.id in a.engaged_with] or [e for e in enemies if bf.attack_access(combat, a, e).ok
+                                                                       and a.reach in ("ranged", "area")]
+            if not near:
+                combat.log.append(f"{a.name} keeps behind {combat.player.name}")
+                tell(combat, f"{who(a)} {vb(a, 'keep', 'keeps')} behind {who(combat.player)}, as told")
+                return
+            target, access = near[0], bf.attack_access(combat, a, near[0])
         if not access.ok:
             reachable = next((e for e in enemies if bf.attack_access(combat, a, e).ok), None)
             if reachable is None and access.can_approach:
@@ -2983,7 +3021,7 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
                 tell(combat, f"{who(a)} {story}")
                 return
             target = reachable or target
-        if a.reach not in ("ranged", "area") and a.zone_id == target.zone_id:
+        if a.reach not in ("ranged", "area") and a.zone_id == target.zone_id and a.order != "back":
             bf.engage(combat, a, target)
         inspire = mechanics(combat.player, combat).get("inspire", 0)
         if techniques.offence(combat, a, target, 1.0 + inspire / 100, rng):

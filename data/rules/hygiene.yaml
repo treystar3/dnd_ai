@@ -7,7 +7,7 @@
 #   terminal, the window or a night's harness. This is the last resort for what got through, and for the engine's own lines.
 
 # Fields of an answer that are prose the player reads. Other fields (ids, intents, notes to the game) are not checked.
-prose_fields: [text, speech, gesture, before, after, line, scene, detail, paragraphs, title, news]
+prose_fields: [text, speech, gesture, before, after, line, scene, detail, paragraphs, title, news, journey]
 
 # Tasks whose prose is the narrator's: second person, so "I" and "my" belong only inside someone's quoted speech.
 narrator_tasks: [narrate, combat_narrate, combat_aftermath, dialogue_frame, moment, road_event]
@@ -20,3 +20,4 @@ reasons:
   player: "speak of the player as 'you', never 'the player'"
   first_person: "the narrator speaks to the player as 'you'; 'I', 'me' and 'my' belong only inside someone's quoted speech"
   note: "write only the story: no note to yourself in square brackets (a blow's tag is [h1], [h2] and nothing else)"
+  broken: "a character came out broken: write the passage again in plain letters"

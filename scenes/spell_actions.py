@@ -11,6 +11,7 @@ from llm.contracts import SpellRankName
 from llm.gateway import LLMError, generate
 from scenes.intercepts import Intercept
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 BOOK_VERBS = re.compile(r"\b(read|reads|reading|study|studies|studying|open|opens|use|uses|learn|learns|pore over|leaf through)\b", re.I)
 
@@ -134,14 +135,14 @@ class SpellActions:
             ahead = spells.waiting(c)
             if ahead:
                 soonest = min(ahead, key=lambda x: spells.learn_level(x[2]))
-                console.note(f"{teacher.label().capitalize()} shakes their head: you are not ready for more yet. Rank "
+                console.note(f"{cap_first(teacher.label())} shakes their head: you are not ready for more yet. Rank "
                              f"{spells.numeral(soonest[2])} of {soonest[1].name} is within reach at level {spells.learn_level(soonest[2])}.")
             else:
-                console.note(f"{teacher.label().capitalize()} has no deeper working to teach you: your spells are at their highest rank, "
+                console.note(f"{cap_first(teacher.label())} has no deeper working to teach you: your spells are at their highest rank, "
                              "or you know none that grow by rank.")
             return
         self.rank_options = ready
-        console.note(f"{teacher.label().capitalize()} can teach you:")
+        console.note(f"{cap_first(teacher.label())} can teach you:")
         for i, (line, a, r) in enumerate(ready, 1):
             console.note(f"  {i}. {a.name} to rank {spells.numeral(r)} ({spells.form_label(a)}) - "
                          f"{money.words(self.fee(spells.teacher_fee(r)))}, {spells.S['teach']['hours']} hours")
@@ -157,8 +158,7 @@ class SpellActions:
         m = re.search(r"\b([1-9])\b", words)
         line = ready[int(m.group(1)) - 1][0] if m and int(m.group(1)) <= len(ready) else self.pick_line(ready, words)
         if line is None:
-            console.note("Which one? Say its number or name.")
-            self.halted = True
+            self.refuse("Which one? Say its number or name.")
             return True
         r = spells.next_rank(self.player.character, line)
         fee = self.fee(spells.teacher_fee(r))
@@ -189,8 +189,7 @@ class SpellActions:
         c = self.player.character
         why = spells.can_read(c, item)
         if why:
-            console.note(why)
-            self.halted = True
+            self.refuse(why)
             return
         self.pack.remove(item)
         a = spells.learn_named(c, item)

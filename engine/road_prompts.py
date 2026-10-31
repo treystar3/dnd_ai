@@ -1,13 +1,14 @@
-"""Prompts for road events: inventing what a traveler comes across between places."""
+"""Prompts for road events: inventing what the player comes across between places. (f423) The prompt says "the player", never "a
+traveler", so the one the scene is about is never taken for someone else on the road."""
 
-SYSTEM = """You are the unseen hand of a living fantasy world, deciding what a traveler comes across on the road.
+SYSTEM = """You are the unseen hand of a living fantasy world, deciding what the player comes across on the road.
 Invent ONE happening on THIS stretch of road, at the given TIER, that could only happen here and now: it should
 fit the road's character, the SEASON, the weather and time of day, the LORE, and what the world is already doing
 (THE WORLD NOW). A good road event is specific and grounded - a thing seen, an obstacle, a stranger, a windfall,
 a sign of something larger - not a generic "you meet a merchant". It need not be a threat.
 
 TIER decides scale: normal - a small passing moment; uncommon - something worth remembering; rare - something that
-stops a traveler in their tracks and could change a region for a while.
+stops the player in their tracks and could change a region for a while.
 
 KIND: find (something left or lost by the road; detail says what), meeting (travelers or locals; detail says who and
 what they say or want), hazard (an obstacle - weather, terrain, a washed-out ford, a fallen tree; detail says what, and
@@ -17,8 +18,13 @@ When the event says it must be an ambush, the CREATURES are given: describe how 
 them, and nothing else about the outcome. Otherwise never include a fight.
 
 Write:
-  title: a short name for it.  scene: what the player sees and hears, second person - two or three sentences, but four to six when TIER is rare
-  ("You...") - concrete, no decisions or actions for the player.  kind, detail, check (hazards only).
+  title: a short name for it.
+  journey: the walk BEFORE the happening, second person, from THE JOURNEY: the player setting out (or already
+    well on the way), the road under their feet and the country it crosses, the weather and the light, anyone walking with them (as
+    WHO IS WITH THEM says, nothing more), and roughly how long they have been walking. The player should feel the road go by, so the
+    happening comes in the middle of a journey, not out of nowhere. Never the happening itself, and never the arrival.
+  scene: what the player sees and hears, in the second person ("You..."): concrete, no decisions or actions for the player; a rare
+  TIER is a bigger moment, and the scene gives it room.  kind, detail, check (hazards only).
   meets_role: ONLY if the event says the player is stopped here - a role id from ROLES for someone who is there
     (a stranded merchant, a pilgrim, a patrol). Otherwise leave empty.
   news: one sentence of word the player picks up that is now known in the world, or empty.
@@ -30,8 +36,10 @@ Respond only with JSON matching the schema."""
 
 
 def user(road_text: str, tier: str, season: str, when: str, sky: str, world_now: str, lore: str, must: str,
-         checks: list[str], roles: list[str], roads: str, stops: bool) -> str:
+         checks: list[str], roles: list[str], roads: str, stops: bool, journey: str = "", company: list[str] = ()) -> str:
     return (f"ROAD: {road_text}\nTIER: {tier}\nSEASON: {season}\nTIME: {when}; weather: {sky}\n"
+            + (f"THE JOURNEY: {journey}\n" if journey else "")
+            + f"WHO IS WITH THEM (each one's pronoun and people: never write them otherwise): {'; '.join(company) if company else 'no one: they walk alone'}\n"
             f"THE WORLD NOW: {world_now or 'nothing in particular'}\nLORE: {lore or 'nothing special'}\n"
             f"MUST BE: {must}\n"
             f"{'THE PLAYER IS STOPPED HERE: give meets_role if someone is present.' if stops else 'The player keeps walking after this.'}\n"

@@ -342,9 +342,9 @@ troll_combat:
   no_run:
     - "No. You can't outrun that, and I'm not letting you try. Hold."
   run_fail:
-    - "you turn to run, but the troll is on you in two strides and a fist like a felled log slams into the ground across your path - there is nowhere to go"
+    - "you turn to run, but the troll is on you in two strides and a fist like a felled log slams into the ground across your path: there is nowhere to go"
     - "you break for the trees, but the troll is far faster than it looks, and it cuts you off, its long arms spread wide across every way out"
-    - "you scramble away, but the troll's huge shadow falls over you and its bulk fills the gap - you cannot get past it"
+    - "you scramble away, but the troll's huge shadow falls over you and its bulk fills the gap, and you cannot get past it"
   no_talk:
     - "It's a troll. It's not going to listen. Hold your ground."
   round_one_hint: "Maren: Hold it, I'm coming."
@@ -513,6 +513,7 @@ voice:
     - "Speak straight to the player as 'you', the way a person talks across a table, not like a briefing or a list of instructions. Short sentences are fine."
     - "Plain spoken English in natural paragraphs, one idea to a paragraph. Use contractions the way people do when they talk. No stage directions, no asterisks, no quotation marks, no emojis, no lists, no headings. Do not begin by saying your own name."
     - "Sound like a person, not a writer: no sayings, morals or neat closing lines, no 'not X, but Y', no lists of three for rhythm. Say the practical thing and stop."
+    - "Use no more words than the points need. Say each point once, briefly, the way it comes out across a table: a point of a few words stays a few words, and none is padded into a paragraph. Answer what the player just said first, in a word or a sentence."     # (f409)
     - "Never speak of a game, a program, stats or a system; to Maren these are simply the ways of the world and of the guild."
     - "Do not end the lesson, send the player away, or promise anything the points do not."
   rules:

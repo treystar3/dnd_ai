@@ -9,7 +9,7 @@ validation context passed to llm.gateway.generate.
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
+from pydantic import ConfigDict, BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
 
 from core.models import (
     COMPANION_TARGETS,
@@ -479,6 +479,16 @@ class Clarify(BaseModel):
 
     _blank = blank_placeholders("line")
 
+    @model_validator(mode="after")
+    def in_the_world(self):
+        """(f422) The question is asked in the world, never in the game's words: 'end the current quest' reached the page."""
+        from engine import mentor
+        low = (self.line or "").lower()
+        hit = sorted(set(re.findall(r"[a-z]+", low)) & (mentor.BANNED_WORDS | {"quest", "action", "command", "input", "intent"}))
+        if hit or re.search(r"(current|active) (quest|task|contract)", low):
+            raise ValueError(f"ask it as someone in the world would, in plain words: no '{(hit or ['quest'])[0]}'")
+        return self
+
 
 class Need(BaseModel):
     """(f395) Something the world must hold for an attempt, that it does not hold yet: a part of the place, a person, a thing, a way."""
@@ -520,11 +530,16 @@ class Ruling(BaseModel):
         ctx = _ctx(info)
         caps = ctx.get("capabilities") or []
         self.requires = [r.strip().lower() for r in self.requires if r and r.strip()]
+        checks = ctx.get("checks") or []
+        moved = [r for r in self.requires if r in checks and r not in caps]
+        if moved:                                  # (f421) a check named where a capability goes is the check: moved, not sent back
+            self.stakes.check = self.stakes.check or moved[0]
+            self.requires = [r for r in self.requires if r not in moved]
         wrong = [r for r in self.requires if caps and r not in caps]
         if wrong:
             raise ValueError(f"requires lists only names from CAPABILITIES ({', '.join(caps)}), not {', '.join(wrong)}")
         if self.sense == "no" and not self.answer.strip():
-            raise ValueError("a no needs `answer`: what happens instead, in one or two sentences of the world, as the player would see it")
+            raise ValueError("a no needs `answer`: what happens instead, in the world, as the player would see it")     # (f421) no length
         if len(self.needs) > 2:
             raise ValueError("at most two needs: only what the attempt cannot happen without")
         if any(not n.name.strip() for n in self.needs):
@@ -995,6 +1010,9 @@ def _no_tics(speech: str, last: str = "") -> None:
         raise ValueError(f"you opened your last line on '{o.capitalize()}' too; open this one on what you have to say")
 
 
+NO_WORDS = re.compile(r"\W*(?:none|n/?a|nothing|silence|no reply|no answer|\.\.\.)?\W*", re.I)      # (f422) speech that says nothing
+
+
 class NPCReply(BaseModel):
     speech: str
     gesture: str = ""
@@ -1027,6 +1045,8 @@ class NPCReply(BaseModel):
 
     @model_validator(mode="after")
     def said_again(self, info: ValidationInfo):
+        if NO_WORDS.fullmatch(self.speech or "") and not (self.gesture or "").strip():          # (f422) "None." was printed under their name
+            raise ValueError("say something: speech is the words they say aloud; for an answer with no words, put what they do in gesture")
         if "*" in self.speech or "_" in self.speech:
             raise ValueError("plain speech only: no asterisks, underscores or markdown in what is said")
         _no_tics(self.speech, _ctx(info).get("last") or "")
@@ -1200,6 +1220,13 @@ class DialogueFrame(BaseModel):
             if first in theirs and first not in mine and first not in ("the", "a", "an"):
                 who = ctx.get("speaker", ["the speaker"])[0]
                 raise ValueError(f"the frame is about {who}, but it opens on {theirs[first]}: write it about {who}, by name or as they are known")
+        said = re.findall(r"[a-z']+", str(ctx.get("speech") or "").lower())       # (f422) the words are printed between the parts, once
+        if len(said) >= 4:
+            runs = {" ".join(said[i:i + 4]) for i in range(len(said) - 3)}
+            for field in (self.before, self.after):
+                mine_ = re.findall(r"[a-z']+", (field or "").lower())
+                if any(" ".join(mine_[i:i + 4]) in runs for i in range(len(mine_) - 3)):
+                    raise ValueError("the frame repeats the words said; they are printed between before and after: never quote or retell them")
         return self
 
 
@@ -1525,9 +1552,17 @@ class MotiveStep(BaseModel):
     gossip: str = ""       # what others might say about it, if anything
 
 
+def _journey_required(schema: dict, model) -> None:
+    """(f411) The model writes the walk before a road's happening: an optional field is one it leaves out."""
+    if "journey" in schema.get("properties", {}) and "journey" not in schema.setdefault("required", []):
+        schema["required"].insert(1, "journey")
+
+
 class RoadEvent(BaseModel):
     """Something that happens on the road. The model describes it; the engine rolls any check, loot or fight."""
+    model_config = ConfigDict(json_schema_extra=_journey_required)
     title: str
+    journey: str = ""              # (f408) the walk before it: setting out, the road, the company, the time on it; never the happening
     scene: str                     # what the player sees and hears, two or three sentences, second person
     kind: Literal["find", "meeting", "hazard", "sight", "aid", "ambush"]
     detail: str = ""               # find: what is found. hazard: the obstacle. meeting/aid: who, and what they say or need
@@ -1541,6 +1576,10 @@ class RoadEvent(BaseModel):
         ctx = _ctx(info)
         if ctx.get("hostile") and self.kind != "ambush":
             raise ValueError("this event is a hostile encounter: kind must be ambush")
+        if ctx.get("kind") and self.kind != ctx["kind"]:
+            raise ValueError(f"this event is a {ctx['kind']}: kind must be {ctx['kind']}")
+        if ctx.get("want_journey") and not self.journey.strip():
+            raise ValueError("write the journey: the walk before the happening, in the second person")
         if not ctx.get("hostile") and self.kind == "ambush":
             raise ValueError("this event is NOT a fight: pick find, meeting, hazard, sight or aid")
         if self.kind == "hazard" and self.check not in ctx.get("checks", []):

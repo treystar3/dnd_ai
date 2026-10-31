@@ -54,7 +54,9 @@ def tick(ws, narrated: bool = False, rng: random.Random | None = None) -> str:
     last_people = ws.__dict__.get("_stay_people_turn", -99)
     gap_ok = turn - last_people >= int(S.get("gap_turns", 3))
     if now["weather"] != prev["weather"]:
-        return (S.get("weather") or {}).get(now["weather"], "")
+        line = (S.get("weather_in" if inside else "weather") or {}).get(now["weather"], "")   # (f423) "Fog comes in." was said in the bar
+        if line:
+            return line
     if prev["moment"] and not now["moment"]:
         ends = next((sh.get("ends", "") for sh in __import__("engine.moments", fromlist=["M"]).M["shapes"] if sh["id"] == prev["moment"]), "")
         if ends:
@@ -85,9 +87,10 @@ def tick(ws, narrated: bool = False, rng: random.Random | None = None) -> str:
 def problems(weather_ids: set[str], periods: set[str], place_types: set[str] = ()) -> list[str]:
     """place_types is not checked against `indoors`: a hut or a cabin the player finds is a kind of place the world file does not list."""
     bad = []
-    for k in (S.get("weather") or {}):
-        if k not in weather_ids:
-            bad.append(f"stay.yaml weather: '{k}' is not a weather condition")
+    for head in ("weather", "weather_in"):
+        for k in (S.get(head) or {}):
+            if k not in weather_ids:
+                bad.append(f"stay.yaml {head}: '{k}' is not a weather condition")
     for k in (S.get("periods") or {}):
         if k not in periods:
             bad.append(f"stay.yaml periods: '{k}' is not a period of the day")

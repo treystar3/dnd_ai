@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
 A = yaml.safe_load((ROOT / "data" / "rules" / "towns.yaml").read_text(encoding="utf-8")).get("audience", {})
@@ -110,7 +111,7 @@ def absent_line(ws, npc) -> str:
     """When the player tries to speak to someone behind the door without being admitted."""
     g = gate(ws.world, npc.location) or {}
     keeper = g.get("keeper", "the keeper").replace("_", " ")
-    return f"{npc.label().capitalize()} is not seen like that. The {keeper} keeps the door; ask there, or be sent for."
+    return f"{cap_first(npc.label())} is not seen like that. The {keeper} keeps the door; ask there, or be sent for."
 
 
 def summon(ws, npc, th: dict) -> bool:

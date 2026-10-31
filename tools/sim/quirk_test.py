@@ -53,13 +53,12 @@ ms[0]["bond"] = 15
 w.player.party = ms[:2]; w.player.party_mode = "with"
 for m in ms[:2]:
     m["quirks"]["habit"] = "first_watch" if m is ms[0] else "counts_fights"
-NARR.clear(); w.habits("rest")
-check("a rest habit shows at a rest, the first time for certain", any("first watch" in t for t in NARR), NARR)
-NARR.clear(); w.habits("arrival")
-check("...and not at another moment", not NARR)
+got = w.habit_lines("rest")                              # (f412) handed to the rest's passage, never a line of their own
+check("a rest habit shows at a rest, the first time for certain", any("first watch" in t for t in got), got)
+check("...and not at another moment", not w.habit_lines("arrival"))
 ms[1]["fights_total"] = 7
-NARR.clear(); w.habits("fight_end")
-check("a fight-count habit says the real count", any("7" in t and "Isel" in t for t in NARR), NARR)
+got = w.habit_lines("fight_end")
+check("a fight-count habit says the real count", any("7" in t and "Isel" in t for t in got), got)
 
 # deeds and reactions
 ms[0]["quirks"]["likes"], ms[0]["quirks"]["dislikes"] = "harvest", "flee"
@@ -159,7 +158,8 @@ check("an oath left over from a voice they no longer have is not theirs", quirks
 check("their own words are theirs", quirks.borrowed(br, "Ashes and rot.", [iq]) == "")
 
 # repeats follow the temperament; voices are told before, not refused after
-check("a blunt one may be harsh about a repeat; a gentle one never unkind", "harsh" in quirks.repeat_manner({"temper": ["blunt"]}) and "never" in quirks.repeat_manner({"temper": ["gentle"]}))
+check("a blunt one is plain about a repeat, never harsh (f422); a gentle one never unkind", "plainly" in quirks.repeat_manner({"temper": ["blunt"]})
+      and "harsh" not in quirks.repeat_manner({"temper": ["blunt"]}) and "never" in quirks.repeat_manner({"temper": ["gentle"]}))
 br2 = {"name": "Bram Voss", "quirks": {"voice": "curses", "curses": ["ashes and rot", "damn"]}, "said": ["Ashes and rot, that hurts."]}
 check("the request says he has just cursed, and lists nobody's words (a list is a list the model reaches into)", "Only Bram uses" not in quirks.voice_notes(br2) and "ashes" not in quirks.voice_notes(br2) and "cursed only just now" in quirks.voice_notes(br2))
 br2["said"] = ["Fine.", "Let us go."]
@@ -231,10 +231,14 @@ check("...the truths are hers to tell when asked", "brother" in mentor.facts(w.p
       mentor.facts(w.player, "Greywood", "Do you have family back home? A brother or sister?")[-400:])
 NARR.clear()
 w.mentor_with_you = lambda: True
+fussed = 0
 for k in range(30):
     st.meta.minutes = 1800 + k * 13
+    w._habits_due = {}
     w.mentor_rest_habit()
-check("at rests she fusses, now and then, in a visible way", 3 < len(NARR) < 30 and all("Maren" in t for t in NARR), len(NARR))
+    fussed += len(w.habits_due("rest"))
+check("at rests she fusses, now and then, in a visible way", 3 < fussed < 30, fussed)
+check("(f413) ...handed to the rest's passage, never a line of its own", not NARR, NARR)
 
 # the whole-loop hooks exist
 import scenes.world as _w

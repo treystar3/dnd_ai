@@ -15,19 +15,24 @@ class ShopActions:
 
     # ---------- what a ware costs / what a pack item fetches ----------
 
-    def quote_ware(self, seller, ware, announce: bool = False):
-        """The ware with its price after haggling, guild discount, the town's prices and your heat."""
+    def price_of(self, base: float, seller=None, kind: str = "") -> int:
+        """(f418) What a thing sold here costs the player, now: a ware, a piece of stock, a relic, a mount. Every quote a person gives,
+        every list the player or the interpreter is shown, and every charge is this one sum, so the figure named is the figure taken.
+        Before, four sums disagreed: a hungry town's bowl was quoted at its old price and charged a third more, the stock left out the
+        guild's and the ascetic's discounts, a stable ignored what the town thought of the player. kind: a room or a meal takes the
+        discounts that are theirs."""
         c = self.player.character
-        off = crafting.mechanic(c, "haggler") + self.guild_perks()["shop_discount"]
-        if ware.kind == "room":
-            off = crafting.mechanic(c, "haggler") + self.guild_perks()["room_discount"]
-        if ware.kind in ("room", "meal"):
+        off = crafting.mechanic(c, "haggler") + self.barter_pct() + self.guild_perks()["room_discount" if kind == "room" else "shop_discount"]
+        if kind in ("room", "meal"):
             off += crafting.mechanic(c, "ascetic")
-        if seller.role == "quartermaster":
+        if seller is not None and seller.role == "quartermaster":
             off += self.mech("quartermasters_friend")
-        ware = ware.model_copy(update={"price": round(ware.price * max(0, 1 - off / 100)
-                                                    * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price()
-                                                    * getattr(self, "haggle_factor", 1.0))})                 # (f332) a price a haggle won
+        return round(base * max(0, 1 - off / 100) * pulse.price_factor(self.store, self.world, self.player.location, self.minutes)
+                     * self.heat_price() * getattr(self, "haggle_factor", 1.0))                  # (f332) a price a haggle won
+
+    def quote_ware(self, seller, ware, announce: bool = False):
+        """The ware with its price after haggling, guild discount, the town's prices and your heat (price_of)."""
+        ware = ware.model_copy(update={"price": self.price_of(ware.price, seller, ware.kind)})
         if ware.kind == "room" and ((self.owns("shelter_earned") and self.town_rep() >= 30)
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})
@@ -68,10 +73,10 @@ class ShopActions:
                 self.halted = True
             return False
         if ware.kind == "room" and self.player.room == self.player.location and self.player.room_until > self.minutes:
-            console.note("You already have a room here until mid-morning tomorrow. No charge.")
-            self.halted = True
+            self.refuse("You already have a room here until mid-morning tomorrow. No charge.")
             return False
         c.coins -= ware.price
+        self.use_barter()                                    # (f418) the price it bought was the bargained one
         effect = ""
         if ware.kind == "room":
             now = clock.absolute(self.minutes)
@@ -79,11 +84,12 @@ class ShopActions:
             self.player.room, self.player.room_until = self.player.location, nights_end
             effect = "They are shown a small room upstairs that is theirs until mid-morning tomorrow."
         elif ware.kind == "material" and ware.item:
-            self.to_pack(items.make_raw(ware.item))
-            effect = f"They take {ware.name}."
+            st = self.to_pack(items.make_raw(ware.item))
+            effect = f"They take {ware.name}." if st.left is None else f"They have {ware.name}, but no room to carry it: it is set down here."
         elif ware.kind == "item" and ware.item:
-            self.to_pack(inv.make_good(ware.item, 1))
-            effect = f"They put {inv.GOODS[ware.item].name} in their pack."
+            st = self.to_pack(inv.make_good(ware.item, 1))           # (f417) a full pack: it is bought, and set down here, not pocketed
+            effect = (f"They put {inv.GOODS[ware.item].name} in their pack." if st.left is None
+                      else f"They have {inv.GOODS[ware.item].name}, but no room in their pack for it: it is set down here.")
         elif ware.kind in ("meal", "drink"):
             meal = needs.N["meal"]
             share = {"stamina": 0.25, "health": meal["health"] / 100} if ware.kind == "meal" else {"stamina": 0.08, "health": 0.0}
@@ -99,6 +105,8 @@ class ShopActions:
         self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(seller.id,), npc=seller.id, name=seller.label(),
                            item=ware.name, coins=ware.price, bought=True), seller)
         self.store.save_player(self.player)
+        from engine import ledger                       # (f417) settled: what the seller says after it, and the passage, read it
+        ledger.add("paid", to=seller.id, amount=ware.price, say=f"The player has paid {seller.label()} for {ware.name}; it is settled.")
         console.ledger(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
         if quiet:
             if ware.kind == "room":
@@ -106,7 +114,7 @@ class ShopActions:
             elif ware.kind in ("meal", "drink"):
                 console.note(effect)
         else:
-            self.narrate(f"The player pays {seller.label()} {money.words(ware.price)} for {ware.name}, and the coins change "
+            self.narrate(f"The player pays {seller.label()} for {ware.name}, and the coins change "
                          f"hands. {effect} Describe the exchange.", text)
         return True
 
@@ -130,14 +138,17 @@ class ShopActions:
         from engine.domain_events import Traded
         self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
                            item=item.name, coins=price, bought=True), npc)
-        self.to_pack(item)
+        st = self.to_pack(item)
         self.store.save_player(self.player)
+        from engine import ledger
+        ledger.add("paid", to=npc.id, amount=price, say=f"The player has bought {item.name} from {npc.label()}; it is settled.")   # (f417)
         console.note(f"Bought {quality_name(item)} (lv {item.item_level}) for {money.fmt(price)}. "
                      f"Purse: {money.fmt(c.coins)}")
         if item.uid.startswith("relic_"):
             self.weight_hint = "major"
         if not quiet:
-            self.narrate(f"The player buys {item.name} from {npc.label()} for {money.words(price)}.", text)
+            self.narrate(f"The player buys {item.name} from {npc.label()}."
+                         + (" Their pack is full: it is set down here, not carried." if st.left is not None else ""), text)
         return True
 
     def finish_sale(self, sold, buyer, text: str = "", quiet: bool = False) -> int:
@@ -151,9 +162,12 @@ class ShopActions:
         self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(buyer.id,), npc=buyer.id, name=buyer.label(),
                            item=inv.label(sold), coins=paid, bought=False), buyer)
         self.store.save_player(self.player)
+        from engine import ledger
+        ledger.add("received", by=buyer.id, amount=paid,                                                  # (f417)
+                   say=f"{buyer.label()} has bought {inv.label(sold)} from the player and paid for it; it is settled.")
         console.note(f"Sold {inv.label(sold)} to {buyer.label()} for {money.fmt(paid)}. Purse: {money.fmt(self.player.character.coins)}")
         if not quiet:
-            self.narrate(f"The player sells {inv.label(sold)} to {buyer.label()}, who pays {money.words(paid)}.", text)
+            self.narrate(f"The player sells {inv.label(sold)} to {buyer.label()}, who pays for it.", text)
         return paid
 
     def take_stack(self, first):

@@ -88,7 +88,8 @@ def changed_lines(changed: list[tuple], most: int = 2) -> list[str]:
     out = []
     for n, before, after in changed:
         if before and after and before != after:
-            out.append(f"{n.label()} is {after.rstrip('.')} now, not {before.rstrip('.')} as when the player was last here; show it, never report it as a change.")
+            out.append(f"{n.label()} is {after.rstrip('.')} now, not {before.rstrip('.')}, which is what they were doing on the player's last "
+                       "visit; show it, never report it as a change.")             # (f423) never read as the player's own deed
     return out[:most]
 
 

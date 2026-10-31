@@ -147,6 +147,11 @@ def wait(message: str) -> None:
         print(f"\n  ({message})")
 
 
+def busy_text(message: str) -> None:
+    """(f423) What the waiting indicator says while the world is busy ("People go about their day." while a place's people are made). It is
+    never a line of the story: in the window it is the indicator's own words, until the wait is over; the terminal shows nothing."""
+
+
 def note(message: str) -> None:
     with kind("note"):
         print(f"\n[{message}]")

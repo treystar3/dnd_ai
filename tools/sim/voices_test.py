@@ -119,7 +119,9 @@ n0 = ws.residents[0]
 again = life.ensure_speech(n0, store, world)
 check("a person keeps their kit", again["kit"] == kits[0])
 fact, lines, material = vp.resident_lines(n0, random.Random(2))
-check("a townsperson's HOW YOU TALK opens with their kit", lines[:len(voices.lines(kits[0]))] == voices.lines(kits[0]), lines)
+from engine import entities as _ent
+kit_said = [_ent.gendered(l, _ent.GENDER.get(n0.gender, "")) for l in voices.lines(kits[0])]      # (f422) in their own pronoun
+check("a townsperson's HOW YOU TALK opens with their kit", lines[:len(kit_said)] == kit_said, lines)
 offers = rules.roster(3, "parth", 1, 5, 100, [])
 ok = [voices.kit_of(o) for o in offers]
 check("a guild list's hires each have a kit, and no two on the list are alike", all(ok) and len(ok) >= 3 and min(voices.distance(a, b) for i, a in enumerate(ok) for b in ok[i + 1:]) >= 4)

@@ -15,7 +15,7 @@ pass_through:
   lacking: "The wall is a wall. It does not give."
 teleport:
   about: being somewhere else in an instant, without the road between
-  grants: {}
+  grants: {field: [word_of_recall]}                                   # (f421) the ability that does it grants it
   lacking: "You will the distance away, and it stays. The road is the only way there."
 water_breathing:
   about: breathing water as if it were air
@@ -31,7 +31,7 @@ mind_reading:
   lacking: "Their face tells you what faces tell anyone, and no more."
 raise_dead:
   about: bringing the dead back to life or unlife
-  grants: {}
+  grants: {field: [revivify]}
   lacking: "The dead stay dead. Nothing you know reaches that far."
 invisibility:
   about: not being seen at all, in plain view

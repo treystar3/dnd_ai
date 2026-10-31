@@ -354,12 +354,16 @@ def map_offer(world, store, offer, issuer: str, issuer_name: str, now: int, guil
     common = {"guild": guild, "issuer": issuer, "issuer_name": issuer_name}
     if offer.kind == "hunt":
         for p in (pl for pl in world.places.values() if pl.danger):
-            roster = encounters.ensure_roster(store, world, p.id)
-            match = encounters.matching(world, roster, what)
+            kept = store.load_place(p.id).roster            # (f424) read, not built: a roster is made only where the creature may be
+            could = kept or list(p.anchors) + [f[0].id for f in world.creature_candidates(p.id, encounters.CREATURE_RULES["rarity_weight"],
+                                                                                          encounters.CREATURE_RULES.get("fit"))]
+            if not encounters.matching(world, could, what):
+                continue
+            match = encounters.matching(world, kept or encounters.ensure_roster(store, world, p.id), what)
             if match:
                 c = world.bestiary[match[0]]
                 letter = letter_for_level(sum(_overlap(c, p)) // 2)
-                return _quest("hunt", letter, f"Hunt {count} {plural(c.name)} in {p.name}", now, place=p.id,
+                return _quest("hunt", letter, f"Hunt {count} {c.name if count == 1 else plural(c.name)} in {p.name}", now, place=p.id,
                               creature=c.id, count=count, **common)
     if offer.kind == "gather":
         good = inv.find([inv.make_good(g) for g in inv.GOODS], what)

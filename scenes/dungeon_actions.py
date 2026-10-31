@@ -5,6 +5,7 @@ import random
 from engine import combat, dungeons, items, loot, money
 from engine import field as _field
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 D = dungeons.D
 
@@ -31,7 +32,7 @@ class DungeonActions:
                 if d is not None:
                     if self.player.delve and self.player.delve.get("dungeon") == d["id"]:
                         self.player.delve = None
-                        console.note(f"{d['name'].capitalize()} has shifted and been remade - your progress there is lost.")
+                        console.note(f"{cap_first(d['name'])} has shifted and been remade - your progress there is lost.")
                     fresh["entrance"] = d["entrance"]
                     self.void_dungeon_contracts(d["id"], fresh)
                 known[place.id] = fresh
@@ -89,14 +90,12 @@ class DungeonActions:
     def on_delve(self, intent, text: str) -> None:
         d = self.dungeon_here()
         if not d:
-            console.note("You need to be at a dungeon's entrance to go down.")
-            self.halted = True
+            self.refuse("You need to be at a dungeon's entrance to go down.")
             return
         nxt = dungeons.next_chamber(d)
         if nxt is None:
             days = max(0, (d["made"] + D["respawn_days"] * 1440 - self.minutes) // 1440)
-            console.note(f"{d['name'].capitalize()} is cleared to the bottom. It will be remade in {days} days.")
-            self.halted = True
+            self.refuse(f"{cap_first(d['name'])} is cleared to the bottom. It will be remade in {days} days.")
             return
         f, c = nxt
         floor = d["floors"][f]
@@ -258,6 +257,6 @@ class DungeonActions:
             self.player.character.coins += coins
             self.store.save_player(self.player)
             console.ledger(f"Found: {money.words(coins)}.")
-            self.narrate(f"The player searches the chamber carefully and turns up {money.words(coins)} that others missed.", text)
+            self.narrate(f"The player searches the chamber carefully and turns up coin that others missed.", text)
         else:
             self.narrate(f"The player searches the chamber in {d['name']} but finds nothing more of use.", text)

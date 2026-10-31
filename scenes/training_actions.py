@@ -10,6 +10,7 @@ from engine import lessons
 from llm.gateway import LLMError
 from scenes import lesson_ask
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 ROOT = Path(__file__).resolve().parent.parent
 T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
@@ -31,8 +32,7 @@ class TrainingActions:
     def pay_for_training(self, fee: int, what: str) -> bool:
         c = self.player.character
         if c.coins < fee:
-            console.note(f"{what.capitalize()} costs {money.words(fee)}; you have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"{what.capitalize()} costs {money.words(fee)}; you have {money.words(c.coins)}.")
             return False
         c.coins -= fee
         return True
@@ -49,8 +49,7 @@ class TrainingActions:
             return
         teacher = self.instructor_here()
         if not teacher:
-            console.note("Training is with the guild's instructor, at the guild house during working hours.")
-            self.halted = True
+            self.refuse("Training is with the guild's instructor, at the guild house during working hours.")
             return
         words = f"{intent.item} {text}".lower()
         skill = next((s for s in T["tutoring"]["skills"] if s in words), None)
@@ -87,12 +86,10 @@ class TrainingActions:
         c, d = self.player.character, T["drills"]
         day = clock.day(self.minutes)
         if c.level >= d["max_level"]:
-            console.note("The instructor has nothing left to teach you in drills - the world is your teacher now.")
-            self.halted = True
+            self.refuse("The instructor has nothing left to teach you in drills - the world is your teacher now.")
             return
         if c.last_drill_day == day:
-            console.note("You've drilled today already. Come back tomorrow.")
-            self.halted = True
+            self.refuse("You've drilled today already. Come back tomorrow.")
             return
         fee = self.fee(d["fee_per_level"] * c.level)
         if not self.pay_for_training(fee, "a drill session"):
@@ -112,8 +109,7 @@ class TrainingActions:
         c, t = self.player.character, T["tutoring"]
         have = c.trained.get(skill, 0)
         if have >= t["cap"]:
-            console.note(f"There's nothing more the instructor can teach you about {skill}.")
-            self.halted = True
+            self.refuse(f"There's nothing more the instructor can teach you about {skill}.")
             return
         fee = self.fee((t["base_fee"] + t["fee_per_session"] * (have // t["bonus"])) * (1 - self.mech("arcane_tutor") / 100))
         if not self.pay_for_training(fee, f"a lesson in {skill}"):
@@ -143,17 +139,15 @@ class TrainingActions:
         can_a, can_p = spells.distinct(c.actives) < self.ability_slots(), len(c.passives) < self.passive_slots()   # (f397) a line counts once
         if not (can_a or can_p):
             nxt = min((spells.distinct(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
-            console.note(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
-            self.halted = True
+            self.refuse(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
             return
-        console.wait(f"{teacher.label().capitalize()} considers what to teach you.")
+        console.wait(f"{cap_first(teacher.label())} considers what to teach you.")
         want = lesson_ask.read_request(c, request)
         slots = lessons.plan(c, want, can_active=can_a, can_passive=can_p)
         try:
             options = lesson_ask.write(c, request, slots)
         except (LLMError, ValueError, KeyError):
-            console.note("The instructor can't settle on what to teach you right now. Ask again in a moment.")
-            self.halted = True
+            self.refuse("The instructor can't settle on what to teach you right now. Ask again in a moment.")
             return
         self.learn_options = options
         self.learn_request = request
@@ -169,8 +163,7 @@ class TrainingActions:
         options = getattr(self, "learn_options", None)
         teacher = self.instructor_here()
         if not options or not teacher:
-            console.note("Ask the instructor to teach you something first.")
-            self.halted = True
+            self.refuse("Ask the instructor to teach you something first.")
             return
         import re
         words = f"{intent.item} {text}".lower()
@@ -178,16 +171,14 @@ class TrainingActions:
         pick = options[int(m.group(1)) - 1] if m and int(m.group(1)) <= len(options) else \
             next((o for o in options if o.name.lower() in words), None)
         if not pick:
-            console.note("Which one? Say its number or name.")
-            self.halted = True
+            self.refuse("Which one? Say its number or name.")
             return
         c = self.player.character
         passive = isinstance(pick, Passive)
         a = T["passives" if passive else "abilities"]
         from engine import spells
         if (len(c.passives) >= self.passive_slots()) if passive else (spells.distinct(c.actives) >= self.ability_slots()):
-            console.note(f"You have no room for another {'trait' if passive else 'ability'} yet.")
-            self.halted = True
+            self.refuse(f"You have no room for another {'trait' if passive else 'ability'} yet.")
             return
         fee = self.lesson_fee(passive)
         if not self.pay_for_training(fee, f"learning {pick.name}"):

@@ -244,8 +244,15 @@ def goal_lines(rows: list[dict], info: dict) -> list[str]:
     kinds = collections.Counter(r.get("kind") for r in refs)
     outcomes = collections.Counter(o.get("kind") for r in rows for o in (r.get("outcomes") or []))
     hours = float(info.get("hours") or 0) or 1.0
+    made_how = collections.Counter(o.get("how") or "?" for r in rows for o in (r.get("outcomes") or []) if o.get("kind") == "made")
+    party = {n for r in rows for n in ((r.get("state") or {}).get("party") or [])}
+    false_no = [r for r in refs if r.get("kind") == "refused"
+                and any(re.search(rf"\b{re.escape(n.split()[0])}\b", f"{r.get('text', '')} {r.get('why', '')}") for n in party if n)]
     return [f"| Facades met / dead ends | {kinds.get('facade', 0)} / {kinds.get('dead_end', 0)} |",
             f"| Attempts the world made room for / said no to in the world | {outcomes.get('made', 0)} / {kinds.get('refused', 0)} |",
+            f"| ...made room for, by how (ruled: the game judged the attempt; narrated: adopted from a passage) | "      # (f414)
+            + (", ".join(f"{k} {v}" for k, v in made_how.most_common()) or "none") + " |",
+            f"| ...said no to, about someone in the party (likely a misread) | {len(false_no)} |",
             f"| Additions to the world per hour | {outcomes.get('made', 0) / hours:.1f} |",
             f"| Parts made different by an attempt (blocked, lit, cleared...) | {outcomes.get('changed', 0)} |"]
 
@@ -277,6 +284,10 @@ def summarise(run_dir: Path) -> str:
     lines += ["", "## Play", ""] + play_table(turns, info, pulse) if turns else []
     if turns:
         lines += ["", "## Consistency", ""] + consistency_table(turns, calls, info)
+    if game_turns:                                                  # (f414) what the page showed, counted from the page
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import page_measures
+        lines += ["", "## The page", ""] + page_measures.table(game_turns, turns, calls, info)
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
     text = "\n".join(lines) + "\n"

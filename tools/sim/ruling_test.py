@@ -136,7 +136,7 @@ refusals.note = _note
 # ---- a plain yes is done without a roll; a cost is rolled on the ruling's check
 stub.ruling = {"sense": "yes", "why": "anyone can", "needs": [], "requires": []}
 TOLD.clear()
-ruling.run(ws, "lights a torch", "I light a torch.")
+ruling.run(ws, "calls out into the cave", "I call out into the cave.")              # (f421) a plain yes needs nothing they lack
 check("a plain yes simply happens", TOLD and "WORKS" in TOLD[-1], TOLD[-1][-400:] if TOLD else "")
 ruled = {"sense": "cost", "check": "athletics", "hard": "easy"}
 easy = ruling.odds(ws, "climb", ruled)

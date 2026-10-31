@@ -104,5 +104,24 @@ check("the screen gets no dash from the narrator or from anyone speaking", "turn
       and "\u2014" not in out and "do: best" in out, out)
 check("...the game's own notes keep theirs", "Fire Bolt - rank II" in out, out)
 
+# (f407) a passage the model broke after every clause is joined back into its paragraphs; a broken character is sent back
+wrapped = ("Before you can arrive at the crates of herbs,\na figure steps across your trajectory.\nShe is broad across the shoulders,\n"
+           "her frame encased in plate.\n\nThe greatsword on her back stays still.")
+check("line breaks of the model's own inside a paragraph are joined; a blank line still ends one",
+      hygiene.unwrap(wrapped) == "Before you can arrive at the crates of herbs, a figure steps across your trajectory. She is broad across the "
+      "shoulders, her frame encased in plate.\n\nThe greatsword on her back stays still.", hygiene.unwrap(wrapped))
+answers = iter(['{"text": "' + wrapped.replace("\n", "\\n") + '"}'])
+gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
+got = gw.generate("narrate", "You narrate.", "The square.", Narration)
+check("...on every answer from the model", got.text.count("\n") == 2 and "herbs, a figure" in got.text, got.text)
+check("a stray escape that came out as a control character is found, so the passage is written again",
+      hygiene.problem("narrate", Narration(text="Her back remains still\x08ut her posture blocks the stall."))[0] == "broken")
+check("...and one that slips through never shows as a box: the letter it ate is put back",
+      hygiene.clean("remains still\x08ut her posture") == "remains still but her posture", repr(hygiene.clean("remains still\x08ut her posture")))
+answers = iter(['{"text": "She stays still\\but her posture blocks the way."}', '{"text": "She stays still, but her posture blocks the way."}'])
+gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
+got = gw.generate("narrate", "You narrate.", "The square.", Narration)
+check("...and the second, whole, is the one used", got.text == "She stays still, but her posture blocks the way.", got.text)
+
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

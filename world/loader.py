@@ -262,7 +262,8 @@ class World(BaseModel):
         """(f362) The route cache. Neighbours and paths are asked for thousands of times a session (every board, every route, every band
         of the pulse) and the map changes only when a place is added or taken away: a home bought, a road found or lost. So both are kept
         until the count of places or of roads moves, and a Dijkstra that cost a fifth of a second costs nothing the second time."""
-        sig = (len(self.places), sum(len(p.connects) for p in self.places.values()))
+        sig = (len(self.places), sum(len(p.connects) for p in self.places.values()), hash(frozenset(self.places)))   # (f426) which places, too:
+        # a stop tidied away and a new one made in the same turn left both counts as they were, and a route through the old one stood
         c = self._routes
         if c.get("sig") != sig:
             c.clear()

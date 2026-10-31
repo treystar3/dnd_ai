@@ -350,7 +350,7 @@ def try_find(ws, text: str = "") -> bool:
             ws.narrate("The player searches here and has the feeling something is to be found, without putting a hand on it yet. "
                        "Nothing named.", text)      # (f384) no length
         else:
-            ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search briefly.", text)
+            ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search.", text)   # (f413) no length (f375)
         return True
     return False
 

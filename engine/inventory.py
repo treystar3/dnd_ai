@@ -109,6 +109,14 @@ def add(bag: list[Item], item: Item, capacity: int) -> Item | None:
     return item.model_copy(update={"quantity": left}) if left else None
 
 
+def fits(bag: list[Item], item: Item, capacity: int) -> bool:
+    """(f417) Whether all of it would go in, without putting it there: a road find is told as taken only when it will be."""
+    left = item.quantity
+    if stack_size(item) > 1:
+        left -= sum(max(0, stack_size(have) - have.quantity) for have in bag if same_stack(have, item))
+    return left <= 0 or (capacity - len(bag)) * stack_size(item) >= left
+
+
 def find(bag: list[Item], name: str) -> Item | None:
     """The best match for something the player named: 'the draught', 'wolf hides', 'my old sword'."""
     words = [w.rstrip("s") for w in name.lower().replace("-", " ").split() if w not in ("the", "my", "a", "an", "some", "of")]

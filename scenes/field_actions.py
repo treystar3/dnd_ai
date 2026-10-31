@@ -9,6 +9,7 @@ import re
 from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse
 from engine.field import F, tier_value
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 LIGHT_WORDS = ("light", "glow", "illumin", "flame", "lantern", "radian", "torch", "shine", "luminous", "ember", "spark")
 DARK_PENALTY_DEFAULT = 20
@@ -183,8 +184,8 @@ class FieldActionsBase:
         if gain:
             npc.trust = min(100, npc.trust + gain)
             self.store.save_npc(npc)
-        console.note(f"{npc.label().capitalize()} warms to you." if gain else
-                     f"{npc.label().capitalize()} is already as won over as you can make them today, but they're listening.")
+        console.note(f"{cap_first(npc.label())} warms to you." if gain else
+                     f"{cap_first(npc.label())} is already as won over as you can make them today, but they're listening.")
         return (f"They bring {ability.name} to bear on {npc.label()}, who softens toward them and is more willing to listen. "
                 "Describe the effect on the person, subtly, without having them agree to anything yet.")
 
@@ -415,7 +416,7 @@ class FieldFunctions:
                  else "likes you" if npc.trust < 80 else "trusts you")
         mood = npc.mood or "even"
         weighs = npc.concern or "nothing you can make out"
-        console.note(f"{npc.label().capitalize()}: mood {mood}; what weighs on them - {weighs}; {trust}.")
+        console.note(f"{cap_first(npc.label())}: mood {mood}; what weighs on them - {weighs}; {trust}.")
         return (f"They read {npc.label()} closely. Their mood is: {mood}. What weighs on them: {weighs}. They {trust.replace('you', 'the player')}. "
                 "Describe the small signs the player notices, without having the person say any of it aloud.")
 
@@ -430,7 +431,7 @@ class FieldFunctions:
                             "only": ["intimidation"]}
         npc.trust = max(0, npc.trust - F["intimidate"]["trust_cost"])
         self.store.save_npc(npc)
-        console.note(f"{npc.label().capitalize()} shrinks back from you. Your next attempt to frighten them will be far easier.")
+        console.note(f"{cap_first(npc.label())} shrinks back from you. Your next attempt to frighten them will be far easier.")
         return (f"They bring {ability.name} to bear on {npc.label()}, looming, letting menace do the work. Describe the person "
                 "flinching, without having them yield anything yet.")
 
@@ -469,7 +470,7 @@ class FieldFunctions:
         npc.trust = max(0, npc.trust - P["trust_loss"]["failure"])
         from engine.domain_events import Pickpocketed
         self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), caught=True), npc)
-        console.note(f"{npc.label().capitalize()} catches your hand. They will not forget it.")
+        console.note(f"{cap_first(npc.label())} catches your hand. They will not forget it.")
         return (f"They reach for {npc.label()}'s purse and are caught. Describe the person's hand closing on their wrist, "
                 "and the cold look that follows. They get nothing.")
 

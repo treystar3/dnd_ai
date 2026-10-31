@@ -53,8 +53,7 @@ class ExitActions:
             return True
         if why and self.world.places[top].type in SETTLEMENTS:
             rows = ", ".join(f"{r['dir']} ({r['name'].lower()})" for r in self.road_rows())
-            console.note(why + (f" Roads out of here: {rows}." if rows else ""))
-            self.halted = True
+            self.refuse(why + (f" Roads out of here: {rows}." if rows else ""))
             return True
         return False
 
@@ -145,7 +144,7 @@ class ExitActions:
             if exits.wants_back(answer):
                 self.advance(fork, exert=True)
                 console.note("You turn back and walk the road home.")
-                self.halted = True
+                self.halted = True                                  # (f416) the player's choice, not a refusal
                 return
             chosen = exits.pick(gp, answer)
             if chosen:

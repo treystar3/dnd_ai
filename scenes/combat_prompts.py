@@ -75,12 +75,14 @@ Rules:
   fight starting over: the boss was dead on its feet and is not. A fall is an ending - slow down for it, let it land.
   Use these beats to make the fight feel like the end of a story, but add nothing the events do not say.
 - If the player falls, it is final and terrible. Do not soften it.
+- (f412) A companion on the player's side who falls, falls to the blow the EVENTS name, never to the player's or another companion's:
+  the player never strikes a companion. One who goes down alive lies where they fell; they do not stand, walk or speak again this fight.
 - A foe that falls leaves its body where it fell: fire chars it and blades cut it, but nothing turns a body to ash or dust or makes it
   vanish unless an event says so. (Bodies are skinned, searched and buried after a fight.)
 - An event that tells several strikes "in one motion" is ONE attack (a volley, a flurry, a combination): tell it as one action and say
   how many struck home, never as separate attacks one after another, and give its one marker once, at the end of that telling.
 - Some events end with a marker such as [h2]. It stands for that blow's damage figure, which the game fills in. Copy each marker
-  exactly once, in the same form ([h2]), as the last thing in the sentence that tells that blow, just before its full stop: never in
+  exactly once, in the same form, [h2], as the last thing in the sentence that tells that blow, just before its full stop: never in
   the middle of a sentence, and never two markers in one sentence. Never explain it and write no numbers yourself.
 - No numbers, no game words (damage, health, round, critical, status, ability, legendary, phase). No lists or markdown.
 """ + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("fight") + """
@@ -89,9 +91,10 @@ Respond only with JSON matching the schema, with the prose in "text"."""
 
 def narrate_request(place: str, time_label: str, player_words: str, events: list[str], weapon: str,
                     you: str, foes: list[str], round_number: int, gear: str = "", recent: list[str] = (), ground: str = "",
-                    shown: list[str] = (), worn: list[str] = (), looks: list[str] = (), allies: list[str] = ()) -> str:
+                    shown: list[str] = (), worn: list[str] = (), looks: list[str] = (), allies: list[str] = (), gone: list[str] = ()) -> str:
     """shown: what the player has read in this fight already (scenes/combat_scene.py fight_shown); worn: words recent passages leaned on.
-    (f375) No length is given. (f385) allies: everyone on the player's side, with she, he or it and what they fight with."""
+    (f375) No length is given. (f385) allies: everyone on the player's side, with she, he or it and what they fight with. (f415) gone: foes
+    alive but out of the fight (yielded or fled); each ally's line ends with how hurt they are now."""
     return (
         f"PLACE: {place}\nTIME AND WEATHER: {time_label}\nTHE PLAYER FIGHTS WITH: {weapon}\n"
         f"THE PLAYER: {gear}\n"
@@ -101,7 +104,9 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
         + "RECENT NARRATION:\n" + ("\n".join(f"  - {r}" for r in list(recent)[-3:]) or "  (none)") + "\n"
         f"MOMENT: {'the opening clash' if round_number <= 1 else f'the fight goes on (exchange {round_number})'}\n"
         f"THE PLAYER IS: {you}\nFOES NOW: {'; '.join(foes) or 'none left standing'}\n"
-        + (("ON THE PLAYER'S SIDE (keep each as written here, every time: the same she, he or it, and only what they fight with):\n"
+        + (f"OUT OF THE FIGHT (alive, but they do not strike, block or come back): {'; '.join(gone)}\n" if gone else "")
+        + (("ON THE PLAYER'S SIDE (keep who each is as written here, every time: the same she, he or it, and only what they fight with; "
+            "how hurt each is NOW is a fact):\n"
             + "\n".join(f"  - {a}" for a in allies) + "\n") if allies else "")
         + f'THE PLAYER SAID: "{player_words}"\n'
         + (("WHAT THE PLAYER'S ABILITIES LOOK LIKE (show each as this, with the weapon they carry; never as something thrown, cast or "
@@ -111,10 +116,12 @@ def narrate_request(place: str, time_label: str, player_words: str, events: list
 
 
 AFTERMATH_SYSTEM = DM_VOICE + """
-You narrate the moment just after a fight ends. The last foe is down. Describe the silence returning,
-the player's breathing and wounds, the fallen, the place. If the player finds anything, describe them noticing it and taking it: it is
-already in their pack or purse, never left lying. THE BODIES and WHAT THE FIGHT CALLED UP are facts: keep to them, whatever the
-narration before said.
+You narrate the moment just after a fight ends. The last foe is down. Begin where OPEN ON says, and not the way the passages under DO NOT
+BEGIN LIKE THESE began; a returning silence, a held breath or a heaving chest open it only if OPEN ON asks for that. Then what this fight
+leaves that is its own: the fallen, a wound that matters, the place, anything found. The player's companions come in only for what is
+given about them (who died, who is down, what they do now); never go round them one pose each. If the player finds anything, describe
+them noticing it and taking it: what THE PLAYER FINDS is already in their pack or purse, never left lying; what is LEFT LYING HERE they
+see and leave, for want of room. THE BODIES and WHAT THE FIGHT CALLED UP are facts: keep to them, whatever the narration before said.
 No numbers, no game words. Respond only with JSON matching the schema, with the prose in "text"."""
 
 

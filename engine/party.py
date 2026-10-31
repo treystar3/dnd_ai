@@ -54,7 +54,8 @@ def roster(seed, hall: str, day: int, player_level: int, rank_coins: int, used: 
         from engine import voices
         voices.ensure(speech, rng, [o["speech"]["kit"] for o in out])      # (f350) no two on one list sound alike
         out.append({"id": f"{week}-{i}", "name": name, "role": role, "level": level, "rank": rank_of(level),
-                    "blurb": rng.choice(P["roles"][role]["blurb"]), "fee": 0, "hall": hall, "people": people, "speech": speech,
+                    "blurb": rng.choice([b for b in P["roles"][role]["blurb"] if all(o["blurb"] != b for o in out)]   # (f422) no two alike
+                                        or P["roles"][role]["blurb"]), "fee": 0, "hall": hall, "people": people, "speech": speech,
                     "pronoun": "she" if gender == "female" else "he", **roll_personality(rng)})
     rng.shuffle(out)
     for m in out:
@@ -168,7 +169,7 @@ def bond_tier(member: dict) -> str:
 # party_perm_test fails on any field not in one of them, so a new field is decided about once, where it is made.
 WHO = ("temper", "motive", "line", "quirks", "details", "secrets", "detail_kinds", "detail_weights", "people", "speech")   # who they are: rolled or written once
 TALK = ("said", "talk", "memories", "impression", "gestured", "talked_day", "convo", "topics_used", "raised", "mood", "mood_at", "since_gesture", "heavy_at",
-        "_culture_key", "_culture", "banter_at", "started_at", "mood_for", "hit_by")  # what play has given them
+        "_culture_key", "_culture", "banter_at", "started_at", "mood_for", "hit_by", "mourns")  # what play has given them
 STANDING = ("id", "name", "pronoun", "blurb", "role", "level", "rank", "permanent", "base_level", "hired_at", "hired_day", "bond", "fights_since", "fights_total",
             "warned", "hp_frac", "hp_at", "mana_frac", "mana_at", "capped", "hungover_until", "pocketed", "bragged_day", "down_fate")   # from the roster, and the engine's own numbers
 

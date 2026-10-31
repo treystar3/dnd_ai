@@ -9,6 +9,7 @@ from core.models import Item
 from engine import items
 from core.models import ItemProperty
 from world.loader import Place
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 P = yaml.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "rules" / "property.yaml", encoding="utf-8"))
 RELICS = {r["id"]: r for r in yaml.safe_load(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "data" / "world" / "relics.yaml", encoding="utf-8"))}
@@ -36,7 +37,7 @@ def register(world, player) -> None:
         stations = P["workshop_stations"] if "workshop" in h["upgrades"] and not ruined else {}
         visible = ([f"What is left of {P['homes'][town]['name']}: blackened beams, a fallen roof, a door that no longer shuts. "
                     "The item box in the cellar is untouched. Say 'rebuild the house' to restore it."] if ruined else
-                   [f"{P['homes'][town]['name'].capitalize()}, bought and paid for - yours.",
+                   [f"{cap_first(P['homes'][town]['name'])}, bought and paid for - yours.",
                     "A bed, a table, a hearth that is yours to light, and a door that locks from the inside."]
                    + [f"A {P['upgrades'][u]['name']}, built to your orders." for u in h["upgrades"]])
         world.places[pid] = Place(

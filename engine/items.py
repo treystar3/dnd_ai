@@ -396,7 +396,7 @@ def summary(item: Item) -> str:
     if item.good:
         from engine.inventory import GOODS
         g = GOODS[item.good]
-        return {"herb": "herb", "food": "food", "consumable": "consumable"}[g.kind] + f" - {g.description}"
+        return {"herb": "herb", "food": "food", "consumable": "consumable", "book": "spell book"}.get(g.kind, g.kind) + f" - {g.description}"   # (f413) a book is a good too (f397)
     if b.slot == "none":
         m = material_of(item)
         return f"trade good{f' ({m.source.lower()})' if m else ''}"

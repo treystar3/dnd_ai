@@ -103,28 +103,28 @@ class QuirkActions:
         self._quirk_loc = loc
         if prev is None or prev == loc or self.combat or self.player.delve:
             return
-        self.habits("arrival")
-        self.flaws_on_arrival()
+        self.flaws_on_arrival()                              # (f412) the arrival habits went into the arrival's passage (arrival_habits)
         from engine.domain_events import Visited
         self.notice(Visited(minute=self.minutes, place=loc, place_type=self.place.type))
         self.errands()
 
     def rest_quirks(self, sleeping: bool) -> None:
-        """At the end of a rest: habits, the inn's cost, a late morning, something told, and Maren's small attentions."""
-        self.habits("rest")
+        """At the end of a rest: the inn's cost, a late morning, something told, and Maren's small attentions. (f412) The habits of a rest
+        went into the rest's passage."""
         from engine.domain_events import Rested
         self.notice(Rested(minute=self.minutes, place=self.player.location, inn=sleeping and self.place.type == "inn",
                            late=sleeping and clock.period(self.minutes) in ("midday", "afternoon", "evening"), slept=sleeping))
         self.flaws_at_rest(sleeping)
         self.secrets()
-        self.mentor_rest_habit()
 
     # ---------- habits ----------
 
-    def habits(self, when: str) -> None:
-        """Each companion's habit, if this is its moment."""
+    def habit_lines(self, when: str) -> list[str]:
+        """(f412) Each companion's habit, if this is its moment, for the narrator to fold into the passage of that moment (the arrival, the
+        rest, the fight's start, the passage after it): never a line of its own. A night showed 'Zurra counts her coin on arriving, as if
+        the road might have taken some.' 24 times, alone on its line, the same words each time."""
         crew = [self.quirked(m) for m in self.player.party if m.get("permanent") and not m.get("story")] if when in ("fight_start", "fight_end") else self.quirk_crew()
-        shown = set()
+        lines, shown = [], set()
         for m in crew:
             habit = (m.get("quirks") or {}).get("habit", "")
             if habit in shown:                               # (f386) two of them 'take the first watch without being asked' in one moment
@@ -134,7 +134,24 @@ class QuirkActions:
                                      place_type=self.place.type)
             if line:
                 shown.add(habit)
-                console.narrate(line)
+                lines.append(line)
+        return lines
+
+    def habits(self, when: str) -> None:
+        """The habits of this moment, rolled now and kept for its passage (habits_due), which tells them in its own words."""
+        self.__dict__.setdefault("_habits_due", {})[when] = self.habit_lines(when)
+
+    def habits_due(self, when: str) -> list[str]:
+        return (self.__dict__.get("_habits_due") or {}).pop(when, [])
+
+    def arrival_habits(self) -> list[str]:
+        """(f412) The first passage in a place the player has just come to is the arrival: the companions' arrival habits go into it, once."""
+        prev = self.__dict__.get("_quirk_loc")
+        loc = self.player.location
+        if prev is None or prev == loc or self.__dict__.get("_habits_at") == loc or self.combat or self.player.delve:
+            return []
+        self._habits_at = loc
+        return self.habit_lines("arrival")
 
     # ---------- deeds ----------
 
@@ -267,9 +284,9 @@ class QuirkActions:
             quirks.note_line(m, r.gesture)
             if r.speech:
                 context.note_spoken(m, r.speech, self.minutes, self.companion_concerns(m))
-                return quirks.shown(r.speech, r.gesture, m["name"])
+                return quirks.shown(r.speech, r.gesture, m["name"], rules.pronoun_of(m))
             if quiet:                                        # no words: what their body does, or silence, is the answer
-                return quirks.shown("", r.gesture, m["name"]) if r.gesture else severity.silent_line(m["name"])
+                return quirks.shown("", r.gesture, m["name"], rules.pronoun_of(m)) if r.gesture else severity.silent_line(m["name"])
             return ""
         return ""
 
@@ -356,11 +373,12 @@ class QuirkActions:
                 continue
             extra = {"sum": money.words(E["cost"])} if "cost" in E else {}
             ask = quirks.errand_text(m, "ask", **extra)
-            console.say(ask, m["name"])
-            rules.said(m, ask)
+            said = self.companion_line(m, [f"you are asking the player for this small thing, now, in your own words, keeping its meaning: {ask}"],
+                                       "(on arriving)", retell={"text": ask, "others": []})      # (f413) in their voice, accent and all (f410)
+            self.companion_show(m, said or ask, "(on arriving)")
+            rules.said(m, said or ask)
             m["quirks"]["errand_day"] = day
-            self._errand = (m, E)
-            console.note(f"[{m['name'].split()[0]} is asking something of you. Say yes, or no.]")
+            self._errand = (m, E)                                              # (f422) the ask is in their own words; no bracketed note under it
             self.store.save_player(self.player)
             return
 
@@ -429,9 +447,11 @@ class QuirkActions:
     # ---------- Maren ----------
 
     def mentor_rest_habit(self) -> None:
+        """(f413) Maren's small attention at a rest, handed to the rest's passage with the companions' habits (f412), never a line of its own."""
         if not self.mentor_with_you() or self.combat or self.quirk_rng("maren").randrange(100) >= 50:
             return
-        console.narrate(self.quirk_rng("maren-line").choice(quirks.Q["maren"]["rest_habits"]))
+        self.__dict__.setdefault("_habits_due", {}).setdefault("rest", []).append(
+            self.quirk_rng("maren-line").choice(quirks.Q["maren"]["rest_habits"]))
 
     def mentor_opening(self, beat: str) -> tuple[str, str, list[str]]:
         """(fact for the model, line for the fallback, words that must survive) for one of her beats; ('', '', []) if already told."""

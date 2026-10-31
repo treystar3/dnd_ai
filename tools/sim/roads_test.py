@@ -147,7 +147,7 @@ check("naming the town still travels there", P.location == kelp, P.location)
 road_actions.R["chance_per_leg"] = 1.0
 store, ws = fresh("roads_test5"); P = ws.player
 calls = []
-def fake_event(route, a, b, m, frac, text, log, resume=None, stop_name=""):
+def fake_event(route, a, b, m, frac, text, log, resume=None, stop_name="", walked=0):
     calls.append((a, b, resume, stop_name)); return "go"
 ws.road_event = fake_event
 ANSWERS[:] = ["the Old Quarry Road"]; NOTES.clear()

@@ -83,6 +83,11 @@ check("...and in Japanese, even against a comma", guard.foreign(["A guard pivots
 check("...and in Russian", guard.foreign(["it лишь skims across a seam in the scales"]) == "лишь")
 check("Latin letters with marks, money signs and dashes are English enough", guard.foreign(["Şükrü at the café paid 0₲ 0Ş 60₵ — fair"]) == "")
 check("a name the request itself carries is not the model losing its language", guard.foreign(["Борис nods."], "Ask Борис about the road.") == "")
+check("(f411) a word of another language in Latin letters is found too", guard.foreign(["It sits there, watching you avec a steady focus."]) == "avec")
+check("...with its marks, as the night's narrator wrote it", guard.foreign(["the weight của the blade"]) == "của")
+check("...but not inside an English word or a name ('under', 'Aberhollow', 'Thorund')",
+      guard.foreign(["Under the bridge Aberhollow's smith, Thorund, waits under a sound roof."]) == "")
+check("...nor when the player wrote it", guard.foreign(["You say: avec plaisir."], "I say avec plaisir to the innkeeper") == "")
 
 answers = iter(['{"text": "One keeps his head down, 그의 gaze fixed on the ground."}', '{"text": "One keeps his head down, his gaze fixed on the ground."}'])
 SENT = []

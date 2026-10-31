@@ -5,6 +5,7 @@ import re
 from engine import clock, inventory as inv, money, pools, property as prop
 from engine.property import P
 from ui import console
+from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
 BUY_WORDS = re.compile(r"\b(house|home|cottage|property|deed|townhouse|villa|longhouse|lodge|estate|lot)\b")
 
@@ -65,8 +66,7 @@ class PropertyActions:
         if self.place.type == "home":
             if self.home_ruined():
                 if not re.search(r"\b(rebuild|repair|restore|mend)\b", words):
-                    console.note(f"Your house is a ruin. Say 'rebuild the house' ({money.fmt(self.rebuild_cost())}).")
-                    self.halted = True
+                    self.refuse(f"Your house is a ruin. Say 'rebuild the house' ({money.fmt(self.rebuild_cost())}).")
                     return True
                 cost = self.rebuild_cost()
                 if c.coins < cost:
@@ -102,7 +102,7 @@ class PropertyActions:
                 self.ensure_homes()
                 self.store.save_player(self.player)
                 console.note(f"You pay for a {u['name']}: {money.fmt(u['price'])}. Purse: {money.fmt(c.coins)}")
-                self.narrate(f"The player pays builders and craftsmen {money.words(u['price'])} to add a {u['name']} to their "
+                self.narrate(f"The player pays builders and craftsmen to add a {u['name']} to their "
                              f"house. {u['text']} Describe the work being finished.", text)
                 return True
             self.halted = True
@@ -111,23 +111,19 @@ class PropertyActions:
             return False
         town = prop.town_of(self.world, self.player.location)
         if not prop.for_sale(town):
-            console.note("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
+            self.refuse("No houses are for sale here. Land is sold only in the far lands, to those who have earned a place there."
                          if town in P["homes"] else "No houses are for sale here.")
-            self.halted = True
             return True
         agent = next((n for n in self.present if n.role == P["agent_role"]), None)
         if not agent:
-            console.note("The land agent isn't here right now.")
-            self.halted = True
+            self.refuse("The land agent isn't here right now.")
             return True
         if town in self.player.homes:
-            console.note("You already own a house here. Walk over to it to build.")
-            self.halted = True
+            self.refuse("You already own a house here. Walk over to it to build.")
             return True
         h = P["homes"][town]
         if c.coins < h["price"]:
-            console.note(f"{h['name'].capitalize()} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")
-            self.halted = True
+            self.refuse(f"{cap_first(h['name'])} costs {money.words(h['price'])}; you have {money.words(c.coins)}.")
             return True
         c.coins -= h["price"]
         self.player.homes[town] = {"day": clock.day(self.minutes), "upgrades": [], "last_garden": -1, "last_hearth": -1}
@@ -136,7 +132,7 @@ class PropertyActions:
         console.note(f"You buy {h['name']}: {money.fmt(h['price'])}. It is called 'your house in {self.world.places[town].name}' "
                      f"now; you can sleep there free, and keep your item box in it. Type #home.")
         self.weight_hint = "major"
-        self.narrate(f"The player buys {h['name']} from {agent.label()} for {money.words(h['price'])} and is handed the key. "
+        self.narrate(f"The player buys {h['name']} from {agent.label()} and is handed the key. "
                      "Describe the signing and the first look at the door.", text)
         return True
 

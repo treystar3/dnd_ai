@@ -213,6 +213,12 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                     hygiene.undash_answer(task, result)                  # (f396, f403) no dashes in the story, the narrator's or a speaker's
                 except Exception:
                     pass
+                try:
+                    from engine import guard, names
+                    if guard.guarded(task):                              # (f412) a name it was told, written wrong ('Zorra' for Zurra)
+                        names.mend_answer(result, system + "\n" + str(messages[1]["content"]))
+                except Exception:
+                    pass
                 return result
             last_error = LLMError(reason)
         except ValidationError as e:

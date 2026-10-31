@@ -15,6 +15,9 @@ Fields:
             is not said to them. Too loose to audit: "go" is in half of what a player types
   prompt    what the interpreter is told this kind is: the kinds block of its instructions (scenes/world_prompts.py INTERPRET_SYSTEM) is
             written from these, so it can never describe a kind nobody declared, or miss one
+  needed_by_rest  (f416) when the game says no to a step of this kind, the steps after it are not done either: they were meant for
+            where it would have taken the player, or for what it would have given them. False for a step nothing later rests on (a
+            look, a draught, a prayer): 'I lie down on my cot and sleep till dawn' still sleeps when the cot cannot be used
   note      what it is, for anyone reading this table"""
 from __future__ import annotations
 
@@ -33,6 +36,7 @@ class Action:
     verbs: tuple[str, ...] = ()
     words: tuple[str, ...] = ()
     prompt: str = ""
+    needed_by_rest: bool = True
 
 
 ACTIONS: tuple[Action, ...] = (
@@ -46,7 +50,7 @@ ACTIONS: tuple[Action, ...] = (
                look for a shortcut or a hidden way, hunt for a cave, ruin or spring, wander off the path.
                Put what they look for in seek. Naming a place from PLACES is move, never explore."""),
     Action("look", "look around, or at something here", clock.LOOK_MINUTES, words=("look", "examine", "inspect", "listen"),
-           prompt="""they look around or take in their surroundings, or think aloud with no one to answer"""),
+           needed_by_rest=False, prompt="""they look around or take in their surroundings, or think aloud with no one to answer"""),
     Action("search", "search this place", words=("search",),
            prompt="""they search, hunt, track, explore, scout or look for creatures, game, enemies or signs of them
                (fishing is other; herbs are forage)"""),
@@ -55,29 +59,29 @@ ACTIONS: tuple[Action, ...] = (
                or keep talking in the current conversation. Any spoken words count as talk. Handing in, reporting or
                turning in finished work (a contract, a request) is talk to the clerk or to whoever asked for it."""),
     Action("leave_conversation", "end the conversation", 0,
-           prompt="""they end the current conversation without going anywhere (a goodbye can include spoken words)"""),
+           needed_by_rest=False, prompt="""they end the current conversation without going anywhere (a goodbye can include spoken words)"""),
     Action("buy", "buy a ware from someone here", targeted=True, verbs=("buy", "purchase", "sleep", "rest"), words=("order", "rent"),
            prompt="""they pay for, buy, rent, order or accept the price of something listed under FOR SALE.
                Handing someone money for something they offered ("I hand him the silver") is buy, not give."""),       # sleep, rest: a room
     Action("sell", "sell something to someone here", targeted=True, verbs=("sell", "give", "hand"),
            prompt="""they sell something from YOUR PACK to a person here who BUYS it"""),
     Action("ability", "use one of the character's abilities", verbs=("attack", "stab", "shoot", "kill", "cast", "heal"),
-           prompt="""outside a fight, they use one of YOUR ABILITIES - only when they name it or plainly describe
+           needed_by_rest=False, prompt="""outside a fight, they use one of YOUR ABILITIES - only when they name it or plainly describe
                doing exactly what it does. Watching, noticing, studying or reading someone is look."""),
     Action("use", "use an item they carry", words=("use", "drink", "eat", "quaff"),
-           prompt="""they drink, eat, apply or use a consumable or food from YOUR PACK"""),
+           needed_by_rest=False, prompt="""they drink, eat, apply or use a consumable or food from YOUR PACK"""),
     Action("drop", "drop an item here", verbs=("drop", "discard"),
-           prompt="""they drop, leave or set down something from YOUR PACK"""),
+           needed_by_rest=False, prompt="""they drop, leave or set down something from YOUR PACK"""),
     Action("pick_up", "pick something up from the ground", words=("pick up", "loot"),
            prompt="""they pick up or take something listed ON THE GROUND HERE"""),
     Action("give", "give an item or coin to someone here", targeted=True, verbs=("give", "hand", "bribe"), words=("offer",),
            prompt="""they give or hand something from YOUR PACK or KEY ITEMS to a person here"""),
     Action("show", "show someone an item or key item", targeted=True, verbs=("give", "hand", "show"), words=("present",),
-           prompt="""they show, present or display something (usually from KEY ITEMS) to a person here"""),
+           needed_by_rest=False, prompt="""they show, present or display something (usually from KEY ITEMS) to a person here"""),
     Action("discard", "throw an item away for good", verbs=("discard", "drop"),
-           prompt="""they throw away, get rid of, burn or destroy something from KEY ITEMS"""),
+           needed_by_rest=False, prompt="""they throw away, get rid of, burn or destroy something from KEY ITEMS"""),
     Action("store", "put an item in the item box", words=("stow",),
-           prompt="""they put something into their ITEM BOX (only if one is here)"""),
+           needed_by_rest=False, prompt="""they put something into their ITEM BOX (only if one is here)"""),
     Action("retrieve", "take an item out of the item box",
            prompt="""they take something out of their ITEM BOX (only if one is here)"""),
     Action("equip", "wear or wield an item", verbs=("equip", "wield", "wear"),
@@ -97,13 +101,13 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they join, sign up for or pay to enter the adventurers' guild, or say they want or hope to join it
                or its register (not a question about how)"""),
     Action("board", "read or ask about the contract board", targeted=True, verbs=("buy", "join", "board"),
-           prompt="""they read or look over the guild's contract board"""),
+           needed_by_rest=False, prompt="""they read or look over the guild's contract board"""),
     Action("accept_quest", "take a contract or request", verbs=("join",), words=("accept", "contract"),
            prompt="""they take a contract from the board (item = its number or name; "the delivery one", "I'll do this" and
                "I want to take this job" all count, with the CONTRACT BOARD below to pick from), or say yes to a request
                a person here just asked of them"""),
     Action("abandon_quest", "give a contract or request up", verbs=("abandon",),
-           prompt="""they give up a contract or request they hold (item = which)"""),
+           needed_by_rest=False, prompt="""they give up a contract or request they hold (item = which)"""),
     Action("train", "train with a teacher", targeted=True, verbs=("train", "learn"),
            prompt="""they ask for or pay for training: drills, lessons in a skill, or to be taught a new ability
                (item = what they want to train or learn, in their words)"""),
@@ -117,7 +121,7 @@ ACTIONS: tuple[Action, ...] = (
            prompt="""they ask or pay a person here to make gear for them ("forge me a spear", "make me boots
                from these hides")"""),
     Action("wait", "wait, rest or sleep", verbs=("sleep", "rest", "wait"),
-           prompt="""they wait, rest, linger, pass time or skip ahead"""),
+           needed_by_rest=False, prompt="""they wait, rest, linger, pass time or skip ahead"""),
     Action("attack", "attack someone or something", targeted=True, verbs=("attack", "stab", "shoot", "kill"), words=("hit", "fight"),
            prompt="""they attack a creature (in PEOPLE HERE with id wildlife) or start a fight. Killing, executing or
                finishing off a captive prisoner in PEOPLE HERE is attack, with that prisoner's id as target."""),
@@ -137,17 +141,17 @@ ACTIONS: tuple[Action, ...] = (
                Target = the person it belongs to, if any. Opening an ordinary unlocked door is move or look, never unlock."""),
     Action("pray", "pray, or keep a small rite, at a temple or anywhere", words=("pray", "kneel", "worship"),
            prompt="""they pray, kneel, light a candle, give thanks or keep a small rite - at a temple or shrine, or anywhere.
-               Coins into a tithe box are give, not pray."""),
+               Coins into a tithe box are give, not pray.""", needed_by_rest=False),
     Action("gamble", "stake coin on dice or cards with someone here", targeted=True, verbs=("gamble", "wager", "bet"), words=("dice", "cards"),
            prompt="""they gamble: dice, cards or a wager with someone here. target: who they play with, if named. item: the stake
-               as they named it ("2 silver"), else empty."""),
+               as they named it ("2 silver"), else empty.""", needed_by_rest=False),
     Action("haggle", "bargain a price down before buying", targeted=True, verbs=("haggle", "bargain"),
            prompt="""they haggle, bargain or try to beat down the price of something listed under FOR SALE before buying it:
                ware and target as for buy. A plain purchase is buy."""),
     Action("other", "anything else: narrated as an attempt", clock.OTHER_MINUTES, verbs=("bribe",),
            prompt="""anything else they attempt, done where they stand: fishing, climbing onto a roof or a wall, barring a door,
                rigging a snare, swimming, carving a mark. Never a journey (move) or a hunt for creatures (search), and
-               never a restatement of another action in the same line."""),
+               never a restatement of another action in the same line.""", needed_by_rest=False),
 )
 
 BY_KIND: dict[str, Action] = {a.kind: a for a in ACTIONS}
@@ -167,17 +171,29 @@ STATIVE = ("am", "'m", "was", "were", "do", "don't", "did", "didn't", "have", "'
            "suppose", "hope", "see", "saw", "understand", "mean", "meant", "want", "wanted", "need", "reckon", "agree", "disagree", "like", "feel", "felt",
            "remember", "believe", "trust", "owe", "hear", "heard", "wonder", "doubt", "bet", "got", "get", "prefer", "expect", "imagine", "figure", "say",
            "said", "tell", "told", "thank", "promise", "swear", "admit", "confess", "apologise", "apologize", "hate", "love", "miss", "appreciate", "wish",
-           "fear", "suspect", "assume", "insist", "mind", "care", "dare", "intend", "plan", "forgot", "forget", "wasn't", "weren't", "ain't", "hadn't")
-FIRST_PERSON = re.compile(r"^(?:i|we)\s+(?!(?:" + "|".join(re.escape(w) for w in STATIVE) + r")\b)([a-z]+)\b")
+           "fear", "suspect", "assume", "insist", "mind", "care", "dare", "intend", "plan", "forgot", "forget", "wasn't", "weren't", "ain't", "hadn't",
+           "be")                                                       # (f420) "I'll be fine" is how they are, not a deed
+_NOT_STATIVE = r"(?!(?:" + "|".join(re.escape(w) for w in STATIVE) + r")\b)"
+FIRST_PERSON = re.compile(r"^(?:i|we)\s+" + _NOT_STATIVE + r"([a-z]+)\b")
+# (f420) what the player says they are about to do: "I'll check these woods", "I am going to scan the trees", "I'm taking the bounty"
+INTENDING = re.compile(r"^(?:i|we)(?:'ll|\s+will|\s+shall|'m going to|'m gonna|\s+am going to|'re going to|\s+are going to)\s+" + _NOT_STATIVE
+                       + r"([a-z]+)\b|^(?:i|we)(?:'m|\s+am|'re|\s+are)\s+(?!(?:thinking|wondering|hoping|feeling|guessing|wanting|needing|going|getting|"
+                       r"sorry|fine|good|okay|ok|ready|here|not|just|still)\b)([a-z]+ing)\b")
 
 
-def first_person_action(text: str) -> bool:
+def first_person_action(text: str, addressee_present: bool = False) -> bool:
     """(f369) 'I whistle an old tune', 'I take the road to Eldervale', 'I practise sword forms': a line that opens on the player doing
     something is an action, whatever words follow, and never an answer to the hire who spoke last. 'I think so', 'I don't know, Bram' and
-    'I'm fine' open on what the player thinks or is, and stay answers."""
-    low = (text or "").strip().lower().lstrip("\"'")
-    m = FIRST_PERSON.match(low)
-    return bool(m) and not low.rstrip().endswith("?")
+    'I'm fine' open on what the player thinks or is, and stay answers. (f420) So does what they say they are about to do ("I'll check
+    these woods for any more black bears", "I'm going to scan the trees"): those went to the hire as chat, and the woods were never
+    searched. But said to someone who is here ("I'll take the contract", to the clerk), it is words said to them (addressee_present):
+    five contracts taken that way lost their words, and the clerk never answered."""
+    low = (text or "").strip().lower().lstrip("\"'").replace("\u2019", "'")
+    if low.rstrip().endswith("?"):
+        return False
+    if INTENDING.match(low):
+        return not addressee_present
+    return bool(FIRST_PERSON.match(low))
 
 
 def action_re(extra: tuple[str, ...] = ()) -> re.Pattern:

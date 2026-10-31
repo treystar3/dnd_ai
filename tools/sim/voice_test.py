@@ -83,7 +83,9 @@ for k in range(1000):
     feats.append(vp.culture_feature(learner, random.Random(k))[0])
 shown = sum(1 for f in feats if f) / 1000
 check("the culture budget: a moderate culture shows in about two replies in five, never more than one feature", 0.33 < shown < 0.47, shown)
-check("...and each feature turns up", {"dialect", "transfer", "saying"} <= set(feats), collections.Counter(feats))
+check("...and each feature turns up", {"dialect", "saying"} <= set(feats), collections.Counter(feats))
+check("(f410) a learner's accent is not rolled per reply: it is in every reply", "transfer" not in feats and vp.accent(learner)
+      and "in every line" in vp.accent(learner), vp.accent(learner))
 words = sum(1 for f in feats if f == "word") / 1000
 check("home words are off for now: none is offered (speech.yaml culture.weights.word is 0)", words == 0, words)
 learner["said"] = []
@@ -167,7 +169,7 @@ kinds = {tuple(quirks.detail_subjects({}, random.Random(k))) for k in range(30)}
 check("no two hires are built from the same subjects (mostly)", len(kinds) > 25, len(kinds))
 reqs.clear(); stub.companion = lambda u: (reqs.append(u), {"speech": "Under the mountain, among the deep halls of my people."})[1]
 w.hire_talk(m, "Where were you raised, and what did your family do?")
-check("...and where they were raised comes in when they are asked about it", "Raised in Ironvein" in reqs[0] and "Their family were" in reqs[0], reqs[0][:1500])
+check("...and where they were raised comes in when they are asked about it", "Raised in Ironvein" in reqs[0] and "family were" in reqs[0], reqs[0][:1500])
 m["quirks"]["voice"] = "curses"; m["temper"] = ["blunt", "dry"]
 vp.S["regard"].update(show=1, emotional=1)
 how_, _ = w.companion_parts(m, "how is the wound?", emotion="hurting", relation="affection", toward="the player")

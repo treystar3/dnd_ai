@@ -35,7 +35,7 @@ way a good dungeon master does at the table: if it makes sense here, for this ch
 not, it does not happen.
 
 Rule with:
-  sense:    "yes"  - it makes sense and they can simply do it (light a torch, walk on, call out, look closely).
+  sense:    "yes"  - it makes sense and they can simply do it with what they have (walk on, call out, look closely, sit down).
             "cost" - it makes sense, but it takes time, effort or skill, or carries a risk (climbing, digging, swimming, sneaking).
             "no"   - it does not make sense in this world or for this character: impossible for anyone (summoning a dragon from
                      nothing, conjuring gold, making the sun set), or it needs a power they do not have.
@@ -50,9 +50,14 @@ Rule with:
   changes:  what the attempt, if it works, makes lastingly different about a part of the place (one listed, or one under needs): part
             (its name; empty for where the player stands) and becomes (one of BECOMES): a tunnel blocked, a chamber lit, a way cleared.
             Most attempts change nothing that lasts; leave it empty then.
-  answer:   for a no only: what happens instead, one or two sentences of the world, second person, as it would be seen.
+  answer:   for a no only: what happens instead, in the world, second person, as it would be seen.
   instead:  for a no only: one or two things they could try that would make sense.
 Respond only with JSON matching the schema."""
+
+
+def the_name(name: str) -> str:
+    """(f421) 'the' and a part's name, with whatever article it came with taken off first: 'the a secluded nook' reached the page."""
+    return "the " + re.sub(r"^(?:the|a|an)\s+", "", name.strip(), flags=re.I).strip()
 
 
 def request(ws, words: str, text: str) -> str:
@@ -122,7 +127,7 @@ def verdict(ws, r) -> dict:
     for n in r.needs:
         if n.kind in ("feature", "way"):
             e = features.find(ws, n.name)
-            name = "the " + n.name.lower().removeprefix("the ").strip()
+            name = the_name(n.name).lower()
             gone = None if e is not None else next((x for x in ws.store.find_entities(kind="feature", place=ws.player.location)
                                                      if x.state == "gone" and x.name.lower() == name), None)
             if gone is not None:                       # a part that fell in or was lost is not called back by asking for it
@@ -179,7 +184,7 @@ def make_room(ws, r) -> list[str]:
                 continue
             named = features.named_part(n.name) or features.named_part(f"the {n.name.removeprefix('the ')}")
             kind = named[1] if named else ("tunnel" if n.kind == "way" else features.kinds_here(ws.place)[0])
-            name = named[0] if named else ("the " + n.name.removeprefix("the ").strip())
+            name = named[0] if named else the_name(n.name)
             e = features.adopt(ws, ws.player.location, name, kind, "ruled")
             if e is not None:
                 if n.what:

@@ -50,6 +50,8 @@ exemplars:
     - "It took the ewe. Just took her. Didn't eat her, didn't drag her off, left her in the yard like a... like a message. You tell me what does that."
     - "If it isn't raining it's about to. Hand me that. No, the other one. Were you wanting something, or did you come in to drip?"
     - "Later. I've a cart to get under cover before the hay's ruined. Ask me when it's done, or ask her."
+    - "Morning. You're the one with the wand. What can I do for you?"
+    - "Thanks. Most don't bother saying it."
 
 # (f347) A STANCE FOR THE CONVERSATION. Rolled once by the engine when a talk begins (engine/voice_rules.roll_stance) and told plainly
 # to the person as RIGHT NOW YOU ARE, with the rule that they answer the part they care about. Most talks have none: the person is
