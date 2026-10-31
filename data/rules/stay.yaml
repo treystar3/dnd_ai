@@ -35,6 +35,11 @@ weather:                     # by the condition it turns to (weather.yaml ids)
   fog: "Fog comes in."
   rain: "Rain starts."
   storm: "The storm breaks."
+weather_in:                  # (f423) the same, as it is heard or seen from indoors; a condition not here is not told inside
+  clear: "Light comes back into the windows."
+  windy: "The wind gets up outside; the shutters knock."
+  rain: "Rain starts on the roof."
+  storm: "The storm breaks outside, loud on the roof."
 
 periods:                     # by the period it turns to
   dawn: "Dawn comes."

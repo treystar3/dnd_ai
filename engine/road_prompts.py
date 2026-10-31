@@ -1,13 +1,14 @@
-"""Prompts for road events: inventing what a traveler comes across between places."""
+"""Prompts for road events: inventing what the player comes across between places. (f423) The prompt says "the player", never "a
+traveler", so the one the scene is about is never taken for someone else on the road."""
 
-SYSTEM = """You are the unseen hand of a living fantasy world, deciding what a traveler comes across on the road.
+SYSTEM = """You are the unseen hand of a living fantasy world, deciding what the player comes across on the road.
 Invent ONE happening on THIS stretch of road, at the given TIER, that could only happen here and now: it should
 fit the road's character, the SEASON, the weather and time of day, the LORE, and what the world is already doing
 (THE WORLD NOW). A good road event is specific and grounded - a thing seen, an obstacle, a stranger, a windfall,
 a sign of something larger - not a generic "you meet a merchant". It need not be a threat.
 
 TIER decides scale: normal - a small passing moment; uncommon - something worth remembering; rare - something that
-stops a traveler in their tracks and could change a region for a while.
+stops the player in their tracks and could change a region for a while.
 
 KIND: find (something left or lost by the road; detail says what), meeting (travelers or locals; detail says who and
 what they say or want), hazard (an obstacle - weather, terrain, a washed-out ford, a fallen tree; detail says what, and

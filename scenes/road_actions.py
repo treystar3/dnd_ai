@@ -169,7 +169,8 @@ class RoadActions:
         interrupts = tier in R["interrupt"]
         state = self.store.load_world_state()
         near = a if frac < 0.5 else b
-        threads = [f"{t['title']} ({t['place']})" for t in state.get("threads", []) if t["status"] == "active"][-8:]
+        threads = [f"{t['title']} ({self.where_name(t['place']) if t.get('place') in self.world.places else t.get('place', '')})"   # (f423) a name,
+                   for t in state.get("threads", []) if t["status"] == "active"][-8:]                                                       # not an id
         group = self.world.locals_group(near)
         lore = " ".join(f.text for f in self.world.lore.values() if group in f.known_by)[:600]
         rkeys = {roads.edge_key(self.world, x.from_, x.to): f"{x.id} ({x.name})" for x in self.world.roads.values()}
@@ -180,8 +181,8 @@ class RoadActions:
                 must = (f"an ambush at an outlaw camp by the roadside: {len(hit[1])} fighters ({names}) with a captain, "
                         "defending a camp full of stolen goods")
         elif deterred:
-            must = ("outlaws watching from cover: the traveler looks far too dangerous, so they hold back and let them pass. "
-                    "Not a fight; kind sight. Describe the unseen watchers and the tension, in the traveler's view")
+            must = ("outlaws watching from cover: the player looks far too dangerous, so they hold back and let them pass. "
+                    "Not a fight; kind sight. Describe the unseen watchers and the tension, as the player senses it")
         else:
             must = "a happening that is not a fight"
         prize, kind = None, ("ambush" if hostile else "sight" if deterred else "")
@@ -192,10 +193,10 @@ class RoadActions:
             if kind == "find":                               # (f406) what a find gives is rolled first, and the scene shows that thing
                 prize = self.road_prize(tier, a, b)
                 if inv.fits(self.pack, prize, self.pack_slots()):
-                    must += (f". What the traveler finds and takes is exactly this: {inv.label(prize)} ({prize.rarity}). The scene shows "
+                    must += (f". What the player finds and takes is exactly this: {inv.label(prize)} ({prize.rarity}). The scene shows "
                              f"that thing; nothing else there can be taken")
                 else:                                        # (f417) room is checked first: a full pack leaves it where it lies
-                    must += (f". What the traveler finds is exactly this: {inv.label(prize)} ({prize.rarity}), but their pack is full and "
+                    must += (f". What the player finds is exactly this: {inv.label(prize)} ({prize.rarity}), but their pack is full and "
                              f"they leave it where it lies. The scene shows that thing left behind; nothing there is taken")
         if matter and (hostile or not deterred):
             must += matters.road_lines(matter[0], matter[1], hostile)
@@ -227,6 +228,7 @@ class RoadActions:
             stop.update(log=log[-6:], text=text, resume=(route[-1] if resume is None else resume) if hostile and not interrupts else "")
             if camp:
                 stop["camp"] = max(1, round(sum(self.world.places[wild].danger) / 2))
+            self.leave_road(stop["id"])                     # (f423) the stop they stood at is tidied away before the new one: its people too
             self.player.road = stop
             self.ensure_road_place()
             self.enter(stop["id"])

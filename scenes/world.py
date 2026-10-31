@@ -152,7 +152,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def time_label(self) -> str:
         light = " (dark)" if clock.is_dark(self.minutes) else ""
         _, sky = weather.describe(self.store.meta.seed, self.minutes)
-        return f"day {clock.day(self.minutes)}, {clock.period(self.minutes)}{light}, weather: {sky.lower()}"
+        return f"{clock.period(self.minutes)}{light}, weather: {sky.lower()}"           # (f423) no "day N": a passage wrote "on day 42"
 
     def place_lines(self) -> tuple[str, str]:
         here = self.place

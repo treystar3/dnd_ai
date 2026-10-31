@@ -346,7 +346,8 @@ def _here(scene: Scene):
         if line:
             out.append(Fact("here", "The watch: " + line + ".", id="guard"))
         if cond.hint:                                             # (f316) the town's condition, as it shows
-            out.append(Fact("here", f"The town right now ({cond.name}): {cond.hint}", id="condition"))
+            out.append(Fact("here", f"The town right now ({cond.name}): {cond.hint}" + __import__("engine.towns", fromlist=["mourned"]).mourned(cond),
+                            id="condition"))                       # (f423) and who it mourns
         if place.districts or (top is not None and top.districts):
             out.append(Fact("here", "Quarters of the town: " + ", ".join(place.districts or top.districts) + ".", id="districts"))
         from engine import towns

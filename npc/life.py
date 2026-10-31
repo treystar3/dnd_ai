@@ -154,7 +154,7 @@ def populate_place(store: CampaignStore, world: World, place_id: str, catalog: T
     if state.populated and not missing:
         return existing
     if slots:
-        console.wait("People go about their day.")
+        console.busy_text("People go about their day.")          # (f423) the waiting indicator's words, not a line of the story
         if first_batch:
             slots = _first_slots(store, world, slots, first_batch)
         return _apply(store, world, catalog, place_id, slots, _ask(world.places[place_id], world, slots, town_lines(store, world, place_id)))

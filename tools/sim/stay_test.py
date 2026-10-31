@@ -56,7 +56,9 @@ turn_at = next(m for m in range(m0, m0 + 1440 * 4, 15) if weather.condition(3, m
 stay.reset(ws)
 store.meta.minutes = turn_at; ws.store.meta.turn += 1
 line = stay.tick(ws, rng=rng)
-check("the weather turning is told, in the line for what it turns to", line == stay.S["weather"][weather.condition(3, turn_at)["id"]], line)
+inside = ws.place.type in stay.S.get("indoors", [])                     # (f423) told as it is heard from indoors, when there is such a line
+want = stay.S["weather_in" if inside and weather.condition(3, turn_at)["id"] in stay.S.get("weather_in", {}) else "weather"].get(weather.condition(3, turn_at)["id"], "")
+check("the weather turning is told, in the line for what it turns to", line == want or (inside and not want), line)
 # the hour turns
 stay.reset(ws)
 m1 = ws.minutes

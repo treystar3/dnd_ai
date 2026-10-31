@@ -34,7 +34,6 @@ Respond only with JSON matching the schema."""
 
 def moment_request(ws, shape: dict, visitor_role: str, seen: list[dict]) -> str:
     """The place as it is now, the people and their roles, the shape, and everything this playthrough has seen."""
-    from engine import weather
     from npc import life
     place = ws.place
     visible = "\n".join(f"  - {v}" for v in place.visible) or "  (nothing in particular)"
@@ -48,7 +47,7 @@ def moment_request(ws, shape: dict, visitor_role: str, seen: list[dict]) -> str:
         f"WORLD: {ws.world.summary.strip()}\n\n"
         f"PLACE: {place.name} ({place.type})\n{visible}\n"
         + (f"{town}\n" if town else "")
-        + f"TIME: {ws.time_label()}, weather {weather.describe(ws.store.meta.seed, ws.minutes)[1].lower()}\n"
+        + f"TIME: {ws.time_label()}\n"                                      # (f423) the label carries the weather already
         f"PEOPLE HERE (each is 'role: how they are known'; doings.who is that role word exactly as it stands, or everyone; in the line, name them only as they are known):\n{people}\n"
         + (("ALREADY GOING ON HERE (do not contradict it):\n" + "\n".join(f"  - {a}" for a in already) + "\n") if already else "")
         + f"\nTHE SHAPE: {shape['brief']}\n"

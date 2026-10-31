@@ -86,6 +86,9 @@ def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role
         return pid
     aa, bb = anchor(a), anchor(b)
     r = world.road_between(aa, bb)
+    if aa == bb and not name:                         # (f423) a journey resumed from a stop near its end: never "between Hrimgard and Hrimgard"
+        old = next((world.places[x] for x in (a, b) if x in world.places and world.places[x].type == "road" and not world.places[x].parent), None)
+        name = old.name if old else f"the way near {world.places[aa].name}"
     name = name or f"{r.name if r else 'the way'} between {world.places[aa].name} and {world.places[bb].name}"
     pid = f"road_{uuid.uuid4().hex[:8]}"
     place = Place(id=pid, name=name, type="road", region=world.places[a].region, biome=world.places[near].biome,

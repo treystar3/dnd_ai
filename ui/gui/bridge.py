@@ -4,7 +4,7 @@ The game keeps printing and asking exactly as it does in the terminal. In GUI mo
 (ask, scope, status_block) and sys.stdout for versions that turn everything into small events, kept in a log the page reads
 over a one-way stream. Typed lines come back through a queue that console.ask() waits on, so the engine never knows the difference.
 
-Events (all dicts with "k"):  text{pane,kind,text}  echo{text}  side_begin{cmd}  side_end  status{...}  prompt{main}  busy{on}  panel{name,data}  combat{data}  combat_end
+Events (all dicts with "k"):  text{pane,kind,text}  echo{text}  side_begin{cmd}  side_end  status{...}  prompt{main}  busy{on,text}  panel{name,data}  combat{data}  combat_end
                               ended  fatal{text}
 """
 
@@ -236,12 +236,18 @@ class Bridge:
 
     # ---------- wiring ----------
     def busy(self, on: bool) -> None:
-        self.emit(k="busy", on=on)
+        self.emit(k="busy", on=on, text=getattr(self, "busy_label", "") if on else "")
+        if not on:
+            self.busy_label = ""
+
+    def busy_text(self, message: str) -> None:
+        """(f423) The waiting indicator's words for the wait that follows."""
+        self.busy_label = message
 
     def install(self) -> None:
         from llm import gateway
         self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
-                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
+                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "busy_text": console.busy_text, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
         real_chat = gateway._client.chat
 
         def chat(*a, **kw):
@@ -260,6 +266,7 @@ class Bridge:
         gateway._client.chat = chat
         sys.stdout = _Out(self)
         console.ask, console.scope, console.status_block, console.kind = self.ask, self.scope, self.status_block, self.kind
+        console.busy_text = self.busy_text
         console.panel = self.panel
         console.setup, console.setup_progress, console.setup_done = self.setup, self.setup_progress, self.setup_done
         console.home, console.home_done = self.home, self.home_done
@@ -275,6 +282,7 @@ class Bridge:
         self.flush_text()
         sys.stdout = s["stdout"]
         console.ask, console.scope, console.status_block, console.kind = s["ask"], s["scope"], s["status_block"], s["kind"]
+        console.busy_text = s["busy_text"]
         console.panel = s["panel"]
         console.setup, console.setup_progress, console.setup_done = s["setup"], s["setup_progress"], s["setup_done"]
         console.home, console.home_done = s["home"], s["home_done"]
