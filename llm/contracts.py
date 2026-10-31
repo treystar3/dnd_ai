@@ -1584,6 +1584,8 @@ class RoadEvent(BaseModel):
             raise ValueError("this event is NOT a fight: pick find, meeting, hazard, sight or aid")
         if self.kind == "hazard" and self.check not in ctx.get("checks", []):
             raise ValueError(f"a hazard needs a check, one of: {', '.join(ctx.get('checks', []))}")
+        if ctx.get("stops") and self.kind in ("aid", "meeting") and ctx.get("roles") and self.meets_role not in ctx["roles"]:
+            raise ValueError("someone is here: meets_role is who they are, one role id from ROLES")      # (f427) the one the player can help
         return self
 
 

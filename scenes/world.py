@@ -356,10 +356,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import court, routines
         seed = self.store.meta.seed
         street, cast = self.streets_now()                                                               # (f357)
-        self.present = [n for n in self.residents
+        on_stop = (self.player.road or {}).get("id") == self.player.location         # (f427) whoever the road stopped the player beside is
+        self.present = [n for n in self.residents                                     # there, whatever the hour: no shift or routine on a road
                         if not n.gone                                                                     # (f422) the dead and departed are not here
-                        and clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
-                        and not routines.away(self.world, seed, n, self.minutes, cast)]                 # (f352) at the inn this evening, not here
+                        and (on_stop or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
+                             and court.visible(self, n) and not routines.away(self.world, seed, n, self.minutes, cast))]   # (f352)
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
             if n.id in bound and not n.gone and all(p.id != n.id for p in self.present):
@@ -1119,8 +1120,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     f"What they have typed now answers it. Read the earlier line and this answer together as one intention, and plan that.")
             plan = self.interpret(text, hint)
             text = f"{asked['text']} - {text}"
+            self._asked_place = asked.get("place", "")         # (f428) a far place the question named: the answer may go there
         else:
             plan = self.interpret(text)
+            self._asked_place = ""
         raw_plan = [a.model_dump(exclude_defaults=True) for a in plan]
         self.pending, self.halted = [], False
         plan = self.repair(text, plan)              # (f333) every repair the scene declares, in its declared order (scenes/plan_repairs.py)
@@ -1145,7 +1148,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.halted = True
                     break
                 self.__dict__.setdefault("ran", []).append(intent.kind)
+                refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
                 getattr(self, f"on_{intent.kind}")(intent, text)
+                if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
+                    self.stop_step(intent, sum(1 for r in ledger.ROWS if r.get("kind") == "refused") > refused_before)
                 if intent.force and intent.kind != "attack":
                     self.after_force(intent, text)
                 if self.pending_beats:
@@ -2080,7 +2086,49 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.refuse(f"There is no {tgt.type} in {here_town}. The nearest is {tgt.name} in "
                              f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Say where you want to go to head there.")
                 return
+            if self.far_unnamed(dest, text):
+                return
         self.travel_route(dest, text)
+
+    def far_unnamed(self, dest: str, text: str) -> bool:
+        """(f428, the owner's review Q17) A far place the player's words do not name is never walked to on a guess: "For major cities
+        they need to say it exactly but for places off a road or locations it can ask." A city or town not named is no move, and the
+        ways from here are said; any other far place is asked about. The f425 night: "along the shoreline" walked a party 85 hours to
+        the drowned shore, "along the ridge" toward Windbreak Ridge, "toward the stone steps" to another crypt, "the exit" to the next
+        town - three of four runs, two deaths. True when it answered instead of walking."""
+        I = __import__("engine.candidates", fromlist=["I"]).I
+        if not text.strip() or dest == getattr(self, "_asked_place", ""):
+            return False
+        road = self.player.road or {}
+        if dest in (road.get("bound"), road.get("resume")) or (road.get("id") == self.player.location
+                                                               and dest in self.world.places[road["id"]].connects):
+            return False                                    # walking on from a stop: the way the journey was going
+        found = self.world.path(self.player.location, dest)
+        if not found or found[1] <= I["far_walk_minutes"] or self.names_place(dest, text):
+            return False
+        tgt = self.world.places[dest]
+        away = clock.describe_duration(found[1])
+        if tgt.type in I["say_exactly_types"]:
+            self.refuse(f"Where to? {tgt.name} is {away} from here: name it to set out for it.")
+            return True
+        self.ask_back("far_place", text, f"the words do not name a place; the nearest that might be meant is {tgt.name}, {away} away",
+                      place=dest)
+        return True
+
+    def names_place(self, dest: str, text: str) -> bool:
+        """(f428) Do the player's words name this place by a word of its own: not a word for what kind of place it is ('the shore', 'the
+        ridge', 'the crypt'), which names any of them."""
+        from engine import mapview
+        I = __import__("engine.candidates", fromlist=["I"]).I
+        w = self.world
+        said = set(re.findall(r"[a-z]+", text.lower()))
+        top = w.places.get(mapview.top_of(w, dest))
+        common = set(self.GENERIC_WORDS) | set(I["landform_words"])
+        names = [w.places[dest].name] + ([top.name] if top is not None and top.id != dest else [])
+        own = {t for n in names for t in re.findall(r"[a-z]+", n.lower()) if len(t) > 3 and t not in common}
+        if not own:                                         # a name made only of common words names itself whole
+            own = {t for n in names for t in re.findall(r"[a-z]+", n.lower()) if len(t) > 3}
+        return bool(own & said)
 
     def travel_route(self, dest: str, text: str, already: int = 0, events: int = 0) -> None:
         """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk."""
@@ -2122,6 +2170,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         walk, fatigue_factor = self.take_haste(walk)
         fatigue_factor *= self.take_swift(walk)
         self.travel_fatigue(walk, fatigue_factor)
+        self.leaving_stop(route, text)                      # (f427) the hazard ahead got past, and anyone in need walked past, seen
         self.end_conversation()
         self.last_spoken = None
         console.debug(f"walking {walk} minutes: {' -> '.join(route)}")

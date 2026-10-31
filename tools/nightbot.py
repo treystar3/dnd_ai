@@ -329,6 +329,9 @@ class Bot:
         need = self.need_step()
         if need:
             return need
+        waiting = self.stop_step()                                        # (f427) what a stop on the road holds for the player
+        if waiting:
+            return waiting
         p = self.place()
         fresh = [n for n in ws.present if n.id not in self.spoken_to]
         if p is not None and p.danger is None and fresh and self.here_for <= 1 and self.rng.random() < self.P["chat"] * 0.35:
@@ -342,6 +345,34 @@ class Bot:
             if step:
                 return step
         return self.idle()
+
+    # ---- (f427) a stop on the road: what waits there is the player's to act on
+    HELP = {"steady": 0.5, "talker": 0.7, "wanderer": 0.6, "hunter": 0.35, "careful": 0.7}
+
+    def stop_step(self) -> tuple[str, dict, str] | None:
+        """A find lying at the stop is mostly picked up, someone in need is helped as often as this kind of player would; each once a
+        stop. Then the goal walks on as before (and a hazard ahead is got past on the way)."""
+        ws, rng = self.ws, self.rng
+        road = ws.player.road
+        if not road or ws.player.location != road.get("id"):
+            return None
+        done = self.__dict__.setdefault("_stop_done", set())
+        ground = ws.ground_here()
+        if ground and (road["id"], "find") not in done:
+            done.add((road["id"], "find"))
+            if rng.random() < 0.8:
+                from engine import inventory as inv
+                name = inv.label(ground[0])
+                self.label("stop:find")
+                return rng.choice([f"I pick up the {name}.", f"I take the {name} with me."]), self.intend("pick_up", item=name), "pick_up"
+        aid = road.get("aid")
+        if aid and not aid.get("helped") and (road["id"], "aid") not in done:
+            done.add((road["id"], "aid"))
+            if rng.random() < self.HELP.get(self.persona, 0.5):
+                self.label("stop:aid")
+                return (f"I go to {aid['name']} and help with what they need.",
+                        self.intend("other", target=aid["who"], summary=f"help {aid['name']}: {aid['need']}"), "improv")
+        return None
 
     # ---- a conversation
     def talk_step(self) -> tuple[str, dict, str]:

@@ -331,6 +331,23 @@ def reaction(member: dict, deed: str, day: int, rng=None) -> str:
     return ""
 
 
+def deed_text(deed: str) -> str:
+    """What a deed is, in words: a like-or-dislike deed, or (f427) one every hire has a view on (someone in need on the road)."""
+    return Q["deeds"].get(deed) or (Q.get("in_need") or {}).get("deeds", {}).get(deed, deed)
+
+
+def need_stance(member: dict, deed: str) -> str:
+    """(f427) Where this hire stands on someone in need on the road, by their first temperament: 'approve', 'disapprove' or ''."""
+    N = Q.get("in_need") or {}
+    temper = (member.get("temper") or [""])[0]
+    side = "kind" if temper in N.get("kind", []) else "hard" if temper in N.get("hard", []) else ""
+    if deed == "pass_by":
+        return {"kind": "disapprove", "hard": "approve"}.get(side, "")
+    if deed == "road_help":
+        return "approve" if side == "kind" else ""
+    return ""
+
+
 def react(member: dict, deed: str, how: str, day: int, spoke: bool = True) -> int:
     """Apply a reaction: bond moves, a memory is kept, the day is noted. Returns the bond change. Whether they said so is part of the memory:
     one who kept it to themselves remembers that, not a word they never said."""
@@ -341,7 +358,7 @@ def react(member: dict, deed: str, how: str, day: int, spoke: bool = True) -> in
     delta = int(round(base * _worn(Q["habituation"]["bond_share"], seen.get(deed, 0))))      # less each time: they come to terms with it
     member["bond"] = member.get("bond", 0) + delta
     from engine import canon
-    canon.journal("deed_reaction", "player", member.get("id", ""), f"{member.get('name', '')} {'approved of' if how == 'approve' else 'minded'} {Q['deeds'].get(deed, deed)}",
+    canon.journal("deed_reaction", "player", member.get("id", ""), f"{member.get('name', '')} {'approved of' if how == 'approve' else 'minded'} {deed_text(deed)}",
                   deed=deed, how=how, bond=delta, spoke=spoke)
     seen[deed] = seen.get(deed, 0) + 1
     n = seen[deed]
@@ -350,7 +367,8 @@ def react(member: dict, deed: str, how: str, day: int, spoke: bool = True) -> in
         feel = "I liked it and told them so" if how == "approve" else "I do not hold with it, and I told them so"
     else:
         feel = "I liked it, and kept that to myself" if how == "approve" else "I do not hold with it, and kept that to myself"
-    rules.remember(member, day, f"I have seen them {DEED_ACT.get(deed, Q['deeds'][deed])} {times} now; {feel}.", 2 + (n >= 3), key=f"deed:{deed}")
+    act = DEED_ACT.get(deed) or (Q.get("in_need") or {}).get("acts", {}).get(deed) or deed_text(deed)
+    rules.remember(member, day, f"I have seen them {act} {times} now; {feel}.", 2 + (n >= 3), key=f"deed:{deed}")
     return delta
 
 
@@ -360,7 +378,7 @@ DEED_ACT = {"loot_dead": "pick over the dead", "spare": "spare a foe who yielded
 
 
 def reaction_fallback(deed: str, how: str, rng: random.Random) -> str:
-    return rng.choice(Q["reactions"][how]).format(deed=Q["deeds"][deed])
+    return rng.choice(Q["reactions"][how]).format(deed=deed_text(deed))
 
 
 # ---------- flaws ----------

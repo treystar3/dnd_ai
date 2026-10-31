@@ -162,7 +162,7 @@ class AuditActions:
         console.note(f"Reported. What you just read, your note and the calls behind it are saved in {path}. Nothing is sent anywhere.")
         return str(path)
 
-    def ask_back(self, kind: str, text: str, why: str, meaning: str = "") -> None:
+    def ask_back(self, kind: str, text: str, why: str, meaning: str = "", place: str = "") -> None:
         """(f321) A line that could not be read is answered with one question in character - from the one being spoken to, or a beat from
         the narrator - and the player's next line is read together with this one. Every one is logged as a refusal."""
         from engine import refusals
@@ -190,7 +190,7 @@ class AuditActions:
         if not asked:
             console.note("I'm not sure what you meant - could you say it another way?")
         refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
-        self.pending_clarify = {"text": text, "question": asked}
+        self.pending_clarify = {"text": text, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
 
     def log_turn(self, text, sit, raw_plan, res, seconds):
         """The interpreted line's row in the turn log (engine/turnlog.py): the scene the gate checked against, the plan as read and as

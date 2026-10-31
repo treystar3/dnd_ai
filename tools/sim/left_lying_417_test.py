@@ -94,8 +94,8 @@ ra.R["hostile"], ra.R["kinds"] = 0.0, {"find": 1}
 ws.road_event([road.from_, road.to], road.from_, road.to, 120, 0.5, "I walk on", [])
 ra.R.update(saved)
 ra.generate = real_gen
-check("a find on the road with the pack full: the scene is told they leave it where it lies", prompts and "they leave it where it lies" in prompts[-1]
-      and "finds and takes" not in prompts[-1], prompts[-1][-500:] if prompts else "no prompt")
+check("(f427) a find on the road, the pack full or not: the scene is told it lies there untouched, the player's to take", prompts
+      and "untouched" in prompts[-1] and "finds and takes" not in prompts[-1], prompts[-1][-500:] if prompts else "no prompt")
 
 # ---- a deal settled is a row a person's answer reads
 ws.pack.clear()

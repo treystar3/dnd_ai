@@ -257,6 +257,19 @@ def check() -> list[str]:
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
+    RD_ = _load("data/rules/road.yaml")                                                       # (f427) what stops the walk, and who is there
+    for k_ in RD_.get("stops", []):
+        need(k_ in RD_.get("kinds", {}), f"road.yaml stops: '{k_}' is not a kind of happening (kinds)")
+    need("sight" not in RD_.get("stops", []), "road.yaml stops: a passing sight never stops the walk (the owner, review Q2)")
+    for k_, r_ in (RD_.get("stop_roles") or {}).items():
+        need(r_ in _roles, f"road.yaml stop_roles.{k_}: '{r_}' is not a role")
+    for path_ in (("hazard", "around_words"), ("aid", "help_words")):
+        try:
+            re.compile(RD_[path_[0]][path_[1]])
+        except (KeyError, re.error) as e_:
+            need(False, f"road.yaml {'.'.join(path_)}: {e_}")
+    for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
+        need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
     from engine import routines as _routines                                                  # (f352) routines by period and kind of place
     bad += _routines.problems(_types, set(_clock.PERIOD_NAMES), _roles)
     from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
