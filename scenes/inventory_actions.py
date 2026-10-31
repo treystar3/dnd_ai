@@ -350,7 +350,7 @@ class InventoryActions:
         self.notice(Tithe(minute=self.minutes, place=self.player.location, name=self.place.name, amount=amount, weight=standing.tithe_weight(amount)))
         self.store.save_player(self.player)
         console.note(f"You leave {money.fmt(amount)} in the tithe box. Purse: {money.fmt(c.coins)}")
-        self.narrate(f"The player drops {money.words(amount)} into the tithe box at {self.place.name}. Quiet and unhurried; "
+        self.narrate(f"The player drops coins into the tithe box at {self.place.name}. Quiet and unhurried; "
                      f"nobody makes a fuss.", text)                      # (f413) no length (f375)
         return True
 
@@ -646,7 +646,7 @@ class InventoryActions:
         console.ledger(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label()} "
                      f"for {money.fmt(price)}" + (" (your materials)" if use_own else "")
                      + ". Ready in about a day - collect it while they're at work.")
-        self.narrate(f"The player pays {crafter.label()} {money.words(price)} to make {base.name} from "
+        self.narrate(f"The player pays {crafter.label()} to make {base.name} from "
                      f"{items.MATERIALS[material].name}. They agree it will be ready in a day or so.", text)
 
     def collect_commissions(self) -> None:
@@ -670,17 +670,22 @@ class InventoryActions:
     def stock_here(self) -> list[tuple]:
         """(npc, item, price) for every piece of gear on sale from merchants present."""
         out = []
-        from engine import pulse
-        haggle = max(0, 1 - (crafting.mechanic(self.player.character, "haggler") + self.guild_perks()["shop_discount"] + self.barter_pct()) / 100) \
-            * pulse.price_factor(self.store, self.world, self.player.location, self.minutes) * self.heat_price() * getattr(self, "haggle_factor", 1.0)
-        for n in self.present:
+        for n in self.present:                                    # (f418) priced as everything else is (scenes/shop_actions.py price_of)
             if self.world.roles[n.role].stock:
                 self.ensure_stock(n)
-                out += [(n, i, round(items.price(i) * haggle * self.stock_multiplier(n, i))) for i in crafting.stock_items(n)]
+                out += [(n, i, self.price_of(items.price(i) * self.stock_multiplier(n, i), n)) for i in crafting.stock_items(n)]
             if self.world.roles[n.role].relics:
                 town = property_rules.town_of(self.world, self.player.location)
-                out += [(n, i, round(p * haggle)) for i, p in property_rules.relics_in(self.world, self.store.meta.seed, town, self.player.relics_bought)]
+                out += [(n, i, self.price_of(p, n)) for i, p in property_rules.relics_in(self.world, self.store.meta.seed, town, self.player.relics_bought)]
         return out
+
+    def wares_said(self, npc) -> list[str]:
+        """(f418) What a seller says they sell, at the prices the game will charge (price_of), for their own words: they quoted the list's
+        base price and the player was charged the town's."""
+        role = self.world.roles[npc.role]
+        return ([f"{w.name}: {money.words(self.quote_ware(npc, w).price)}" for w in role.sells]
+                + [f"{i.name} ({i.rarity} work, level {i.item_level}): {money.words(p)}" for n, i, p in self.stock_here() if n.id == npc.id]
+                + ([f"commissions: you make {', '.join(role.commissions)} gear to order"] if role.commissions else []))
 
     BUSINESS_PLACES = ("shop", "smithy", "workshop", "inn", "yard", "town", "village", "square")     # small settlements and market squares are where their sellers work
 

@@ -92,7 +92,7 @@ class WorkActions:
             console.note(f"Work done: {job['task']}. {npc.label().capitalize()} pays you {money.fmt(job['pay'])}. "
                          f"Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player spends {clock.describe_duration(job['minutes'])} working: {job['task']}. When "
-                         f"it's done, {npc.label()} pays them {money.words(job['pay'])} as agreed. Tell it as a short "
+                         f"it's done, {npc.label()} pays them as agreed. Tell it as a short "
                          "passage of honest work and its end. Exactly ONE job was done, over that time: do not describe it as instant, "
                          "and do not mention any other jobs or any further payment.", text)
             return

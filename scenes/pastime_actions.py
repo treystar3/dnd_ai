@@ -70,7 +70,7 @@ class PastimeActions:
         self.store.save_player(self.player)
         console.ledger((f"Won {money.fmt(won)}" if won > 0 else f"Lost {money.fmt(-won)}" if won < 0 else "Broke even") + f" at {money.fmt(stake)} a throw. Purse: {money.fmt(c.coins)}")
         outcome = ("WINS, and well" if degree == "strong success" else "WINS" if won > 0 else "LOSES the stake" if won < 0 else "comes out even")
-        self.narrate(f"THE GAME HAS DECIDED: the player gambles {money.words(stake)} with {who.label()} ({intent.summary or text}) and {outcome}. "
+        self.narrate(f"THE GAME HAS DECIDED: the player gambles with {who.label()} ({intent.summary or text}) and {outcome}. "
                      "Show the play as it would be seen - hands, dice or cards, the faces round the table - and the coin changing hands. "
                      "Nothing else is won or lost.", text)
 

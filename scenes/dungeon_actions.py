@@ -256,6 +256,6 @@ class DungeonActions:
             self.player.character.coins += coins
             self.store.save_player(self.player)
             console.ledger(f"Found: {money.words(coins)}.")
-            self.narrate(f"The player searches the chamber carefully and turns up {money.words(coins)} that others missed.", text)
+            self.narrate(f"The player searches the chamber carefully and turns up coin that others missed.", text)
         else:
             self.narrate(f"The player searches the chamber in {d['name']} but finds nothing more of use.", text)

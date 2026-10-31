@@ -272,9 +272,7 @@ class PassiveHooks:
         slot = items.CATALOG[item.base].slot if item.base in items.CATALOG else ""
         if slot in ("main_hand", "off_hand") and npc.role in ("smith", "quartermaster"):
             m -= self.mech("weapon_wise") / 100
-        if npc.role == "quartermaster":
-            m -= self.mech("quartermasters_friend") / 100
-        return max(0.1, m)
+        return max(0.1, m)                                   # (f418) the quartermaster's friend is in price_of, once
 
     def salvage(self, item) -> None:
         """Salvager: gear sold or dropped gives back one unit of its material."""

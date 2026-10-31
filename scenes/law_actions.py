@@ -502,7 +502,7 @@ class LawActions:
                 law.set_heat(self.player, town, H["after_paid"], day)
                 self.notice(FinePaid(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(), amount=fine), guard)
                 console.note(f"You pay {money.fmt(fine)}. Purse: {money.fmt(c.coins)}")
-                self.narrate(f"The player pays {guard.label()} {money.words(fine)}. The guard counts it and lets them go with a warning.", "")
+                self.narrate(f"The player pays {guard.label()} the fine. The guard counts it and lets them go with a warning.", "")
             else:
                 console.note("You cannot cover the fine.")
                 self.serve_time(guard, town, fine)
@@ -546,7 +546,7 @@ class LawActions:
             self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
                               worked=True, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.ledger(f"The coins vanish. Purse: {money.fmt(c.coins)}")
-            self.narrate(f"The player slips {guard.label()} {money.words(fine)}. The guard pockets it and turns away.", "")
+            self.narrate(f"The player slips {guard.label()} some coin. The guard pockets it and turns away.", "")
         else:
             guard.trust = max(0, guard.trust + B["trust"][degree])
             self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
@@ -581,5 +581,5 @@ class LawActions:
         self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), walked=True), guard)
         console.note(f"No cell for you. You pay {money.fmt(paid)}" + (f"; the rest ({money.fmt(owed)}) is paid in standing here ({-lost})" if owed else "")
                      + f". Purse: {money.fmt(c.coins)} (Above the Law)")
-        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes {money.words(paid)}"
+        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes what coin they have"
                      + (" and makes sure the whole street knows the rest went unpaid" if owed else "") + ".", "")

@@ -173,8 +173,8 @@ class PartActions:
             self.advance(15)
             console.ledger(f"Found at {e.name}: {money.fmt(coins)}")
             ledger.add("found", ref=e.ref, what="cache", coins=coins, say=f"At {e.name} the player finds {e.data.get('sign', 'a cache')} "
-                                                                             f"holding {money.fmt(coins)} in old coin.")
-            self.narrate(f"The player searches {e.name} and finds {e.data.get('sign', 'a cache')}, with {money.fmt(coins)} in old coin "
+                                                                             f"holding old coin.")
+            self.narrate(f"The player searches {e.name} and finds {e.data.get('sign', 'a cache')}, with old coin "
                          "inside. Describe the find; nothing else is in it.", text)
             return True
         if h == "resource" and e.data.get("good"):

@@ -19,7 +19,8 @@ STORY = ("narration", "speech")
 GAME = ("note", "ledger", "wait")
 # The game's own ways of saying it cannot do a thing (scenes/*). A reader meets them as the end of what they tried.
 REFUSALS = re.compile(r"^(You have nothing like that you can use|There's no such place|There's no one here to give that to|That isn't in your "
-                      r"item box|You aren't carrying anything matching|Nothing comes of that here|There's no item box here)", re.I)
+                      r"item box|You aren't carrying anything matching|Nothing comes of that here|There's no item box here|"
+                      r"You look about for .{1,80}, but nothing here goes by that name)", re.I)        # (f418) the no-such-place answer, reworded
 MACHINERY = re.compile(r"[{}<>\[\]#*\\]|\b[a-z]+_[a-z_]*\b|\(Note:|\bNote:|\? Yes\b|\bRespond only\b|\bJSON\b")
 HEAP = re.compile(r"(?:\(\s*(?:[a-z]+, )?\d+ damage[^)]*\)\s*){2,}", re.I)
 URBAN = re.compile(r"\b(alley|alleys|market yard|cobbles?|cobbled|street|streets|stalls?|crates|barrels|doorway|shopfront)\b", re.I)

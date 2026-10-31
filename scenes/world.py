@@ -306,16 +306,29 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         was = needs.marks(c)
         needs.tick(c, minutes, exertion=exert, sleeping=wait == "sleep", resting=wait == "rest")
         for line in needs.voice(was, needs.marks(c)):
-            console.note(line)
+            self.time_note(line)
         rest = needs.N["rest_heal_per_hour"]["safe" if self.safe_to_rest() else "rough"] if wait else 0.0
         pools.recover(c, minutes, conditions=self.conditions(), rest=rest)
         self.store.meta.day = clock.day(self.minutes)
         self.refresh_present()
         if self.partner and self.partner not in self.present:
-            console.note(f"{self.partner.label()} heads off for the day.")
+            self.time_note(f"{self.partner.label()} heads off for the day.")
             self.end_conversation()
         if clock.period(self.minutes) != before:
             console.debug(f"time of day is now {clock.period(self.minutes)}")
+
+    def time_note(self, line: str) -> None:
+        """(f418) A note that time raised in the middle of a line (someone gone for the day, hunger, weariness) is printed after the
+        line's passage, not above it: 'the clerk heads off for the day' was printed before an hour of helping that same clerk with his
+        ledger. The owner's decision (GOALS.md, review Q36)."""
+        if self.step is not None or self.buffering:
+            self.__dict__.setdefault("_time_notes", []).append(line)
+        else:
+            console.note(line)
+
+    def release_time_notes(self) -> None:
+        for line in self.__dict__.pop("_time_notes", []):
+            console.note(line)
 
     def assault_fight_over(self, outcome: str) -> None:
         """(f324) A fight at the gate of a town a cataclysm reached: the outcome decides whether the town holds."""
@@ -726,6 +739,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.ran = []
                 self.handle(text)
+                self.release_time_notes()                  # (f418) whatever way the line ended
                 if self.resume_pending and not self.combat and not getattr(self, "held_yield", None):
                     self.resume_road()                     # (f417) a won road fight walks on once the player has said what becomes of who yielded
                 heard = self.hire_said_marks()
@@ -795,6 +809,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.refresh_present()
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
         self.pending, self.buffering, self.halted, self.step = [], False, False, None
+        self.__dict__.pop("_time_notes", None)
 
     def pane_arrival(self, before: str) -> None:
         """Arriving by a pane button (the map, the places list) counts like arriving by a typed line: what is due on arrival happens now."""
@@ -1148,6 +1163,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.ensure_dungeons()
         self.run_pulse()
         self.flush(text)
+        self.release_time_notes()                               # (f418) after the passage
         if self.buffering and self.exits_due and not self.combat:
             self.show_exits(force=True)
         self.buffering = False
@@ -1799,7 +1815,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire", "companion")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
-        wares_all = [f"{w.id}: {w.name} - {money.words(w.price)} (sold by {n.label()}, id {n.id})"               # (f333) the id alone first: the model copies the label it is shown
+        wares_all = [f"{w.id}: {w.name} - {money.words(self.quote_ware(n, w).price)} (sold by {n.label()}, id {n.id})"   # (f333) the id alone first: the model copies
                      for n in self.present for w in self.world.roles[n.role].sells] \
             + [f"{i.name}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock of {n.label()}, id {n.id})" for n, i, p in self.stock_here()]
         from engine import loadout
@@ -1883,6 +1899,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 if n.role == role:
                     return n
         return None
+
+    def no_such_place(self, dest: str) -> str:
+        """(f418) The answer to a walk somewhere the game does not know, in the world's words and with the ways that are real: 'There's
+        no such place.' read as the innkeeper's answer to 'I head up to our rooms', four times a night. (Rooms, doors and the party as
+        places to go come with the work on places within places.)"""
+        known = self.known_places()
+        near = [self.world.places[p].name for p in self.world.neighbors(self.player.location) if p in known and p in self.world.places][:4]
+        words = " ".join(dest.replace("_", " ").split()) or "that"
+        return (f"You look about for {words}, but nothing here goes by that name."
+                + (f" From here the ways you know lead to {', '.join(near[:-1]) + ' and ' + near[-1] if len(near) > 1 else near[0]}." if near else ""))
 
     def walk_over(self, npc) -> None:
         self.end_conversation()
@@ -2025,7 +2051,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.on_explore(intent, text)
                     return
                 console.debug(f"'{dest}' is not a place - stopping the action chain")
-                self.refuse("There's no such place.")
+                self.refuse(self.no_such_place(dest))
                 return
         if dest in self.world.places:
             from engine import mapview
@@ -2216,7 +2242,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"),
-                                   house=voices.house_phrases(self, town, npc.id))          # (f350) what everyone else here has been saying
+                                   house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
+                                   wares=self.wares_said(npc))                              # (f418) at the prices the game charges
         voices.heard(self, town, npc.id, reply.speech)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
@@ -2441,7 +2468,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         ware = next((w for w in wares if w.id == wanted), None) or \
             next((w for w in wares if wanted and (wanted in w.name.lower() or w.id in wanted)), None)
         if not ware:
-            self.refuse(f"{seller.label()} sells: " + ", ".join(f"{w.name} ({money.words(w.price)})" for w in wares))
+            self.refuse(f"{seller.label()} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
             return
         self.buy_ware(seller, ware, text)
 

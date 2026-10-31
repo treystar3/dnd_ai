@@ -101,7 +101,7 @@ class PropertyActions:
                 self.ensure_homes()
                 self.store.save_player(self.player)
                 console.note(f"You pay for a {u['name']}: {money.fmt(u['price'])}. Purse: {money.fmt(c.coins)}")
-                self.narrate(f"The player pays builders and craftsmen {money.words(u['price'])} to add a {u['name']} to their "
+                self.narrate(f"The player pays builders and craftsmen to add a {u['name']} to their "
                              f"house. {u['text']} Describe the work being finished.", text)
                 return True
             self.halted = True
@@ -131,7 +131,7 @@ class PropertyActions:
         console.note(f"You buy {h['name']}: {money.fmt(h['price'])}. It is called 'your house in {self.world.places[town].name}' "
                      f"now; you can sleep there free, and keep your item box in it. Type #home.")
         self.weight_hint = "major"
-        self.narrate(f"The player buys {h['name']} from {agent.label()} for {money.words(h['price'])} and is handed the key. "
+        self.narrate(f"The player buys {h['name']} from {agent.label()} and is handed the key. "
                      "Describe the signing and the first look at the door.", text)
         return True
 

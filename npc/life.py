@@ -307,11 +307,13 @@ def converse(
     rng: random.Random | None = None,
     worn: list[str] = (),
     house: set[str] | list[str] = (),
+    wares: list[str] | None = None,
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
     names the scene allows (f315) - the gateway sends back a reply that names anyone or anywhere else. stance (f347) is how they are for
-    this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk."""
+    this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk. wares (f418): what they
+    sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
     from engine import banter, matters, voice_profile
     facts = world.facts_known_by(set(npc.knowledge_groups)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     _, people_known = social_circle(npc, store, world)
@@ -328,6 +330,7 @@ def converse(
             [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
             f"day {clock.day(store.meta.minutes)}, {clock.period(store.meta.minutes)}, "
             f"weather: {weather.describe(store.meta.seed, store.meta.minutes)[1].lower()}",
+            wares if wares is not None else
             [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells]
             + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]

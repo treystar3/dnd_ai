@@ -1,6 +1,6 @@
 """Mounts: buying one at a city stable, and choosing which one to ride."""
 
-from engine import crafting, money, mounts, pulse
+from engine import money, mounts
 from ui import console
 
 
@@ -11,9 +11,7 @@ class MountActions:
         town = mounts.stable_town(self.world, self.player.location)
         if not town:
             return []
-        off = crafting.mechanic(self.player.character, "haggler") + self.guild_perks()["shop_discount"]
-        factor = max(0, 1 - off / 100) * pulse.price_factor(self.store, self.world, self.player.location, self.minutes)
-        return [(m, round(m["price"] * factor)) for m in mounts.stock(self.world, self.store.meta.seed, town)]
+        return [(m, self.price_of(m["price"])) for m in mounts.stock(self.world, self.store.meta.seed, town)]      # (f418) as everything else
 
     def show_stable(self) -> None:
         offers = self.stable_stock()
@@ -88,11 +86,12 @@ class MountActions:
         elif result:
             console.note(result)
         else:
+            self.use_barter()
             self.store.save_player(self.player)
             console.note(f"You pay {money.fmt(price)} and lead away {mount['name']}. "
                          f"{'You ride it now. ' if self.player.mount == mount['id'] else 'Say #mount to choose which you ride. '}"
                          f"Purse: {money.fmt(c.coins)}")
-            self.narrate(f"The player pays {money.words(price)} to a stablemaster for {mount['name']} and takes the reins. "
+            self.narrate(f"The player pays a stablemaster for {mount['name']} and takes the reins. "
                          "Describe the animal and the first moments in the saddle.", text)
             self.halted = False
         return True
