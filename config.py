@@ -1,6 +1,8 @@
 MODEL = "gemma4:12b"
 THINK = False
-NUM_CTX = 32768
+# (f425) The context the model is given for each call. DND_NUM_CTX in the environment sets it for one night: a night of six runs on one
+# card reserves this much for every run at once, and no call of the f395 night went past about 10,000 tokens.
+NUM_CTX = int(__import__("os").environ.get("DND_NUM_CTX", "0") or 0) or 32768
 # (f370) CPU threads the model runner may use, 0 for Ollama's own default (one per core the machine shows). A container that shows every
 # core of its host while its quota is a dozen needs this set (the night script sets it from the quota), or the runner's threads fight
 # for the quota and the card waits on them; DND_NUM_THREAD in the environment sets it without an edit.
