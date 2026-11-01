@@ -1570,7 +1570,6 @@ class RoadEvent(BaseModel):
     scene: str                     # what the player sees and hears, two or three sentences, second person
     kind: Literal["find", "meeting", "hazard", "sight", "aid", "ambush"]
     detail: str = ""               # find: what is found. hazard: the obstacle. meeting/aid: who, and what they say or need
-    check: str = ""                # hazard: the check that would get the player through (see CHECKS)
     meets_role: str = ""           # a person who is here, as a role id from ROLES (only given when the event stops the player)
     news: str = ""                 # one sentence of word the player picks up, now known in the world
     effects: list[WorldEffect] = []
@@ -1588,8 +1587,6 @@ class RoadEvent(BaseModel):
             raise ValueError("open the walk on the road, the land, the light or the company, never on how long they have been walking")
         if not ctx.get("hostile") and self.kind == "ambush":
             raise ValueError("this event is NOT a fight: pick find, meeting, hazard, sight or aid")
-        if self.kind == "hazard" and self.check not in ctx.get("checks", []):
-            raise ValueError(f"a hazard needs a check, one of: {', '.join(ctx.get('checks', []))}")
         if ctx.get("stops") and self.kind in ("aid", "meeting") and ctx.get("roles") and self.meets_role not in ctx["roles"]:
             raise ValueError("someone is here: meets_role is who they are, one role id from ROLES")      # (f427) the one the player can help
         return self

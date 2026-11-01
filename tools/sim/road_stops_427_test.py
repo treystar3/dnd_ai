@@ -83,7 +83,7 @@ check("picking it up takes it, if they choose", len(ws.pack) == pack_before + 1 
 ra.R["chance_per_leg"], legs_was = 0.0, ra.R["chance_per_leg"]
 out = happen("hazard")
 hz = (ws.player.road or {}).get("hazard")
-check("a hazard stops the walk and waits", out == "stopped" and hz and hz.get("check"), (out, ws.player.road))
+check("a hazard stops the walk and waits", out == "stopped" and hz and hz.get("what"), (out, ws.player.road))
 stop = ws.player.road["id"]
 ahead = next(k for k in world.places[stop].connects if k != hz["behind"])
 m0 = ws.minutes
@@ -104,7 +104,7 @@ hz = ws.player.road["hazard"]
 ahead = next(k for k in world.places[stop].connects if k != hz["behind"])
 SHOWN.clear()
 ws.leaving_stop([stop, ahead], "I push on through")
-check("...pushing on through is the player's check", any(k == "note" for k, _ in SHOWN), SHOWN)
+check("...pushing on through is ruled as they try it", any(k == "note" for k, _ in SHOWN), SHOWN)
 out = happen("hazard")
 ws.stop_step(ActionIntent(kind="other", summary="cut a way through the brambles with my axe"), False)
 check("...a way of their own (ruled like any attempt) is their way past", ws.player.road["hazard"].get("dealt"), ws.player.road["hazard"])

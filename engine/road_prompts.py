@@ -12,8 +12,8 @@ TIER decides scale: normal - a small moment; uncommon - something worth remember
 change a region for a while.
 
 KIND: find (something left or lost by the road; detail says what), meeting (travelers or locals; detail says who and
-what they say or want), hazard (an obstacle - weather, terrain, a washed-out ford, a fallen tree; detail says what, and
-check says which skill gets the player past it), sight (something strange or beautiful or ominous to see; nothing to
+what they say or want), hazard (an obstacle - weather, terrain, a washed-out ford, a fallen tree; detail says what is in the
+way, never how to get past it: that is the player's), sight (something strange or beautiful or ominous to see; nothing to
 do about it), aid (someone who needs help; detail says who and what with), ambush (a fight - see below).
 When the event says it must be an ambush, the CREATURES are given: describe how they come at the player, naming
 them, and nothing else about the outcome. Otherwise never include a fight.
@@ -26,7 +26,7 @@ Write:
     than counted at the start. The player should feel the road go by, so the happening comes in the middle of a journey, not out of
     nowhere. Never the happening itself, and never the arrival.
   scene: what the player sees and hears, in the second person ("You..."): concrete, no decisions or actions for the player; a rare
-  TIER is a bigger moment, and the scene gives it room.  kind, detail, check (hazards only).
+  TIER is a bigger moment, and the scene gives it room.  kind, detail.
   meets_role: ONLY if the event says the player is stopped here - a role id from ROLES for someone who is there
     (a stranded merchant, a pilgrim, a patrol); always for someone in need or someone met. Otherwise leave empty.
 When the player is stopped here, the scene ends on what is there and nothing more: what they do about it is theirs.
@@ -39,11 +39,11 @@ Respond only with JSON matching the schema."""
 
 
 def user(road_text: str, tier: str, season: str, when: str, sky: str, world_now: str, lore: str, must: str,
-         checks: list[str], roles: list[str], roads: str, stops: bool, journey: str = "", company: list[str] = ()) -> str:
+         roles: list[str], roads: str, stops: bool, journey: str = "", company: list[str] = ()) -> str:
     return (f"ROAD: {road_text}\nTIER: {tier}\nSEASON: {season}\nTIME: {when}; weather: {sky}\n"
             + (f"THE JOURNEY: {journey}\n" if journey else "")
             + f"WHO IS WITH THEM (each one's pronoun and people: never write them otherwise): {'; '.join(company) if company else 'no one: they walk alone'}\n"
             f"THE WORLD NOW: {world_now or 'nothing in particular'}\nLORE: {lore or 'nothing special'}\n"
             f"MUST BE: {must}\n"
             f"{'THE PLAYER IS STOPPED HERE: give meets_role if someone is present.' if stops else 'The player keeps walking after this.'}\n"
-            f"CHECKS: {', '.join(checks)}\nROLES: {', '.join(roles)}\nROADS: {roads}")
+            f"ROLES: {', '.join(roles)}\nROADS: {roads}")

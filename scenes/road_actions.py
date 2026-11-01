@@ -214,11 +214,11 @@ class RoadActions:
             ev = generate(
                 "road_event", SYSTEM,
                 user(roads.road_text(self.world, a, b), tier, clock.season(self.minutes), clock.period(self.minutes), sky,
-                     "; ".join(threads + [h["text"] for h in state.get("history", [])[-3:]]), lore, must, list(checks.CHECKS),
+                     "; ".join(threads + [h["text"] for h in state.get("history", [])[-3:]]), lore, must,
                      sorted(self.world.roles), ", ".join(rkeys.values()), stops,
                      self.journey_facts(route, a, b, walked), self.road_company()),
                 RoadEvent, temperature=0.95, max_tokens=900,
-                validation_context={"hostile": hostile, "checks": list(checks.CHECKS), "kind": kind, "want_journey": True,
+                validation_context={"hostile": hostile, "kind": kind, "want_journey": True,
                                     "stops": stops, "roles": sorted(self.world.roles)})
         except LLMError as e:
             console.debug(f"road: nothing happened this time ({e})")
@@ -282,7 +282,7 @@ class RoadActions:
         elif kind == "hazard":
             ends = list(self.world.places[road["id"]].connects)
             behind = road["from"] if road["from"] in ends else next((k for k in ends if k != ahead), "")
-            road["hazard"] = {"check": ev.check if ev.check in checks.CHECKS else "perception", "tier": tier,
+            road["hazard"] = {"tier": tier,                         # (f447) what it is and how hard; how to get past is the player's
                               "what": (ev.detail or ev.title).strip(), "behind": behind}       # going back the way they came passes nothing
         elif kind == "aid":
             role = (self.world.places[road["id"]].residents or {})
@@ -333,17 +333,34 @@ class RoadActions:
         self.store.save_player(self.player)
 
     def get_past(self, hz: dict, text: str) -> None:
-        """A hazard in the way: gone around (time, no risk) when the player's words say so, else their check decides how it goes."""
+        """A hazard in the way: gone around (time, no risk) when the player's words say so. (f447) Otherwise they press straight on, and
+        that is ruled in the moment like any attempt (engine/ruling.py): what it takes, a skill or an attribute, and how hard, from what
+        the hazard is. Nothing about how to get past was named in advance (the owner: "let's have the model stop naming checks"). A
+        ruling that there is no pushing through it sends them the long way round; no ruling to be had, the attempt is the act's own."""
+        from engine import ruling
+        hi = R["hazard"]["delay_minutes"][hz.get("tier", "normal")][1]
+        what = hz["what"].rstrip(".")
+        r = None
+        if not re.search(R["hazard"]["around_words"], (text or "").lower()):
+            r = ruling.ask(self, f"pressing straight on past {what}", text or "I keep going")
+            if r is None or r.sense != "no":
+                self.push_past(hz, r)
+                return
+        self.advance(hi, exert=True)
+        console.ledger(f"There is no pushing straight through {what}: going around costs you {clock.describe_duration(hi)}." if r is not None
+                       else f"Going around {what} costs you {clock.describe_duration(hi)}.")
+
+    def push_past(self, hz: dict, r) -> None:
+        """(f447) Pressing on past a hazard, as the ruling has it: a plain yes walks on; else the roll its check (or the act's own
+        attribute) and how hard decide what it costs."""
+        from engine import ruling
         c, rng, tier = self.player.character, self.rng, hz.get("tier", "normal")
         lo, hi = R["hazard"]["delay_minutes"][tier]
-        if re.search(R["hazard"]["around_words"], (text or "").lower()):
-            delay = hi
-            self.advance(delay, exert=True)
-            console.ledger(f"Going around {hz['what'].rstrip('.')} costs you {clock.describe_duration(delay)}.")
+        ruled = {"check": r.stakes.check, "hard": r.stakes.hard} if r is not None else {}
+        if r is not None and r.sense == "yes" and not ruled["check"]:
             return
-        odds, _ = checks.chance(c, hz["check"], self.check_triggers(hz["check"], False))
-        degree, _ = checks.roll(odds, rng, c=c)
-        console.note(checks.label(hz["check"], degree.replace("_", " ")))
+        degree, _ = checks.roll(ruling.odds(self, "attempt", ruled), rng, c=c)
+        console.note(checks.label(ruled.get("check") or "getting past", degree.replace("_", " ")))
         if degree in ("failure", "partial"):
             delay = rng.randint(lo, hi) // (2 if degree == "partial" else 1)
             self.advance(delay, exert=True)

@@ -33,7 +33,9 @@ FIELDS = re.compile(r"\b(?:kind|detail|creatures|check|meets_role|title|scene)\s
 TRAILING = re.compile(r"\b([A-Za-z]+)_(?![\w{])")                         # arches_
 COMMAND = re.compile(r"(#[a-z]+(?:\s+[A-Za-z0-9_<>]+)?)")
 PLAYER = re.compile(r"\b([Tt])he player(?!s)(?!\s+of\b)('s)?(\s+([A-Za-z]+))?")
-QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
+QUOTED = re.compile(r'"[^"]*"|“[^”]*”'                                  # someone's words, or (f447) words written on a page:
+                    r"|(?<![\w])'(?=\S)(?:[^']|'(?=\w))*?(?<=\S)'(?!\w)"      # in single quotes, its own apostrophes kept ('I'm done')
+                    r"|‘(?:[^’]|’(?=\w))*’")
 FIRST = re.compile(r"\b(I|[Mm]e|[Mm]y|[Mm]ine|[Mm]yself)\b")
 # (f404) "[h4_damage_implied/hidden_by_rules? No wait, use events only.]": the model's note to itself. A bracket that is not a blow's tag
 # and has the marks of one: an underscore, a question, a slash, a broken tag (h4...), or four words or more.
