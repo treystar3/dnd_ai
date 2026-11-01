@@ -30,7 +30,7 @@ import config
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
-STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait")       # what the player reads, as the turn log counts it (engine/turnlog.py)
+STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
 
 
 def request_hash(k: dict) -> str:
@@ -79,7 +79,7 @@ class Recorder:
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8")
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8")
-        self.n_input, self.n_call, self.shown, self.open_input = 0, 0, [], False
+        self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.undo = []
         prune()
 
@@ -124,8 +124,14 @@ class Recorder:
                 continue
 
             def told(*a, _fn=fn, **k):
+                if self.inside:                          # one function passing its words to another (a ledger line shown as a note)
+                    return _fn(*a, **k)
                 self.shown.append(" ".join(str(x) for x in a) + "".join(f" {v}" for v in k.values()))
-                return _fn(*a, **k)
+                self.inside = True
+                try:
+                    return _fn(*a, **k)
+                finally:
+                    self.inside = False
             self.undo.append((console, name, fn))
             setattr(console, name, told)
         return self
