@@ -32,6 +32,9 @@ fi
 
 if ! command -v ollama >/dev/null 2>&1; then
     echo "Installing Ollama..."
+    if ! command -v zstd >/dev/null 2>&1; then          # (f445) Ollama's installer unpacks with zstd, which some images lack
+        (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd) > /dev/null 2>&1 || true
+    fi
     curl -fsSL https://ollama.com/install.sh | sh
 fi
 # A container may see every core of the host (nproc 128) while its quota is a dozen; the model runner then spawns a thread per core
