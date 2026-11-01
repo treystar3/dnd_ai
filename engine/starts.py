@@ -9,10 +9,10 @@ townsfolk to have met."""
 from __future__ import annotations
 
 import random
-import uuid
 from pathlib import Path
 
 import yaml
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 S = yaml.safe_load((ROOT / "data" / "rules" / "starts.yaml").read_text(encoding="utf-8"))
@@ -127,7 +127,7 @@ def past_situation(store, world, state: dict, player, town: str, p: dict, now: i
     rule = pulse.P["tiers"].get(tier) or {"days": [1, 2]}
     t1 = min(now - 1440, t0 + rng.randint(1, max(2, int(rule["days"][0]))) * 1440)
     n = len(proposal.stages)
-    th = {"id": uuid.uuid4().hex[:8], "title": proposal.title, "tier": tier, "place": town,
+    th = {"id": streams.new_id(8), "title": proposal.title, "tier": tier, "place": town,
           "kind": getattr(proposal, "kind", "") or threads.kind_of(info["template"]), "pressure": pressure.id if pressure else "",
           "stage": max(0, n - 1), "status": "resolved" if settled else "ended", "made": t0, "ended_at": t1,
           "stages": [s.model_dump() for s in proposal.stages], "fallout": proposal.fallout.model_dump(),

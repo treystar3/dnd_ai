@@ -167,7 +167,7 @@ for n in (1, 2):
     check(f"quarry {n}: and cannot hide", "concealed" not in e1.position_tags)
     e1.hp = 0
     perks.on_outcome(f, p, e2, "hit", None)
-    check(f"quarry {n}: when it falls, the next one struck is the quarry", perks.QUARRY.get(id(f)) == "e2")
+    check(f"quarry {n}: when it falls, the next one struck is the quarry", perks.QUARRY.get(combat.fight_key(f)) == "e2")   # (f439) by the fight's own mark
 
 # ---- Steady Aim: a round without moving, and the next ranged blow cannot miss; then it must steady again
 for n in (1, 2):

@@ -456,7 +456,7 @@ class FieldFunctions:
         self.advance(5)
         if degree in ("strong success", "success", "partial"):
             share = P["strong_share"] if degree == "strong success" else 1.0 if degree == "success" else P["partial_share"]
-            coins = max(1, round(random.randint(*P["coins_per_level"]) * max(1, c.level) * share))
+            coins = max(1, round(self.rng.randint(*P["coins_per_level"]) * max(1, c.level) * share))
             c.coins += coins
             if degree == "partial":
                 npc.trust = max(0, npc.trust - P["trust_loss"]["partial"])
@@ -767,7 +767,7 @@ class FieldFunctions:
         if keep is None:
             console.note("You leave it as it is.")
             return None
-        fresh = forge.reroll(item, keep, random.Random())
+        fresh = forge.reroll(item, keep, self.rng)
         old = list(item.properties)
         console.note("New rolls:")
         for n, p in enumerate(fresh, 1):

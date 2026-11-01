@@ -144,11 +144,11 @@ class DungeonActions:
         elif kind == "cache":
             lo, hi = D["cache"]["coins_per_level"]
             picked = bool(chamber.get("picked"))
-            coins = round(random.randint(lo, hi) * floor["level"] * (1 + (self.has("cache_hunter") or 0) / 100)
+            coins = round(self.rng.randint(lo, hi) * floor["level"] * (1 + (self.has("cache_hunter") or 0) / 100)
                           * (1 + (_field.F["picklock"]["coin_bonus"] if picked else 0)))
             self.player.character.coins += coins
             found = [money.words(coins)]
-            if random.random() < D["cache"]["item_chance"] + (self.has("grave_robber") or 0) / 100 \
+            if self.rng.random() < D["cache"]["item_chance"] + (self.has("grave_robber") or 0) / 100 \
                     + (_field.F["picklock"]["item_bonus"] if picked else 0):
                 item = self.cache_item(floor["level"])
                 self.to_pack(item)
@@ -163,7 +163,7 @@ class DungeonActions:
         self.chamber_cleared(d, f, c)
 
     def cache_item(self, level: int):
-        rng = random.Random()
+        rng = self.rng
         bases = [b for b in items.CATALOG.values() if b.slot not in ("none", "neck", "ring") and b.min_level <= level]
         base = rng.choice(bases)
         rarity = loot.roll_rarity(rng)
@@ -253,7 +253,7 @@ class DungeonActions:
         if self.owns("second_look") and degree not in ("strong success", "success"):
             degree = "success"
         if degree in ("strong success", "success"):
-            coins = random.randint(1, 4) * max(1, d["floors"][self.player.delve["floor"]]["level"])
+            coins = self.rng.randint(1, 4) * max(1, d["floors"][self.player.delve["floor"]]["level"])
             self.player.character.coins += coins
             self.store.save_player(self.player)
             console.ledger(f"Found: {money.words(coins)}.")

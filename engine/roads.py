@@ -3,10 +3,10 @@ where the player is left when an event is big enough to halt them. Scene-side ef
 
 import math
 import random
-import uuid
 from pathlib import Path
 
 import yaml
+from engine import streams
 
 R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "road.yaml").read_text(encoding="utf-8"))
 TIER_ORDER = ["normal", "uncommon", "rare"]
@@ -90,7 +90,7 @@ def make_stop(world, a: str, b: str, frac: float, minutes: int, scene: str, role
         old = next((world.places[x] for x in (a, b) if x in world.places and world.places[x].type == "road" and not world.places[x].parent), None)
         name = old.name if old else f"the way near {world.places[aa].name}"
     name = name or f"{r.name if r else 'the way'} between {world.places[aa].name} and {world.places[bb].name}"
-    pid = f"road_{uuid.uuid4().hex[:8]}"
+    pid = f"road_{streams.new_id(8)}"
 
     def real_end(pid_: str, other: str, minutes_: int) -> tuple[str, int]:
         """(f426) A stop is joined to real places only: an end that is itself a stop (a journey resumed from one) is replaced by that

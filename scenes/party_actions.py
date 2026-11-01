@@ -833,7 +833,7 @@ class PartyActions:
             fid = f"ally_{m['id']}"
             if fid in ids:
                 if m.get("permanent"):                           # decided the moment they went down (combat), else now, after the fact
-                    fate = svc.decide_down(m, random, in_fight=False)
+                    fate = svc.decide_down(m, self.rng, in_fight=False)
                     if fate == "carried":
                         m.pop("down_fate", None)
                         seen.append((m, 0.05))

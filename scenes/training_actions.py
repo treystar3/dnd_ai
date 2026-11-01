@@ -11,6 +11,7 @@ from llm.gateway import LLMError
 from scenes import lesson_ask
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 T = yaml.safe_load((ROOT / "data" / "rules" / "training.yaml").read_text(encoding="utf-8"))
@@ -143,7 +144,7 @@ class TrainingActions:
             return
         console.wait(f"{cap_first(teacher.label())} considers what to teach you.")
         want = lesson_ask.read_request(c, request)
-        slots = lessons.plan(c, want, can_active=can_a, can_passive=can_p)
+        slots = lessons.plan(c, want, rng=streams.get("lessons"), can_active=can_a, can_passive=can_p)   # (f439) not the machine's entropy
         try:
             options = lesson_ask.write(c, request, slots)
         except (LLMError, ValueError, KeyError):

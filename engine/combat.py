@@ -19,6 +19,7 @@ from core.rules import ATTRIBUTES
 from engine import ability_traits as AT
 from engine import elements, items, pools, stats as _stats
 from engine.battlefield import Battlefield
+from engine import streams
 
 
 RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
@@ -347,7 +348,7 @@ def new_hit(combat: Combat, att: Fighter, dfn: Fighter, label: str) -> dict | No
     if not combat.record:
         return None
     if not combat.serial:
-        combat.serial = f"{random.randrange(16 ** 4):04x}"
+        fight_key(combat)
     n = 1 + max((int(h["tag"][1:]) for h in combat.hits if str(h.get("tag", "")).startswith("h")), default=0)   # (f371) not the count: merged records leave gaps
     rec = {"id": f"{combat.serial}-{combat.round}-{n}", "tag": f"h{n}", "round": combat.round, "att": att.name, "dfn": dfn.name,
            "att_side": att.side, "dfn_side": dfn.side, "label": label, "outcome": "", "chance": 0.0, "roll": 0.0,
@@ -361,7 +362,7 @@ def new_heal(combat: Combat, who: Fighter, label: str, pool: str, amount: int, e
     if not combat.record:
         return None
     if not combat.serial:
-        combat.serial = f"{random.randrange(16 ** 4):04x}"
+        fight_key(combat)
     combat.heals += 1
     rec = {"id": f"{combat.serial}-{combat.round}-i{combat.heals}", "tag": "", "round": combat.round, "att": who.name, "dfn": who.name,
            "att_side": who.side, "dfn_side": who.side, "label": label, "outcome": "heal", "chance": 0.0, "roll": 0.0, "note": "",
@@ -551,6 +552,22 @@ def calibration(level: int, key: str = "calibration") -> tuple[float, float]:
             t = (level - l0) / (l1 - l0)
             return h0 + (h1 - h0) * t, d0 + (d1 - d0) * t
     return pts[-1][1], pts[-1][2]
+
+
+
+def fight_key(combat) -> str:
+    """(f439) This fight's own mark, made once from the ids stream and kept with the fight: what perks and heals remember about a fight is
+    filed under it, never under id(combat), which a later fight can be handed once this one is gone (and a reloaded fight is a new object)."""
+    if not combat.serial:
+        combat.serial = streams.new_id(4)
+    return combat.serial
+
+
+def remember(table: dict, key, value, keep: int = 512) -> None:
+    """(f439) A per-fight note, the oldest let go past `keep`, so the notes of fights long over never pile up."""
+    table[key] = value
+    while len(table) > keep:
+        table.pop(next(iter(table)))
 
 
 _LIFT_CACHE: dict = {}
@@ -1069,7 +1086,7 @@ def restore(combat: Combat | None, f: Fighter, amount: float, source: Fighter | 
         tell(combat, f"the healing meant for {who(f)} is drawn away into {who(thief)} (Life Theft)")
         return restore(combat, thief, amount, source, rng)
     if "unraveled" in f.statuses and combat is not None:
-        dealt = take_damage(combat, f, amount, source, rng or random.Random(), "magical")
+        dealt = take_damage(combat, f, amount, source, rng or streams.get("combat"), "magical")
         combat.log.append(f"{f.name}'s healing turns on it: {dealt} damage (Unraveled)")
         tell(combat, f"the healing curdles in {who(f)} and tears at {vb(f, 'you', 'it')} instead ({dealt})")
         return -float(dealt)

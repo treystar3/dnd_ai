@@ -3,13 +3,13 @@
 Rules live in data/rules/taming.yaml.
 """
 
-import uuid
 from pathlib import Path
 
 import yaml
 
 from core.models import Companion
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 T = yaml.safe_load((ROOT / "data" / "rules" / "taming.yaml").read_text(encoding="utf-8"))
@@ -66,7 +66,7 @@ def role_of(creature) -> str:
 
 
 def bind(character, creature, enemy_name: str) -> Companion:
-    comp = Companion(id=f"{creature.id}_{uuid.uuid4().hex[:4]}", name=creature.name, creature=creature.id,
+    comp = Companion(id=f"{creature.id}_{streams.new_id(4)}", name=creature.name, creature=creature.id,
                      kind=KIND.get(creature.category, "beast"), role=role_of(creature), level=character.level,
                      description=f"A {creature.name.lower()} tamed in the wild.", source="tamed")
     character.companions.append(comp)

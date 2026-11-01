@@ -42,6 +42,7 @@ class CampaignMeta(BaseModel):
     turn: int = 0
     minutes: int = 0
     created: str
+    steps: int = 0          # (f439) inputs taken in this campaign: with the seed and the line typed, what every turn's dice start from
 
 
 class PlaceState(BaseModel):

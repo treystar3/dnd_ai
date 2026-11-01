@@ -202,7 +202,7 @@ class CheckActions:
         if not audience:
             return f"The player performs to no one in particular ({degree})."
         low, high = R["tips"][degree]
-        tips = random.randint(low, high) if high else 0
+        tips = self.rng.randint(low, high) if high else 0
         tips = round(tips * (1 + (self.has("crowd_pleaser") or 0) / 100
                              + ((self.has("crowd_draw") or 0) / 100 if self.companion_here() else 0)))
         if degree in ("strong success", "success"):

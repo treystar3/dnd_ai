@@ -10,6 +10,7 @@ import yaml
 
 from core.models import Character
 from core.rules import STATS
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = yaml.safe_load((ROOT / "data" / "rules" / "checks.yaml").read_text(encoding="utf-8"))
@@ -86,7 +87,7 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
 
 def roll(odds: float, rng: random.Random | None = None, c: Character | None = None) -> tuple[str, int]:
     """The die. With the character given, the perks that change what a roll means act here (All or Nothing: no partials)."""
-    r = (rng or random).randint(1, 100)
+    r = (rng or streams.get("checks")).randint(1, 100)
     margin = odds - r
     degree = "failure"
     for name, need in RULES["degrees"].items():

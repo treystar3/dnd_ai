@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 import yaml
+from engine import streams
 
 F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
 MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|ollama|crash|failed|failure)\b", re.I)
@@ -20,7 +21,7 @@ def not_taken(rng: random.Random | None = None) -> str:
     """A line for a turn the game could not take: never the one shown last."""
     lines = F["turn_not_taken"]
     pick = [l for l in lines if l != _last.get("turn_not_taken")] or lines
-    line = (rng or random).choice(pick)
+    line = (rng or streams.get("scene")).choice(pick)
     _last["turn_not_taken"] = line
     return line
 

@@ -14,7 +14,6 @@ The engine decides every number; the model only names and tells. Rules live in d
 
 import heapq
 import random
-import uuid
 from pathlib import Path
 
 import yaml
@@ -24,6 +23,7 @@ from engine import pulse_prompts as pp
 from llm.contracts import CataclysmProposal, JudgeVerdict
 from llm.gateway import LLMError, generate
 from ui import console
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 E = yaml.safe_load((ROOT / "data" / "rules" / "events.yaml").read_text(encoding="utf-8"))
@@ -112,7 +112,7 @@ def add_spawn(store, world, state, thread_id: str, place_id: str, creature_id: s
     zone = nearest_zone(world, place_id, level)
     if not zone:
         return None
-    s = {"id": uuid.uuid4().hex[:8], "thread": thread_id, "place": zone.id, "creature": c.id, "boss": bool(boss),
+    s = {"id": streams.new_id(8), "thread": thread_id, "place": zone.id, "creature": c.id, "boss": bool(boss),
          "level": level, "name": name or (f"the {c.name.lower()}" if boss else c.name.lower()), "need": 1 if boss else need,
          "kills": 0, "defeated": False, "from": live_from if live_from is not None else t,
          "until": (live_from if live_from is not None else t) + (days or E["spawn"]["days"]) * 1440}
@@ -195,7 +195,7 @@ def on_kills(store, dead, now: int, world=None) -> list[dict]:
             n = store.load_npc(s["npc"])
             if not n.gone:
                 _pulse().remove_npc(store, world, n, "fell at the head of the war host", now, dead=True)
-                _vacancy(store, world, n, now, random.Random())
+                _vacancy(store, world, n, now, streams.get("events"))
     return won
 
 
@@ -646,14 +646,14 @@ def recruit_allies(ws, enemies) -> None:
 def fallen_allies(ws, fallen_ids: set[str]) -> None:
     """A realm-ally who went down may die (a roll), or be carried out. Called after every fight."""
     pulse = _pulse()
-    rng = random.Random()
+    rng = streams.get("events")
     for m in [m for m in ws.player.party if m.get("npc")]:
         if f"ally_{m['id']}" in fallen_ids:
             n = ws.store.load_npc(m["npc"])
             if rng.random() < E["allies"]["death_when_down"]:
                 pulse.remove_npc(ws.store, ws.world, n, f"died fighting beside {ws.player.character.name}", ws.minutes, dead=True)
                 console.note(f"{n.name} is dead. They gave their life in the fight.")
-                _vacancy(ws.store, ws.world, n, ws.minutes, random.Random())
+                _vacancy(ws.store, ws.world, n, ws.minutes, streams.get("events"))
                 state = ws.store.load_world_state() or pulse.empty_state(ws.minutes)
                 pulse.add_news(state, f"{n.name} fell fighting beside {ws.player.character.name}.", n.location, ws.minutes, ["everyone"])
                 ws.store.save_world_state(state)
@@ -776,7 +776,7 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
         times.append(times[-1] + d * 1440)
     boss_stage = min(2, stages_n - 1)
     boss_level = level + rng.randint(*C["boss_levels_over"])
-    thread_id = uuid.uuid4().hex[:8]
+    thread_id = streams.new_id(8)
     boss = add_spawn(store, world, state, thread_id, boss_zone.id, boss_c.id, True, t, days=sum(days) + 60, level=boss_level,
                      live_from=times[boss_stage], tier="cataclysm") if boss_c else None
     host_cat = boss_c.category if boss_c else rng.choice(kind["boss_categories"])

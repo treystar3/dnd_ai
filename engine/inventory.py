@@ -3,7 +3,6 @@
 Goods (herbs, food, consumables) and raw materials stack; gear takes a slot per piece.
 """
 
-import uuid
 from pathlib import Path
 
 import yaml
@@ -11,6 +10,7 @@ from pydantic import BaseModel
 
 from core.models import Item
 from engine import items
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = yaml.safe_load((ROOT / "data" / "rules" / "inventory.yaml").read_text(encoding="utf-8"))
@@ -56,7 +56,7 @@ for _r in RECIPES.values():
 
 def make_good(good_id: str, quantity: int = 1) -> Item:
     g = GOODS[good_id]
-    return Item(uid=uuid.uuid4().hex[:10], base="goods", name=g.name, good=good_id, quantity=quantity)
+    return Item(uid=streams.new_id(10), base="goods", name=g.name, good=good_id, quantity=quantity)
 
 
 def stack_size(item: Item) -> int:
@@ -104,7 +104,7 @@ def add(bag: list[Item], item: Item, capacity: int) -> Item | None:
                 left -= moved
     while left and len(bag) < capacity:
         moved = min(stack_size(item), left)
-        bag.append(item.model_copy(update={"uid": uuid.uuid4().hex[:10], "quantity": moved}))
+        bag.append(item.model_copy(update={"uid": streams.new_id(10), "quantity": moved}))
         left -= moved
     return item.model_copy(update={"quantity": left}) if left else None
 

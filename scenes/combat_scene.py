@@ -20,6 +20,7 @@ from scenes import combat_prompts as cp
 from scenes import goddess_prompts as gp
 from scenes.voice import fresh
 from ui import console
+from engine import streams
 
 
 def whose_blow(by: str) -> str:
@@ -148,7 +149,7 @@ class CombatScene:
         self.fight = fight
         fight.record = True
         self.creature_name = creature_name
-        self.rng = random.Random()
+        self.rng = streams.get("combat")  # (f439) reseeded at every input
         self.tamed: list[str] = []
         self.fight_shown: list[str] = []            # (f349) what the player has read in this fight: the ground, the light, each foe's look
 

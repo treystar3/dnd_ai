@@ -12,12 +12,12 @@ for a hunt or bounty a spell of lower danger there."""
 from __future__ import annotations
 
 import random
-import uuid
 from pathlib import Path
 
 import yaml
 
 from ui import console
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 G = yaml.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
@@ -201,7 +201,7 @@ def _open_matter(ws, q: dict) -> None:
     state = ws.store.load_world_state()
     if not state:
         return
-    tid = uuid.uuid4().hex[:8]
+    tid = streams.new_id(8)
     th = {"id": tid, "title": q["title"], "tier": "uncommon", "place": q.get("place") if q.get("place") in ws.world.places else ws.player.location,
           "pressure": "", "stage": 0, "status": "active", "made": ws.minutes,
           "stages": [{"description": m.get("reveal", ""), "effects": []}], "fallout": {"description": "It comes to nothing, in the end.", "effects": []},

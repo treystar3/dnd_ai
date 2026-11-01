@@ -4,12 +4,12 @@ The ENGINE decides whether a contract is a short job, a chain or an arc (roll_sc
 visit (plan), and holds the state (advance). The model dresses the skeleton once; nothing it says can add a step."""
 
 import random
-import uuid
 from pathlib import Path
 
 import yaml
 
 from engine import quests
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent / "data"
 A = yaml.safe_load((ROOT / "rules" / "arcs.yaml").read_text(encoding="utf-8"))
@@ -164,7 +164,7 @@ def build(world, store, quest: dict, hall: str, level: int, size: str, why: str,
     rng = random.Random(f"{seed}:arcplan:{quest['id']}")
     tpl = TEMPLATES.get(quest.get("template")) or rng.choice(list(TEMPLATES.values()))
     nodes = plan(world, store, hall, level, size, tpl, rng)
-    return {"id": uuid.uuid4().hex[:8], "template": tpl["id"], "size": size, "why": why, "state": "active",
+    return {"id": streams.new_id(8), "template": tpl["id"], "size": size, "why": why, "state": "active",
             "started": now, "deadline": None, "quest": quest["id"], "hall": hall,
             "level": level, "victim_phrase": quest.get("victim") or rng.choice(tpl["victims"]), "revealed": False, "nodes": nodes, "story": None,
             "log": [], "paid": 0, "effects": []}

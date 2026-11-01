@@ -203,7 +203,7 @@ class InventoryActions:
 
     def frugal_save(self) -> bool:
         """Frugal Hands: a consumable that is not used up, some of the time (the mechanic's value is the percent)."""
-        return self.owns("frugal_hands") and random.random() * 100 < self.mech("frugal_hands")
+        return self.owns("frugal_hands") and self.rng.random() * 100 < self.mech("frugal_hands")
 
     def on_drop(self, intent, text: str) -> None:
         if self.refuse_key(intent.item or text, "drop"):
@@ -535,20 +535,20 @@ class InventoryActions:
             boost += self.has("familiar_forager") or 0
         if clock.season(self.minutes) in ("autumn", "winter"):
             boost += self.has("root_and_rot") or 0
-        tries = random.randint(*R["forage_finds"])
-        tries = int(tries * (1 + boost / 100) + (random.random() < (tries * boost / 100) % 1))
+        tries = self.rng.randint(*R["forage_finds"])
+        tries = int(tries * (1 + boost / 100) + (self.rng.random() < (tries * boost / 100) % 1))
         for _ in range(tries):
             for g in herbs:
-                if random.random() < g.grows_in[biome]:
+                if self.rng.random() < g.grows_in[biome]:
                     found[g.id] = found.get(g.id, 0) + 1
                     break
         extras = []
-        if self.place.danger and self.owns("hunters_larder") and random.random() < 0.35:
-            meat = random.choice([g for g in inv.GOODS.values() if g.kind == "food" and g.drops_from] or [None])
+        if self.place.danger and self.owns("hunters_larder") and self.rng.random() < 0.35:
+            meat = self.rng.choice([g for g in inv.GOODS.values() if g.kind == "food" and g.drops_from] or [None])
             if meat:
                 found[meat.id] = found.get(meat.id, 0) + 1
-        if biome in ("hills", "mountains") and self.owns("prospector") and random.random() < 0.35:
-            ore = random.choice(["bronze", "bog_iron", "iron"] if biome == "mountains" else ["bronze", "bog_iron"])
+        if biome in ("hills", "mountains") and self.owns("prospector") and self.rng.random() < 0.35:
+            ore = self.rng.choice(["bronze", "bog_iron", "iron"] if biome == "mountains" else ["bronze", "bog_iron"])
             extras.append(items.make_raw(ore))
         if not found and not extras:
             self.narrate("The player spends half an hour searching the ground for useful plants and finds nothing "
@@ -581,14 +581,14 @@ class InventoryActions:
         c = self.player.character
         origin = ""
         for ing in recipe.ingredients:
-            saved = 1 if random.random() < crafting.mechanic(c, "thrifty") / 100 else 0
+            saved = 1 if self.rng.random() < crafting.mechanic(c, "thrifty") / 100 else 0
             herb = ing.good in inv.GOODS and inv.GOODS[ing.good].kind == "herb"
-            if not saved and herb and random.random() < crafting.mechanic(c, "herb_wise") / 100:
+            if not saved and herb and self.rng.random() < crafting.mechanic(c, "herb_wise") / 100:
                 saved = 1
             taken = inv.remove_goods(self.pack, ing.good, ing.kind, max(0, ing.count - saved), ing.meat)
             if ing.meat:
                 origin = next((t.origin for t in taken if t.origin), "")      # a meal keeps the beast it was made from
-        extra = 1 if random.random() < (self.has("brewer") or 0) / 100 else 0
+        extra = 1 if self.rng.random() < (self.has("brewer") or 0) / 100 else 0
         for gid, n in recipe.makes.items():
             made = inv.make_good(gid, n + extra)
             made.origin = origin
@@ -636,7 +636,7 @@ class InventoryActions:
             self.refuse(f"Using the {station.replace('_', ' ')} costs {money.words(fee)}, and you have {money.words(c.coins)}.")
             return
         c.coins -= fee
-        saved = sum(1 for _ in range(need) if random.random() < crafting.mechanic(c, "thrifty") / 100)
+        saved = sum(1 for _ in range(need) if self.rng.random() < crafting.mechanic(c, "thrifty") / 100)
         crafting.use_material(self.pack, material, need - min(saved, need - 1))
         boost = getattr(self, "craft_boost", 0)
         skill = crafting.effective_skill(c) - (self.mech("field_kit") if field else 0)
@@ -644,7 +644,7 @@ class InventoryActions:
         studied = c.studied.get(base.id) if self.owns("reverse_engineer") else None
         if studied and crafting.RARITY_ORDER.index(studied) > crafting.RARITY_ORDER.index(floor):
             floor = studied                               # Reverse Engineer: at least as fine as the piece you studied
-        item = crafting.make_gear(base, material, skill, random.Random(), boost, floor=floor)
+        item = crafting.make_gear(base, material, skill, self.rng, boost, floor=floor)
         item.source = "your own work"
         if not (field or practiced) and base.id not in c.recipes_made:
             c.recipes_made.append(base.id)                # Practiced Hands remembers what was made at a proper workshop
@@ -678,7 +678,7 @@ class InventoryActions:
         level_cap = self.place.trade_level
         material = own if use_own else items.choose_material(base.family, level_cap[1], plainest=True)
         role = self.world.roles[crafter.role]
-        rng = random.Random()
+        rng = self.rng
         item = crafting.make_gear(base, material, role.craft_skill, rng, cap=None if use_own else level_cap)
         common_value = items.price(items.make(base.id, "common", item.item_level, material=material))
         materials_cost = 0 if use_own else need * items.price(items.make_raw(material))

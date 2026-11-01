@@ -77,6 +77,7 @@ NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|
 UNPAID = re.compile(r"\b(without pay(ing)?|for free|no fee|steal|snatch|forge|by force|force my|swipe)\b")      # (f384) taking it, not joining
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
+from engine import streams
 SEARCH = encounters.E
 
 
@@ -104,7 +105,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.wildlife = None
         self.sneaking, self.queued_buffs, self.fight_text = False, [], ""     # a fight the player starts this turn (f248)
         self.recently_fled = False
-        self.rng = random.Random()
+        self.rng = streams.get("scene")  # (f439) reseeded at every input
         self.last_failure = ""        # (f437) why the last turn the game could not take was rolled back, for the turn log
         pools.fill_missing(self.player.character)
         from engine import domain_events
@@ -552,7 +553,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Add any people the background job has finished to the scene."""
         if not backfill.pending(store=self.store):
             return
-        if self.player.location in backfill.collect(self.store, self.world, self.catalog):
+        if self.player.location in backfill.collect(self.store, self.world, self.catalog, wait_all=streams.STRICT):   # (f439)
             here = self.store.load_place(self.player.location)
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
@@ -624,6 +625,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return out
 
     def run(self) -> None:
+        streams.begin(self.store.meta.seed, self.store.meta.steps, "#start")    # (f439) what happens as the game opens is decided too
         self.ensure_discoveries()
         self.ensure_homes()
         self.ensure_road_place()
@@ -691,6 +693,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 rolled = False
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
+                        self.new_input(text)                                # (f439) the dice of this input
                         self.command(text)
                 except LLMError as e:
                     console.debug(f"command rolled back: {e}")
@@ -732,6 +735,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
+    def new_input(self, text: str) -> None:
+        """(f439) A new input, a typed line or a pane's command: the campaign counts it, inside the turn's transaction (a turn rolled back
+        takes its count back with it, so the line tried again meets the same dice), and every stream of dice starts again from the seed,
+        that count and the line (engine/streams.py). (A session that must replay exactly, streams.STRICT, takes in the residents made in
+        the background at the input's edge before this, outside the transaction: apply_backfill in run().)"""
+        self.store.meta.steps += 1
+        self.store.save_meta()
+        streams.begin(self.store.meta.seed, self.store.meta.steps, text)
+
     def turn(self, text: str) -> bool:
         """One whole turn as one unit: everything the action and what follows it write is committed together at the end, or, if the model
         fails partway, rolled back together and the game put back as it was before the line was typed. True if the turn stood."""
@@ -740,6 +752,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         shown = turnlog.SHOWN
         try:
             with self.store.transaction():
+                self.new_input(text)                       # (f439) the dice of this input
                 ledger.begin()                             # (f394) the turn's record
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.ran = []

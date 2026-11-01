@@ -17,6 +17,7 @@ from engine import money, clock, items, weather
 from core.models import Item
 from ui import console
 from world.loader import World
+from engine import streams
 
 
 
@@ -318,7 +319,7 @@ def converse(
     facts = world.facts_known_by(set(npc.knowledge_groups)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
-    rng = rng or random.Random()
+    rng = rng or streams.get("scene")
     from engine import voices
     ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
     voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng)

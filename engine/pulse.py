@@ -14,7 +14,6 @@ rare and campaign tiers are the model's. Between pulses the drift (engine/drift.
 """
 
 import random
-import uuid
 from pathlib import Path
 
 import yaml
@@ -24,6 +23,7 @@ from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
 from ui import console
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yaml.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
@@ -326,7 +326,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if not place:
         return False
     big = tier in events.BIG
-    thread_id = uuid.uuid4().hex[:8]
+    thread_id = streams.new_id(8)
     from engine import threads, truth
     proposal, info = None, None
     engine_made = made_by == "engine" or (not made_by and rule.get("engine"))
