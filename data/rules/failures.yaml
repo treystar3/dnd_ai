@@ -1,0 +1,14 @@
+# (f437, engine/failures.py) What the player reads when a turn could not be taken because a model call failed. The turn was rolled back:
+# nothing happened and nothing is lost. A line says so plainly, in the narrator's own voice, and asks for the line again. It is never
+# machinery (no model, no error), never something the world did, never a refusal and never a question (the rebuild plan's "four kinds
+# of uncertainty"). One is picked at random, never the one shown last. The rebuild's Stage 3 adds here the plain lines that tell an
+# outcome that stood when its passage could not be written.
+turn_not_taken:
+  - "That slipped away before anything came of it. Nothing has changed; say it again."
+  - "Nothing took hold that time, and nothing is lost. Try it once more."
+  - "That one got away before it began. All is as it was; say it again."
+  - "The moment passed before anything happened. Everything stands where it stood; go again."
+  - "Not yet: nothing happened, and nothing is lost. Say it again, or another way."
+  - "That didn't take. You are where you were, as you were; try it again."
+  - "Lost before it started, so nothing has happened. Say it once more."
+  - "That never quite began. The world is as you left it; say it again."

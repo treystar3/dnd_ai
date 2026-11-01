@@ -56,7 +56,7 @@ from scenes.part_actions import PartActions
 from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
-from engine import entities, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
+from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
@@ -105,6 +105,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.sneaking, self.queued_buffs, self.fight_text = False, [], ""     # a fight the player starts this turn (f248)
         self.recently_fled = False
         self.rng = random.Random()
+        self.last_failure = ""        # (f437) why the last turn the game could not take was rolled back, for the turn log
         pools.fill_missing(self.player.character)
         from engine import domain_events
         domain_events.journal_everything()
@@ -695,22 +696,23 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
                     rolled = True
-                    console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
+                    self.last_failure = str(e) or type(e).__name__
+                    console.note(failures.not_taken(self.rng))           # (f437) in the narrator's words, never the machinery
+                failed = self.last_failure if rolled else ""
                 if self.to_menu:
-                    turnlog.end(rolled, command=self.command_row(text, before, bar))
+                    turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed)
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar))
+                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed)
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
             turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
             stood = self.turn(text)
             if not stood:
-                console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
-                             "Nothing has changed; try again, perhaps worded differently.")
-            turnlog.end(not stood)
+                console.note(failures.not_taken(self.rng))               # (f437) in the narrator's words, never the machinery
+            turnlog.end(not stood, failure="" if stood else self.last_failure)
             self.show_header()
 
     def command_row(self, text: str, before: str, bar) -> dict:
@@ -763,6 +765,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         except LLMError as e:
             console.debug(f"turn rolled back: {e}")
             self.reload_after_rollback()
+            self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             return False
 
     def said_nothing(self, text: str) -> None:

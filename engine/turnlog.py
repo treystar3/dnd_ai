@@ -84,10 +84,11 @@ def begin(console=None) -> None:
              "rewrites": []}
 
 
-def end(rolled_back: bool = False, command: dict | None = None) -> None:
+def end(rolled_back: bool = False, command: dict | None = None, failure: str = "") -> None:
     """(f385) The turn is over: its rows are written, the last carrying what was shown, when it began and how long it took. `command`
     is a # command's row (its text, and whether it changed anything), written only when it did something or told the player
-    something in the story's column."""
+    something in the story's column. (f437) `failure`: why a turn rolled back, when a model call it needed failed; the row says the model
+    failed, which is never a refusal of what the player typed."""
     global _open
     t, _open = _open, None
     if t is None or not enabled():
@@ -109,6 +110,8 @@ def end(rolled_back: bool = False, command: dict | None = None) -> None:
         rows[-1]["rewrites"] = t["rewrites"]
     if rolled_back:
         rows[-1]["rolled_back"] = True
+        if failure:
+            rows[-1]["model_failed"] = failure[:200]
     for r in rows:
         _write(r)
 

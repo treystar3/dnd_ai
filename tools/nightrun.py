@@ -44,7 +44,8 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from nightbot import ROTATION as PERSONAS, Bot, persona_for      # (f368) the player with goals; Bot stays importable from here (tools/eventrun.py)
 
-HESITATION = "The world seems to hesitate"          # what the game says when a turn's model call failed and was rolled back
+from engine import failures as _failures
+HESITATIONS = tuple(_failures.lines())               # (f437) what the game says when a turn's model call failed and was rolled back
 
 
 def die(message: str) -> None:
@@ -117,7 +118,7 @@ class Run:
         self.transcript.write((f"**{who}:** " if who else "") + text.strip() + "\n\n")
 
     def noted(self, text: str) -> None:
-        if HESITATION in text:
+        if any(h in text for h in HESITATIONS):
             self.hesitations += 1
             if self.current is not None:
                 self.current["hesitated"] = True

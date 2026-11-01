@@ -421,6 +421,10 @@ def check() -> list[str]:
                 need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
                      f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
 
+    # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
+    from engine import failures as _failures
+    bad += _failures.problems()
+
     # ---- (f435) what someone said of themselves that the canon check could not be asked about waits, unsettled
     U = ((_load("data/rules/truth.yaml").get("canon") or {}).get("unsettled") or {})
     for k in ("cap", "again_per_keep"):
