@@ -164,7 +164,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
 
         if response.done_reason == "length":
             last_error = LLMError("cut off at the length limit")
-            reason = "the answer was cut off because it was far too long. Keep every field short."
+            reason = cut_off_reason(task, schema, max_tokens)
             _log(task, attempt, elapsed, messages, raw[:2000], reason, usage)
             audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
             messages = messages[:2] + [{"role": "user", "content": f"Your last answer was rejected: {reason} Respond again with the complete JSON."}]
@@ -285,6 +285,19 @@ def trim_log(path: Path | None = None) -> None:
 
 
 _log_lock = threading.Lock()
+
+
+def cut_off_reason(task: str, schema, max_tokens: int) -> str:
+    """(f433) What an answer cut off at its token ceiling is told on the retry. The owner: "No length limits on the narrator or the
+    speakers" (GOALS.md, f375). The narrator and every speaker write under the runaway ceiling (PROSE_MAX_TOKENS), which no passage that
+    holds what its moment holds comes near, so an answer cut off there went round in circles: it is told that, and never to be short,
+    which was a length limit by the back door. A narrator's task, or any answer someone speaks in (a schema with spoken()), is told the
+    same under a lower ceiling. Only the engine's own structured calls (reading a line, authoring records) are still asked to keep fields
+    short so the JSON closes."""
+    from engine import hygiene
+    if max_tokens >= config.PROSE_MAX_TOKENS or task in hygiene.NARRATOR or hasattr(schema, "spoken"):
+        return "the answer ran on until it was cut off, which means it went round in circles. Say what the moment holds once, then stop."
+    return "the answer was cut off before the JSON was finished. Keep every field short."
 
 
 def _usage(response) -> dict | None:
