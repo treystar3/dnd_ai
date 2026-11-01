@@ -421,6 +421,11 @@ def check() -> list[str]:
                 need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
                      f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
 
+    # ---- (f444) the cards a recording may be timed on
+    for card, spec in ((_load("data/rules/cards.yaml") or {}).get("cards") or {}).items():
+        need(all(isinstance((spec or {}).get(k), (int, float)) and spec[k] > 0 for k in ("bandwidth_gbs", "tflops", "memory_gb")),
+             f"cards.yaml {card}: needs bandwidth_gbs, tflops and memory_gb above 0")
+
     # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
     from engine import failures as _failures
     bad += _failures.problems()

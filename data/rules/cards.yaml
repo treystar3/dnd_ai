@@ -1,0 +1,10 @@
+# (f444, tools/card_profile.py) The cards a recording may be timed on, by what bounds a local model's speed on each: memory bandwidth
+# for writing an answer (every token written reads the model's weights once), compute for reading a prompt (the public FP32 figure).
+# A measure taken on one card is scaled to another by these, when the card the game is built for (GOALS.md: an RTX 3060) cannot be
+# rented: an estimate, said as one wherever it is kept. memory_gb says whether the model and its context fit on the card at all.
+cards:
+  RTX 3060 12GB: {bandwidth_gbs: 360, tflops: 12.7, memory_gb: 12}
+  RTX A4000: {bandwidth_gbs: 448, tflops: 19.2, memory_gb: 16}
+  RTX 3080 Ti: {bandwidth_gbs: 912, tflops: 34.1, memory_gb: 12}
+  RTX 4090: {bandwidth_gbs: 1008, tflops: 82.6, memory_gb: 24}
+  RTX 5090: {bandwidth_gbs: 1792, tflops: 104.8, memory_gb: 32}

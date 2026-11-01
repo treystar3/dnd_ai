@@ -402,7 +402,7 @@ def batch(args) -> None:
         save = f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}"
         cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
                "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start, "--persona", persona] \
-            + (["--stub"] if args.stub else [])
+            + (["--stub"] if args.stub else []) + (["--record"] if args.record else [])     # (f444) each run keeps its recording
         print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start}, playing as {persona} -> {out}", flush=True)
         return subprocess.Popen(cmd), {"cls": cls, "seed": seed, "start": start, "persona": persona, "out": out, "started": time.time()}
 
