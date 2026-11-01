@@ -11,11 +11,18 @@ to be written again, and if it comes back contradicting still, the line stands a
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+import yaml
 
 import config
 
 MAX_CANON = 60
 MAX_BELIEFS = 30
+# (f435) A claim the canon check could not be asked about (the model did not answer) is never kept as true: it waits, unsettled, and is
+# checked again the next time something about that person is kept. How many wait, and how many are looked at again each time.
+UNSETTLED = (yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
+             .get("canon") or {}).get("unsettled") or {}
 MAX_WORDS = 30
 EMPTY = {"", "none", "n/a", "nothing", "no", "null", "-"}
 
@@ -92,7 +99,8 @@ def _sims(text: str, items: list[str]) -> list[float] | None:
 
 
 def judge(claim: str, facts: list[str]) -> tuple[str, str]:
-    """('same' | 'contradicts' | 'new', the fact it repeats or contradicts). One small call; if the model cannot be asked, it is new."""
+    """('same' | 'contradicts' | 'new' | 'unverified', the fact it repeats or contradicts). One small call. (f435) If the model cannot be
+    asked, the claim is unverified, never new: a claim nobody checked is not kept as who they are."""
     from llm.contracts import CanonCheck
     from llm.gateway import generate, LLMError
     listed = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(facts))
@@ -103,17 +111,18 @@ def judge(claim: str, facts: list[str]) -> tuple[str, str]:
                      "with JSON matching the schema: {\"verdict\": \"new\", \"which\": 0}.",
                      f"ALREADY TRUE OF THEM:\n{listed}\n\nNEW STATEMENT: {claim}", CanonCheck, temperature=0.1, retries=1, max_tokens=40)
     except LLMError:
-        return "new", ""
+        return "unverified", ""
     hit = facts[r.which - 1] if 1 <= r.which <= len(facts) else (facts[0] if facts else "")
     return r.verdict, hit if r.verdict != "new" else ""
 
 
 def vet(member: dict, claims: list[str], details: list[str] | None = None, given_facts: list[str] | None = None,
-        who: str = "", kept_as: str = "backstory") -> tuple[list[str], list[tuple[str, str]]]:
-    """(new claims to keep, [(claim, the fact it contradicts)]). Repeats of what is already known are dropped quietly."""
+        who: str = "", kept_as: str = "backstory") -> tuple[list[str], list[tuple[str, str]], list[str]]:
+    """(new claims to keep, [(claim, the fact it contradicts)], claims that could not be checked). Repeats of what is already known are
+    dropped quietly. (f435) A claim the check could not be asked about is neither kept nor sent back: it waits, unsettled."""
     facts = known(member, details)
     base = given(member) if given_facts is None else given_facts
-    keep, bad = [], []
+    keep, bad, unsure = [], [], []
     who = who or member.get("name", "")
     for c in claims:
         if _restates(c, base):                                       # only what they were given to begin with, said again
@@ -137,7 +146,9 @@ def vet(member: dict, claims: list[str], details: list[str] | None = None, given
             bad.append((c, hit))
         elif verdict == "new":
             keep.append(c)
-    return keep, bad
+        elif verdict == "unverified":
+            unsure.append(c)
+    return keep, bad, unsure
 
 
 # What someone says about themselves falls in one of these. Only backstory and traits are canon - checked for contradictions and true for
@@ -260,16 +271,18 @@ def _keep_into(member: dict, about_me, about_world, day: int, details, given_fac
     if buckets.get("opinion"):
         keep_opinions(member, buckets["opinion"], day, who, buckets.get(WEIGHTS))
     bad = []
+    settle_again(member, day, details, given_facts, who)
     for b in ("backstory", "trait"):
         claims = clean(list(about_me if b == "backstory" else []) + list(buckets.get(b, [])))
         if not claims:
             continue
-        new, wrong = vet(member, claims, details, given_facts, who, kept_as=b)
+        new, wrong, unsure = vet(member, claims, details, given_facts, who, kept_as=b)
         bad += wrong
         key = BUCKETS[b]["key"]
         for c in new:
             member.setdefault(key, []).append({"text": c, "day": day, "gravity": (buckets.get(WEIGHTS) or {}).get(_norm(c), "personal")})
         del member.setdefault(key, [])[:-BUCKETS[b]["cap"]]
+        _unsettle(member, unsure, day, b)
     world = clean(about_world) + clean(buckets.get("world", []))
     have = {x["text"].lower() for x in member.get("beliefs", [])}
     for c in world:
@@ -280,7 +293,41 @@ def _keep_into(member: dict, about_me, about_world, day: int, details, given_fac
     return bad
 
 
-HELD = tuple(B["key"] for B in BUCKETS.values()) + ("beliefs",)
+HELD = tuple(B["key"] for B in BUCKETS.values()) + ("beliefs", "unsettled")
+
+
+def _unsettle(member: dict, claims: list[str], day: int, kept_as: str) -> None:
+    """(f435) Claims the check could not be asked about wait here: never offered back as true (records() and known() leave them out),
+    never weighed against, and checked again the next time something about this person is kept. The oldest go first past the cap."""
+    if not claims:
+        return
+    held = member.setdefault("unsettled", [])
+    have = {x["text"].lower() for x in held}
+    for c in claims:
+        if c.lower() not in have:
+            held.append({"text": c, "day": day, "kept_as": kept_as})
+            have.add(c.lower())
+    del held[:-int(UNSETTLED.get("cap", 12))]
+
+
+def settle_again(member: dict, day: int, details=None, given_facts=None, who: str = "") -> None:
+    """(f435) A few waiting claims, oldest first, checked again. This runs only when something about the person is being kept, which is
+    after a model call about them answered. New: kept in its bucket, as if checked the first time. The same, or contradicting what is true
+    of them: let go, never sent back, since the line it came from was said long ago. Still unanswered: it waits on."""
+    held = member.get("unsettled") or []
+    if not held:
+        return
+    n = int(UNSETTLED.get("again_per_keep", 2))
+    for x in list(held[:n]):
+        b = x.get("kept_as") if x.get("kept_as") in ("backstory", "trait") else "backstory"
+        new, _wrong, unsure = vet(member, [x["text"]], details, given_facts, who, kept_as=b)
+        if unsure:
+            continue
+        held.remove(x)
+        if new:
+            key = BUCKETS[b]["key"]
+            member.setdefault(key, []).append({"text": x["text"], "day": x.get("day", day), "gravity": "personal"})
+            del member[key][:-BUCKETS[b]["cap"]]
 
 
 class Pending:
@@ -326,8 +373,9 @@ def records(member: dict, day: int | None = None) -> list[dict]:
 
 
 def said_about_self(member: dict) -> list[str]:
-    """Everything they have said about themselves that is still held, for the extractor's ALREADY KNOWN."""
-    return [x["text"] for B in BUCKETS.values() for x in member.get(B["key"], [])]
+    """Everything they have said about themselves that is still held, for the extractor's ALREADY KNOWN: (f435) what waits unsettled
+    too, since it was said and is not new."""
+    return [x["text"] for B in BUCKETS.values() for x in member.get(B["key"], [])] + [x["text"] for x in member.get("unsettled", [])]
 
 
 def conflict_rule(bad: list[tuple[str, str]]) -> str:

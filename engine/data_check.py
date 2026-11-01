@@ -420,6 +420,12 @@ def check() -> list[str]:
                 made = {min(_names.syllables(n), max(table)) for n in _names.possible(people, kind)}
                 need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
                      f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
+
+    # ---- (f435) what someone said of themselves that the canon check could not be asked about waits, unsettled
+    U = ((_load("data/rules/truth.yaml").get("canon") or {}).get("unsettled") or {})
+    for k in ("cap", "again_per_keep"):
+        need(isinstance(U.get(k), int) and not isinstance(U.get(k), bool) and U.get(k) > 0,
+             f"truth.yaml canon.unsettled.{k}: needs a whole number above 0")
     return bad
 
 
