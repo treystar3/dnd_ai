@@ -38,6 +38,10 @@ TURN_LOG = True            # every line the player types is a row in TURN_LOG_PA
 TURN_LOG_PATH = "logs/turns.jsonl"  # one line per typed line: what handled it; for an interpreted line, what was read and what the audit changed
 SESSION_STATS_PATH = "logs/sessions.jsonl"  # one line per session: lines by handler, model calls and failures by task, refusals by kind
 REFUSALS_LOG = True
+# (f440) Record each play session so the real turn can replay it (engine/recording.py, tools/rerun.py): the save as it opened, every
+# input, every model call. DND_RECORD=1 in the environment turns it on without an edit. Only RECORD_KEEP recordings are kept.
+RECORD = bool(int(__import__("os").environ.get("DND_RECORD", "0") or 0))
+RECORD_KEEP = 5
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
 AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)
 

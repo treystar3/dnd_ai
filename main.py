@@ -124,9 +124,15 @@ def play(args):
             store.save_player(player)
 
         scene = WorldScene(store, world, catalog, player)
+        rec = None
+        if config.RECORD:                              # (f440) this session, kept so the real turn can replay it (tools/rerun.py)
+            from engine import recording
+            rec = recording.Recorder(store).install()
         try:
             scene.run()
         finally:
+            if rec is not None:
+                rec.close()
             store.close()                              # the database is written through as it goes; closing folds the write-ahead log in
             backfill.drop(store)                       # people still being written for this game must never reach the next one
         if getattr(scene, "to_menu", False):
