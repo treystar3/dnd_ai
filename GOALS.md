@@ -140,6 +140,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 
 | Decision | Feature |
 | --- | --- |
+| Pre-alpha: "we are in pre alpha so major reconstructions of the game should be done now rather than later if it helps serve the game overall". A rebuild that serves the goals is not put off to avoid churn; it is still built in tested steps, with the full suite passing before each push. | infrastructure review |
 | Road events, Q2 in full ("You've read it correctly"): what stops the walk is anything the player could act on (a person met, someone in need, an ambush, a hazard, a find); a passing sight is told inside the walk. Nothing is settled for the player. A find: "it should narrate a scene and let the player pick up items they find if they choose". Hazards: "stop the player to decide how to get past". "Walking past someone in need should get a hire reaction either positive or negative" | f427 |
 | A new game's start: "Leave the start to chance." | review Q1 |
 | Road events: "road events should stop, all road events that something noteworthy happens should be a stop for the player"; a passing sight is not one: "no passing sights shouldn't stop" | review Q2 |
