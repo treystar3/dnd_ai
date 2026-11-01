@@ -5,6 +5,8 @@
                                                         stage that changes prompts); only the state and outcomes are compared
     python3 tools/rerun.py --golden [--rebless]         replay the kept stub recording (data/replay/sessions/stub_short); with
                                                         --rebless, record it again and print what changed, to read before keeping it
+    python3 tools/rerun.py recordings/<name> --time URL (f443) send every recorded request to the model at URL as the replay meets it,
+                                                        and keep how long each took (timed.jsonl) for tools/card_profile.py
 
 A recording (engine/recording.py) holds the save as the session opened, every input, and every model call in order. The replay copies
 the save into a scratch one, builds the scene the way main.py does, feeds the inputs, and serves each recorded answer to the call the
@@ -175,6 +177,30 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": state["call"], "recorded_calls": len(calls)}
 
 
+def timer(folder: Path, url: str):
+    """(f443) An on_call for replay(): the same request, sent to the model at url (the card the game is built for), timed, its counts
+    kept in the recording's timed.jsonl. The game goes on with the recorded answer, so the session stays the one recorded."""
+    import time
+    import ollama
+    live = ollama.Client(host=url, timeout=900)
+    out = (folder / "timed.jsonl").open("w", encoding="utf-8")
+    COUNTS = ("prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration", "load_duration", "total_duration")
+
+    def on_call(row: dict, k: dict) -> None:
+        t0 = time.perf_counter()
+        err, got = "", {}
+        try:
+            r = live.embed(**k) if row["kind"] == "embed" else live.chat(**k)
+            got = {c: getattr(r, c, None) for c in COUNTS}
+        except Exception as e:                      # the card failing a call is a measure too
+            err = f"{type(e).__name__}: {str(e)[:200]}"
+        out.write(json.dumps({"i": row["i"], "input": row["input"], "kind": row["kind"], "title": row.get("title", ""),
+                              "seconds": round(time.perf_counter() - t0, 3), "tokens": {c: v for c, v in got.items() if v is not None},
+                              "error": err}) + "\n")
+        out.flush()
+    return on_call
+
+
 # ---------- the kept stub recording
 
 def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str = "wanderer") -> Path:
@@ -254,6 +280,8 @@ def main() -> int:
     ap.add_argument("--rebless", action="store_true", help="with --golden: record it again, and say what changed")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
     ap.add_argument("--inputs", type=int, default=40)
+    ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the model at URL beside the replay, and keep "
+                    "how long each took in the recording's timed.jsonl (tools/card_profile.py reads it)")
     a = ap.parse_args()
     if a.make:
         make_stub_recording(Path(a.make), a.inputs)
@@ -275,7 +303,7 @@ def main() -> int:
     folder = GOLDEN if a.golden else Path(a.recording or "")
     if not (folder / "meta.json").exists():
         ap.error(f"no recording at {folder}")
-    out = replay(folder, loose=a.loose)
+    out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)
     if out["parted"]:
         print(f"parted at input {out['parted']['input']} of {out['of']}: {out['parted']['why']}")
         return 1
