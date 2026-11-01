@@ -426,6 +426,16 @@ def check() -> list[str]:
         need(all(isinstance((spec or {}).get(k), (int, float)) and spec[k] > 0 for k in ("bandwidth_gbs", "tflops", "memory_gb")),
              f"cards.yaml {card}: needs bandwidth_gbs, tflops and memory_gb above 0")
 
+    # ---- (f446) the card profile Stage 3's turn budget reads: whole, and an estimate said to be one
+    prof = ROOT / "data" / "rules" / "card_profile.yaml"
+    if prof.exists():
+        P_ = _load("data/rules/card_profile.yaml") or {}
+        cards_known = set(((_load("data/rules/cards.yaml") or {}).get("cards") or {}))
+        need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
+        need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
+        for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "median_turn_seconds", "longest_turn_seconds"):
+            need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")
+
     # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
     from engine import failures as _failures
     bad += _failures.problems()
