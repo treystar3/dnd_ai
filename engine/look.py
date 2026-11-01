@@ -113,8 +113,8 @@ def from_text(text: str) -> dict:
 
 def page() -> dict:
     """Everything the creation page's first step draws."""
-    from world.loader import load_world
-    names = {p.id: p.name for p in load_world().peoples.values()}
+    from world.loader import authored
+    names = {p.id: p.name for p in authored().peoples.values()}       # (f434) the written world, parsed once a run, not once a page
     return {"intro": L["intro"], "title": L["title"], "hint": L["hint"], "extra_hint": L["extra_hint"], "extra_most": L["extra_most"],
             "peoples": [{"id": p, "name": names.get(p, p.replace("_", "-").title()), "blurb": spec["blurb"], "word": spec["word"],
                          "axes": axes_for(p), "flags": flags_for(p)} for p, spec in L["peoples"].items()],

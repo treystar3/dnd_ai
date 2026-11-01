@@ -9,7 +9,6 @@ Stages, in order: "" -> invite (waiting for the player to join the guild) -> boa
 -> hunt -> done."""
 from __future__ import annotations
 
-import functools
 import random
 import re
 import zlib
@@ -194,10 +193,10 @@ def status_facts() -> str:
             f"befuddled: its next attack goes at a random fighter, friend or foe. grappled: held fast, {-pct('grappled', 'evasion')} points easier to hit.")
 
 
-@functools.lru_cache(maxsize=1)
 def _world():
-    from world.loader import load_world
-    return load_world()
+    """(f434) The authored world, parsed once for the whole run (world/loader.py authored): Maren's lines name only written places."""
+    from world.loader import authored
+    return authored()
 
 
 BUILDS = ("melee", "ranged", "caster", "support")

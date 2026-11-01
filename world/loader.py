@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 import functools
+import uuid
 
 import yaml
 from pydantic import Field, BaseModel, PrivateAttr, ValidationError, field_validator
@@ -257,6 +258,13 @@ class World(BaseModel):
         return None
 
     _routes: dict = PrivateAttr(default_factory=dict)     # (f362) neighbours and paths, kept while the map stands (see _route_cache)
+    _stamp: str = PrivateAttr(default_factory=lambda: uuid.uuid4().hex)   # (f434) which world this is, for caches
+
+    @property
+    def stamp(self) -> str:
+        """(f434) This world's own mark, new for every campaign's copy. A cache kept per world is keyed by it, never by id(world): once each
+        campaign has its own world, a freed world's id can be reused by the next, and a cache keyed by it would hand back the last save's map."""
+        return self._stamp
 
     def _route_cache(self) -> dict:
         """(f362) The route cache. Neighbours and paths are asked for thousands of times a session (every board, every route, every band
@@ -510,6 +518,24 @@ def load_world(world_dir: Path = WORLD_DIR) -> World:
     if problems:
         raise WorldError(problems)
     return World(**w)
+
+
+@functools.lru_cache(maxsize=1)
+def authored() -> World:
+    """(f434) The world as it is written in data/world, parsed once per run. Never handed out to be changed: the home page and the startup
+    checks only read it, and every campaign plays on its own copy (campaign_world)."""
+    return load_world()
+
+
+def campaign_world() -> World:
+    """(f434) A fresh copy of the authored world for one campaign. Each campaign writes its own places into its world (discoveries, dungeon
+    entrances, the stop on the road, homes), and one world shared by every save opened in a session handed save B the places save A had
+    found. A deep copy is a fiftieth of a second; a reload is near a second. Its route cache starts empty and its stamp is its own.
+    This is the seam the rebuild's Stage 2 replaces with a CampaignWorld (the authored world read-only, plus this campaign's additions)."""
+    w = authored().model_copy(deep=True)
+    w._routes = {}
+    w._stamp = uuid.uuid4().hex
+    return w
 
 
 def _load_towns(folder: Path, problems: list[str]) -> dict:

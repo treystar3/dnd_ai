@@ -29,7 +29,7 @@ from storage.campaign import CampaignStore, PlayerState, SaveTooNew
 from storage import saves
 from ui import console
 from llm.gateway import LLMError, unload, warm
-from world.loader import WorldError, load_world
+from world.loader import WorldError, authored, campaign_world
 
 
 def main():
@@ -74,7 +74,7 @@ def play(args):
         console.out("The character data has problems (fix these in data/):\n" + "\n".join(f"  - {p}" for p in problems))
         sys.exit(1)
     try:
-        world = load_world()
+        written = authored()                       # (f434) the world as written: checked here, read by the home page, never played on
     except WorldError as e:
         console.out(str(e))
         sys.exit(1)
@@ -95,7 +95,7 @@ def play(args):
     while True:
         console.combat_state(None)                 # a fight from the game just left must not linger in the window
         if choice is None:
-            choice = home.choose(world)            # (f345) the home page: continue, load, new, delete, or quit
+            choice = home.choose(written)          # (f345) the home page: continue, load, new, delete, or quit
         kind, name = choice
         choice = None
         if kind == "quit":
@@ -109,6 +109,7 @@ def play(args):
             continue
         saves.touch(name)
         console.home_done()
+        world = campaign_world()                   # (f434) this campaign's own copy: what one save finds is never another's
         if store.player_exists():
             player = store.load_player()
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")

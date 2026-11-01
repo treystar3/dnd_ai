@@ -31,12 +31,16 @@ def seat(world, place_id: str) -> str | None:
     for city in GODS:
         if city in world.places and world.places[city].name.lower() == ruler:
             return city
-    key = (id(world), town)
-    if key not in _cache:
+    mark = getattr(world, "stamp", None) or id(world)          # (f434) this world's own mark: a freed world's id can come round again
+    if _cache.get("world") != mark:
+        _cache.clear()                                         # only the world being played is kept, however many saves are opened
+        _cache["world"], _cache["seat"] = mark, {}
+    seats = _cache["seat"]
+    if town not in seats:
         dist = events.distances(world, town)
         near = sorted((dist.get(c, 10 ** 9), c) for c in GODS if c in world.places and world.places[c].type == "city")
-        _cache[key] = near[0][1] if near else None
-    return _cache[key]
+        seats[town] = near[0][1] if near else None
+    return seats[town]
 
 
 def god_of(world, place_id: str) -> dict | None:
