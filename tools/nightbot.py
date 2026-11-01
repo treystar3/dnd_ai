@@ -255,8 +255,9 @@ class Bot:
         new = held - self.held_seen
         if new:
             self.stats["contracts_taken"] += len(new)
-            for qid in new:
-                self.hall_of[qid] = self.ws.hall_here() or self.ws.player.location
+            for qid in new:                              # (f432) the contract's own hall: the f425 mage noticed its bear contract in the
+                q = next((x for x in self.ws.player.quests if x["id"] == qid), {})        # Greywood, recorded the Greywood as where to
+                self.hall_of[qid] = q.get("hall") or self.ws.hall_here() or self.nearest_hall()   # report, and waited there 700 turns
         self.held_seen = held
         for th in self.state().get("threads", []):
             if th.get("touched") and th["id"] not in self.seen_threads:
@@ -558,8 +559,9 @@ class Bot:
             self.finish(g, "dropped")
             return None
         dest = self.world.places[place]
-        verb = self.rng.choice(["I set out for", "I take the road to", "I head for", "I make for"]) if dest.danger is None and len(hops) > 1 \
-            else self.rng.choice(["I walk over to", "I head to", "I go to"])
+        town = dest.danger is None and (len(hops) > 1 or (not dest.parent and dest.type in ("city", "town", "village")))
+        verb = self.rng.choice(["I set out for", "I take the road to", "I head for", "I make for"]) if town \
+            else self.rng.choice(["I walk over to", "I head to", "I go to"])     # (f432) "I walk over to Parth" read as a person named Parth
         tail = {"work": " to see what work the board has.", "see": ", to see the place.", "retreat": " and get off these roads."}.get(why, "")
         return f"{verb} {dest.name}{tail or '.'}", self.intend("move", destination=place), "move"
 
@@ -920,7 +922,8 @@ class Bot:
         from engine import features
         ws, rng = self.ws, self.rng
         parts = [e for e in features.here(ws.store, ws.player.location) if e.state in ("known",) and e.ref != ws.player.spot]
-        named = features.named_part(self.passage() or "")
+        named = next((n for m in re.finditer(r"\b(?:the|a|an)\s+((?:[a-z'-]+\s+){0,2}[a-z'-]+)", (self.passage() or "").lower())
+                      for n in [features.named_part(m.group(1))] if n), None)        # (f432) a phrase of it, never "the you stand"
         r = rng.random()
         if parts and r < 0.4:
             e = rng.choice(parts)

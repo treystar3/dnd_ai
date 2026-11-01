@@ -399,6 +399,7 @@ class GuildActions:
             self.refuse("You are already looking for someone. Finish or drop that contract first.")
             return
         gid = self.hall_here()
+        q["hall"] = gid                                 # (f432) the hall it was taken at, where it is reported (the missing kind always kept it)
         if not q.get("mentor"):
             board.remove(q)
             state = self.store.load_place(gid)
