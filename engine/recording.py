@@ -11,7 +11,9 @@ compared input by input:
   recordings/<name>/turns.jsonl    after each input: the state's fingerprint, what the turn recorded, and what the player was shown
 
 It wraps the model client and the console in place, the way the night runs do (tools/nightrun.py install_client), so whatever is
-installed (the terminal, the window, a test, a night run) is recorded as it is. A recording session is strict (engine/streams.py
+installed (the terminal, the window, a test, a night run) is recorded as it is. (f442) What the player's own side asks of the model
+while it decides its line (the night bot writing its words) is the input, not the game: it is left out, since a replay feeds the line
+itself; a call from another thread in that time (the background residents) is the game's and is kept. A recording session is strict (engine/streams.py
 STRICT): the background people and the embedding model's arrival are fixed at an input's edge, so the session can replay exactly.
 Only RECORD_KEEP recordings are kept; the oldest go first."""
 from __future__ import annotations
@@ -22,6 +24,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -80,11 +83,16 @@ class Recorder:
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
+        self.asking = None
         self.undo = []
         prune()
 
     # ---- what the session depended on from outside the save
-    def install(self) -> "Recorder":
+    def install(self, apart: bool = False) -> "Recorder":
+        """Wrap the model client and the console. apart (f442): the player's side is a program that reads the world through the scene
+        while it decides its line (the night bot), and a read can write (the board refreshed when looked at): whatever it writes then is
+        taken back, so the game alone changes the save, the same in the recording and in its replay. A person at the keyboard writes
+        nothing while typing, so main.py leaves it off; holding the save closed while someone types would only stall the window."""
         from llm import gateway
         from ui import console
         client = gateway._client
@@ -107,7 +115,11 @@ class Recorder:
             main = bool(k.get("main", a[0] if a else False))
             if main:
                 self._end_input()
-            text = real_ask(*a, **k)
+            self.asking = threading.get_ident()
+            try:
+                text = self._apart(real_ask, a, k) if apart and main else real_ask(*a, **k)
+            finally:
+                self.asking = None
             self.inputs.write(json.dumps({"i": self.n_input + (1 if main else 0), "main": main, "text": text, "turn": self.store.meta.turn,
                                           "steps": self.store.meta.steps}, ensure_ascii=False) + "\n")
             self.inputs.flush()
@@ -136,7 +148,23 @@ class Recorder:
             setattr(console, name, told)
         return self
 
+    def _apart(self, real_ask, a, k) -> str:
+        """(f442) Ask, then take back whatever the asking wrote to the save. A new line is asked for between turns, outside any
+        transaction, so this one is the outermost and its rollback undoes only what the asking did."""
+        class Apart(Exception):
+            pass
+        got = {}
+        try:
+            with self.store.transaction():
+                got["text"] = real_ask(*a, **k)
+                raise Apart
+        except Apart:
+            pass
+        return got["text"]
+
     def _call(self, kind: str, real, k: dict):
+        if self.asking is not None and threading.get_ident() == self.asking:
+            return real(**k)                             # (f442) the player's side deciding its line: the input, not the game
         t0 = time.perf_counter()
         row = {"i": self.n_call, "input": self.n_input, "kind": kind, "title": ((k.get("format") or {}).get("title", "")
                if isinstance(k.get("format"), dict) else ""), "req": request_hash(k),

@@ -467,6 +467,8 @@ def main() -> None:
     ap.add_argument("--out", default="", help="where the logs go (default logs/nightrun/<when>)")
     ap.add_argument("--save", default="", help="the save folder's name (default nightrun_<when>; never listed on the home page)")
     ap.add_argument("--stub", action="store_true", help="play with the stand-in model (measures nothing real; for the test suite)")
+    ap.add_argument("--record", action="store_true", help="(f442) keep a recording of the run in <out>/recording (engine/recording.py), for "
+                    "tools/rerun.py and the real-card timing; the run is strict, so background people are waited for at each line")
     ap.add_argument("--runs", type=int, default=1, help="(f361) play this many runs one after another, each its own process with the seed counting up from --seed "
                                                         "and the class rotating; --hours is per run. A night left alone (default 1)")
     ap.add_argument("--classes", default="", help="with --runs: the classes to rotate through, comma-separated (default: every class, from --class on)")
@@ -565,6 +567,11 @@ def main() -> None:
         stub.bot = bot
     run.install_console()
     run.install_client()
+    rec = None
+    if args.record:                                                  # (f442) after the run's own hooks, so they are recorded as installed
+        from engine import recording
+        store.save_player(ws.player)                                 # what the run set up in memory (the party, Maren left out) opens the recording
+        rec = recording.Recorder(store, folder=Path(out) / "recording").install(apart=True)   # the bot's reads never change the save
     print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, playing as {persona}, starting as {args.start} ({point.get('text', '')}; "
           f"{began['met']} met, {len(began['situations'])} past situations), with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
           f"stops after {args.hours:g} h" + (f" or {args.turns} turns" if args.turns else "") + ". Ctrl+C stops it early.", flush=True)
@@ -611,6 +618,8 @@ def main() -> None:
             store.save_player(ws.player)
         except Exception:
             pass
+        if rec is not None:
+            rec.close()                                                  # (f442) the recording's last row, then the save is closed
         store.close()
         backfill.drop(store)
         turnlog.write_session_stats()
