@@ -6,12 +6,12 @@ A quest is a plain dict so it saves simply:
 """
 
 import random
-import uuid
 from pathlib import Path
 
 import yaml
 
 from engine import encounters, inventory as inv, items
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 G = yaml.safe_load((ROOT / "data" / "rules" / "guild.yaml").read_text(encoding="utf-8"))
@@ -84,7 +84,7 @@ def plural(name: str) -> str:
 
 def _quest(kind: str, letter: str, title: str, now: int, guild: bool = True, **fields) -> dict:
     coins, xp = reward(letter, guild)
-    q = {"id": uuid.uuid4().hex[:8], "title": title, "kind": kind, "letter": letter, "guild": guild,
+    q = {"id": streams.new_id(8), "title": title, "kind": kind, "letter": letter, "guild": guild,
          "issuer": "guild", "issuer_name": "the guild", "count": 1, "progress": 0, "coins": coins, "xp": xp,
          "deadline": now + G["ranks"][letter]["deadline_days"] * 1440, "posted": now}
     if kind == "missing":

@@ -99,12 +99,29 @@ def kit_of(member_or_speech) -> dict:
 # ---------- what the model is told
 
 def lines(kit: dict) -> list[str]:
-    """The kit as HOW YOU TALK lines: the marked options' texts, in axis order. Unmarked axes say nothing."""
+    """The kit as HOW YOU TALK lines: the marked options' texts, in axis order. Unmarked axes say nothing. (f431) One who never asks
+    is never told elsewhere in their kit to say a thing back as a question."""
     out = []
+    never = never_asks(kit)
     for axis, spec in AXES.items():
         opt = spec["options"].get((kit or {}).get(axis, ""), {})
-        if opt.get("text"):
-            out.append(opt["text"])
+        text = (opt.get("without_questions") if never else "") or opt.get("text")
+        if text:
+            out.append(text)
+    return out
+
+
+def never_asks(kit: dict) -> bool:
+    """(f431) Does this kit forbid asking anything back (the questions axis set to an option checked for no question)?"""
+    opt = AXES.get("questions", {}).get("options", {}).get((kit or {}).get("questions", ""), {})
+    return bool((opt.get("check") or {}).get("no_question"))
+
+
+def drops(kit: dict) -> list[str]:
+    """(f431) Words whose clauses go from the rest of their voice (an accent's habits) because their kit forbids what they say."""
+    out = []
+    for axis, spec in AXES.items():
+        out += spec["options"].get((kit or {}).get(axis, ""), {}).get("drops") or []
     return out
 
 

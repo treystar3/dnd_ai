@@ -1,0 +1,17 @@
+# (f443, tools/card_profile.py) Measured on the card the game is built for (GOALS.md: an RTX 3060, no turn over a minute).
+# Written by the tool from a recording made or re-timed on that card; Stage 3's turn budget reads it. Do not hand-edit numbers.
+card: "RTX 3060 12GB"
+model: "gemma4:12b"
+measured: "2026-11-01"
+source: "night_20261101_0723 (A4000, gemma4:12b, 1.5 h, 204 inputs)"
+scaled_from: "RTX A4000"            # (f444) empty when measured on the card itself; else an estimate from that card
+fits: "10 GB of 12 GB (fits)"
+calls: 1190
+turns: 204
+prompt_tokens_per_second: 756.8
+answer_tokens_per_second: 31.7
+load_seconds: 0.0
+median_turn_seconds: 23.9
+p95_turn_seconds: 60.9
+longest_turn_seconds: 157.5
+turns_over_budget: 12

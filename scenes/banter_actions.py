@@ -150,7 +150,7 @@ class BanterActions:
         speaking = {who for who, _ in merged}
         by_name = {m["name"]: m for m in self.player.party if m.get("permanent")}
         speakers = []
-        for who in speaking:
+        for who in sorted(speaking):                                   # (f439) the same order in every process
             if who == mentor.NAME:
                 speakers.append(f"{who}: an A-rank adventurer travelling with the player")
             elif who in by_name:

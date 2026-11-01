@@ -66,7 +66,11 @@ def _lost_lately(store, world, places: set[str], now: int, days: int) -> str:
         if now - row["minute"] > days * 1440:
             continue
         data = row.get("data") or {}
-        if data.get("place") not in places:
+        if data.get("place") not in places or data.get("mourned") is False:     # (f430) a captive outlaw is not the town's to grieve
+            continue
+        if data.get("dead") is not None:                                         # (f430) the game said whether it was a death
+            if data["dead"]:
+                return row.get("text", "").split(" is gone")[0]
             continue
         how = data.get("how") or ""
         if how and relevance.pick(how, [R["death_reads_as"]], 1):

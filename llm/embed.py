@@ -27,6 +27,9 @@ def available() -> bool:
     """Is the embedding model here and answering? Checked once, then remembered; a failure turns it off for the session."""
     if not getattr(config, "EMBED_ENABLED", True) or _state["failed"]:
         return False
+    from engine import streams
+    if streams.STRICT and "fixed" in _state:
+        return _state["fixed"]                           # (f439) a session that must replay exactly: decided once, never mid-session
     if _state["ok"] is None:
         c = _client()
         if not hasattr(c, "embed"):
@@ -37,6 +40,8 @@ def available() -> bool:
             _state["ok"] = setup_check.model_present(config.EMBED_MODEL)
         except Exception:
             _state["ok"] = False
+    if streams.STRICT:
+        _state["fixed"] = bool(_state["ok"])
     return bool(_state["ok"])
 
 

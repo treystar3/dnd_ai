@@ -135,6 +135,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2      # a retry warms a tuned task only a little
     base, top, tuned = shifted(task, base, top, tuned)
+    said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
     for attempt in range(retries + 1):
         start = time.perf_counter()
         try:
@@ -164,9 +165,12 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
 
         if response.done_reason == "length":
             last_error = LLMError("cut off at the length limit")
-            reason = "the answer was cut off because it was far too long. Keep every field short."
+            reason = cut_off_reason(task, schema, max_tokens)
             _log(task, attempt, elapsed, messages, raw[:2000], reason, usage)
             audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
+            if said and said[-1] == reason:
+                break
+            said.append(reason)
             messages = messages[:2] + [{"role": "user", "content": f"Your last answer was rejected: {reason} Respond again with the complete JSON."}]
             continue
 
@@ -227,13 +231,16 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         _log(task, attempt, elapsed, messages, raw, reason, usage)
         audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
         _debug(f"rejected {task} (attempt {attempt + 1}): {reason[:200]}")
+        if said and said[-1] == reason:         # (f447) told the same thing twice and it answered the same way: a third try is wasted time
+            break
+        said.append(reason)
         messages = messages[:2] + [
             {"role": "assistant", "content": raw},
             {"role": "user", "content": f"That answer was rejected: {reason}\nFix this and respond again with the complete JSON."},
         ]
 
-    _tally(task, False, retries + 1)
-    raise LLMError(f"{task}: no valid response after {retries + 1} attempts") from last_error
+    _tally(task, False, attempt + 1)
+    raise LLMError(f"{task}: no valid response after {attempt + 1} attempts") from last_error
 
 
 def _debug(message: str) -> None:
@@ -285,6 +292,19 @@ def trim_log(path: Path | None = None) -> None:
 
 
 _log_lock = threading.Lock()
+
+
+def cut_off_reason(task: str, schema, max_tokens: int) -> str:
+    """(f433) What an answer cut off at its token ceiling is told on the retry. The owner: "No length limits on the narrator or the
+    speakers" (GOALS.md, f375). The narrator and every speaker write under the runaway ceiling (PROSE_MAX_TOKENS), which no passage that
+    holds what its moment holds comes near, so an answer cut off there went round in circles: it is told that, and never to be short,
+    which was a length limit by the back door. A narrator's task, or any answer someone speaks in (a schema with spoken()), is told the
+    same under a lower ceiling. Only the engine's own structured calls (reading a line, authoring records) are still asked to keep fields
+    short so the JSON closes."""
+    from engine import hygiene
+    if max_tokens >= config.PROSE_MAX_TOKENS or task in hygiene.NARRATOR or hasattr(schema, "spoken"):
+        return "the answer ran on until it was cut off, which means it went round in circles. Say what the moment holds once, then stop."
+    return "the answer was cut off before the JSON was finished. Keep every field short."
 
 
 def _usage(response) -> dict | None:

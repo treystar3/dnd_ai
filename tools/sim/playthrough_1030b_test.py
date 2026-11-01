@@ -101,6 +101,8 @@ road_out = io.StringIO()
 with contextlib.redirect_stdout(road_out):
     ws.road_event([a, b], a, b, 60, 0.3, "I walk on", [], walked=40)
 told = road_out.getvalue()
+from engine import inventory as inv
+lying = [inv.label(i) for i in ws.ground_here()]              # (f427) a find lies at the stop, the player's to pick up
 check("(f408) a road's happening comes in the middle of a journey: where from, where to, how long, before it",
       f"You set out from {world.places[a].name}" in told and told.index("set out") < told.index("A ledger lies"), told[:400])
 check("...and the model is told the journey and who walks with the player", "THE JOURNEY: set out from" in seen.get("user", "")
@@ -151,9 +153,7 @@ from engine import hygiene as _hy
 check("...and the walk is prose the gateway checks, like the scene", "journey" in _hy.PROSE and "scene" in _hy.PROSE)
 ra.R["hostile"] = hostile_was
 ra.generate = real_gen
-new = [i for i in ws.pack if id(i) not in before]
-from engine import inventory as inv
-check("a road find is rolled first and the scene is told what it is", new and inv.label(new[0]) in seen.get("user", ""), (seen.get("user", "")[-300:], [inv.label(i) for i in new]))
+check("a road find is rolled first and the scene is told what it is", lying and lying[0] in found_user, (found_user[-300:], lying))
 asked = []
 ws.narrate = lambda req, text="", *a, **k: asked.append(req)
 ws.quiet_return = lambda *a, **k: False

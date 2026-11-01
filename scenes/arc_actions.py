@@ -761,7 +761,7 @@ class ArcActions:
             entities.move(self.store, e, state, self.minutes, how)
         pr = self.player.prisoners.pop(npc.id, None)
         self.store.save_player(self.player)
-        pulse.remove_npc(self.store, self.world, npc, how, self.minutes)
+        pulse.remove_npc(self.store, self.world, npc, how, self.minutes, dead=state == "executed", mourned=False)   # (f430)
         self.player = self.store.load_player()
         self.residents = [n for n in self.residents if n.id != npc.id]
         self.refresh_present()

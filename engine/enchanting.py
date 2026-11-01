@@ -28,8 +28,8 @@ class Option(BaseModel):
 
 
 def _material_options() -> dict[str, Option]:
-    from world.loader import load_world
-    bestiary = load_world().bestiary
+    from world.loader import authored
+    bestiary = authored().bestiary                                    # (f434) the written world, parsed once a run
     out = {}
     for m in items.MATERIALS.values():
         if not m.drops_from or not (m.any or m.weapon or m.armor or m.weapon_flags or m.armor_flags):

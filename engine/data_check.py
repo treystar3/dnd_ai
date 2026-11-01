@@ -257,6 +257,28 @@ def check() -> list[str]:
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
+    RD_ = _load("data/rules/road.yaml")                                                       # (f427) what stops the walk, and who is there
+    for k_ in RD_.get("stops", []):
+        need(k_ in RD_.get("kinds", {}), f"road.yaml stops: '{k_}' is not a kind of happening (kinds)")
+    need("sight" not in RD_.get("stops", []), "road.yaml stops: a passing sight never stops the walk (the owner, review Q2)")
+    for k_, r_ in (RD_.get("stop_roles") or {}).items():
+        need(r_ in _roles, f"road.yaml stop_roles.{k_}: '{r_}' is not a role")
+    for path_ in (("hazard", "around_words"), ("aid", "help_words")):
+        try:
+            re.compile(RD_[path_[0]][path_[1]])
+        except (KeyError, re.error) as e_:
+            need(False, f"road.yaml {'.'.join(path_)}: {e_}")
+    for t_ in Q.get("in_need", {}).get("kind", []) + Q.get("in_need", {}).get("hard", []):
+        need(t_ in Q.get("blueprints", {}), f"quirks.yaml in_need: '{t_}' is not a temperament")
+    from engine import voices as _vk                                                         # (f431) a blueprint line a kit forbids
+    for t_, lines_ in (Q.get("blueprints") or {}).items():
+        for b_ in lines_:
+            for mark_ in b_.get("not_with_kit", []):
+                ax_, _, op_ = mark_.partition(":")
+                need(op_ in (_vk.AXES.get(ax_, {}).get("options") or {}), f"quirks.yaml blueprints.{t_}: not_with_kit '{mark_}' is no voice kit option")
+    W_ = _load("data/rules/weather.yaml")                                                     # (f430) the season moves the temperature
+    seasons_ = set(_load("data/rules/pulse.yaml")["seasons"]["order"])
+    need(set(W_.get("by_season") or {}) == seasons_, f"weather.yaml by_season: needs exactly the seasons {sorted(seasons_)}")
     from engine import routines as _routines                                                  # (f352) routines by period and kind of place
     bad += _routines.problems(_types, set(_clock.PERIOD_NAMES), _roles)
     from engine import motives as _mo                                                        # (f360) known people's steps, by the trait their goal came from
@@ -398,6 +420,31 @@ def check() -> list[str]:
                 made = {min(_names.syllables(n), max(table)) for n in _names.possible(people, kind)}
                 need(all(n in made for n, w in table.items() if w), f"name_sounds.yaml {people} {kind}: syllables asks for names of "
                      f"{sorted(n for n, w in table.items() if w and n not in made)} syllables, and its sounds cannot make any")
+
+    # ---- (f444) the cards a recording may be timed on
+    for card, spec in ((_load("data/rules/cards.yaml") or {}).get("cards") or {}).items():
+        need(all(isinstance((spec or {}).get(k), (int, float)) and spec[k] > 0 for k in ("bandwidth_gbs", "tflops", "memory_gb")),
+             f"cards.yaml {card}: needs bandwidth_gbs, tflops and memory_gb above 0")
+
+    # ---- (f446) the card profile Stage 3's turn budget reads: whole, and an estimate said to be one
+    prof = ROOT / "data" / "rules" / "card_profile.yaml"
+    if prof.exists():
+        P_ = _load("data/rules/card_profile.yaml") or {}
+        cards_known = set(((_load("data/rules/cards.yaml") or {}).get("cards") or {}))
+        need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
+        need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
+        for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "median_turn_seconds", "longest_turn_seconds"):
+            need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")
+
+    # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
+    from engine import failures as _failures
+    bad += _failures.problems()
+
+    # ---- (f435) what someone said of themselves that the canon check could not be asked about waits, unsettled
+    U = ((_load("data/rules/truth.yaml").get("canon") or {}).get("unsettled") or {})
+    for k in ("cap", "again_per_keep"):
+        need(isinstance(U.get(k), int) and not isinstance(U.get(k), bool) and U.get(k) > 0,
+             f"truth.yaml canon.unsettled.{k}: needs a whole number above 0")
     return bad
 
 

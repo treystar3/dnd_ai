@@ -14,7 +14,6 @@ rare and campaign tiers are the model's. Between pulses the drift (engine/drift.
 """
 
 import random
-import uuid
 from pathlib import Path
 
 import yaml
@@ -24,6 +23,7 @@ from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
 from ui import console
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yaml.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
@@ -326,7 +326,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     if not place:
         return False
     big = tier in events.BIG
-    thread_id = uuid.uuid4().hex[:8]
+    thread_id = streams.new_id(8)
     from engine import threads, truth
     proposal, info = None, None
     engine_made = made_by == "engine" or (not made_by and rule.get("engine"))
@@ -783,12 +783,15 @@ def move_npc(store, npc, place_id: str) -> None:
     store.save_npc(npc)
 
 
-def remove_npc(store, world, npc, how: str, t: int) -> None:
-    """Take someone out of the story - and tie off everything the player had with them."""
+def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mourned: bool | None = None) -> None:
+    """Take someone out of the story - and tie off everything the player had with them. (f430) `dead` says whether it was a death, so
+    a town grieves only for its dead: the f425 night hung black cloth for three captives who had slipped their bonds, the meaning of
+    'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). Left
+    None (a model's own words for it), the words are read for a death as before."""
     npc.gone = how
     npc.work_offer = npc.quest_offer = None
     store.save_npc(npc)
-    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location})
+    store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": dead, "mourned": mourned})
     ps = store.load_place(npc.location)
     ps.residents = [r for r in ps.residents if r != npc.id]
     store.save_place(ps)

@@ -155,18 +155,25 @@ class QuirkActions:
 
     # ---------- deeds ----------
 
-    def deed(self, deed: str) -> None:
+    def need_deed(self, deed: str) -> None:
+        """(f427) Someone in need on the road, walked past or helped: every hire has a view, from their temperament, and someone says so
+        (the owner: "Walking past someone in need should get a hire reaction either positive or negative")."""
+        crew = self.quirk_crew()
+        self.deed(deed, {m["id"]: how for m in crew for how in [quirks.need_stance(m, deed)] if how})
+
+    def deed(self, deed: str, stances: dict | None = None) -> None:
         """The player did something the companions might have a view on. Everyone with a view is affected (bond, memory); who of them says
         so is the director's (engine/party_director.py): often one, sometimes two who see it differently and answer each other, now and then
-        all three. Several speakers are one exchange, one model call."""
+        all three. Several speakers are one exchange, one model call. (f427) `stances` given: who has a view is already decided."""
         from engine import party_director as director
         day = clock.day(self.minutes)
         crew = self.quirk_crew()
         rng = self.quirk_rng(deed + ":react")
-        stances = {m["id"]: how for m in crew for how in [quirks.reaction(m, deed, day, rng)] if how}
+        if stances is None:
+            stances = {m["id"]: how for m in crew for how in [quirks.reaction(m, deed, day, rng)] if how}
         if not stances:
             return
-        text = quirks.Q["deeds"][deed]
+        text = quirks.deed_text(deed)
         plan = director.plan(director.beat_from_deed(text, stances), crew, self.quirk_rng(deed + ":plan"), must_start=False)
         self.last_plan = plan
         speaking = set(plan.speaker_ids)

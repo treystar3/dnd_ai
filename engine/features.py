@@ -23,7 +23,7 @@ KIND_OF: dict[str, str] = {w: k for k, spec in F["kinds"].items() for w in spec[
 PLAIN = set(F["plain"])
 STOP = {"the", "a", "an", "of", "to", "in", "into", "at", "on", "by", "from", "and", "toward", "towards", "back", "over", "through",
         "go", "walk", "head", "move", "darkest", "deepest", "furthest", "far", "pocket", "end", "edge", "threshold", "mouth", "part",
-        "corner", "this", "that", "there", "here", "its", "their", "with", "where", "which", "some", "other"}
+        "corner", "this", "that", "there", "here", "its", "their", "with", "where", "which", "some", "other", "you", "your", "we", "our"}
 DEEPER = re.compile(r"\b(deeper|further|farther|inner|inside|on in|further in|beyond|the back of|explore|explore further|go on|keep going)\b", re.I)
 NATURAL = {"coast", "cave", "ruin", "hollow", "grove", "spring", "shrine", "overlook", "ford", "camp", "wilds", "forest", "swamp", "mine",
            "hills", "mountain", "lake", "river", "marsh", "moor", "wood", "woods", "beach", "valley", "pass", "glade", "barrow", "crypt"}

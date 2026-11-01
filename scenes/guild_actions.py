@@ -399,6 +399,7 @@ class GuildActions:
             self.refuse("You are already looking for someone. Finish or drop that contract first.")
             return
         gid = self.hall_here()
+        q["hall"] = gid                                 # (f432) the hall it was taken at, where it is reported (the missing kind always kept it)
         if not q.get("mentor"):
             board.remove(q)
             state = self.store.load_place(gid)
@@ -492,7 +493,7 @@ class GuildActions:
         """While searching where a bounty's target lives, the target may come to you."""
         for q in self.player.quests:
             if q["kind"] == "bounty" and q["progress"] < 1 and q.get("place") == self.player.location \
-                    and random.random() < G["bounty_draw_chance"]:
+                    and self.rng.random() < G["bounty_draw_chance"]:
                 creature = self.world.bestiary[q["creature"]]
                 level = q.get("scale") or min(self.place.danger[1], creature.levels[1])
                 foe = combat.fighter_from_creature(creature, level, "elite", "e1", f"{creature.name.lower()} (bounty)", "near")

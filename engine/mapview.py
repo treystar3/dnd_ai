@@ -12,7 +12,7 @@ import yaml
 
 from core.paths import BUNDLE
 
-LAYOUT_CACHE: dict[int, dict[str, tuple[float, float]]] = {}
+LAYOUT_CACHE: dict = {}                    # (f434) the one world being played, by its stamp
 SIZE = 1000.0
 SETTLEMENTS = ("city", "town", "village")
 _MAP: dict = {}
@@ -56,7 +56,7 @@ def graph(world) -> dict[str, dict[str, int]]:
 
 def layout(world) -> dict[str, tuple[float, float]]:
     """A place's own x and y if it has them, else a spring layout of the travel graph, scaled into 0..SIZE."""
-    key = id(world)
+    key = getattr(world, "stamp", None) or id(world)          # (f434) this world's own mark: a freed world's id can come round again
     if key in LAYOUT_CACHE:
         return LAYOUT_CACHE[key]
     g = graph(world)
@@ -107,6 +107,7 @@ def layout(world) -> dict[str, tuple[float, float]]:
             out[i] = (float(drawn[i][0]), float(drawn[i][1]))
         else:
             out[i] = (round((pos[i][0] - lo_x) / span * SIZE, 1), round((pos[i][1] - lo_y) / span * SIZE, 1))
+    LAYOUT_CACHE.clear()                                       # (f434) only the world being played is kept, however many saves are opened
     LAYOUT_CACHE[key] = out
     return out
 

@@ -255,8 +255,9 @@ class Bot:
         new = held - self.held_seen
         if new:
             self.stats["contracts_taken"] += len(new)
-            for qid in new:
-                self.hall_of[qid] = self.ws.hall_here() or self.ws.player.location
+            for qid in new:                              # (f432) the contract's own hall: the f425 mage noticed its bear contract in the
+                q = next((x for x in self.ws.player.quests if x["id"] == qid), {})        # Greywood, recorded the Greywood as where to
+                self.hall_of[qid] = q.get("hall") or self.ws.hall_here() or self.nearest_hall()   # report, and waited there 700 turns
         self.held_seen = held
         for th in self.state().get("threads", []):
             if th.get("touched") and th["id"] not in self.seen_threads:
@@ -329,6 +330,9 @@ class Bot:
         need = self.need_step()
         if need:
             return need
+        waiting = self.stop_step()                                        # (f427) what a stop on the road holds for the player
+        if waiting:
+            return waiting
         p = self.place()
         fresh = [n for n in ws.present if n.id not in self.spoken_to]
         if p is not None and p.danger is None and fresh and self.here_for <= 1 and self.rng.random() < self.P["chat"] * 0.35:
@@ -342,6 +346,34 @@ class Bot:
             if step:
                 return step
         return self.idle()
+
+    # ---- (f427) a stop on the road: what waits there is the player's to act on
+    HELP = {"steady": 0.5, "talker": 0.7, "wanderer": 0.6, "hunter": 0.35, "careful": 0.7}
+
+    def stop_step(self) -> tuple[str, dict, str] | None:
+        """A find lying at the stop is mostly picked up, someone in need is helped as often as this kind of player would; each once a
+        stop. Then the goal walks on as before (and a hazard ahead is got past on the way)."""
+        ws, rng = self.ws, self.rng
+        road = ws.player.road
+        if not road or ws.player.location != road.get("id"):
+            return None
+        done = self.__dict__.setdefault("_stop_done", set())
+        ground = ws.ground_here()
+        if ground and (road["id"], "find") not in done:
+            done.add((road["id"], "find"))
+            if rng.random() < 0.8:
+                from engine import inventory as inv
+                name = inv.label(ground[0])
+                self.label("stop:find")
+                return rng.choice([f"I pick up the {name}.", f"I take the {name} with me."]), self.intend("pick_up", item=name), "pick_up"
+        aid = road.get("aid")
+        if aid and not aid.get("helped") and (road["id"], "aid") not in done:
+            done.add((road["id"], "aid"))
+            if rng.random() < self.HELP.get(self.persona, 0.5):
+                self.label("stop:aid")
+                return (f"I go to {aid['name']} and help with what they need.",
+                        self.intend("other", target=aid["who"], summary=f"help {aid['name']}: {aid['need']}"), "improv")
+        return None
 
     # ---- a conversation
     def talk_step(self) -> tuple[str, dict, str]:
@@ -527,8 +559,9 @@ class Bot:
             self.finish(g, "dropped")
             return None
         dest = self.world.places[place]
-        verb = self.rng.choice(["I set out for", "I take the road to", "I head for", "I make for"]) if dest.danger is None and len(hops) > 1 \
-            else self.rng.choice(["I walk over to", "I head to", "I go to"])
+        town = dest.danger is None and (len(hops) > 1 or (not dest.parent and dest.type in ("city", "town", "village")))
+        verb = self.rng.choice(["I set out for", "I take the road to", "I head for", "I make for"]) if town \
+            else self.rng.choice(["I walk over to", "I head to", "I go to"])     # (f432) "I walk over to Parth" read as a person named Parth
         tail = {"work": " to see what work the board has.", "see": ", to see the place.", "retreat": " and get off these roads."}.get(why, "")
         return f"{verb} {dest.name}{tail or '.'}", self.intend("move", destination=place), "move"
 
@@ -889,7 +922,8 @@ class Bot:
         from engine import features
         ws, rng = self.ws, self.rng
         parts = [e for e in features.here(ws.store, ws.player.location) if e.state in ("known",) and e.ref != ws.player.spot]
-        named = features.named_part(self.passage() or "")
+        named = next((n for m in re.finditer(r"\b(?:the|a|an)\s+((?:[a-z'-]+\s+){0,2}[a-z'-]+)", (self.passage() or "").lower())
+                      for n in [features.named_part(m.group(1))] if n), None)        # (f432) a phrase of it, never "the you stand"
         r = rng.random()
         if parts and r < 0.4:
             e = rng.choice(parts)

@@ -139,21 +139,21 @@ class WorkActions:
                     if k["creature"] in m.drops_from:
                         t = tries.setdefault(m.name, [0, 0, chance + bonus])
                         t[1] += 1
-                        if random.random() < chance + bonus:
+                        if self.rng.random() < chance + bonus:
                             t[0] += 1
                             found.append(items.make_raw(m.id))
                 for g in inv.GOODS.values():
                     if k["creature"] in g.drops_from:
                         t = tries.setdefault(g.name, [0, 0, chance + 0.2])
                         t[1] += 1
-                    if k["creature"] in g.drops_from and random.random() < chance + 0.2:
+                    if k["creature"] in g.drops_from and self.rng.random() < chance + 0.2:
                         t[0] += 1
                         meat = inv.make_good(g.id, 1)                                    # one cut per animal (f305)
                         meat.origin = creature.family if creature else ""        # your own hunt: a meal of it carries the beast's gift (Symbiosis)
                         found.append(meat)
             if creature:
-                found += loot.found_materials(creature.category, k.get("level", 1), random, bonus)
-            if self.owns("bone_collector") and random.random() < 0.6:
+                found += loot.found_materials(creature.category, k.get("level", 1), self.rng, bonus)
+            if self.owns("bone_collector") and self.rng.random() < 0.6:
                 found.append(items.make_raw("bone"))
         state.carcasses = []
         self.store.save_place(state)

@@ -86,3 +86,10 @@ guard_lines:
   light: "a watchman or two, no more"
   some:  "the watch about in pairs"
   heavy: "the guard everywhere, armed and bored"
+
+# (f435, engine/canon.py) What someone says about themselves that the canon check could not be asked about (the model did not answer) is
+# never kept as true: it waits, unsettled, and is checked again the next time something about them is kept.
+canon:
+  unsettled:
+    cap: 12                 # how many such claims a person keeps waiting; the oldest go first
+    again_per_keep: 2       # how many are checked again each time something about them is kept

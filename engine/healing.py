@@ -136,7 +136,8 @@ def cast(combat: C.Combat, att: C.Fighter, move, target: C.Fighter | None, rng: 
         combat.log.append(f"{att.name} uses {move.name} on {t.name}: heals {healed}")
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'call', 'calls')} on {move.name}, and {'your' if t is att and att.side == 'player' else C.whose(t)} wounds begin to close")
     att.counters["healed_round"] = combat.round
-    LAST[id(combat)] = (t.id, amount)
+    from engine import combat as _C
+    _C.remember(LAST, _C.fight_key(combat), (t.id, amount))   # (f439) by the fight's own mark
     return amount
 
 

@@ -13,6 +13,7 @@ import random
 from pathlib import Path
 
 import yaml
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 S = yaml.safe_load((ROOT / "data" / "rules" / "stay.yaml").read_text(encoding="utf-8"))
@@ -47,7 +48,7 @@ def tick(ws, narrated: bool = False, rng: random.Random | None = None) -> str:
     ws.__dict__["_stay"] = now
     if not prev or prev["place"] != now["place"] or ws.combat or narrated or getattr(ws, "halted", False):
         return ""
-    rng = rng or random.Random()
+    rng = rng or streams.get("scene")
     L = S["lines"]
     inside = ws.place.type in S.get("indoors", [])
     turn = ws.store.meta.turn

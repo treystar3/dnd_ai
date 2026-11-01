@@ -16,12 +16,19 @@ hostile_max: 0.9
 # every one of them was a find).
 kinds: {find: 30, meeting: 25, sight: 20, hazard: 15, aid: 10}
 
-# How big an event is. Only the tiers listed under interrupt stop the journey and leave the player on the road.
+# How big an event is: what a find gives, what help is worth, how long a hazard holds the player up.
 tiers:
   normal:   {weight: 70}
   uncommon: {weight: 24}
   rare:     {weight: 6}
-interrupt: [rare]
+
+# (f427) What stops the walk. The owner (review Q2): "all road events that something noteworthy happens should be a stop for the
+# player"; "no passing sights shouldn't stop". What the player could act on stops it, whatever its size; a fight always does. Nothing at
+# a stop is settled for the player: a find lies there until they pick it up, a hazard waits for how they get past it, someone in need is
+# helped only if the player helps (and walking past them is seen by the party).
+stops: [find, meeting, hazard, aid]
+# Who is there when the writer names nobody: someone in need, someone met on the way.
+stop_roles: {aid: wanderer, meeting: wanderer}
 
 # Bandits. Roads draw them more than the wilds do, a world event about bandits makes them the ambushers, and a rare
 # ambush may be a camp. Outlaws avoid anyone who far outlevels the road: they judge the odds, and let you pass.
@@ -41,9 +48,13 @@ find:
 hazard:
   delay_minutes: {normal: [30, 90], uncommon: [60, 180], rare: [120, 300]}
   health_loss_pct: {normal: 5, uncommon: 10, rare: 18} # of max health, on a failed check, never lethal
+  # (f427) words that go around the hazard instead of through it: the longest delay, and no risk
+  around_words: "\\b(go(?:ing)? (?:a|the) ?(?:long|other) way|around|round it|detour|another way|the long way|skirt)\\b"
 aid:
-  coins: {normal: [20, 60], uncommon: [60, 180], rare: [200, 500]}   # copper x the road's level
+  coins: {normal: [20, 60], uncommon: [60, 180], rare: [200, 500]}   # copper x the road's level, pressed on the player for their trouble
   reputation: {normal: 1, uncommon: 2, rare: 3}
+  # (f427) what reads as a hand for someone in need, when it is not aimed at them by name (a give or a heal aimed at them always is)
+  help_words: "\\b(help|helps|helping|aid|bandage|bandages|bind|binds|tend|tends|mend|mends|fix|fixes|lift|lifts|carry|carries|free|frees|splint|dress|dresses|heal|heals|right the|push|pull|share|water|feed|escort)\\b"
 danger_effect:                  # what an event may leave on the road itself (percent, days)
   max_value: {normal: 25, uncommon: 40, rare: 60}
   max_days: {normal: 3, uncommon: 7, rare: 14}

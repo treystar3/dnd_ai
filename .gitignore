@@ -5,6 +5,7 @@
 # --- What the game writes while you play: your campaigns and session logs (audit, turns, refusals, model calls) ---
 saves/
 logs/
+recordings/
 *.log
 
 # --- Build output: build_exe.bat and build_installer.bat recreate these ---

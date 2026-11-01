@@ -1,0 +1,22 @@
+{
+ "made": "2026-11-01T07:51:47+00:00",
+ "seed": 39,
+ "steps": 0,
+ "turn": 1,
+ "data": "1e3ffd8dac651b752b167358c88af7603fca02c42a99b721cfeb8f8354e33d56",
+ "model": "gemma4:12b",
+ "version": "0.0.4.1",
+ "commit": "b772bfa4039709f56b7089df950c5f01111d4905",
+ "start": {
+  "kv": "3a38ca88a136f33d80f6624f58350482f386c8c47e37ceae2a5edd78e2739b85",
+  "places": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "npcs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "npc_memory": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "entities": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "all": "1d269b1cba9d32850c859dc0de4590e1aeff4a7dab8b7ae928fab6cc15f102a3"
+ },
+ "embed": false,
+ "backfill": null,
+ "save": "rerun_make_stub_short_new"
+}

@@ -56,7 +56,7 @@ from scenes.part_actions import PartActions
 from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
-from engine import entities, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
+from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
 from engine import inventory as inv
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
@@ -77,6 +77,7 @@ NEGATED = re.compile(r"\b(don'?t|do not|won'?t|will not|can'?t|cannot|not|never|
 UNPAID = re.compile(r"\b(without pay(ing)?|for free|no fee|steal|snatch|forge|by force|force my|swipe)\b")      # (f384) taking it, not joining
 PAST = re.compile(r"\b(paid|gave|yesterday|last (week|night|time)|already|before)\b")                        # "the 2 silver I paid you" is no offer
 from engine.actions import TIME_COST                 # how long each kind of action takes: declared with the action (engine/actions.py)
+from engine import streams
 SEARCH = encounters.E
 
 
@@ -104,7 +105,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.wildlife = None
         self.sneaking, self.queued_buffs, self.fight_text = False, [], ""     # a fight the player starts this turn (f248)
         self.recently_fled = False
-        self.rng = random.Random()
+        self.rng = streams.get("scene")  # (f439) reseeded at every input
+        self.last_failure = ""        # (f437) why the last turn the game could not take was rolled back, for the turn log
         pools.fill_missing(self.player.character)
         from engine import domain_events
         domain_events.journal_everything()
@@ -356,10 +358,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import court, routines
         seed = self.store.meta.seed
         street, cast = self.streets_now()                                                               # (f357)
-        self.present = [n for n in self.residents
+        on_stop = (self.player.road or {}).get("id") == self.player.location         # (f427) whoever the road stopped the player beside is
+        self.present = [n for n in self.residents                                     # there, whatever the hour: no shift or routine on a road
                         if not n.gone                                                                     # (f422) the dead and departed are not here
-                        and clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes and court.visible(self, n)
-                        and not routines.away(self.world, seed, n, self.minutes, cast)]                 # (f352) at the inn this evening, not here
+                        and (on_stop or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
+                             and court.visible(self, n) and not routines.away(self.world, seed, n, self.minutes, cast))]   # (f352)
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
             if n.id in bound and not n.gone and all(p.id != n.id for p in self.present):
@@ -550,7 +553,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Add any people the background job has finished to the scene."""
         if not backfill.pending(store=self.store):
             return
-        if self.player.location in backfill.collect(self.store, self.world, self.catalog):
+        if self.player.location in backfill.collect(self.store, self.world, self.catalog, wait_all=streams.STRICT):   # (f439)
             here = self.store.load_place(self.player.location)
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
             self.refresh_present()
@@ -622,6 +625,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         return out
 
     def run(self) -> None:
+        streams.begin(self.store.meta.seed, self.store.meta.steps, "#start")    # (f439) what happens as the game opens is decided too
         self.ensure_discoveries()
         self.ensure_homes()
         self.ensure_road_place()
@@ -689,27 +693,29 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 rolled = False
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
+                        self.new_input(text)                                # (f439) the dice of this input
                         self.command(text)
                 except LLMError as e:
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
                     rolled = True
-                    console.note("The world seems to hesitate - the model couldn't produce a usable answer. Nothing has changed; try again.")
+                    self.last_failure = str(e) or type(e).__name__
+                    console.note(failures.not_taken(self.rng))           # (f437) in the narrator's words, never the machinery
+                failed = self.last_failure if rolled else ""
                 if self.to_menu:
-                    turnlog.end(rolled, command=self.command_row(text, before, bar))
+                    turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed)
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar))
+                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed)
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
             turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
             stood = self.turn(text)
             if not stood:
-                console.note("The world seems to hesitate - the model couldn't produce a usable answer. "
-                             "Nothing has changed; try again, perhaps worded differently.")
-            turnlog.end(not stood)
+                console.note(failures.not_taken(self.rng))               # (f437) in the narrator's words, never the machinery
+            turnlog.end(not stood, failure="" if stood else self.last_failure)
             self.show_header()
 
     def command_row(self, text: str, before: str, bar) -> dict:
@@ -729,6 +735,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
 
+    def new_input(self, text: str) -> None:
+        """(f439) A new input, a typed line or a pane's command: the campaign counts it, inside the turn's transaction (a turn rolled back
+        takes its count back with it, so the line tried again meets the same dice), and every stream of dice starts again from the seed,
+        that count and the line (engine/streams.py). (A session that must replay exactly, streams.STRICT, takes in the residents made in
+        the background at the input's edge before this, outside the transaction: apply_backfill in run().)"""
+        self.store.meta.steps += 1
+        self.store.save_meta()
+        streams.begin(self.store.meta.seed, self.store.meta.steps, text)
+
     def turn(self, text: str) -> bool:
         """One whole turn as one unit: everything the action and what follows it write is committed together at the end, or, if the model
         fails partway, rolled back together and the game put back as it was before the line was typed. True if the turn stood."""
@@ -737,6 +752,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         shown = turnlog.SHOWN
         try:
             with self.store.transaction():
+                self.new_input(text)                       # (f439) the dice of this input
                 ledger.begin()                             # (f394) the turn's record
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.ran = []
@@ -762,6 +778,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         except LLMError as e:
             console.debug(f"turn rolled back: {e}")
             self.reload_after_rollback()
+            self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             return False
 
     def said_nothing(self, text: str) -> None:
@@ -911,6 +928,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not item:
             worn = equipment.find(c, query, "equipment") or next((i for i in c.equipment.values() if query.strip().lower()
                                                                   in (items.base_of(i).name.lower(), items.base_of(i).slot.replace("_", " "))), None)
+            if worn is None and re.search(r"\b(blade|weapon|steel|arms|sword)\b", query.lower()):
+                worn = c.equipment.get("main_hand")                   # (f429) "I draw my blade" with a mace in hand: the mace
             if worn:                                                  # (f420) already in hand: that is a yes, quietly, never "not carrying"
                 console.note(f"{cap_first(items.display_name(worn))} is already {'in hand' if items.base_of(worn).slot in ('main_hand', 'off_hand') else 'on'}.")
                 return
@@ -1119,8 +1138,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     f"What they have typed now answers it. Read the earlier line and this answer together as one intention, and plan that.")
             plan = self.interpret(text, hint)
             text = f"{asked['text']} - {text}"
+            self._asked_place = asked.get("place", "")         # (f428) a far place the question named: the answer may go there
         else:
             plan = self.interpret(text)
+            self._asked_place = ""
         raw_plan = [a.model_dump(exclude_defaults=True) for a in plan]
         self.pending, self.halted = [], False
         plan = self.repair(text, plan)              # (f333) every repair the scene declares, in its declared order (scenes/plan_repairs.py)
@@ -1145,7 +1166,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.halted = True
                     break
                 self.__dict__.setdefault("ran", []).append(intent.kind)
+                refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
                 getattr(self, f"on_{intent.kind}")(intent, text)
+                if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
+                    self.stop_step(intent, sum(1 for r in ledger.ROWS if r.get("kind") == "refused") > refused_before)
                 if intent.force and intent.kind != "attack":
                     self.after_force(intent, text)
                 if self.pending_beats:
@@ -2080,7 +2104,49 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.refuse(f"There is no {tgt.type} in {here_town}. The nearest is {tgt.name} in "
                              f"{self.world.places[mapview.top_of(self.world, dest)].name}{away}. Say where you want to go to head there.")
                 return
+            if self.far_unnamed(dest, text):
+                return
         self.travel_route(dest, text)
+
+    def far_unnamed(self, dest: str, text: str) -> bool:
+        """(f428, the owner's review Q17) A far place the player's words do not name is never walked to on a guess: "For major cities
+        they need to say it exactly but for places off a road or locations it can ask." A city or town not named is no move, and the
+        ways from here are said; any other far place is asked about. The f425 night: "along the shoreline" walked a party 85 hours to
+        the drowned shore, "along the ridge" toward Windbreak Ridge, "toward the stone steps" to another crypt, "the exit" to the next
+        town - three of four runs, two deaths. True when it answered instead of walking."""
+        I = __import__("engine.candidates", fromlist=["I"]).I
+        if not text.strip() or dest == getattr(self, "_asked_place", ""):
+            return False
+        road = self.player.road or {}
+        if dest in (road.get("bound"), road.get("resume")) or (road.get("id") == self.player.location
+                                                               and dest in self.world.places[road["id"]].connects):
+            return False                                    # walking on from a stop: the way the journey was going
+        found = self.world.path(self.player.location, dest)
+        if not found or found[1] <= I["far_walk_minutes"] or self.names_place(dest, text):
+            return False
+        tgt = self.world.places[dest]
+        away = clock.describe_duration(found[1])
+        if tgt.type in I["say_exactly_types"]:
+            self.refuse(f"Where to? {tgt.name} is {away} from here: name it to set out for it.")
+            return True
+        self.ask_back("far_place", text, f"the words do not name a place; the nearest that might be meant is {tgt.name}, {away} away",
+                      place=dest)
+        return True
+
+    def names_place(self, dest: str, text: str) -> bool:
+        """(f428) Do the player's words name this place by a word of its own: not a word for what kind of place it is ('the shore', 'the
+        ridge', 'the crypt'), which names any of them."""
+        from engine import mapview
+        I = __import__("engine.candidates", fromlist=["I"]).I
+        w = self.world
+        said = set(re.findall(r"[a-z]+", text.lower()))
+        top = w.places.get(mapview.top_of(w, dest))
+        common = set(self.GENERIC_WORDS) | set(I["landform_words"])
+        names = [w.places[dest].name] + ([top.name] if top is not None and top.id != dest else [])
+        own = {t for n in names for t in re.findall(r"[a-z]+", n.lower()) if len(t) > 3 and t not in common}
+        if not own:                                         # a name made only of common words names itself whole
+            own = {t for n in names for t in re.findall(r"[a-z]+", n.lower()) if len(t) > 3}
+        return bool(own & said)
 
     def travel_route(self, dest: str, text: str, already: int = 0, events: int = 0) -> None:
         """Walk the quickest way to dest. `already` is time already spent on the way (a fork's shared stretch), taken off the walk."""
@@ -2122,6 +2188,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         walk, fatigue_factor = self.take_haste(walk)
         fatigue_factor *= self.take_swift(walk)
         self.travel_fatigue(walk, fatigue_factor)
+        self.leaving_stop(route, text)                      # (f427) the hazard ahead got past, and anyone in need walked past, seen
         self.end_conversation()
         self.last_spoken = None
         console.debug(f"walking {walk} minutes: {' -> '.join(route)}")

@@ -8,6 +8,7 @@ import random
 from pathlib import Path
 
 import yaml
+from engine import streams
 
 L = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "law.yaml").read_text(encoding="utf-8"))
 T, N, H, FB = L["theft"], L["notice"], L["heat"], L["fight_back"]
@@ -88,7 +89,7 @@ def attempt(zone: int, dexterity: int, bonus_pct: float, item_value: int, owner_
     if out["hopeless"]:
         out.update(roll=0, degree="failure")
         return out
-    roll = (rng or random).randint(1, W)
+    roll = (rng or streams.get("checks")).randint(1, W)
     out["roll"] = roll
     out["degree"] = degree_for((roll * mult + my - bar) * 100 / W)
     return out
@@ -123,7 +124,7 @@ def notice_chance(degree: str, role: str, is_target: bool = False, assault: bool
 
 
 def notices(degree: str, role: str, is_target: bool = False, assault: bool = False, rng: random.Random | None = None) -> bool:
-    return (rng or random).uniform(0, 100) < notice_chance(degree, role, is_target, assault)
+    return (rng or streams.get("checks")).uniform(0, 100) < notice_chance(degree, role, is_target, assault)
 
 
 # ---------- heat ----------
@@ -177,4 +178,4 @@ def price_factor(heat: int) -> float:
 
 def fights_back(role: str, traits: list[str], rng: random.Random | None = None) -> bool:
     chance = FB["base"] + (FB["armed_bonus"] if role in FB["armed_roles"] else 0) + sum(FB["traits"].get(t, 0) for t in traits)
-    return (rng or random).uniform(0, 100) < max(0, min(100, chance))
+    return (rng or streams.get("checks")).uniform(0, 100) < max(0, min(100, chance))

@@ -302,7 +302,7 @@ class PassiveHooks:
             self.study_overnight()
         if self.owns("patrons_gift") and day - c.patron_gift_day >= 7:
             from engine import loot
-            rng = random.Random()
+            rng = self.rng
             item = loot.make_drop(max(1, c.level), rng.choice(["uncommon", "uncommon", "rare"]), rng, loot.keeps_companions(c))
             c.patron_gift_day = day
             self.to_pack(item)

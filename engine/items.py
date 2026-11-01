@@ -5,7 +5,6 @@ The engine computes all numbers. The model may name and describe special items, 
 """
 
 import random
-import uuid
 from pathlib import Path
 from typing import Literal
 
@@ -14,6 +13,7 @@ from pydantic import BaseModel
 
 from core.models import Item
 from core.rules import ATTRIBUTES, STATS, TRIGGERS
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent / "data"
 RULES = yaml.safe_load((ROOT / "rules" / "equipment.yaml").read_text(encoding="utf-8"))
@@ -217,13 +217,13 @@ def make(base_id: str, rarity: str = "common", item_level: int = 1, name: str = 
     label = b.label or b.name
     default = " ".join(x for x in [rarity if rarity == "crude" else "", mat.name if mat else "", label,
                                    f"with {GEMS[gem].name}" if gem else ""] if x)
-    return Item(uid=uuid.uuid4().hex[:10], base=base_id, name=name or (default if mat or gem else b.name if rarity != "crude" else f"crude {b.name}"),
+    return Item(uid=streams.new_id(10), base=base_id, name=name or (default if mat or gem else b.name if rarity != "crude" else f"crude {b.name}"),
                 rarity=rarity, item_level=max(1, item_level), material=material, gem=gem, description=description)
 
 
 def make_raw(material_id: str) -> Item:
     m = MATERIALS[material_id]
-    return Item(uid=uuid.uuid4().hex[:10], base="raw_material", name=f"raw {m.name}", rarity="common",
+    return Item(uid=streams.new_id(10), base="raw_material", name=f"raw {m.name}", rarity="common",
                 item_level=m.levels[0], material=material_id)
 
 

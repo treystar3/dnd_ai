@@ -98,6 +98,19 @@ deeds:
   inn:        "spending the night at an inn instead of under the sky"
   charity:    "giving coin or goods away for nothing"
   gambling:   "gambling coin on dice and cards"
+# (f427) Someone in need on the road. The owner: "Walking past someone in need should get a hire reaction either positive or negative".
+# Not a like or dislike rolled for a few: every hire has a view, from their first temperament. The kind find walking past hard to watch
+# and helping good to see; the hard think walking on is sense, and let a kindness go without a word. They react every time it happens;
+# what it does to the bond wears in as it does for any deed (habituation.bond_share).
+in_need:
+  deeds:
+    pass_by:   "walking past someone on the road who needed help"
+    road_help: "stopping on the road to help someone in need"
+  acts:
+    pass_by:   "walk past someone who needed help"
+    road_help: "stop to help someone in need"
+  kind: [gentle, cheerful, devout, proud]
+  hard: [blunt, mercenary, wary, dry]
 approve_bond: 2
 disapprove_bond: -2
 reaction_once_per_day: true
@@ -312,11 +325,11 @@ blueprints:
   cheerful:
     - {say: "Notices the good part of a bad situation and says so."}
     - {say: "Jokes when tension rises, to ease it rather than to wound."}
-    - {say: "Asks how people are doing and means it."}
+    - {say: "Asks how people are doing and means it.", not_with_kit: [questions:never]}
     - {say: "Lets a bad moment pass quickly rather than dwelling on it."}
   wary:
     - {say: "Answers questions with as little as will do.", not_with: [questions]}
-    - {say: "Asks a question back before giving anything away.", not_with: [one_sentence]}
+    - {say: "Asks a question back before giving anything away.", not_with: [one_sentence], not_with_kit: [questions:never]}
     - {say: "Notices small changes in tone and comments on each."}
     - {say: "Never volunteers anything about their own past."}
   proud:
@@ -326,7 +339,7 @@ blueprints:
     - {say: "Takes credit plainly when it is due, without boasting."}
   gentle:
     - {say: "Notices when someone is hurt or tired before they say so."}
-    - {say: "Asks before touching or helping, then helps anyway."}
+    - {say: "Asks before touching or helping, then helps anyway.", not_with_kit: [questions:never]}
     - {say: "Says kind things without making a moment of it."}
     - {say: "Lets silences sit instead of filling them."}
   mercenary:

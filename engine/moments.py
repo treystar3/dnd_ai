@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from ui import console
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 M = yaml.safe_load((ROOT / "data" / "rules" / "moments.yaml").read_text(encoding="utf-8"))
@@ -158,7 +159,7 @@ def start(ws, shape: dict, rng: random.Random | None = None, use_model: bool = T
     """Begin a moment of this shape here now: the model's moment (or the written one), the record on the place, the visitor made, the
     people's doings and mood, the mishap on the player, and the moment added to what this playthrough has seen."""
     from engine import pools
-    rng = rng or random.Random()
+    rng = rng or streams.get("scene")
     pid = ws.player.location
     st = ws.store.load_place(pid)
     now = ws.minutes

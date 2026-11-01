@@ -231,10 +231,13 @@ def accent(member: dict) -> str:
     fl = sp.get("fluency", "native")
     if not t or fl == "native" or not t.get("habits"):
         return ""
+    from engine import voices
+    gone = voices.drops(voices.kit_of(member))                      # (f431) one who never asks is not told to check they were understood
+    habits = "; ".join(c for c in t["habits"].split("; ") if not any(w in c for w in gone)) if gone else t["habits"]
     if fl == "learner":
-        return (f"Their Common, in every line and the same each time (it is how they talk, not a flourish): {t['habits']}. "
+        return (f"Their Common, in every line and the same each time (it is how they talk, not a flourish): {habits}. "
                 "Never broken, never comic.")
-    return f"Their Common is good, with a light touch of home in most lines, the same each time: {t['habits']}. Never broken, never comic."
+    return f"Their Common is good, with a light touch of home in most lines, the same each time: {habits}. Never broken, never comic."
 
 
 def tell_for(member: dict, emotion: str) -> str:

@@ -21,5 +21,16 @@ always_if_short: 4
 # Words that name nothing on their own: a place is named by its other words ("the Blackpine inn" by "blackpine", not "inn")
 generic_words: [the, of, and, hall, house, guild, guildhall, inn, shop, temple, forge, smithy, market, square, tavern, workshop, yard, trading,
                 village, town, city, road, gate, north, south, east, west]
+# (f428, the owner's review Q17) A far place the words do not name is never walked to on a guess: "For major cities they need to say it
+# exactly but for places off a road or locations it can ask." Far is a walk longer than far_walk_minutes (where road events begin). A
+# city or town (major towns, as the map types them) must be named; any other far place is asked about. A word for a kind of place names
+# none of them in particular: "the shore" is not the drowned shore, "the ridge" is not Windbreak Ridge.
+far_walk_minutes: 180
+say_exactly_types: [city, town]
+landform_words: [shore, shores, shoreline, coast, beach, ridge, ridges, crypt, crypts, cave, caves, cavern, hills, hill, forest, wood,
+                 woods, marsh, marshes, fens, fen, fields, field, ruins, ruin, barrow, barrows, pass, peak, peaks, falls, lake, river,
+                 deeps, shoals, wetland, wetlands, steps, stair, stairs, sepulchre, tomb, tombs, vault, vaults, mine, mines, delve, warren,
+                 lair, grove, glade, valley, vale, moor, moors, heath, waste, wastes, badlands, plains, downs, cliffs, cliff, bluff, ford,
+                 bridge, trail, track, path, beneath, under, deep, exit, door, doors, gate, gates, there, back, home, onward, ahead]
 # When the words name a town, which of its places come in with it (the ones a traveller would mean by the town's name)
 named_town_types: [city, town, village, guild, inn, market, square, shop, temple, smithy, yard]

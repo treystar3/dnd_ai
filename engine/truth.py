@@ -549,13 +549,13 @@ def _player(scene: Scene):
     return out
 
 
-_WORLD_WORDS: dict[int, frozenset] = {}
+_WORLD_WORDS: dict = {}
 
 
 def world_words(world) -> frozenset:
     """(f323) The words of every name the world itself has - places, regions, peoples, the world's name - for checking what the pulse's
     writers say when no scene is standing. Cached per world."""
-    key = id(world)
+    key = getattr(world, "stamp", None) or id(world)          # (f439) this world's own mark, as f434's caches
     if key not in _WORLD_WORDS:
         from engine import mentor
         names = {p.name for p in world.places.values()} | {r.name for r in world.regions.values()} | {p.name for p in world.peoples.values()}

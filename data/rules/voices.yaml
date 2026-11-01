@@ -19,7 +19,8 @@ axes:
   questions:                   # whether they want anything back
     weight: 3
     options:
-      never: {weight: 30, text: "never asks the stranger anything back, not one question; what the stranger wants is the stranger's own business", check: {no_question: true}}
+      never: {weight: 30, text: "never asks the stranger anything back, not one question; what the stranger wants is the stranger's own business", check: {no_question: true},
+              drops: [understood]}       # (f431) what else of their voice would ask: an accent's "checks they were understood" goes
       after: {weight: 25, text: "now and then, not every time, answers and then wants to know something in return: who the stranger is, where from, what for"}   # (f385) a hire asked back after nearly every reply
       first: {weight: 15, text: "now and then, not every time, wants to know what the asking is for before they give an answer"}
       none:  {weight: 60, text: ""}
@@ -27,7 +28,10 @@ axes:
     weight: 2
     options:
       matter: {weight: 40, text: "starts on the matter itself, never on a sound or a filler word", check: {no_stock_opener: true}}
-      echo:   {weight: 15, text: "now and then, not every time, repeats the gist of a question back before answering it, flat or as a question"}
+      echo:   {weight: 15, text: "now and then, not every time, when asked a real question, repeats a word or two of it back before answering, flat or as a question; never an order or a plan said back",
+               without_questions: "now and then, not every time, when asked a real question, repeats a word or two of it back, flat, before answering; never an order or a plan said back"}
+      # (f431) echo was "the gist of a question back": hires said every order back ("You want us to travel to the Tilted Plough. I
+      # shall go where you decide."), and one who never asks was told both to ask and never to: 13 replies sent back in an hour.
       hands:  {weight: 15, text: "now and then, not every time, names what is in their hands or what they were doing before they answer"}
       none:   {weight: 65, text: ""}
   contractions:

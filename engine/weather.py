@@ -35,7 +35,8 @@ def condition(seed: int, minutes: int) -> dict:
 
 def temperature(seed: int, minutes: int) -> str:
     temps = RULES["temperatures"]
-    step = RULES["by_period"][clock.period(minutes)] + condition(seed, minutes)["temperature_shift"]
+    step = RULES["by_period"][clock.period(minutes)] + condition(seed, minutes)["temperature_shift"] + \
+        (RULES.get("by_season") or {}).get(clock.season(minutes), 0)                 # (f430) the season counts
     return temps[max(0, min(len(temps) - 1, step))]
 
 

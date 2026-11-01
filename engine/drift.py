@@ -78,17 +78,28 @@ def one_pass(store, world, state: dict, t: int, rng: random.Random, deltas: dict
 
 # ---------- people: feelings ease, moods fade, motives return
 
+def next_people(store, state: dict, size: int) -> list[str]:
+    """(f436) The next `size` people in the round robin, by id after the last one looked at (state drift_cursor), wrapping to the start
+    for the rest, no one twice in a pass. Before this, every pass read every id in the save to take forty of them, so the cost grew with
+    the campaign; now a pass reads only its page. An old save's cursor was a position (a number): it starts again from the beginning."""
+    after = state.get("drift_cursor")
+    after = after if isinstance(after, str) else ""
+    chunk = store.npc_ids_after(after, size)
+    if len(chunk) < size and after:
+        chunk = chunk + [i for i in store.npc_ids_after("", size - len(chunk)) if i not in chunk and i <= after]
+    if chunk:
+        state["drift_cursor"] = chunk[-1]
+    return chunk
+
+
 def people(store, world, state: dict, t: int, rng: random.Random) -> str:
     """A chunk of the living, round robin: relations nobody has stirred ease by the days gone, moods past their time clear, and a person
     whose motive ended may take up another."""
     D = rules()
     size = D.get("people_per_pass", 40)
-    ids = [r.id for r in store.npc_rows(gone=False)]
-    if not ids:
+    chunk = next_people(store, state, size)
+    if not chunk:
         return ""
-    start = state.get("drift_cursor", 0) % len(ids)
-    chunk = (ids + ids)[start:start + size][:len(ids)]
-    state["drift_cursor"] = (start + size) % len(ids)
     R, M, V = D.get("relations", {}), D.get("moods", {}), D.get("motives", {})
     settle, per_day = R.get("settle_after_days", 7) * 1440, R.get("per_day", 1.0)
     eased = faded = moved = ended = 0

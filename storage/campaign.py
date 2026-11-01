@@ -42,6 +42,7 @@ class CampaignMeta(BaseModel):
     turn: int = 0
     minutes: int = 0
     created: str
+    steps: int = 0          # (f439) inputs taken in this campaign: with the seed and the line typed, what every turn's dice start from
 
 
 class PlaceState(BaseModel):
@@ -101,6 +102,7 @@ class PlayerState(BaseModel):
     field: dict = {}               # field-ability state (scenes/field_actions.py): cd, camp, haste, edge, shadow, scouted, lit, shows
     heat: dict[str, dict] = {}     # how wanted you are, by town id: {"heat", "day"} (engine/law.py)
     standing: dict[str, dict] = {}   # how the groups of each town regard you, hidden: town -> group -> [value, day] (engine/standing.py)
+    standing_told: dict[str, dict] = {}   # (f431) the word last said for each: town -> group -> word, so it is said again only when it changes
     orenna: dict = {}                    # progress of the quest Orenna (engine/orenna.py)
     mentor: dict = {}                    # progress of the mentor's first contract (engine/mentor.py)
     trial: dict = {}                     # the trial of rank (scenes/trial_actions.py): pending rank, examiner, tries, wait_until, told_day
@@ -591,6 +593,13 @@ class CampaignStore:
                 d[b] = bool(d[b])
             out.append(NPCRow(**d))
         return out
+
+    def npc_ids_after(self, after: str, limit: int) -> list[str]:
+        """(f436) The ids of up to `limit` people still in the story whose id comes after `after`, in id order: one page of a round robin
+        over everyone, read along the primary key, so its cost is the page and not the save."""
+        with self._lock:
+            return [r[0] for r in self._db.execute("SELECT id FROM npcs WHERE gone = '' AND id > ? ORDER BY id LIMIT ?",
+                                                   (after or "", max(0, int(limit))))]
 
     def npc_names(self) -> list[str]:
         with self._lock:

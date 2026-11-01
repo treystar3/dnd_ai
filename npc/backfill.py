@@ -50,8 +50,10 @@ def start(store, world, catalog, place_id: str) -> bool:
     return True
 
 
-def collect(store, world, catalog, wait_for: str | None = None) -> list[str]:
-    """Apply every finished job of this save (and wait for the one on wait_for). Returns the places that gained people."""
+def collect(store, world, catalog, wait_for: str | None = None, wait_all: bool = False) -> list[str]:
+    """Apply every finished job of this save (and wait for the one on wait_for, or, with wait_all, for every one: (f439) a session that
+    must replay exactly takes its background people in at an input's edge, never whenever a thread finishes). Returns the places that
+    gained people."""
     from npc import life
     gained = []
     mine = _save(store)
@@ -62,7 +64,7 @@ def collect(store, world, catalog, wait_for: str | None = None) -> list[str]:
         job = _jobs.get(key)
         if job is None:
             continue
-        if pid == wait_for:
+        if pid == wait_for or wait_all:
             job["done"].wait()
         if not job["done"].is_set():
             continue

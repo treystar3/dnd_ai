@@ -96,6 +96,15 @@ STOP = {"the", "and", "what", "from", "can", "take", "taken", "look", "looking",
         "there", "here", "then", "them", "his", "her", "its", "player", "their", "some", "much", "will", "would", "could"}
 
 
+# (f429) a thing handed over for coin, or held out to be looked at; and the words that make it a gift after all
+SELLING = re.compile(r"\b(how much|what (?:will|would|could|can) (?:you|he|she|they) (?:give|pay|offer)|for (?:some |a little |a few )?coins?\b|"
+                     r"in exchange for (?:some |a little |a few )?(?:coin|money|silver|gold|copper)|(?:want|need|get|ask) (?:some )?coin|"
+                     r"pay me|sell (?:it|this|them|him|her)|(?:buy|take) (?:it|this|them) off me|what (?:is|'s) it worth|for a price)", re.I)
+SHOWING = re.compile(r"\b(to see what (?:he|she|they) (?:thinks?|makes?)|what (?:do|does) (?:you|he|she|they) (?:think|make) of|take a look|have a look|"
+                     r"look (?:it )?over|to look at|appraise|for (?:his|her|their) (?:opinion|eye))", re.I)
+GIFTING = re.compile(r"\b(keep it|keep them|it'?s yours|they'?re yours|a gift|as a gift|for free|no charge|as thanks|in thanks)\b", re.I)
+
+
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower())).strip()
 
@@ -110,6 +119,7 @@ class PlanRepairs:
         Repair("one_goodbye", 70, "one_goodbye", "a talk and a leave_conversation to the one they were speaking with is one parting"),
         Repair("quiet_parting", 80, "quiet_parting", "a parting narrated as speech ('I turn away') is not words said"),
         Repair("talk_to_deed", 90, "talk_to_deed", "a talk that is a hand of cards, a price beaten down, a lesson asked for or a job taken is that deed"),
+        Repair("give_for_coin", 95, "give_for_coin", "a thing handed over for coin is a sale, and one held out to be looked at is shown: never a gift (f429)"),
         Repair("use_to_ability", 100, "use_to_ability", "an ability named as if it were an item in the pack is the ability"),
         Repair("move_elsewhere", 110, "move_elsewhere", "out of a delve is leave_dungeon; a roof is a climb (other); upstairs or the bar is look"),
         Repair("fishing", 120, "fishing", "fishing is one attempt where they stand, not a hunt for fish or a journey to the water"),
@@ -235,6 +245,22 @@ class PlanRepairs:
         for a in plan:                                                # an 'other' that is a small rite is a prayer, anywhere
             if a.kind == "other" and PRAYING.search(f"{a.summary} {low}".lower()) and not question:
                 a.kind = "pray"
+
+    def give_for_coin(self, text: str, plan: list) -> None:
+        """(f429) The f425 night gave four things away that the player meant to sell or show: "I hand over my ash longbow and ask the
+        clerk how much he'll give me for it", "offer him my wool hood in exchange for some coin", "offer him my boar hide cap to see what
+        he thinks of it". A give of a thing (never coin) whose line asks for coin is a sale; one held out to be looked at is a show.
+        Words that make it a gift ("keep it", "it's yours") leave it a gift."""
+        low = text.lower()
+        if GIFTING.search(low):
+            return
+        for a in plan:
+            if a.kind != "give" or not a.item or self.coin_word(a.item):
+                continue
+            if SELLING.search(low):
+                a.kind = "sell"
+            elif SHOWING.search(low):
+                a.kind = "show"
 
     def ware_named(self, low: str, seller) -> str:
         """The id of the seller's ware the line names ("the room"), '' when none or several."""

@@ -365,6 +365,22 @@
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
   plan: [{kind: talk, target: s1, speech: "Will you give me a fair price for this?"}, {kind: sell, target: s1, item: longsword}]
   expect: {handled_by: interpret, kinds: [sell, talk], first: {target: s1}}
+# (f429) a thing handed over for coin is a sale, one held out to be looked at is shown: the f425 night gave four things away
+- name: handing_over_for_coin_is_a_sale
+  text: "I hand over my longsword and ask the smith how much he'll give me for it."
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
+  plan: [{kind: give, target: s1, item: longsword}, {kind: talk, target: s1, speech: "How much will you give me for it?"}]
+  expect: {handled_by: interpret, kinds: [sell, talk], first: {target: s1}}
+- name: offering_for_a_look_is_showing
+  text: "I offer Odo my longsword to see what he thinks of it."
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
+  plan: [{kind: give, target: s1, item: longsword}]
+  expect: {handled_by: interpret, kinds: [show]}
+- name: a_gift_said_so_stays_a_gift
+  text: "I give Odo my longsword. Keep it, it's yours."
+  scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}], pack: [longsword]}
+  plan: [{kind: give, target: s1, item: longsword}]
+  expect: {handled_by: interpret, kinds: [give]}
 - name: a_word_then_a_walk_keeps_its_order
   text: "I tell Odo I'll be back, and walk to the inn"
   scene: {place: trading_square, present: [{id: s1, name: Odo, role: smith}]}
