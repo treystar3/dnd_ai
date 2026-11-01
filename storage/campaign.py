@@ -593,6 +593,13 @@ class CampaignStore:
             out.append(NPCRow(**d))
         return out
 
+    def npc_ids_after(self, after: str, limit: int) -> list[str]:
+        """(f436) The ids of up to `limit` people still in the story whose id comes after `after`, in id order: one page of a round robin
+        over everyone, read along the primary key, so its cost is the page and not the save."""
+        with self._lock:
+            return [r[0] for r in self._db.execute("SELECT id FROM npcs WHERE gone = '' AND id > ? ORDER BY id LIMIT ?",
+                                                   (after or "", max(0, int(limit))))]
+
     def npc_names(self) -> list[str]:
         with self._lock:
             return [r[0] for r in self._db.execute("SELECT name FROM npcs ORDER BY id")]
