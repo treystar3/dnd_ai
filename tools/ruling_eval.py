@@ -42,19 +42,18 @@ class Bench:
             setattr(uc, f, lambda *a, **k: None)
         config.AUDIT_ENABLED = False
         config.REFUSALS_LOG = False
+        from engine.session import CampaignSession
         from npc.traits import load_traits
-        from scenes.world import WorldScene
-        from storage.campaign import CampaignStore, PlayerState
-        from world.loader import load_world
+        from storage.campaign import PlayerState
         self.save = save
         shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
-        self.world = load_world()
-        self.store = CampaignStore.open_or_create(save)
+        self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
+        self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = 4; self.store.meta.minutes = 720; self.store.save_meta()
         char, _ = simlib.make_character("warrior", random.Random(1))
         char.level = 10
         self.store.save_player(PlayerState(character=char, location="trading_square"))
-        self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
+        self.ws = self.session.scene(load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
 
     def put(self, case: dict) -> None:
@@ -82,7 +81,7 @@ class Bench:
         return r, ("yes" if ruling.verdict(self.ws, r)["ok"] else "no")
 
     def close(self) -> None:
-        self.store.close()
+        self.session.close()
         shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
 
 
