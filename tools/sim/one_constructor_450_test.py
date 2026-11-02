@@ -3,7 +3,9 @@ files (a store, a world, a character, a WorldScene), and eight tools did the sam
 runtime, and a change to the runtime's shape (the rebuild's Bundle B) is an edit to every one of them. simlib.campaign() is the one way
 now, and this ratchet counts the files under tools/ that still build a WorldScene or parse the world themselves: a new one fails it, and a
 file moved onto the helper must be taken off the count, so the list never silently stops shrinking (the shape of fresh_world_434_test's
-fence). Bundle B's f457 moves the tools; the tests move as they are touched."""
+fence). (f457) Every tool that plays opens its campaign through the session (engine/session.py): none builds a WorldScene, and the seven
+that still parse the world (balance, calibrate_families, draft_towns, interp_corpus, page_measures, tune, tune_classes) read it for data
+work, not for play. The tests move as they are touched."""
 import ast, pathlib, sys
 sys.path.insert(0, ".")
 
