@@ -55,7 +55,8 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
         ("names.CAST", lambda: names.set_cast({}), lambda: not names.CAST, lambda: repr(dict(names.CAST))),
         ("enchanting.DISCOUNT", lambda: enchanting.DISCOUNT.update(percent=0), lambda: not enchanting.DISCOUNT.get("percent"),
          lambda: repr(dict(enchanting.DISCOUNT))),
-        ("pulse.LAST", lambda: pulse.LAST.update(made_by=""), lambda: not pulse.LAST.get("made_by"), lambda: repr(dict(pulse.LAST))),
+        ("pulse.LAST", lambda: pulse.LAST.update(made_by="", attempted=""), lambda: not (pulse.LAST.get("made_by") or pulse.LAST.get("attempted")),
+         lambda: repr(dict(pulse.LAST))),
         ("failures._last", lambda: failures._last.clear(), lambda: not failures._last, lambda: repr(dict(failures._last))),
         ("questions._last", lambda: setattr(questions, "_last", ""), lambda: not questions._last, lambda: repr(questions._last)),   # (f460)
         ("operation.CURRENT", operation.reset, lambda: operation.CURRENT is None, lambda: repr(operation.CURRENT)),              # (f462)

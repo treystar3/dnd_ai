@@ -119,7 +119,8 @@ class Reactions:
         row = dict(row)
         deed = deeds.log(self.ws.store, row.pop("kind"), e.minute, e.place or self.ws.player.location, **row)
         if deed["kind"] in AFTER_DEED:
-            events.after_deed(self.ws, deed)
+            events.after_deed(self.ws, deed)              # legacy (f466): the judge's model call (engine/events.py judge) runs inside the action's
+                                                          # operation, capped by events.yaml; f470's ratchet counts it, a later stage moves it
 
     # ---- who remembers
 

@@ -41,8 +41,8 @@ stub.plan = [{"kind": "look"}]
 shown.clear()
 stood = ws.turn("I look around.")
 kinds = [o["kind"] for o in ops_of_input()]
-check("a single-step line is four operations: the reading with its first action, its passage (f464), the pulse, the tail",
-      stood is True and kinds == ["line", "passage", "pulse", "tail"], (stood, kinds))
+check("a single-step line is six operations: the reading with its first action, its passage (f464), then the world's own (f466): the world, the arrival, the law, the tail",
+      stood is True and kinds == ["line", "passage", "world", "arrival", "law", "tail"], (stood, kinds))
 check("...the ones the scene kept, none failed", [o.kind for o in ws.line_ops] == kinds and not ws.line_failed and ws.line_done == ["look"], ws.line_done)
 check("...the input's count was saved by the first operation that stood", json.loads(store._kv_text("campaign"))["steps"] == store.meta.steps)
 check("...everything shown was released and marked shown", store.unshown() == {} and any(k == "narrate" for k, t in shown), shown[:3])
@@ -88,8 +88,8 @@ stub.plan = [{"kind": "look"}, {"kind": "wait"}]
 shown.clear()
 stood = ws.turn("I look around, then wait a while.")
 kinds = [o["kind"] for o in ops_of_input()]
-check("a line whose second step fails stands in part: the first action, the passage, the pulse and the tail commit; the second action does not",
-      stood == "part" and kinds == ["line", "passage", "pulse", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_done == ["look"],
+check("a line whose second step fails stands in part: the first action, the passage and the world's operations commit; the second action does not",
+      stood == "part" and kinds == ["line", "passage", "world", "arrival", "law", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_done == ["look"],
       (stood, kinds, [o.kind for o in ws.line_failed], ws.line_done))
 check("...the passage tells what stood", any(k == "narrate" for k, t in shown), shown[:3])
 check("...and no row of the failed step remains", not any(r.get("op") == ws.line_failed[0].id for r in ledger.LAST))
@@ -165,7 +165,7 @@ stub.plan = [{"kind": "look"}]
 wr.run()
 r.close()
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
-check("a recording keeps each input's operations: ids, kinds and rows", turns and [o["kind"] for o in turns[0]["operations"]] == ["line", "passage", "pulse", "tail"]
+check("a recording keeps each input's operations: ids, kinds and rows", turns and [o["kind"] for o in turns[0]["operations"]] == ["line", "passage", "world", "arrival", "law", "tail"]
       and all(len(o["id"]) == 12 and "rows" in o for o in turns[0]["operations"]), turns[0].get("operations"))
 out = subprocess.run([sys.executable, "tools/rerun.py", str(OUT)], capture_output=True, text=True, timeout=600)
 last = (out.stdout.strip().splitlines() or [""])[-1]

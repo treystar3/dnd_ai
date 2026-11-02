@@ -236,12 +236,14 @@ def catch_up(store, world, catalog, now: int) -> dict:
         slot_chance = P["interval_hours"] / (events.E["campaign"]["every_days"] * 24)
         if not state.get("campaign") and rng.random() < slot_chance and budget > 0:
             done = False
+            LAST["attempted"] = ""
             if events.cataclysm_due(state, t, events.player_level(store), rng):
                 done = events.start_cataclysm(store, world, catalog, state, t, rng)
             if not done:
                 done = start_thread(store, world, catalog, state, t, rng, tier="campaign")
-            if done:
+            if done or LAST["attempted"] == "model":                   # (f466) a call made is spent, whatever came of it (survey 12.16)
                 budget -= 1
+            if done:
                 changed = True
             continue
         if rng.random() >= P["eventful_chance"]:
@@ -252,18 +254,19 @@ def catch_up(store, world, catalog, now: int) -> dict:
             engine_made = bool(motives.M.get("engine", True))
             if (budget <= 0 and not engine_made) or (engine_budget <= 0 and engine_made):
                 continue
+            LAST["attempted"] = ""
             done = move_motive(store, world, catalog, state, t, rng)
-            if done and engine_made:
+            if LAST["attempted"] == "model":                           # (f466) the cap counts the calls made, not the situations that came of them:
+                budget -= 1                                            # a model that fails every try is tried twice an operation, not once a pulse
+            elif done and engine_made:
                 engine_budget -= 1
-            elif done:
-                budget -= 1
         else:
-            LAST["made_by"] = ""
+            LAST["made_by"] = LAST["attempted"] = ""
             done = start_thread(store, world, catalog, state, t, rng, allow=(budget > 0, engine_budget > 0))
+            if LAST["attempted"] == "model":                           # (f466) as above: the call was made, so it is spent
+                budget -= 1
             if done and LAST["made_by"] == "engine":
                 engine_budget -= 1
-            elif done:
-                budget -= 1
         if done:
             changed = True
     from engine import drift
@@ -274,7 +277,8 @@ def catch_up(store, world, catalog, now: int) -> dict:
 
 
 FINISHED_KEPT = 30
-LAST = {"made_by": ""}            # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget)
+LAST = {"made_by": "", "attempted": ""}   # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget);
+                                          # (f466) and who was asked to, whatever came of it: a model call made counts against the cap
 
 
 # ---------- threads ----------
@@ -330,6 +334,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     from engine import threads, truth
     proposal, info = None, None
     engine_made = made_by == "engine" or (not made_by and rule.get("engine"))
+    LAST["attempted"] = "engine" if engine_made else "model"         # (f466) the attempt is on the record before its outcome is
     if not engine_made:
         system = pp.THREAD_SYSTEM + (pp.BIG_EXTRA if big else "")
         extra = ""
@@ -637,8 +642,10 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     npc = rng.choice(movers)
     from engine import motives
     if motives.M.get("engine", True):                                   # (f360) the engine's own step: no call
+        LAST["attempted"] = "engine"
         last[npc.id] = t
         return motives.move(store, world, state, npc, t, rng)
+    LAST["attempted"] = "model"                                         # (f466) the call is about to be made: counted whatever comes of it
     place = world.places[npc.location]
     request = (f"PERSON: {npc.id} - {npc.name}, {npc.people} {npc.role.replace('_', ' ')}\n"
                f"PERSONALITY: {npc.personality}\nTRAITS: {', '.join(npc.traits)}\nWORRY: {npc.concern}\n"

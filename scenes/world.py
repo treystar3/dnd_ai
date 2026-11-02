@@ -108,6 +108,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.halted = False           # an action failed or the situation changed: stop the chain
         self.line_ops: list = []      # (f463) the operations of the line being played that committed, in order
         self.line_failed: list = []   # (f463) ...and the one that did not, if any
+        self.line_world_failed: list = []   # (f466) the world's own operations of the line that did not stand: rolled back alone, the player told nothing
         self.line_done: list[str] = []   # (f463) what the committed actions did, for the part_stood line
         self.passages: list = []      # (f464) the passages the line's operations queued: [kind, fn, standin, the lines held after their marker, the operation's id]
         self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
@@ -416,9 +417,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                             visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
 
     def run_pulse(self) -> None:
-        """Let the world move on, then see who is still here."""
+        """Let the world move on, then see who is still here. (f466) The pulse may write the player through the save (engine/pulse.py
+        remove_npc ties off the quests and commissions of someone gone); when it has, the scene takes the saved player before the drift is
+        applied, so the operation's commit of the scene's copy keeps what the pulse did instead of writing over it."""
         from engine import drift, events
-        drift.apply_player(self.player, pulse.catch_up(self.store, self.world, self.catalog, self.minutes) or {})   # (f331) what the drift owes the record this scene holds
+        before = self.store._kv_text("player")
+        deltas = pulse.catch_up(self.store, self.world, self.catalog, self.minutes) or {}
+        if self.store._kv_text("player") != before:
+            self.player = self.store.load_player()
+            pools.fill_missing(self.player.character)
+        drift.apply_player(self.player, deltas)                                                 # (f331) what the drift owes the record this scene holds
         self.__dict__.pop("_streets_cache", None)                                           # (f357) the world may have moved: read the streets afresh
         events.apply_player_events(self)
         self.arc_tick()
@@ -635,14 +643,32 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for p in sorted(s.get("paused", ()))]
         return out
 
-    def run(self) -> None:
+    def open_world(self) -> None:
+        """(f466) What the world owes the save as the game opens (the discoveries, homes, the road's place, the dungeons and the field's
+        uses kept whole, and the pulse up to now), as one world operation, world:open, under the "#start" dice (f439). Its id is drawn
+        before it opens and repeats at the same count of inputs: an open stopped in the middle of it finds nothing committed and runs it
+        again; an open after a stood one finds its record and runs nothing, so the load-time pulse never runs twice (survey 12.1). Its
+        failure is the world's: rolled back alone, written to logs/crash.log, the player told nothing."""
+        from engine import operation as _op
         streams.begin(self.store.meta.seed, self.store.meta.steps, "#start")    # (f439) what happens as the game opens is decided too
-        self.ensure_discoveries()
-        self.ensure_homes()
-        self.ensure_road_place()
-        self.ensure_dungeons()
-        self.ensure_field_uses()
-        self.run_pulse()
+        op_id = streams.new_id(_op.ID_DIGITS, stream="ops")
+        if self.store.find_operation(op_id) is not None:
+            console.debug("the world's opening stands from the last open: not run again")
+            return
+        self.begin_line()
+        try:
+            with questions.fence(), self.operation("world:open", "#start", world=True, op_id=op_id):
+                self.ensure_discoveries()
+                self.ensure_homes()
+                self.ensure_road_place()
+                self.ensure_dungeons()
+                self.ensure_field_uses()
+                self.run_pulse()
+        finally:
+            self.store.arm(False)
+
+    def run(self) -> None:
+        self.open_world()
         first_time = self.store.meta.turn == 0
         self.enter(self.player.location)
         self.weight_hint = "major" if first_time else None                 # a reload narrates nothing on entering; the next passage is weighed on its own
@@ -730,7 +756,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash)
+                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash, world_failed=self.world_failures())
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
@@ -742,7 +768,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note(failures.part_stood("; ".join(self.line_done) or "the first of it", self.rng))
             turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
                         crash=self.last_failure if stood is not True and self.last_crash else "",
-                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold))
+                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures())
             self.show_header()
 
     def failed_line(self, text: str) -> str:
@@ -795,12 +821,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def begin_line(self) -> None:
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
         self.last_crash = False
-        self.line_ops, self.line_failed, self.line_done = [], [], []
+        self.line_ops, self.line_failed, self.line_done, self.line_world_failed = [], [], [], []
         self.passages, self.line_untold, self.unshown_ops, self.collecting = [], [], {}, False
         self.store.arm(True)
 
     @contextmanager
-    def operation(self, kind: str, text: str = "", where: str = "turn"):
+    def operation(self, kind: str, text: str = "", where: str = "turn", world: bool = False, op_id: str = ""):
         """(f463) One operation of the line: all of it stands or none of it does, with its record in the save (engine/operation.py,
         storage/campaign.py commit_operation). Inside: the store counts an operation open (the write fence lets its writes through), one
         transaction, the session's snapshot of what the database does not hold (f455), and the hold over the story bindings: what the body
@@ -809,10 +835,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         closed in between (f467). On the model's failure (LLMError) or the game's own fault (any other exception, written to logs/crash.log
         as f449 did for the turn) the operation is rolled back through the session, the store is reloaded, the held lines are dropped,
         and the line goes on or stops as turn() decides; an Interrupt passes out untouched. Nothing is caught for the caller to see but
-        `op.state`: committed or rolled_back."""
+        `op.state`: committed or rolled_back.
+        (f466) `world`: one of the world's own operations (the pulse, the arrival, the law, the tail, the game's opening), apart from the
+        player's: its failure is rolled back alone and written to logs/crash.log, it halts nothing, and the player is told nothing of it
+        (Bundle C, owner question 4); the line's outcome is of the player's operations alone (line_failed), the world's failures kept
+        beside it (line_world_failed) for the turn log. `op_id`: an id drawn beforehand, when the caller looked for its record first."""
         from engine import operation as _op
-        index = len(self.line_ops) + len(self.line_failed)
+        index = len(self.line_ops) + len(self.line_failed) + len(self.line_world_failed)
         pending_at = len(self.pending)
+        if world and where == "turn":
+            where = "world"
         op = None
         real: dict = {}
         try:
@@ -820,7 +852,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.session.begin_turn(self)                  # (f455) the map's additions and the scene's caches, to give back on a rollback
                 if _op.current() is not None:
                     _op.end("rolled_back")                      # one left open by an Interrupt that passed through: closed, never joined
-                op = _op.begin(kind, self.store.meta.steps, index, self.store.revision(), text)
+                op = _op.begin(kind, self.store.meta.steps, index, self.store.revision(), text, op_id=op_id)
                 real = self.hold(op)
                 try:
                     yield op
@@ -838,21 +870,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         except Interrupt:
             raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
-            self.abandon(op, pending_at)
+            self.abandon(op, pending_at, world=world)
             console.debug(f"operation {kind} rolled back: {e}")
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
+            if op is not None:
+                op.failure = self.last_failure
         except Exception as e:
             # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
-            # the place, and the player reads a line in the narrator's words (run()). What stood before it stands.
-            self.abandon(op, pending_at)
+            # the place, and the player reads a line in the narrator's words (run()). What stood before it stands. (f466) A world
+            # operation's fault is written there as the world's, and the player reads nothing of it.
+            self.abandon(op, pending_at, world=world)
             from engine import crashlog
-            crashlog.record(e, where, text=text, place=self.player.location, turn=self.store.meta.turn)
+            crashlog.record(e, where, text=text, place=self.player.location, turn=self.store.meta.turn, operation=kind)
             console.debug(f"operation {kind} crashed and rolled back: {type(e).__name__}: {e}")
             self.last_failure = f"{type(e).__name__}: {e}"[:200]
             self.last_crash = True
+            if op is not None:
+                op.failure, op.crashed = self.last_failure, True
         finally:
             if op is not None and op.state == "open":              # an Interrupt passed through: the operation is rolled back all the same
-                self.abandon(op, pending_at)
+                self.abandon(op, pending_at, world=world)
 
     def hold(self, op) -> dict:
         """(f463) The story bindings replaced by ones that keep each call on the operation, for release at its commit; what the console
@@ -948,14 +985,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows = [r for r in ledger.ROWS if r.get("facts") and not r.get("told")]
         return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
-    def abandon(self, op, pending_at: int) -> None:
+    def abandon(self, op, pending_at: int, world: bool = False) -> None:
         """(f463) An operation did not stand: its rows go (the rest of the line's stay), the session gives back what the database never
         held, the store is reloaded, the narration it queued for the passage is dropped, its held lines with it, and the line is halted:
-        what came before it stands, nothing after it is done."""
+        what came before it stands, nothing after it is done. (f466) A world operation's failure halts nothing: the world's operations
+        after it run all the same, each apart."""
         from engine import operation as _op
         _op.end("rolled_back")
         if op is not None:
-            self.line_failed.append(op)
+            (self.line_world_failed if world else self.line_failed).append(op)
             op.held = []
             self.passages = [p for p in self.passages if p[4] != op.id]      # (f464) the passages it queued go with it
         self.session.rollback(self, op.id if op is not None else "")
@@ -970,14 +1008,23 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.refresh_present()
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
         del self.pending[pending_at:]
-        self.step, self.halted = None, True
+        self.step = None
+        if not world:
+            self.halted = True
+
+    def world_failures(self) -> list:
+        """(f466) The world's own operations of the line that did not stand, for the turn log and the night's counts: which, why, and
+        whether it was the game's own fault (logs/crash.log) or the model's."""
+        return [{"kind": o.kind, "error": o.failure, "crash": o.crashed} for o in self.line_world_failed]
 
     def turn(self, text: str):
         """(f463) One typed line, as operations: the understanding and the first action (or the whole of an intercepted line, an answer, a
-        fight's round) first, then each later step of the plan, then the pulse, the passage and the tail, each all-or-nothing with its
-        record. True when every operation stood; False when the first did not (the line is not taken: nothing happened, nothing is lost,
-        as before); "part" when some stood and a later one did not: what stood stands, nothing after it is done, and the player reads
-        which part (run()). The write fence is armed for the life of the line; no question is read inside it (f461)."""
+        fight's round) first, then each later step of the plan, then its passage (f464), then (f466) the world's own operations, apart:
+        the world (the pulse), the arrival (a moment walked into, someone come looking), the law, and the tail, each all-or-nothing with
+        its record, each failing alone and silently (world_failures). True when every operation of the player's stood; False when the
+        first did not (the line is not taken: nothing happened, nothing is lost, as before); "part" when some stood and a later one did
+        not: what stood stands, nothing after it is done, and the player reads which part (run()). The write fence is armed for the life
+        of the line; no question is read inside it (f461)."""
         self.name_ids()
         turnlog.tap(console)
         shown = turnlog.SHOWN
@@ -1018,13 +1065,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                             for line in self.stood_standin(self.rng):
                                 console.narrate(line)
                             self.pending = []
-                    self.collecting = False
-                    with self.operation("pulse", text):
-                        self.after_steps(text)
+                    self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
+                    with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
+                        self.world_tick()
+                    self.run_passages()
+                    with self.operation("arrival", text, world=True):
+                        self.arrival()
+                    self.run_passages()
+                    with self.operation("law", text, world=True):
+                        self.law_check()
+                    self.run_passages()
                 self.collecting = False
-                with self.operation("tail", text):
+                with self.operation("tail", text, world=True):
                     if plan is not None:
-                        self.settle_line()
+                        self.store.meta.turn += 1              # (f466) the line counted, with its tail
                     self.turn_ticks(text, shown)
                 ledger.LAST = ledger.end()
                 return True if not self.line_failed else "part"
@@ -1106,12 +1160,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.pending, self.buffering, self.halted, self.step = [], False, False, None
 
     def pane_arrival(self, before: str) -> None:
-        """Arriving by a pane button (the map, the places list) counts like arriving by a typed line: what is due on arrival happens now."""
+        """Arriving by a pane button (the map, the places list) counts like arriving by a typed line: what is due on arrival happens now,
+        as the world's tail operation (f466): rolled back alone and silently when a call fails."""
         if self.player.location == before or self.combat:
             return
         self.store.arm(True)
         try:
-            with questions.fence(), self.operation("arrival", f"arrival at {self.player.location}", where="command"):   # (f463) rolled back on its own when a call fails
+            with questions.fence(), self.operation("tail", f"arrival at {self.player.location}", world=True):   # (f463) rolled back on its own when a call fails
                 self.sync_heard()
                 self.orenna_tick()
                 self.mentor_tick()
@@ -1455,6 +1510,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.run_step(i, plan, text)
         self.passage(text)
         self.after_steps(text)
+        self.world_tick()
         self.settle_line()
 
     def read_line(self, text: str):
@@ -1547,7 +1603,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.line_done.append((getattr(intent, "summary", "") or "").strip() or intent.kind)   # (f463) for the part_stood line
 
     def after_steps(self, text: str) -> None:
-        """(f463) After the plan's steps: what was not done is said, the dungeons are kept whole, and the world's pulse."""
+        """(f463) After the plan's steps, (f466) outside any operation: the step is over and the line's buffering with it, the notes time
+        raised in the middle of the line are shown (f418: after the passage), and what was not done is said. These are the line's own,
+        not any one operation's to hold or roll back, and nothing is written."""
         text = getattr(self, "line_text", text) or text
         self.step = None
         undone = self.__dict__.pop("dropped_steps", [])
@@ -1556,12 +1614,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note("Three things at a time: not done - " + "; ".join(undone) + ". Say it again when you are ready.")
             refusals.note("undone", text, "more than three actions in one line: " + "; ".join(undone), self.player.location, self.store.meta.turn)
             ledger.add("not_done", steps=undone, say="NOT DONE this turn, never show them done: " + "; ".join(undone) + ".")   # (f416)
-        self.ensure_dungeons()
-        self.run_pulse()
         self.release_time_notes()                               # (f418) after the passage
         if self.buffering and self.exits_due and not self.combat:
             self.show_exits(force=True)
         self.buffering = False
+
+    def world_tick(self) -> None:
+        """(f466) The world operation's body, after the line's actions and their passage: the dungeons kept whole and the pulse (the world
+        moving on, the drift, the notices owed the player: its lines are this operation's, shown at its commit, after the passage, GOALS.md
+        review Q36; a narration it asks for is a passage operation after it). It fails apart: a fault in the pulse rolls back the pulse
+        alone, and what the player did stands."""
+        self.ensure_dungeons()
+        self.run_pulse()
 
     def passage(self, text: str) -> None:
         """(f463) The passage of a line of several actions, held back until here (flush). (f464) An operation of its own, before the pulse:
@@ -1569,10 +1633,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         text = getattr(self, "line_text", text) or text
         self.flush(text)
 
-    def settle_line(self) -> None:
-        """(f463) The end of an interpreted line: a moment walked into, the law, and the turn counted."""
+    def arrival(self) -> None:
+        """(f466) The arrival operation's body: a moment walked into, or someone come looking (engine/matters.py on_arrival, f317, after the
+        line's own passage). What it stamps on the world (a situation told in the world's words, told_at) commits with it; the narrations
+        it asks for are passage operations after its commit, so a telling that cannot be written undoes nothing of what was walked into."""
         from engine import matters
-        matters.on_arrival(self)                                 # (f317) after the turn's own passage: a moment walked into, or someone come looking
+        matters.on_arrival(self)
+
+    def settle_line(self) -> None:
+        """(f463) The end of an interpreted line, in one piece (handle(), the tests' way in): the arrival, the law, and the turn counted.
+        The game's turn() runs each as a world operation of its own (f466)."""
+        self.arrival()
         self.law_check()
         self.store.meta.turn += 1
 

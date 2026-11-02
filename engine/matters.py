@@ -206,7 +206,8 @@ def _note(state: dict, town: str, kind: str, now: int) -> None:
 
 def on_arrival(ws) -> None:
     """The player is somewhere in a town, at the end of a turn: a pending moment plays out in front of them, or someone comes looking
-    for them. A moment prefers the turn they arrive on."""
+    for them. A moment prefers the turn they arrive on. (f466) The body of the line's arrival operation (scenes/world.py arrival): what it
+    stamps on a situation (told_at, told, the moment shown) commits with it; the narrations it asks for are passage operations after."""
     entering = getattr(ws, "_door_loc", None) != ws.player.location
     ws._door_loc = ws.player.location
     if ws.combat or getattr(ws, "halted", False) or ws.player.location not in ws.world.places or ws.world.places[ws.player.location].danger:

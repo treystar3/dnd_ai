@@ -26,7 +26,7 @@ ID_DIGITS = 12
 @dataclass
 class Operation:
     id: str
-    kind: str                       # what it is: action:<kind>, understanding, pulse, arrival, tail, command:<name>, round, world:open
+    kind: str                       # what it is: line, action:<kind>, passage, round, aftermath, goddess, world, arrival, law, tail, command:<name>, world:open
     steps: int                      # the input it belongs to (CampaignMeta.steps)
     index: int                      # its place in the line, from 0
     revision_seen: int              # the record's revision when it opened; a commit over another revision is stale
@@ -35,6 +35,8 @@ class Operation:
     lines: list = field(default_factory=list)      # what it will show, held until it commits (f463) and kept until shown (f467)
     state: str = "open"             # open | committed | rolled_back
     held: list = field(default_factory=list, repr=False)   # (f463) the story calls held back (name, args, kwargs), released at commit; not kept
+    failure: str = ""               # (f466) why it did not stand, for the turn log: the model's failure, or the game's own fault
+    crashed: bool = False           # (f466) ...and which of the two
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""
@@ -44,12 +46,14 @@ class Operation:
 CURRENT: Operation | None = None
 
 
-def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "") -> Operation:
-    """Open an operation, the one open now, with an id drawn from the ops stream."""
+def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "", op_id: str = "") -> Operation:
+    """Open an operation, the one open now, with an id drawn from the ops stream. (f466) Or with `op_id`, one the caller drew from that
+    stream before, to look for its record first: the game's opening operation (scenes/world.py open_world) repeats its id at the same
+    count of inputs, so an open after a stood one finds it committed and runs nothing."""
     global CURRENT
     if CURRENT is not None:
         raise RuntimeError(f"an operation is already open: {CURRENT.kind} {CURRENT.id}")
-    CURRENT = Operation(streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text)
+    CURRENT = Operation(op_id or streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text)
     return CURRENT
 
 

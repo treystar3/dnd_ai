@@ -81,7 +81,7 @@ lines = narrated()
 check("...the player reads a plain line that it stood, filled from those facts, never machinery",
       any((herb.label() in t or paid[0]["facts"]["amount"] in t) and not failures.MACHINERY.search(t) for t in lines), lines)
 check("...the passage was an operation of its own, told by a stand-in, and the line is whole", [o.kind for o in ws.line_untold] == ["passage"] and not ws.line_failed
-      and ops_of_input() == ["line", "pulse", "tail"], (ws.line_untold, ws.line_failed, ops_of_input()))
+      and ops_of_input() == ["line", "world", "arrival", "law", "tail"], (ws.line_untold, ws.line_failed, ops_of_input()))
 check("...and no story was written for the line", store._kv("story") == story0)
 check("the passage ran after the action's commit", LOG.index(("commit", "line")) < LOG.index(("call", "Narration")), LOG)
 
@@ -90,7 +90,7 @@ FAIL["titles"] = set()
 ws.present, ws.residents = [herb], [herb]                 # a rollback refreshes who is present; the seller is at hand again
 SHOWN.clear(); LOG.clear()
 stood = ws.turn("I buy a healing draught from the herbalist.")
-check("told, the passage is an operation after the action's commit", stood is True and ops_of_input() == ["line", "passage", "pulse", "tail"]
+check("told, the passage is an operation after the action's commit", stood is True and ops_of_input() == ["line", "passage", "world", "arrival", "law", "tail"]
       and LOG.index(("commit", "line")) < LOG.index(("call", "Narration")) < LOG.index(("commit", "passage")), (ops_of_input(), LOG))
 texts = [t for k, t in SHOWN]
 check("...and the page reads as it did: the purse line, then the passage", any("Paid" in t for t in texts) and any(k == "narrate" for k, t in SHOWN)
@@ -101,7 +101,7 @@ stub.plan = [{"kind": "look"}, {"kind": "wait"}]
 SHOWN.clear(); LOG.clear()
 stood = ws.turn("I look around, then wait a while.")
 check("a line of several actions: its one passage before the pulse, both operations of their own", stood is True
-      and ops_of_input() == ["line", "action:wait", "passage", "pulse", "tail"] and LOG.index(("call", "Narration")) < LOG.index(("pulse",)), (ops_of_input(), LOG))
+      and ops_of_input() == ["line", "action:wait", "passage", "world", "arrival", "law", "tail"] and LOG.index(("call", "Narration")) < LOG.index(("pulse",)), (ops_of_input(), LOG))
 
 # ---- a fight won whose telling and aftermath fail: the win stands, the stand-ins in their place, the fight closed
 ws.narrate_with = lambda *a, **k: None
