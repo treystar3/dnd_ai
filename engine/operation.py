@@ -34,6 +34,7 @@ class Operation:
     rows: list = field(default_factory=list)       # the ledger rows it committed (engine/ledger.py add stamps them with its id)
     lines: list = field(default_factory=list)      # what it will show, held until it commits (f463) and kept until shown (f467)
     state: str = "open"             # open | committed | rolled_back
+    held: list = field(default_factory=list, repr=False)   # (f463) the story calls held back (name, args, kwargs), released at commit; not kept
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""

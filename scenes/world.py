@@ -13,6 +13,7 @@ import re
 import config
 import json
 import random
+from contextlib import contextmanager
 
 from character.kit import give_starting_kit
 from core.models import Companion
@@ -105,6 +106,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.buffering = False        # several actions in one message: narrate them together
         self.pending: list[str] = []
         self.halted = False           # an action failed or the situation changed: stop the chain
+        self.line_ops: list = []      # (f463) the operations of the line being played that committed, in order
+        self.line_failed: list = []   # (f463) ...and the one that did not, if any
+        self.line_done: list[str] = []   # (f463) what the committed actions did, for the part_stood line
         self.combat: CombatScene | None = None
         self.resume_pending = None
         self.wildlife = None
@@ -699,29 +703,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 before = self.player.location
                 bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
                 turnlog.begin(console)                                      # (f385) a button that does something is a row too
-                rolled = crashed = False
-                self.last_crash = False
+                name = (text[1:].strip().lower().split() or ["command"])[0]
+                self.begin_line()
+                op = None
                 try:
-                    with self.store.transaction(), console.scope(text), questions.fence():      # a pane button is a whole turn too: all of it, or none of it
+                    with console.scope(text), questions.fence():             # a pane button is a whole operation too: all of it, or none of it (f463)
                         self.new_input(text)                                # (f439) the dice of this input
-                        self.session.begin_turn(self)                       # (f455) what a rollback must give back besides the database
-                        self.command(text)
+                        with self.operation(f"command:{name}", text, where="command") as op:
+                            self.command(text)
                 except Interrupt:
                     raise                                                   # (f449) stopped on purpose, never a rolled-back fault
-                except LLMError as e:
-                    console.debug(f"command rolled back: {e}")
-                    self.reload_after_rollback()
-                    rolled = True
-                    self.last_failure = str(e) or type(e).__name__
-                    console.note(failures.not_taken(self.rng))           # (f437) in the narrator's words, never the machinery
-                except Exception as e:                                      # (f449) the game's own fault: rolled back, told, written down, played on
-                    from engine import crashlog
-                    crashlog.record(e, "command", text=text, place=self.player.location, turn=self.store.meta.turn)
-                    console.debug(f"command crashed and rolled back: {type(e).__name__}: {e}")
-                    self.reload_after_rollback()
-                    rolled = crashed = self.last_crash = True
-                    self.last_failure = f"{type(e).__name__}: {e}"[:200]
-                    console.note(self.failed_line(text))
+                finally:
+                    self.store.arm(False)
+                rolled = op is None or op.state != "committed"
+                crashed = rolled and self.last_crash
+                if rolled:
+                    console.note(self.failed_line(text) if crashed else failures.not_taken(self.rng))    # (f437) in the narrator's words, never the machinery
                 failed = self.last_failure if rolled and not crashed else ""
                 crash = self.last_failure if crashed else ""
                 if self.to_menu:
@@ -735,10 +732,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 continue
             turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
             stood = self.turn(text)
-            if not stood:
+            if stood is False:
                 console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
-            turnlog.end(not stood, failure="" if stood or self.last_crash else self.last_failure,
-                        crash=self.last_failure if not stood and self.last_crash else "")
+            elif stood == "part":                                           # (f463) what stood stands; the player reads which part, and that the rest did not
+                console.note(failures.part_stood("; ".join(self.line_done) or "the first of it", self.rng))
+            turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
+                        crash=self.last_failure if stood is not True and self.last_crash else "",
+                        stood={True: "all", False: "none"}.get(stood, "part"))
             self.show_header()
 
     def failed_line(self, text: str) -> str:
@@ -776,63 +776,187 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         takes its count back with it, so the line tried again meets the same dice), and every stream of dice starts again from the seed,
         that count and the line (engine/streams.py). (A session that must replay exactly, streams.STRICT, takes in the residents made in
         the background at the input's edge before this, outside the transaction: apply_backfill in run().)"""
-        self.store.meta.steps += 1
-        self.store.save_meta()
+        self.store.meta.steps += 1                                  # (f463) saved by the first operation that stands (commit_operation first_of_line)
         streams.begin(self.store.meta.seed, self.store.meta.steps, text)
 
-    def turn(self, text: str) -> bool:
-        """One whole turn as one unit: everything the action and what follows it write is committed together at the end, or, if the model
-        fails partway, rolled back together and the game put back as it was before the line was typed. True if the turn stood."""
-        self.name_ids()
-        turnlog.tap(console)
-        shown = turnlog.SHOWN
+    HELD = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "combat_numbers", "legendary_reveal")   # (f463) the story bindings an operation holds
+
+    def begin_line(self) -> None:
+        """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
         self.last_crash = False
+        self.line_ops, self.line_failed, self.line_done = [], [], []
+        self.store.arm(True)
+
+    @contextmanager
+    def operation(self, kind: str, text: str = "", where: str = "turn"):
+        """(f463) One operation of the line: all of it stands or none of it does, with its record in the save (engine/operation.py,
+        storage/campaign.py commit_operation). Inside: the store counts an operation open (the write fence lets its writes through), one
+        transaction, the session's snapshot of what the database does not hold (f455), and the hold over the story bindings: what the body
+        would show is kept on the operation and released, in order, once it has committed, so nothing the player reads is ever of an
+        operation that did not stand; the record's presentation entry keeps the lines until they are shown (mark_shown), for a game
+        closed in between (f467). On the model's failure (LLMError) or the game's own fault (any other exception, written to logs/crash.log
+        as f449 did for the turn) the operation is rolled back through the session, the store is reloaded, the held lines are dropped,
+        and the line goes on or stops as turn() decides; an Interrupt passes out untouched. Nothing is caught for the caller to see but
+        `op.state`: committed or rolled_back."""
+        from engine import operation as _op
+        index = len(self.line_ops) + len(self.line_failed)
+        pending_at = len(self.pending)
+        op = None
+        real: dict = {}
         try:
-            with self.store.transaction(), questions.fence():      # (f461) no question is read inside a turn: one that is asked ends it
-                self.new_input(text)                       # (f439) the dice of this input
-                ledger.begin()                             # (f394) the turn's record
-                self.session.begin_turn(self)              # (f455) the map's additions and the scene's caches, to give back on a rollback
-                self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
-                self.ran = []
-                self.handle(text)
-                self.release_time_notes()                  # (f418) whatever way the line ended
-                if self.resume_pending and not self.combat and not getattr(self, "held_yield", None):
-                    self.resume_road()                     # (f417) a won road fight walks on once the player has said what becomes of who yielded
-                heard = self.hire_said_marks()
-                self.sync_heard()
-                self.orenna_tick()
-                self.mentor_tick()
-                self.quirk_tick()
-                self.banter_tick()
-                self.note_hire_spoke(heard)
-                self.collapse_check()
-                self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
-                self.heard_flush()                         # the places first heard of this turn, in one quiet line
-                if turnlog.SHOWN == shown and not self.to_menu:
-                    self.said_nothing(text)
-                self.store.save_player(self.player)
-                ledger.LAST = ledger.end()
-            return True
+            with self.store.in_operation(), self.store.transaction():
+                self.session.begin_turn(self)                  # (f455) the map's additions and the scene's caches, to give back on a rollback
+                if _op.current() is not None:
+                    _op.end("rolled_back")                      # one left open by an Interrupt that passed through: closed, never joined
+                op = _op.begin(kind, self.store.meta.steps, index, self.store.revision(), text)
+                real = self.hold(op)
+                try:
+                    yield op
+                finally:
+                    self.unhold(real)                          # symmetric: the real bindings are back before anything is shown or dropped
+                self.store.commit_operation(op, first_of_line=(index == 0))
+            _op.end("committed")
+            self.line_ops.append(op)
+            self.release(op)
+            self.store.mark_shown(op.id)
         except Interrupt:
             raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
-            console.debug(f"turn rolled back: {e}")
-            self.reload_after_rollback()
+            self.abandon(op, pending_at)
+            console.debug(f"operation {kind} rolled back: {e}")
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
-            return False
         except Exception as e:
-            # (f449) The game's own fault, not the model's. Before this it climbed out of the turn and ended the game ("Something went
-            # wrong and the game has to stop"); the owner's night of 2026-11-01 ended that way, and a cache keyed by town rather than
-            # campaign (engine/routines.py) could end a second save the same way. GOALS: the game goes on. The transaction has rolled
-            # the save back; the scene is put back to match; the fault goes to logs/crash.log with the line and the place, so it still
-            # surfaces in the logs the owner sends; the player reads a line in the narrator's words (run(): failed_line).
+            # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
+            # the place, and the player reads a line in the narrator's words (run()). What stood before it stands.
+            self.abandon(op, pending_at)
             from engine import crashlog
-            crashlog.record(e, "turn", text=text, place=self.player.location, turn=self.store.meta.turn)
-            console.debug(f"turn crashed and rolled back: {type(e).__name__}: {e}")
-            self.reload_after_rollback()
+            crashlog.record(e, where, text=text, place=self.player.location, turn=self.store.meta.turn)
+            console.debug(f"operation {kind} crashed and rolled back: {type(e).__name__}: {e}")
             self.last_failure = f"{type(e).__name__}: {e}"[:200]
             self.last_crash = True
-            return False
+        finally:
+            if op is not None and op.state == "open":              # an Interrupt passed through: the operation is rolled back all the same
+                self.abandon(op, pending_at)
+
+    def hold(self, op) -> dict:
+        """(f463) The story bindings replaced by ones that keep each call on the operation, for release at its commit; what the console
+        held is returned, to be put back by unhold whatever happens."""
+        real = {}
+        for name in self.HELD:
+            fn = getattr(console, name, None)
+            if fn is None:
+                continue
+            real[name] = fn
+
+            def held(*a, _name=name, **k):
+                op.held.append((_name, a, k))
+                op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))
+            setattr(console, name, held)
+        return real
+
+    @staticmethod
+    def unhold(real: dict) -> None:
+        for name, fn in real.items():
+            setattr(console, name, fn)
+
+    @staticmethod
+    def release(op) -> None:
+        """(f463) The operation committed: what it held reaches the page, in the order it was said, through the real bindings."""
+        for name, a, k in op.held:
+            getattr(console, name)(*a, **k)
+        op.held = []
+
+    def abandon(self, op, pending_at: int) -> None:
+        """(f463) An operation did not stand: its rows go (the rest of the line's stay), the session gives back what the database never
+        held, the store is reloaded, the narration it queued for the passage is dropped, its held lines with it, and the line is halted:
+        what came before it stands, nothing after it is done."""
+        from engine import operation as _op
+        _op.end("rolled_back")
+        if op is not None:
+            self.line_failed.append(op)
+            op.held = []
+        self.session.rollback(self, op.id if op is not None else "")
+        self.store.reload_meta()                           # the clock the operation advanced goes back with it
+        self.player = self.store.load_player()
+        pools.fill_missing(self.player.character)
+        saved_fight = self.store.load_combat()
+        self.combat = CombatScene.resume(self, saved_fight) if saved_fight else None
+        here = self.store.load_place(self.player.location)
+        if here.populated:
+            self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
+        self.refresh_present()
+        self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
+        del self.pending[pending_at:]
+        self.step, self.halted = None, True
+
+    def turn(self, text: str):
+        """(f463) One typed line, as operations: the understanding and the first action (or the whole of an intercepted line, an answer, a
+        fight's round) first, then each later step of the plan, then the pulse, the passage and the tail, each all-or-nothing with its
+        record. True when every operation stood; False when the first did not (the line is not taken: nothing happened, nothing is lost,
+        as before); "part" when some stood and a later one did not: what stood stands, nothing after it is done, and the player reads
+        which part (run()). The write fence is armed for the life of the line; no question is read inside it (f461)."""
+        self.name_ids()
+        turnlog.tap(console)
+        shown = turnlog.SHOWN
+        self.begin_line()
+        try:
+            with questions.fence():
+                self.new_input(text)                       # (f439) the dice of this input
+                ledger.begin()                             # (f394) the turn's record
+                self.ran = []
+                plan = None
+                with self.operation("line", text) as op:
+                    self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
+                    plan = self.read_line(text)
+                    if plan:
+                        self.run_step(0, plan, text)
+                if op.state != "committed":
+                    return False
+                if plan is not None:
+                    for i in range(1, len(plan)):
+                        if self.combat or self.halted:
+                            console.debug(f"stopping after {i} of {len(plan)} actions")
+                            break
+                        with self.operation(f"action:{plan[i].kind}", text) as op:
+                            self.run_step(i, plan, text)
+                        if op.state != "committed":
+                            break                              # what stood stands; the rest of the line is not done
+                    with self.operation("pulse", text):
+                        self.after_steps(text)
+                    with self.operation("passage", text):
+                        self.passage(text)
+                with self.operation("tail", text):
+                    if plan is not None:
+                        self.settle_line()
+                    self.turn_ticks(text, shown)
+                ledger.LAST = ledger.end()
+                return True if not self.line_failed else "part"
+        except Interrupt:
+            raise
+        finally:
+            self.store.arm(False)
+
+    def turn_ticks(self, text: str, shown: int) -> None:
+        """(f463) What follows every line, however it was read: the road walked on, the hires' words marked, the quest and the mentor and
+        the companions given their turn, the day's wear, what was heard of, and the save."""
+        self.release_time_notes()                  # (f418) whatever way the line ended
+        if self.resume_pending and not self.combat and not getattr(self, "held_yield", None):
+            self.resume_road()                     # (f417) a won road fight walks on once the player has said what becomes of who yielded
+        heard = self.hire_said_marks()
+        self.sync_heard()
+        self.orenna_tick()
+        self.mentor_tick()
+        self.quirk_tick()
+        self.banter_tick()
+        self.note_hire_spoke(heard)
+        self.collapse_check()
+        self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
+        self.heard_flush()                         # the places first heard of this turn, in one quiet line
+        from engine import operation as _op
+        held_now = len(_op.current().lines) if _op.current() is not None else 0     # (f463) what this operation holds, not yet released
+        if turnlog.SHOWN + held_now == shown and not self.to_menu:
+            self.said_nothing(text)
+        self.store.save_player(self.player)
 
     def said_nothing(self, text: str) -> None:
         """(f385) The turn showed the player nothing at all: no passage, no line, no note. That is never the answer to something typed.
@@ -888,16 +1012,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Arriving by a pane button (the map, the places list) counts like arriving by a typed line: what is due on arrival happens now."""
         if self.player.location == before or self.combat:
             return
+        self.store.arm(True)
         try:
-            self.sync_heard()
-            self.orenna_tick()
-            self.mentor_tick()
-            self.quirk_tick()
-            self.banter_tick()
-        except LLMError:
-            pass
-        self.heard_flush()
-        self.store.save_player(self.player)
+            with questions.fence(), self.operation("arrival", f"arrival at {self.player.location}", where="command"):   # (f463) rolled back on its own when a call fails
+                self.sync_heard()
+                self.orenna_tick()
+                self.mentor_tick()
+                self.quirk_tick()
+                self.banter_tick()
+                self.heard_flush()
+                self.store.save_player(self.player)
+        finally:
+            self.store.arm(False)
 
     def collapse_check(self) -> None:
         """Past the limit of fatigue you fall asleep where you stand: eight hours, with the dangers of the place."""
@@ -1221,6 +1347,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.store.clear_question()
 
     def handle(self, text: str) -> None:
+        """The whole of a line, in one piece and with no operation around it (the tests' way in; the game's is turn(), f463)."""
+        plan = self.read_line(text)
+        if plan is None:
+            return
+        for i in range(len(plan)):
+            if i and (self.combat or self.halted):
+                console.debug(f"stopping after {i} of {len(plan)} actions")
+                break
+            self.run_step(i, plan, text)
+        self.after_steps(text)
+        self.passage(text)
+        self.settle_line()
+
+    def read_line(self, text: str):
+        """(f463) The line read: an answer to the world's question, a fight's round, an intercept, or the interpreter's plan after repair
+        and audit. None when the line was taken whole here (or the world asked a question instead); else the plan to run, step by step."""
         self.last_text = text
         self.interpret_calls = []                           # every interpreter call made for this line, kept for the turn log
         from llm import audit
@@ -1233,20 +1375,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if taken is None:
                 console.note(questions.dropped(self.rng))              # not an answer: the question is let go, said so, and the line read as new
             if taken:
-                return self.took(text, f"answer:{asked['kind']}")
+                self.took(text, f"answer:{asked['kind']}")
+                return None
         if self.combat:
             self.combat.turn(text)
             self.seal_ask()                                 # (f460) the High Keeper bloodied this round: the seal's question ends the turn
             self.took(text, "combat")
             if not self.combat and self.resume_pending and not getattr(self, "held_yield", None):
                 self.resume_road()
-            return
+            return None
         for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)
             if getattr(self, ic.method)(text):
                 if ic.after:
                     getattr(self, ic.after)()
                 console.debug(f"intercept: {ic.name} took the line")
-                return self.took(text, ic.name)
+                self.took(text, ic.name)
+                return None
         asked = getattr(self, "pending_clarify", None)
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
@@ -1264,41 +1408,50 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         plan = self.audit_plan(text, plan, raw_plan)
         if plan is None:                            # the audit could not make sense of it: nothing happens, no time passes; the world has asked (f321)
             self.buffering = False
-            return
+            return None
         self.pending_clarify = None                 # (f321) read, whether first time or as the answer to a question
         self.sneaking, self.queued_buffs, self.fight_text = False, [], text      # what a fight the player starts this turn opens with (f248)
-        for i, intent in enumerate(plan):
-            if i and (self.combat or self.halted):
-                console.debug(f"stopping after {i} of {len(plan)} actions")
-                break
-            console.debug(f"intent {i + 1}/{len(plan)}: {intent.model_dump(exclude_defaults=True)}")
-            self.pending_check, self.pending_beats = "", []
-            self.step = intent                                 # (f416) what a refusal says did not happen
-            if not self.run_checks(intent, text):
-                from engine import actions
-                if intent.kind not in actions.BY_KIND:
-                    console.debug(f"no such action kind: {intent.kind}")
-                    self.halted = True
-                    break
-                self.__dict__.setdefault("ran", []).append(intent.kind)
-                refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
-                getattr(self, f"on_{intent.kind}")(intent, text)
-                if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
-                    self.stop_step(intent, sum(1 for r in ledger.ROWS if r.get("kind") == "refused") > refused_before)
-                if intent.force and intent.kind != "attack":
-                    self.after_force(intent, text)
-                if self.pending_beats:
-                    self.narrate(" ".join(self.pending_beats), text)
-            if intent.mark.strip():
-                self.add_mark(intent.mark.strip())
-            if self.player.commissions:
-                self.collect_commissions()
-            if self.player.quests:
-                self.expire_quests()
-                if intent.kind in ("give", "show") and intent.target:        # (f378) handing the work over is handing it in; talk does it in on_talk
-                    self.turn_in(intent.target)
-            if intent.kind in TIME_COST:
-                self.advance(TIME_COST[intent.kind])
+        self.line_text = text                       # (f463) the line as the steps read it (an answer joined to its question)
+        return plan
+
+    def run_step(self, i: int, plan: list, text: str) -> None:
+        """(f463) One step of the plan: its checks, its action, what follows it (a stop on the road, a forced hand, its beats, its mark, the
+        commissions and quests it touched, its time)."""
+        intent = plan[i]
+        text = getattr(self, "line_text", text) or text
+        console.debug(f"intent {i + 1}/{len(plan)}: {intent.model_dump(exclude_defaults=True)}")
+        self.pending_check, self.pending_beats = "", []
+        self.step = intent                                 # (f416) what a refusal says did not happen
+        if not self.run_checks(intent, text):
+            from engine import actions
+            if intent.kind not in actions.BY_KIND:
+                console.debug(f"no such action kind: {intent.kind}")
+                self.halted = True
+                return
+            self.__dict__.setdefault("ran", []).append(intent.kind)
+            refused_before = sum(1 for r in ledger.ROWS if r.get("kind") == "refused")
+            getattr(self, f"on_{intent.kind}")(intent, text)
+            if self.player.road:                       # (f427) a hand for someone in need at a stop, or a way past what blocks it
+                self.stop_step(intent, sum(1 for r in ledger.ROWS if r.get("kind") == "refused") > refused_before)
+            if intent.force and intent.kind != "attack":
+                self.after_force(intent, text)
+            if self.pending_beats:
+                self.narrate(" ".join(self.pending_beats), text)
+        if intent.mark.strip():
+            self.add_mark(intent.mark.strip())
+        if self.player.commissions:
+            self.collect_commissions()
+        if self.player.quests:
+            self.expire_quests()
+            if intent.kind in ("give", "show") and intent.target:        # (f378) handing the work over is handing it in; talk does it in on_talk
+                self.turn_in(intent.target)
+        if intent.kind in TIME_COST:
+            self.advance(TIME_COST[intent.kind])
+        self.line_done.append((getattr(intent, "summary", "") or "").strip() or intent.kind)   # (f463) for the part_stood line
+
+    def after_steps(self, text: str) -> None:
+        """(f463) After the plan's steps: what was not done is said, the dungeons are kept whole, and the world's pulse."""
+        text = getattr(self, "line_text", text) or text
         self.step = None
         undone = self.__dict__.pop("dropped_steps", [])
         if undone:                                             # (f332) the game does at most three things a line: say what it did not do
@@ -1308,11 +1461,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             ledger.add("not_done", steps=undone, say="NOT DONE this turn, never show them done: " + "; ".join(undone) + ".")   # (f416)
         self.ensure_dungeons()
         self.run_pulse()
+
+    def passage(self, text: str) -> None:
+        """(f463) The passage of a line of several actions, held back until here (flush), and what follows it."""
+        text = getattr(self, "line_text", text) or text
         self.flush(text)
         self.release_time_notes()                               # (f418) after the passage
         if self.buffering and self.exits_due and not self.combat:
             self.show_exits(force=True)
         self.buffering = False
+
+    def settle_line(self) -> None:
+        """(f463) The end of an interpreted line: a moment walked into, the law, and the turn counted."""
         from engine import matters
         matters.on_arrival(self)                                 # (f317) after the turn's own passage: a moment walked into, or someone come looking
         self.law_check()

@@ -114,7 +114,7 @@ def broken_handle(text):
     ws.player.character.coins += 100                     # a write the fault must not leave behind
     ws.store.save_player(ws.player)
     raise KeyError("road_3db1089b")
-ws.handle = broken_handle
+ws.read_line = broken_handle                             # (f463) inside the line's first operation
 SHOWN.clear()
 stood = ws.turn("go the te watchmen")
 check("a turn the game itself breaks on is not taken, and does not end the game", stood is False and ws.last_crash and ws.last_failure.startswith("KeyError"),
@@ -138,16 +138,18 @@ class Parted(Interrupt):
     pass
 def parting(text):
     raise Parted("the replay parted")
-ws.handle = parting
+ws.read_line = parting
 try:
     ws.turn("look")
     passed = False
 except Parted:
     passed = True
 check("an exception raised on purpose passes out of the turn untouched", passed)
+from engine import operation as _op
+check("...and the operation it was raised in is closed behind it", _op.current() is None and ws.store._in_operation == 0 and ws.store._depth == 0)
 
 # the loop goes on after a fault, and the turn log says the game crashed, not the model
-del ws.handle
+del ws.read_line
 def broken_cmd(text):
     raise ValueError("a pane button's fault")
 ws.command = broken_cmd

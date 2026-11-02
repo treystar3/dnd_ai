@@ -172,11 +172,15 @@ class CampaignSession:
                 held[k] = v
         self._turn = (self.world.snapshot(), held)
 
-    def rollback(self, scene) -> None:
+    def rollback(self, scene, op_id: str = "") -> None:
         """The turn rolled back (scenes/world.py reload_after_rollback, first thing): the map's additions, the scene's private caches,
-        the ledger's rows and totals and the casting cache go back to the turn's start. The store's reload follows."""
+        the ledger's rows and totals and the casting cache go back to the turn's start. The store's reload follows. (f463) With op_id,
+        one operation of the line rolled back: that operation's ledger rows alone go (engine/ledger.py rollback_op); the rest stand."""
         from engine import ledger, spellcraft
-        ledger.rollback()
+        if op_id:
+            ledger.rollback_op(op_id)
+        else:
+            ledger.rollback()
         spellcraft._CAST.clear()
         if self._turn is None:
             return

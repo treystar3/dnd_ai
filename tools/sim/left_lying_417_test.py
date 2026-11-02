@@ -118,7 +118,7 @@ check("a won road fight is kept to tell at the arrival", any("fought it out ther
 resumed = []
 ws.resume_road = lambda: (resumed.append(1), setattr(ws, "resume_pending", None))
 ws.held_yield = [types.SimpleNamespace(name="bandit 1", side="enemy")]
-ws.handle = lambda text: None
+ws.read_line = lambda text: None                       # (f463) the line's reading, the first operation, does nothing: the tail is the point
 ws.turn("I look at the bandit")
 check("...and the walk does not go on while the one who yielded waits on the player's word", not resumed and ws.resume_pending)
 ws.held_yield = None

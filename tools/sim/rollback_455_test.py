@@ -151,8 +151,8 @@ i, j = src.index("spellcraft.begin(att, move)"), src.index("spellcraft.end(att)"
 check("the casting context is ended whatever way the cast ends", "try:" in src[i:j] and "finally:" in src[j - 200:j], src[j - 200:j])
 check("a resumed fight starts with an empty casting cache", "spellcraft._CAST.clear()" in pathlib.Path("scenes/combat_scene.py").read_text(encoding="utf-8"))
 ws_src = pathlib.Path("scenes/world.py").read_text(encoding="utf-8")
-check("the turn and the pane command begin on the session, and the rollback goes through it first", ws_src.count("self.session.begin_turn(self)") == 2
-      and "self.session.rollback(self)" in ws_src)
+check("every operation begins on the session, once, and the rollback goes through it first", ws_src.count("self.session.begin_turn(self)") == 1
+      and "self.session.rollback(self, " in ws_src)                                              # (f463) one place: operation()
 for n in ("rollback_455_a", "rollback_455_rec", "rollback_455_rec_out"):
     shutil.rmtree(f"saves/{n}", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

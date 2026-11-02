@@ -207,8 +207,10 @@ class Recorder:
             return
         from engine import ledger
         from storage import statehash
+        ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]}                                 # (f463) the operations the input committed
+               for o in self.store.load_operations()["ops"] if o.get("steps") == self.store.meta.steps]
         self.turns.write(json.dumps({"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
-                                     "state": statehash.digest(self.store), "outcomes": ledger.LAST,
+                                     "state": statehash.digest(self.store), "outcomes": ledger.LAST, "operations": ops,
                                      "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
                                      "shown_text": list(self.shown)},                       # (f459) the lines, for a re-bless to name the one that moved
                                     ensure_ascii=False, default=str) + "\n")
