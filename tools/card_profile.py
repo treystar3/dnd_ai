@@ -7,7 +7,8 @@ counts (tokens read and written, and the time each took), so a session recorded 
     python3 tools/card_profile.py <recording> [--card "RTX 3060 12GB"] [--measured-on "RTX A4000"] [--vram-gb 11.2] [--write]
 
 prints what each turn cost, every turn over the minute, and the card's speeds (tokens a second read and written, a model load), and
-with --write keeps those speeds in data/rules/card_profile.yaml for the budget to read. A recording made elsewhere (a faster card, the
+with --write keeps those speeds in data/measured/card_profile.yaml for the budget to read (f459: a measurement, outside the data hash;
+the budget's tunables, the 60 s among them, are data/rules/budget.yaml). A recording made elsewhere (a faster card, the
 owner's own play) is re-timed on the card with tools/rerun.py --time <the card's Ollama URL>, which sends every recorded request to
 it beside the replay and writes the same measures into the recording (timed.jsonl) for this tool to read.
 
@@ -26,8 +27,16 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PROFILE = ROOT / "data" / "rules" / "card_profile.yaml"
-BUDGET = 60.0
+PROFILE = ROOT / "data" / "measured" / "card_profile.yaml"
+
+
+def budget_limit() -> float:
+    """(f459) The owner's limit for the longest turn, from data/rules/budget.yaml: one number, read wherever the budget is judged."""
+    import yaml
+    return float(yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))["limit_seconds"])
+
+
+BUDGET = budget_limit()
 
 
 def calls_of(folder: Path) -> list[dict]:
@@ -90,6 +99,8 @@ def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fi
     PROFILE.write_text(
         "# (f443, tools/card_profile.py) Measured on the card the game is built for (GOALS.md: an RTX 3060, no turn over a minute).\n"
         "# Written by the tool from a recording made or re-timed on that card; Stage 3's turn budget reads it. Do not hand-edit numbers.\n"
+        "# (f459) A measurement, kept under data/measured, outside the data hash: re-timing it never re-blesses a recording. The budget's\n"
+        "# hand-kept tunables are data/rules/budget.yaml.\n"
         f"card: \"{card}\"\nmodel: \"{model}\"\nmeasured: \"{date.today().isoformat()}\"\nsource: \"{source}\"\n"
         f"scaled_from: \"{scaled_from}\"            # (f444) empty when measured on the card itself; else an estimate from that card\n"
         f"fits: \"{fits}\"\n"
@@ -103,7 +114,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("recording")
     ap.add_argument("--card", default="RTX 3060 12GB")
-    ap.add_argument("--write", action="store_true", help="keep the speeds in data/rules/card_profile.yaml")
+    ap.add_argument("--write", action="store_true", help="keep the speeds in data/measured/card_profile.yaml")
     ap.add_argument("--measured-on", default="", help="(f444) the card the recording was made on, when it is not --card: scale to --card")
     ap.add_argument("--vram-gb", type=float, default=0, help="(f444) what the model and its context took on the measuring card")
     a = ap.parse_args()

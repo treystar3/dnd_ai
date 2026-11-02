@@ -14,7 +14,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-P = yaml.safe_load(Path("data/rules/card_profile.yaml").read_text(encoding="utf-8"))
+P = yaml.safe_load(Path("data/measured/card_profile.yaml").read_text(encoding="utf-8"))     # (f459) a measurement, outside the data hash
 check("the profile is for the card the game is built for", P["card"] == "RTX 3060 12GB" and P["model"] == "gemma4:12b", P)
 check("...says it is an estimate, and from which card", P["scaled_from"] == "RTX A4000")
 check("...says the model and its context fit the card", "(fits)" in P["fits"], P["fits"])

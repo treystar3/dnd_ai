@@ -38,6 +38,83 @@ def _load(rel: str):
     return yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict)
 
 
+GAME_DIRS = ("engine", "scenes", "npc", "llm", "character")      # (f459) where the game asks the model; tools/*.py asks for its own ends
+
+
+def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list[str]]:
+    """(f459) Every task name the code gives the gateway, generate("...") or fresh("..."), with where it is called: the one source the
+    per-task tables (budget.yaml, audit_log.yaml, lora.yaml, hygiene.yaml, config.SAMPLING) are checked against, so none drifts."""
+    import ast
+    found: dict[str, list[str]] = {}
+    files = [p for d in dirs for p in sorted((ROOT / d).rglob("*.py"))]
+    if tools:
+        files += sorted((ROOT / "tools").glob("*.py"))
+    for p in files:
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            f = node.func
+            name = f.id if isinstance(f, ast.Name) else (f.attr if isinstance(f, ast.Attribute) else "")
+            a0 = node.args[0]
+            if name in ("generate", "fresh") and isinstance(a0, ast.Constant) and isinstance(a0.value, str):
+                found.setdefault(a0.value, []).append(f"{p.relative_to(ROOT).as_posix()}:{node.lineno}")
+    return found
+
+
+def budget_problems(B: dict | None = None, found: dict | None = None) -> list[str]:
+    """(f459) data/rules/budget.yaml: its numbers whole and above zero, every task the code calls in its table with a need and a size,
+    no task in the table that nothing calls, and the four older per-task lists (the audit log's reasons, the voice lists, the
+    narrator's tasks, the sampling table) subsets of it."""
+    import config
+    bad: list[str] = []
+    B = _load("data/rules/budget.yaml") if B is None else B
+    found = task_literals() if found is None else found
+
+    def need(ok, msg):
+        if not ok:
+            bad.append(msg)
+    for k in ("limit_seconds", "margin_seconds", "floor_seconds", "reserve_seconds", "chars_per_token", "embed_seconds_per_text"):
+        need(isinstance(B.get(k), (int, float)) and not isinstance(B.get(k), bool) and B[k] > 0, f"budget.yaml {k}: needs a number above 0")
+    if all(isinstance(B.get(k), (int, float)) for k in ("limit_seconds", "margin_seconds", "floor_seconds")):
+        need(B["floor_seconds"] + B["margin_seconds"] < B["limit_seconds"], "budget.yaml: the floor and the margin must leave room under the limit")
+    R = B.get("retention") or {}
+    for k in ("operations", "deferred_turns"):
+        need(isinstance(R.get(k), int) and not isinstance(R.get(k), bool) and R[k] > 0, f"budget.yaml retention.{k}: needs a whole number above 0")
+    T = B.get("tasks")
+    if not isinstance(T, dict) or not T:
+        bad.append("budget.yaml tasks: needs a table of the model's tasks")
+        return bad
+    for name, spec in T.items():
+        spec = spec or {}
+        need(spec.get("need") in ("required", "optional", "tool"), f"budget.yaml tasks.{name}: need must be required, optional or tool")
+        need(isinstance(spec.get("answer_tokens"), int) and spec.get("answer_tokens", 0) > 0, f"budget.yaml tasks.{name}: answer_tokens needs a whole number above 0")
+        if spec.get("need") == "optional":
+            need(spec.get("later") in ("deferred", "dropped"), f"budget.yaml tasks.{name}: an optional task says later: deferred or dropped")
+        else:
+            need("later" not in spec, f"budget.yaml tasks.{name}: only an optional task has a later")
+    missing = sorted(set(found) - set(T))
+    need(not missing, "budget.yaml tasks: the code calls tasks the table does not know: " + ", ".join(f"{t} ({found[t][0]})" for t in missing))
+    unused = sorted(set(T) - set(found))
+    need(not unused, "budget.yaml tasks: nothing in the code calls " + ", ".join(unused))
+    lists = {
+        "audit_log.yaml tasks": set((_load("data/rules/audit_log.yaml").get("tasks") or {})),
+        "lora.yaml prose_tasks and speech_tasks": set((_load("data/rules/lora.yaml").get("prose_tasks") or []) + (_load("data/rules/lora.yaml").get("speech_tasks") or [])),
+        "hygiene.yaml narrator_tasks": set(_load("data/rules/hygiene.yaml").get("narrator_tasks") or []),
+        "config.SAMPLING": set(getattr(config, "SAMPLING", {})),
+    }
+    for where, names in lists.items():
+        stray = sorted(names - set(T))
+        need(not stray, f"{where} names tasks budget.yaml does not know (and so nothing calls): {', '.join(stray)}")
+    reasons = set((_load("data/rules/audit_log.yaml").get("tasks") or {}))
+    unexplained = sorted(set(T) - reasons)
+    need(not unexplained, "audit_log.yaml tasks: no reason is given for " + ", ".join(unexplained))
+    return bad
+
+
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
@@ -426,10 +503,10 @@ def check() -> list[str]:
         need(all(isinstance((spec or {}).get(k), (int, float)) and spec[k] > 0 for k in ("bandwidth_gbs", "tflops", "memory_gb")),
              f"cards.yaml {card}: needs bandwidth_gbs, tflops and memory_gb above 0")
 
-    # ---- (f446) the card profile Stage 3's turn budget reads: whole, and an estimate said to be one
-    prof = ROOT / "data" / "rules" / "card_profile.yaml"
+    # ---- (f446) the card profile Stage 3's turn budget reads: whole, and an estimate said to be one ((f459) under data/measured)
+    prof = ROOT / "data" / "measured" / "card_profile.yaml"
     if prof.exists():
-        P_ = _load("data/rules/card_profile.yaml") or {}
+        P_ = _load("data/measured/card_profile.yaml") or {}
         cards_known = set(((_load("data/rules/cards.yaml") or {}).get("cards") or {}))
         need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
         need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
@@ -439,6 +516,9 @@ def check() -> list[str]:
     # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
     from engine import failures as _failures
     bad += _failures.problems()
+
+    # ---- (f459) the turn budget's tunables, and the one table of the model's tasks every per-task list is checked against
+    bad += budget_problems()
 
     # ---- (f435) what someone said of themselves that the canon check could not be asked about waits, unsettled
     U = ((_load("data/rules/truth.yaml").get("canon") or {}).get("unsettled") or {})

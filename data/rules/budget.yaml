@@ -1,0 +1,85 @@
+# (f459) The turn budget's tunables and the one table of the model's tasks (engine/budget.py reads them from f468; engine/data_check.py
+# checks them at startup from here on). The owner's decision: the longest turn finishes within 60 seconds of model time on the RTX 3060
+# 12 GB, counting the typed line's required calls (understanding, the outcome, its passage, the embed calls those need), not one-time
+# loads, background work or the window's pane re-runs. The card's speeds are a measurement, kept apart in data/measured/card_profile.yaml
+# (outside the data hash, so a re-timing never re-blesses a recording); these are hand-kept numbers, in the hash.
+#
+# The sizes below are first estimates from the call sites' ceilings and the f443 night's shape; tools/card_profile.py --estimate (f471)
+# reads a night recording's answer sizes per task and prints what to put here. Tune them from a recording, never by feel.
+limit_seconds: 60             # the whole of the required path, model time, on the card
+margin_seconds: 5             # kept back from the limit, for the engine's own time and the estimate's error
+floor_seconds: 8              # the least a required call is still given before a stand-in takes its place
+reserve_seconds: 20           # what an optional call must leave for the required calls still ahead of it (the passage, mostly)
+chars_per_token: 4.0          # prompt characters per token, the estimate's one calibration (English prose on this model)
+embed_seconds_per_text: 0.15  # one text through the embedding model, on the card
+retention:
+  operations: 200             # operations kept in a save's record (about a hundred typed lines)
+  deferred_turns: 3           # how many turns a deferred optional call waits before it is dropped
+
+# Every task the game asks the model for, by the name the gateway is given (llm/gateway.py generate / scenes/voice.py fresh).
+#   need:          required (the typed line cannot stand without it) | optional (the line stands without it) | tool (a tool's call, outside play)
+#   later:         for an optional task past the budget: deferred (queued to the next turn's edge) | dropped (the site's fallback stands now)
+#   answer_tokens: the answer's expected size, for the estimate before the call is made
+tasks:
+  # ---- understanding the line
+  interpret_action:         {need: required, answer_tokens: 120}
+  audit_meaning:            {need: required, answer_tokens: 60}
+  audit_compare:            {need: required, answer_tokens: 60}
+  clarify:                  {need: required, answer_tokens: 60}
+  combat_interpret:         {need: required, answer_tokens: 60}
+  party_intent:             {need: required, answer_tokens: 40}
+  camp_intent:              {need: required, answer_tokens: 60}
+  lesson_want:              {need: required, answer_tokens: 60}
+  work_offer_read:          {need: required, answer_tokens: 50}
+  stranger_read:            {need: required, answer_tokens: 20}
+  # ---- the outcome: what people say and what the world is asked to decide
+  npc_conversation:         {need: required, answer_tokens: 120}
+  npc_profile:              {need: required, answer_tokens: 400}
+  populate_place:           {need: required, answer_tokens: 1500}
+  hire_chat:                {need: required, answer_tokens: 110}
+  canon_extract:            {need: required, answer_tokens: 120}
+  canon_check:              {need: required, answer_tokens: 20}
+  mentor_chat:              {need: required, answer_tokens: 150}
+  mentor_speech:            {need: required, answer_tokens: 400}
+  mentor_voice:             {need: required, answer_tokens: 200}
+  ruling:                   {need: required, answer_tokens: 200}
+  plausible_object:         {need: required, answer_tokens: 80}
+  classify_field:           {need: required, answer_tokens: 400}
+  discovery:                {need: required, answer_tokens: 300}
+  road_event:               {need: required, answer_tokens: 350}
+  generate_lessons:         {need: required, answer_tokens: 900}
+  goddess_line:             {need: required, answer_tokens: 150}
+  # ---- the passage
+  narrate:                  {need: required, answer_tokens: 260}
+  combat_narrate:           {need: required, answer_tokens: 220}
+  combat_aftermath:         {need: required, answer_tokens: 260}
+  # ---- optional: the line stands without them
+  dialogue_frame:           {need: optional, later: dropped, answer_tokens: 120}
+  exchange:                 {need: optional, later: deferred, answer_tokens: 200}
+  overheard:                {need: optional, later: dropped, answer_tokens: 60}
+  pair_dynamic:             {need: optional, later: dropped, answer_tokens: 100}
+  persona_details:          {need: optional, later: deferred, answer_tokens: 350}
+  moment:                   {need: optional, later: dropped, answer_tokens: 200}
+  npc_parting:              {need: optional, later: dropped, answer_tokens: 120}
+  arc_story:                {need: optional, later: deferred, answer_tokens: 1200}
+  event_judge:              {need: optional, later: dropped, answer_tokens: 120}
+  pulse_thread:             {need: optional, later: dropped, answer_tokens: 1200}
+  pulse_motive:             {need: optional, later: dropped, answer_tokens: 500}
+  pulse_cataclysm:          {need: optional, later: dropped, answer_tokens: 1500}
+  thread_telling:           {need: optional, later: dropped, answer_tokens: 500}
+  board_stakes:             {need: optional, later: dropped, answer_tokens: 900}
+  loot_name:                {need: optional, later: dropped, answer_tokens: 60}
+  legendary_name:           {need: optional, later: dropped, answer_tokens: 80}
+  accessory_name:           {need: optional, later: dropped, answer_tokens: 80}
+  named_spell:              {need: optional, later: dropped, answer_tokens: 80}
+  spell_rank:               {need: optional, later: dropped, answer_tokens: 80}
+  # ---- character creation: before any turn, never budgeted
+  classify_concept:         {need: required, answer_tokens: 300}
+  generate_actives:         {need: required, answer_tokens: 2000}
+  generate_passive_mechanics: {need: required, answer_tokens: 1800}
+  interpret_creation_input: {need: required, answer_tokens: 100}
+  starting_kit:             {need: required, answer_tokens: 60}
+  # ---- the tools' own calls, outside play
+  live_judge:               {need: tool, answer_tokens: 200}
+  player_line:              {need: tool, answer_tokens: 60}
+  town_profile:             {need: tool, answer_tokens: 800}

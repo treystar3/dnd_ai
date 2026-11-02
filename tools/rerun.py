@@ -49,6 +49,36 @@ def load(folder: Path) -> dict:
             "turns": rows("turns.jsonl")}
 
 
+def report_rebless(old: dict, new: dict) -> None:
+    """(f459) What moved between the kept recording and the new one, read before a re-bless is accepted: the inputs whose state differs
+    and in which tables, the calls (count, title order, every request that differs), the outcomes and the shown words per input, and
+    the first shown line that moved. A difference the feature did not predict is a stop, not a bless."""
+    ot, nt = old["turns"], new["turns"]
+    changed = [(t, u) for t, u in zip(ot, nt) if t["state"]["all"] != u["state"]["all"]]
+    print(f"inputs whose state differs from the kept recording: {[t['i'] for t, _ in changed][:20] or 'none'}; calls {len(old['calls'])} -> "
+          f"{len(new['calls'])}; inputs {len(old['inputs'])} -> {len(new['inputs'])}")
+    for t, u in changed[:10]:
+        print(f"  input {t['i']}: tables that differ: {[k for k in t['state'] if k != 'all' and t['state'].get(k) != u['state'].get(k)]}")
+    titles_old, titles_new = [c.get("title") for c in old["calls"]], [c.get("title") for c in new["calls"]]
+    if titles_old != titles_new:
+        k = next((j for j, (x, y) in enumerate(zip(titles_old, titles_new)) if x != y), min(len(titles_old), len(titles_new)))
+        print(f"the calls' titles part at call {k}: {titles_old[k:k + 3]} -> {titles_new[k:k + 3]}")
+    else:
+        print("the calls' titles are the same, in the same order")
+    req = [(c.get("i"), c.get("input"), c.get("title")) for c, d in zip(old["calls"], new["calls"]) if c.get("req") != d.get("req")]
+    print(f"calls whose request differs: {len(req)}" + (": " + ", ".join(f"call {i} (input {n}, {t})" for i, n, t in req[:12]) if req else ""))
+    print(f"inputs whose outcomes differ: {[t['i'] for t, u in zip(ot, nt) if t.get('outcomes') != u.get('outcomes')][:20] or 'none'}")
+    moved = [(t, u) for t, u in zip(ot, nt) if t.get("shown") != u.get("shown")]
+    print(f"inputs whose shown words differ: {[t['i'] for t, _ in moved][:20] or 'none'}")
+    for t, u in moved[:3]:
+        a, b = t.get("shown_text"), u.get("shown_text")
+        if a is None or b is None:
+            print(f"  input {t['i']}: {t.get('lines')} -> {u.get('lines')} lines (the kept recording holds no text to compare)")
+            continue
+        k = next((j for j, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+        print(f"  input {t['i']}: line {k + 1} moved: {a[k] if k < len(a) else '(none)'!r} -> {b[k] if k < len(b) else '(none)'!r}")
+
+
 def _failure(err: list):
     import httpx
     import ollama
@@ -295,9 +325,7 @@ def main() -> int:
         make_stub_recording(tmp, a.inputs)
         new = load(tmp)
         if old:
-            changed = [t["i"] for t, u in zip(old["turns"], new["turns"]) if t["state"]["all"] != u["state"]["all"]]
-            print(f"inputs whose state differs from the kept recording: {changed[:20] or 'none'}; calls {len(old['calls'])} -> "
-                  f"{len(new['calls'])}; inputs {len(old['inputs'])} -> {len(new['inputs'])}")
+            report_rebless(old, new)
         shutil.rmtree(GOLDEN, ignore_errors=True)
         tmp.rename(GOLDEN)
         print(f"kept {GOLDEN.relative_to(ROOT)}: read the differences above before committing it")

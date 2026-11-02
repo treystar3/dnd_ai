@@ -8,7 +8,7 @@ import yaml
 
 from engine import clock, crafting, inventory as inv, items, loot, money, pools
 from llm.contracts import WorkOffer
-from llm.gateway import generate
+from llm.gateway import LLMError, generate
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 
@@ -48,7 +48,7 @@ class WorkActions:
                            "(like 'load the grain onto the wagon'), how many minutes it should take, and the pay in copper "
                            "(0 if no amount was named). Respond only with JSON.",
                            f"{npc.label()} says: {speech}", WorkOffer, temperature=0.1, max_tokens=120)
-        except Exception:
+        except LLMError:                              # (f459) only the model's failure: a replay's parting (an Interrupt) passes through
             return None
         task = got.task.strip().strip(".").lower()
         if not task or task.isdigit() or task in ("none", "no", "n/a", "nothing", "no task", "not an offer") or task in PLACEHOLDER_TASKS:

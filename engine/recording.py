@@ -209,7 +209,8 @@ class Recorder:
         from storage import statehash
         self.turns.write(json.dumps({"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
                                      "state": statehash.digest(self.store), "outcomes": ledger.LAST,
-                                     "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown)},
+                                     "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
+                                     "shown_text": list(self.shown)},                       # (f459) the lines, for a re-bless to name the one that moved
                                     ensure_ascii=False, default=str) + "\n")
         self.turns.flush()
         self.shown, self.open_input = [], False
