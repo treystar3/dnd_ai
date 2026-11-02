@@ -66,19 +66,18 @@ class Bench:
         from engine import actions
         from npc.traits import load_traits
         from scenes import quirk_actions
-        from scenes.world import WorldScene
-        from storage.campaign import CampaignStore, PlayerState
-        from world.loader import load_world
+        from engine.session import CampaignSession
+        from storage.campaign import PlayerState
         import ui.console as uc
         self.notes: list[str] = []
         uc.note = lambda m, *a, **k: self.notes.append(str(m))
-        self.world = load_world()
         shutil.rmtree(f"saves/{save}", ignore_errors=True)
-        self.store = CampaignStore.open_or_create(save)
+        self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
+        self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = 3; self.store.meta.turn = 1; self.store.meta.minutes = 120; self.store.save_meta()
         char, _ = simlib.make_character("warrior", random.Random(1))
         self.store.save_player(PlayerState(character=char, location="trading_square"))
-        self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
+        self.ws = self.session.scene(load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
         config.TURN_LOG_PATH = f"saves/{save}/turns.jsonl"
         config.AUDIT_ENABLED = False
