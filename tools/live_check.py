@@ -67,22 +67,22 @@ import simlib
 from engine import banter, mentor, quirks
 from engine import party as rules
 from npc.models import NPC
+from engine.session import CampaignSession
 from npc.traits import load_traits
-from scenes.world import WorldScene
 from scenes.banter_actions import BanterActions
-from storage.campaign import CampaignStore, PlayerState
-from world.loader import load_world
+from storage.campaign import PlayerState
 
 NAME = "live_check"
 shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
-store = CampaignStore.open_or_create(NAME)
+session = CampaignSession.open(NAME)                 # (f457) the campaign's session, as main.py opens it
+store = session.store
 store.meta.seed = 11; store.meta.turn = 1; store.meta.minutes = 1800; store.save_meta()
 _real_client = gw._client                          # the test character is built the same way every time, without the model under test
 simlib.install(simlib.Stub("warrior", 3))
 ch, _ = simlib.make_character("warrior", random.Random(2))
 gw._client = _real_client
 store.save_player(PlayerState(character=ch, location="parth"))
-w = WorldScene(store, load_world(), load_traits(), store.load_player())
+w = session.scene(load_traits(), store.load_player())
 config.TURN_LOG_PATH = str(ROOT / "saves" / NAME / "turns.jsonl")
 
 FALLBACKS = gw.FALLBACKS          # the gateway records every call that gave up and left its caller to written lines, for every speaker
@@ -666,4 +666,5 @@ except OSError:
 print(f"Done in {_fmt(time.time() - PROG['t0'])}. {len(set(flags))} flag(s). Report: {path}")
 for f in sorted(set(flags)):
     print("  -", f)
+session.close()
 shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
