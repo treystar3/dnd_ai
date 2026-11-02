@@ -74,7 +74,7 @@ check("when the narrator wrote this turn, its passage is the update: no line", s
 # 1720 run printed 'The door goes, and it is the broker' under a passage that had already sat him at his table)
 import inspect
 src = inspect.getsource(WorldScene.turn)
-check("the turn clears the narrator's mark before reading the line", "self._wrote_turn = False" in src and src.index("_wrote_turn = False") < src.index("self.read_line(text)"))   # (f463) the line's reading, inside its first operation
+check("the turn clears the narrator's mark before reading the line", "self._wrote_turn = False" in src and src.index("_wrote_turn = False") < src.index("self.take_line(text)"))   # (f463, f470) the line taken whole, inside its first operation
 stay.reset(ws)
 told.clear()
 store.meta.minutes = next(m for m in range(ws.minutes, ws.minutes + 600, 15) if clock.period(m) != clock.period(ws.minutes)); ws.store.meta.turn += 1

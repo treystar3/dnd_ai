@@ -97,7 +97,7 @@ check("...the fault is in crash.log as the world's, naming the operation", len(c
       and crashlog.last().get("operation") == "world" and "KeyError" in crashlog.last()["error"], crashlog.last())
 check("...the player reads no line that the turn was not taken, and the passage was told", not any(t in failures.lines() for k, t in SHOWN) and narrated(), SHOWN[:6])
 check("...the record holds the line, its passage and the world's other operations, the pulse's missing",
-      ops_of_input() == ["line", "passage", "arrival", "law", "tail"] and [o.kind for o in ws.line_world_failed] == ["world"], (ops_of_input(), [o.kind for o in ws.line_world_failed]))
+      ops_of_input() == ["action:buy", "passage", "arrival", "law", "tail"] and [o.kind for o in ws.line_world_failed] == ["world"], (ops_of_input(), [o.kind for o in ws.line_world_failed]))
 check("...and the turn log hears of it, apart from the line's own failures", ws.world_failures() == [{"kind": "world", "error": crashlog.last()["error"][:200], "crash": True}], ws.world_failures())
 check("...the line is halted by nothing: the turn counted", store.load_player() and ws.store.meta.turn == 2, ws.store.meta.turn)
 
@@ -172,7 +172,7 @@ th = next((t for t in store.load_world_state()["threads"] if t["id"] == "t_momen
 check("the moment walked into stands, with its stamps, though its telling failed", stood is True and th and th["moment"] == "shown" and th.get("told") is True
       and "told_at" in th, th and {k: th.get(k) for k in ("moment", "told", "told_at")})
 check("...the line's own passage stood before it; the moment's telling was a passage operation of its own, told by a stand-in",
-      ops_of_input() == ["line", "passage", "world", "arrival", "law", "tail"] and [o.kind for o in ws.line_untold] == ["passage"] and not ws.line_world_failed,
+      ops_of_input() == ["action:look", "passage", "world", "arrival", "law", "tail"] and [o.kind for o in ws.line_untold] == ["passage"] and not ws.line_world_failed,
       (ops_of_input(), [o.kind for o in ws.line_untold], [o.kind for o in ws.line_world_failed]))
 check("...told after the arrival's commit, and the telling of the situation inside it", LOG.index(("commit", "arrival")) < len(LOG) - 1
       and LOG.index(("call", "ThreadTelling")) < LOG.index(("commit", "arrival")) < LOG.index(("call", "Narration"), LOG.index(("commit", "arrival"))), LOG)

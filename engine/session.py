@@ -62,6 +62,7 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
         ("operation.CURRENT", operation.reset, lambda: operation.CURRENT is None, lambda: repr(operation.CURRENT)),              # (f462)
         ("operation.PRESENTED", lambda: operation.PRESENTED.clear(), lambda: not operation.PRESENTED, lambda: f"{len(operation.PRESENTED)} presented"),   # (f467)
         ("budget.CURRENT", budget.reset, lambda: budget.CURRENT is None and not budget.LAST, lambda: repr(budget.LAST or budget.CURRENT)),   # (f468)
+        ("operation.LEGACY", lambda: operation.LEGACY.clear(), lambda: not operation.LEGACY, lambda: repr(operation.LEGACY)),   # (f470)
         ("combat_perks.QUARRY", lambda: combat_perks.QUARRY.clear(), lambda: not combat_perks.QUARRY, lambda: repr(dict(combat_perks.QUARRY))),   # (f465)
         ("combat_perks.WITHER", lambda: combat_perks.WITHER.clear(), lambda: not combat_perks.WITHER, lambda: repr(dict(combat_perks.WITHER))),
         ("healing.LAST", lambda: healing.LAST.clear(), lambda: not healing.LAST, lambda: repr(dict(healing.LAST))),

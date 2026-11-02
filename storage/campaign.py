@@ -220,8 +220,10 @@ class _Guarded:
 
     def execute(self, sql, *args):
         s = self._store
-        if s._armed and s._in_operation == 0 and s._exempt == 0 and sql.lstrip().split(None, 1)[0].upper() in WRITES:
-            raise WriteOutsideOperation(f"{sql.lstrip().split(None, 1)[0]} outside any operation, with the write fence armed")
+        if sql.lstrip().split(None, 1)[0].upper() in WRITES:
+            if s._armed and s._in_operation == 0 and s._exempt == 0:
+                raise WriteOutsideOperation(f"{sql.lstrip().split(None, 1)[0]} outside any operation, with the write fence armed")
+            s._writes += 1                                     # (f470) counted: an operation that wrote nothing may end void
         return self._db.execute(sql, *args)
 
     def __getattr__(self, name):
@@ -238,6 +240,8 @@ class CampaignStore:
         self._armed = False            # (f462) the write fence
         self._in_operation = 0         # (f462) operations open (the executor's, f463)
         self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
+        self._writes = 0               # (f470) rows written since the store opened: an operation compares before and after
+        self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
 
     # ---------- opening ----------
 
@@ -506,6 +510,23 @@ class CampaignStore:
                     self._drop("presentation")
 
     # ---------- (f462) the write fence ----------
+
+    def writable(self) -> bool:
+        """(f470) Whether a write would pass the fence now: not armed, or inside an operation, or exempt. A lazy fill a read makes (a
+        manner rolled for an older save's person, npc/life.py manner; a merchant's stock laid out, scenes/inventory_actions.py
+        ensure_stock) keeps its result in memory and hands the record to save_npc_later: the next operation saves it first thing."""
+        return not self._armed or self._in_operation > 0 or self._exempt > 0
+
+    def save_npc_later(self, npc) -> None:
+        """(f470) A person changed by a read outside any operation (a lazy fill): saved by the next operation (flush_later), so the save
+        reads as it did when the fill was saved at once."""
+        if all(x is not npc for x in self._later):
+            self._later.append(npc)
+
+    def flush_later(self) -> None:
+        later, self._later = list(self._later), []
+        for npc in later:
+            self.save_npc(npc)
 
     def arm(self, on: bool = True) -> None:
         """Armed, the store refuses a row written outside any operation (in_operation): the executor (f463) arms it for the life of a

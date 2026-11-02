@@ -90,7 +90,12 @@ class AuditActions:
         if row is not None:                                                        # (f342) the clerk at night, the smith at the inn: the engine knows where they are
             console.debug(f"audit: {row.label()} is not here; the engine says where they are")
             self.log_turn(text, sit, raw_plan, ia.Result("answered", plan, reason=f"'{row.id}' is not here: the engine said where they are"), time.perf_counter() - start)
-            self.go_to_person(row, text)
+            from engine import operation as _op
+            if _op.current() is None and self.store._armed:                        # (f470) during the understanding: the walk is an operation of its own
+                with self.operation("action:go", text):
+                    self.go_to_person(row, text)
+            else:
+                self.go_to_person(row, text)
             return None
         if getattr(config, "AUDIT_ENABLED", True):
             res = ia.audit(text, plan, sit, self.audit_asker())
@@ -167,30 +172,45 @@ class AuditActions:
         the narrator - and the player's next line is read together with this one. Every one is logged as a refusal."""
         from engine import refusals
         if getattr(self, "pending_clarify", None):                       # asked once already and still unread: say so plainly, once
-            refusals.note("clarify_failed", text, why, self.player.location, self.store.meta.turn)
-            self.pending_clarify = None
-            console.note("That still didn't come through - try it in different words.")
+            def give_up():
+                refusals.note("clarify_failed", text, why, self.player.location, self.store.meta.turn)
+                self.pending_clarify = None
+                console.note("That still didn't come through - try it in different words.")
+            self.clarify_commit(text, give_up)
             return
         people = ", ".join(f"{n.id}: {n.label()}" for n in self.present) or "nobody"
         partner = self.partner.id if self.partner else ""
-        asked = ""
-        try:
+        asked, who = "", None
+        try:                                                              # (f470) prepared: the call first, outside any transaction
             req = (f'PLAYER TYPED: "{text}"\n' + (f"A READING OF IT: {meaning}\n" if meaning else "") + f"WHY IT COULD NOT BE ACTED ON: {why}\n"
                    f"PEOPLE HERE (id: name): {people}\nSPEAKING WITH: {partner or 'nobody'}\nPLACE: {self.place.name}")
             r = generate("clarify", CLARIFY_SYSTEM, req, Clarify, temperature=0.4, retries=1, max_tokens=120)
             asked = " ".join(r.line.split())
             if asked:
                 who = next((n for n in self.present if n.id == r.speaker), None) or (self.partner if r.speaker == partner else None)
-                if who is not None:
-                    console.npc_says(who.label(), asked, "")
-                else:
-                    console.narrate(asked)
         except Exception as e:
             console.debug(f"clarify: no question ({e})")
-        if not asked:
-            console.note("I'm not sure what you meant - could you say it another way?")
-        refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
-        self.pending_clarify = {"text": text, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
+
+        def commit():                                                     # ...then the question kept, in one small operation (turn())
+            if asked and who is not None:
+                console.npc_says(who.label(), asked, "")
+            elif asked:
+                console.narrate(asked)
+            else:
+                console.note("I'm not sure what you meant - could you say it another way?")
+            refusals.note(kind, text, why, self.player.location, self.store.meta.turn, asked)
+            self.pending_clarify = {"text": text, "question": asked, **({"place": place} if place else {})}   # (f428) a far place asked about
+        self.clarify_commit(text, commit)
+
+    def clarify_commit(self, text: str, fn) -> None:
+        """(f470) The question's writes (the pending question kept, the refusal noted, its words shown) as a `clarify` operation of their
+        own when the understanding runs outside any operation (turn()); inline when one is open (handle(), a pane's command)."""
+        from engine import operation as _op
+        if _op.current() is None and self.store._armed:
+            with self.operation("clarify", text):
+                fn()
+        else:
+            fn()
 
     def log_turn(self, text, sit, raw_plan, res, seconds):
         """The interpreted line's row in the turn log (engine/turnlog.py): the scene the gate checked against, the plan as read and as

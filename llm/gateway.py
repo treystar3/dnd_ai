@@ -134,8 +134,9 @@ def generate(
     (the repetition guard off, say) before giving up: the fallback ladder every speaker shares.
     (f468) The turn's budget is asked first (engine/budget.py allow): a call it does not allow raises its own error, a kind of LLMError
     so the site's fallback stands, that is no failure of the model's (no fallback counted, no refusal filed, no tally)."""
-    from engine import budget
+    from engine import budget, operation
     budget.allow(task, _chars(system, user))
+    operation.note_legacy(task)                     # (f470) made inside an operation's transaction: the ratchet's residue
     try:
         return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:

@@ -26,6 +26,11 @@ from scenes.banter_actions import BanterActions
 from scenes.quirk_actions import QuirkActions
 from engine import encounters
 from core.interrupts import Interrupt                      # (f449) stopped on purpose: let through, never rolled back as a fault
+
+
+class _Void(Exception):
+    """(f470) Raised inside an operation that took nothing (op.void): its transaction is rolled back with nothing in it, no record is
+    written, nothing it held is shown; it is neither a failure nor a commit."""
 from engine.combat import RULES as COMBAT_RULES
 from scenes import combat_prompts as cp
 from scenes.combat_scene import CombatScene
@@ -896,17 +901,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             where = "world"
         op = None
         real: dict = {}
+        writes0 = self.store._writes
         try:
             with self.store.in_operation(), self.store.transaction():
                 self.session.begin_turn(self)                  # (f455) the map's additions and the scene's caches, to give back on a rollback
                 if _op.current() is not None:
                     _op.end("rolled_back")                      # one left open by an Interrupt that passed through: closed, never joined
                 op = _op.begin(kind, self.store.meta.steps, index, self.store.revision(), text, op_id=op_id)
+                self.store.flush_later()                       # (f470) what a read filled in outside any operation is saved first
                 real = self.hold(op)
                 try:
                     yield op
                 finally:
                     self.unhold(real)                          # symmetric: the real bindings are back before anything is shown or dropped
+                if op.void and self.store._writes == writes0:
+                    raise _Void()                              # (f470) nothing took the line and nothing was written: no record, nothing kept
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")
@@ -920,6 +929,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.unshown_ops[op.id] = waiting              # (f464) marked shown once the passages its later lines wait on have run
             else:
                 self.store.mark_shown(op.id)
+        except _Void:
+            _op.end("void")                                       # (f470) ended without a record and not counted; what the scene changed in
+            self.passages = [p for p in self.passages if p[4] != op.id]    # memory (a yielded foe let go) stands, nothing was written, and
+            self.release(op)                                      # what it said reaches the page
         except Interrupt:
             raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
@@ -1114,6 +1127,28 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         elif kind == "arc":
             self.redress_arc(data.get("arc", ""))
 
+    def understood(self, text: str):
+        """(f470) understand(), its failures taken as the line's own, as operation() takes an operation's: the model's (the line is not
+        taken) or the game's (logs/crash.log, the player told so). False then; else the plan, or None when the world asked instead."""
+        try:
+            plan = self.understand(text)
+        except Interrupt:
+            raise
+        except LLMError as e:
+            console.debug(f"the understanding failed: {e}")
+            self.last_failure = str(e) or type(e).__name__
+            plan = False
+        except Exception as e:
+            from engine import crashlog
+            crashlog.record(e, "turn", text=text, place=self.player.location, turn=self.store.meta.turn, operation="understanding")
+            console.debug(f"the understanding crashed: {type(e).__name__}: {e}")
+            self.last_failure = f"{type(e).__name__}: {e}"[:200]
+            self.last_crash = True
+            plan = False
+        if not plan and not self.line_ops:
+            self.store.reload_meta()                           # nothing of the line committed: the input's count is given back (f463)
+        return plan
+
     def world_failures(self) -> list:
         """(f466) The world's own operations of the line that did not stand, for the turn log and the night's counts: which, why, and
         whether it was the game's own fault (logs/crash.log) or the model's."""
@@ -1138,13 +1173,24 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.ran = []
                 plan = None
                 self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
-                with self.operation("line", text) as op:
+                with self.operation("line", text) as op:   # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
                     self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
-                    plan = self.read_line(text)
-                    if plan:
-                        self.run_step(0, plan, text)
-                if op.state != "committed":
+                    taken = self.take_line(text)
+                    if taken is None:
+                        op.void = True
+                if op.state == "rolled_back":
                     return False
+                if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
+                    plan = self.understood(text)           # committed state; a question asked, or a board refresh due, is an operation of its own
+                    if plan is False:
+                        return False
+                    if plan is not None:
+                        with self.operation(f"action:{plan[0].kind}", text) as op:
+                            self._wrote_turn = False
+                            self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
+                            self.run_step(0, plan, text)
+                        if op.state != "committed":
+                            return False
                 self.run_passages()
                 if plan is not None:
                     for i in range(1, len(plan)):
@@ -1626,7 +1672,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def read_line(self, text: str):
         """(f463) The line read: an answer to the world's question, a fight's round, an intercept, or the interpreter's plan after repair
-        and audit. None when the line was taken whole here (or the world asked a question instead); else the plan to run, step by step."""
+        and audit. None when the line was taken whole here (or the world asked a question instead); else the plan to run, step by step.
+        (f470) Two halves: take_line (the line taken whole, inside the line's operation) and understand (the interpreter and the audit,
+        outside any transaction); this is their composition for handle() and the tests. turn() runs them apart."""
+        if self.take_line(text):
+            return None
+        plan = self.understand(text)
+        if plan is not None:
+            self.pending_clarify = None                 # (f321) read, whether first time or as the answer to a question
+        return plan
+
+    def take_line(self, text: str):
+        """(f470) The line taken whole, inside the line's operation: an answer to the world's question, a fight's round, or an intercept.
+        True when it was; None when nothing here touched it (the operation is void) and False when something was said or written of it
+        (a question let go) but the interpreter must still read it (understand)."""
+        touched = False
         self.last_text = text
         self.interpret_calls = []                           # every interpreter call made for this line, kept for the turn log
         from llm import audit
@@ -1640,21 +1700,29 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note(questions.dropped(self.rng))              # not an answer: the question is let go, said so, and the line read as new
             if taken:
                 self.took(text, f"answer:{asked['kind']}")
-                return None
+                return True
+            touched = True                                             # (f470) the question cleared, or let go: the operation commits that
         if self.combat:
             self.combat.turn(text)
             self.seal_ask()                                 # (f460) the High Keeper bloodied this round: the seal's question ends the turn
             self.took(text, "combat")
             if not self.combat and self.resume_pending and not getattr(self, "held_yield", None):
                 self.resume_road()
-            return None
+            return True
         for ic in self.INTERCEPT_TABLE:                     # the intercepts, in their declared order (scenes/intercepts.py)
             if getattr(self, ic.method)(text):
                 if ic.after:
                     getattr(self, ic.after)()
                 console.debug(f"intercept: {ic.name} took the line")
                 self.took(text, ic.name)
-                return None
+                return True
+        return False if touched else None
+
+    def understand(self, text: str):
+        """(f470) The interpreter and the audit: model calls that read committed state and write nothing (the write fence says so),
+        outside any transaction when turn() runs them. The plan to run, or None when the world asked a question instead (a `clarify`
+        operation of its own, ask_back); a board refresh the interpreter's read brings due is a `board` operation of its own
+        (scenes/guild_actions.py ensure_board)."""
         asked = getattr(self, "pending_clarify", None)
         if asked:                                                     # (f321) they were asked a question: this line answers it
             hint = (f"The game asked the player a question about their earlier line \"{asked['text']}\": \"{asked['question']}\". "
@@ -1673,7 +1741,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if plan is None:                            # the audit could not make sense of it: nothing happens, no time passes; the world has asked (f321)
             self.buffering = False
             return None
-        self.pending_clarify = None                 # (f321) read, whether first time or as the answer to a question
         self.sneaking, self.queued_buffs, self.fight_text = False, [], text      # what a fight the player starts this turn opens with (f248)
         self.line_text = text                       # (f463) the line as the steps read it (an answer joined to its question)
         return plan

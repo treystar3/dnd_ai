@@ -37,6 +37,7 @@ class Operation:
     held: list = field(default_factory=list, repr=False)   # (f463) the story calls held back (name, args, kwargs), released at commit; not kept
     failure: str = ""               # (f466) why it did not stand, for the turn log: the model's failure, or the game's own fault
     crashed: bool = False           # (f466) ...and which of the two
+    void: bool = False              # (f470) nothing took the line inside it: ended without a record, nothing written, nothing shown
 
     def record(self) -> dict:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""
@@ -62,6 +63,20 @@ class Operation:
 CURRENT: Operation | None = None
 PRESENTED: list = []              # (f467) what reached the page, in order: {"op": id, "how": shown | stand_in | recovered}; the recorder
 PRESENTED_KEEP = 400              # writes it per input and clears it (engine/recording.py); without one it is kept to the last few hundred
+
+
+LEGACY: list[str] = []            # (f470) the tasks the model was asked for while an operation held the save's transaction open: the
+                                  # residue prepare-then-commit moves out family by family; the test's ratchet (prepared_470_test RECORDED) only shrinks
+TELLING = {"passage", "round", "aftermath", "goddess"}   # (f470) operations that are the call itself (the telling): not counted
+
+
+def note_legacy(task: str) -> None:
+    """(f470) A model call made while an operation is open: the save waits on the model inside a transaction (the survey's smell; the
+    plan's prepare-then-commit reads committed state before the call and commits after it). The telling operations are their one call
+    and are not counted. What is left is named, once each, for the ratchet."""
+    op = CURRENT
+    if op is not None and op.kind not in TELLING and task not in LEGACY:
+        LEGACY.append(task)
 
 
 def present(op_id: str, how: str) -> None:
@@ -99,3 +114,4 @@ def reset() -> None:
     global CURRENT
     CURRENT = None
     PRESENTED.clear()
+    LEGACY.clear()

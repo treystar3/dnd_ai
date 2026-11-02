@@ -94,26 +94,36 @@ class GuildActions:
         state = self.store.load_place(gid)
         day = clock.day(self.minutes)
         if state.board_day < 0 or day >= state.board_day + G["board_refresh_days"]:
-            tier = quests.hall_tier(self.world, gid)
-            size = G["board_size"] + self.guild_perks()["board"] + tier["size"]
-            rng = random.Random(f"{self.store.meta.seed}:board:{gid}:{day}")
-            kept = []
-            if state.board_day >= 0:
-                passes = min(3, max(1, (day - state.board_day) // max(1, G["board_refresh_days"])))
-                dungeons = {d["id"] for d in self.store.load_dungeons()}
-                for q in state.board:
-                    if q.get("dungeon") and q["dungeon"] not in dungeons:
-                        continue
-                    if q.get("thread") or rng.random() < G["board_keep"] ** passes:
-                        kept.append(q)
-            state.board = quests.post_board(self.world, self.store, self.minutes, size, rng, self.rank or "F", gid,
-                                            existing=kept[:size])
-            kept_ids = {q["id"] for q in kept}
-            from engine import stakes
-            stakes.plan(self, gid, [q for q in state.board if q["id"] not in kept_ids])       # (f322) who asked, and why
-            state.board_day = day
-            self.store.save_place(state)
+            from engine import operation as _op
+            if _op.current() is None and self.store._armed:          # (f470) read during the understanding, outside any operation: the
+                with self.operation("board", getattr(self, "last_text", ""), world=True):   # refresh is a `board` operation of its own
+                    self.refresh_board(gid, state, day)
+                state = self.store.load_place(gid)
+            else:
+                self.refresh_board(gid, state, day)
         return state.board
+
+    def refresh_board(self, gid: str, state, day: int) -> None:
+        """The board posted anew: what was kept of the last one, the new postings, their stakes (who asked, and why), saved."""
+        tier = quests.hall_tier(self.world, gid)
+        size = G["board_size"] + self.guild_perks()["board"] + tier["size"]
+        rng = random.Random(f"{self.store.meta.seed}:board:{gid}:{day}")
+        kept = []
+        if state.board_day >= 0:
+            passes = min(3, max(1, (day - state.board_day) // max(1, G["board_refresh_days"])))
+            dungeons = {d["id"] for d in self.store.load_dungeons()}
+            for q in state.board:
+                if q.get("dungeon") and q["dungeon"] not in dungeons:
+                    continue
+                if q.get("thread") or rng.random() < G["board_keep"] ** passes:
+                    kept.append(q)
+        state.board = quests.post_board(self.world, self.store, self.minutes, size, rng, self.rank or "F", gid,
+                                        existing=kept[:size])
+        kept_ids = {q["id"] for q in kept}
+        from engine import stakes
+        stakes.plan(self, gid, [q for q in state.board if q["id"] not in kept_ids])       # (f322) who asked, and why
+        state.board_day = day
+        self.store.save_place(state)
 
     # ---------- display ----------
 

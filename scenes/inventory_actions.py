@@ -733,7 +733,10 @@ class InventoryActions:
         rule = self.world.roles[npc.role].stock
         if rule and crafting.restock_due(npc, rule, clock.day(self.minutes)):
             crafting.lay_out_stock(npc, rule, self.place.trade_level, clock.day(self.minutes), self.store.meta.seed)
-            self.store.save_npc(npc)
+            if self.store.writable():
+                self.store.save_npc(npc)
+            else:
+                self.store.save_npc_later(npc)            # (f470) read during the understanding, outside any operation: the next operation saves it
 
     def stock_here(self) -> list[tuple]:
         """(npc, item, price) for every piece of gear on sale from merchants present."""

@@ -398,7 +398,10 @@ def manner(npc: NPC, catalog: TraitCatalog, store: CampaignStore) -> str:
     """How someone comes across from a distance, from their traits. Rolls traits for older saves that lack them."""
     if not npc.traits:
         assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
-        store.save_npc(npc)
+        if store.writable():
+            store.save_npc(npc)
+        else:
+            store.save_npc_later(npc)                     # (f470) read during the understanding, outside any operation: the next operation saves it
     return ", ".join(t.replace("_", " ") for t in npc.traits)
 
 
