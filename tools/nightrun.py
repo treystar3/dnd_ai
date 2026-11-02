@@ -519,17 +519,15 @@ def main() -> None:
     problems = data_check.check()
     if problems:
         die("The game's data has problems:\n" + "\n".join(f"  - {p}" for p in problems))
-    from world.loader import load_world
+    from engine.session import CampaignSession
     from npc.traits import load_traits
-    from npc import backfill
-    from storage.campaign import CampaignStore, PlayerState
-    from scenes.world import WorldScene
+    from storage.campaign import PlayerState
     from engine import turnlog
 
-    world = load_world()
     rng = random.Random(args.seed)
     shutil.rmtree(f"saves/{save}", ignore_errors=True)
-    store = CampaignStore.open_or_create(save)
+    session = CampaignSession.open(save)                                 # (f457) the campaign's session, as main.py opens it
+    store, world = session.store, session.world
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 8 * 60
     store.save_meta()
     from engine import quests, starts
@@ -556,7 +554,7 @@ def main() -> None:
     store.save_player(player)
     catalog = load_traits()
     began = starts.apply(store, world, catalog, player, args.start, rng, char.name)     # (f367) the clock, the record, the town's memory of them
-    ws = WorldScene(store, world, catalog, store.load_player())
+    ws = session.scene(catalog, store.load_player())
     ws.player.mentor["never"] = True
     party = hire_party(ws, args.party)
 
@@ -567,11 +565,9 @@ def main() -> None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    rec = None
     if args.record:                                                  # (f442) after the run's own hooks, so they are recorded as installed
-        from engine import recording
         store.save_player(ws.player)                                 # what the run set up in memory (the party, Maren left out) opens the recording
-        rec = recording.Recorder(store, folder=Path(out) / "recording").install(apart=True)   # the bot's reads never change the save
+        session.record(apart=True, folder=Path(out) / "recording")   # the bot's reads never change the save; closed first when the session closes
     print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, playing as {persona}, starting as {args.start} ({point.get('text', '')}; "
           f"{began['met']} met, {len(began['situations'])} past situations), with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
           f"stops after {args.hours:g} h" + (f" or {args.turns} turns" if args.turns else "") + ". Ctrl+C stops it early.", flush=True)
@@ -618,10 +614,7 @@ def main() -> None:
             store.save_player(ws.player)
         except Exception:
             pass
-        if rec is not None:
-            rec.close()                                                  # (f442) the recording's last row, then the save is closed
-        store.close()
-        backfill.drop(store)
+        session.close()                                                  # (f457) the recording's last row, the background work, the save
         turnlog.write_session_stats()
         texts = [r.get("text", "") for r in run.rows]
         run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,

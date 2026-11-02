@@ -13,7 +13,7 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 ME = pathlib.Path(__file__).resolve()
-RECORDED = {"tests building a WorldScene": 124, "tools building a WorldScene": 7, "tests parsing the world": 154, "tools parsing the world": 16}
+RECORDED = {"tests building a WorldScene": 124, "tools building a WorldScene": 6, "tests parsing the world": 154, "tools parsing the world": 15}
 # (f453) rerun.py moved onto the session; session_453_test builds one scene the old way on purpose, the proof that such a scene adopts a session
 
 def calls(tree: ast.AST, name: str) -> bool:
