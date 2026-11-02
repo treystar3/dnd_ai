@@ -4,14 +4,17 @@ page inherited the first one's finds. Now the home page reads the world as writt
 on its own copy (campaign_world); caches kept per world are keyed by the world's own stamp, never by id(); and the direct writes into a
 world are fenced in: the list of them may only shrink, until the rebuild's Stage 2 moves each behind the campaign's world.
 (f451) Stage 2 has: a campaign's world is a view over the one authored object (world/campaign.py), the five writers go through its four
-operations, and the fences below allow nothing, in world/ too, and watch attribute writes on a place's fields as well."""
+operations, and the fences below allow nothing, in world/ too, and watch attribute writes on a place's fields as well. (f456) Both
+campaigns open and close through their sessions (engine/session.py), and each close leaves nothing behind: the switch from one save to
+the next needs no reload of anything."""
 import ast, pathlib, random, re, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("ranger", 34))
 simlib.quiet_console()
 from engine import faith, mapview, property as prop
-from world.loader import authored, campaign_world
+from world.campaign import CampaignWorld
+from world.loader import authored
 
 bad = []
 def check(n, ok, x=""):
@@ -48,7 +51,8 @@ check("campaign A's world holds what A found", {"a_only_hollow", "a_only_stop", 
 lay_a = mapview.layout(wa)
 for pid in written.places:
     faith.seat(wa, pid)
-a.store.close()
+ga.close()                                                                   # (f456) through the session, which closes everything
+check("closing campaign A leaves nothing of it in the process", simlib.residue() == {}, simlib.residue())
 
 # ---- campaign B, opened next in the same run, sees none of it
 gb = simlib.campaign("fresh_world_434_b", cls="ranger", seed=77)
@@ -70,12 +74,13 @@ check("the map's layout is each world's own: B's has none of A's places and only
 for pid in written.places:
     faith.seat(wb, pid)
 check("...and so are the faith seats", wb.cache("faith").get("seat") and wa.cache("faith") is not wb.cache("faith"), wb.cache("faith").keys())
-b.store.close()
+gb.close()
+check("closing campaign B leaves nothing of it either", simlib.residue() == {}, simlib.residue())
 
 # ---- the written world is never changed
 after = {pid: dict(p.connects) for pid, p in written.places.items()}
 check("the written world is unchanged: the same places and the same ways", after == before and set(written.roads) == roads_before)
-check("...and a fresh copy is the written world again", set(campaign_world().places) == set(written.places))
+check("...and a fresh campaign's map is the written world again", set(CampaignWorld(written).places) == set(written.places))
 
 # ---- main.py plays every campaign as a session of its own (f453)
 src = pathlib.Path("main.py").read_text(encoding="utf-8")
