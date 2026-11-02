@@ -21,8 +21,9 @@ sys.path.insert(0, str(ROOT))
 from engine import clock, pulse  # noqa: E402
 from npc.life import populate_place  # noqa: E402
 from npc.traits import load_traits  # noqa: E402
-from storage.campaign import SAVES_DIR, CampaignStore  # noqa: E402
-from world.loader import load_world  # noqa: E402
+from engine.session import CampaignSession  # noqa: E402
+from storage.campaign import SAVES_DIR  # noqa: E402
+from world.loader import authored  # noqa: E402
 
 
 def fx(e: dict) -> str:
@@ -47,7 +48,7 @@ def main() -> None:
     ap.add_argument("--list", action="store_true")
     a = ap.parse_args()
 
-    world = load_world()
+    world = authored()
     if a.list:
         for p in world.pressures.values():
             print(f"{p.id:26} {p.place:20} {p.kind:9} sev {p.severity[0]}-{p.severity[1]}  {p.description}")
@@ -59,7 +60,8 @@ def main() -> None:
     scratch = SAVES_DIR / "pulse_preview"
     if a.fresh and scratch.exists():
         shutil.rmtree(scratch)
-    store = CampaignStore.open_or_create("pulse_preview")
+    session = CampaignSession.open("pulse_preview")      # (f457) the scratch campaign's session; its world is the one the pulse writes into
+    store, world = session.store, session.world
     catalog = load_traits()
     rng = random.Random(a.seed)
     state = store.load_world_state() or pulse.empty_state(clock.day_start(5) if hasattr(clock, "day_start") else 5 * 1440)
