@@ -198,13 +198,46 @@ CREATE INDEX IF NOT EXISTS npcs_role ON npcs (role, gone);
 """
 
 
+class StaleOperation(RuntimeError):
+    """(f462) An operation tried to commit over a record revision it had not seen: another writer committed meanwhile."""
+
+
+class WriteOutsideOperation(RuntimeError):
+    """(f462) With the write fence armed, a row was written outside any operation (CampaignStore.in_operation)."""
+
+
+WRITES = ("INSERT", "UPDATE", "DELETE", "REPLACE")
+
+
+class _Guarded:
+    """(f462) The database handle behind the store, with the write fence on it: once armed (arm(True), by the executor for the life of a
+    line, f463), a row written outside any operation (in_operation) is a fault, WriteOutsideOperation, except under exempt() (mark_shown:
+    what is left to show is no state). Reads, BEGIN, COMMIT, ROLLBACK and DDL pass; everything else on the handle (backup, close) is the
+    connection's own. Nothing arms it in this feature."""
+
+    def __init__(self, db, store):
+        self._db, self._store = db, store
+
+    def execute(self, sql, *args):
+        s = self._store
+        if s._armed and s._in_operation == 0 and s._exempt == 0 and sql.lstrip().split(None, 1)[0].upper() in WRITES:
+            raise WriteOutsideOperation(f"{sql.lstrip().split(None, 1)[0]} outside any operation, with the write fence armed")
+        return self._db.execute(sql, *args)
+
+    def __getattr__(self, name):
+        return getattr(self._db, name)
+
+
 class CampaignStore:
     def __init__(self, root: Path, meta: CampaignMeta, db: sqlite3.Connection):
         self.root = root
         self.meta = meta
-        self._db = db
+        self._db = _Guarded(db, self)
         self._lock = threading.RLock()
         self._depth = 0
+        self._armed = False            # (f462) the write fence
+        self._in_operation = 0         # (f462) operations open (the executor's, f463)
+        self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
 
     # ---------- opening ----------
 
@@ -403,6 +436,89 @@ class CampaignStore:
     def clear_question(self) -> None:
         with self.transaction():
             self._drop("question")
+
+    # ---------- (f462) the operation record: the history of what committed, and what of it is left to show; outside the state digest ----------
+
+    def load_operations(self) -> dict:
+        """{"revision": n, "ops": [record, ...]}: the last RETENTION operations committed, oldest first (engine/operation.py)."""
+        return self._kv("operations") or {"revision": 0, "ops": []}
+
+    def revision(self) -> int:
+        """The record's revision: what an operation reads when it opens, and must still find when it commits."""
+        return int(self.load_operations().get("revision") or 0)
+
+    def commit_operation(self, op, first_of_line: bool = False, keep: int | None = None) -> dict:
+        """Inside the caller's open transaction: the operation's record appended with the revision bumped, the record trimmed to `keep`
+        (engine/operation.py RETENTION["operations"]), the meta saved when this is the line's first commit (f463: the input's count is
+        saved with the first operation that stands, not before), and the presentation entry of its held lines, cleared when they are shown
+        (mark_shown). Raises StaleOperation, and writes nothing, when the record's revision is not the one the operation saw when it
+        opened: another writer committed meanwhile."""
+        from engine import operation as _op
+        if self._depth == 0:
+            raise RuntimeError("commit_operation: no transaction is open; an operation commits inside its own")
+        rec = self.load_operations()
+        at = int(rec.get("revision") or 0)
+        if at != op.revision_seen:
+            raise StaleOperation(f"operation {op.id} ({op.kind}) saw revision {op.revision_seen}; the record is at {at}")
+        rec["revision"] = at + 1
+        entry = {**op.record(), "revision": rec["revision"]}
+        rec["ops"].append(entry)
+        keep = int(_op.RETENTION.get("operations") or 200) if keep is None else keep
+        if len(rec["ops"]) > keep:
+            del rec["ops"][:len(rec["ops"]) - keep]
+        self._put("operations", json.dumps(rec, ensure_ascii=False))
+        if first_of_line:
+            self.save_meta()
+        pres = self._kv("presentation") or {}
+        pres[op.id] = {"lines": list(op.lines), "steps": op.steps, "kind": op.kind}
+        self._put("presentation", json.dumps(pres, ensure_ascii=False))
+        return entry
+
+    def find_operation(self, op_id: str) -> dict | None:
+        return next((o for o in self.load_operations()["ops"] if o.get("id") == op_id), None)
+
+    def unshown(self) -> dict:
+        """The presentation entries of operations whose lines have not reached the page: op id -> {"lines", "steps", "kind"} (f467 tells
+        them at the next load)."""
+        return self._kv("presentation") or {}
+
+    def mark_shown(self, op_id: str) -> None:
+        """The operation's lines reached the page: its presentation entry goes. Autocommit at depth 0, and exempt from the write fence: a
+        change to what is left to show is no change of state (storage/statehash.py NOT_STATE_ROWS)."""
+        with self.exempt():
+            pres = self._kv("presentation") or {}
+            if op_id in pres:
+                del pres[op_id]
+                if pres:
+                    self._put("presentation", json.dumps(pres, ensure_ascii=False))
+                else:
+                    self._drop("presentation")
+
+    # ---------- (f462) the write fence ----------
+
+    def arm(self, on: bool = True) -> None:
+        """Armed, the store refuses a row written outside any operation (in_operation): the executor (f463) arms it for the life of a
+        line, so no writer slips a change past the record. Off by default; nothing arms it in this feature."""
+        self._armed = on
+
+    @contextmanager
+    def in_operation(self):
+        """An operation is open: writes inside it pass the fence (every save_* opens a transaction of its own, so the fence counts
+        operations, not transaction depth)."""
+        self._in_operation += 1
+        try:
+            yield
+        finally:
+            self._in_operation -= 1
+
+    @contextmanager
+    def exempt(self):
+        """A write the fence lets through outside any operation: the presentation entries (mark_shown)."""
+        self._exempt += 1
+        try:
+            yield
+        finally:
+            self._exempt -= 1
 
     def legendary_names(self) -> list[str]:
         return self._kv("legendaries") or []

@@ -26,6 +26,8 @@ TABLES = {
     "entities": ("SELECT * FROM entities ORDER BY ref", 1, (6,)),
 }
 NOT_STATE = {("kv", "campaign"): ("name", "created")}    # the save's folder name and when it was made: a replay plays a copy under another
+NOT_STATE_ROWS = {("kv", "operations"), ("kv", "presentation")}   # (f462) the record of what committed and what of it is left to show: the
+                                                                 # state's history and its telling, not the state; a replay compares the record through the recording
 
 
 def _canon(text):
@@ -47,6 +49,8 @@ def dump(store) -> dict[str, list]:
             got = []
             for r in rows:
                 row = [_canon(v) if i in js else v for i, v in enumerate(r)]
+                if keys and (table, row[0]) in NOT_STATE_ROWS:
+                    continue
                 drop = NOT_STATE.get((table, row[0])) if keys else None
                 if drop and isinstance(row[1], dict):
                     row[1] = {k: v for k, v in row[1].items() if k not in drop}

@@ -58,9 +58,10 @@ def get(name: str) -> random.Random:
     return r
 
 
-def new_id(n: int = 8) -> str:
-    """A fresh id of n hex digits from the ids stream, in place of a uuid: the same turn makes the same ids."""
-    return format(get("ids").getrandbits(4 * n), f"0{n}x")
+def new_id(n: int = 8, stream: str = "ids") -> str:
+    """A fresh id of n hex digits from the ids stream, in place of a uuid: the same turn makes the same ids. (f462) Or from a stream of
+    the caller's naming (the operations' is "ops"), so drawing it moves no die the game already had."""
+    return format(get(stream).getrandbits(4 * n), f"0{n}x")
 
 
 def key() -> str:
