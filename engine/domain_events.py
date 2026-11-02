@@ -744,48 +744,100 @@ class PlaceDiscovered(Deed):
 
 # ---- the bus
 
-_SUBSCRIBERS: dict[type, list[Callable[[Event], None]]] = {}
-RECENT: deque = deque(maxlen=64)       # the last events published, newest last (tests and the live check read these)
+class Bus:
+    """(f454) One campaign's bus: who listens to what, and the last events published (`recent`, which tests and the live check read).
+    The session owns one (engine/session.py) and makes it current while it plays; the scene's reactions and the journal subscribe on it,
+    so a closed campaign's listeners never hear the next campaign's events, and the journal's switch is the bus's, not the process's."""
+
+    def __init__(self):
+        self._subscribers: dict[type, list[Callable[[Event], None]]] = {}
+        self.recent: deque = deque(maxlen=64)                 # the last events published, newest last
+        self.journal_on = False
+
+    def subscribe(self, event_type: type, fn: Callable[[Event], None]) -> Callable[[], None]:
+        """Call fn for every event of this type (or a subclass of it; Event itself for everything). Returns a function that unsubscribes."""
+        lst = self._subscribers.setdefault(event_type, [])
+        if fn not in lst:
+            lst.append(fn)
+
+        def off() -> None:
+            if fn in lst:
+                lst.remove(fn)
+        return off
+
+    def publish(self, event: Event) -> Event:
+        """Deliver the event to every subscriber of its type and its bases, in subscription order, now. Returns the event."""
+        self.recent.append(event)
+        for cls in type(event).__mro__:
+            for fn in list(self._subscribers.get(cls, ())):
+                fn(event)
+        return event
+
+    def clear(self) -> None:
+        """Forget every subscriber and the recent events (tests; the session closing). The journal is off until asked for again."""
+        self._subscribers.clear()
+        self.recent.clear()
+        self.journal_on = False
+
+    def journal_everything(self) -> None:
+        """Every event becomes a row in the campaign's event log (engine.canon.journal, bound by the scene). Idempotent per bus."""
+        if self.journal_on:
+            return
+        from engine import canon
+
+        def to_journal(e: Event) -> None:
+            canon.journal(e.kind, e.actor, e.target, e.text(), **e.data())
+        self.subscribe(Event, to_journal)
+        self.journal_on = True
+
+    def subscribers(self) -> int:
+        return sum(len(v) for v in self._subscribers.values())
+
+
+class IdleBus(Bus):
+    """(f454) The bus between sessions: an event published with no campaign open (a tool over a store with no scene, a closed session's
+    thread still running) is delivered to nobody, raises nothing, and is counted, so a test can tell that it happened."""
+
+    def __init__(self):
+        super().__init__()
+        self.dropped = 0
+
+    def publish(self, event: Event) -> Event:
+        self.dropped += 1
+        return event
+
+
+_current: Bus = IdleBus()
+RECENT: deque = _current.recent        # the current bus's recent events, rebound by use(): read it as domain_events.RECENT, never imported by name
+
+
+def current() -> Bus:
+    """The bus of the campaign playing now (engine/session.py use), or the IdleBus between campaigns."""
+    return _current
+
+
+def use(bus: Bus) -> None:
+    """(f454) A session opens (its bus) or closes (an IdleBus): the one the module's subscribe, publish and clear reach from now on."""
+    global _current, RECENT
+    _current = bus
+    RECENT = bus.recent
 
 
 def subscribe(event_type: type, fn: Callable[[Event], None]) -> Callable[[], None]:
-    """Call fn for every event of this type (or a subclass of it; Event itself for everything). Returns a function that unsubscribes."""
-    lst = _SUBSCRIBERS.setdefault(event_type, [])
-    if fn not in lst:
-        lst.append(fn)
-
-    def off() -> None:
-        if fn in lst:
-            lst.remove(fn)
-    return off
+    """On the current bus: call fn for every event of this type (or a subclass; Event itself for everything). Returns the unsubscribe."""
+    return _current.subscribe(event_type, fn)
 
 
 def publish(event: Event) -> Event:
-    """Deliver the event to every subscriber of its type and its bases, in subscription order, now. Returns the event."""
-    RECENT.append(event)
-    for cls in type(event).__mro__:
-        for fn in list(_SUBSCRIBERS.get(cls, ())):
-            fn(event)
-    return event
+    """On the current bus: deliver the event to every subscriber of its type and its bases, now. Returns the event."""
+    return _current.publish(event)
 
 
 def clear() -> None:
-    """Forget every subscriber and the recent events (tests)."""
-    _SUBSCRIBERS.clear()
-    RECENT.clear()
-
-
-_JOURNAL_ON = False
+    """Forget every subscriber and the recent events of the current bus (tests)."""
+    _current.clear()
 
 
 def journal_everything() -> None:
-    """Every event becomes a row in the campaign's event log (engine.canon.journal, bound by the scene). Idempotent."""
-    global _JOURNAL_ON
-    if _JOURNAL_ON:
-        return
-    from engine import canon
-
-    def to_journal(e: Event) -> None:
-        canon.journal(e.kind, e.actor, e.target, e.text(), **e.data())
-    subscribe(Event, to_journal)
-    _JOURNAL_ON = True
+    """Every event on the current bus becomes a row in the campaign's event log. Idempotent per bus."""
+    _current.journal_everything()

@@ -60,7 +60,7 @@ own_thread.start()
 check("a thread handed to the session is its own", a.session.own(own_thread) is own_thread and own_thread in a.session.threads() and job_thread in a.session.threads())
 ledger.add("gained", say="a coin, for the test")             # a look turn records nothing: a row by hand, so the ledger is in the residue
 before = simlib.residue()
-check("before the close, the residue names what A set", {"canon.JOURNAL", "canon.IDS", "names.CAST", "enchanting.DISCOUNT", "ledger", "streams", "reactions"} <= set(before), before)
+check("before the close, the residue names what A set", {"canon.JOURNAL", "canon.IDS", "names.CAST", "enchanting.DISCOUNT", "ledger", "streams"} <= set(before), before)
 a_rows = a.store._db.execute("SELECT count(*) FROM event_log").fetchone()[0]
 rs_calls = stub.calls.get("ResidentSet", 0)
 

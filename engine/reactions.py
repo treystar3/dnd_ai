@@ -25,23 +25,18 @@ R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / 
 KINDS: dict[str, dict] = {k: (v or {}) for k, v in R["kinds"].items()}
 AFTER_DEED = ("kill", "persuade", "deliver", "quest_done", "dungeon_cleared", "found", "defend")     # the ledger kinds that can end an event
 
-_OFF: list = []                  # how to unsubscribe what is registered now (one scene at a time: a new game, a test's fresh scene)
-
-
 def register(ws) -> None:
-    """Subscribe the world's reactions, bound to this scene. Registering again (another scene) replaces the earlier binding."""
-    unregister()
-    rx = Reactions(ws)
-    for fn in (rx.ledger, rx.memories, rx.standing, rx.reputation, rx.heat, rx.hires):
-        _OFF.append(de.subscribe(de.Deed, fn))
-    _OFF.append(de.subscribe(de.MemberDied, rx.fallen))           # (f392) the registry keeps who travelled with the player, and who fell
-    _OFF.append(de.subscribe(de.MemberLeft, rx.departed))
-
-
-def unregister() -> None:
-    for off in _OFF:
+    """Subscribe the world's reactions, bound to this scene, on its session's bus (f454: engine/session.py; a closed campaign's reactions
+    never hear the next campaign's deeds). Registering again on the same session (a test's fresh scene) replaces the earlier binding."""
+    session = ws.session
+    for off in getattr(session, "reaction_offs", ()):
         off()
-    _OFF.clear()
+    rx = Reactions(ws)
+    bus = session.bus
+    offs = [bus.subscribe(de.Deed, fn) for fn in (rx.ledger, rx.memories, rx.standing, rx.reputation, rx.heat, rx.hires)]
+    offs.append(bus.subscribe(de.MemberDied, rx.fallen))          # (f392) the registry keeps who travelled with the player, and who fell
+    offs.append(bus.subscribe(de.MemberLeft, rx.departed))
+    session.reaction_offs = offs
 
 
 def rule(kind: str) -> dict:

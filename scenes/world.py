@@ -113,8 +113,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.rng = streams.get("scene")  # (f439) reseeded at every input
         self.last_failure = ""        # (f437) why the last turn the game could not take was rolled back, for the turn log
         pools.fill_missing(self.player.character)
-        from engine import domain_events
-        domain_events.journal_everything()
+        self.session.bus.journal_everything()   # (f454) every event a row in this campaign's event log, on this campaign's bus
         self.name_ids()               # the journal and the stable ids are bound from the start, not only from the first turn
         from engine import reactions
         reactions.register(self)      # the world's reactions to the player's deeds, bound to this scene (engine/reactions.py)
@@ -135,10 +134,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def notice(self, event, *people) -> None:
         """The world notices a deed of the player's (engine/reactions.py). `people` are the records this code holds for anyone in it, so
         that the reactions change the very objects it will save, whether or not they stand in `present` right now."""
-        from engine.domain_events import publish
         self._live = {n.id: n for n in people if n is not None}
         try:
-            publish(event)
+            self.session.bus.publish(event)                 # (f454) this campaign's bus, whichever is current
         finally:
             self._live = {}
 
@@ -146,7 +144,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def party_service(self):
         """The party's mechanics (services/party.py), always over the player's current record (which a rollback reloads)."""
         from services.party import PartyService
-        return PartyService(self.player, lambda: self.minutes, self.store.meta.seed)
+        return PartyService(self.player, lambda: self.minutes, self.store.meta.seed, bus=self.session.bus)   # (f454)
 
     @property
     def place(self):

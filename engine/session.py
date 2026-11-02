@@ -16,6 +16,9 @@ its answer would have been written down as that session's.
   constructor sites the ratchet of f450 counts down): every scene has a session either way, and nothing is reset under the test's feet.
 - scene(catalog, player) builds the WorldScene on the session's store and world; record() installs the recorder, which close() closes
   first, so the last input's state is written before the store goes.
+- (f454) The session owns the event bus (engine/domain_events.py Bus) and makes it current while it plays: the scene's reactions and the
+  journal subscribe on it, the scene's deeds and the party's changes are published on it, and close() clears it and leaves an IdleBus
+  behind, which delivers to nobody and counts. A closed campaign's listeners never hear the next campaign's events.
 - own(thread) hands the session a thread to wait for at close: the creation's background call (scenes/goddess.py), beside the save's own
   backfill jobs (npc/backfill.py threads). close() joins them all within config.CLOSE_WAIT_SECONDS and leaves the survivors in
   recording.ORPHANS: their answers go nowhere (backfill.drop forgot their jobs) and the recorder passes their calls through unrecorded,
@@ -38,7 +41,7 @@ UNSEEDED = "unseeded"
 def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable[[], str]]]:
     """The module bindings a campaign writes while it plays: (name, put back, clean?, what it holds). Read at call time, since two of them
     (canon.IDS, ledger.LAST) are rebound rather than changed in place."""
-    from engine import canon, enchanting, failures, ledger, names, pulse, reactions, spellcraft, streams, turnlog
+    from engine import canon, enchanting, failures, ledger, names, pulse, spellcraft, streams, turnlog
     from npc import life
     return [
         ("canon.JOURNAL", lambda: setattr(canon, "JOURNAL", None), lambda: canon.JOURNAL is None, lambda: repr(canon.JOURNAL)),
@@ -54,8 +57,7 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
         ("turnlog._open", lambda: setattr(turnlog, "_open", None), lambda: turnlog._open is None, lambda: repr(turnlog._open)[:80]),
         ("spellcraft._CAST", lambda: spellcraft._CAST.clear(), lambda: not spellcraft._CAST, lambda: f"{len(spellcraft._CAST)} casting"),
         ("life._ANCHOR_SLOTS", lambda: life._ANCHOR_SLOTS.clear(), lambda: not life._ANCHOR_SLOTS, lambda: repr(dict(life._ANCHOR_SLOTS))),
-        ("reactions", reactions.unregister, lambda: not reactions._OFF, lambda: f"{len(reactions._OFF)} subscribed"),
-    ]
+    ]                                                      # (f454) the world's reactions live on the session's bus, cleared with it
 
 
 def reset() -> None:
@@ -71,10 +73,13 @@ def residue() -> dict[str, str]:
 
 class CampaignSession:
     def __init__(self, store, world, adopted: bool = False):
+        from engine.domain_events import Bus, use
         from world.campaign import CampaignWorld
         self.store = store
         self.world = world if isinstance(world, CampaignWorld) else CampaignWorld(world)   # (f451) a bare World is wrapped: one writer
         self.adopted = adopted
+        self.bus = Bus()                                   # (f454) this campaign's events, and who listens: current while it plays
+        use(self.bus)
         self.recorder = None
         self.closed = False
         self._threads: list[threading.Thread] = []
@@ -137,6 +142,9 @@ class CampaignSession:
         self._threads.clear()
         backfill.drop(self.store)
         self.store.close()
+        from engine.domain_events import IdleBus, use
+        self.bus.clear()                                   # (f454) its listeners hear nothing more; between campaigns, nobody listens
+        use(IdleBus())
         reset()
 
     def __repr__(self) -> str:
