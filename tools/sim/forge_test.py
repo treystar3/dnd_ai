@@ -6,7 +6,9 @@ simlib.install(simlib.Stub("mage", 5))
 import ui.console as uc
 NOTES, ANSWERS = [], []
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.ask = lambda main=False: ANSWERS.pop(0) if ANSWERS else "cancel"
+def no_ask(*a, **k):
+    raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
+uc.ask = no_ask
 from engine import abilities, combat, forge, items, loot, field
 from llm.contracts import ActionIntent, ActiveProposal
 from npc.traits import load_traits
@@ -42,7 +44,10 @@ def use(name, text):
     ws.fld.get("cd", {}).pop(ab.id, None)
     ws.player.character.stamina = ws.player.character.mana = 10**6
     ws.halted = False
+    store.clear_question()
     ws.on_ability(ActionIntent(kind="ability", ability=ab.id), text)
+    while ANSWERS and store.load_question():                 # (f460) the smith's questions end the turn; the next lines answer them
+        ws.handle(ANSWERS.pop(0))
     return list(NOTES)
 
 def gear(base="longsword", rarity="rare", material="iron"):

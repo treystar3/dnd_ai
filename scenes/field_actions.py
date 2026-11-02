@@ -6,7 +6,7 @@ State lives in player.field: cd (ability id -> game minute it is ready), camp, h
 import random
 import re
 
-from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse
+from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse, questions
 from engine.field import F, tier_value
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
@@ -753,34 +753,82 @@ class FieldFunctions:
         console.note(f"{items.display_name(item)} - its rolls:")
         for n, p in enumerate(item.properties, 1):
             console.note(f"  {n}. {forge.prop_text(item, p)}")
-        keep = None
-        for _ in range(3):
-            console.note(f"Which roll do you keep? (1-{len(item.properties)}, or 'cancel')")
-            said = console.ask().lower()
-            if "cancel" in said or said in ("no", "stop"):
-                console.note("You leave it as it is.")
-                return None
-            m = re.search(r"\d+", said)
-            if m and 1 <= int(m.group()) <= len(item.properties):
-                keep = int(m.group()) - 1
-                break
-        if keep is None:
-            console.note("You leave it as it is.")
+        self.ask_next("reforge_keep", f"Which roll do you keep? (1-{len(item.properties)}, or 'cancel')", item=item.uid, ability=ability.id, tries=0)
+        return None                             # (f460) nothing is spent until the work is done (on_answer_reforge_take, field_finish)
+
+    def on_answer_reforge_keep(self, asked: dict, text: str):
+        """(f460) Which roll to keep: a number rerolls the rest and asks whether to take them; 'cancel' or a no leaves the piece as it is;
+        anything else is asked again, up to questions.TRIES lines, then the piece is left as it is."""
+        d = asked["data"]
+        item = self.gear_by_uid(d["item"])
+        if item is None or forge.reforge_problem(item) is not None:
             return None
-        fresh = forge.reroll(item, keep, self.rng)
-        old = list(item.properties)
-        console.note("New rolls:")
-        for n, p in enumerate(fresh, 1):
-            console.note(f"  {n}. {forge.prop_text(item, p)}")
-        console.note("Take the new rolls, or keep the old ones? (new / old)")
-        said = console.ask().lower()
-        took = "new" in said and "old" not in said or said.strip() in ("n", "yes", "y", "new")
-        item.properties = fresh if took else old
+        said = text.lower()
+        if "cancel" in said or questions.yes_no(text) is False:
+            console.note("You leave it as it is.")
+            return True
+        m = re.search(r"\d+", said)
+        if m and 1 <= int(m.group()) <= len(item.properties):
+            fresh = forge.reroll(item, int(m.group()) - 1, self.rng)
+            console.note("New rolls:")
+            for n, p in enumerate(fresh, 1):
+                console.note(f"  {n}. {forge.prop_text(item, p)}")
+            self.ask_next("reforge_take", "Take the new rolls, or keep the old ones? (new / old)", item=item.uid, ability=d["ability"],
+                          fresh=[p.model_dump() for p in fresh], tries=0)
+            return True
+        tries = d.get("tries", 0) + 1
+        if tries >= questions.TRIES:
+            console.note("You leave it as it is.")
+            return True
+        self.ask_next("reforge_keep", asked["question"], **{**d, "tries": tries})
+        return True
+
+    def on_answer_reforge_take(self, asked: dict, text: str):
+        """(f460) New rolls or old: the piece is reforged either way and cannot be again; the work's cost, cooldown, minutes and telling
+        come now (field_finish). An unclear line is asked again, up to questions.TRIES, then the old rolls are kept."""
+        d = asked["data"]
+        item = self.gear_by_uid(d["item"])
+        if item is None or item.reforged:
+            return None
+        said = text.lower().strip()
+        new = ("new" in said and "old" not in said) or said in ("n", "yes", "y", "new")
+        old = ("old" in said and "new" not in said) or said in ("no", "old", "keep")
+        if not new and not old:
+            tries = d.get("tries", 0) + 1
+            if tries < questions.TRIES:
+                self.ask_next("reforge_take", asked["question"], **{**d, "tries": tries})
+                return True
+            old = True
+        if new and not old:
+            from core.models import ItemProperty
+            item.properties = [ItemProperty(**p) for p in d["fresh"]]
         item.reforged = True
         self.advance(F["reforge"]["minutes"])
+        console.note(f"You {'take the new rolls' if new and not old else 'keep the old rolls'}. The {items.display_name(item)} cannot be reforged again.")
+        self.field_finish(d["ability"], f"They reforge {items.display_name(item)} at length, hammering and tempering it. Describe the work, "
+                                        "without saying what the result is.", text)
+        return True
+
+    def gear_by_uid(self, uid: str):
+        """(f460) A piece worn or carried, by its uid: how a question's data names an item across turns."""
+        c = self.player.character
+        return next((i for i in list(c.equipment.values()) + self.pack if i.uid == uid), None)
+
+    def field_finish(self, ability_id: str, result: str, text: str) -> None:
+        """(f460) The end of a field use whose work waited on an answer (reforging): what on_ability does when a use comes off at once,
+        its cost from the pool it draws on, its cooldown, a few minutes, the save, and the narrator told what happened."""
+        from engine.combat import RULES
+        c = self.player.character
+        ability = next((a for a in c.actives if a.id == ability_id), None)
+        if ability is not None:
+            pool_name = ability.resource.value
+            table = "ability_cost_percent" if pool_name == "mana" else "stamina_cost_percent"
+            cost = pools.reference_pool(pool_name, c.level) * RULES[table][ability.tier.value] / 100
+            setattr(c, pool_name, max(0, pools.current(c, pool_name) - cost))
+            self.field_cooldown_start(ability)
+            self.advance(clock.OTHER_MINUTES)
         self.store.save_player(self.player)
-        console.note(f"You {'take the new rolls' if took else 'keep the old rolls'}. The {items.display_name(item)} cannot be reforged again.")
-        return f"They reforge {items.display_name(item)} at length, hammering and tempering it. Describe the work, without saying what the result is."
+        self.narrate((f"Outside of any fight, the player uses {ability.name}: {ability.description} " if ability is not None else "") + result, text)
 
     def field_salvage(self, ability, intent, text: str) -> str | None:
         c = self.player.character

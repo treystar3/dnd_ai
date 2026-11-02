@@ -390,6 +390,20 @@ class CampaignStore:
             self._put("player", player.model_dump_json())
             self.save_meta()
 
+    # ---- (f460) the question the world is waiting on, if any: a kv row that is there only while one stands (engine/questions.py). In
+    # the save rather than on the scene, so a rolled-back turn takes its question back with it and a save closed on a question asks it
+    # again when it opens; a row rather than a field of the player, so a save with no question standing dumps as it did.
+    def load_question(self) -> dict | None:
+        return self._kv("question")
+
+    def save_question(self, question: dict) -> None:
+        with self.transaction():
+            self._put("question", json.dumps(question, ensure_ascii=False))
+
+    def clear_question(self) -> None:
+        with self.transaction():
+            self._drop("question")
+
     def legendary_names(self) -> list[str]:
         return self._kv("legendaries") or []
 

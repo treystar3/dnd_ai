@@ -47,7 +47,7 @@ UNSEEDED = "unseeded"
 def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable[[], str]]]:
     """The module bindings a campaign writes while it plays: (name, put back, clean?, what it holds). Read at call time, since two of them
     (canon.IDS, ledger.LAST) are rebound rather than changed in place."""
-    from engine import canon, enchanting, failures, ledger, names, pulse, spellcraft, streams, turnlog
+    from engine import canon, enchanting, failures, ledger, names, pulse, questions, spellcraft, streams, turnlog
     from npc import life
     return [
         ("canon.JOURNAL", lambda: setattr(canon, "JOURNAL", None), lambda: canon.JOURNAL is None, lambda: repr(canon.JOURNAL)),
@@ -57,6 +57,7 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
          lambda: repr(dict(enchanting.DISCOUNT))),
         ("pulse.LAST", lambda: pulse.LAST.update(made_by=""), lambda: not pulse.LAST.get("made_by"), lambda: repr(dict(pulse.LAST))),
         ("failures._last", lambda: failures._last.clear(), lambda: not failures._last, lambda: repr(dict(failures._last))),
+        ("questions._last", lambda: setattr(questions, "_last", ""), lambda: not questions._last, lambda: repr(questions._last)),   # (f460)
         ("ledger", ledger.reset, lambda: not (ledger.ROWS or ledger.LAST or ledger.TOTALS),
          lambda: f"{len(ledger.ROWS)} rows, {len(ledger.LAST)} last, {sum(ledger.TOTALS.values())} counted"),
         ("streams", streams.reset, lambda: streams.key() == UNSEEDED, streams.key),

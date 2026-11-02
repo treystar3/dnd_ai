@@ -7,7 +7,7 @@ import re
 
 from core.models import KeyItem
 from engine import voice_rules
-from engine import checks, clock, inventory as inv, items, law, locks, money, pools, pulse, standing
+from engine import checks, clock, inventory as inv, items, law, locks, money, pools, pulse, questions, standing
 from engine.domain_events import BreakIn, Bribe, FinePaid, Jailed, PersonHarmed, RanFromWatch, TalkedOut, Theft
 from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
@@ -456,15 +456,30 @@ class LawActions:
         else:
             self.law_confront(guard, town)
 
-    def ask_choice(self, options: dict[str, tuple[str, ...]], menu: str) -> str:
-        for _ in range(3):
-            console.note(menu)
-            said = console.ask().lower()
-            for key, words in options.items():
-                if any(re.search(rf"\b{w}", said) for w in words):
-                    return key
-            console.note("The guard waits for a straight answer.")
-        return "run"
+    def ask_law(self, keys: tuple[str, ...], menu: str, guard, town: str, fine: int) -> None:
+        """(f460) The watch's question ends the turn: the next line typed answers it (on_answer_law). A line that picks none of the
+        choices is asked again, and after questions.TRIES of those the player is taken to have run, as the loop it replaces did."""
+        self.ask_next("law", menu, guard=guard.id, town=town, fine=fine, keys=list(keys), tries=0)
+
+    def on_answer_law(self, asked: dict, text: str):
+        d = asked["data"]
+        guard = next((n for n in self.present if n.id == d["guard"]), None)
+        if guard is None:
+            try:
+                guard = self.store.load_npc(d["guard"])
+            except Exception:
+                return None
+        said = text.lower()
+        pick = next((k for k in d["keys"] if any(re.search(rf"\b{w}", said) for w in self.WORDS[k])), None)
+        if pick is None:
+            tries = d.get("tries", 0) + 1
+            if tries < questions.TRIES:
+                console.note("The guard waits for a straight answer.")
+                self.ask_next("law", asked["question"], **{**d, "tries": tries})
+                return True
+            pick = "run"
+        self.settle(guard, d["town"], pick, d["fine"])
+        return True
 
     WORDS = {"pay": ("pay", "fine", "settle", "coin"), "talk": ("talk", "persuade", "convince", "explain", "argue", "plead", "reason"),
              "bribe": ("bribe", "slip", "grease", "sweeten"), "run": ("run", "flee", "escape", "bolt", "dash"),
@@ -476,8 +491,7 @@ class LawActions:
         self.narrate(f"{guard.label()} steps into the player's path: word of their thieving has reached the watch. Describe the guard "
                      f"stopping them, stern, hand near a weapon but not drawing it. Do not resolve anything; the game will.", "")
         menu = (f"The watch wants {money.fmt(fine)}. You can: pay the fine, talk your way out, offer a bribe, or run.")
-        pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "talk", "bribe", "run")}, menu)
-        self.settle(guard, town, pick, fine)
+        self.ask_law(("pay", "talk", "bribe", "run"), menu, guard, town, fine)         # (f460) answered by the next line
 
     def arrest(self, guard, town: str, forced: bool = False) -> None:
         heat = law.current_heat(self.player, town, clock.day(self.minutes))
@@ -487,11 +501,10 @@ class LawActions:
         if self.owns("above_the_law"):
             menu = (f"You are under arrest - but your kind are not jailed. Pay the fine ({money.fmt(fine)}); what your purse cannot cover, "
                     f"your name will. Or offer a bribe, or run.")
-            pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "bribe", "run")}, menu)
+            self.ask_law(("pay", "bribe", "run"), menu, guard, town, fine)
         else:
             menu = (f"You are under arrest. Pay the fine ({money.fmt(fine)}), serve time in jail, offer a bribe, or run.")
-            pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "jail", "bribe", "run")}, menu)
-        self.settle(guard, town, pick, fine)
+            self.ask_law(("pay", "jail", "bribe", "run"), menu, guard, town, fine)     # (f460) answered by the next line
 
     def settle(self, guard, town: str, pick: str, fine: int) -> None:
         c, day = self.player.character, clock.day(self.minutes)

@@ -152,18 +152,30 @@ class InventoryActions:
             self.refuse("You don't have that.")
             return
         kind = "quest" if key.kind == "quest" else "key"
-        console.note(f"{cap_first(key.name)} is a {kind} item. Discard it for good? (y/n)")
-        if console.ask().lower() not in ("y", "yes"):
+        self.ask_next("discard", f"{cap_first(key.name)} is a {kind} item. Discard it for good? (y/n)", item=key.name, text=text)   # (f460) the next line answers
+
+    def on_answer_discard(self, asked: dict, text: str):
+        """(f460) The answer to 'discard it for good?': yes gets rid of it, no keeps it (the player's choice, not a refusal, f416), and
+        a line about something else lets the question go."""
+        from engine import questions
+        yes = questions.yes_no(text)
+        if yes is None:
+            return None
+        if not yes:
             console.note("Kept.")
-            self.halted = True                                  # (f416) the player's choice, not a refusal
-            return
+            return True
         c = self.player.character
+        key = next((k for k in c.key_items if k.name == asked["data"]["item"]), None)
+        if key is None:
+            console.note("It is no longer with you.")
+            return True
         c.key_items.remove(key)
         unfinished = f" - it never reached {key.for_whom}" if key.for_whom else ""
         c.item_history.append(f"Got rid of {key.name}{unfinished} (day {clock.day(self.minutes)}).")
         self.store.save_player(self.player)
         console.ledger(f"Discarded: {key.name}.")
-        self.narrate(f"The player gets rid of {key.name} for good.", text)
+        self.narrate(f"The player gets rid of {key.name} for good.", asked["data"].get("text") or text)
+        return True
 
     def on_show(self, intent, text: str) -> None:
         npc = next((n for n in self.present if n.id == intent.target), None) or self.partner

@@ -520,6 +520,10 @@ def check() -> list[str]:
     # ---- (f459) the turn budget's tunables, and the one table of the model's tasks every per-task list is checked against
     bad += budget_problems()
 
+    # ---- (f460) the words that answer a question the world asked, how often one is asked, and the lines that let one go
+    from engine import questions as _questions
+    bad += _questions.problems()
+
     # ---- (f435) what someone said of themselves that the canon check could not be asked about waits, unsettled
     U = ((_load("data/rules/truth.yaml").get("canon") or {}).get("unsettled") or {})
     for k in ("cap", "again_per_keep"):

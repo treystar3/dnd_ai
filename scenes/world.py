@@ -57,7 +57,7 @@ from scenes.part_actions import PartActions
 from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
-from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, quests, turnlog
+from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, questions, quests, turnlog
 from engine import inventory as inv
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
@@ -678,6 +678,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note("You are still in the middle of a fight!")
             self.combat.show()
         self.show_header()
+        asked = self.store.load_question()
+        if asked and asked.get("question"):
+            console.note(asked["question"])                                 # (f460) the world was waiting on an answer when the save closed: ask again, once
 
         while True:
             self.start_backfill()
@@ -903,7 +906,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if needs.collapsing(c):                       # nowhere safe to fall: you wake at once, barely upright
             c.fatigue = needs.N["collapse_unslept"]
 
-    def enchant_command(self, args: str) -> None:
+    def enchant_command(self, args: str, confirmed: bool = False) -> None:
         from engine import enchanting
         c = self.player.character
         enchanting.DISCOUNT["percent"] = self.has("arcane_appraiser") or 0
@@ -957,15 +960,26 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.note(problem)
             return
         target = items.display_name(item) if item.title else f"the {items.display_name(item)}"
-        console.note(f"Bind {option.name} into {target} for {money.fmt(enchanting.fee(item, option))}"
-                     f"{' and a raw ' + items.MATERIALS[option.reagent].name if option.reagent else ''}? "
-                     f"{enchanting.success_chance(item)}% chance of success. (y/n)")
-        if console.ask().lower() not in ("y", "yes"):
-            console.note("Cancelled.")
+        if not confirmed:                                               # (f460) the question ends the turn; the next line answers it (on_answer_enchant)
+            self.ask_next("enchant", f"Bind {option.name} into {target} for {money.fmt(enchanting.fee(item, option))}"
+                          f"{' and a raw ' + items.MATERIALS[option.reagent].name if option.reagent else ''}? "
+                          f"{enchanting.success_chance(item)}% chance of success. (y/n)", args=args)
             return
         ok, message = enchanting.enchant(c, item, option, self.rng)
         console.note(message)
         self.store.save_player(self.player)
+
+    def on_answer_enchant(self, asked: dict, text: str):
+        """(f460) The answer to #enchant's question: yes binds it (the command runs again, confirmed, so what it checked is checked
+        again), no cancels, anything else lets the question go."""
+        yes = questions.yes_no(text)
+        if yes is None:
+            return None
+        if not yes:
+            console.note("Cancelled.")
+            return True
+        self.enchant_command(asked["data"]["args"], confirmed=True)
+        return True
 
     def equip_command(self, query: str) -> None:
         c = self.player.character
@@ -1107,7 +1121,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         people += [f"{x['name']} (heard of) - {x['by']}: \"{x['line']}\"" for x in data["heard"]]
         console.show_journal(data["facts"], people, data["history"])
 
-    def allocate(self, args: str) -> None:
+    def allocate(self, args: str, confirmed: bool = False) -> None:
         c = self.player.character
         if not args:
             sheet = "  ".join(f"{a[:3].upper()} {getattr(c.attributes, a)}" for a in leveling.ATTRIBUTES)
@@ -1124,9 +1138,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         changes = ", ".join(f"{a[:3].upper()} {getattr(c.attributes, a)} -> {getattr(c.attributes, a) + n}"
                             for a, n in spend.items())
-        console.note(f"{changes}. This is permanent. Confirm? (y/n)")
-        if console.ask().lower() not in ("y", "yes"):
-            console.note("Cancelled.")
+        if not confirmed:                                               # (f460) the question ends the turn; the next line answers it (on_answer_allocate)
+            self.ask_next("allocate", f"{changes}. This is permanent. Confirm? (y/n)", args=args)
             return
         leveling.allocate(c, spend)
         if self.combat:
@@ -1134,6 +1147,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.save_player(self.player)
         console.note(f"Done. {c.unspent_points} points left.")
         self.show_header()
+
+    def on_answer_allocate(self, asked: dict, text: str):
+        """(f460) The answer to #allocate's question: yes spends the points (the command runs again, confirmed), no cancels, anything
+        else lets the question go."""
+        yes = questions.yes_no(text)
+        if yes is None:
+            return None
+        if not yes:
+            console.note("Cancelled.")
+            return True
+        self.allocate(asked["data"]["args"], confirmed=True)
+        return True
 
     def header_key(self) -> tuple:
         """(f372) Everything the top bar shows, so a pane button that changed any of it redraws the bar."""
@@ -1163,13 +1188,51 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.pending_clarify = None
         self.store.meta.turn += 1
 
+    def ask_next(self, kind: str, question: str, show: bool = True, data: dict | None = None, **more) -> None:
+        """(f460) The world asks the player something, and the question ends the line: nothing more of the line is done (halted), the
+        question is kept in the save (storage/campaign.py save_question: a rollback takes it back, a save closed on it asks again when it
+        opens, a #command typed meanwhile runs and leaves it standing), and the next line typed answers it: handle() hands that line to
+        on_answer_<kind>(asked, text) before anything else reads it. A handler returns True when the line was the answer (the turn is
+        spent on it), False when it was not and the handler has said so in the world's words, None when it was not and nothing was said
+        (handle() lets the question go with a line from data/rules/questions.yaml); either way the line is then read as new. `data` is
+        what the handler needs to finish, JSON only: ids and names, never objects. `show` False when the site has spoken the question
+        itself (in someone's voice); the question is kept for the re-ask at open either way. engine/questions.py has the whole of it."""
+        if show:
+            console.note(question)
+        self.store.save_question({"kind": kind, "question": question, "turn": self.store.meta.turn, "data": {**(data or {}), **more}})
+        self.halted = True
+
+    @property
+    def pending_clarify(self) -> dict | None:
+        """(f321) The question the world asked about a line it could not read, with that line (and (f428) the far place it named).
+        (f460) Kept in the save with the other questions, under the kind "clarify"; handle() reads it as before, after the intercepts."""
+        asked = self.store.load_question()
+        return asked["data"] if asked and asked.get("kind") == "clarify" else None
+
+    @pending_clarify.setter
+    def pending_clarify(self, value) -> None:
+        if value:
+            self.ask_next("clarify", value.get("question", ""), show=False, data=dict(value))
+        elif self.pending_clarify is not None:
+            self.store.clear_question()
+
     def handle(self, text: str) -> None:
         self.last_text = text
         self.interpret_calls = []                           # every interpreter call made for this line, kept for the turn log
         from llm import audit
         audit.note_turn(self.store.meta.turn, text)         # the model calls that follow are filed under this turn (f314)
+        asked = self.store.load_question()
+        if asked and asked.get("kind") != "clarify":                   # (f460) the world asked something last turn: this line answers it, before anything else reads it
+            self.store.clear_question()
+            handler = getattr(self, f"on_answer_{asked.get('kind', '')}", None)
+            taken = handler(asked, text) if handler else None
+            if taken is None:
+                console.note(questions.dropped(self.rng))              # not an answer: the question is let go, said so, and the line read as new
+            if taken:
+                return self.took(text, f"answer:{asked['kind']}")
         if self.combat:
             self.combat.turn(text)
+            self.seal_ask()                                 # (f460) the High Keeper bloodied this round: the seal's question ends the turn
             self.took(text, "combat")
             if not self.combat and self.resume_pending and not getattr(self, "held_yield", None):
                 self.resume_road()

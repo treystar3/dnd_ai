@@ -1,0 +1,16 @@
+# (f460, engine/questions.py) A question the world asks in the middle of a turn ends the turn: the answer is the next line typed, read
+# before anything else reads it (scenes/world.py ask_next, handle). Here are the words that count as yes and as no (the longest match at
+# the start of the line wins, so "I do not" is a no though "I do" is a yes); how many lines a question that needs a particular answer
+# (which fork, which roll, pay or run) is asked before its own default applies; and what the player reads when a yes-or-no question is
+# met with something else: the question is let go and the line is read as new. The lines are the narrator's: never machinery, never a
+# dash, never themselves a question. (The keys and the words are quoted: yes and no are booleans to YAML otherwise.)
+tries: 3
+"yes": ["y", "yes", "yeah", "yep", "aye", "sure", "ok", "okay", "alright", "all right", "do it", "go on", "go ahead", "of course", "i will", "i do", "why not", "very well"]
+"no": ["n", "no", "nope", "nah", "never", "no thanks", "not now", "not yet", "leave it", "keep it", "cancel", "stop", "i won't", "i will not", "i don't", "i do not", "never mind", "forget it"]
+dropped:
+  - "The question of a moment ago is let go. What you say now is taken as it stands."
+  - "Nothing came back to that, so it is left where it lay. On to what you said."
+  - "That did not speak to the question, and the moment for it has passed. Taking it as something new."
+  - "The question goes unmet and is set aside. What you say now stands on its own."
+  - "That is let go; the world moves on to what you said."
+  - "Nothing was decided there, and it stays undecided. Your words are read afresh."
