@@ -1,0 +1,392 @@
+{
+ "lecture": {
+  "answers": [
+   "I came looking for work",
+   "I hunt for coin and found this lance in the fields",
+   "no, not really",
+   "ok",
+   "ok",
+   "ok",
+   "go on"
+  ],
+  "calls": {
+   "Narration": 1,
+   "MentorLines": 1,
+   "DialogueFrame": 2,
+   "MentorSpeech": 4,
+   "StrangerRead": 1
+  },
+  "spoke": [
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "dialogue",
+    "An armored woman"
+   ],
+   [
+    "npc_says",
+    "An armored woman"
+   ],
+   [
+    "dialogue",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "escort",
+    ""
+   ]
+  ],
+  "state": {
+   "stage": "",
+   "introduced": true,
+   "skipped": false,
+   "chat": [
+    [
+     "Player",
+     "I came looking for work"
+    ],
+    [
+     "Player",
+     "I hunt for coin and found this lance in the fields"
+    ],
+    [
+     "Player",
+     "no, not really"
+    ],
+    [
+     "Player",
+     "ok"
+    ]
+   ]
+  },
+  "left_unanswered": [
+   "ok",
+   "go on"
+  ]
+ },
+ "skip": {
+  "answers": [
+   "work",
+   "proof",
+   "yes I do",
+   "yes, I'm sure"
+  ],
+  "calls": {
+   "Narration": 1,
+   "MentorLines": 1,
+   "DialogueFrame": 2,
+   "MentorSpeech": 4,
+   "StrangerRead": 1
+  },
+  "spoke": [
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "dialogue",
+    "An armored woman"
+   ],
+   [
+    "npc_says",
+    "An armored woman"
+   ],
+   [
+    "dialogue",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "say",
+    "Maren Holt"
+   ]
+  ],
+  "state": {
+   "stage": "done",
+   "introduced": true,
+   "skipped": true,
+   "chat": [
+    [
+     "Player",
+     "work"
+    ],
+    [
+     "Player",
+     "proof"
+    ],
+    [
+     "Player",
+     "yes I do"
+    ],
+    [
+     "Player",
+     "yes, I'm sure"
+    ]
+   ]
+  },
+  "left_unanswered": []
+ },
+ "doubt": {
+  "answers": [
+   "work",
+   "proof",
+   "yes",
+   "hmm, not really",
+   "ok",
+   "ok",
+   "ok",
+   "go on"
+  ],
+  "calls": {
+   "Narration": 1,
+   "MentorLines": 1,
+   "DialogueFrame": 2,
+   "MentorSpeech": 5,
+   "StrangerRead": 1
+  },
+  "spoke": [
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "dialogue",
+    "An armored woman"
+   ],
+   [
+    "npc_says",
+    "An armored woman"
+   ],
+   [
+    "dialogue",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "escort",
+    ""
+   ]
+  ],
+  "state": {
+   "stage": "",
+   "introduced": true,
+   "skipped": false,
+   "chat": [
+    [
+     "Player",
+     "work"
+    ],
+    [
+     "Player",
+     "proof"
+    ],
+    [
+     "Player",
+     "yes"
+    ],
+    [
+     "Player",
+     "hmm, not really"
+    ],
+    [
+     "Player",
+     "ok"
+    ]
+   ]
+  },
+  "left_unanswered": [
+   "ok",
+   "go on"
+  ]
+ },
+ "question_back": {
+  "answers": [
+   "looking for a tavern",
+   "who are you anyway?",
+   "I hunt for coin and bought this with it",
+   "no",
+   "go on"
+  ],
+  "calls": {
+   "Narration": 1,
+   "MentorLines": 1,
+   "DialogueFrame": 2,
+   "MentorSpeech": 7,
+   "StrangerRead": 1
+  },
+  "spoke": [
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "narrate",
+    ""
+   ],
+   [
+    "dialogue",
+    "An armored woman"
+   ],
+   [
+    "npc_says",
+    "An armored woman"
+   ],
+   [
+    "npc_says",
+    "An armored woman"
+   ],
+   [
+    "dialogue",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "npc_says",
+    "Maren Holt"
+   ],
+   [
+    "escort",
+    ""
+   ]
+  ],
+  "state": {
+   "stage": "",
+   "introduced": true,
+   "skipped": false,
+   "chat": [
+    [
+     "Player",
+     "looking for a tavern"
+    ],
+    [
+     "Player",
+     "who are you anyway?"
+    ],
+    [
+     "Player",
+     "I hunt for coin and bought this with it"
+    ],
+    [
+     "Player",
+     "no"
+    ],
+    [
+     "Player",
+     "go on"
+    ]
+   ]
+  },
+  "left_unanswered": []
+ }
+}

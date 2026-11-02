@@ -679,8 +679,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.combat.show()
         self.show_header()
         asked = self.store.load_question()
-        if asked and asked.get("question"):
-            console.note(asked["question"])                                 # (f460) the world was waiting on an answer when the save closed: ask again, once
+        if asked and asked.get("question"):                                 # (f460) the world was waiting on an answer when the save closed: ask again, once
+            if asked.get("speaker"):
+                console.say(asked["question"], asked["speaker"])             # (f461) in the voice it was asked in
+            else:
+                console.note(asked["question"])
 
         while True:
             self.start_backfill()
@@ -699,7 +702,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 rolled = crashed = False
                 self.last_crash = False
                 try:
-                    with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
+                    with self.store.transaction(), console.scope(text), questions.fence():      # a pane button is a whole turn too: all of it, or none of it
                         self.new_input(text)                                # (f439) the dice of this input
                         self.session.begin_turn(self)                       # (f455) what a rollback must give back besides the database
                         self.command(text)
@@ -785,7 +788,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         shown = turnlog.SHOWN
         self.last_crash = False
         try:
-            with self.store.transaction():
+            with self.store.transaction(), questions.fence():      # (f461) no question is read inside a turn: one that is asked ends it
                 self.new_input(text)                       # (f439) the dice of this input
                 ledger.begin()                             # (f394) the turn's record
                 self.session.begin_turn(self)              # (f455) the map's additions and the scene's caches, to give back on a rollback
@@ -1188,7 +1191,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.pending_clarify = None
         self.store.meta.turn += 1
 
-    def ask_next(self, kind: str, question: str, show: bool = True, data: dict | None = None, **more) -> None:
+    def ask_next(self, kind: str, question: str, show: bool = True, speaker: str = "", data: dict | None = None, **more) -> None:
         """(f460) The world asks the player something, and the question ends the line: nothing more of the line is done (halted), the
         question is kept in the save (storage/campaign.py save_question: a rollback takes it back, a save closed on it asks again when it
         opens, a #command typed meanwhile runs and leaves it standing), and the next line typed answers it: handle() hands that line to
@@ -1199,7 +1202,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         itself (in someone's voice); the question is kept for the re-ask at open either way. engine/questions.py has the whole of it."""
         if show:
             console.note(question)
-        self.store.save_question({"kind": kind, "question": question, "turn": self.store.meta.turn, "data": {**(data or {}), **more}})
+        self.store.save_question({"kind": kind, "question": question, "speaker": speaker, "turn": self.store.meta.turn,     # (f461) speaker: whose voice it is re-asked in
+                                  "data": {**(data or {}), **more}})
         self.halted = True
 
     @property

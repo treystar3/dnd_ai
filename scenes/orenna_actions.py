@@ -76,7 +76,7 @@ class OrennaActions:
         self.store.save_player(self.player)
         console.narrate(C["arrive"].strip())
         console.say(C["ask"], "The stranger")
-        self.ask_next("orenna_name", C["ask"], show=False)           # (f460) the stranger's question ends the turn; the next line answers it
+        self.ask_next("orenna_name", C["ask"], show=False, speaker="The stranger")   # (f460) the stranger's question ends the turn; the next line answers it
 
     def on_answer_orenna_name(self, asked: dict, text: str):
         """(f460) However they came by the name, the stranger carries on, and asks the second question."""

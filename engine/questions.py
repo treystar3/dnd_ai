@@ -11,13 +11,16 @@ meanwhile runs and leaves it standing. scenes/world.py handle() hands the next l
 handler returns True when the line was the answer (the turn is spent on it), False when it was not and the handler has said so in the
 world's words, None when it was not and nothing was said: then handle() lets the question go with one of the lines here (dropped), and
 either way the line is read as new. A question that needs a particular answer (a fork, a roll, the watch) is asked again instead, up to
-TRIES lines, and then its own default applies, as the loops it replaces did. Maren's tutorial keeps its seven console.ask calls until f461.
+TRIES lines, and then its own default applies, as the loops it replaces did. (f461) Maren's meeting, which read seven answers in one turn,
+is stages of the same kind (scenes/mentor_actions.py on_answer_mentor), and fence() keeps every site honest: while a turn is open, any
+console.ask that is not the game loop's own raises AskedInsideTurn, so the turn rolls back and the fault is in logs/crash.log.
 
 The words that count as yes or no, TRIES and the dropped lines are in data/rules/questions.yaml, checked at startup (problems)."""
 from __future__ import annotations
 
 import random
 import re
+from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -57,6 +60,31 @@ def dropped(rng: random.Random | None = None) -> str:
     pick = [l for l in lines_ if l != _last] or lines_
     _last = (rng or streams.get("scene")).choice(pick)
     return _last
+
+
+class AskedInsideTurn(RuntimeError):
+    """(f461) console.ask was called while a turn was open. A question inside a turn ends the turn (WorldScene.ask_next); it is never
+    read there."""
+
+
+@contextmanager
+def fence():
+    """(f461) While a turn is open (scenes/world.py turn, and a #command), any console.ask that is not the game loop's own raises
+    AskedInsideTurn: the turn rolls back and the fault is written down, so no site slips back to reading an answer in the middle of a
+    turn. Whatever console.ask is at the time (the window's, a recording's, a test's) is wrapped and put back."""
+    from ui import console
+    real = console.ask
+
+    def fenced(*a, **k):
+        main = bool(k.get("main", a[0] if a else False))
+        if not main:
+            raise AskedInsideTurn("a line was asked for in the middle of a turn; a question ends the turn (engine/questions.py)")
+        return real(*a, **k)
+    console.ask = fenced
+    try:
+        yield
+    finally:
+        console.ask = real
 
 
 def problems(data: dict | None = None) -> list[str]:

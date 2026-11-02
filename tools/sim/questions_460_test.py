@@ -133,7 +133,7 @@ for f in sorted(list(Path("scenes").glob("*.py")) + list(Path("engine").glob("*.
     n = len(re.findall(r"console\.ask\(\s*\)", f.read_text(encoding="utf-8")))
     if n:
         left[f.as_posix()] = n
-check("the only questions still asked inside a turn are Maren's seven (f461 takes them)", left == {"scenes/mentor_actions.py": 7}, left)
+check("no question is asked inside a turn anywhere (f461 took Maren's seven)", left == {}, left)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
