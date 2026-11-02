@@ -164,8 +164,30 @@ class ArcActions:
         except LLMError as e:
             console.debug(f"arc story: model failed ({e}); using plain wording")
             out = self.plain_story(arc, nodes)
+            from engine import budget
+            if isinstance(e, budget.Deferred):
+                out["plain"] = True                             # (f469) plain for now: a later turn's tail dresses it (redress_arc)
+                self.defer("arc", {"arc": arc["id"]})
         out["nodes"] = [{**n} for n in out["nodes"]]
         return out
+
+    def redress_arc(self, arc_id: str) -> None:
+        """(f469) An arc dressed in plain wording because its one call was deferred: dressed now, when the budget allows, and its contract
+        retitled; deferred or dropped again, the plain wording stands."""
+        data = self.arc_data()
+        arc = next((a for a in data.get("arcs", []) if a.get("id") == arc_id), None)
+        if arc is None or not (arc.get("story") or {}).get("plain"):
+            return
+        q = next((x for x in self.player.quests if x.get("arc") == arc_id), None)
+        if q is None:
+            return
+        story = self.dress_arc(arc, q)
+        if story.get("plain"):
+            return
+        arc["story"] = story
+        self.store.save_arcs(data)
+        q["title"] = story.get("hook_title") or q.get("title", "")
+        self.store.save_player(self.player)
 
     def plain_story(self, arc: dict, nodes: list[dict]) -> dict:
         rng = random.Random(arc["id"])

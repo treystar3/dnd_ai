@@ -348,6 +348,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
                 validation_context={"stages": rule["stages"], "known": truth.world_words(world)},      # (f323) nothing named that the world does not have
             )
         except LLMError as e:
+            if getattr(e, "budget", False):
+                LAST["attempted"] = ""                          # (f469) the budget skipped the call: no attempt against the cap (owner question 7)
             if rule.get("fallback") != "engine" or made_by == "model":
                 console.debug(f"pulse: no situation this time ({e})")
                 pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: the model gave nothing usable ({e})")
@@ -655,6 +657,8 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     try:
         step = generate("pulse_motive", pp.MOTIVE_SYSTEM, request, MotiveStep, temperature=0.9, max_tokens=900)
     except LLMError as e:
+        if getattr(e, "budget", False):
+            LAST["attempted"] = ""                              # (f469) as above
         console.debug(f"pulse: {npc.name}'s life holds still ({e})")
         return False
     last[npc.id] = t

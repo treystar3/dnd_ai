@@ -83,7 +83,10 @@ class QuirkActions:
             if r.weights:
                 m["detail_weights"] = r.weights
             return r.details
-        except LLMError:
+        except LLMError as e:
+            from engine import budget
+            if isinstance(e, budget.Deferred):
+                self.defer("persona", {"member": m["id"]})      # (f469) written at a later turn's tail (run_deferred)
             return []
 
     def quirk_crew(self) -> list[dict]:

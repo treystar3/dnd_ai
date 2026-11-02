@@ -103,7 +103,10 @@ class BanterActions:
         try:
             r = generate("exchange", system, P_, Exchange, temperature=0.9, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                          relaxed_context=dict(ctx, recent={n: l[-1:] for n, l in (recent or {}).items()}, kit=False))
-        except LLMError:
+        except LLMError as e:
+            from engine import budget
+            if isinstance(e, budget.Deferred):
+                self.__dict__["_deferred_exchange"] = True       # (f469) a later turn's: the party's caller queues it (party_banter)
             return None
         self._last_claims = [(l.speaker, l.text) for l in r.lines if l.text]     # what was said, for canon and for what they remember saying
         self._last_topic = (hook or "") + " " + situation
@@ -609,8 +612,11 @@ class BanterActions:
             return False
         wants = self.banter_wants(pick, hook_kind, about, kind)
         sit = G["situation"][kind].format(place=self.place.name)
+        self.__dict__.pop("_deferred_exchange", None)
         lines = self.talk_among(present, pick, plan, sit, hook_kind, hook, about, wants, context.scene_for_hook(hook_kind))
         if not lines:
+            if self.__dict__.pop("_deferred_exchange", False):   # (f469) the budget deferred it: spoken at a later turn's tail (run_deferred)
+                self.defer("banter", {"crew": [m["id"] for m in present], "why": kind})
             return False
         if hook_kind == "personal" and about is not None:
             thing = hook.split(": ", 1)[-1]

@@ -439,6 +439,17 @@ class CampaignStore:
 
     # ---------- (f462) the operation record: the history of what committed, and what of it is left to show; outside the state digest ----------
 
+    def load_deferred(self) -> list:
+        """(f469) The optional calls the budget deferred to a later turn: [{kind, data, from_steps}], oldest first. State, in the digest:
+        a replay must find the same queue (scenes/world.py defer, run_deferred)."""
+        return self._kv("deferred") or []
+
+    def save_deferred(self, rows: list) -> None:
+        if rows:
+            self._put("deferred", json.dumps(rows, ensure_ascii=False))
+        else:
+            self._drop("deferred")
+
     def load_operations(self) -> dict:
         """{"revision": n, "ops": [record, ...]}: the last RETENTION operations committed, oldest first (engine/operation.py)."""
         return self._kv("operations") or {"revision": 0, "ops": []}

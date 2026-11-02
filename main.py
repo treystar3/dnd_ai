@@ -67,6 +67,7 @@ def play(args):
     from llm import embed
     embed.pull_in_background()                     # the small helper model, fetched quietly the first time; the game does not wait for it
     warm()                                         # load the model while the player is at the title and typing their name
+    embed.warm()                                   # (f469) ...and the embedder, so neither first load is paid inside a turn
 
     from engine import data_check                  # the character data, checked as one system before anything uses it
     problems = data_check.check()
@@ -132,6 +133,8 @@ def play(args):
                                                        # closing folds the write-ahead log in) and every binding this campaign set
         if getattr(scene, "to_menu", False):
             choice = None                              # the main menu: New game, Load and the rest are there
+            warm()                                     # (f469) back at the home page: both models warm again while the player reads it
+            embed.warm()
         else:
             return
 

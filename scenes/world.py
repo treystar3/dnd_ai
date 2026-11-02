@@ -1067,6 +1067,53 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not world:
             self.halted = True
 
+    def defer(self, kind: str, data: dict) -> None:
+        """(f469) An optional call the budget deferred (engine/budget.py Deferred, the table's `later: deferred`): queued in the save,
+        with the input it came from, for a later turn's tail (run_deferred). Called inside the operation whose call it was, so a rollback
+        takes the entry with it; one deferred again from the queue keeps its first input's age."""
+        rows = self.store.load_deferred()
+        rows.append({"kind": kind, "data": data, "from_steps": int(self.__dict__.get("_deferred_from", self.store.meta.steps))})
+        self.store.save_deferred(rows)
+
+    def run_deferred(self) -> None:
+        """(f469) The tail's turn for what earlier inputs deferred (decisions 4 and 10): each entry runs once as this input's optional
+        work, under this input's dice and allowed by its budget again (deferred again, it waits on with its first age; dropped, it is
+        gone); an entry older than retention.deferred_turns (data/rules/budget.yaml) goes untried; while a fight is on the queue waits,
+        and ages. The queue is taken up whole before anything runs, so what defers itself again queues anew."""
+        rows = self.store.load_deferred()
+        if not rows:
+            return
+        from engine import operation as _op
+        keep = int(_op.RETENTION.get("deferred_turns") or 3)
+        steps = self.store.meta.steps
+        live = [r for r in rows if steps - int(r.get("from_steps", steps)) <= keep]
+        if self.combat:
+            if live != rows:
+                self.store.save_deferred(live)
+            return
+        self.store.save_deferred([])
+        for r in live:
+            self.__dict__["_deferred_from"] = int(r.get("from_steps", steps))
+            try:
+                self.run_deferred_one(r.get("kind", ""), r.get("data") or {})
+            finally:
+                self.__dict__.pop("_deferred_from", None)
+
+    def run_deferred_one(self, kind: str, data: dict) -> None:
+        """(f469) One deferred entry, by kind: the party's exchange (party_banter, without the roll that first brought it up), a hire's
+        personal details (persona_details), an arc's dressing (redress_arc). A kind nobody knows is dropped."""
+        if kind == "banter":
+            wanted = set(data.get("crew") or [])
+            crew = [m for m in self.banter_crew() if m.get("id") in wanted]
+            if crew:
+                self.party_banter(crew, data.get("why") or "travel")
+        elif kind == "persona":
+            m = next((x for x in self.player.party if x.get("id") == data.get("member")), None)
+            if m is not None and not m.get("details"):
+                m["details"] = self.persona_details(m)
+        elif kind == "arc":
+            self.redress_arc(data.get("arc", ""))
+
     def world_failures(self) -> list:
         """(f466) The world's own operations of the line that did not stand, for the turn log and the night's counts: which, why, and
         whether it was the game's own fault (logs/crash.log) or the model's."""
@@ -1161,6 +1208,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.orenna_tick()
         self.mentor_tick()
         self.quirk_tick()
+        self.run_deferred()                        # (f469) what earlier turns deferred, before the party's own talk of this one
         self.banter_tick()
         self.note_hire_spoke(heard)
         self.collapse_check()
