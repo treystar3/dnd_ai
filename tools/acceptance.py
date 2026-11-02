@@ -75,16 +75,15 @@ class Table:
         from engine import refusals
         self.refusals = refusals
         from npc.traits import load_traits
-        from scenes.world import WorldScene
-        from storage.campaign import CampaignStore, PlayerState
-        from world.loader import load_world
+        from engine.session import CampaignSession
+        from storage.campaign import PlayerState
         self.save = f"scene_{scene['name']}"[:60]
         shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
         config.TURN_LOG_PATH = f"saves/{self.save}/turns.jsonl"
         config.AUDIT_ENABLED = False
         config.REFUSALS_LOG = False
-        self.world = load_world()
-        self.store = CampaignStore.open_or_create(self.save)
+        self.session = CampaignSession.open(self.save)                       # (f457) the campaign's session, as main.py opens it
+        self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = int(st.get("seed", 4)); self.store.meta.turn = 1
         self.store.meta.minutes = int(st.get("minutes", 600)); self.store.save_meta()
         char, _ = simlib.make_character(st.get("class", "warrior"), random.Random(int(st.get("seed", 4))))
@@ -92,8 +91,8 @@ class Table:
         if st.get("capabilities") and "capabilities" in type(char).model_fields:        # (slice 2) granted by the story or an item
             char.capabilities = list(st["capabilities"])
         self.store.save_player(PlayerState(character=char, location=st.get("place", "trading_square"), guild_rank=st.get("rank", "E")))
-        self.WorldScene, self.CampaignStore, self.load_traits = WorldScene, CampaignStore, load_traits
-        self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
+        self.CampaignSession, self.load_traits = CampaignSession, load_traits
+        self.ws = self.session.scene(load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
         self.ws.enter(st.get("place", "trading_square"))
         from engine import inventory
@@ -110,10 +109,14 @@ class Table:
             self.ws.present = self.ws.present + [n]
 
     def reopen(self) -> None:
+        """(f457) The campaign closed and opened again, as a player leaving and coming back: a new session over the same save, its map read
+        from the store (a place the scene added is absent until the store says so), and nothing of the old session left in the process.
+        Before this the old world was carried across the store's close: the leak Stage 2 removed."""
         self.ws.save()
-        self.store.close()
-        self.store = self.CampaignStore.open_or_create(self.save)
-        self.ws = self.WorldScene(self.store, self.world, self.load_traits(), self.store.load_player())
+        self.session.close()
+        self.session = self.CampaignSession.open(self.save)
+        self.store, self.world = self.session.store, self.session.world
+        self.ws = self.session.scene(self.load_traits(), self.store.load_player())
         self.ws.player.mentor["never"] = True
         self.ws.enter(self.ws.player.location)
 
@@ -199,7 +202,7 @@ class Table:
         return out
 
     def close(self) -> None:
-        self.store.close()
+        self.session.close()
         shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
 
 

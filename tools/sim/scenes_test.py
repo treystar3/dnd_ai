@@ -21,6 +21,25 @@ for sc in due:
 ahead = [s["name"] for s in all_ if s["slice"] > scenes.BUILT]
 print(f"     ({len(ahead)} scene(s) for slices not built yet: {', '.join(ahead)})")
 
+# ---- (f457) a reopen is a new session over the same save: what the scene added is read back from the store, never carried across
+import simlib
+from world.loader import authored
+t = scenes.Table(due[0])
+first = t.session
+here = t.ws.player.location
+data = t.store.load_discoveries()
+data["places"].append({"place": {"id": "x_reopen_probe", "name": "the Reopen Probe", "type": "wild", "region": authored().places[here].region,
+                                 "visible": ["A probe."]}, "anchor": here, "minutes": 30})
+t.store.save_discoveries(data)
+t.ws.ensure_discoveries()
+check("a place the scene added is on its session's map", "x_reopen_probe" in t.ws.world.added()["places"])
+t.reopen()
+check("a reopen is a new session over the same save, the old one closed, the scene's its own", t.session is not first and first.closed and t.ws.session is t.session)
+check("...its map is read from the store: the find is absent until ensured from it, then back", "x_reopen_probe" not in t.ws.world.added()["places"]
+      and (t.ws.ensure_discoveries(), "x_reopen_probe" in t.ws.world.added()["places"])[1], t.ws.world.added()["places"])
+t.close()
+check("...and closing the table leaves nothing of it in the process", simlib.residue() == {}, simlib.residue())
+
 cases = yaml.safe_load(open("data/replay/ruling_cases.yaml", encoding="utf-8"))
 check("the ruling's test set: every case has a line, a place, and yes, cost or no",
       all(c.get("line") and c.get("at") and c.get("expect") in ("yes", "cost", "no") for c in cases), [c for c in cases if c.get("expect") not in ("yes", "cost", "no")][:3])
