@@ -1150,8 +1150,19 @@ class CombatScene:
         ws.trial_over(won, f)
         ws.store.save_player(ws.player)
 
+    def forget_marks(self) -> None:
+        """(f465) The fight is over: what the perks and the heals remembered about it goes (engine/combat_perks.py QUARRY, WITHER;
+        engine/healing.py LAST are keyed by the fight's own mark); nothing of a finished fight stays in the process."""
+        from engine import combat_perks, healing
+        key = combat.fight_key(self.fight)
+        combat_perks.QUARRY.pop(key, None)
+        for k in [k for k in combat_perks.WITHER if k[0] == key]:
+            del combat_perks.WITHER[k]
+        healing.LAST.pop(key, None)
+
     def finish(self) -> None:
         f, ws = self.fight, self.ws
+        self.forget_marks()
         if f.duel:
             self.finish_duel()
             return

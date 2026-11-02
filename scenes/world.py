@@ -784,6 +784,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         streams.begin(self.store.meta.seed, self.store.meta.steps, text)
 
     HELD = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "combat_numbers", "legendary_reveal")   # (f463) the story bindings an operation holds
+    ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
+              "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
+              "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran")
+    # (f465) The scene's own state a line writes outside the save: snapshotted by the session at every operation's start and put back by a
+    # rollback beside the `_` caches (engine/session.py begin_turn, rollback), so a rolled-back operation leaves no trace of itself in what
+    # the narrator remembers, who was last spoken to, what was in view, the plan, the road, the fight that is coming. Declared, not guessed:
+    # an attribute a turn writes and a rollback should take back is added here, or the next failing operation shows it.
 
     def begin_line(self) -> None:
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
