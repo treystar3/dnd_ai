@@ -50,7 +50,7 @@ coins0 = c.coins
 notes.clear(); ws.halted = False
 check("the deed is bought from the agent for its price", buy("a house") and c.coins == coins0 - price and town in ws.player.homes, (c.coins, ws.player.homes))
 home = prop.home_id(town)
-check("...and the house is a place of its own, in the town, with the item box", home in world.places and world.places[home].parent == town and world.places[home].storage)
+check("...and the house is a place of its own, in the town, with the item box", home in ws.world.places and ws.world.places[home].parent == town and ws.world.places[home].storage)
 check("...bought once: the agent will not sell it twice", (notes.clear(), buy("a house"), any("already own" in n for n in notes))[-1], notes[-1:])
 
 # ---- upgrades, standing in the house
@@ -62,8 +62,8 @@ check("a strongroom grows the item box", buy("a strongroom") and "strongroom" in
       and c.coins == coins0 - P["upgrades"]["strongroom"]["price"], (ws.stash_cap(), cap0))
 check("a reliquary can be built here, in the far lands", buy("a reliquary") and ws.stash_cap() == cap0 + P["upgrades"]["strongroom"]["stash_bonus"] + P["upgrades"]["reliquary"]["stash_bonus"])
 check("the same upgrade is not sold twice", (notes.clear(), buy("a strongroom"), any("already have" in n for n in notes))[-1], notes[-1:])
-check("a workshop puts a free forge and workbench in the house", buy("a workshop") and set(world.places[home].stations) >= {"forge", "workbench"} and all(s["fee"] == 0 for s in world.places[home].stations.values()),
-      world.places[home].stations)
+check("a workshop puts a free forge and workbench in the house", buy("a workshop") and set(ws.world.places[home].stations) >= {"forge", "workbench"} and all(s["fee"] == 0 for s in ws.world.places[home].stations.values()),
+      ws.world.places[home].stations)
 check("a garden and a hearth are bought", buy("a garden") and buy("a hearth") and {"garden", "hearth"} <= set(ws.player.homes[town]["upgrades"]))
 packed = len(ws.pack)
 c.stamina = 1.0
@@ -79,7 +79,8 @@ check("...once a day", len(ws.pack) == packed and h["last_garden"] == day)
 # ---- a reload keeps the house, and puts it back on the map
 store.save_player(ws.player)
 p2 = store.load_player()
-w2 = load_world()
+from world.campaign import CampaignWorld
+w2 = CampaignWorld(load_world())                                 # (f451) a home is put on a campaign's map, never a bare World
 prop.register(w2, p2)
 check("a reload keeps the deed and its upgrades, and the house is on the map again", town in p2.homes and set(p2.homes[town]["upgrades"]) >= {"strongroom", "workshop", "garden", "hearth", "reliquary"}
       and home in w2.places, (p2.homes, home in w2.places))

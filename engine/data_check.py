@@ -246,7 +246,7 @@ def check() -> list[str]:
     for p_ in _wi.problems():
         need(False, p_)
     from engine import look as _look                          # (f388) a look for every people of the world, and no other
-    from world.loader import load_world as _lw
+    from world.loader import authored as _lw                   # (f451) the one parse of the written world
     for p_ in _look.problems(_lw()):
         need(False, p_)
     PT_ = _load("data/rules/pastimes.yaml")
@@ -300,7 +300,7 @@ def check() -> list[str]:
     from engine import spells as _spells                                                      # (f397) the spellbook
     bad += _spells.problems()
     from engine import features as _features                                                  # (f394) the parts of places
-    from world.loader import load_world as _lw
+    from world.loader import authored as _lw
     bad += _features.problems(_lw())
     from engine import trust as _trust                                                        # (f362) trust moved by the engine, by a reply's intent
     import typing as _typing

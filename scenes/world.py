@@ -85,9 +85,10 @@ SEARCH = encounters.E
 class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckActions, WorkActions, GuildActions, TrainingActions, DungeonActions,
                  RoadActions, ExploreActions, PropertyActions, MountActions, ArcActions, CampActions, PartyActions, TrialActions, PassiveHooks, FieldActions, AuditActions, LawActions, StandingActions, OrennaActions, MentorActions, StatsActions, BanterActions, QuirkActions,
                  PastimeActions, PlanRepairs, PartActions, Listening, SpellActions):
-    def __init__(self, store: CampaignStore, world: World, catalog: TraitCatalog, player: PlayerState):
+    def __init__(self, store: CampaignStore, world, catalog: TraitCatalog, player: PlayerState):
+        from world.campaign import CampaignWorld
         self.store = store
-        self.world = world
+        self.world = world if isinstance(world, CampaignWorld) else CampaignWorld(world)   # (f451) a bare World (a test's fixture) is wrapped: one writer
         self.catalog = catalog
         self.player = player
         self.residents: list[NPC] = []

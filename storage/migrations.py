@@ -108,14 +108,14 @@ def _v7_maren_moves_on(store) -> None:
     if not store.npc_exists("maren"):
         return
     from engine import mentor
-    from world.loader import load_world
+    from world.loader import authored                 # (f451) the one parse of the written world, never a second
     npc = store.load_npc("maren")
     if npc.gone:
         return
     npc.gone = mentor.M["npc"]["gone"]
     store.save_npc(npc)
     minutes = getattr(store.meta, "minutes", 0) or 0
-    mentor.moved_on(store, load_world(), npc, minutes)
+    mentor.moved_on(store, authored(), npc, minutes)
 
 
 def _v8_hire_pronouns(store) -> None:

@@ -4,7 +4,7 @@ runtime, and a change to the runtime's shape (the rebuild's Bundle B) is an edit
 now, and this ratchet counts the files under tools/ that still build a WorldScene or parse the world themselves: a new one fails it, and a
 file moved onto the helper must be taken off the count, so the list never silently stops shrinking (the shape of fresh_world_434_test's
 fence). Bundle B's f457 moves the tools; the tests move as they are touched."""
-import pathlib, sys
+import ast, pathlib, sys
 sys.path.insert(0, ".")
 
 bad = []
@@ -13,24 +13,31 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 ME = pathlib.Path(__file__).resolve()
-SCENE, WORLD = "WorldScene" + "(", "load_world" + "()"          # spelt apart, so this file counts neither itself nor the helper's test
-RECORDED = {"tests building a WorldScene": 124, "tools building a WorldScene": 8, "tests parsing the world": 154, "tools parsing the world": 16}
+RECORDED = {"tests building a WorldScene": 123, "tools building a WorldScene": 8, "tests parsing the world": 154, "tools parsing the world": 16}
 
-def files(folder: str, pattern: str, tests: bool) -> list[str]:
+def calls(tree: ast.AST, name: str) -> bool:
+    """Whether the file calls `name(...)` anywhere: a call, not a mention in a string (the fences quote these names in source checks)."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if (isinstance(f, ast.Name) and f.id == name) or (isinstance(f, ast.Attribute) and f.attr == name):
+                return True
+    return False
+
+def files(folder: str, name: str, tests: bool) -> list[str]:
     out = []
     for p in sorted(pathlib.Path(folder).glob("*_test.py" if tests else "*.py")):
         if p.resolve() == ME or p.name.endswith("_450_test.py"):
             continue
-        if pattern in p.read_text(encoding="utf-8"):
+        if calls(ast.parse(p.read_text(encoding="utf-8")), name):
             out.append(p.as_posix())
     return out
 
-found = {"tests building a WorldScene": files("tools/sim", SCENE, True), "tools building a WorldScene": files("tools", SCENE, False),
-         "tests parsing the world": files("tools/sim", WORLD, True), "tools parsing the world": files("tools", WORLD, False)}
+found = {"tests building a WorldScene": files("tools/sim", "WorldScene", True), "tools building a WorldScene": files("tools", "WorldScene", False),
+         "tests parsing the world": files("tools/sim", "load_world", True), "tools parsing the world": files("tools", "load_world", False)}
 counts = {k: len(v) for k, v in found.items()}
 over = {k: (counts[k], RECORDED[k]) for k in RECORDED if counts[k] > RECORDED[k]}
-check("no new file builds the runtime its own way (open a campaign with simlib.campaign)", not over,
-      {k: v for k, v in over.items()} | {"new": [f for k in over for f in found[k][-3:]]})
+check("no new file builds the runtime its own way (open a campaign with simlib.campaign)", not over, over)
 under = {k: (counts[k], RECORDED[k]) for k in RECORDED if counts[k] < RECORDED[k]}
 check("...and the ratchet is kept tight: a file moved onto the helper is taken off the count", not under, under)
 for k in RECORDED:

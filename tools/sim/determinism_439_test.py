@@ -98,11 +98,12 @@ script.unlink(missing_ok=True)
 RAND = {"random", "_r", "_random"}
 FNS = {"random", "choice", "choices", "randint", "uniform", "shuffle", "sample", "randrange", "gauss", "triangular", "betavariate",
        "getrandbits", "seed"}
-ENTROPY_OK = {"engine/ability_slots.py", "engine/ability_traits.py", "engine/field.py", "engine/lessons.py"}   # defaults kept for creation
+ENTROPY_OK = {"engine/ability_slots.py", "engine/ability_traits.py", "engine/field.py", "engine/lessons.py",   # defaults kept for creation
+              "storage/campaign.py"}                                                                            # (f451) the campaign's own seed, drawn once
 UNSEEDED_OK = {"engine/look.py": 1}                         # the look rolled at character creation
 SEED_OK = {"engine/streams.py"}                             # the one place the global module is seeded, as a bridge
 found = []
-for d in ("engine", "scenes", "npc", "services"):
+for d in ("engine", "scenes", "npc", "services", "storage", "world"):                 # (f451) the world and the store too
     for p in sorted(pathlib.Path(d).rglob("*.py")):
         rel = p.as_posix()
         unseeded = 0

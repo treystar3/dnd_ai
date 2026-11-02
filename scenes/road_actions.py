@@ -33,7 +33,7 @@ class RoadActions:
     def ensure_road_place(self) -> None:
         road = self.player.road
         if road and road["id"] not in self.world.places:
-            self.world.places[road["id"]] = Place(**road["place"])
+            self.world.add_place(Place(**road["place"]))             # (f451) through the campaign's world
 
     def leave_road(self, new_place: str) -> None:
         """Called when the player stands anywhere but the stop: tidy it away."""
@@ -45,7 +45,7 @@ class RoadActions:
             if not npc.gone:
                 pulse.remove_npc(self.store, self.world, npc, "moved on along the road", self.minutes, dead=False)
         self.player.road = None
-        self.world.places.pop(road["id"], None)
+        self.world.remove_place(road["id"])                         # (f451) the only place ever taken off the map, with its ways
         self.end_conversation()
         self.last_spoken = None
         self.present = []

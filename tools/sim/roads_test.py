@@ -175,7 +175,7 @@ road_actions.R["chance_per_leg"] = 0
 from engine import roads as roads_mod
 sx, wx = fresh("roads_late")
 stop = roads_mod.make_stop(world, "parth", "greywood", 0.5, 60, "", "", "t")
-wx.world.places[stop["id"]] = type(world.places["parth"]).model_validate(stop["place"])
+wx.world.add_place(type(world.places["parth"]).model_validate(stop["place"]))     # (f451) a stop goes on the campaign's map through its world
 try:
     exits.groups(wx.world, stop["id"])
     ok_late = True

@@ -2,19 +2,15 @@
 places into it (discoveries and their tracks, dungeon entrances, the stop on the road, homes), so a second save opened from the home
 page inherited the first one's finds. Now the home page reads the world as written (world/loader.py authored), and every campaign plays
 on its own copy (campaign_world); caches kept per world are keyed by the world's own stamp, never by id(); and the direct writes into a
-world are fenced in: the list of them may only shrink, until the rebuild's Stage 2 moves each behind the campaign's world."""
-import ast, pathlib, random, shutil, sys
+world are fenced in: the list of them may only shrink, until the rebuild's Stage 2 moves each behind the campaign's world.
+(f451) Stage 2 has: a campaign's world is a view over the one authored object (world/campaign.py), the five writers go through its four
+operations, and the fences below allow nothing, in world/ too, and watch attribute writes on a place's fields as well."""
+import ast, pathlib, random, re, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("ranger", 34))
-import ui.console as uc
-for fn in ("narrate", "say", "note", "ledger"):
-    setattr(uc, fn, lambda *a, **k: None)
-uc.panel = lambda name, data: False
+simlib.quiet_console()
 from engine import faith, mapview, property as prop
-from npc.traits import load_traits
-from scenes.world import WorldScene
-from storage.campaign import CampaignStore, PlayerState
 from world.loader import authored, campaign_world
 
 bad = []
@@ -26,17 +22,9 @@ written = authored()
 before = {pid: dict(p.connects) for pid, p in written.places.items()}
 roads_before = set(written.roads)
 
-def open_save(name, seed):
-    shutil.rmtree(f"saves/{name}", ignore_errors=True)
-    world = campaign_world()
-    store = CampaignStore.open_or_create(name)
-    store.meta.seed = seed; store.meta.minutes = 600; store.save_meta()
-    char, _ = simlib.make_character("ranger", random.Random(seed))
-    store.save_player(PlayerState(character=char, location=world.start_location))
-    return world, store
-
 # ---- campaign A finds things
-wa, sa = open_save("fresh_world_434_a", 34)
+ga = simlib.campaign("fresh_world_434_a", cls="ranger", seed=34)            # (f450) the suite's one way to open a campaign
+wa, sa = ga.world, ga.store
 town = next(iter(prop.P["homes"]))
 anchor = written.start_location
 found = {"id": "a_only_hollow", "name": "the Hollow Only A Found", "type": "wild", "region": written.places[anchor].region,
@@ -47,12 +35,12 @@ data["places"].append({"place": found, "anchor": anchor, "minutes": 40})
 data["tracks"].append({"id": "a_only_track", "name": "the Track Only A Walked", "description": "A deer path.", "from": anchor, "to": far,
                        "minutes": 300})
 sa.save_discoveries(data)
-pa = sa.load_player()
+pa = ga.player                                  # (f450) the helper's player is the scene's
 pa.homes = {town: {"upgrades": []}}
 pa.road = {"id": "a_only_stop", "place": {"id": "a_only_stop", "name": "a bend in the road only A stopped at", "type": "road",
                                           "region": written.places[anchor].region, "visible": ["A milestone."]}}
 sa.save_player(pa)
-a = WorldScene(sa, wa, load_traits(), sa.load_player())
+a = ga.scene
 a.ensure_discoveries(); a.ensure_homes(); a.ensure_road_place(); a.ensure_dungeons()
 a_added = set(wa.places) - set(written.places)
 check("campaign A's world holds what A found", {"a_only_hollow", "a_only_stop", prop.home_id(town)} <= a_added and "a_only_track" in wa.roads,
@@ -63,8 +51,9 @@ for pid in written.places:
 a.store.close()
 
 # ---- campaign B, opened next in the same run, sees none of it
-wb, sb = open_save("fresh_world_434_b", 77)
-b = WorldScene(sb, wb, load_traits(), sb.load_player())
+gb = simlib.campaign("fresh_world_434_b", cls="ranger", seed=77)
+wb, sb = gb.world, gb.store
+b = gb.scene
 b.ensure_discoveries(); b.ensure_homes(); b.ensure_road_place(); b.ensure_dungeons()
 b_own = {d["entrance"] for d in sb.load_dungeons()}
 extra = set(wb.places) - set(written.places)
@@ -94,13 +83,14 @@ check("main.py makes the campaign's world inside the loop, before the scene", "w
       and loop.index("world = campaign_world()") < loop.index("WorldScene(store, world"), "")
 check("...and never loads a world of its own to play on", "load_world" not in src and "home.choose(written)" in src)
 
-# ---- the direct writes into a world: fenced in, and the list only shrinks (the rebuild's Stage 2 takes it to none)
-ALLOWED = {"engine/discovery.py": 4, "engine/property.py": 1, "scenes/dungeon_actions.py": 2, "scenes/road_actions.py": 2}
-MAPS, MUT = {"places", "roads", "connects"}, {"pop", "setdefault", "update", "clear", "popitem"}
+# ---- the direct writes into a world: none (f451, the rebuild's Stage 2), in world/ too, and none to a place's own fields either
+MAPS = {"places", "roads", "connects", "regions", "peoples", "bestiary", "roles", "lore", "pressures", "towns", "biomes", "knowledge_groups"}
+MUT = {"pop", "setdefault", "update", "clear", "popitem"}
+DIRS = ("engine", "scenes", "npc", "services", "storage", "world")
 def name(n):
     return n.attr if isinstance(n, ast.Attribute) else None
 found = {}
-for d in ("engine", "scenes", "npc", "services", "storage"):
+for d in DIRS:
     for p in sorted(pathlib.Path(d).rglob("*.py")):
         n = 0
         for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
@@ -110,10 +100,20 @@ for d in ("engine", "scenes", "npc", "services", "storage"):
                 n += 1
         if n:
             found[p.as_posix()] = n
-over = {f: n for f, n in found.items() if n > ALLOWED.get(f, 0)}
-check("no new direct write into a world (write through the campaign's world: rebuild Stage 2)", not over, over)
-check("...and the fence is kept tight: a write taken away is taken off the list", all(found.get(f, 0) == n for f, n in ALLOWED.items()),
-      {f: (found.get(f, 0), n) for f, n in ALLOWED.items() if found.get(f, 0) != n})
+check("no direct write into a world's maps anywhere: a campaign's map changes only through its world's four operations", not found, found)
+# a place's own fields: the ways, what is seen, who lives there, the stations, the crowd, the districts, the town's scale and guard
+ATTR = re.compile(r"\.(connects|visible|peoples|stations|crowd|districts|scale|guard|anchors|danger)\s*(?:=(?!=)|\.(?:append|extend|update|pop|setdefault|clear|insert|remove)\(|\[[^\]\n]+\]\s*=(?!=))")
+ALLOWED_ATTR = {"world/loader.py": 4}      # _check_towns: a town's profile written onto its top place as the world is parsed, before any campaign exists
+attr_found = {}
+for d in DIRS:
+    for p in sorted(pathlib.Path(d).rglob("*.py")):
+        n = len(ATTR.findall(p.read_text(encoding="utf-8")))
+        if n:
+            attr_found[p.as_posix()] = n
+over = {f: n for f, n in attr_found.items() if n > ALLOWED_ATTR.get(f, 0)}
+check("...nor a write to a place's own fields: a place gains a way as a copy, never in place", not over, over)
+check("...and that fence is kept tight too", all(attr_found.get(f, 0) == n for f, n in ALLOWED_ATTR.items()),
+      {f: (attr_found.get(f, 0), n) for f, n in ALLOWED_ATTR.items() if attr_found.get(f, 0) != n})
 
 for s in ("fresh_world_434_a", "fresh_world_434_b"):
     shutil.rmtree(f"saves/{s}", ignore_errors=True)

@@ -39,10 +39,10 @@ class DungeonActions:
                 changed = True
         if changed:
             self.store.save_dungeons(list(known.values()))
-        for d in known.values():
+        for d in known.values():                                    # (f451) through the campaign's world
             if d["entrance"] not in self.world.places:
-                self.world.places[d["entrance"]] = dungeons.entrance_place(d, self.world)
-            self.world.places[d["place"]].connects.setdefault(d["entrance"], 10)
+                self.world.add_place(dungeons.entrance_place(d, self.world))
+            self.world.link(d["place"], d["entrance"], 10)
 
     def dungeon_here(self) -> dict | None:
         return next((d for d in self.store.load_dungeons() if d["entrance"] == self.player.location), None)

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 import functools
-import uuid
+import itertools
 
 import yaml
 from pydantic import Field, BaseModel, PrivateAttr, ValidationError, field_validator
@@ -190,6 +190,9 @@ class Road(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+_STAMPS = itertools.count(1)       # (f451) the marks of the Worlds built this run, in order
+
+
 class World(BaseModel):
     name: str
     summary: str
@@ -258,7 +261,7 @@ class World(BaseModel):
         return None
 
     _routes: dict = PrivateAttr(default_factory=dict)     # (f362) neighbours and paths, kept while the map stands (see _route_cache)
-    _stamp: str = PrivateAttr(default_factory=lambda: uuid.uuid4().hex)   # (f434) which world this is, for caches
+    _stamp: str = PrivateAttr(default_factory=lambda: f"w{next(_STAMPS)}")   # (f434) which world this is, for caches; (f451) a counter, never a uuid
 
     @property
     def stamp(self) -> str:
@@ -527,15 +530,13 @@ def authored() -> World:
     return load_world()
 
 
-def campaign_world() -> World:
-    """(f434) A fresh copy of the authored world for one campaign. Each campaign writes its own places into its world (discoveries, dungeon
-    entrances, the stop on the road, homes), and one world shared by every save opened in a session handed save B the places save A had
-    found. A deep copy is a fiftieth of a second; a reload is near a second. Its route cache starts empty and its stamp is its own.
-    This is the seam the rebuild's Stage 2 replaces with a CampaignWorld (the authored world read-only, plus this campaign's additions)."""
-    w = authored().model_copy(deep=True)
-    w._routes = {}
-    w._stamp = uuid.uuid4().hex
-    return w
+def campaign_world():
+    """(f434) One campaign's world. Each campaign puts its own places on its map (discoveries, dungeon entrances, the stop on the road,
+    homes), and one world shared by every save opened in a session handed save B the places save A had found. (f451) No copy any more:
+    a CampaignWorld (world/campaign.py) is a live read-only view over the one authored object, with this campaign's additions on top and
+    its own route cache and mark. Stage 2 of the rebuild."""
+    from world.campaign import CampaignWorld
+    return CampaignWorld(authored())
 
 
 def _load_towns(folder: Path, problems: list[str]) -> dict:

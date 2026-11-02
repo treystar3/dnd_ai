@@ -85,7 +85,7 @@ out = happen("hazard")
 hz = (ws.player.road or {}).get("hazard")
 check("a hazard stops the walk and waits", out == "stopped" and hz and hz.get("what"), (out, ws.player.road))
 stop = ws.player.road["id"]
-ahead = next(k for k in world.places[stop].connects if k != hz["behind"])
+ahead = next(k for k in ws.world.places[stop].connects if k != hz["behind"])
 m0 = ws.minutes
 SHOWN.clear()
 ws.leaving_stop([stop, hz["behind"]], "I turn back the way we came")
@@ -93,7 +93,7 @@ check("...going back the way they came passes nothing", not any("costs you" in t
 out = happen("hazard")
 stop = ws.player.road["id"]
 hz = ws.player.road["hazard"]
-ahead = next(k for k in world.places[stop].connects if k != hz["behind"])
+ahead = next(k for k in ws.world.places[stop].connects if k != hz["behind"])
 m0 = ws.minutes
 SHOWN.clear()
 ws.leaving_stop([stop, ahead], "We go around it by the long way")
@@ -101,7 +101,7 @@ check("...going around costs time and no risk", any(t.startswith("Going around")
 out = happen("hazard")
 stop = ws.player.road["id"]
 hz = ws.player.road["hazard"]
-ahead = next(k for k in world.places[stop].connects if k != hz["behind"])
+ahead = next(k for k in ws.world.places[stop].connects if k != hz["behind"])
 SHOWN.clear()
 ws.leaving_stop([stop, ahead], "I push on through")
 check("...pushing on through is ruled as they try it", any(k == "note" for k, _ in SHOWN), SHOWN)
@@ -123,7 +123,7 @@ check("...asking is not helping", not ws.player.road["aid"].get("helped"))
 bonds = {m["id"]: m.get("bond", 0) for m in ws.player.party}
 before = seen("pass_by")
 stop = ws.player.road["id"]
-ws.leaving_stop([stop, next(iter(world.places[stop].connects))], "I walk on")
+ws.leaving_stop([stop, next(iter(ws.world.places[stop].connects))], "I walk on")
 after = seen("pass_by")
 moved = {m["id"]: m.get("bond", 0) - bonds[m["id"]] for m in ws.player.party}
 check("walking past them is seen by every hire with a view", all(after[i] == before[i] + 1 for i in crew), (before, after))
@@ -140,7 +140,7 @@ check("helping them is repaid, then", ws.player.road["aid"].get("helped") and ws
 check("...and the kind among the party are glad of it", seen("road_help")[crew[0]] == help0[crew[0]] + 1 and seen("road_help")[crew[1]] == help0[crew[1]])
 before = seen("pass_by")
 stop = ws.player.road["id"]
-ws.leaving_stop([stop, next(iter(world.places[stop].connects))], "I walk on")
+ws.leaving_stop([stop, next(iter(ws.world.places[stop].connects))], "I walk on")
 check("...and leaving once they have helped is not walking past", seen("pass_by") == before)
 ws.leave_road("parth")
 ra.R["chance_per_leg"] = legs_was
