@@ -21,6 +21,12 @@ def pending(place_id: str | None = None, store=None) -> bool:
         return any((place_id is None or pid == place_id) and (store is None or key == _save(store)) for key, pid in _jobs)
 
 
+def threads(store) -> list:
+    """(f453) This save's background threads still running, for its session to wait for or orphan as it closes (engine/session.py)."""
+    with _lock:
+        return [j["thread"] for k, j in _jobs.items() if k[0] == _save(store) and j.get("thread") is not None and j["thread"].is_alive()]
+
+
 def start(store, world, catalog, place_id: str) -> bool:
     """Begin making the people a place still lacks. Does nothing when a job of this save is already running or nobody is missing.
     A job left over from another save is forgotten first."""
@@ -44,9 +50,10 @@ def start(store, world, catalog, place_id: str) -> bool:
             job["done"].set()
 
     job["done"] = threading.Event()
+    job["thread"] = threading.Thread(target=run, daemon=True)          # (f453) kept, so the session can wait for it as it closes
     with _lock:
         _jobs[(_save(store), place_id)] = job
-    threading.Thread(target=run, daemon=True).start()
+    job["thread"].start()
     return True
 
 

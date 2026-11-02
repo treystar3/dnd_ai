@@ -615,26 +615,24 @@ def make_character(cls_key: str, rng: random.Random, perks: bool = False):
 # ------------------------------------------------------------------ (f450) the suite's one way to open a campaign
 
 class Game:
-    """One campaign opened for a test (campaign()): its store, its world, the trait catalog and the player, and the scene built on them
-    the first time it is asked for. close() closes what the game closes when a campaign ends (main.py): the store, and this save's
-    background work. The rebuild's Bundle B changes only the inside of this class and of campaign(): a test that opens its campaign
+    """One campaign opened for a test (campaign()): its session (f453: engine/session.py, the store and the world are its), the trait
+    catalog and the player, and the scene built on them the first time it is asked for. close() closes the session, as main.py does
+    when a campaign ends. The rebuild's Bundle B changes only the inside of this class and of campaign(): a test that opens its campaign
     here never changes again when the runtime does."""
 
-    def __init__(self, name: str, store, world, catalog, player):
-        self.name, self.store, self.world, self.catalog, self.player = name, store, world, catalog, player
+    def __init__(self, name: str, session, catalog, player):
+        self.name, self.session, self.catalog, self.player = name, session, catalog, player
+        self.store, self.world = session.store, session.world
         self._scene = None
 
     @property
     def scene(self):
         if self._scene is None:
-            from scenes.world import WorldScene
-            self._scene = WorldScene(self.store, self.world, self.catalog, self.player)
+            self._scene = self.session.scene(self.catalog, self.player)
         return self._scene
 
     def close(self) -> None:
-        from npc import backfill
-        self.store.close()
-        backfill.drop(self.store)
+        self.session.close()
 
 
 def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,
@@ -643,13 +641,13 @@ def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600,
     into place), its seed, clock and turn, a level-1 character of one of the stub's classes, standing where the world starts or at
     `location`, with Maren kept away unless asked for. Returns the Game; `.scene` builds the WorldScene on first use."""
     import shutil
+    from engine.session import CampaignSession
     from npc.traits import load_traits
-    from storage.campaign import CampaignStore, PlayerState
-    from world.loader import campaign_world
+    from storage.campaign import PlayerState
     if fresh:
         shutil.rmtree(f"saves/{name}", ignore_errors=True)
-    store = CampaignStore.open_or_create(name)
-    world = campaign_world()
+    session = CampaignSession.open(name)                     # (f453) born when the save opens, as in main.py
+    store, world = session.store, session.world
     if not store.player_exists():
         store.meta.seed, store.meta.turn, store.meta.minutes = seed, turn, minutes
         store.save_meta()
@@ -658,7 +656,13 @@ def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600,
         if never_mentor:
             player.mentor["never"] = True
         store.save_player(player)
-    return Game(name, store, world, load_traits(), store.load_player())
+    return Game(name, session, load_traits(), store.load_player())
+
+
+def residue() -> dict:
+    """(f453) Every binding a session owns that is not at its initial value, by name with what it holds: {} after a clean close."""
+    from engine import session
+    return session.residue()
 
 
 def quiet_console(kinds=("narrate", "say", "note", "ledger")) -> list:

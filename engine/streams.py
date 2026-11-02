@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import random
 
+UNSEEDED = "unseeded"
 _streams: dict[str, random.Random] = {}
-_key = "unseeded"
+_key = UNSEEDED
 STRICT = False
 
 
@@ -34,6 +35,16 @@ def begin(seed, step: int, said: str = "") -> None:
     hashed the same in every process. The global random module is reseeded too, for anything that still rolls it."""
     global _key
     _key = f"{seed}:{step}:{said}"
+    for name, r in _streams.items():
+        r.seed(_seed(name))
+    random.seed(_seed("global"))
+
+
+def reset() -> None:
+    """(f453) A campaign opened or closed (engine/session.py): the key goes back to unseeded and every stream starts again from it, so
+    nothing of the last campaign's dice reaches the next. STRICT is the recorder's and stays."""
+    global _key
+    _key = UNSEEDED
     for name, r in _streams.items():
         r.seed(_seed(name))
     random.seed(_seed("global"))

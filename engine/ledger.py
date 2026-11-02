@@ -47,6 +47,14 @@ def begin() -> None:
     ROWS.clear()
 
 
+def reset() -> None:
+    """(f453) A campaign opened or closed (engine/session.py): nothing of another campaign's turns stays in this process."""
+    global LAST
+    ROWS.clear()
+    LAST = []
+    TOTALS.clear()
+
+
 def end() -> list[dict]:
     out = list(ROWS)
     ROWS.clear()

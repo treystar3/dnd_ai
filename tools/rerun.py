@@ -121,12 +121,11 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     (ROOT / "saves" / name).mkdir(parents=True)
     shutil.copy(folder / "start.db", ROOT / "saves" / name / "campaign.db")
     from npc.traits import load_traits
-    from scenes.world import WorldScene
-    from storage.campaign import CampaignStore
-    from world.loader import campaign_world
+    from engine.session import CampaignSession
     from engine import ledger
-    store = CampaignStore.open_or_create(name)
-    ws = WorldScene(store, campaign_world(), load_traits(), store.load_player())
+    session = CampaignSession.open(name)                    # (f453) the campaign's session, as main.py opens it
+    store = session.store
+    ws = session.scene(load_traits(), store.load_player())
 
     def check_input() -> None:
         """The input just played against what the recording says it did."""
@@ -173,7 +172,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     except Parted as e:
         state["parted"] = {"input": state["input"], "why": str(e)}
     finally:
-        store.close()
+        session.close()
         shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
         streams.STRICT = False
     matched = state["input"] - (1 if state["parted"] else 0)
@@ -214,16 +213,17 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     stub = simlib.Stub("warrior", seed)
     simlib.install(stub)
     from engine import recording
+    from engine.session import CampaignSession
     from llm import gateway
     from npc.traits import load_traits
-    from scenes.world import WorldScene
-    from storage.campaign import CampaignStore, PlayerState
+    from storage.campaign import PlayerState
     from ui import console
-    from world.loader import authored, campaign_world
+    from world.loader import authored
     import nightbot
     save = "rerun_make_" + folder.name
     shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
-    store = CampaignStore.open_or_create(save)
+    session = CampaignSession.open(save)                     # (f453)
+    store = session.store
     store.meta.seed, store.meta.turn, store.meta.minutes = seed, 1, 480
     store.save_meta()
     char, _ = simlib.make_character("warrior", random.Random(seed))
@@ -245,7 +245,7 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
             raise ConnectionError("the model server cannot be reached")
         return real.chat(**k)
     gateway._client = types.SimpleNamespace(chat=chat)
-    ws = WorldScene(store, campaign_world(), load_traits(), store.load_player())
+    ws = session.scene(load_traits(), store.load_player())
     bot = nightbot.Bot(ws, ws.world, random.Random(seed), stub=stub, persona=persona)
     stub.bot = bot
     count, last = {"n": 0}, {"text": "I look around."}
@@ -265,12 +265,11 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         last["text"] = text
         return text
     console.ask = ask
-    rec = recording.Recorder(store, folder=folder).install()
+    session.record(folder=folder)
     try:
         ws.run()
     finally:
-        rec.close()
-        store.close()
+        session.close()
         shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
     return folder
 

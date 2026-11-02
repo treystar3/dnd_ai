@@ -77,12 +77,13 @@ after = {pid: dict(p.connects) for pid, p in written.places.items()}
 check("the written world is unchanged: the same places and the same ways", after == before and set(written.roads) == roads_before)
 check("...and a fresh copy is the written world again", set(campaign_world().places) == set(written.places))
 
-# ---- main.py plays every campaign on its own copy
+# ---- main.py plays every campaign as a session of its own (f453)
 src = pathlib.Path("main.py").read_text(encoding="utf-8")
 loop = src[src.index("    while True:"):]
-check("main.py makes the campaign's world inside the loop, before the scene", "world = campaign_world()" in loop
-      and loop.index("world = campaign_world()") < loop.index("WorldScene(store, world"), "")
-check("...and never loads a world of its own to play on", "load_world" not in src and "home.choose(written)" in src)
+check("main.py opens every campaign as a session inside the loop, before the scene", "CampaignSession.open(" in loop
+      and loop.index("CampaignSession.open(") < loop.index("session.scene("), "")
+check("...and never builds a store, a world or a scene of its own", not any(s in src for s in ("campaign_world", "CampaignStore.open_or_create", "WorldScene(", "load_world"))
+      and "home.choose(written)" in src)
 
 # ---- the direct writes into a world: none (f451, the rebuild's Stage 2), in world/ too, and none to a place's own fields either
 MAPS = {"places", "roads", "connects", "regions", "peoples", "bestiary", "roles", "lore", "pressures", "towns", "biomes", "knowledge_groups"}

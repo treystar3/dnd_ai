@@ -26,6 +26,7 @@ MAX_TOKENS = 800
 # measured against it: no narrator or speaker is given a length any more.
 PROSE_MAX_TOKENS = 2048
 REQUEST_TIMEOUT = 120
+CLOSE_WAIT_SECONDS = 2      # (f453) how long a closing campaign waits for its background work (a creation call, people being written) before leaving it behind
 KEEP_ALIVE = "30m"          # how long Ollama keeps the model loaded after a call (its default is 5 minutes, and a cold load costs 20-60 seconds)
 COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
 NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles it in game)

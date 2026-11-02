@@ -34,6 +34,14 @@ import config
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
+ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
+                         # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_call)
+
+
+def orphan(threads) -> None:
+    """(f453) A session closed with these threads still running (engine/session.py close): remembered, and the dead ones forgotten."""
+    ORPHANS.difference_update({t for t in ORPHANS if not t.is_alive()})
+    ORPHANS.update(threads)
 
 
 def request_hash(k: dict) -> str:
@@ -165,6 +173,8 @@ class Recorder:
     def _call(self, kind: str, real, k: dict):
         if self.asking is not None and threading.get_ident() == self.asking:
             return real(**k)                             # (f442) the player's side deciding its line: the input, not the game
+        if threading.current_thread() in ORPHANS:
+            return real(**k)                             # (f453) a closed session's thread, still running: not this session's call
         t0 = time.perf_counter()
         row = {"i": self.n_call, "input": self.n_input, "kind": kind, "title": ((k.get("format") or {}).get("title", "")
                if isinstance(k.get("format"), dict) else ""), "req": request_hash(k),
