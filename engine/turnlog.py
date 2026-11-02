@@ -84,11 +84,12 @@ def begin(console=None) -> None:
              "rewrites": []}
 
 
-def end(rolled_back: bool = False, command: dict | None = None, failure: str = "") -> None:
+def end(rolled_back: bool = False, command: dict | None = None, failure: str = "", crash: str = "") -> None:
     """(f385) The turn is over: its rows are written, the last carrying what was shown, when it began and how long it took. `command`
     is a # command's row (its text, and whether it changed anything), written only when it did something or told the player
     something in the story's column. (f437) `failure`: why a turn rolled back, when a model call it needed failed; the row says the model
-    failed, which is never a refusal of what the player typed."""
+    failed, which is never a refusal of what the player typed. (f449) `crash`: the turn rolled back because the game itself raised; the
+    row says so (crashed), apart from the model's failures, and logs/crash.log holds the traceback."""
     global _open
     t, _open = _open, None
     if t is None or not enabled():
@@ -96,7 +97,7 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
     rows = t["rows"]
     if command is not None:
         told = any(s["kind"] != "note" or not command.get("view") for s in t["shown"])     # a view's own listing is not a thing done
-        if not (command.get("changed") or told):
+        if not (command.get("changed") or told or crash):                                  # (f449) a fault always leaves its row
             return
         COUNTS["command"] = COUNTS.get("command", 0) + 1
         rows = rows or [{"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "turn": command.get("turn"),
@@ -112,6 +113,8 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
         rows[-1]["rolled_back"] = True
         if failure:
             rows[-1]["model_failed"] = failure[:200]
+        if crash:
+            rows[-1]["crashed"] = crash[:200]                  # (f449) the game's own fault, not the model's
     for r in rows:
         _write(r)
 

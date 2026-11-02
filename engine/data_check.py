@@ -253,7 +253,7 @@ def check() -> list[str]:
     _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
     from engine import clock as _clock, doings as _doings, moments as _moments                 # (f348) doings by role and period; moments by place and period
     _types = {p_.get("type", "") for p_ in _load("data/world/places.yaml")}
-    bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES))
+    bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES), _types | {"road", "dungeon", "home"})    # (f449) `at`: the kinds of place, the made ones too
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()

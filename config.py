@@ -43,6 +43,8 @@ REFUSALS_LOG = True
 RECORD = bool(int(__import__("os").environ.get("DND_RECORD", "0") or 0))
 RECORD_KEEP = 5
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
+CRASH_LOG_PATH = "logs/crash.log"           # (f449) every fault the game went on without (a turn rolled back) or stopped on, with its traceback
+CRASH_KEEP = 50                             # how many of the most recent faults the crash log keeps
 AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)
 
 GAME_TITLE = "Meravia"                      # (f345) the name the home page, the window, the exe and the installer carry

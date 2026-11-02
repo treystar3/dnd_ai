@@ -34,7 +34,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 GOLDEN = ROOT / "data" / "replay" / "sessions" / "stub_short"
 
 
-class Parted(Exception):
+from core.interrupts import Interrupt    # (f449) raised on purpose, and let through every catch that would otherwise make it a failed try
+
+
+class Parted(Interrupt):
     """The replay has parted from the recording."""
 
 

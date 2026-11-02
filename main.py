@@ -146,10 +146,12 @@ def guarded(run, bridge):
     try:
         run()
     except LLMError as e:
+        from engine import crashlog
+        crashlog.record(e, "outside a turn: the model gave no usable answer")             # (f449) written down, so the logs sent carry it
         console.out("\nThe model couldn't produce a usable answer and the game can't continue from this point.")
         console.out("If you were already playing, everything up to the start of your last action is saved; that action is not.")
         console.out("If you were still creating your character, nothing was saved - run main.py to start creation again.")
-        console.out(f"(details: {e} - see logs/llm_calls.jsonl)")
+        console.out(f"(details: {e} - see logs/llm_calls.jsonl and logs/crash.log)")
         if bridge:
             bridge.failed = True
     except KeyboardInterrupt:
@@ -157,6 +159,8 @@ def guarded(run, bridge):
     except SystemExit:
         raise
     except Exception as e:
+        from engine import crashlog
+        crashlog.record(e, "outside a turn")                   # (f449) a fault in a turn no longer reaches here (scenes/world.py turn); these are the rest
         if bridge:
             bridge.failed = True
         if "connect" in f"{type(e).__name__} {e}".lower():
@@ -165,6 +169,7 @@ def guarded(run, bridge):
         elif bridge:
             import traceback
             console.out("\nSomething went wrong and the game has to stop. Progress up to the start of your last action is saved; that action is not.")
+            console.out("The details are written to logs/crash.log.")
             console.out(traceback.format_exc())
         else:
             raise

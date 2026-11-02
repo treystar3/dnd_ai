@@ -21,3 +21,4 @@ reasons:
   first_person: "the narrator speaks to the player as 'you'; 'I', 'me' and 'my' belong only inside someone's quoted speech"
   note: "write only the story: no note to yourself in square brackets (a blow's tag is [h1], [h2] and nothing else)"
   broken: "a character came out broken: write the passage again in plain letters"
+  stage: "a stage direction in round brackets is a script's, not a line: what they do is the gesture, what they say is the speech"   # (f449) mended on the way to the screen, never sent back

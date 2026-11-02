@@ -24,6 +24,7 @@ from scenes.stats_actions import StatsActions
 from scenes.banter_actions import BanterActions
 from scenes.quirk_actions import QuirkActions
 from engine import encounters
+from core.interrupts import Interrupt                      # (f449) stopped on purpose: let through, never rolled back as a fault
 from engine.combat import RULES as COMBAT_RULES
 from scenes import combat_prompts as cp
 from scenes.combat_scene import CombatScene
@@ -95,6 +96,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
+        self.last_crash = False       # (f449) the last turn rolled back on the game's own fault (logs/crash.log), not the model's
+        self.broken: dict[str, int] = {}     # (f449) lines that failed that way, and how often: the second time, the player is told to leave it
         self.recent_narration: list[str] = []
         self.last_text = ""
         self.buffering = False        # several actions in one message: narrate them together
@@ -201,9 +204,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def remember_narration(self, text: str, shown: dict | None = None) -> None:
         """Keep what the model should remember, and what the player saw (as pieces, so a reload draws it the same way)."""
         from engine import hygiene
-        text = hygiene.undash(hygiene.unnote(text))         # (f396) what the narrator is shown of itself carries no dashes to copy; (f404) no notes
+        text = hygiene.undash(hygiene.unstage(hygiene.unnote(text)))   # (f396) what the narrator is shown of itself carries no dashes to copy; (f404) no notes; (f449) no stage directions
         if shown:
-            shown = {k: hygiene.undash(hygiene.unnote(v)) if k in ("text", "before", "after") and isinstance(v, str) else v for k, v in shown.items()}
+            shown = {k: hygiene.undash(hygiene.unstage(hygiene.unnote(v))) if k in ("text", "before", "after") and isinstance(v, str) else v for k, v in shown.items()}
         if text.strip():
             self.recent_narration = (self.recent_narration + [text])[-6:]
             self.store.save_story(self.recent_narration, shown or {"type": "narration", "text": text})
@@ -690,33 +693,59 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 before = self.player.location
                 bar = self.header_key()                                     # (f372) what the top bar shows, to redraw it when a button changed it
                 turnlog.begin(console)                                      # (f385) a button that does something is a row too
-                rolled = False
+                rolled = crashed = False
+                self.last_crash = False
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
                         self.new_input(text)                                # (f439) the dice of this input
                         self.command(text)
+                except Interrupt:
+                    raise                                                   # (f449) stopped on purpose, never a rolled-back fault
                 except LLMError as e:
                     console.debug(f"command rolled back: {e}")
                     self.reload_after_rollback()
                     rolled = True
                     self.last_failure = str(e) or type(e).__name__
                     console.note(failures.not_taken(self.rng))           # (f437) in the narrator's words, never the machinery
-                failed = self.last_failure if rolled else ""
+                except Exception as e:                                      # (f449) the game's own fault: rolled back, told, written down, played on
+                    from engine import crashlog
+                    crashlog.record(e, "command", text=text, place=self.player.location, turn=self.store.meta.turn)
+                    console.debug(f"command crashed and rolled back: {type(e).__name__}: {e}")
+                    self.reload_after_rollback()
+                    rolled = crashed = self.last_crash = True
+                    self.last_failure = f"{type(e).__name__}: {e}"[:200]
+                    console.note(self.failed_line(text))
+                failed = self.last_failure if rolled and not crashed else ""
+                crash = self.last_failure if crashed else ""
                 if self.to_menu:
-                    turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed)
+                    turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash)
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed)
+                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash)
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
             turnlog.begin(console)                                          # (f385) the row waits for what the turn shows
             stood = self.turn(text)
             if not stood:
-                console.note(failures.not_taken(self.rng))               # (f437) in the narrator's words, never the machinery
-            turnlog.end(not stood, failure="" if stood else self.last_failure)
+                console.note(self.failed_line(text))                     # (f437, f449) in the narrator's words, never the machinery
+            turnlog.end(not stood, failure="" if stood or self.last_crash else self.last_failure,
+                        crash=self.last_failure if not stood and self.last_crash else "")
             self.show_header()
+
+    def failed_line(self, text: str) -> str:
+        """(f437) What the player reads when the turn could not be taken. (f449) A line that has now failed twice running on the game's own
+        fault (logs/crash.log has it) is told to be left: saying it a third time will not help. The count is by the line's words, kept
+        small."""
+        if not self.last_crash:
+            return failures.not_taken(self.rng)
+        key = " ".join(text.lower().split())[:120]
+        n = self.broken.get(key, 0) + 1
+        self.broken[key] = n
+        while len(self.broken) > 50:
+            self.broken.pop(next(iter(self.broken)))
+        return failures.not_possible(self.rng) if n >= 2 else failures.not_taken(self.rng)
 
     def command_row(self, text: str, before: str, bar) -> dict:
         """(f385) A # command's row: what it changed (the place, the clock, the coin: the top bar), and whether it is only a view."""
@@ -750,6 +779,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.name_ids()
         turnlog.tap(console)
         shown = turnlog.SHOWN
+        self.last_crash = False
         try:
             with self.store.transaction():
                 self.new_input(text)                       # (f439) the dice of this input
@@ -775,10 +805,25 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.store.save_player(self.player)
                 ledger.LAST = ledger.end()
             return True
+        except Interrupt:
+            raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
             console.debug(f"turn rolled back: {e}")
             self.reload_after_rollback()
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
+            return False
+        except Exception as e:
+            # (f449) The game's own fault, not the model's. Before this it climbed out of the turn and ended the game ("Something went
+            # wrong and the game has to stop"); the owner's night of 2026-11-01 ended that way, and a cache keyed by town rather than
+            # campaign (engine/routines.py) could end a second save the same way. GOALS: the game goes on. The transaction has rolled
+            # the save back; the scene is put back to match; the fault goes to logs/crash.log with the line and the place, so it still
+            # surfaces in the logs the owner sends; the player reads a line in the narrator's words (run(): failed_line).
+            from engine import crashlog
+            crashlog.record(e, "turn", text=text, place=self.player.location, turn=self.store.meta.turn)
+            console.debug(f"turn crashed and rolled back: {type(e).__name__}: {e}")
+            self.reload_after_rollback()
+            self.last_failure = f"{type(e).__name__}: {e}"[:200]
+            self.last_crash = True
             return False
 
     def said_nothing(self, text: str) -> None:
@@ -2822,10 +2867,29 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if prisoner:
             self.execute_prisoner(prisoner, text)
             return
+        if self.hunt_named(intent, text):                         # (f449) a creature of this place, named but not in view: go looking for it
+            return
         if self.present:
             console.note("Attacking people isn't supported yet.")
         else:
             console.note("There's nothing here to fight.")
+
+    def hunt_named(self, intent: ActionIntent, text: str) -> bool:
+        """(f449) "attack swarm of ravens" with none in view, where ravens live: the owner's log read "There's nothing here to fight" a turn
+        after Beast-Breaker's Eye had listed them among the things that live here (pillar 1: what is shown can be acted on). A creature of
+        this place's roster that the player names is sought the way a search seeks it, the same roll and the same minutes, and the fight
+        begins if it is found; the player is told first that none is at hand. Nothing named, or a place with nothing dangerous: False."""
+        words = (intent.target or intent.seek or "").strip() or text
+        if not words or not self.place.danger:
+            return False
+        roster = encounters.ensure_roster(self.store, self.world, self.player.location)
+        found = encounters.matching(self.world, roster, words) if roster else []
+        if not found:
+            return False
+        name = self.world.bestiary[found[0]].name
+        console.note(f"No {name.lower()} is within reach just now, though they are about these parts. You go looking.")
+        self.on_search(ActionIntent(kind="search", seek=name, summary=f"hunting {name}"), text)
+        return True
 
     def on_wait(self, intent: ActionIntent, text: str) -> None:
         barrow = (self.dungeon_here() or {}).get("theme") == "barrow"

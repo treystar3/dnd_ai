@@ -20,6 +20,8 @@ from pydantic import BaseModel, ValidationError
 
 import config
 
+from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
+
 _client = ollama.Client(timeout=config.REQUEST_TIMEOUT)
 _writes = 0
 SYSTEM_PREVIEW = 300
@@ -104,7 +106,7 @@ def generate(
     (the repetition guard off, say) before giving up: the fallback ladder every speaker shares."""
     try:
         return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
-    except LLMError:
+    except LLMError as e:
         if relaxed_context is not None:
             try:
                 return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
@@ -115,7 +117,10 @@ def generate(
             del FALLBACKS[:-200]
             try:
                 from engine import refusals
-                refusals.note("model_down", task, "the call gave up after every try; a written fallback was used")
+                if getattr(e, "transport", True):               # (f449) two different troubles, two kinds: the owner's log filed a refused line as an outage
+                    refusals.note("model_down", task, "the model server failed or timed out; a written fallback was used")
+                else:
+                    refusals.note("bad_answer", task, "every answer was refused; a written fallback was used")
             except Exception:
                 pass
         raise
@@ -136,6 +141,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2      # a retry warms a tuned task only a little
     base, top, tuned = shifted(task, base, top, tuned)
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
+    transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
     for attempt in range(retries + 1):
         start = time.perf_counter()
         try:
@@ -148,16 +154,27 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                          "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **threads(), **tuned},
                 keep_alive=config.KEEP_ALIVE,
             )
-        except (httpx.TimeoutException, httpx.HTTPError, ollama.ResponseError, ConnectionError) as e:
+        except Interrupt:
+            raise                                                   # (f449) stopped on purpose (a replay parted): never a failed try
+        except Exception as e:
             # A timeout, a dropped connection, a server error (Ollama answers 500 when the model hits its own repeat limit) or a server
             # that cannot be reached at all (the client raises Python's own ConnectionError while Ollama restarts) is one failed attempt,
-            # not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails (f370).
+            # not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails (f370). (f449) So is
+            # anything else the call raises: on the owner's night of 2026-11-01 the third try failed in a way the list here did not name,
+            # and the error climbed out of the turn and ended the game. And one timeout ends the tries: a second request to a stalled
+            # server only queues behind the first (two tries cost four minutes of waiting), so the turn rolls back at the first.
             last_error = e
-            what = (f"timed out after {config.REQUEST_TIMEOUT}s" if isinstance(e, httpx.TimeoutException)
-                    else f"the model server failed: {str(e)[:200] or type(e).__name__}")
+            transport = True
+            timed_out = isinstance(e, httpx.TimeoutException)
+            what = (f"timed out after {config.REQUEST_TIMEOUT}s" if timed_out
+                    else f"the model server failed: {str(e)[:200] or type(e).__name__}"
+                    if isinstance(e, (httpx.HTTPError, ollama.ResponseError, ConnectionError))
+                    else f"the call failed: {type(e).__name__}: {str(e)[:200]}")
             _log(task, attempt, time.perf_counter() - start, messages, "", what)
             audit.record(task, attempt, time.perf_counter() - start, messages, "", what, typed, config.MODEL)
             _debug(f"{task} (attempt {attempt + 1}): {what}")
+            if timed_out:
+                break
             continue
         raw = (response.message.content or "").replace("\ufffd", "-")      # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start
@@ -240,7 +257,9 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         ]
 
     _tally(task, False, attempt + 1)
-    raise LLMError(f"{task}: no valid response after {attempt + 1} attempts") from last_error
+    err = LLMError(f"{task}: no valid response after {attempt + 1} attempts")
+    err.transport = transport                   # (f449) read by generate(): a server down is not the same refusal as every answer refused
+    raise err from last_error
 
 
 def _debug(message: str) -> None:

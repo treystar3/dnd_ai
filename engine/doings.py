@@ -23,15 +23,18 @@ def entries(role: str, person: str = "") -> list[dict]:
     return [e if isinstance(e, dict) else {"text": e} for e in raw]
 
 
-def options(role: str, period: str, person: str = "") -> list[dict]:
-    """The doings open to this role at this period: those for the period, else those for any time, else anyone's."""
-    all_ = entries(role, person)
+def options(role: str, period: str, person: str = "", place_type: str = "") -> list[dict]:
+    """The doings open to this role at this period: those for the period, else those for any time, else anyone's. (f449) An entry with
+    `at` (kinds of place) is open only at a place of one of those kinds: a farmer in the town square is not walking a furrow there
+    (the owner's log: "The sun-browned reaper comes along, and is soon walking a furrow", said in Parth). With no place kind given,
+    every entry is open."""
+    all_ = [e for e in entries(role, person) if not e.get("at") or not place_type or place_type in e["at"]]
     out = [e for e in all_ if not e.get("when") or period in e["when"]]
     return out or [e for e in all_ if not e.get("when")] or [{"text": t} for t in D["anyone"]]
 
 
-def pick(role: str, period: str, rng: random.Random, taken=(), person: str = "") -> str:
-    opts = options(role, period, person)
+def pick(role: str, period: str, rng: random.Random, taken=(), person: str = "", place_type: str = "") -> str:
+    opts = options(role, period, person, place_type)
     fresh = [e for e in opts if e["text"] not in taken] or [{"text": t} for t in D["anyone"] if t not in taken] or opts
     return rng.choices(fresh, weights=[float(e.get("weight", 1)) for e in fresh])[0]["text"]
 
@@ -48,7 +51,7 @@ def override(moment: dict | None, role: str) -> str:
     return d.get("all", "")
 
 
-def doing_for(npc, seed, minutes: int, taken=(), moment: dict | None = None) -> str:
+def doing_for(npc, seed, minutes: int, taken=(), moment: dict | None = None, place_type: str = "") -> str:
     """This person's doing now: the moment's if one is on, else their own for the period, held for the period."""
     from engine import clock
     over = override(moment, npc.role)
@@ -56,7 +59,7 @@ def doing_for(npc, seed, minutes: int, taken=(), moment: dict | None = None) -> 
         return over
     period = clock.period(minutes)
     rng = random.Random(f"{seed}:doing:{npc.id}:{clock.day(minutes)}:{period}")
-    return pick(npc.role, period, rng, taken, person=npc.id)
+    return pick(npc.role, period, rng, taken, person=npc.id, place_type=place_type)
 
 
 def assign(store, people: list, minutes: int, moment: dict | None = None, save: bool = True, visiting=(), place_type: str = "") -> list[tuple]:
@@ -71,7 +74,7 @@ def assign(store, people: list, minutes: int, moment: dict | None = None, save: 
         if n.id in visiting and not override(moment, n.role):
             new = routines.doing_at(place_type, random.Random(f"{store.meta.seed}:visit:{n.id}:{clock.day(minutes)}:{clock.period(minutes)}"), taken)
         else:
-            new = doing_for(n, store.meta.seed, minutes, taken, moment)
+            new = doing_for(n, store.meta.seed, minutes, taken, moment, place_type)    # (f449) a trade's doing only where it fits
         taken.add(new)
         if new != (n.activity or ""):
             changed.append((n, n.activity or "", new))
@@ -93,8 +96,9 @@ def changed_lines(changed: list[tuple], most: int = 2) -> list[str]:
     return out[:most]
 
 
-def problems(roles: set[str], periods: set[str]) -> list[str]:
-    """What is wrong with doings.yaml: a role the world lacks, a period the clock lacks, an empty text, a role with too few doings."""
+def problems(roles: set[str], periods: set[str], place_types: set[str] = frozenset()) -> list[str]:
+    """What is wrong with doings.yaml: a role the world lacks, a period the clock lacks, an empty text, a role with too few doings,
+    (f449) a kind of place in `at` the world lacks, or a role whose every doing is bound to a place (it needs some for anywhere)."""
     bad = []
     if not isinstance(D.get("anyone"), list) or len(D["anyone"]) < 4:
         bad.append("doings.yaml anyone: needs at least four doings for anyone")
@@ -114,6 +118,13 @@ def problems(roles: set[str], periods: set[str]) -> list[str]:
                     bad.append(f"doings.yaml {where}: '{w}' is not a period of the day")
             if "weight" in e and not (isinstance(e["weight"], (int, float)) and e["weight"] > 0):
                 bad.append(f"doings.yaml {where}: a weight must be above zero")
+            if "at" in e and (not isinstance(e["at"], list) or not e["at"]):
+                bad.append(f"doings.yaml {where}: `at` must list kinds of place")
+            for t in (e.get("at") or []) if isinstance(e.get("at"), list) else []:
+                if place_types and t not in place_types:
+                    bad.append(f"doings.yaml {where}: '{t}' in `at` is not a kind of place the world has")
+        if raw and all(isinstance(e, dict) and e.get("at") for e in raw):
+            bad.append(f"doings.yaml {where}: every doing is bound to a place; a person seen elsewhere needs some")
         if len(texts) != len(set(texts)):
             bad.append(f"doings.yaml {where}: a doing is listed twice")
         if len(texts) < 3:

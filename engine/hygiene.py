@@ -40,6 +40,10 @@ FIRST = re.compile(r"\b(I|[Mm]e|[Mm]y|[Mm]ine|[Mm]yself)\b")
 # (f404) "[h4_damage_implied/hidden_by_rules? No wait, use events only.]": the model's note to itself. A bracket that is not a blow's tag
 # and has the marks of one: an underscore, a question, a slash, a broken tag (h4...), or four words or more.
 NOTE = re.compile(r"[ \t]*\[(?!\s*h\d+\s*\])(?=[^\]\n]*(?:_|\?|/|\bh\d|(?:\S+\s+){3}\S))[^\]\n]{1,240}\]")
+# (f449) A stage direction the model wrote into a line, a whole sentence in round brackets ("(Lammer looks toward the stranger.)" in a
+# hire's speech on the owner's log), is taken out: what someone does is the gesture's, and the player never reads a script's brackets.
+# An aside that is part of the sentence ("(as you asked)") is left alone: no capital at its start, no full stop at its end.
+STAGE = re.compile(r"[ \t]*\([ \t]*[A-Z][^()\n]{2,200}?[.!?][ \t]*\)[ \t]*")
 TO_BE = {"is": "are", "was": "were", "has": "have", "does": "do", "goes": "go"}
 NOT_VERBS = {"as", "his", "this", "us", "was", "is", "has", "does", "goes", "always", "perhaps", "towards", "afterwards"}
 
@@ -127,6 +131,21 @@ def unnote(text: str) -> str:
     t = NOTE.sub("", text)
     if t != text:
         REPAIRS["note"] += 1
+        t = re.sub(r"[ \t]+([.,;:!?])", r"\1", t)
+    return t
+
+
+def unstage(text: str) -> str:
+    """(f449) A story line without the model's stage directions: a whole sentence in round brackets is a script's, not a person's words.
+    Counted in REPAIRS as 'stage'."""
+    if not isinstance(text, str) or "(" not in text:
+        return text
+    t = STAGE.sub(" ", text)
+    if t != text:
+        REPAIRS["stage"] += 1
+        t = re.sub(r"[ \t]{2,}", " ", t)
+        t = re.sub(r"[ \t]+\n|\n[ \t]+", "\n", t)
+        t = re.sub(r"\n{3,}", "\n\n", t).strip(" \t")
         t = re.sub(r"[ \t]+([.,;:!?])", r"\1", t)
     return t
 

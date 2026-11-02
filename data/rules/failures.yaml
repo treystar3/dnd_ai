@@ -12,3 +12,10 @@ turn_not_taken:
   - "That didn't take. You are where you were, as you were; try it again."
   - "Lost before it started, so nothing has happened. Say it once more."
   - "That never quite began. The world is as you left it; say it again."
+# (f449) The same line has now failed twice running on the game's own fault (not the model's): saying it a third time will not help.
+# The player is told to turn to something else, still in the world's words; what went wrong is in logs/crash.log.
+turn_not_possible:
+  - "That one the world will not take, however it is said. Turn your hand to something else."
+  - "Twice now that has come to nothing, and it will again. Try another thing."
+  - "Whatever stands in the way of that, saying it again will not move it. Do something else for now."
+  - "The world has no way to take that one. Leave it, and try something else."

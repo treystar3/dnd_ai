@@ -17,31 +17,43 @@ MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|ollama|cra
 _last: dict[str, str] = {}
 
 
+def _pick(key: str, rng: random.Random | None) -> str:
+    lines_ = F[key]
+    pick = [l for l in lines_ if l != _last.get(key)] or lines_
+    line = (rng or streams.get("scene")).choice(pick)
+    _last[key] = line
+    return line
+
+
 def not_taken(rng: random.Random | None = None) -> str:
     """A line for a turn the game could not take: never the one shown last."""
-    lines = F["turn_not_taken"]
-    pick = [l for l in lines if l != _last.get("turn_not_taken")] or lines
-    line = (rng or streams.get("scene")).choice(pick)
-    _last["turn_not_taken"] = line
-    return line
+    return _pick("turn_not_taken", rng)
+
+
+def not_possible(rng: random.Random | None = None) -> str:
+    """(f449) A line for a line the game has now failed to take twice running on its own fault: trying it again will not help, so the
+    player is told to turn to something else (the fault itself is in logs/crash.log). Never the one shown last."""
+    return _pick("turn_not_possible", rng)
 
 
 def lines() -> list[str]:
     """Every line a turn not taken can show (the night tool counts them as failed turns)."""
-    return list(F["turn_not_taken"])
+    return list(F["turn_not_taken"]) + list(F.get("turn_not_possible") or [])
 
 
 def problems(data: dict | None = None) -> list[str]:
     """For engine/data_check.py: enough lines, all different, none of them machinery."""
     d = F if data is None else data
-    got = d.get("turn_not_taken") if isinstance(d, dict) else None
-    if not isinstance(got, list) or len(got) < 6 or not all(isinstance(l, str) and l.strip() for l in got):
-        return ["failures.yaml turn_not_taken: needs at least 6 lines of text"]
     bad = []
-    if len({l.strip().lower() for l in got}) != len(got):
-        bad.append("failures.yaml turn_not_taken: a line is there twice")
-    for l in got:
-        hit = MACHINERY.search(l)
-        if hit:
-            bad.append(f"failures.yaml turn_not_taken: '{l}' speaks of the machinery ('{hit.group(0)}'); say it in the world's words")
+    for key, least in (("turn_not_taken", 6), ("turn_not_possible", 3)):
+        got = d.get(key) if isinstance(d, dict) else None
+        if not isinstance(got, list) or len(got) < least or not all(isinstance(l, str) and l.strip() for l in got):
+            bad.append(f"failures.yaml {key}: needs at least {least} lines of text")
+            continue
+        if len({l.strip().lower() for l in got}) != len(got):
+            bad.append(f"failures.yaml {key}: a line is there twice")
+        for l in got:
+            hit = MACHINERY.search(l)
+            if hit:
+                bad.append(f"failures.yaml {key}: '{l}' speaks of the machinery ('{hit.group(0)}'); say it in the world's words")
     return bad
