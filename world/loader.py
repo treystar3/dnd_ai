@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Literal
 
 import functools
-import itertools
 
 import yaml
 from pydantic import Field, BaseModel, PrivateAttr, ValidationError, field_validator
@@ -190,9 +189,6 @@ class Road(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-_STAMPS = itertools.count(1)       # (f451) the marks of the Worlds built this run, in order
-
-
 class World(BaseModel):
     name: str
     summary: str
@@ -261,13 +257,12 @@ class World(BaseModel):
         return None
 
     _routes: dict = PrivateAttr(default_factory=dict)     # (f362) neighbours and paths, kept while the map stands (see _route_cache)
-    _stamp: str = PrivateAttr(default_factory=lambda: f"w{next(_STAMPS)}")   # (f434) which world this is, for caches; (f451) a counter, never a uuid
+    _caches: dict = PrivateAttr(default_factory=dict)     # (f452) what is computed from this map, by name (see cache)
 
-    @property
-    def stamp(self) -> str:
-        """(f434) This world's own mark, new for every campaign's copy. A cache kept per world is keyed by it, never by id(world): once each
-        campaign has its own world, a freed world's id can be reused by the next, and a cache keyed by it would hand back the last save's map."""
-        return self._stamp
+    def cache(self, name: str) -> dict:
+        """(f452) A dict of this world's own for what is computed from its map; the campaign's world has the same (world/campaign.py).
+        Caches kept in modules and keyed by a world's mark are gone: a cache lives and dies with its world."""
+        return self._caches.setdefault(name, {})
 
     def _route_cache(self) -> dict:
         """(f362) The route cache. Neighbours and paths are asked for thousands of times a session (every board, every route, every band

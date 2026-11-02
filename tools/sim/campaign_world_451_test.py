@@ -102,8 +102,8 @@ wsb.ensure_discoveries(); wsb.ensure_homes(); wsb.ensure_road_place(); wsb.ensur
 check("a second campaign shares the one authored object and sees none of the first one's additions", wsb.world.authored is written
       and not ({"a_hollow", "a_stop", home} & set(wsb.world.places)) and "a_track" not in wsb.world.roads
       and "a_hollow" not in wsb.world.connections_from(anchor) and wsb.world.path(anchor, "a_hollow") is None)
-check("...and each campaign's world has its own mark, without a uuid", ws.world.stamp != wsb.world.stamp and ws.world.stamp != written.stamp
-      and all(not s.isalnum() or len(s) < 12 for s in (ws.world.stamp, wsb.world.stamp, written.stamp)), (ws.world.stamp, wsb.world.stamp, written.stamp))
+check("...and each campaign's world has caches of its own (f452), none keyed by a mark", ws.world.cache("layout") is not wsb.world.cache("layout")
+      and not hasattr(ws.world, "stamp"))
 check("the authored object is byte for byte what it was", authored().model_dump_json() == fingerprint and authored() is written)
 check("campaign_world() hands out a view over the authored object, never a copy", isinstance(campaign_world(), CampaignWorld)
       and campaign_world().authored is written)

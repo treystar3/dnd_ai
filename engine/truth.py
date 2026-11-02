@@ -549,22 +549,21 @@ def _player(scene: Scene):
     return out
 
 
-_WORLD_WORDS: dict = {}
-
-
 def world_words(world) -> frozenset:
     """(f323) The words of every name the world itself has - places, regions, peoples, the world's name - for checking what the pulse's
-    writers say when no scene is standing. Cached per world."""
-    key = getattr(world, "stamp", None) or id(world)          # (f439) this world's own mark, as f434's caches
-    if key not in _WORLD_WORDS:
+    writers say when no scene is standing. (f452) The world's own cache, following the campaign's map by its version: a place the player
+    found may be named, and the set no longer grows per world in the process."""
+    c = world.cache("words")
+    version = getattr(world, "version", 0)
+    if c.get("version") != version or "words" not in c:
         from engine import mentor
         names = {p.name for p in world.places.values()} | {r.name for r in world.regions.values()} | {p.name for p in world.peoples.values()}
-        names |= {world.name, mentor.NAME} | {c.name for c in world.bestiary.values()}
+        names |= {world.name, mentor.NAME} | {c_.name for c_ in world.bestiary.values()}
         words = set()
         for n in names:
             words |= set(_WORD.findall((n or "").lower()))
-        _WORLD_WORDS[key] = frozenset(words)
-    return _WORLD_WORDS[key]
+        c["version"], c["words"] = version, frozenset(words)
+    return c["words"]
 
 
 # ---------- the speech check (f315): nothing named that was not given

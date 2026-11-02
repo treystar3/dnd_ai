@@ -16,18 +16,14 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 R = yaml.safe_load((ROOT / "data" / "rules" / "routines.yaml").read_text(encoding="utf-8"))
-_TOWN: dict[str, list[str]] = {}            # town -> its place ids (the world does not change under a running game)
-
 
 def chance(role: str) -> float:
     return float((R.get("roles") or {}).get(role, R.get("chance", 0.4)))
 
 
 def _places(world, town: str, ptype: str, exclude: str) -> list[str]:
-    from engine import retrieval
-    if town not in _TOWN:
-        _TOWN[town] = retrieval.town_places(world, town)
-    return [pid for pid in _TOWN[town] if pid != exclude and world.places[pid].type == ptype]
+    from engine import retrieval                        # (f452) the campaign's own list, which follows its map: never a module's, kept
+    return [pid for pid in retrieval.town_places(world, town) if pid != exclude and world.places[pid].type == ptype]   # across saves
 
 
 def routine_for(world, seed, npc) -> dict | None:

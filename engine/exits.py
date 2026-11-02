@@ -36,20 +36,8 @@ def sector_of(angle: float) -> str:
 
 
 def _at(world, pid: str) -> tuple[float, float]:
-    """Where a place sits on the map. A place made after the map was laid out (a stretch of road, say) sits where its neighbours are."""
-    pos = mapview.layout(world)
-    if pid in pos:
-        return tuple(pos[pid])
-    place = world.places.get(pid)
-    links = set(mapview.graph(world).get(pid, {})) | set(getattr(place, "connects", {}) or {})
-    near = [pos[n] for n in links if n in pos]
-    if not near:
-        place = world.places.get(pid)
-        parent = getattr(place, "parent", None)
-        near = [pos[parent]] if parent in pos else []
-    if not near:
-        return (0.0, 0.0)
-    return (sum(x for x, _ in near) / len(near), sum(y for _, y in near) / len(near))
+    """Where a place sits on the map: the map's own rule (engine/mapview.py position, f452), one for the exits and the map alike."""
+    return mapview.position(world, pid)
 
 
 def _heading(world, a: str, b: str) -> float:

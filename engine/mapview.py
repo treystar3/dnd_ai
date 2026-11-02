@@ -12,7 +12,6 @@ import yaml
 
 from core.paths import BUNDLE
 
-LAYOUT_CACHE: dict = {}                    # (f434) the one world being played, by its stamp
 SIZE = 1000.0
 SETTLEMENTS = ("city", "town", "village")
 _MAP: dict = {}
@@ -56,9 +55,9 @@ def graph(world) -> dict[str, dict[str, int]]:
 
 def layout(world) -> dict[str, tuple[float, float]]:
     """A place's own x and y if it has them, else a spring layout of the travel graph, scaled into 0..SIZE."""
-    key = getattr(world, "stamp", None) or id(world)          # (f434) this world's own mark: a freed world's id can come round again
-    if key in LAYOUT_CACHE:
-        return LAYOUT_CACHE[key]
+    c = world.cache("layout")                                  # (f452) the world's own; laid out once, never again when the map moves
+    if "pos" in c:                                             # (a re-run would move every bearing word and part the kept recordings)
+        return c["pos"]
     g = graph(world)
     ids = sorted(g)
     rng = random.Random(7)
@@ -107,9 +106,26 @@ def layout(world) -> dict[str, tuple[float, float]]:
             out[i] = (float(drawn[i][0]), float(drawn[i][1]))
         else:
             out[i] = (round((pos[i][0] - lo_x) / span * SIZE, 1), round((pos[i][1] - lo_y) / span * SIZE, 1))
-    LAYOUT_CACHE.clear()                                       # (f434) only the world being played is kept, however many saves are opened
-    LAYOUT_CACHE[key] = out
+    c["pos"] = out
     return out
+
+
+def position(world, pid: str) -> tuple[float, float]:
+    """(f452) Where a place sits on the map. A place made after the map was laid out (a find, a stop on the road, a dungeon's entrance)
+    sits where its neighbours are, or where its parent is; the rule the exits used (engine/exits.py), now the map's own, so #map standing
+    on such a place draws it instead of raising KeyError."""
+    pos = layout(world)
+    if pid in pos:
+        return tuple(pos[pid])
+    place = world.places.get(pid)
+    links = set(graph(world).get(pid, {})) | set(getattr(place, "connects", {}) or {})
+    near = [pos[n] for n in links if n in pos]
+    if not near:
+        parent = getattr(place, "parent", None)
+        near = [pos[parent]] if parent in pos else []
+    if not near:
+        return (0.0, 0.0)
+    return (sum(x for x, _ in near) / len(near), sum(y for _, y in near) / len(near))
 
 
 def travel_times(g: dict[str, dict[str, int]], start: str) -> dict[str, int]:
@@ -160,7 +176,7 @@ def view(world, visited: list[str], here: str, describe, heard_of=()) -> dict:
         p = world.places[i]
         state = "here" if i == now else "visited" if i in been else "heard"
         nodes.append({"id": i, "name": p.name, "type": p.type, "region": world.regions[p.region].name if p.region in world.regions else p.region,
-                      "x": pos[i][0], "y": pos[i][1], "state": state,
+                      "x": position(world, i)[0], "y": position(world, i)[1], "state": state,        # (f452) a find or a stop too
                       "away": describe(from_here[i]) if i in from_here and i != now else "",
                       "minutes": from_here.get(i, 0) if i != now else 0,
                       "levels": level_text(p, state)})
@@ -175,7 +191,7 @@ def view(world, visited: list[str], here: str, describe, heard_of=()) -> dict:
                               "under": "underground" in (pa.type, pb.type)})
     from engine import exits
     stubs = []
-    sx, sy = pos[now]
+    sx, sy = position(world, now)
     for gp in exits.groups(world, now):                 # a road out to somewhere the player does not know: a short stub, no end
         unknown = [m for m in gp["members"] if m["to"] not in shown]
         if not unknown:

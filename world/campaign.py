@@ -21,16 +21,14 @@ and closures) stays in the store as today, for Stages 4 and 6.
 - The World's read methods that walk places and roads are the same code, rebound here; the plain fields (name, regions, roles, lore,
   bestiary...) are the authored object's.
 
-The next steps of the bundle add cache(name) and town_places() (f452) and snapshot()/restore() for a rolled-back turn (f455)."""
+(f452) cache(name) is a dict of this world's own, for whatever is computed from its map (the layout, the faith seats, the world's
+words); town_places(town) is the first of them, and follows the map by its version. snapshot()/restore() for a rolled-back turn come
+with f455."""
 from __future__ import annotations
 
-import itertools
 from types import MappingProxyType
 
 from world.loader import Place, Road, World
-
-_N = itertools.count(1)
-
 
 class CampaignWorld:
     def __init__(self, base: World):
@@ -41,7 +39,7 @@ class CampaignWorld:
         self._served: dict[str, Place] = {}                  # an anchor (own or authored) that gained a way: a copy with the merged ways
         self._routes: dict = {}                              # the route cache, this campaign's (World._route_cache rebound below)
         self.version = 0                                     # moved by every write; what the caches key on
-        self.stamp = f"c{next(_N)}"                          # f434's mark for the per-world caches: a counter, never a uuid
+        self._caches: dict[str, dict] = {}                   # (f452) what is computed from this map, by name, and dies with this world
         self._merged: dict[str, Place] = {}                  # the map as read: authored, then own, the served copies in their places
         self._merged_roads: dict[str, Road] = {}
         self._shape = None                                   # (version, authored sizes) the merged dicts were built for
@@ -90,6 +88,24 @@ class CampaignWorld:
 
     def is_authored(self, pid: str) -> bool:
         return pid in self._base.places
+
+    def cache(self, name: str) -> dict:
+        """(f452) A dict of this world's own for what is computed from its map (engine/mapview.py's layout, engine/faith.py's seats,
+        engine/truth.py's words). Module-level caches keyed by a world's stamp are gone: a cache lives and dies with its world."""
+        return self._caches.setdefault(name, {})
+
+    def town_places(self, town: str) -> list[str]:
+        """(f452) Every place inside a settlement, the campaign's additions included (a home bought, an entrance found), kept until the map
+        changes. engine/routines.py kept this per town for the whole process: a home bought in save A was in the list when save B asked,
+        and the lookup raised KeyError on the second save."""
+        from engine import mapview
+        c = self.cache("towns")
+        if c.get("version") != self.version:
+            c.clear()
+            c["version"] = self.version
+        if town not in c:
+            c[town] = [pid for pid in self.places if mapview.top_of(self, pid) == town]
+        return list(c[town])
 
     def __getattr__(self, name: str):
         if name.startswith("_"):

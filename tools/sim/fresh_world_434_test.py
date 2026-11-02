@@ -64,11 +64,12 @@ leaked = {pid: sorted(set(p.connects) - set(before.get(pid, {})) - b_own) for pi
 check("...nor any way from a written place to one of A's", not any(leaked.values()), {k: v for k, v in leaked.items() if v})
 check("...nor A's places on its map", not ({"a_only_hollow", "a_only_stop"} & set(mapview.layout(wb))))
 check("...and its route cache knows nothing of A", "a_only_hollow" not in wb.neighbors(anchor) and wb.path(anchor, "a_only_hollow") is None)
-check("each campaign's world has its own stamp", wa.stamp != wb.stamp and wb.stamp != written.stamp)
-check("the map cache keeps only the world being played", list(mapview.LAYOUT_CACHE) == [wb.stamp], list(mapview.LAYOUT_CACHE))
+check("each campaign's world is its own, with its own caches (f452: no stamp, no module cache)", wa is not wb and wa.cache("layout") is not wb.cache("layout"))
+check("the map's layout is each world's own: B's has none of A's places and only its own", "a_only_hollow" not in wb.cache("layout")["pos"]
+      and set(wb.cache("layout")["pos"]) <= set(wb.places), sorted(set(wb.cache("layout")["pos"]) - set(wb.places))[:3])
 for pid in written.places:
     faith.seat(wb, pid)
-check("...and so does the faith cache", faith._cache.get("world") == wb.stamp and faith._cache.get("seat"), faith._cache.get("world"))
+check("...and so are the faith seats", wb.cache("faith").get("seat") and wa.cache("faith") is not wb.cache("faith"), wb.cache("faith").keys())
 b.store.close()
 
 # ---- the written world is never changed
