@@ -3,8 +3,8 @@ export const meta = {
   description: 'Survey, design or review one bundle of the Meravia rebuild against GOALS.md, the replay rules and the 3060 budget',
   whenToUse: 'At the start of a rebuild bundle (mode survey, then design) and before pushing its diff (mode review). Not for building, and not for small fixes.',
   phases: [
-    { title: 'Survey', detail: 'five readers, each searching a different way, for every site the goal touches' },
-    { title: 'Gaps', detail: 'a critic asks what the readers missed; the gaps it names are searched' },
+    { title: 'Survey', detail: 'five readers on a cheaper tier, each searching a different way, for every site the goal touches', model: 'opus' },
+    { title: 'Gaps', detail: 'a critic asks twice what the readers missed; the gaps it names are searched' },
     { title: 'Design', detail: 'three designs from different angles' },
     { title: 'Judge', detail: 'each design scored by two rubrics, its claims checked against the code' },
     { title: 'Review', detail: 'five finders over the diff, one lens each' },
@@ -16,6 +16,9 @@ export const meta = {
 // (f448) The rebuild's workflow: what one context cannot hold (every site a bundle touches), several designs where the choice is wide,
 // and independent skeptics on a bundle's diff before it is pushed. Building, and the suite, stay with the one session that drives.
 // Tested by tools/sim/workflow_448_test.py, which runs every mode with stand-in agents.
+// (f472) The survey's readers and gap searches run on a cheaper tier by default (sweepModel 'opus'), since their job is to list
+// sites with file and line, which the report re-checks; the critic looks twice (rounds 2) to catch what cheaper readers miss. The
+// critic, the report, and the whole of the design and review modes stay on the session's model, where the judgment is.
 //
 // How to run it (from the main session):
 //   Workflow({name: 'meravia-bundle', args: {mode: 'survey', goal: '...', plan: '...'}})
@@ -26,11 +29,12 @@ export const meta = {
 //   plan          the rebuild plan's text for this bundle (the plan is a Claude Doc the agents cannot open: paste it in)
 //   survey        a survey's report, for mode design
 //   base          the git ref the bundle started from, for mode review (default HEAD~1)
-//   rounds        how many times the survey's critic looks for gaps (default 1)
+//   rounds        how many times the survey's critic looks for gaps (default 2, f472)
 //   maxGaps       how many gaps one round searches (default 3; the rest are returned, never dropped)
 //   maxVerify     how many review findings are verified (default 4, the most severe; the rest are returned unverified)
-//   sweepModel    a cheaper model for the survey's readers, e.g. 'sonnet' (default: the session's model)
-// Agents with the defaults: survey 10, design 6, review 9 (fewer when little is found).
+//   sweepModel    the tier for the survey's readers and gap searches (default 'opus', f472; '' for the session's own model)
+// Agents with the defaults: survey up to 15 (five readers, two critics, up to six gap searches, a report; fewer when the critic
+// finds nothing), design 6, review 9 (fewer when little is found).
 
 const MODES = ['survey', 'design', 'review']
 if (!args || !MODES.includes(args.mode) || !args.goal) {
@@ -169,7 +173,8 @@ if (MODE === 'survey') {
     { key: 'tests', how: 'Search tools/sim/*_test.py and simlib.py: which tests exercise or monkeypatch the sites the goal touches, what would break, and what nothing covers.' },
     { key: 'history', how: 'Search the history with git log --oneline and git log -S for the names involved: recent features (f4xx) in this area, the decisions their commit messages record, partial fixes and known bugs.' },
   ]
-  const sweep = args.sweepModel ? { model: args.sweepModel } : {}
+  const SWEEP = args.sweepModel === undefined ? 'opus' : (args.sweepModel || '')   // (f472) '' keeps the session's model
+  const sweep = SWEEP ? { model: SWEEP } : {}
   const seen = new Map()
   const key = (s) => `${s.file}::${s.symbol}`
   const add = (list) => {
@@ -185,10 +190,10 @@ if (MODE === 'survey') {
     `${GROUND}\n\nYour lens (${l.key}): ${l.how}\nReturn every site your lens finds that this run's goal touches. Completeness matters more than polish: a site missed now is a bug in the rebuild later.`,
     { label: `survey:${l.key}`, phase: 'Survey', schema: SITES, ...sweep })))
   add(found.filter(Boolean).flatMap((r) => r.sites))
-  log(`${seen.size} sites from ${found.filter(Boolean).length} of ${LENSES.length} readers`)
+  log(`${seen.size} sites from ${found.filter(Boolean).length} of ${LENSES.length} readers${SWEEP ? ` (readers on ${SWEEP})` : ''}`)
 
   const unsearched = []
-  const rounds = args.rounds ?? 1
+  const rounds = args.rounds ?? 2                                                   // (f472) the critic looks twice
   const cap = args.maxGaps ?? 3
   for (let r = 0; r < rounds; r++) {
     const listing = [...seen.values()].map((s) => `${s.file}:${s.line ?? ''} ${s.symbol}`).join('\n')
@@ -213,7 +218,7 @@ if (MODE === 'survey') {
   const report = await agent(
     `${GROUND}\n\nEvery site the survey found, as JSON:\n${JSON.stringify(sites)}\n\nWrite the map the main session will plan from. Group the sites by what they are, not by who found them. Mark the high-risk ones. Check any site you doubt against the code, and drop it only if the code shows it is wrong. Say what the plan (if one was given) did not foresee, and list the questions only the owner can answer. Plain markdown.`,
     { label: 'report', phase: 'Report' })
-  return { mode: MODE, sites, unsearched, report }
+  return { mode: MODE, sites, unsearched, report, readers: SWEEP || 'session' }   // (f472) which tier read, for the record
 }
 
 // ---------- design: independent designs from different angles, judged, then one plan

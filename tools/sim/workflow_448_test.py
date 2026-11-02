@@ -2,7 +2,9 @@
 is checked here in Python (its meta a plain literal, every phase it names declared), and when Node is installed each mode is run with
 stand-in agents that answer in the shape their schemas ask for: how many agents each mode starts, that a defect two reviewers found is
 kept once with both lenses, that what a limit leaves out is returned and never dropped, that a tie between designs is told to the one
-who merges them, and that bad arguments stop it with a clear message."""
+who merges them, and that bad arguments stop it with a clear message. (f472) The survey's readers and gap searches carry the cheaper
+tier by default and the critic, the report, the designs, the judges and the reviewers carry none; the critic looks twice; an empty
+sweepModel keeps the session's model; the result names which tier read."""
 import json, re, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
@@ -31,9 +33,9 @@ const src = fs.readFileSync(process.argv[2], 'utf8').replace('export const meta'
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const body = new AsyncFunction('args', 'agent', 'parallel', 'pipeline', 'log', 'phase', src)
 const out = {}
-let calls = [], logs = [], prompts = []
+let calls = [], logs = [], prompts = [], models = []
 const fake = async (prompt, opts = {}) => {
-  calls.push(opts.label); prompts.push(prompt)
+  calls.push(opts.label); prompts.push(prompt); models.push([opts.label || '', opts.model || ''])
   const t = opts.schema && opts.schema.required && opts.schema.required[0]
   if (!opts.schema) return 'report'
   if (t === 'sites') return { sites: opts.label.startsWith('gap') ? [{ file: 'npc/x.py', line: 3, symbol: 'CACHE', what: 'w', why: 'y', risk: 'high' }]
@@ -48,10 +50,11 @@ const fake = async (prompt, opts = {}) => {
   throw new Error('unknown schema')
 }
 const parallel = async (thunks) => Promise.all(thunks.map((t) => t().catch(() => null)))
-for (const [name, args] of [['survey', { mode: 'survey', goal: 'g', plan: 'p' }], ['design', { mode: 'design', goal: 'g' }], ['review', { mode: 'review', goal: 'g', base: 'abc' }]]) {
-  calls = []; logs = []; prompts = []
+for (const [name, args] of [['survey', { mode: 'survey', goal: 'g', plan: 'p' }], ['survey_session', { mode: 'survey', goal: 'g', plan: 'p', sweepModel: '', rounds: 1 }],
+                            ['design', { mode: 'design', goal: 'g' }], ['review', { mode: 'review', goal: 'g', base: 'abc' }]]) {
+  calls = []; logs = []; prompts = []; models = []
   const r = await body(args, fake, parallel, null, (m) => logs.push(m), () => {})
-  out[name] = { agents: calls.length, logs, result: r, sawPlan: prompts.some((p) => p.includes('The rebuild plan for it:\np')), tiedTold: prompts.some((p) => p.includes('The judges tied between')) }
+  out[name] = { agents: calls.length, logs, models, result: r, sawPlan: prompts.some((p) => p.includes('The rebuild plan for it:\np')), tiedTold: prompts.some((p) => p.includes('The judges tied between')) }
 }
 try { await body({ mode: 'nope' }, fake, parallel, null, () => {}, () => {}); out.bad = 'ran' } catch (e) { out.bad = e.message }
 console.log(JSON.stringify(out))
@@ -67,8 +70,17 @@ else:
     check("every mode runs with stand-in agents", run.returncode == 0, (run.stdout + run.stderr)[-600:])
     if run.returncode == 0:
         o = json.loads(run.stdout.strip().splitlines()[-1])
-        s, dz, rv = o["survey"], o["design"], o["review"]
-        check("a survey starts ten agents with the defaults: five readers, a critic, three gap searches, a report", s["agents"] == 10, s)
+        s, s1, dz, rv = o["survey"], o["survey_session"], o["design"], o["review"]
+        check("a survey starts eleven agents with the defaults: five readers, a critic, three gap searches, a second critic who finds nothing, a report",
+              s["agents"] == 11 and any("found nothing missing" in l for l in s["logs"]), s)
+        tier = {label: m for label, m in s["models"]}
+        check("...the readers and the gap searches on the cheaper tier, the critic and the report on the session's model (f472)",
+              all(tier[k] == "opus" for k in tier if k.startswith(("survey:", "gap:"))) and all(tier[k] == "" for k in tier if k.startswith(("gaps:", "report")))
+              and sum(1 for k in tier if k.startswith("survey:")) == 5 and sum(1 for k in tier if k.startswith("gap:")) == 3, s["models"])
+        check("...the result names which tier read, and the log says so", s["result"]["readers"] == "opus" and any("readers on opus" in l for l in s["logs"]), (s["result"].get("readers"), s["logs"]))
+        check("an empty sweepModel keeps the session's model for the readers, and one round is the ten agents of f448",
+              s1["agents"] == 10 and all(m == "" for _, m in s1["models"]) and s1["result"]["readers"] == "session", s1)
+        check("the designs, the judges and the reviewers carry no tier of their own", all(m == "" for _, m in dz["models"] + rv["models"]), (dz["models"], rv["models"]))
         check("...the plan pasted in reaches the agents", s["sawPlan"])
         check("...and the gap past the limit is returned, not dropped", [g["where"] for g in s["result"]["unsearched"]] == ["mod4"], s["result"]["unsearched"])
         check("...with the sites found once each", len(s["result"]["sites"]) == len({(x["file"], x["symbol"]) for x in s["result"]["sites"]}) == 7, s["result"]["sites"])
