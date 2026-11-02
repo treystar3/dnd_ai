@@ -117,11 +117,15 @@ if IMMORTAL:
     combat.Fighter.__setattr__ = _immortal_setattr
 
 
+_RUN = __import__("pathlib").Path(getattr(sys.modules.get("__main__"), "__file__", "") or "simbot").stem   # the script this bot plays for
+
+
 class Bot:
     def __init__(self):
         self.rng = random.Random(SEED)
         self.world = load_world()
-        save = os.environ.get("SIMBOT_SAVE") or f"sim_{CLS}"          # a soak run names its own folder, so the tests' bots do not wipe it
+        save = os.environ.get("SIMBOT_SAVE") or f"sim_{CLS}_{_RUN}"   # a soak run names its own folder, so the tests' bots do not wipe it;
+                                                                      # (f455) and each test's bot has its own: two at once wiped each other's
         shutil.rmtree(f"saves/{save}", ignore_errors=True)
         self.store = CampaignStore.open_or_create(save)
         self.store.meta.seed = SEED

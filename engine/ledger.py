@@ -61,6 +61,16 @@ def end() -> list[dict]:
     return out
 
 
+def rollback() -> None:
+    """(f455) The turn rolled back: its rows are taken back and the totals with them. LAST stays the last turn that stood, which is what
+    the recorder writes after an input and the replayer compares."""
+    for r in ROWS:
+        TOTALS[r["kind"]] -= 1
+        if TOTALS[r["kind"]] <= 0:
+            del TOTALS[r["kind"]]
+    ROWS.clear()
+
+
 def add(kind: str, **fields) -> dict:
     if kind not in KINDS:
         raise ValueError(f"ledger row of an undeclared kind: {kind}")

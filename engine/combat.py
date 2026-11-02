@@ -2233,41 +2233,43 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
             att.legendary["wardbreaker"] = held_wb + cut
         landed = False
         spellcraft.begin(att, move)
-        for t in targets:
-            if not area and not in_reach(att, t, move.reach) \
-                    and not (spell and combat_perks.familiar_access(combat, att, t, move, quiet=True) is not None):
-                from engine import battlefield as bf
-                bf.approach(combat, att, t)
-                combat.log.append(f"{att.name} closes in on {t.name}")
-                tell(combat, f"{who(att)} {vb(att, 'close', 'closes')} the distance to {who(t)}")
-                continue
-            before = t.hp
-            if form == "curse":
-                spellcraft.lay_curse(combat, att, t, move, mult, rng)
-                landed = True
-                continue
-            if area:
-                att.counters["area_hit"] = 1
-                try:
-                    hit = apply_damage(combat, att, t, mult * share, f"uses {move.name} on", rng, how=f"with {move.name}")
-                finally:
-                    att.counters.pop("area_hit", None)
-            elif mform == "flurry":
-                hit = martial.flurry(combat, att, t, move, mult, rng)
-            else:
-                hit = shaped_strike(combat, att, t, move, mult, rng)
-            landed |= hit
-            if hit and move.maneuver:
-                martial.maneuver(combat, att, t, move, rng)          # what the technique does besides damage, by size
-            if move.rider:
-                if move.rider == "siphon" and att.alive:
-                    gain = round(max(0.0, before - t.hp) * AT.value(AT.RIDERS["siphon"]["heal"], move.tier) / 100)
-                    if gain:
-                        restore(combat, att, gain)
-                        tell(combat, f"{move.name} draws {gain} health back into {who(att)} ({AT.RIDERS['siphon']['label']})")
-                if move.rider not in ("drain", "rouse") or before > t.hp:
-                    apply_rider(combat, att, t, move, rng)
-        spellcraft.end(att)
+        try:                                                   # (f455) ended whatever way the cast ends: a failed
+            for t in targets:
+                if not area and not in_reach(att, t, move.reach) \
+                        and not (spell and combat_perks.familiar_access(combat, att, t, move, quiet=True) is not None):
+                    from engine import battlefield as bf
+                    bf.approach(combat, att, t)
+                    combat.log.append(f"{att.name} closes in on {t.name}")
+                    tell(combat, f"{who(att)} {vb(att, 'close', 'closes')} the distance to {who(t)}")
+                    continue
+                before = t.hp
+                if form == "curse":
+                    spellcraft.lay_curse(combat, att, t, move, mult, rng)
+                    landed = True
+                    continue
+                if area:
+                    att.counters["area_hit"] = 1
+                    try:
+                        hit = apply_damage(combat, att, t, mult * share, f"uses {move.name} on", rng, how=f"with {move.name}")
+                    finally:
+                        att.counters.pop("area_hit", None)
+                elif mform == "flurry":
+                    hit = martial.flurry(combat, att, t, move, mult, rng)
+                else:
+                    hit = shaped_strike(combat, att, t, move, mult, rng)
+                landed |= hit
+                if hit and move.maneuver:
+                    martial.maneuver(combat, att, t, move, rng)          # what the technique does besides damage, by size
+                if move.rider:
+                    if move.rider == "siphon" and att.alive:
+                        gain = round(max(0.0, before - t.hp) * AT.value(AT.RIDERS["siphon"]["heal"], move.tier) / 100)
+                        if gain:
+                            restore(combat, att, gain)
+                            tell(combat, f"{move.name} draws {gain} health back into {who(att)} ({AT.RIDERS['siphon']['label']})")
+                    if move.rider not in ("drain", "rouse") or before > t.hp:
+                        apply_rider(combat, att, t, move, rng)
+        finally:                                               # cast left a dead key behind before
+            spellcraft.end(att)
         att.armor_pierce = held_pierce
         if held_pen:
             att.legendary["penetrating"] = held_pen

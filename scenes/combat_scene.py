@@ -310,6 +310,8 @@ class CombatScene:
 
     @classmethod
     def resume(cls, ws, raw: str) -> "CombatScene":
+        from engine import spellcraft
+        spellcraft._CAST.clear()                           # (f455) the fighters are new objects: a casting context keyed by the old ones is dead
         data = json.loads(raw)
         return cls(ws, combat.Combat(**data["fight"]), data["creature"])
 

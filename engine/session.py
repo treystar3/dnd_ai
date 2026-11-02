@@ -24,11 +24,17 @@ its answer would have been written down as that session's.
   recording.ORPHANS: their answers go nowhere (backfill.drop forgot their jobs) and the recorder passes their calls through unrecorded,
   so a thread of save A is never written down as save B's. Then the store closes and OWNED is reset.
 
+- (f455) begin_turn(scene) at the start of every turn and pane command, inside the transaction, keeps what a rollback cannot get from the
+  database: the campaign's additions to the map (world.snapshot()) and the scene's private caches (its `_` attributes, deep-copied; the
+  truth scene is rebuilt instead). rollback(scene) puts them back, takes the ledger's rows back with their totals, and clears the casting
+  cache, before the scene reloads the rest from the rolled-back store. The owner's decision: a rolled-back turn takes back the world's
+  additions, the ledger rows and every cache written mid-turn.
+
 residue() names every owned binding not at its initial value: {} after a clean close, which the tests assert (simlib.residue). A new
-module binding a campaign writes is added to OWNED, or the next test that opens two campaigns finds it there.
-The bus (f454) and the rolled-back turn (f455) come next on this class."""
+module binding a campaign writes is added to OWNED, or the next test that opens two campaigns finds it there."""
 from __future__ import annotations
 
+import copy
 import threading
 import time
 from typing import Callable
@@ -83,6 +89,7 @@ class CampaignSession:
         self.recorder = None
         self.closed = False
         self._threads: list[threading.Thread] = []
+        self._turn = None                                  # (f455) what the turn being played may have to give back
 
     @classmethod
     def open(cls, name: str, saves_dir=None) -> "CampaignSession":
@@ -146,6 +153,37 @@ class CampaignSession:
         self.bus.clear()                                   # (f454) its listeners hear nothing more; between campaigns, nobody listens
         use(IdleBus())
         reset()
+
+    # ---- (f455) a rolled-back turn takes back everything
+
+    def begin_turn(self, scene) -> None:
+        """The turn (or the pane command) begins, inside its transaction: the map's additions and the scene's private caches as they
+        stand, so a rollback can put back what the database's rollback cannot. The truth scene (`_truth`) is left out: the next read
+        builds it again from the restored state."""
+        held = {}
+        for k, v in scene.__dict__.items():
+            if not k.startswith("_") or k == "_truth":
+                continue
+            try:
+                held[k] = copy.deepcopy(v)
+            except Exception:                          # a cache that cannot be copied is kept by reference: the turn may change it in place
+                held[k] = v
+        self._turn = (self.world.snapshot(), held)
+
+    def rollback(self, scene) -> None:
+        """The turn rolled back (scenes/world.py reload_after_rollback, first thing): the map's additions, the scene's private caches,
+        the ledger's rows and totals and the casting cache go back to the turn's start. The store's reload follows."""
+        from engine import ledger, spellcraft
+        ledger.rollback()
+        spellcraft._CAST.clear()
+        if self._turn is None:
+            return
+        snap, held = self._turn
+        self._turn = None
+        self.world.restore(snap)
+        for k in [k for k in scene.__dict__ if k.startswith("_")]:
+            del scene.__dict__[k]
+        scene.__dict__.update(held)
 
     def __repr__(self) -> str:
         return f"CampaignSession({self.store.meta.name!r}{', adopted' if self.adopted else ''}{', closed' if self.closed else ''})"

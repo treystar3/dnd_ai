@@ -103,12 +103,16 @@ def p_hp(f) -> float:
     return f.player.hp / max(1, f.player.max_hp)
 
 
+_RUN = __import__("pathlib").Path(getattr(sys.modules.get("__main__"), "__file__", "") or "simbot").stem   # the script this bot plays for
+
+
 class Bot:
     def __init__(self):
         self.rng = random.Random(SEED)
         self.world = load_world()
-        shutil.rmtree(f"saves/sim_{CLS}", ignore_errors=True)
-        self.store = CampaignStore.open_or_create(f"sim_{CLS}")
+        save = os.environ.get("SIMBOT_SAVE") or f"sim_{CLS}_{_RUN}"   # (f455) each test's bot in a save of its own: two at once wiped each other's
+        shutil.rmtree(f"saves/{save}", ignore_errors=True)
+        self.store = CampaignStore.open_or_create(save)
         self.store.meta.seed = SEED
         self.store.meta.turn = 1
         self.store.meta.minutes = 8 * 60

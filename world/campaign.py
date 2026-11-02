@@ -22,8 +22,8 @@ and closures) stays in the store as today, for Stages 4 and 6.
   bestiary...) are the authored object's.
 
 (f452) cache(name) is a dict of this world's own, for whatever is computed from its map (the layout, the faith seats, the world's
-words); town_places(town) is the first of them, and follows the map by its version. snapshot()/restore() for a rolled-back turn come
-with f455."""
+words); town_places(town) is the first of them, and follows the map by its version. (f455) snapshot() and restore(): what a turn added
+to the map is taken back with the turn when it rolls back (engine/session.py begin_turn/rollback)."""
 from __future__ import annotations
 
 from types import MappingProxyType
@@ -164,6 +164,25 @@ class CampaignWorld:
                 self._serve(a)
         self.version += 1
         return True
+
+    # ---------- (f455) a rolled-back turn takes the map back with it
+
+    def snapshot(self) -> tuple:
+        """The campaign's additions as they stand: copies of the three own maps (a Place is never changed in place, so the copies are
+        shallow), O(additions), taken at the start of every turn (engine/session.py begin_turn)."""
+        return (dict(self._own_places), dict(self._own_roads), {a: dict(w) for a, w in self._links.items()})
+
+    def restore(self, snap: tuple) -> None:
+        """The map as it was at the snapshot: a place found, a way linked or a stop made in a turn that rolled back is gone again. The
+        version moves, so the routes, the town lists and the world's words are built again."""
+        places, roads, links = snap
+        self._own_places = dict(places)
+        self._own_roads = dict(roads)
+        self._links = {a: dict(w) for a, w in links.items()}
+        self._served.clear()
+        for a in list(self._links):
+            self._serve(a)
+        self.version += 1
 
     def _serve(self, a: str) -> None:
         """How the map shows the anchor `a`: the place as written or as added, with the ways this campaign added, as a copy."""

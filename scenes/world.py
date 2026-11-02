@@ -698,6 +698,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 try:
                     with self.store.transaction(), console.scope(text):      # a pane button is a whole turn too: all of it, or none of it
                         self.new_input(text)                                # (f439) the dice of this input
+                        self.session.begin_turn(self)                       # (f455) what a rollback must give back besides the database
                         self.command(text)
                 except Interrupt:
                     raise                                                   # (f449) stopped on purpose, never a rolled-back fault
@@ -784,6 +785,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             with self.store.transaction():
                 self.new_input(text)                       # (f439) the dice of this input
                 ledger.begin()                             # (f394) the turn's record
+                self.session.begin_turn(self)              # (f455) the map's additions and the scene's caches, to give back on a rollback
                 self._wrote_turn = False                   # (f351) handle() moves the turn counter at its end, so the narrator's mark is a flag, not a turn number
                 self.ran = []
                 self.handle(text)
@@ -861,7 +863,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.halted = True
 
     def reload_after_rollback(self) -> None:
-        """The database was rolled back to before the turn; what the scene holds in memory must match it again."""
+        """The database was rolled back to before the turn; what the scene holds in memory must match it again. (f455) First the session
+        gives back what the database never held: the map's additions, the scene's caches, the ledger's rows, the casting cache."""
+        self.session.rollback(self)
         self.store.reload_meta()                           # the clock the turn advanced goes back with it
         self.player = self.store.load_player()
         pools.fill_missing(self.player.character)
@@ -873,7 +877,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.refresh_present()
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
         self.pending, self.buffering, self.halted, self.step = [], False, False, None
-        self.__dict__.pop("_time_notes", None)
 
     def pane_arrival(self, before: str) -> None:
         """Arriving by a pane button (the map, the places list) counts like arriving by a typed line: what is due on arrival happens now."""
