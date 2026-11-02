@@ -106,7 +106,8 @@ class ShopActions:
                            item=ware.name, coins=ware.price, bought=True), seller)
         self.store.save_player(self.player)
         from engine import ledger                       # (f417) settled: what the seller says after it, and the passage, read it
-        ledger.add("paid", to=seller.id, amount=ware.price, say=f"The player has paid {seller.label()} for {ware.name}; it is settled.")
+        ledger.add("paid", to=seller.id, amount=ware.price, say=f"The player has paid {seller.label()} for {ware.name}; it is settled.",
+                   facts={"who": seller.label(), "amount": money.fmt(ware.price), "what": ware.name})          # (f464) for the stand-in line
         console.ledger(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
         if quiet:
             if ware.kind == "room":
@@ -141,7 +142,8 @@ class ShopActions:
         st = self.to_pack(item)
         self.store.save_player(self.player)
         from engine import ledger
-        ledger.add("paid", to=npc.id, amount=price, say=f"The player has bought {item.name} from {npc.label()}; it is settled.")   # (f417)
+        ledger.add("paid", to=npc.id, amount=price, say=f"The player has bought {item.name} from {npc.label()}; it is settled.",   # (f417)
+                   facts={"who": npc.label(), "amount": money.fmt(price), "what": item.name})                    # (f464) for the stand-in line
         console.note(f"Bought {quality_name(item)} (lv {item.item_level}) for {money.fmt(price)}. "
                      f"Purse: {money.fmt(c.coins)}")
         if item.uid.startswith("relic_"):

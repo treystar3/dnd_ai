@@ -83,6 +83,11 @@ def stood_lines(rows: list[dict], rng: random.Random | None = None) -> list[str]
     return out
 
 
+def stood_any(rng: random.Random | None = None) -> str:
+    """(f464) One plain line that the deed stands, when its telling could not be written and no row of it has facts to fill a line from."""
+    return _fill("stood_any", F["stood_any"], {}, rng)
+
+
 def part_stood(done: str, rng: random.Random | None = None) -> str:
     """The line for a typed line of several actions of which some stood and a later one did not: `done` names what stood."""
     return _fill("part_stood", F["part_stood"], {"done": done}, rng)

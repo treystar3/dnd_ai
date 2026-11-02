@@ -109,6 +109,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.line_ops: list = []      # (f463) the operations of the line being played that committed, in order
         self.line_failed: list = []   # (f463) ...and the one that did not, if any
         self.line_done: list[str] = []   # (f463) what the committed actions did, for the part_stood line
+        self.passages: list = []      # (f464) the passages the line's operations queued: [kind, fn, standin, the lines held after their marker, the operation's id]
+        self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
+        self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
+        self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
         self.combat: CombatScene | None = None
         self.resume_pending = None
         self.wildlife = None
@@ -738,7 +742,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note(failures.part_stood("; ".join(self.line_done) or "the first of it", self.rng))
             turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
                         crash=self.last_failure if stood is not True and self.last_crash else "",
-                        stood={True: "all", False: "none"}.get(stood, "part"))
+                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold))
             self.show_header()
 
     def failed_line(self, text: str) -> str:
@@ -785,6 +789,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f463) A line begins: nothing of the last one's operations is kept, and the write fence is armed for its life."""
         self.last_crash = False
         self.line_ops, self.line_failed, self.line_done = [], [], []
+        self.passages, self.line_untold, self.unshown_ops, self.collecting = [], [], {}, False
         self.store.arm(True)
 
     @contextmanager
@@ -814,11 +819,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     yield op
                 finally:
                     self.unhold(real)                          # symmetric: the real bindings are back before anything is shown or dropped
-                self.store.commit_operation(op, first_of_line=(index == 0))
+                self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
+                self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")
             self.line_ops.append(op)
-            self.release(op)
-            self.store.mark_shown(op.id)
+            waiting = self.release(op)
+            if waiting:
+                self.unshown_ops[op.id] = waiting              # (f464) marked shown once the passages its later lines wait on have run
+            else:
+                self.store.mark_shown(op.id)
         except Interrupt:
             raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
@@ -859,12 +868,78 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for name, fn in real.items():
             setattr(console, name, fn)
 
-    @staticmethod
-    def release(op) -> None:
-        """(f463) The operation committed: what it held reaches the page, in the order it was said, through the real bindings."""
+    def release(self, op) -> int:
+        """(f463) The operation committed: what it held reaches the page, in the order it was said, through the real bindings. (f464) Up to
+        its first marker: what follows a marker waits behind that passage and is shown after it (run_passages), so the page reads as it did
+        when the passage was written in the middle of the action. How many segments wait."""
+        segments, current = 0, None
         for name, a, k in op.held:
-            getattr(console, name)(*a, **k)
+            if name == "marker":
+                current = a[0][3]
+                segments += 1
+            elif current is not None:
+                current.append((name, a, k))
+            else:
+                getattr(console, name)(*a, **k)
         op.held = []
+        return segments
+
+    def mark_passage(self, kind: str, fn, standin=None) -> None:
+        """(f464) Here goes a passage: a narration, a fight round's telling, the aftermath of a win, the goddess's words. Inside an
+        operation of a line it is queued to run as an operation of its own once this one has committed (run_passages), at this place in
+        what the player reads: what this operation says after this point waits to be shown after it. Its failure shows `standin` (a line or
+        lines in the narrator's words, from engine/failures.py) and undoes nothing: what it would have told stands (Bundle C decision 1,
+        the rebuild's rule 3). With no operation open, or outside a line, it runs now."""
+        from engine import operation as _op
+        op = _op.current()
+        if op is None or not self.collecting:
+            fn()
+            return
+        entry = [kind, fn, standin, [], op.id]
+        op.held.append(("marker", (entry,), {}))
+        self.passages.append(entry)
+
+    def run_passages(self) -> None:
+        """(f464) The passages the last operation queued, in order, each an operation of its own: told, or told by its stand-in when its
+        telling could not be written; then the lines that waited behind it; and the operation whose lines they were is marked shown once
+        the last of them has reached the page."""
+        while self.passages:
+            kind, fn, standin, after, owner = self.passages.pop(0)
+            halted = self.halted
+            told_before = {id(r) for r in ledger.ROWS if r.get("told")}
+            with self.operation(kind, self.last_text) as op:
+                fn()
+            self.halted = halted                                   # a telling that did not stand halts nothing: the facts stand
+            if op.state != "committed":
+                if op in self.line_failed:
+                    self.line_failed.remove(op)
+                self.line_untold.append(op)
+                self.untell(told_before)                           # it told nothing: the rows it took to tell are untold again
+                lines = standin(self.rng) if standin else []
+                for line in ([lines] if isinstance(lines, str) else lines):
+                    if line:
+                        console.narrate(line)
+            for name, a, k in after:
+                getattr(console, name)(*a, **k)
+            if owner in self.unshown_ops:
+                self.unshown_ops[owner] -= 1
+                if self.unshown_ops[owner] <= 0:
+                    del self.unshown_ops[owner]
+                    self.store.mark_shown(owner)
+
+    @staticmethod
+    def untell(told_before: set) -> None:
+        """(f464) A passage that did not stand told nothing: the rows it marked told (ledger.told, when its request was built) are untold
+        again, so the stand-in and the next passage can tell them."""
+        for r in ledger.ROWS:
+            if r.get("told") and id(r) not in told_before:
+                r.pop("told", None)
+
+    def stood_standin(self, rng) -> list[str]:
+        """(f464) What the player reads when the line's passage could not be written: one plain line for each row of the line not yet
+        told that has facts to fill it from (engine/failures.py stood_lines); with none, one line that the deed stands."""
+        rows = [r for r in ledger.ROWS if r.get("facts") and not r.get("told")]
+        return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
     def abandon(self, op, pending_at: int) -> None:
         """(f463) An operation did not stand: its rows go (the rest of the line's stay), the session gives back what the database never
@@ -875,6 +950,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if op is not None:
             self.line_failed.append(op)
             op.held = []
+            self.passages = [p for p in self.passages if p[4] != op.id]      # (f464) the passages it queued go with it
         self.session.rollback(self, op.id if op is not None else "")
         self.store.reload_meta()                           # the clock the operation advanced goes back with it
         self.player = self.store.load_player()
@@ -905,6 +981,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 ledger.begin()                             # (f394) the turn's record
                 self.ran = []
                 plan = None
+                self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
                 with self.operation("line", text) as op:
                     self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
                     plan = self.read_line(text)
@@ -912,6 +989,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         self.run_step(0, plan, text)
                 if op.state != "committed":
                     return False
+                self.run_passages()
                 if plan is not None:
                     for i in range(1, len(plan)):
                         if self.combat or self.halted:
@@ -919,12 +997,24 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                             break
                         with self.operation(f"action:{plan[i].kind}", text) as op:
                             self.run_step(i, plan, text)
+                        self.run_passages()
                         if op.state != "committed":
                             break                              # what stood stands; the rest of the line is not done
+                    if self.pending:                           # (f464) several actions: their one passage, an operation after them all and before the pulse
+                        told_before = {id(r) for r in ledger.ROWS if r.get("told")}
+                        with self.operation("passage", text) as op:
+                            self.passage(text)
+                        if op.state != "committed":
+                            self.line_failed.remove(op)
+                            self.line_untold.append(op)
+                            self.untell(told_before)
+                            for line in self.stood_standin(self.rng):
+                                console.narrate(line)
+                            self.pending = []
+                    self.collecting = False
                     with self.operation("pulse", text):
                         self.after_steps(text)
-                    with self.operation("passage", text):
-                        self.passage(text)
+                self.collecting = False
                 with self.operation("tail", text):
                     if plan is not None:
                         self.settle_line()
@@ -1356,8 +1446,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.debug(f"stopping after {i} of {len(plan)} actions")
                 break
             self.run_step(i, plan, text)
-        self.after_steps(text)
         self.passage(text)
+        self.after_steps(text)
         self.settle_line()
 
     def read_line(self, text: str):
@@ -1461,15 +1551,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             ledger.add("not_done", steps=undone, say="NOT DONE this turn, never show them done: " + "; ".join(undone) + ".")   # (f416)
         self.ensure_dungeons()
         self.run_pulse()
-
-    def passage(self, text: str) -> None:
-        """(f463) The passage of a line of several actions, held back until here (flush), and what follows it."""
-        text = getattr(self, "line_text", text) or text
-        self.flush(text)
         self.release_time_notes()                               # (f418) after the passage
         if self.buffering and self.exits_due and not self.combat:
             self.show_exits(force=True)
         self.buffering = False
+
+    def passage(self, text: str) -> None:
+        """(f463) The passage of a line of several actions, held back until here (flush). (f464) An operation of its own, before the pulse:
+        the line's required call before the world's optional ones."""
+        text = getattr(self, "line_text", text) or text
+        self.flush(text)
 
     def settle_line(self) -> None:
         """(f463) The end of an interpreted line: a moment walked into, the law, and the turn counted."""
@@ -1939,8 +2030,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low)]
 
     def narrate(self, event: str, player_text: str = "") -> None:
+        """A passage the narrator is asked for. Several actions in one line: held back and told together at the end (flush, the passage
+        operation). (f464) Inside an operation of a line: a passage operation of its own, run once this one has committed, shown at this
+        place in what the player reads (mark_passage); its failure shows what stood in the narrator's plain words and undoes nothing.
+        Outside a line (the game opening, a test's handle()): now."""
         if self.buffering:
             self.pending.append(event)
+            return
+        from engine import operation as _op
+        if self.collecting and _op.current() is not None:
+            self.mark_passage("passage", lambda: self._narrate_now(event, player_text), self.stood_standin)
             return
         self._narrate_now(event, player_text)
 

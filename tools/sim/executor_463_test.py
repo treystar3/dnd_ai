@@ -1,5 +1,5 @@
 """(f463) The executor: a typed line is operations, each all-or-nothing with its record. A single-step line is four (the reading with its
-first action, the pulse, the passage, the tail); the hold keeps what an operation says until it commits and drops it when it does not; a
+first action, its passage (f464), the pulse, the tail); the hold keeps what an operation says until it commits and drops it when it does not; a
 later step's failure leaves what stood standing (part) and the player reads which part; a first operation's failure takes the line as
 before (none), the input's count with it; the write fence is armed for the life of a line; a pane command is an operation of its own; a
 recording keeps each input's operations and replays them; the turn log says how much stood."""
@@ -41,8 +41,8 @@ stub.plan = [{"kind": "look"}]
 shown.clear()
 stood = ws.turn("I look around.")
 kinds = [o["kind"] for o in ops_of_input()]
-check("a single-step line is four operations: the reading with its first action, the pulse, the passage, the tail",
-      stood is True and kinds == ["line", "pulse", "passage", "tail"], (stood, kinds))
+check("a single-step line is four operations: the reading with its first action, its passage (f464), the pulse, the tail",
+      stood is True and kinds == ["line", "passage", "pulse", "tail"], (stood, kinds))
 check("...the ones the scene kept, none failed", [o.kind for o in ws.line_ops] == kinds and not ws.line_failed and ws.line_done == ["look"], ws.line_done)
 check("...the input's count was saved by the first operation that stood", json.loads(store._kv_text("campaign"))["steps"] == store.meta.steps)
 check("...everything shown was released and marked shown", store.unshown() == {} and any(k == "narrate" for k, t in shown), shown[:3])
@@ -88,8 +88,8 @@ stub.plan = [{"kind": "look"}, {"kind": "wait"}]
 shown.clear()
 stood = ws.turn("I look around, then wait a while.")
 kinds = [o["kind"] for o in ops_of_input()]
-check("a line whose second step fails stands in part: the first action, the pulse, the passage and the tail commit; the second action does not",
-      stood == "part" and kinds == ["line", "pulse", "passage", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_done == ["look"],
+check("a line whose second step fails stands in part: the first action, the passage, the pulse and the tail commit; the second action does not",
+      stood == "part" and kinds == ["line", "passage", "pulse", "tail"] and [o.kind for o in ws.line_failed] == ["action:wait"] and ws.line_done == ["look"],
       (stood, kinds, [o.kind for o in ws.line_failed], ws.line_done))
 check("...the passage tells what stood", any(k == "narrate" for k, t in shown), shown[:3])
 check("...and no row of the failed step remains", not any(r.get("op") == ws.line_failed[0].id for r in ledger.LAST))
@@ -144,7 +144,7 @@ check("the write fence is armed while the line runs, and off after it", armed.ge
 stub.plan = [{"kind": "look"}]
 stood = ws.turn("I head out the south gate")
 kinds = [o["kind"] for o in ops_of_input()]
-check("an intercepted line is the first operation whole, then the tail", stood is True and kinds == ["line", "tail"] and ws.player.location == "south_fields",
+check("an intercepted line is the first operation whole, its passage, then the tail", stood is True and kinds == ["line", "passage", "tail"] and ws.player.location == "south_fields",
       (stood, kinds, ws.player.location))
 script = ["#stats", "quit"]
 uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
@@ -165,7 +165,7 @@ stub.plan = [{"kind": "look"}]
 wr.run()
 r.close()
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
-check("a recording keeps each input's operations: ids, kinds and rows", turns and [o["kind"] for o in turns[0]["operations"]] == ["line", "pulse", "passage", "tail"]
+check("a recording keeps each input's operations: ids, kinds and rows", turns and [o["kind"] for o in turns[0]["operations"]] == ["line", "passage", "pulse", "tail"]
       and all(len(o["id"]) == 12 and "rows" in o for o in turns[0]["operations"]), turns[0].get("operations"))
 out = subprocess.run([sys.executable, "tools/rerun.py", str(OUT)], capture_output=True, text=True, timeout=600)
 last = (out.stdout.strip().splitlines() or [""])[-1]

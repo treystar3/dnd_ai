@@ -5,7 +5,9 @@ had happened. Now the session keeps, at the start of every turn and pane command
 map's additions, the scene's caches) and gives it back (engine/session.py begin_turn/rollback; world/campaign.py snapshot/restore;
 ledger.rollback). The owner's decision for Bundle B: a rolled-back turn takes back the world's additions, the ledger rows and every
 cache written mid-turn. The same line typed again meets the same dice and this time stands; and a session recorded with such a turn
-replays in a child process, so the rollback is deterministic as well as complete."""
+replays in a child process, so the rollback is deterministic as well as complete. (f464) The narrator's failure no longer rolls the
+find back: the passage is an operation after the action's commit, so the place found stands and the player reads that it stood; what
+is rolled back whole here is a turn whose action itself fails."""
 import copy, pathlib, re, shutil, subprocess, sys, types
 sys.path.insert(0, ".")
 import simlib
@@ -80,31 +82,26 @@ stub.plan = [{"kind": "explore", "seek": "a quiet hollow"}]
 stood = ws.turn("I search the woods for a quiet hollow.")
 gateway._client = real
 ws.enter = real_enter
-check("the turn found a place and then could not be taken", stood is False and len(made) == 1 and made[0] is not None, (stood, len(made)))
+check("the turn found a place and its passage could not be written: the find stands (f464)", stood is True and len(made) == 1 and made[0] is not None, (stood, len(made)))
 pid = made[0]["place"]["id"]
-check("the place found is not on the campaign's map, nor in its routes, nor in the save", pid not in ws.world.places and pid not in ws.world.neighbors(anchor)
-      and ws.world.path(anchor, pid) is None and not any(p["place"]["id"] == pid for p in a.store.load_discoveries()["places"]), ws.world.neighbors(anchor))
-check("...the map's additions are as before the turn, and its version moved so every cache keyed by it is rebuilt", ws.world.added() == added_before
-      and ws.world.version > version_before, (ws.world.added(), added_before, ws.world.version, version_before))
-check("...the save is as it was: rollback equals reopen", statehash.digest(a.store) == digest_before)
-check("...the player stands where they stood", ws.player.location == anchor, ws.player.location)
-check("...the ledger has no rows of the turn, its totals are as before, and LAST is the last turn that stood", ledger.this_turn() == []
-      and dict(ledger.TOTALS) == totals_before and ledger.LAST is last_before, (ledger.this_turn(), dict(ledger.TOTALS), totals_before))
+check("the place found is on the campaign's map, in its routes and in the save", pid in ws.world.places and pid in ws.world.neighbors(anchor)
+      and ws.world.path(anchor, pid) is not None and any(p["place"]["id"] == pid for p in a.store.load_discoveries()["places"]), ws.world.neighbors(anchor))
+check("...the map's additions grew, and its version moved", ws.world.added() != added_before and ws.world.version > version_before, (ws.world.added(), added_before))
+check("...the save moved: a find is state, whatever became of its telling", statehash.digest(a.store) != digest_before)
+check("...the player stands at the place found", ws.player.location == pid, ws.player.location)
+check("...LAST is this turn's", ledger.LAST is not last_before)
 check("...the casting cache is empty", spellcraft._CAST == {}, spellcraft._CAST)
-attrs_after = {k: v for k, v in ws.__dict__.items() if k.startswith("_") and k != "_truth"}
-REBUILT = {"_streets_cache"}                       # read afresh from the restored state by the reload itself (refresh_present), not a leftover
-check("...every private cache of the scene is as it was, and none made during the turn remains", set(attrs_before) <= set(attrs_after)
-      and set(attrs_after) - set(attrs_before) <= REBUILT and all(same(attrs_after[k], attrs_before[k]) for k in attrs_before),
-      (sorted(set(attrs_after) ^ set(attrs_before)), [k for k in attrs_before if k in attrs_after and not same(attrs_after[k], attrs_before[k])]))
 check("...and the truth scene is built again on the next read", "_truth" not in ws.__dict__)
-line = ws.failed_line("I search the woods for a quiet hollow.")
-check("the player reads a line in the narrator's words", line in set(failures.lines()), line)
+check("the passage was an operation of its own, and the one that did not stand", [o.kind for o in ws.line_untold] == ["passage"] and not ws.line_failed,
+      ([o.kind for o in ws.line_untold], [o.kind for o in ws.line_failed]))
+told = [t for k, t in SHOWN if k == "narrate"]
+check("the player reads that what they did stands, in the narrator's words, never machinery", any(t in failures.F["stood_any"] for t in told)
+      and not any(failures.MACHINERY.search(t) for t in told), told)
 
-# ---- the same line again: the same find, this time standing
+# ---- the same line again: a new input; the place is already found, so no second find, and the line stands
+SHOWN.clear()
 stood2 = ws.turn("I search the woods for a quiet hollow.")
-check("the same line typed again meets the same dice: the same place, the same way to it, and this time it stands", stood2 is True and len(made) == 2
-      and made[1]["place"]["id"] == pid and made[1]["minutes"] == made[0]["minutes"] and pid in ws.world.places and pid in ws.world.neighbors(anchor)
-      and any(p["place"]["id"] == pid for p in a.store.load_discoveries()["places"]) and ws.player.location == pid, (stood2, [m and m["minutes"] for m in made], ws.player.location))
+check("the same line typed again is a new input, and stands", stood2 is True, (stood2, len(made)))
 check("...and the ledger and the casting cache are the standing turn's", ledger.LAST is not last_before and spellcraft._CAST == {})
 a.close()
 
@@ -138,8 +135,9 @@ wr.run()
 r.close()
 gateway._client = real
 turns = [__import__("json").loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
-check("the recording holds the rolled-back turn and the one that stood after it", len(turns) >= 4 and turns[1]["state"]["all"] == turns[0]["state"]["all"]
-      and turns[2]["state"]["all"] != turns[1]["state"]["all"], [t["state"]["all"][:8] for t in turns])
+check("the recording holds the turn whose telling failed, its find standing, and the ones after it", len(turns) >= 4
+      and turns[1]["state"]["all"] != turns[0]["state"]["all"] and turns[1].get("operations") and "passage" not in [o["kind"] for o in turns[1]["operations"]]
+      and "passage" in [o["kind"] for o in turns[2]["operations"]], [(t["state"]["all"][:8], [o["kind"] for o in t.get("operations", [])]) for t in turns])
 out = subprocess.run([sys.executable, "tools/rerun.py", str(OUT)], capture_output=True, text=True, timeout=600)
 last = (out.stdout.strip().splitlines() or [""])[-1]
 check("...and it replays in a child process through the real turn, the rollback included", out.returncode == 0 and last.startswith("all ") and "inputs matched" in last,
