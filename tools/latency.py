@@ -97,6 +97,17 @@ def turns_table(rows: list[dict]) -> list[str]:
     embed_s = sum(float(r.get("embed_seconds") or 0) for r in rows)
     lines.append(f"\n{len(rows)} turns in {fmt(sum(secs) / 60, 1)} minutes; {fmt(100 * model / sum(secs), 0) if sum(secs) else '-'}% of it in the model; "
                  f"{embeds} embedding calls taking {fmt(embed_s, 1)} s; {sum(int(r.get('background_calls') or 0) for r in rows)} calls on background threads.")
+    req = [float(r["required_seconds"]) for r in rows if r.get("required_seconds") is not None]
+    if req:                                                                                  # (f468) the budget's measures, apart from the failed turns
+        try:
+            from engine import budget as _budget
+            limit = float(_budget.B.get("limit_seconds") or 60)
+        except Exception:
+            limit = 60.0
+        lines.append(f"The budget: {sum(len(r.get('deferred') or []) for r in rows)} optional calls deferred and "
+                     f"{sum(len(r.get('dropped') or []) for r in rows)} dropped; {sum(1 for r in rows if r.get('stand_ins'))} turns told by a stand-in; "
+                     f"the required path estimated at p50 {fmt(pct(req, .5))} s and p90 {fmt(pct(req, .9))} s, over {limit:g} s in "
+                     f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above).")
     slow = sorted(rows, key=lambda r: -float(r.get("seconds") or 0))[:5]
     if slow:
         lines.append("\nSlowest turns:")

@@ -1,12 +1,12 @@
 {
- "made": "2026-11-02T13:08:15+00:00",
+ "made": "2026-11-02T13:30:25+00:00",
  "seed": 39,
  "steps": 0,
  "turn": 1,
  "data": "4dea76e8af22b695ffe61b3e9070ed72527a273ac4bf7b98a4df6a5613d0dddb",
  "model": "gemma4:12b",
  "version": "0.0.4.1",
- "commit": "51257ca9fd5cc2e4d510eaff7a7387e0d36eba75",
+ "commit": "ed6575c639bd9f5f102222155f020e18313ec271",
  "start": {
   "kv": "3a38ca88a136f33d80f6624f58350482f386c8c47e37ceae2a5edd78e2739b85",
   "places": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -18,5 +18,10 @@
  },
  "embed": false,
  "backfill": null,
- "save": "rerun_make_stub_short_new"
+ "save": "rerun_make_stub_short_new",
+ "profile": {
+  "read_tps": 756.8,
+  "write_tps": 31.7
+ },
+ "limit_seconds": 60
 }

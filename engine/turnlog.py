@@ -85,14 +85,16 @@ def begin(console=None) -> None:
 
 
 def end(rolled_back: bool = False, command: dict | None = None, failure: str = "", crash: str = "", stood: str = "", stand_in: bool = False,
-        world_failed: list | None = None) -> None:
+        world_failed: list | None = None, budget: dict | None = None) -> None:
     """(f385) The turn is over: its rows are written, the last carrying what was shown, when it began and how long it took. `command`
     is a # command's row (its text, and whether it changed anything), written only when it did something or told the player
     something in the story's column. (f437) `failure`: why a turn rolled back, when a model call it needed failed; the row says the model
     failed, which is never a refusal of what the player typed. (f449) `crash`: the turn rolled back because the game itself raised; the
     row says so (crashed), apart from the model's failures, and logs/crash.log holds the traceback. (f466) `world_failed`: the world's
     own operations of the line that did not stand (kind, error, crash), rolled back alone with the player told nothing; the night's
-    counts read them here, apart from the line's own failures."""
+    counts read them here, apart from the line's own failures. (f468) `budget`: the input's budget as it closed (engine/budget.py LAST):
+    the model time it estimated (budget_seconds, whole), the required path's (required_seconds), the optional tasks it deferred or
+    dropped, and the passages told by a stand-in (stand_ins), apart from hesitations and refusals."""
     global _open
     t, _open = _open, None
     if t is None or not enabled():
@@ -118,6 +120,12 @@ def end(rolled_back: bool = False, command: dict | None = None, failure: str = "
         rows[-1]["stand_in"] = True                            # (f464) a passage of the line could not be written; a stand-in told what stood
     if world_failed:
         rows[-1]["world_failed"] = world_failed                # (f466) the world's own operations that did not stand, apart from the line's
+    if budget:                                                 # (f468) the budget's own measures, never hesitations
+        rows[-1]["budget_seconds"] = int(budget.get("estimated") or 0)
+        rows[-1]["required_seconds"] = budget.get("required") or 0
+        for k in ("deferred", "dropped", "stand_ins"):
+            if budget.get(k):
+                rows[-1][k] = list(budget[k])
     if rolled_back or stood == "part":
         if rolled_back:
             rows[-1]["rolled_back"] = True

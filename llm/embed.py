@@ -85,6 +85,8 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
         except Exception:
             _state["failed"] = True
             return None
+        from engine import budget
+        budget.embed(len(want))                       # (f468) the texts this call read, on the turn's budget (part of the required path)
         with _lock:
             for t, v in zip(want, got):
                 n = math.sqrt(sum(x * x for x in v)) or 1.0

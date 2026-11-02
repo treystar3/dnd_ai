@@ -231,6 +231,8 @@ def audit(text: str, plan: list, sit: Situation, ask: AuditAsk) -> Result:
             hint += " Your last try also failed: " + "; ".join(still) + "."
         res.reason = "; ".join(still)
     except Exception as e:                      # the model is down or rambling
+        if getattr(e, "budget", False):         # (f468) the turn's budget refused a call of the understanding: the line is not taken, not asked back
+            raise
         res.reason = f"{type(e).__name__}: {e}"
         if not bad:                             # (f332) a flagged plan nobody could check does not run on a shrug: the world asks instead
             res.status, res.verdict = "unsure", "audit unavailable"

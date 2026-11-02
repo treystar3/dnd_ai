@@ -115,6 +115,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
         self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
+        self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
         self.combat: CombatScene | None = None
         self.resume_pending = None
         self.wildlife = None
@@ -787,6 +788,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     raise                                                   # (f449) stopped on purpose, never a rolled-back fault
                 finally:
                     self.store.arm(False)
+                    from engine import budget
+                    self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468)
                 rolled = op is None or op.state != "committed"
                 crashed = rolled and self.last_crash
                 if rolled:
@@ -798,7 +801,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.store.save_player(self.player)
                     return
                 self.pane_arrival(before)
-                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash, world_failed=self.world_failures())
+                turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash, world_failed=self.world_failures(),
+                            budget=self.last_budget)
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
@@ -810,7 +814,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note(failures.part_stood("; ".join(self.line_done) or "the first of it", self.rng))
             turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
                         crash=self.last_failure if stood is not True and self.last_crash else "",
-                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures())
+                        stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures(),
+                        budget=self.last_budget)
             self.show_header()
 
     def failed_line(self, text: str) -> str:
@@ -850,6 +855,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         the background at the input's edge before this, outside the transaction: apply_backfill in run().)"""
         self.store.meta.steps += 1                                  # (f463) saved by the first operation that stands (commit_operation first_of_line)
         streams.begin(self.store.meta.seed, self.store.meta.steps, text)
+        from engine import budget
+        budget.open()                                               # (f468) the input's minute of model time begins; closed when the line is done
 
     HELD = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "combat_numbers", "legendary_reveal")   # (f463) the story bindings an operation holds
     ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
@@ -1115,6 +1122,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                             self.pending = []
                             from engine import operation as _op
                             _op.present(op.id, "stand_in")         # (f467)
+                    from engine import budget
+                    budget.passage_shown()                     # (f468) the required path is told: the optional calls after it keep no reserve
                     self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
                     with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
                         self.world_tick()
@@ -1126,6 +1135,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         self.law_check()
                     self.run_passages()
                 self.collecting = False
+                from engine import budget
+                budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
                 with self.operation("tail", text, world=True):
                     if plan is not None:
                         self.store.meta.turn += 1              # (f466) the line counted, with its tail
@@ -1136,6 +1147,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             raise
         finally:
             self.store.arm(False)
+            from engine import budget
+            self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468) the input's budget closes with the line
 
     def turn_ticks(self, text: str, shown: int) -> None:
         """(f463) What follows every line, however it was read: the road walked on, the hires' words marked, the quest and the mentor and

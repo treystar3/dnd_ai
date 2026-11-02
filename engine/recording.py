@@ -80,13 +80,16 @@ class Recorder:
                 out.close()
         streams.STRICT = True
         from core.version import VERSION
+        from engine import budget
         from llm import embed
         from npc import life
         (self.dir / "meta.json").write_text(json.dumps({
             "made": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": store.meta.seed, "steps": store.meta.steps,
             "turn": store.meta.turn, "data": statehash.data_hash(), "model": config.MODEL, "version": VERSION,
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
-            "save": store.meta.name}, indent=1), encoding="utf-8")
+            "save": store.meta.name,
+            "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds")},     # (f468) the speeds the budget priced calls at
+            indent=1), encoding="utf-8")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8")
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8")
@@ -176,8 +179,10 @@ class Recorder:
         if threading.current_thread() in ORPHANS:
             return real(**k)                             # (f453) a closed session's thread, still running: not this session's call
         t0 = time.perf_counter()
+        from llm import gateway
         row = {"i": self.n_call, "input": self.n_input, "kind": kind, "title": ((k.get("format") or {}).get("title", "")
                if isinstance(k.get("format"), dict) else ""), "req": request_hash(k),
+               "task": getattr(gateway._TASK, "name", "") if kind == "chat" else "",            # (f468) the task, for the budget's estimate (outside the hash)
                "request": {key: v for key, v in k.items() if key != "format"}}
         self.n_call += 1
         try:

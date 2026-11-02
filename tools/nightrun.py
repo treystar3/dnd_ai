@@ -197,6 +197,10 @@ class Run:
                    hesitated=row.get("hesitated", False), level_after=self.bot.c.level, deaths=self.bot.c.deaths,
                    notes=self.turn_notes[-8:], state=self.state_now(),
                    outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
+        from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
+        row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
+                   deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
+                   stand_ins=list(_budget.LAST.get("stand_ins") or []))
         if not row["hesitated"]:
             self.hesitations = 0
         self.rows.append(row)

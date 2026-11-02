@@ -27,6 +27,8 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))                 # (f468) --estimate prices the calls with the game's own engine/budget.py
 PROFILE = ROOT / "data" / "measured" / "card_profile.yaml"
 
 
@@ -95,6 +97,35 @@ def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
     }
 
 
+REQUIRED_TITLES = {"ActionPlan": "interpret_action", "Narration": "narrate", "CombatIntent": "combat_interpret", "NPCReply": "npc_conversation",
+                   "NPCProfile": "npc_profile", "ResidentSet": "populate_place", "Ruling": "ruling", "CanonCheck": "canon_check",
+                   "Extracted": "canon_extract", "MentorReply": "mentor_chat", "MentorSpeech": "mentor_speech", "MentorLines": "mentor_voice",
+                   "RoadEvent": "road_event", "LessonWant": "lesson_want", "LessonNames": "generate_lessons", "DiscoveryProposal": "discovery",
+                   "PartyIntent": "party_intent", "CampIntent": "camp_intent", "StrangerRead": "stranger_read", "GoddessLine": "goddess_line"}
+# (f468) A recording made before its call rows carried the task (f468's recorder): the required tasks by their schema's title, nearly enough.
+
+
+def estimate_inputs(folder: Path) -> list[tuple[int, float]]:
+    """(f468) Per input, the seconds the required path estimates from the recording's own text (engine/budget.py estimate: the prompt's
+    characters read, the answer's written, at the card's speeds): the chat calls of required tasks and the embed calls those need. The
+    done-when's measure, read from a night recording, never from the suite."""
+    from engine import budget
+    per: dict[int, float] = {}
+    for c in calls_of(folder):
+        i = int(c.get("input", 0))
+        if c.get("kind") == "embed":
+            texts = len((c.get("request") or {}).get("input") or [])
+            per[i] = per.get(i, 0.0) + texts * float(budget.B.get("embed_seconds_per_text") or 0)
+            continue
+        task = c.get("task") or REQUIRED_TITLES.get(c.get("title", ""), "")
+        if not task or budget.need(task) != "required":
+            continue
+        chars = sum(len(str(m.get("content") or "")) for m in (c.get("request") or {}).get("messages") or [])
+        ans = c.get("answer") if isinstance(c.get("answer"), str) else None
+        per[i] = per.get(i, 0.0) + budget.estimate(task, chars, len(ans) if ans is not None else None)
+    return sorted(per.items())
+
+
 def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fits: str = "") -> None:
     PROFILE.write_text(
         "# (f443, tools/card_profile.py) Measured on the card the game is built for (GOALS.md: an RTX 3060, no turn over a minute).\n"
@@ -117,8 +148,17 @@ def main() -> int:
     ap.add_argument("--write", action="store_true", help="keep the speeds in data/measured/card_profile.yaml")
     ap.add_argument("--measured-on", default="", help="(f444) the card the recording was made on, when it is not --card: scale to --card")
     ap.add_argument("--vram-gb", type=float, default=0, help="(f444) what the model and its context took on the measuring card")
+    ap.add_argument("--estimate", action="store_true", help="(f468) per input, the seconds the required path estimates (engine/budget.py), and the inputs over the limit")
     a = ap.parse_args()
     folder = Path(a.recording)
+    if a.estimate:
+        rows = estimate_inputs(folder)
+        over = [(i, s) for i, s in rows if s > BUDGET]
+        for i, s in rows:
+            print(f"input {i}: {s:.1f} s on the required path")
+        print(f"inputs whose required path estimates over {BUDGET:g} s: {len(over)}"
+              + (": " + ", ".join(f"input {i} ({s:.0f} s)" for i, s in over[:20]) if over else ""))
+        return 0
     read = write_ = 1.0
     fits = ""
     if a.measured_on:

@@ -47,7 +47,7 @@ UNSEEDED = "unseeded"
 def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable[[], str]]]:
     """The module bindings a campaign writes while it plays: (name, put back, clean?, what it holds). Read at call time, since two of them
     (canon.IDS, ledger.LAST) are rebound rather than changed in place."""
-    from engine import canon, combat_perks, enchanting, failures, healing, ledger, names, operation, pulse, questions, severity, spellcraft, streams, turnlog
+    from engine import budget, canon, combat_perks, enchanting, failures, healing, ledger, names, operation, pulse, questions, severity, spellcraft, streams, turnlog
     from npc import life
     return [
         ("canon.JOURNAL", lambda: setattr(canon, "JOURNAL", None), lambda: canon.JOURNAL is None, lambda: repr(canon.JOURNAL)),
@@ -61,6 +61,7 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
         ("questions._last", lambda: setattr(questions, "_last", ""), lambda: not questions._last, lambda: repr(questions._last)),   # (f460)
         ("operation.CURRENT", operation.reset, lambda: operation.CURRENT is None, lambda: repr(operation.CURRENT)),              # (f462)
         ("operation.PRESENTED", lambda: operation.PRESENTED.clear(), lambda: not operation.PRESENTED, lambda: f"{len(operation.PRESENTED)} presented"),   # (f467)
+        ("budget.CURRENT", budget.reset, lambda: budget.CURRENT is None and not budget.LAST, lambda: repr(budget.LAST or budget.CURRENT)),   # (f468)
         ("combat_perks.QUARRY", lambda: combat_perks.QUARRY.clear(), lambda: not combat_perks.QUARRY, lambda: repr(dict(combat_perks.QUARRY))),   # (f465)
         ("combat_perks.WITHER", lambda: combat_perks.WITHER.clear(), lambda: not combat_perks.WITHER, lambda: repr(dict(combat_perks.WITHER))),
         ("healing.LAST", lambda: healing.LAST.clear(), lambda: not healing.LAST, lambda: repr(dict(healing.LAST))),

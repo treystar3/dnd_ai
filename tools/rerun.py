@@ -102,6 +102,10 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     if rec["meta"].get("data") != statehash.data_hash():
         print("warning: this recording was made on other rules or content (its data hash differs); differences may be that", file=sys.stderr)
     streams.STRICT = True
+    from engine import budget
+    profile_before = dict(budget.PROFILE)
+    if isinstance(rec["meta"].get("profile"), dict):                                   # (f468) the speeds the recording priced its calls at:
+        budget.PROFILE.update({k: float(v) for k, v in rec["meta"]["profile"].items() if k in ("read_tps", "write_tps") and v})   # the replay defers where it did
     import config, tempfile
     scratch = Path(tempfile.mkdtemp(prefix="rerun_logs_"))         # a replay's own logs never mix with real play's
     config.LOG_PATH, config.TURN_LOG_PATH, config.PULSE_LOG_PATH = (str(scratch / n) for n in ("llm_calls.jsonl", "turns.jsonl", "pulse.jsonl"))
@@ -215,6 +219,8 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         session.close()
         shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
         streams.STRICT = False
+        budget.PROFILE.clear()
+        budget.PROFILE.update(profile_before)
     matched = state["input"] - (1 if state["parted"] else 0)
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": state["call"], "recorded_calls": len(calls)}
 
