@@ -1451,10 +1451,20 @@ function hideHome() {
   $("homepage").hidden = true;
   homeView = "menu";                                      // the next time it opens (#menu), it opens on the menu
   log.textContent = "";                                   // the story of the game left behind is not this character's
+  cur = null; lastBlank = true;                           // (f458) nor its last block: the new game's first line starts a block of its own
   turnLine = null; follow = true; moreBelow(false);
   side.textContent = ""; lastView = null; $("sidetitle").textContent = "";
   tickerClear();
+  forgetCampaign();
   input.focus();
+}
+function forgetCampaign() {                               // (f458) the window forgets the campaign it left: a second game is not played in
+  Object.assign(combat, { active: false, data: null, rows: [], seen: new Set(), mode: "view" });   // the first one's fight, map, journal
+  for (const m of [hitsMap, tipMap]) for (const k of Object.keys(m)) delete m[k];                 // and typed lines
+  mapView = null;
+  journalQuery = ""; journalOpen.clear();
+  history.length = 0; hpos = 0;
+  cr.who = null;                                          // a second New game starts from chance, as the first did (GOALS: leave the start to chance)
 }
 document.addEventListener("keydown", (e) => {            // on the home page: Enter continues the game played last, Escape goes back
   if ($("homepage").hidden) return;
