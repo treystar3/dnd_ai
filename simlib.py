@@ -610,3 +610,62 @@ def make_character(cls_key: str, rng: random.Random, perks: bool = False):
                                   description="a grey wolf")]
         c.bound_summon = next((a.id for a in actives if a.summon_form == "bound"), "")     # the Warden: its Bound summon
     return c, spec
+
+
+# ------------------------------------------------------------------ (f450) the suite's one way to open a campaign
+
+class Game:
+    """One campaign opened for a test (campaign()): its store, its world, the trait catalog and the player, and the scene built on them
+    the first time it is asked for. close() closes what the game closes when a campaign ends (main.py): the store, and this save's
+    background work. The rebuild's Bundle B changes only the inside of this class and of campaign(): a test that opens its campaign
+    here never changes again when the runtime does."""
+
+    def __init__(self, name: str, store, world, catalog, player):
+        self.name, self.store, self.world, self.catalog, self.player = name, store, world, catalog, player
+        self._scene = None
+
+    @property
+    def scene(self):
+        if self._scene is None:
+            from scenes.world import WorldScene
+            self._scene = WorldScene(self.store, self.world, self.catalog, self.player)
+        return self._scene
+
+    def close(self) -> None:
+        from npc import backfill
+        self.store.close()
+        backfill.drop(self.store)
+
+
+def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,
+             never_mentor: bool = True, fresh: bool = True, char_seed: int | None = None) -> Game:
+    """Open a campaign the way the tests did by hand in a hundred files: a fresh save folder (unless fresh=False, for a save copied
+    into place), its seed, clock and turn, a level-1 character of one of the stub's classes, standing where the world starts or at
+    `location`, with Maren kept away unless asked for. Returns the Game; `.scene` builds the WorldScene on first use."""
+    import shutil
+    from npc.traits import load_traits
+    from storage.campaign import CampaignStore, PlayerState
+    from world.loader import campaign_world
+    if fresh:
+        shutil.rmtree(f"saves/{name}", ignore_errors=True)
+    store = CampaignStore.open_or_create(name)
+    world = campaign_world()
+    if not store.player_exists():
+        store.meta.seed, store.meta.turn, store.meta.minutes = seed, turn, minutes
+        store.save_meta()
+        char, _ = make_character(cls, random.Random(seed if char_seed is None else char_seed))
+        player = PlayerState(character=char, location=location or world.start_location)
+        if never_mentor:
+            player.mentor["never"] = True
+        store.save_player(player)
+    return Game(name, store, world, load_traits(), store.load_player())
+
+
+def quiet_console(kinds=("narrate", "say", "note", "ledger")) -> list:
+    """Mute the console's story outputs and collect what would have been shown, as (kind, text), the four lines every test repeated."""
+    from ui import console
+    shown: list = []
+    for fn in kinds:
+        setattr(console, fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
+    console.panel = lambda *a, **k: False
+    return shown

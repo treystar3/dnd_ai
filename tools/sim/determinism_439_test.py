@@ -28,15 +28,11 @@ uc.panel = lambda name, data: False
 from engine import streams
 streams.STRICT = True
 from llm import gateway
-from npc.traits import load_traits
-from scenes.world import WorldScene
 from storage import statehash
-from storage.campaign import CampaignStore
-from world.loader import campaign_world
 import nightbot
 
-store = CampaignStore.open_or_create(sys.argv[1])
-ws = WorldScene(store, campaign_world(), load_traits(), store.load_player())
+game = simlib.campaign(sys.argv[1], fresh=False)        # (f450) the suite's one way to open a campaign: this one copied into place
+store, ws = game.store, game.scene
 bot = nightbot.Bot(ws, ws.world, random.Random(39), stub=stub, persona="wanderer")
 stub.bot = bot
 FAIL = {"on": False}
@@ -72,19 +68,9 @@ print("RESULT " + json.dumps({"all": statehash.digest(store)["all"], "after": AF
 '''
 
 # ---- one save, played twice in two processes
-from npc.traits import load_traits
-from storage.campaign import CampaignStore, PlayerState
-from world.loader import authored
 for s in ("det439_base", "det439_a", "det439_b"):
     shutil.rmtree(f"saves/{s}", ignore_errors=True)
-store = CampaignStore.open_or_create("det439_base")
-store.meta.seed, store.meta.turn, store.meta.minutes = 39, 1, 480
-store.save_meta()
-char, _ = simlib.make_character("warrior", random.Random(39))
-player = PlayerState(character=char, location=authored().start_location)
-player.mentor["never"] = True
-store.save_player(player)
-store.close()
+simlib.campaign("det439_base", seed=39, turn=1, minutes=480).close()      # (f450) the suite's one way to open a campaign
 for s in ("det439_a", "det439_b"):
     shutil.copytree("saves/det439_base", f"saves/{s}")
 script = pathlib.Path("saves/det439_child.py")
