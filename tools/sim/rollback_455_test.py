@@ -59,7 +59,7 @@ check("a first turn stands", ws.turn("I look around.") is True)
 anchor = ws.player.location
 last_before = ledger.LAST
 totals_before = dict(ledger.TOTALS)
-added_before = set(ws.world.added())
+added_before = ws.world.added()                                       # its places, roads and ways, by anchor
 version_before = ws.world.version
 digest_before = statehash.digest(a.store)
 attrs_before = {k: copy.deepcopy(v) for k, v in ws.__dict__.items() if k.startswith("_") and k != "_truth"}
@@ -84,8 +84,8 @@ check("the turn found a place and then could not be taken", stood is False and l
 pid = made[0]["place"]["id"]
 check("the place found is not on the campaign's map, nor in its routes, nor in the save", pid not in ws.world.places and pid not in ws.world.neighbors(anchor)
       and ws.world.path(anchor, pid) is None and not any(p["place"]["id"] == pid for p in a.store.load_discoveries()["places"]), ws.world.neighbors(anchor))
-check("...the map's additions are as before the turn, and its version moved so every cache keyed by it is rebuilt", set(ws.world.added()) == added_before
-      and ws.world.version > version_before, (set(ws.world.added()) - added_before, ws.world.version, version_before))
+check("...the map's additions are as before the turn, and its version moved so every cache keyed by it is rebuilt", ws.world.added() == added_before
+      and ws.world.version > version_before, (ws.world.added(), added_before, ws.world.version, version_before))
 check("...the save is as it was: rollback equals reopen", statehash.digest(a.store) == digest_before)
 check("...the player stands where they stood", ws.player.location == anchor, ws.player.location)
 check("...the ledger has no rows of the turn, its totals are as before, and LAST is the last turn that stood", ledger.this_turn() == []
