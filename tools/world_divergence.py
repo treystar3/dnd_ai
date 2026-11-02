@@ -18,14 +18,16 @@ import simlib  # noqa: E402
 from engine import clock, pulse  # noqa: E402
 from npc.life import populate_place  # noqa: E402
 from npc.traits import load_traits  # noqa: E402
-from storage.campaign import SAVES_DIR, CampaignStore  # noqa: E402
-from world.loader import load_world  # noqa: E402
+from engine.session import CampaignSession  # noqa: E402
+from storage.campaign import SAVES_DIR  # noqa: E402
+from world.loader import authored  # noqa: E402
 
 
-def run(world, catalog, seed: int, town: str, days: int) -> dict:
+def run(catalog, seed: int, town: str, days: int) -> dict:
     name = f"divergence_{seed}"
     shutil.rmtree(SAVES_DIR / name, ignore_errors=True)
-    store = CampaignStore.open_or_create(name)
+    session = CampaignSession.open(name)                   # (f457) one session per seed, each with its own map: nothing shared between the two
+    store, world = session.store, session.world
     store.meta.seed = seed
     store.save_meta()
     simlib.install(simlib.Stub("warrior", seed))
@@ -42,6 +44,7 @@ def run(world, catalog, seed: int, town: str, days: int) -> dict:
            "moods": sorted((r.id, r.mood) for r in store.npc_rows(gone=False) if r.mood),
            "moved": sorted(r.id for r in store.npc_rows(gone=False) if r.location != town and r.location not in
                            {p for p in world.places if pulse.town_of(world, p) == town})}
+    session.close()
     shutil.rmtree(SAVES_DIR / name, ignore_errors=True)
     return out
 
@@ -52,9 +55,9 @@ def main() -> None:
     ap.add_argument("--days", type=int, default=60)
     ap.add_argument("--town", default="parth")
     a = ap.parse_args()
-    world = load_world()
+    world = authored()                                     # for the names in the report; each run plays on its own session's map
     catalog = load_traits()
-    runs = [run(world, catalog, s, a.town, a.days) for s in a.seeds]
+    runs = [run(catalog, s, a.town, a.days) for s in a.seeds]
     for s, r in zip(a.seeds, runs):
         made = sum(1 for t in r["threads"] if t[3] == "engine")
         print(f"\n== seed {s}: {len(r['threads'])} situations over {a.days} days ({made} engine-built), {r['news']} pieces of news, "
