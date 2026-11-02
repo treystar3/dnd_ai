@@ -542,18 +542,16 @@ def main() -> None:
     problems = data_check.check()
     if problems:
         die("The game's data has problems:\n" + "\n".join(f"  - {p}" for p in problems))
-    from world.loader import load_world
+    from engine.session import CampaignSession
     from npc.traits import load_traits
-    from npc import backfill
-    from storage.campaign import CampaignStore, PlayerState
-    from scenes.world import WorldScene
+    from storage.campaign import PlayerState
     from engine import turnlog
 
-    world = load_world()
     catalog = load_traits()
     rng = random.Random(args.seed)
     shutil.rmtree(f"saves/{save}", ignore_errors=True)
-    store = CampaignStore.open_or_create(save)
+    session = CampaignSession.open(save)                                 # (f457) the campaign's session, as main.py opens it
+    store, world = session.store, session.world
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 400 * DAY + 8 * 60
     store.save_meta()
     char, spec = simlib.make_character(args.cls, rng, perks=True)
@@ -562,7 +560,7 @@ def main() -> None:
         spend_points(char, spec)
         outfit(char, spec, level, rng)
     store.save_player(PlayerState(character=char, location="parth"))
-    ws = WorldScene(store, world, catalog, store.load_player())
+    ws = session.scene(catalog, store.load_player())
     ws.player.mentor["never"] = True
     party = hire_party(ws, args.party)
 
@@ -592,7 +590,7 @@ def main() -> None:
         run.finish({"tier": args.tier, "kind": args.kind, "level": level, "started": False, "days": 0, "deaths": char.deaths, "model": config.MODEL,
                     "stub": args.stub, "seed": args.seed, "save": save})
         write_report(out, json.loads((out / "run.json").read_text(encoding="utf-8")), None, store.load_world_state() or {}, EventBot(ws, world, rng, stub, run, ""), world)
-        store.close()
+        session.close()
         die(f"The {args.tier} never started: see {out / 'llm_calls.jsonl'} for what the model answered.")
     print(f"{args.tier} begun: '{th['title']}'" + (f" ({th.get('kind')})" if th.get("kind") else "") + f" at {world.places[th['place']].name if th.get('place') in world.places else '?'}, "
           f"{len(th.get('stages', []))} stages, {len(th.get('paths', []))} paths, {len(th.get('clues', []))} clues", flush=True)
@@ -644,8 +642,7 @@ def main() -> None:
             store.save_player(ws.player)
         except Exception:
             pass
-        store.close()
-        backfill.drop(store)
+        session.close()                                                  # (f457) the background work and the save
         turnlog.write_session_stats()
         run.finish({"tier": args.tier, "kind": (final_th or {}).get("kind", args.kind), "title": (final_th or {}).get("title", ""), "level": level,
                     "started": True, "status": (final_th or {}).get("status", ""), "result": (final_th or {}).get("result", ""),
