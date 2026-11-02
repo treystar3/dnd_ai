@@ -72,9 +72,7 @@ from engine import (events as bigev, deeds as deedlog, arcs, checks, clock, comb
 from llm.gateway import LLMError
 from npc.life import populate_place
 from npc.traits import load_traits
-from scenes.world import WorldScene
-from storage.campaign import CampaignStore, PlayerState
-from world.loader import load_world
+from storage.campaign import PlayerState
 LAST_DANGER = [("?", 0.5)]
 _orig_danger = combat.danger
 
@@ -122,12 +120,13 @@ _RUN = __import__("pathlib").Path(getattr(sys.modules.get("__main__"), "__file__
 
 class Bot:
     def __init__(self):
+        from engine.session import CampaignSession
         self.rng = random.Random(SEED)
-        self.world = load_world()
         save = os.environ.get("SIMBOT_SAVE") or f"sim_{CLS}_{_RUN}"   # a soak run names its own folder, so the tests' bots do not wipe it;
                                                                       # (f455) and each test's bot has its own: two at once wiped each other's
         shutil.rmtree(f"saves/{save}", ignore_errors=True)
-        self.store = CampaignStore.open_or_create(save)
+        self.session = CampaignSession.open(save)                      # (f457) the campaign's session, as main.py opens it
+        self.store, self.world = self.session.store, self.session.world
         self.store.meta.seed = SEED
         self.store.meta.turn = 1
         self.store.meta.minutes = 8 * 60
@@ -135,7 +134,7 @@ class Bot:
         char, self.spec = simlib.make_character(CLS, self.rng, perks=True)       # the bots play with the perks a player would draw
         start = self.world.start_location
         self.store.save_player(PlayerState(character=char, location=start))
-        self.ws = WorldScene(self.store, self.world, load_traits(), self.store.load_player())
+        self.ws = self.session.scene(load_traits(), self.store.load_player())
         _orig_after = self.ws.party_after_fight
         def _count_fallen(fallen, *rest, _o=_orig_after, _bot=self):
             _bot.party_tally["fell"] += sum(1 for m in _bot.ws.player.party if f"ally_{m['id']}" in {a.id for a in fallen})
