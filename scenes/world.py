@@ -121,6 +121,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
         self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
         self.last_budget: dict = {}   # (f468) the last input's budget, closed: what it estimated, deferred, dropped, stood in for (the turn log's)
+        self.recovered_at_load = 0    # (f471) outcomes told at this load (recover_unshown): the first row after it says so, the night tool too
         self.combat: CombatScene | None = None
         self.resume_pending = None
         self.wildlife = None
@@ -710,6 +711,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     console.narrate(mended(line))
             self.store.mark_shown(op_id)
             _op.present(op_id, "recovered")
+        self.recovered_at_load = len(ids)
+        self.__dict__["_recovered_unreported"] = len(ids)
         return True
 
     def run(self) -> None:
@@ -807,7 +810,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     return
                 self.pane_arrival(before)
                 turnlog.end(rolled, command=self.command_row(text, before, bar), failure=failed, crash=crash, world_failed=self.world_failures(),
-                            budget=self.last_budget)
+                            budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
                 if self.header_key() != bar:
                     self.show_header()                                      # (f372) a hire, a sale or a walk from a pane moves the coin, the clock or the place
                 continue
@@ -820,7 +823,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             turnlog.end(stood is False, failure="" if stood is True or self.last_crash else self.last_failure,
                         crash=self.last_failure if stood is not True and self.last_crash else "",
                         stood={True: "all", False: "none"}.get(stood, "part"), stand_in=bool(self.line_untold), world_failed=self.world_failures(),
-                        budget=self.last_budget)
+                        budget=self.last_budget, ops=self.line_record(), recovered=self.take_recovered())
             self.show_header()
 
     def failed_line(self, text: str) -> str:
@@ -1148,6 +1151,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not plan and not self.line_ops:
             self.store.reload_meta()                           # nothing of the line committed: the input's count is given back (f463)
         return plan
+
+    def line_record(self) -> list:
+        """(f471) The line's operations for the turn log: id, kind, index and how each ended (stood; rolled_back, the player's or the
+        world's; stand_in, a telling stood in for), in the order they ran: the key that joins the row to the save's record (kv
+        operations) and to the audit log's blocks."""
+        rows = [{"id": o.id, "kind": o.kind, "index": o.index, "state": "stood"} for o in self.line_ops]
+        rows += [{"id": o.id, "kind": o.kind, "index": o.index, "state": "rolled_back"} for o in self.line_failed + self.line_world_failed]
+        rows += [{"id": o.id, "kind": o.kind, "index": o.index, "state": "stand_in"} for o in self.line_untold]
+        return sorted(rows, key=lambda r: (r["index"], r["state"] != "stood"))
+
+    def take_recovered(self) -> int:
+        """(f471) The outcomes told at the last load, reported once, on the first row after it."""
+        return int(self.__dict__.pop("_recovered_unreported", 0) or 0)
 
     def world_failures(self) -> list:
         """(f466) The world's own operations of the line that did not stand, for the turn log and the night's counts: which, why, and

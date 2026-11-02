@@ -105,7 +105,9 @@ def turns_table(rows: list[dict]) -> list[str]:
         except Exception:
             limit = 60.0
         lines.append(f"The budget: {sum(len(r.get('deferred') or []) for r in rows)} optional calls deferred and "
-                     f"{sum(len(r.get('dropped') or []) for r in rows)} dropped; {sum(1 for r in rows if r.get('stand_ins'))} turns told by a stand-in; "
+                     f"{sum(len(r.get('dropped') or []) for r in rows)} dropped; {sum(1 for r in rows if r.get('stand_ins'))} turns told by a stand-in, "
+                     f"{sum(1 for r in rows if 'passage' in (r.get('stand_ins') or []))} of them stood without a passage; "
+                     f"{sum(int(r.get('recovered') or 0) for r in rows)} outcomes told at a load; "                                 # (f471)
                      f"the required path estimated at p50 {fmt(pct(req, .5))} s and p90 {fmt(pct(req, .9))} s, over {limit:g} s in "
                      f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above).")
     slow = sorted(rows, key=lambda r: -float(r.get("seconds") or 0))[:5]

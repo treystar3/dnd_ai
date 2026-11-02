@@ -184,6 +184,10 @@ class Recorder:
                if isinstance(k.get("format"), dict) else ""), "req": request_hash(k),
                "task": getattr(gateway._TASK, "name", "") if kind == "chat" else "",            # (f468) the task, for the budget's estimate (outside the hash)
                "request": {key: v for key, v in k.items() if key != "format"}}
+        from engine import budget, operation
+        op = operation.current()
+        row["op"] = op.id if op is not None else ""                                             # (f471) the operation it was made inside, if any
+        row["need"] = budget.need(row["task"]) if kind == "chat" and row["task"] else ("embed" if kind == "embed" else "")   # ...and whether the line needed it
         self.n_call += 1
         try:
             out = real(**k)

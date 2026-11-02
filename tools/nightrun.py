@@ -200,7 +200,8 @@ class Run:
         from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
         row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
                    deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
-                   stand_ins=list(_budget.LAST.get("stand_ins") or []))
+                   stand_ins=list(_budget.LAST.get("stand_ins") or []),
+                   recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
         if not row["hesitated"]:
             self.hesitations = 0
         self.rows.append(row)
