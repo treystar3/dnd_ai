@@ -42,8 +42,32 @@ class Operation:
         """What the save keeps of it: no lines (they are the presentation entry's) and no state (a record is a commit)."""
         return {"id": self.id, "kind": self.kind, "steps": self.steps, "index": self.index, "text": self.text, "rows": list(self.rows)}
 
+    def presentation(self) -> list:
+        """(f467) What it holds, as the calls the next load can make again through the installed bindings (scenes/world.py
+        recover_unshown): [name, args, kwargs] for each story call, ["marker", [], {}] where a passage was to be told (a telling never
+        written: the record's rows stand in for it). A legendary reveal is kept as a note naming the find. Plain JSON, nothing else."""
+        import json
+        out = []
+        for name, a, k in self.held:
+            if name == "marker":
+                out.append(["marker", [], {}])
+            elif name == "legendary_reveal":
+                from engine import items
+                out.append(["note", [f"A legendary find: {items.display_name(a[0])}."], {}])
+            else:
+                out.append(json.loads(json.dumps([name, list(a), dict(k)], default=str)))
+        return out
+
 
 CURRENT: Operation | None = None
+PRESENTED: list = []              # (f467) what reached the page, in order: {"op": id, "how": shown | stand_in | recovered}; the recorder
+PRESENTED_KEEP = 400              # writes it per input and clears it (engine/recording.py); without one it is kept to the last few hundred
+
+
+def present(op_id: str, how: str) -> None:
+    """(f467) An operation's outcome reached the page: shown at its commit, told by a stand-in, or recovered at a load."""
+    PRESENTED.append({"op": op_id, "how": how})
+    del PRESENTED[:-PRESENTED_KEEP]
 
 
 def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "", op_id: str = "") -> Operation:
@@ -71,6 +95,7 @@ def end(state: str) -> Operation | None:
 
 
 def reset() -> None:
-    """(engine/session.py) A campaign opened or closed: no operation of another campaign's stays open."""
+    """(engine/session.py) A campaign opened or closed: no operation of another campaign's stays open, and nothing it showed is carried."""
     global CURRENT
     CURRENT = None
+    PRESENTED.clear()

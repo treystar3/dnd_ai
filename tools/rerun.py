@@ -175,6 +175,11 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
             if json.loads(json.dumps(ops, default=str)) != want["operations"]:
                 raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the line committed other operations "
                              f"({[o['kind'] for o in ops]} against {[o['kind'] for o in want['operations']]})")
+        from engine import operation
+        presented, operation.PRESENTED[:] = json.loads(json.dumps(operation.PRESENTED, default=str)), []
+        if "presented" in want and presented != want["presented"]:                     # (f467) what reached the page and how: shown, a stand-in, recovered at the load
+            raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the page was given other outcomes "
+                         f"({[p['how'] for p in presented]} against {[p['how'] for p in want['presented']]})")
         if not loose and shown != want["shown"]:
             raise Parted(f"after input {i} ({inputs_main[i - 1]['text']!r}) the player was shown other words "
                          f"({len(state['shown'])} lines against {want['lines']})")

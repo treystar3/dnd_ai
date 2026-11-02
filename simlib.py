@@ -634,6 +634,12 @@ class Game:
     def close(self) -> None:
         self.session.close()
 
+    def crash_after_commit(self, kind: str) -> None:
+        """(f467) The next operation of this kind that commits stops the game right after its commit and before its telling (an Interrupt
+        out of the executor, scenes/world.py operation): the save holds the outcome and its presentation entry, and the next load tells
+        it (recover_unshown). The one injection point for the recovery tests."""
+        self.scene.crash_after_commit = kind
+
 
 def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,
              never_mentor: bool = True, fresh: bool = True, char_seed: int | None = None) -> Game:

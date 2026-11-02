@@ -37,7 +37,7 @@ check("the record holds the commit, its rows stamped with the operation, its fac
       rec["revision"] == 1 and len(rec["ops"]) == 1 and rec["ops"][0]["id"] == op.id and rec["ops"][0]["kind"] == "action:buy"
       and rec["ops"][0]["rows"][0]["op"] == op.id and rec["ops"][0]["rows"][0]["facts"] == {"what": "a worn knife"} and entry["revision"] == 1, rec)
 check("the ledger's row carries the operation, and the operation keeps the row", ledger.ROWS and ledger.ROWS[0]["op"] == op.id and op.rows == ledger.ROWS, ledger.ROWS)
-check("its held lines wait in the presentation entry", store.unshown() == {op.id: {"lines": ["You buy the knife."], "steps": store.meta.steps, "kind": "action:buy"}}, store.unshown())
+check("its held lines wait in the presentation entry", store.unshown() == {op.id: {"lines": ["You buy the knife."], "steps": store.meta.steps, "kind": "action:buy", "calls": []}}, store.unshown())   # calls: f467
 check("find_operation finds it, and nothing else", store.find_operation(op.id) == rec["ops"][0] and store.find_operation("nope") is None)
 check("the operation is closed", operation.current() is None and op.state == "committed")
 d1 = statehash.digest(store)
@@ -126,7 +126,7 @@ with store.in_operation(), store.transaction():
     o.lines.append("held")
     store.commit_operation(o)
 operation.end("committed")
-check("inside an operation the saves and the commit pass", store.find_operation(o.id) is not None and store.unshown() == {o.id: {"lines": ["held"], "steps": store.meta.steps, "kind": "action:fenced"}})
+check("inside an operation the saves and the commit pass", store.find_operation(o.id) is not None and store.unshown() == {o.id: {"lines": ["held"], "steps": store.meta.steps, "kind": "action:fenced", "calls": []}})
 try:
     store.load_player(); store.load_operations(); store.revision(); statehash.digest(store)
     reads = True

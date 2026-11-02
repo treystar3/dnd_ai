@@ -114,6 +114,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.line_untold: list = []   # (f464) the passage operations of the line that did not stand and were told by a stand-in
         self.unshown_ops: dict = {}   # (f464) operations whose later lines wait on a passage: id -> segments still to release
         self.collecting = False       # (f464) the line's actions are running: a narration is a passage operation of its own, after them
+        self.crash_after_commit = ""  # (f467) the suite's injection (simlib.Game.crash_after_commit): the game stops right after this kind's commit
         self.combat: CombatScene | None = None
         self.resume_pending = None
         self.wildlife = None
@@ -667,8 +668,47 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         finally:
             self.store.arm(False)
 
+    def recover_unshown(self) -> bool:
+        """(f467) What stood before the game last closed and was never shown (the operations whose presentation entries are still in the
+        save: committed, then the game died before their telling, Bundle C decision 8): shown once, now, oldest first, through the
+        installed bindings (the recorder, the turn log and the gate see it as they see any line), after one line that says it is of
+        before (engine/failures.py shown_later). Each entry's held calls are made again, mended under this load's cast (engine/names.py
+        mend_pronouns); an entry with no held lines, or whose passage was never written (a marker), is followed by plain lines of what
+        its rows record, filled from their facts (failures.stood_lines). Then its entry goes (mark_shown): nothing waits past one load.
+        No model call is made. True when something was recovered."""
+        from engine import names, operation as _op
+        pending = self.store.unshown()
+        if not pending:
+            return False
+        order = {o["id"]: i for i, o in enumerate(self.store.load_operations()["ops"])}
+        ids = sorted(pending, key=lambda i: (pending[i].get("steps", 0), order.get(i, -1)))
+
+        def mended(x):
+            return names.mend_pronouns(x) if isinstance(x, str) else x
+
+        console.narrate(failures.shown_later(self.rng))
+        for op_id in ids:
+            entry = pending[op_id]
+            calls = entry.get("calls")
+            if calls is None:                                          # an entry from before the calls were kept: its lines, as narration
+                calls = [["narrate", [line], {}] for line in entry.get("lines", [])]
+            untold = not calls or any(c[0] == "marker" for c in calls)
+            for name, a, k in calls:
+                fn = getattr(console, name, None) if name != "marker" else None
+                if fn is not None:
+                    fn(*[mended(x) for x in a], **{kk: mended(v) for kk, v in k.items()})
+            if untold:
+                rec = self.store.find_operation(op_id) or {}
+                rows = [r for r in rec.get("rows", []) if r.get("facts")]
+                for line in failures.stood_lines(rows, self.rng) if rows else []:
+                    console.narrate(mended(line))
+            self.store.mark_shown(op_id)
+            _op.present(op_id, "recovered")
+        return True
+
     def run(self) -> None:
         self.open_world()
+        recovered = self.recover_unshown()                                  # (f467) first: what stood before the game last closed, never shown
         first_time = self.store.meta.turn == 0
         self.enter(self.player.location)
         self.weight_hint = "major" if first_time else None                 # a reload narrates nothing on entering; the next passage is weighed on its own
@@ -692,13 +732,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             saved, shown = self.store.load_story()
             if shown:
                 self.recent_narration = saved[-6:]
-                if shown.get("type") == "dialogue":
+                if recovered:
+                    pass                                                   # (f467) the remembered passage is of before what was just told: not shown again (owner question 12)
+                elif shown.get("type") == "dialogue":
                     console.dialogue(shown.get("before", ""), shown.get("speaker", ""), shown.get("speech", ""), shown.get("after", ""))
                 elif shown.get("type") == "says":
                     console.npc_says(shown.get("speaker", ""), shown.get("speech", ""), shown.get("gesture", ""))
                 else:
                     console.narrate(shown.get("text", ""))
-            else:
+            elif not recovered:
                 self.narrate("The player is here, picking up where they left off. Describe the scene, mentioning at most two "
                              "of the people present.")                    # (f413) no length (f375)
             if kit_text:
@@ -861,8 +903,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")
+            if self.crash_after_commit == kind:                   # (f467) the game dies between the commit and its telling: the next load tells it
+                self.crash_after_commit = ""
+                raise Interrupt(f"stopped after the commit of {kind}, before it was shown")
             self.line_ops.append(op)
             waiting = self.release(op)
+            _op.present(op.id, "shown")                           # (f467) what it held reached the page (its later lines after their passages)
             if waiting:
                 self.unshown_ops[op.id] = waiting              # (f464) marked shown once the passages its later lines wait on have run
             else:
@@ -947,6 +993,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f464) The passages the last operation queued, in order, each an operation of its own: told, or told by its stand-in when its
         telling could not be written; then the lines that waited behind it; and the operation whose lines they were is marked shown once
         the last of them has reached the page."""
+        from engine import operation as _op
         while self.passages:
             kind, fn, standin, after, owner = self.passages.pop(0)
             halted = self.halted
@@ -963,6 +1010,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 for line in ([lines] if isinstance(lines, str) else lines):
                     if line:
                         console.narrate(line)
+                _op.present(op.id, "stand_in")                     # (f467) told by a stand-in
             for name, a, k in after:
                 getattr(console, name)(*a, **k)
             if owner in self.unshown_ops:
@@ -1065,6 +1113,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                             for line in self.stood_standin(self.rng):
                                 console.narrate(line)
                             self.pending = []
+                            from engine import operation as _op
+                            _op.present(op.id, "stand_in")         # (f467)
                     self.after_steps(text)                     # (f466) outside any operation: the step is over, and what the line did not do is said
                     with self.operation("world", text, world=True):      # (f466) the world's own operations, apart: each stands or falls alone
                         self.world_tick()

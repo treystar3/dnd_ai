@@ -144,13 +144,13 @@ def guarded(run, bridge):
         from engine import crashlog
         crashlog.record(e, "outside a turn: the model gave no usable answer")             # (f449) written down, so the logs sent carry it
         console.out("\nThe model couldn't produce a usable answer and the game can't continue from this point.")
-        console.out("If you were already playing, everything up to the start of your last action is saved; that action is not.")
+        console.out("If you were already playing, what the world had settled before it stopped is saved, and is told when you come back.")
         console.out("If you were still creating your character, nothing was saved - run main.py to start creation again.")
         console.out(f"(details: {e} - see logs/llm_calls.jsonl and logs/crash.log)")
         if bridge:
             bridge.failed = True
     except KeyboardInterrupt:
-        console.out("\nInterrupted. Progress up to the start of the last action is saved; an action cut off partway is not.")
+        console.out("\nInterrupted. What the world had settled before it stopped is saved, and is told when you come back.")
     except SystemExit:
         raise
     except Exception as e:
@@ -163,7 +163,7 @@ def guarded(run, bridge):
             console.out(f"    ollama pull {config.MODEL}")
         elif bridge:
             import traceback
-            console.out("\nSomething went wrong and the game has to stop. Progress up to the start of your last action is saved; that action is not.")
+            console.out("\nSomething went wrong and the game has to stop. What the world had settled before it stopped is saved, and is told when you come back.")
             console.out("The details are written to logs/crash.log.")
             console.out(traceback.format_exc())
         else:
