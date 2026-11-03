@@ -239,8 +239,8 @@ ws.fld["picked"] = {}
 ws.resolve = lambda check_, n_=None, **k: "failure"
 c0 = char.coins; t0 = store.load_npc(npc.id).trust
 n = use("pickpocket", target=npc.id)
-check("a caught thief gets nothing and is remembered", char.coins == c0 and store.load_npc(npc.id).trust < t0
-      and any("Caught" in m.text or "caught" in m.text for m in store.load_npc(npc.id).memories), n)
+check("a caught thief gets nothing and is remembered", char.coins == c0 and store.load_npc(npc.id).trust < t0      # (f476) by kind
+      and simlib.remembered(store, npc.id, kind="experienced", subject="player", about="caught"), n)
 ws.resolve = real_resolve
 ws.partner = None
 

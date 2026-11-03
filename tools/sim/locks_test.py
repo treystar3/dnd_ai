@@ -161,7 +161,8 @@ check("the lock's difficulty reaches the roll", CALLS[-1][0][6] == locks.difficu
 setup_lock(); fix_degree("partial"); fix_notice({"merchant"})
 ws.on_unlock(A(kind="unlock", item="the back room", target="m1"), "I pick the lock")
 check("a partial opens it but is noticed", lk()[0]["state"] == "locked" or lk()[0]["state"] == "open")
-check("the owner who sees a break-in remembers and loses trust", mer.trust < 50 and any("Caught the stranger" in m.text for m in mer.memories), (mer.trust, [m.text for m in mer.memories]))
+check("the owner who sees a break-in remembers and loses trust", mer.trust < 50                                   # (f476) by kind
+      and simlib.remembered(store, mer.id, kind="experienced", subject="player", about="back room"), (mer.trust, simlib.remembered(store, mer.id)))
 check("a seen break-in costs 10 heat", ws.heat_here() == 10, ws.heat_here())
 
 setup_lock(); fix_degree("success"); fix_notice({"farmer"})

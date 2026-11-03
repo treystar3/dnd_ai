@@ -49,6 +49,7 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
     (canon.IDS, ledger.LAST) are rebound rather than changed in place."""
     from engine import budget, canon, combat_perks, enchanting, failures, healing, ledger, names, operation, pulse, questions, severity, spellcraft, streams, turnlog
     from npc import life
+    from llm import embed
     return [
         ("canon.JOURNAL", lambda: setattr(canon, "JOURNAL", None), lambda: canon.JOURNAL is None, lambda: repr(canon.JOURNAL)),
         ("canon.IDS", lambda: canon.IDS.clear(), lambda: not canon.IDS, lambda: repr(dict(canon.IDS))),
@@ -75,6 +76,9 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
         ("turnlog._open", lambda: setattr(turnlog, "_open", None), lambda: turnlog._open is None, lambda: repr(turnlog._open)[:80]),
         ("spellcraft._CAST", lambda: spellcraft._CAST.clear(), lambda: not spellcraft._CAST, lambda: f"{len(spellcraft._CAST)} casting"),
         ("life._ANCHOR_SLOTS", lambda: life._ANCHOR_SLOTS.clear(), lambda: not life._ANCHOR_SLOTS, lambda: repr(dict(life._ANCHOR_SLOTS))),
+        # (f476) the embedding cache: a warm one changes what the budget charges and which embed calls a replay expects, so it is the
+        # campaign's, cleared when one opens or closes
+        ("embed._cache", lambda: embed._cache.clear(), lambda: not embed._cache, lambda: f"{len(embed._cache)} vectors"),
     ]                                                      # (f454) the world's reactions live on the session's bus, cleared with it
 
 

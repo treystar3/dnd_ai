@@ -679,3 +679,134 @@ def quiet_console(kinds=("narrate", "say", "note", "ledger")) -> list:
         setattr(console, fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
     console.panel = lambda *a, **k: False
     return shown
+
+
+# ---- (f476) the proof bench: what a person remembers and owes, read through the store by what it is, never by its wording
+# Bundle D types memory rows (f478) and turns offers, requests and commitments into obligations (f481). Tests that ask by kind and
+# about stay true across those steps: until the rows carry a kind of their own, the kind is read from today's wording (LEGACY_KIND),
+# and from then on from the row. Asking for something the save does not record yet (a source, a state) is refused, never a quiet pass.
+LEGACY_KIND = (("(my own life) ", "own_life"), ("Saw ", "witnessed"))
+
+
+def _memory_columns(store) -> set:
+    with store._lock:
+        return {r[1] for r in store._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+
+
+def _legacy_kind(text: str, turn: int) -> str:
+    for head, kind in LEGACY_KIND:
+        if text.startswith(head):
+            return kind
+    if turn == -1 and text.startswith("I dealt with "):              # an anchor settling a matter (engine/pulse.py): their own life
+        return "own_life"
+    if re.search(r" settled .+\.$| was asked about .+, and let it be\.$", text):   # a matter's holders hear how it ended (engine/matters.py)
+        return "heard"
+    return "experienced"
+
+
+def remembered(store, holder: str, *, kind: str | None = None, subject: str | None = None, about: str | None = None,
+               source: str | None = None, state: str | None = None) -> list[dict]:
+    """(f476) The rows a person remembers, every one (not only the window their record carries), oldest first, that match: kind
+    (experienced, witnessed, noticed, heard, told, own_life...), subject (whom it is about: "player" today), about (words in it),
+    source and state (once the save records them). Each row: {id, day, turn, kind, importance, text, subject}."""
+    cols = _memory_columns(store)
+    for asked, col in ((source, "source"), (state, "state")):
+        if asked is not None and col not in cols:
+            raise ValueError(f"the save does not record a memory's {col} yet (Bundle D f478 adds it)")
+    pick = ["id", "day", "turn", "kind", "importance", "text"] + [c for c in ("subject", "source", "state") if c in cols]
+    with store._lock:
+        rows = store._db.execute(f"SELECT {', '.join(pick)} FROM npc_memory WHERE npc_id = ? AND forgotten = 0 ORDER BY id", (holder,)).fetchall()
+    out = []
+    for r in rows:
+        row = dict(zip(pick, r))
+        if "subject" not in cols:                                     # before f478: the kind and the subject from the wording
+            row["kind"] = _legacy_kind(row["text"], int(row["turn"]))
+            row["subject"] = "player" if row["kind"] in ("experienced", "witnessed") else ""
+        if kind is not None and row["kind"] != kind:
+            continue
+        if subject is not None and row.get("subject") != subject:
+            continue
+        if about is not None and about.lower() not in str(row["text"]).lower():
+            continue
+        if source is not None and row.get("source") != source:
+            continue
+        if state is not None and row.get("state") != state:
+            continue
+        out.append(row)
+    return out
+
+
+def obligation(store, holder: str, about: str | None = None, minutes: int | None = None) -> list[dict]:
+    """(f476) What a person is owed or offers, in one shape: {id, kind, state, title}. Until f481 it is read from where each lives today
+    (a work offer and a request on the person, the contracts in the player's hand that they posted, a hire's commitments); from then
+    on, from the obligations themselves. `about`: words in its title."""
+    out = []
+    if store.npc_exists(holder):
+        from scenes.work_actions import offer_open
+        n = store.load_npc(holder)
+        now = store.meta.minutes if minutes is None else minutes
+        if getattr(n, "work_offer", None):
+            out.append({"id": f"work:{holder}", "kind": "work", "state": "open" if offer_open(n, now) else "lapsed",
+                        "title": str(n.work_offer.get("task", ""))})
+        if getattr(n, "quest_offer", None):
+            out.append({"id": f"request:{holder}", "kind": "request", "state": "offered", "title": str(n.quest_offer.get("title", ""))})
+    p = store.load_player()
+    if p is not None:
+        out += [{"id": q["id"], "kind": q.get("kind", ""), "state": "taken", "title": q.get("title", "")}
+                for q in p.quests if q.get("issuer") == holder]
+        for m in p.party:
+            if m.get("id") == holder or m.get("name") == holder:
+                out += [{"id": f"commitment:{holder}:{i}", "kind": "commitment", "state": "active", "title": str(c.get("text", c) if isinstance(c, dict) else c)}
+                        for i, c in enumerate(m.get("commitments") or [])]
+    return [o for o in out if about is None or about.lower() in o["title"].lower()]
+
+
+def reset_person(store, holder: str) -> None:
+    """(f476) A person remembers nothing: every row of theirs deleted, and the window their record carries emptied."""
+    with store._lock:
+        store._db.execute("DELETE FROM npc_memory WHERE npc_id = ?", (holder,))       # autocommit, as the store's own writes
+    if store.npc_exists(holder):
+        n = store.load_npc(holder)
+        n.memories = []
+        store.save_npc(n)
+
+
+def heard_by(store, about: str) -> list[str]:
+    """(f476) Who holds something they heard or were told of `about` (sorted ids): the rows a person did not see for themselves."""
+    with store._lock:
+        ids = sorted({r[0] for r in store._db.execute("SELECT DISTINCT npc_id FROM npc_memory WHERE forgotten = 0").fetchall()})
+    return [nid for nid in ids if remembered(store, nid, kind="heard", about=about) or remembered(store, nid, kind="told", about=about)]
+
+
+class FakeEmbedder:
+    """(f476) A stand-in embedding model: each word of three letters or more lands in one of 64 places by its hash, so texts that share
+    words are near and the vectors are the same in every process (md5, never hash()). From tools/sim/embed_test.py."""
+    def __init__(self, synonyms: dict | None = None):
+        self.synonyms = dict(synonyms or {})
+        self.calls: list[int] = []
+
+    def vec(self, text: str) -> list[float]:
+        import hashlib
+        v = [0.0] * 64
+        for w in str(text).lower().replace("clustering: ", "").split():
+            w = self.synonyms.get(w.strip(".,?!'"), w.strip(".,?!'"))
+            if len(w) >= 3:
+                v[int(hashlib.md5(w.encode()).hexdigest(), 16) % 64] += 1
+        return v
+
+    def embed(self, model=None, input=None, keep_alive=None, **k):
+        texts = list(input or [])
+        self.calls.append(len(texts))
+        return {"embeddings": [self.vec(t) for t in texts]}
+
+
+def two_characters(ws):
+    """(f476) The player's character and a second one beside them, for tests whose subject is a list of characters (Bundle D keys
+    regard, obligations and memories by character). Until f480 the second is only made, not yet seen by anyone in the world."""
+    return ws.player.character, _second_character(ws)
+
+
+def _second_character(ws):
+    other, _ = make_character("mage", random.Random(f"second:{ws.player.character.name}"))
+    other.name = "Second " + other.name.split()[-1] if other.name else "Second Traveller"
+    return other

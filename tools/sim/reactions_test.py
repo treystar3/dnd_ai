@@ -53,9 +53,12 @@ check("anyone else is loaded from the store", ws.npc_by_id("x1") is not None and
 # ---- a theft, seen by the victim and a bystander
 with store.transaction():
     publish(Theft(minute=ws.minutes, place="trading_square", witnesses=("m1", "f1"), npc="m1", name=mer.label(), item="a silver cup", took=True, story=False, value=5000))
-check("the victim remembers being caught, and trusts less", any(m.text == "Caught the stranger taking a silver cup from me." and m.importance == 3 for m in mer.memories) and mer.trust == 35, ([m.text for m in mer.memories], mer.trust))
-check("the bystander remembers seeing it", any(m.text == f"Saw the stranger took a silver cup from {mer.label()}." for m in frm.memories) and frm.trust == 45, [m.text for m in frm.memories])
-check("the guard, who saw nothing, remembers nothing", not grd.memories)
+# (f476) by what each one is to the deed, read through the store: the victim experienced it (defining), the bystander witnessed it
+check("the victim remembers being caught, and trusts less", any(r["importance"] == 3 for r in simlib.remembered(store, mer.id, kind="experienced", subject="player", about="silver cup"))
+      and mer.trust == 35, (simlib.remembered(store, mer.id), mer.trust))
+check("the bystander remembers seeing it", simlib.remembered(store, frm.id, kind="witnessed", subject="player", about="silver cup") and frm.trust == 45,
+      simlib.remembered(store, frm.id))
+check("the guard, who saw nothing, remembers nothing", not grd.memories and not simlib.remembered(store, grd.id))
 check("standing moves in the town at once", standing.value(ws.player, "parth", "merchants", day) == -5 and standing.value(ws.player, "parth", "outlaws", day) == 3, ws.player.standing)
 check("the watch hears of it", law.current_heat(ws.player, "parth", day) > 0, ws.player.heat)
 deeds = store.load_world_state().get("deeds", []) if store.load_world_state() else []

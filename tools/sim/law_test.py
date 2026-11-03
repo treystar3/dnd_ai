@@ -138,8 +138,10 @@ check("a partial gets the item; a passer-by who sees it costs half heat and trus
 
 reset(); fix_degree("partial"); fix_notice({"farmer", "merchant"})
 frm.looks_away_until = ws.minutes + 100
+seen0 = len(simlib.remembered(store, frm.id, kind="witnessed"))                 # (f476) the earlier thefts' rows stay in the store
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
-check("a bribed witness does not notice", frm.trust == 50 and not any("Saw" in m.text for m in frm.memories), frm.memories)
+check("a bribed witness does not notice", frm.trust == 50 and len(simlib.remembered(store, frm.id, kind="witnessed")) == seen0,   # (f476) by kind
+      simlib.remembered(store, frm.id))
 
 reset(); fix_degree("success"); fix_notice(set())
 ws.on_steal(A(kind="steal", target="m1", item="gold crown of the king"), "I lift the king's crown")

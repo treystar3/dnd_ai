@@ -47,7 +47,8 @@ ws.residents = ws.present = [priest]
 t0 = ws.minutes
 ws.on_pray(ActionIntent(kind="pray", summary="pray for a safe road"), "I kneel and pray for a safe road")
 check("a prayer takes its time and is shown with the faith of the place", ws.minutes == t0 + pa.PT["pray"]["minutes"] and narrated and "PRAYS" in narrated[-1] and "faith here is" in narrated[-1], narrated[-1:][0][:120] if narrated else "")
-check("...the priest remembers the stranger at their altar", any("stopped to pray" in m.text for m in priest.memories), [m.text for m in priest.memories])
+check("...the priest remembers the stranger at their altar", simlib.remembered(store, priest.id, kind="experienced", about="pray"),   # (f476)
+      simlib.remembered(store, priest.id))
 check("...the companions see a stop at a shrine", deeds == ["shrine"], deeds)
 check("...and it is in the journal as a deed", any(r["kind"] == "prayed" for r in store.journal_tail(5)), [r["kind"] for r in store.journal_tail(5)])
 deeds.clear(); narrated.clear()
@@ -70,7 +71,8 @@ check("a losing throw costs the default stake", c.coins == 10000 - pa.PT["gamble
 c.coins = 100
 ws.on_gamble(ActionIntent(kind="gamble", target="in1", item="5 gold", summary="dice"), "I stake 5 gold")
 check("nobody stakes more than half the purse, whatever they said", c.coins == 100 - int(100 * pa.PT["gamble"]["max_share"]), c.coins)
-check("...the one who played remembers, and the companions see gambling", any("dice" in m.text for m in inn.memories) and "gambling" in deeds, (inn.memories[-1:], deeds))
+check("...the one who played remembers, and the companions see gambling", simlib.remembered(store, inn.id, kind="experienced", about="dice")   # (f476)
+      and "gambling" in deeds, (simlib.remembered(store, inn.id)[-1:], deeds))
 ws.residents = ws.present = [priest]
 ws.halted = False
 ws.on_gamble(ActionIntent(kind="gamble", summary="dice"), "I throw dice")

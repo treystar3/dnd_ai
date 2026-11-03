@@ -67,3 +67,10 @@ def new_id(n: int = 8, stream: str = "ids") -> str:
 def key() -> str:
     """What the streams were last seeded from (for a recording's rows)."""
     return _key
+
+
+def keyed(purpose: str, speaker: str = "", conversation: str = "", n: int = 0) -> random.Random:
+    """(f476) A die of its own for one purpose (a brief's wording, a reply's pick), seeded from this input's key and the purpose, the
+    speaker, the conversation and a count: drawing it moves no stream the game already rolls, so a speaker's brief can never shift a
+    fight's dice, and the same input draws the same. Made fresh each call; nothing of it is kept."""
+    return random.Random(f"{_key}:keyed:{purpose}:{speaker}:{conversation}:{int(n)}")

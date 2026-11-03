@@ -129,7 +129,7 @@ th = {"id": "r1", "title": "A quarrel at the bridge", "tier": "normal", "place":
       "times": [now - 2880, now - 1440], "groups": ["everyone"], "made": now - 2880}
 pulse.P["anchor_settles"] = 1.0
 who = pulse.resolver(store, world, th, random.Random(0))
-check("an anchor settles a situation when one fits, and remembers it", who.startswith(cap.name) and any("dealt with a quarrel" in m.text for m in store.load_npc(cap.id).memories), who)
+check("an anchor settles a situation when one fits, and remembers it", who.startswith(cap.name) and simlib.remembered(store, cap.id, kind="own_life", about="quarrel"), who)          # (f476) their own life, by kind
 st = store.load_world_state(); st["threads"] = [th]; store.save_world_state(st)
 pulse.P["tiers"]["normal"]["resolved_by_others"] = 1.0
 pulse.tick_threads(store, world, ws.catalog, st, now, random.Random(0))
