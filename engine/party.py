@@ -398,7 +398,10 @@ def pick_memories(member: dict, text: str = "", n: int = 3, day: int | None = No
     if not picks and day is not None and mem[-1].get("day") == day:
         picks = [mem[-1]]
     picks.sort(key=lambda x: x["day"])
-    return [f"day {x['day']}: {x['text']}" + (" (more than once)" if x.get("count", 1) > 1 and x.get("kind", "event") == "event" else "") for x in picks]
+    from engine import clock                                 # (f488, G1) told from now in words, never a day number
+    now = int(day if day is not None else max(x["day"] for x in mem)) * clock.MINUTES_PER_DAY
+    return [f"{clock.ago_day(x['day'], now, str(member.get('id', '')))}: {x['text']}"
+            + (" (more than once)" if x.get("count", 1) > 1 and x.get("kind", "event") == "event" else "") for x in picks]
 
 
 def set_mood(member: dict, text: str, minutes: int, lasts: int | None = None) -> None:

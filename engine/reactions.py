@@ -78,7 +78,9 @@ class Reactions:
         if ent is None or entities.final(ent):
             return
         ent.data.update(how=e.text(), place=self.ws.player.location, place_name=self.ws.place.name if self.ws.place else "",
-                        note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player")
+                        note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player",
+                        knew=sorted(str(m["id"]) for m in self.ws.player.party if m.get("id") and str(m["id"]) != str(e.member_id)
+                                    and not m.get("story")))   # (f488, S4) who travelled with them: only they grieve them
         entities.move(self.ws.store, ent, "dead", e.minute or self.ws.minutes, e.text())
         self._let_go(e.member_id, "hire_died")
 

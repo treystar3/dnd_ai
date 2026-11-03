@@ -476,13 +476,26 @@ def _fallen(scene: Scene):
     ws = scene.ws
     F = T.get("fallen") or {}
     out = []
-    dead = [e for e in ws.store.find_entities(kind="hire", state="dead") if ws.minutes - e.since <= F.get("days", 60) * 1440][-F.get("most", 4):]
-    for e in reversed(dead):
+    every = ws.store.find_entities(kind="hire", state="dead")
+    living = {str(m["id"]) for m in ws.player.party if m.get("id")}
+    most = int(F.get("most", 4))
+
+    def knew(e) -> set:
+        """(f488, S4) Who travelled with them when they fell; a death from before it was kept, everyone travelling now."""
+        return set(e.data.get("knew") if "knew" in e.data else living)
+    grieved = [e for e in every if knew(e) & living][-most:]          # the hires': by state, never by age, the newest always
+    told = [e for e in every if ws.minutes - e.since <= F.get("days", 60) * 1440][-most:]     # the narrator's, as it was
+    for e in reversed(sorted({id(x): x for x in grieved + told}.values(), key=lambda x: (x.since, x.ref))):
         when = clock.ago(e.since, ws.minutes)                              # (f477) how long ago, in words
         where = f" at {e.data['place_name']}" if e.data.get("place_name") else ""
+        tags = {f"npc:hire:{h}" for h in knew(e) & living} if e in grieved else set()
+        if tags:
+            tags.add("npc:party")                                          # the party among themselves (the PARTY viewer, an exchange): some knew them
+        if e in told:
+            tags.add("narrator")
         out.append(Fact("fallen", f"{e.name} ({entities.people_word(ws.world, e.people) or 'person'}, {e.pronoun}), "
                                   f"{e.data.get('role') and 'a hired ' + e.data['role'] or 'a companion'}: died {when}{where}",
-                        frozenset({"party", "narrator"})))
+                        frozenset(tags)))
     return out
 
 

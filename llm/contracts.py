@@ -796,8 +796,9 @@ class CompanionReply(BaseModel):
     gesture: str = ""
     remember: str = ""
     impression: str = ""
+    they_promised: str = ""             # (f488, G4) a promise the one who hired them made in this exchange, in a few words; else empty
 
-    _blank = blank_placeholders("speech", "gesture", "remember", "impression")
+    _blank = blank_placeholders("speech", "gesture", "remember", "impression", "they_promised")
 
     def spoken(self):
         return [("", self.speech)] if self.speech else []

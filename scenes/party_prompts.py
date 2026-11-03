@@ -33,10 +33,12 @@ Also return:
     sentence in your own words, in the first person ("They told me their brother was killed by bandits."). Keep what was said, never that a
     question was asked. Empty for small talk, and empty if you already remember it.
   impression: only if what you think of the player has just changed, one short line of what you think of them now. Otherwise empty.
+  they_promised: only if the player promised you something in this message ("I'll pay you double at the next town"): what they promised, in
+    a few words. Otherwise empty. It is their word, not yet done.
 Whatever specific thing you say about yourself becomes true of you for good, so choose it with care, and never contradict anything given
 as true of you.
 """ + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
-Respond only with JSON matching the schema: {"speech": "...", "gesture": "", "remember": "", "impression": ""}.""")
+Respond only with JSON matching the schema: {"speech": "...", "gesture": "", "remember": "", "impression": "", "they_promised": ""}.""")
 
 
 def talk_request(core: str, relation: str, now: list[str], memories: list[str], recent: list, player: str, text: str, unsaid: str = "",

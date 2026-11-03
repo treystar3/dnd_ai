@@ -568,14 +568,8 @@ class MentorActions:
         if _re.search(r"\b(head|go|walk|step|let'?s go|lets go|get going|i'?m ready|lead the way|take me)\b", low) and \
                 _re.search(r"\b(inside|in|hall|guild|clerk|register|sign|on|go)\b", low):
             return True
-        if not getattr(config, "VOICED_MENTOR", True) or len(low.split()) < 3:
-            return False
-        try:
-            r = generate("mentor_chat", mentor.chat_system(), mentor.chat_prompt(self.player, self.place.name, text), MentorReply,
-                         temperature=0.2, max_tokens=120, retries=0)
-            return bool(r.moves_on)
-        except LLMError:
-            return False
+        return False                                          # (f488) no second whole call to read it: plain going words settle it, and
+                                                              # anything else she answers (mentor_lecture_chunk), as one call does
 
     def mentor_escort(self) -> None:
         """She walks them to the guild hall herself, sees them signed into the register, and shows them the board there."""

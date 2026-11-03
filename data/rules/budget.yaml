@@ -23,7 +23,8 @@ retention:
 # (f485, Bundle D R1: read, ask, commit) The tasks an operation needs that are asked outside its transaction (engine/asked.py): the
 # operation stands down when it reaches one, the call is made with no transaction open, and the operation runs again from its start,
 # given the answer (or the failure) at the same point. A family moves out of the transactions by being named here.
-asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, npc_parting]
+asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, npc_parting,        # (f485) the townsfolk's talk
+                hire_chat, mentor_chat, mentor_speech, mentor_voice, canon_extract, canon_check]             # (f488) the hires' and Maren's
 tasks:
   # ---- understanding the line
   interpret_action:         {need: required, answer_tokens: 120}

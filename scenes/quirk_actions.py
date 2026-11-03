@@ -92,7 +92,8 @@ class QuirkActions:
     def quirk_crew(self) -> list[dict]:
         if self.combat or self.player.delve:
             return []
-        return [self.quirked(m) for m in self.player.party if m.get("permanent") and not m.get("story") and self.player.party_mode == "with"]
+        from engine import presence                          # (f488, S6) those here and awake: one away, downed or fallen hears nothing of it
+        return [self.quirked(m) for m in presence.hires(self) if m.get("permanent") and not m.get("story") and self.player.party_mode == "with"]
 
     def quirk_rng(self, salt: str = "") -> random.Random:
         return random.Random(f"{self.store.meta.seed}:{self.minutes}:{salt}")

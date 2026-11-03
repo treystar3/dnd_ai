@@ -707,6 +707,8 @@ class PartyActions:
             console.debug(f"{m['name']} (hire): remember={r.remember!r} impression={r.impression!r}")
             if r.remember:
                 rules.remember(m, day, r.remember, 2, kind="fact")
+            if r.they_promised.strip():                         # (f488, G4) the promise made to them: their word, theirs to hold
+                rules.remember(m, day, f"The one who hired me promised: {r.they_promised.strip()}", 2, kind="fact")
             if r.impression:
                 m["impression"] = r.impression
             break
