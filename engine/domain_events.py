@@ -244,10 +244,10 @@ class Theft(Deed):
         return f"{'took' if self.took else 'tried to take'} {self.item}" + (f" from {self.name}" if self.name else "")
 
     def victim_line(self) -> str:
-        return f"Caught the stranger {'taking' if self.took else 'trying to take'} {self.item} from me."
+        return f"Caught {{them}} {'taking' if self.took else 'trying to take'} {self.item} from me."
 
     def witness_line(self) -> str:
-        return f"Saw the stranger {'took' if self.took else 'tried to take'} {self.item}" + (f" from {self.name}." if self.npc else ".")
+        return f"Saw {{them}} {'took' if self.took else 'tried to take'} {self.item}" + (f" from {self.name}." if self.npc else ".")
 
     def unseen_line(self) -> str:
         return f"{self.item.capitalize()} has gone missing. I have no idea who took it." if self.took and self.npc else ""
@@ -271,10 +271,10 @@ class BreakIn(Deed):
         return f"{'broke into' if self.opened else 'tried to break into'} {self.lock}"
 
     def victim_line(self) -> str:
-        return f"Caught the stranger {'breaking into' if self.opened else 'trying to break into'} {self.lock}."
+        return f"Caught {{them}} {'breaking into' if self.opened else 'trying to break into'} {self.lock}."
 
     def witness_line(self) -> str:
-        return f"Saw the stranger {'break into' if self.opened else 'try to break into'} {self.lock}."
+        return f"Saw {{them}} {'break into' if self.opened else 'try to break into'} {self.lock}."
 
     def item_label(self) -> str:
         return self.lock
@@ -293,10 +293,10 @@ class PersonHarmed(Deed):
         return f"laid hands on {self.name}"
 
     def victim_line(self) -> str:
-        return "The stranger laid hands on me."
+        return "{them} laid hands on me."
 
     def witness_line(self) -> str:
-        return f"Saw the stranger lay hands on {self.name}."
+        return f"Saw {{them}} lay hands on {self.name}."
 
     def item_label(self) -> str:
         return self.name
@@ -315,7 +315,7 @@ class FinePaid(Deed):
 
     def victim_line(self) -> str:
         from engine import money
-        return f"The stranger paid {money.words(self.amount)} to settle their crimes."
+        return f"{{them}} paid {money.words(self.amount)} to settle their crimes."
 
 
 @dataclass(frozen=True)
@@ -326,7 +326,7 @@ class TalkedOut(Deed):
         return "talked their way out of trouble with the watch"
 
     def victim_line(self) -> str:
-        return "The stranger talked their way out of trouble with me."
+        return "{them} talked their way out of trouble with me."
 
 
 @dataclass(frozen=True)
@@ -337,7 +337,7 @@ class RanFromWatch(Deed):
         return "ran from the watch"
 
     def victim_line(self) -> str:
-        return "The stranger ran from the watch."
+        return "{them} ran from the watch."
 
 
 @dataclass(frozen=True)
@@ -350,8 +350,8 @@ class Jailed(Deed):
         return "walked free of the cells, their kind being fined, not jailed" if self.walked else f"spent {self.days} days in the cells"
 
     def victim_line(self) -> str:
-        return ("The stranger's kind do not see the inside of a cell. They paid what they could and walked." if self.walked
-                else "The stranger spent time in the cells.")
+        return ("{them}'s kind do not see the inside of a cell. They paid what they could and walked." if self.walked
+                else "{them} spent time in the cells.")
 
 
 @dataclass(frozen=True)
@@ -371,12 +371,12 @@ class Bribe(Deed):
         from engine import money
         sum_ = money.words(self.amount)
         if self.confrontation:
-            return f"Took {sum_} from the stranger to forget what I knew." if self.worked else "The stranger tried to bribe me. I did not take it."
+            return f"Took {sum_} from {{them}} to forget what I knew." if self.worked else "{them} tried to bribe me. I did not take it."
         if self.worked:
-            return f"Took {sum_} from the stranger as a bribe ({self.favor}). I was persuaded."
+            return f"Took {sum_} from {{them}} as a bribe ({self.favor}). I was persuaded."
         if self.degree == "partial":
-            return f"The stranger offered {sum_} to {self.favor}. It was not enough; I held out for more."
-        return f"The stranger tried to bribe me with {sum_} ({self.favor}). I refused, and I trust them less for it."
+            return f"{{them}} offered {sum_} to {self.favor}. It was not enough; I held out for more."
+        return f"{{them}} tried to bribe me with {sum_} ({self.favor}). I refused, and I trust them less for it."
 
     @property
     def worked_on_guard(self) -> bool:
@@ -407,7 +407,7 @@ class Prayed(Deed):
         return "prayed" + (f" to {self.god}" if self.god else "") + (" at the temple" if self.temple else "")
 
     def victim_line(self) -> str:
-        return "The stranger stopped to pray" + (f" to {self.god}" if self.god else "") + (", here before the altar." if self.temple else ".")
+        return "{them} stopped to pray" + (f" to {self.god}" if self.god else "") + (", here before the altar." if self.temple else ".")
 
 
 @dataclass(frozen=True)
@@ -422,7 +422,7 @@ class Gambled(Deed):
 
     def victim_line(self) -> str:
         from engine import money
-        return (f"Played the stranger at dice for {money.words(self.amount)}; they " + ("took my coin." if self.won > 0 else "lost theirs." if self.won < 0 else "broke even."))
+        return (f"Played {{them}} at dice for {money.words(self.amount)}; they " + ("took my coin." if self.won > 0 else "lost theirs." if self.won < 0 else "broke even."))
 
 
 @dataclass(frozen=True)
@@ -436,7 +436,7 @@ class Gift(Deed):
 
     def victim_line(self) -> str:
         from engine import money
-        return f"The stranger gave me {self.item or money.words(self.coin)}, asking nothing for it."
+        return f"{{them}} gave me {self.item or money.words(self.coin)}, asking nothing for it."
 
 
 @dataclass(frozen=True)
@@ -450,8 +450,8 @@ class Delivered(Deed):
         return f"delivered {self.item} to {self.name}"
 
     def victim_line(self) -> str:
-        return (f"The stranger delivered {self.item} to me, as {self.asked_by} asked." if self.meant
-                else f"The stranger handed me {self.item}.")
+        return (f"{{them}} delivered {self.item} to me, as {self.asked_by} asked." if self.meant
+                else f"{{them}} handed me {self.item}.")
 
     def ledger_row(self) -> dict | None:
         return {"kind": "deliver", "item": self.item, "npc": self.npc, "npc_name": self.name}
@@ -486,7 +486,7 @@ class ContractDone(Deed):
 
     def victim_line(self) -> str:
         from engine import money
-        return f"The stranger finished {self.title.lower()}; I paid {money.words(self.coins)}."
+        return f"{{them}} finished {self.title.lower()}; I paid {money.words(self.coins)}."
 
     def item_label(self) -> str:
         return self.title
@@ -507,8 +507,8 @@ class ContractDropped(Deed):
         return f"{'walked away from' if self.how == 'abandoned' else 'let time run out on'} {self.title}"
 
     def victim_line(self) -> str:
-        return (f"The stranger took on my job - {self.title.lower()} - and walked away from it." if self.how == "abandoned"
-                else f"The stranger took on my job - {self.title.lower()} - and let the time run out.")
+        return (f"{{them}} took on my job - {self.title.lower()} - and walked away from it." if self.how == "abandoned"
+                else f"{{them}} took on my job - {self.title.lower()} - and let the time run out.")
 
 
 @dataclass(frozen=True)
@@ -540,7 +540,7 @@ class LieCaught(Deed):
         return f"was caught lying to {self.name}"
 
     def victim_line(self) -> str:
-        return "Caught the stranger in a lie."
+        return "Caught {them} in a lie."
 
 
 @dataclass(frozen=True)
@@ -551,7 +551,7 @@ class CaughtSpying(Deed):
         return f"was caught watching {self.name}"
 
     def victim_line(self) -> str:
-        return "Caught the stranger watching me from hiding."
+        return "Caught {them} watching me from hiding."
 
 
 @dataclass(frozen=True)
@@ -564,7 +564,7 @@ class Pickpocketed(Deed):
         return f"{'was caught picking' if self.caught else 'picked'} {self.name}'s pocket"
 
     def victim_line(self) -> str:
-        return "The stranger tried to pick my pocket, and I caught them at it." if self.caught else ""
+        return "{them} tried to pick my pocket, and I caught them at it." if self.caught else ""
 
 
 @dataclass(frozen=True)
@@ -592,8 +592,8 @@ class Traded(Deed):
 
     def victim_line(self) -> str:
         from engine import money
-        return (f"Sold the stranger {self.item} for {money.words(self.coins)}." if self.bought
-                else f"Bought {self.item} from the stranger for {money.words(self.coins)}.")
+        return (f"Sold {{them}} {self.item} for {money.words(self.coins)}." if self.bought
+                else f"Bought {self.item} from {{them}} for {money.words(self.coins)}.")
 
 
 @dataclass(frozen=True)
@@ -609,8 +609,8 @@ class Worked(Deed):
     def victim_line(self) -> str:
         from engine import money
         if self.unasked:
-            return "The stranger pitched in and helped me with my work, unasked and unpaid."
-        return f"The stranger did the work I asked - {self.task} - and I paid {money.words(self.paid)}."
+            return "{them} pitched in and helped me with my work, unasked and unpaid."
+        return f"{{them}} did the work I asked - {self.task} - and I paid {money.words(self.paid)}."
 
 
 @dataclass(frozen=True)
@@ -622,7 +622,7 @@ class Trained(Deed):
         return f"was taught {self.ability} by {self.name}"
 
     def victim_line(self) -> str:
-        return f"Taught the stranger {self.ability}."
+        return f"Taught {{them}} {self.ability}."
 
 
 @dataclass(frozen=True)
@@ -633,7 +633,7 @@ class JoinedGuild(Deed):
         return "joined the adventurers' guild at rank F"
 
     def victim_line(self) -> str:
-        return "Signed the stranger into the guild register at rank F."
+        return "Signed {them} into the guild register at rank F."
 
 
 @dataclass(frozen=True)

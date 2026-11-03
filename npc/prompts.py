@@ -212,9 +212,10 @@ def _knowledge(npc, facts, convo, wares, extra, now: int | None = None) -> str:
         who = f"Someone you have met before. They told you their name is {npc.knows_player_as}."
     else:
         who = "Someone you have met before, though you don't know their name."
-    shared = [m for m in npc.memories if not m.text.startswith("(my own life)")]        # their own life is given separately
+    from engine import memory as _memory
+    shared = [m for m in npc.memories if m.kind != "own_life"]        # their own life is given separately (f478: by kind, not by a prefix)
     from engine import clock
-    memories = "\n".join(f"  - {clock.ago_day(m.day, now, npc.id) if now is not None else f'day {m.day}'}: {m.text}"   # (f477) from now, in words
+    memories = "\n".join(f"  - {clock.ago_day(m.day, now, npc.id) if now is not None else f'day {m.day}'}: {_memory.render(m.text)}"   # (f477) from now, in words
                          for m in shared[-12:]) or "  (none)"
     known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
     return (

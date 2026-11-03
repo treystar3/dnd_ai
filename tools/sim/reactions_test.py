@@ -83,7 +83,9 @@ check("in the wild the victim remembers but nothing else moves", len(mer.memorie
 # ---- a bribe to the watch, in a confrontation: the tale is about the watch, and the companions see it
 with store.transaction():
     publish(Bribe(minute=ws.minutes, place="trading_square", witnesses=("g1",), npc="g1", name=grd.label(), amount=300, worked=True, degree="success", favor="forget what they knew", confrontation=True, guard=True))
-check("the guard remembers taking it", any(m.text == f"Took {money.words(300)} from the stranger to forget what I knew." for m in grd.memories), [m.text for m in grd.memories])
+from engine import memory as _memory                        # (f478) the line keeps a slot for the one who did it, read as "the stranger"
+check("the guard remembers taking it", any(_memory.render(m.text) == f"Took {money.words(300)} from the stranger to forget what I knew." for m in grd.memories),
+      [m.text for m in grd.memories])
 check("the watch's standing drops and the outlaws warm", standing.value(ws.player, "parth", "guards", day) < -3 and standing.value(ws.player, "parth", "outlaws", day) > 3, ws.player.standing)
 check("the companions get their say on it", DEEDS == ["bribe"], DEEDS)
 with store.transaction():

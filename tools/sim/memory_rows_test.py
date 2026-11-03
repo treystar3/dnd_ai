@@ -21,20 +21,24 @@ for d in range(1, 41):
     n.memories.append(Memory(day=d, turn=d, text=f"The stranger bought bread on day {d}."))
 n.memories.insert(3, Memory(day=4, turn=4, text="The stranger stole my purse.", importance=3))
 st.save_npc(n)
-check("saving a person makes a row of every new memory, and marks them saved", st.memory_count("n1") == 41 and all(m.id is not None for m in n.memories))
+# (f478) 41 experienced memories against a cap of 40 (data/rules/memory.yaml): the oldest routine one goes, the defining theft stays
+from engine import memory as _memory
+check("saving a person makes a row of every new memory, marks them saved, and keeps the kind within its cap",
+      st.memory_count("n1") == _memory.cap("n1", "experienced") == 40 and all(m.id is not None for m in n.memories), st.memory_count("n1"))
 raw = json.loads(st._db.execute("SELECT json FROM npcs WHERE id='n1'").fetchone()[0])
 check("...the record itself carries no memories (bounded), the table does", "memories" not in raw)
 got = st.load_npc("n1")
 check("loading gives a window: at most MEMORY_WINDOW, oldest first", len(got.memories) == MEMORY_WINDOW and [m.day for m in got.memories] == sorted(m.day for m in got.memories), len(got.memories))
 check("...the defining memory (the theft, day 4) survives in the window though 36 routine ones came after it", any("stole my purse" in m.text for m in got.memories))
 check("...and the window ends with the newest routine ones", got.memories[-1].text.endswith("day 40."))
-check("...the total is known without loading them all", got.memory_total == 41)
+check("...the total is known without loading them all", got.memory_total == 40)
 got.memories.append(Memory(day=41, turn=41, text="The stranger came back and paid for the bread."))
 st.save_npc(got)
-check("saving again adds only the new one; the old rows are untouched", st.memory_count("n1") == 42)
+check("saving again adds only the new one, and the oldest routine row past the cap goes (f478)", st.memory_count("n1") == 40
+      and any("came back" in m.text for m in st.load_npc("n1").memories))
 st.forget_memory(got.memories[-1].id)
-check("a forgotten memory leaves the window but stays as history", st.memory_count("n1") == 41 and not any("came back" in m.text for m in st.load_npc("n1").memories)
-      and st._db.execute("SELECT COUNT(*) FROM npc_memory WHERE npc_id='n1'").fetchone()[0] == 42)
+check("a forgotten memory leaves the window but stays as history", st.memory_count("n1") == 39 and not any("came back" in m.text for m in st.load_npc("n1").memories)
+      and st._db.execute("SELECT COUNT(*) FROM npc_memory WHERE npc_id='n1'").fetchone()[0] == 40)
 st.close(); shutil.rmtree(root)
 
 # ---- a v1 database (memories inside the record) comes forward with nothing lost, and a backup taken

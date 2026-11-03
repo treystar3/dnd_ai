@@ -3308,7 +3308,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             lines.append(f"How you feel about people you know: {feelings}")
         if self.owns("gossips_ear"):                        # (f313) the news itself is in the truth view (NEWS THAT HAS REACHED HERE)
             lines.append("You like passing on news to the stranger - tell them what you've heard without being asked.")
-        own = [m.text.replace("(my own life) ", "") for m in npc.memories if m.text.startswith("(my own life)")][-2:]
+        own = [m.text for m in npc.memories if m.kind == "own_life"][-2:]          # (f478) their own life, by kind
         if own:
             lines.append("What has happened in your own life since you last saw the stranger: " + " ".join(own))
         town = pulse.town_of(self.world, npc.location)

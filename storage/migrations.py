@@ -142,6 +142,30 @@ def _v9_entities(store) -> None:
         store.execute(stmt)
 
 
+def typed_memory(store) -> None:
+    """(f478) npc_memory's typed columns and their indexes: added by v10 to an older save, and made with a new one (storage/campaign.py)."""
+    for col, ddl in (("subject", "TEXT NOT NULL DEFAULT ''"), ("source", "TEXT NOT NULL DEFAULT ''"), ("about", "TEXT NOT NULL DEFAULT ''"),
+                     ("minute", "INTEGER NOT NULL DEFAULT -1"), ("times", "INTEGER NOT NULL DEFAULT 1")):
+        have = {r[1] for r in store._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+        if col not in have:
+            store._db.execute(f"ALTER TABLE npc_memory ADD COLUMN {col} {ddl}")
+    store._db.execute("CREATE INDEX IF NOT EXISTS npc_memory_kind ON npc_memory (npc_id, kind, minute)")
+    store._db.execute("CREATE INDEX IF NOT EXISTS npc_memory_subject ON npc_memory (npc_id, subject)")
+
+
+def _v10_memory_kinds(store) -> None:
+    """(f478) What people remember, typed: each row says what it is (experienced, witnessed, noticed, heard, told, own_life...), whom it
+    is about (subject), who said it (source), what it is about (about, so a repeat counts up) and when to the minute. Old rows are typed
+    the least-work way (GOALS.md S8): "(my own life) " rows become own_life with the prefix stripped (it was machinery in the text); a
+    row the world wrote with no turn (turn -1) is about no one: an anchor's "I dealt with ... myself" is their own life, a disaster
+    lived through is experienced; every other row was something the player did, experienced, about the player."""
+    typed_memory(store)
+    store.execute("UPDATE npc_memory SET kind = 'own_life', subject = '', text = substr(text, 15) WHERE text LIKE '(my own life) %'")
+    store.execute("UPDATE npc_memory SET kind = 'own_life', subject = '' WHERE kind = 'event' AND turn = -1 AND text LIKE 'I dealt with %'")
+    store.execute("UPDATE npc_memory SET kind = 'experienced', subject = '' WHERE kind = 'event' AND turn = -1")
+    store.execute("UPDATE npc_memory SET kind = 'experienced', subject = 'player' WHERE kind = 'event'")
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -152,6 +176,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (7, "Maren leaves Parth once the lesson is over, on the capital's work", _v7_maren_moves_on),
     (8, "every hire keeps the pronoun they were drawn with", _v8_hire_pronouns),
     (9, "the registry of who someone is and what has become of them", _v9_entities),
+    (10, "memories typed: what each is, whom it is about, who said it, what it is about, and when", _v10_memory_kinds),   # (f478)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

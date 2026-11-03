@@ -38,7 +38,7 @@ def move(store, world, state: dict, npc, t: int, rng: random.Random) -> bool:
     from engine import clock, drift, pulse
     from npc.models import Memory
     row = step_for(npc, world, t)
-    npc.memories.append(Memory(day=clock.day(t), turn=-1, text=f"(my own life) {row['line']}"))
+    npc.memories.append(Memory(day=clock.day(t), turn=-1, text=row["line"], kind="own_life", subject="", source="self", minute=int(t)))   # (f478)
     if not npc.concern_from:                                            # a matter's concern (engine/matters.py) wins
         npc.concern = row["line"]
     if row["mood"]:

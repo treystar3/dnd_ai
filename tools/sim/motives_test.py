@@ -42,7 +42,7 @@ ok = pulse.move_motive(store, world, catalog, state, start + 480, random.Random(
 gw._client = real
 n = store.load_npc(npc.id)
 check("a step moves without a model call: a first-person memory of it, their concern, a mood, gossip in the news, the step counted",
-      ok and not calls and n.memories and n.memories[-1].text.startswith("(my own life) ") and n.concern == n.memories[-1].text[len("(my own life) "):]
+      ok and not calls and n.memories and n.memories[-1].kind == "own_life" and n.concern == n.memories[-1].text      # (f478) by kind, no prefix
       and n.mood and n.motive_step == 1 and state["news"] and n.name in state["news"][-1]["text"], (calls, n.concern, n.mood, n.motive_step, state["news"][-1:]))
 check("the step comes from the table for the trait the goal came from", n.memories[-1].text.endswith(motives.M["by_seed"]["ambitious"][0]["line"].format(name=n.name, role=n.role.replace("_", " "), town="Parth", motive="")))
 pulse.P["drift"]["motives"]["made_chance"] = 1.0

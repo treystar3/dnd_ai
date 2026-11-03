@@ -1,0 +1,16 @@
+# (f478, GOALS.md "every store has a cap") How much a person keeps of each kind of memory (engine/memory.py, storage/campaign.py _trim).
+# Past a cap, rows go lowest importance first, then oldest: a defining memory goes last, but within the cap like any other, so no kind
+# grows without bound on a long campaign; the journal keeps the trail. The owner's first numbers (2026-11-03, Q4), tuned from the first
+# night after Bundle D.
+#
+#   experienced    what happened to them, with the player there (a sale, a theft caught, a gift)
+#   witnessed      what they saw done to someone else
+#   noticed        what they found afterwards, not seeing who did it
+#   heard          what reached them from others (a matter's end, the guild's word)
+#   told           what someone said to them about themselves or the world (f482)
+#   own_life       their own life, with no one else in it
+#   promise_heard  a promise made to them (f482)
+#   said           what they said of themselves (a hire's claims, f482)
+#   knows          a thing they know, held for a matter (f483)
+#   revision       how they changed (f483)
+townsfolk: {experienced: 40, witnessed: 20, noticed: 10, heard: 16, told: 16, own_life: 12, promise_heard: 8, said: 8, knows: 12, revision: 8}

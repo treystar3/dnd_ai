@@ -466,10 +466,10 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
     ps.memory = (ps.memory + [{"text": text, "minute": minutes}])[-12:]
     store.save_place(ps)
     line = f"{name} settled {th['title'].lower()}." if how == "settled" else f"{name} was asked about {th['title'].lower()}, and let it be."
-    for nid in {c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set()):
-        if store.npc_exists(nid):
+    for nid in sorted({c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set())):   # (f478) in order,
+        if store.npc_exists(nid):                                                            # never the set's, so the row ids are the same in every process
             n = store.load_npc(nid)
-            n.memories.append(Memory(day=clock.day(minutes), turn=turn, text=line, importance=2))
+            n.memories.append(Memory(day=clock.day(minutes), turn=turn, text=line, importance=2, kind="heard", subject="", source="town", minute=minutes))
             store.save_npc(n)
     console.debug(f"matter: {town} remembers - {text}")
 

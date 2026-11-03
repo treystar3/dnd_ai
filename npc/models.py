@@ -21,7 +21,12 @@ class Memory(BaseModel):
     turn: int
     text: str
     importance: int = 1
-    kind: str = "event"
+    kind: str = "experienced"   # (f478) experienced, witnessed, noticed, heard, told, own_life, ... (engine/memory.py KINDS)
+    subject: str = "player"     # (f478) whom it is about: a character's id ("player" today), a person's, or "" for no one
+    source: str = ""            # (f478) who it came from: self (seen or lived), a person's id, "town", "guild"
+    about: str = ""             # (f478) what it is about, so the same thing again counts up (times) instead of filling the rows
+    minute: int = -1            # (f478) when, to the minute (-1: only the day is known)
+    times: int = 1
     id: int | None = None
 
 

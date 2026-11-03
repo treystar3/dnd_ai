@@ -153,7 +153,8 @@ def taken(ws, q: dict) -> None:
     if not q.get("issuer") or not ws.store.npc_exists(q["issuer"]):
         return
     n = ws.store.load_npc(q["issuer"])
-    n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, text=f"The guild says the stranger has taken on my job: {q['title'].lower()}.", importance=2))
+    n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, text=f"The guild says the stranger has taken on my job: {q['title'].lower()}.", importance=2,
+                             kind="heard", source="guild", minute=ws.minutes))                 # (f478) the guild's word, about the player
     ws.store.save_npc(n)
 
 
@@ -166,7 +167,7 @@ def done(ws, q: dict) -> None:
     town = pulse.town_of(ws.world, ws.player.location)                  # paid at the hall: the hall's town is the one that remembers
     if q.get("issuer") and ws.store.npc_exists(q["issuer"]):
         n = ws.store.load_npc(q["issuer"])
-        n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn,
+        n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, kind="experienced", source="self", minute=ws.minutes,   # (f478)
                                  text=f"{name} did my job - {q['title'].lower()}." + (f" {q['result'][0].upper() + q['result'][1:]}." if q.get("result") else ""), importance=2))
         n.trust = min(100, n.trust + G.get("issuer_thanks_trust", 5))
         ws.store.save_npc(n)

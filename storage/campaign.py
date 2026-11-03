@@ -260,6 +260,7 @@ class CampaignStore:
             db.executescript(SCHEMA_V1)                   # an older one is brought forward step by step below (storage/migrations.py)
             db.executescript(SCHEMA_V2)
             db.executescript(SCHEMA_V3)
+            migrations.typed_memory(store)                # (f478) memories typed, as v10 makes them on an older save
             store.set_version(migrations.CURRENT)
             if (root / "campaign.json").exists():
                 store._import_legacy()
@@ -647,11 +648,46 @@ class CampaignStore:
         with self._lock, self.transaction():
             self._db.execute(f"INSERT INTO npcs ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))}) ON CONFLICT(id) DO UPDATE SET {sets}",
                              (npc.id, npc.model_dump_json(exclude={"memories", "memory_total"})) + tuple(idx[c] for c in NPC_COLUMNS))
+            kinds = set()
             for m in npc.memories:                        # a memory made this turn becomes a row; the ones already rows are left alone
                 if m.id is None:
-                    cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text) VALUES (?, ?, ?, ?, ?, ?)",
-                                           (npc.id, m.day, m.turn, m.kind, int(m.importance), m.text))
-                    m.id = cur.lastrowid
+                    m.id = self._keep_row(npc.id, m)
+                    kinds.add(m.kind)
+            for kind in sorted(kinds):                    # (f478) every kind within its cap, in the same transaction as the write
+                self._trim(npc.id, kind)
+
+    def _memory_typed(self) -> bool:
+        """(f478) Whether npc_memory has its typed columns (an older save on its way through its migrations does not yet)."""
+        return "subject" in {r[1] for r in self._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+
+    def _keep_row(self, npc_id: str, m) -> int:
+        """(f478) One memory as a row: the same thing again (its about) counts up on the row it already has, else a new row."""
+        if not self._memory_typed():                    # a migration before v10 saving a person: the row as that schema has it
+            cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text) VALUES (?, ?, ?, ?, ?, ?)",
+                                   (npc_id, m.day, m.turn, "event", int(m.importance), m.text))
+            return int(cur.lastrowid)
+        if m.about:
+            got = self._db.execute("SELECT id FROM npc_memory WHERE npc_id = ? AND kind = ? AND about = ? AND forgotten = 0 ORDER BY id DESC LIMIT 1",
+                                   (npc_id, m.kind, m.about)).fetchone()
+            if got:
+                self._db.execute("UPDATE npc_memory SET times = times + 1, day = ?, turn = ?, minute = ?, importance = MAX(importance, ?) WHERE id = ?",
+                                 (m.day, m.turn, m.minute, int(m.importance), got[0]))
+                return int(got[0])
+        cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               (npc_id, m.day, m.turn, m.kind, int(m.importance), m.text, m.subject, m.source, m.about, int(m.minute), int(m.times)))
+        return int(cur.lastrowid)
+
+    def _trim(self, npc_id: str, kind: str) -> None:
+        """(f478) A person keeps at most their cap of each kind (data/rules/memory.yaml). Past it, rows are deleted lowest importance first,
+        then oldest: a defining memory (importance 3) goes last, but within the cap like any other, so no kind grows without bound on a
+        long campaign. The journal keeps the trail of what happened."""
+        from engine import memory
+        cap = memory.cap(npc_id, kind)
+        n = int(self._db.execute("SELECT COUNT(*) FROM npc_memory WHERE npc_id = ? AND kind = ? AND forgotten = 0", (npc_id, kind)).fetchone()[0])
+        if n > cap:
+            self._db.execute("DELETE FROM npc_memory WHERE id IN (SELECT id FROM npc_memory WHERE npc_id = ? AND kind = ? AND forgotten = 0 "
+                             "ORDER BY importance ASC, minute ASC, id ASC LIMIT ?)", (npc_id, kind, n - cap))
 
     # ---------- what people remember: rows, with the record carrying a window ----------
 
@@ -663,10 +699,17 @@ class CampaignStore:
         """What a person remembers, oldest first: every defining memory, then the newest of the rest up to the limit. Recency is not
         importance: a defining memory is never pushed out by routine ones."""
         with self._lock:
-            rows = self._db.execute("SELECT id, day, turn, kind, importance, text FROM npc_memory WHERE npc_id = ? AND forgotten = 0 AND importance >= ? "
+            typed = self._memory_typed()
+            cols = "id, day, turn, kind, importance, text" + (", subject, source, about, minute, times" if typed else "")
+            rows = self._db.execute(f"SELECT {cols} FROM npc_memory WHERE npc_id = ? AND forgotten = 0 AND importance >= ? "
                                     "ORDER BY (importance >= ?) DESC, id DESC LIMIT ?", (npc_id, int(min_importance), MEMORY_DEFINING, int(limit))).fetchall()
         rows.sort(key=lambda r: r[0])
-        return [Memory(id=r[0], day=r[1], turn=r[2], kind=r[3], importance=r[4], text=r[5]) for r in rows]
+        from engine import memory
+        out = []
+        for r in rows:
+            extra = dict(zip(("subject", "source", "about", "minute", "times"), r[6:])) if typed else {}
+            out.append(Memory(id=r[0], day=r[1], turn=r[2], kind=r[3], importance=r[4], text=memory.render(r[5]), **extra))   # (f478) {them} read
+        return out
 
     def memory_count(self, npc_id: str) -> int:
         with self._lock:

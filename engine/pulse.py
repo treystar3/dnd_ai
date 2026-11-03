@@ -562,7 +562,8 @@ def resolver(store, world, th, rng) -> str:
     anchors = [n for n in store.load_npcs([r.id for r in retrieval.people_in_town(store, world, town)]) if n.anchor]
     if anchors and rng.random() < P.get("anchor_settles", 0.5):
         n = rng.choice(anchors)
-        n.memories.append(Memory(day=clock.day(th["times"][-1]), turn=-1, text=f"I dealt with {th['title'].lower()} myself, in the end.", importance=2))
+        n.memories.append(Memory(day=clock.day(th["times"][-1]), turn=-1, text=f"I dealt with {th['title'].lower()} myself, in the end.", importance=2,
+                                 kind="own_life", subject="", source="self", minute=int(th["times"][-1])))     # (f478) their own life
         store.save_npc(n)
         return f"{n.name}, the {n.role.replace('_', ' ')}"
     if rng.random() < 0.4:
@@ -669,7 +670,7 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     if step.status != "continuing":
         npc.motive_done_at = t                                      # (f331) after a while a new one may take hold (engine/drift.py)
     from npc.models import Memory
-    npc.memories.append(Memory(day=clock.day(t), turn=-1, text=f"(my own life) {step.happened}"))
+    npc.memories.append(Memory(day=clock.day(t), turn=-1, text=step.happened, kind="own_life", subject="", source="self", minute=int(t)))   # (f478)
     store.save_npc(npc)
     if step.gossip.strip():
         add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"])

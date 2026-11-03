@@ -29,7 +29,7 @@ def check(n, ok, x=""):
 game = simlib.campaign("proof_bench_476")
 store = game.session.store
 far = NPC(id="pb1", name="Hob Marl", people="human", role="farmer", location="parth", traits=[], trust=50)
-far.memories.append(Memory(day=1, turn=1, text="Saw the stranger took a torch from the merchant.", importance=2))
+far.memories.append(Memory(day=1, turn=1, text="Saw {them} took a torch from the merchant.", importance=2, kind="witnessed"))
 far.memories.append(Memory(day=1, turn=2, text="The stranger bought a sack of seed from me.", importance=1))
 store.save_npc(far)
 for i in range(30):                                                       # thirty defining rows push the first out of the window
@@ -42,20 +42,16 @@ seen = simlib.remembered(store, "pb1", kind="witnessed", about="torch")
 check("...and remembered() still finds it, by kind, through the store", len(seen) == 1 and seen[0]["subject"] == "player", seen)
 check("...an ordinary dealing is experienced", simlib.remembered(store, "pb1", kind="experienced", about="seed"), simlib.remembered(store, "pb1")[:2])
 own = NPC(id="pb2", name="Ma Tull", people="human", role="innkeeper", location="parth", traits=[], trust=50)
-own.memories.append(Memory(day=1, turn=-1, text="(my own life) Buried my brother in the spring.", importance=2))
-own.memories.append(Memory(day=2, turn=-1, text="I dealt with the bridge quarrel myself, in the end.", importance=2))
-own.memories.append(Memory(day=3, turn=4, text="Hob Marl settled the bridge quarrel.", importance=2))
+own.memories.append(Memory(day=1, turn=-1, text="Buried my brother in the spring.", importance=2, kind="own_life", subject=""))
+own.memories.append(Memory(day=2, turn=-1, text="I dealt with the bridge quarrel myself, in the end.", importance=2, kind="own_life", subject=""))
+own.memories.append(Memory(day=3, turn=4, text="Hob Marl settled the bridge quarrel.", importance=2, kind="heard", subject="", source="town"))
 store.save_npc(own)
 check("a person's own life is own_life, an anchor's settling too, and a matter's end is heard",
       len(simlib.remembered(store, "pb2", kind="own_life")) == 2 and simlib.remembered(store, "pb2", kind="heard", about="bridge"),
       simlib.remembered(store, "pb2"))
 check("heard_by names who heard of a thing they did not see", simlib.heard_by(store, "bridge quarrel") == ["pb2"], simlib.heard_by(store, "bridge quarrel"))
-try:
-    simlib.remembered(store, "pb1", source="town")
-    refused = False
-except ValueError:
-    refused = True
-check("asking by what the save does not record yet (a source) is refused, never a quiet pass", refused)
+check("since f478 a memory's source is recorded and can be asked by", [r["text"] for r in simlib.remembered(store, "pb2", source="town")]
+      == ["Hob Marl settled the bridge quarrel."], simlib.remembered(store, "pb2"))
 simlib.reset_person(store, "pb1")
 check("reset_person leaves no row and an empty window", simlib.remembered(store, "pb1") == [] and store.load_npc("pb1").memories == [])
 

@@ -1083,7 +1083,7 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
 
 def _memory(t: int, text: str):
     from npc.models import Memory
-    return Memory(day=clock.day(t), turn=-1, text=text, importance=3)
+    return Memory(day=clock.day(t), turn=-1, text=text, importance=3, kind="experienced", subject="", source="self", minute=int(t))   # (f478) about no one
 
 
 def _vacancy_for(state: dict, world, place_id: str, role: str, t: int, rng: random.Random) -> None:

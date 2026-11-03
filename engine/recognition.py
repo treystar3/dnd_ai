@@ -36,7 +36,8 @@ def line(npc, now: int) -> str:
     """What the person is told as a new conversation opens, or '' when it is no return."""
     if not away(npc, now):
         return ""
-    mem = next((m.text for m in reversed(getattr(npc, "memories", []) or []) if not m.text.startswith("(my own life)")), "")
+    from engine import memory
+    mem = next((memory.render(m.text) for m in reversed(getattr(npc, "memories", []) or []) if m.kind != "own_life"), "")   # (f478) by kind
     last = R["last"].format(memory=mem.rstrip(".") + ".") if mem else ""
     return R["line"].format(ago=ago(now, last_talk(npc)), last=last)
 
