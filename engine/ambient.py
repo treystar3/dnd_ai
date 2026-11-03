@@ -101,7 +101,7 @@ def since(store, world, town: str, then: int, now: int) -> list[str]:
         out.append(f"the land about is more dangerous than it was (danger up {danger}%)")
     if not out:
         return []
-    away = clock.describe_duration(now - then)
+    away = clock.ago(then, now)                                            # (f477) how long ago, in words, never hours and minutes
     cond = towns.condition(store, world, town, now)
-    head = f"SINCE THE PLAYER WAS LAST HERE ({away} ago)" + (f", the town now {cond.name}" if cond.name != "calm" else "") + ":"
+    head = f"SINCE THE PLAYER WAS LAST HERE ({away})" + (f", the town now {cond.name}" if cond.name != "calm" else "") + ":"
     return [head + " " + "; ".join(out[-S.get("most", 4):]) + "."]

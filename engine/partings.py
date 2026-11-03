@@ -62,6 +62,8 @@ def request(ws, npc, text: str):
     p.fact(f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {ws.world.places[npc.location].name}.\n"
            f"PERSONALITY: {npc.personality or 'not yet known'}\nVOICE: {npc.voice or 'plain'}\nON YOUR MIND: {npc.concern or 'nothing in particular'}\n"
            f"THE ONE LEAVING: {who}; {trust_words(npc.trust)}.")
+    from engine import clock, weather
+    p.fact(clock.now_line(ws.minutes, weather.describe(ws.store.meta.seed, ws.minutes)[1].lower()), "NOW")   # (f477) the hour, as they know it
     stance = getattr(ws, "stance", "")
     if stance:
         p.instruction(stance, "RIGHT NOW YOU ARE")

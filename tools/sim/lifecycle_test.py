@@ -53,7 +53,7 @@ who = entities.identity(ws, f"hire:{gone['id']}")
 check("...so who they were is still known, by the one identity every writer reads", who is not None and who.name == gone["name"]
       and who.pronoun == gone["pronoun"], who)
 fallen = truth.scene_of(ws).view(truth.NARRATOR, "narrator").lines("fallen")
-check("the narrator is told of the fallen, never to be seen alive again", any(gone["name"] in l and "died today" in l for l in fallen), fallen)
+check("the narrator is told of the fallen, never to be seen alive again", any(gone["name"] in l and "died earlier today" in l for l in fallen), fallen)   # (f477) the converter's words
 SENT.clear()
 ws.narrate("The player looks around the square.", "I look around.")
 narr = [m for t, m in SENT if t == "Narration"]

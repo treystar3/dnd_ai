@@ -329,8 +329,7 @@ def converse(
         prompts.conversation_prompt(
             npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
             [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
-            f"day {clock.day(store.meta.minutes)}, {clock.period(store.meta.minutes)}, "
-            f"weather: {weather.describe(store.meta.seed, store.meta.minutes)[1].lower()}",
+            clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
             wares if wares is not None else
             [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells]
             + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
@@ -339,7 +338,7 @@ def converse(
                if world.roles[npc.role].commissions else []),
             extra, land.land_lines(world, npc.location), truth_text=truth_text,
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
-            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn),
+            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes,
         ),
         NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running

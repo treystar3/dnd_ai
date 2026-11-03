@@ -83,8 +83,9 @@ CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "And the board?"}]
 ws.turn("And the board?")
 check("...once, at the start of the talk", "THEY ARE BACK" not in asked_npc())
+# (f477) the words are the one converter's (data/rules/time_words.yaml): by calendar day, and past a month by the season it was then
 check("the way it is put", recognition.ago(1440 * 10 + 60, 1440 * 9) == "yesterday" and recognition.ago(1440 * 20, 1440 * 10) == "about a week ago"
-      and recognition.ago(1440 * 90, 0) == "months ago")
+      and recognition.ago(1440 * 90, 0) == "last spring", recognition.ago(1440 * 90, 0))
 
 # ---- companions: no second 'Morning.'
 def comp(speech, heard):

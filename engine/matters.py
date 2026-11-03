@@ -14,6 +14,7 @@ sender, opened, answered."""
 from __future__ import annotations
 
 import random
+import re
 from pathlib import Path
 
 import yaml
@@ -491,7 +492,13 @@ def town_memory(store, world, place_id: str, now: int) -> list[str]:
     if town not in world.places or world.places[town].danger:
         return []
     keep = D["memory"]["keep_days"] * 1440
-    return [m["text"] for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]   # a moment's memory fades sooner (engine/moments.py)
+    return [_undated(m["text"]) for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]
+
+
+def _undated(text: str) -> str:
+    """(f477) A town memory written with its date ("(spring, day 12)") is read without it: a day number is never told, and such rows
+    age out within their month."""
+    return re.sub(r"\s*\((?:spring|summer|autumn|winter), day \d+\)", "", text)   # a moment's memory fades sooner (engine/moments.py)
 
 
 # ---------- the journal

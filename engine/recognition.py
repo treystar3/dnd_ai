@@ -9,7 +9,6 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 R = yaml.safe_load((ROOT / "data" / "rules" / "recognition.yaml").read_text(encoding="utf-8"))
-WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
 
 
 def last_talk(npc) -> int:
@@ -22,20 +21,9 @@ def last_talk(npc) -> int:
 
 
 def ago(now: int, then: int) -> str:
-    """How long since, the way a person would put it."""
+    """How long since, the way a person would put it: (f477) the one converter's words (engine/clock.py ago, data/rules/time_words.yaml)."""
     from engine import clock
-    days = clock.day(now) - clock.day(then)
-    if days <= 0:
-        return "earlier today"
-    if days == 1:
-        return "yesterday"
-    if days < 7:
-        return f"{WORDS[days]} days ago"
-    if days < 14:
-        return "about a week ago"
-    if days < 60:
-        return f"{WORDS.get(days // 7, 'some')} weeks ago"
-    return "months ago"
+    return clock.ago(then, now)
 
 
 def away(npc, now: int) -> bool:

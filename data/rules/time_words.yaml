@@ -1,0 +1,17 @@
+# (f477, GOALS.md G1) How long ago a thing was, the way people put it: by calendar days and the season, never a day number or a digit.
+# engine/clock.py ago() reads it for the townsfolk's memories and their sense of the hour, a parting, the arrival's "since you were last
+# here", recognition, the fallen and what the player did lately. A speaker puts the same span the same way every time: the wording is
+# picked by who is speaking and the span, never drawn anew, so a person does not call one day "three days back" and then "three days ago".
+#
+# bands: from this many calendar days back (ascending); the last band whose `from` the span reaches is the one said.
+#   {n}       the number of days, in words (numbers below)
+#   {season}  the season it was then (seasons are 30 days, data/rules/pulse.yaml)
+bands:
+  - {from: 0,   say: ["earlier today"]}
+  - {from: 1,   say: ["yesterday"]}
+  - {from: 2,   say: ["{n} days ago", "{n} days back"]}
+  - {from: 7,   say: ["about a week ago", "a week or so back"]}
+  - {from: 14,  say: ["some weeks ago", "a few weeks back"]}
+  - {from: 30,  say: ["last {season}", "back in the {season}"]}
+  - {from: 120, say: ["a year or more back", "more than a year ago"]}
+numbers: {2: two, 3: three, 4: four, 5: five, 6: six}

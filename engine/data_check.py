@@ -543,6 +543,10 @@ def check() -> list[str]:
     # ---- (f475) Bundle D's baseline (data/measured, outside the hash): every task it measures is one the budget knows
     bad += baseline_problems()
 
+    # ---- (f477) how long ago, in words: bands ascending, no digits or dashes, every {n} covered
+    from engine import clock as _clock
+    bad += _clock.time_words_problems()
+
     # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
     from engine import failures as _failures
     bad += _failures.problems()

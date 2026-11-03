@@ -466,14 +466,13 @@ def _news(scene: Scene):
 def _fallen(scene: Scene):
     """(f392) The companions who died travelling with the player (engine/entities.py): known to the party and the narrator, so a death
     is spoken of and remembered, and the dead are never seen alive again."""
-    from engine import entities
+    from engine import clock, entities
     ws = scene.ws
     F = T.get("fallen") or {}
     out = []
     dead = [e for e in ws.store.find_entities(kind="hire", state="dead") if ws.minutes - e.since <= F.get("days", 60) * 1440][-F.get("most", 4):]
     for e in reversed(dead):
-        days = (ws.minutes - e.since) // 1440
-        when = "today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+        when = clock.ago(e.since, ws.minutes)                              # (f477) how long ago, in words
         where = f" at {e.data['place_name']}" if e.data.get("place_name") else ""
         out.append(Fact("fallen", f"{e.name} ({entities.people_word(ws.world, e.people) or 'person'}, {e.pronoun}), "
                                   f"{e.data.get('role') and 'a hired ' + e.data['role'] or 'a companion'}: died {when}{where}",
@@ -507,7 +506,7 @@ def _lately(scene: Scene):
             known = frozenset({f"npc:{w}" for w in witnesses} | {"narrator"})
         else:
             continue
-        when = "today" if clock.day(row["minute"]) == clock.day(ws.minutes) else f"day {clock.day(row['minute'])}"
+        when = "today" if clock.day(row["minute"]) == clock.day(ws.minutes) else clock.ago(row["minute"], ws.minutes)   # (f477) never a day number
         out.append(Fact("lately", f"{when}: the stranger {row['text']}", known, id=row["kind"]))
     return out[-int(L.get("most", 8)):]
 
