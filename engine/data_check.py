@@ -547,6 +547,10 @@ def check() -> list[str]:
     from engine import memory as _memory
     bad += _memory.problems()
 
+    # ---- (f480) what each person keeps of their view of each character
+    from engine import regard as _regard
+    bad += _regard.problems()
+
     # ---- (f477) how long ago, in words: bands ascending, no digits or dashes, every {n} covered
     from engine import clock as _clock
     bad += _clock.time_words_problems()

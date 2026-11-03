@@ -124,7 +124,7 @@ check("a person not there: waited for twice, then the goal is dropped", w1[2] ==
 
 # ---- a contract given up out loud, and the one who posted it told
 store.save_npc(b)
-q = {"id": "q_473", "title": "Hunt 3 wolves near Parth", "kind": "hunt", "guild": False, "issuer": b.id, "issuer_name": b.label(),
+q = {"id": "q_473", "title": "Hunt 3 wolves near Parth", "kind": "hunt", "guild": False, "issuer": b.id, "issuer_name": b.label("player"),
      "letter": "F", "creature": "wolf", "count": 3, "place": "tilted_plough", "progress": 0}
 ws.player.quests.append(q)
 gc = {"kind": "contract", "quest": "q_473", "tries": 30}
@@ -140,7 +140,7 @@ if iv:
     check("...where the bot owns that it could not see it through", "couldn't see the work you posted through" in text
           and bot.clog["issuer_visits"][-1]["outcome"] == "abandoned", text)
 ws.player.quests.remove(q)
-bot._issuer_goal({"issuer": b.id, "issuer_name": b.label(), "title": "Hunt 3 wolves"}, "done")
+bot._issuer_goal({"issuer": b.id, "issuer_name": b.label("player"), "title": "Hunt 3 wolves"}, "done")
 done_visit = next((x for x in bot.goals if x.get("why") == "issuer"), None)
 check("a contract reported done plans the same visit, with 'done'", done_visit is not None and done_visit["outcome"] == "done", bot.goals)
 bot._issuer_goal({"issuer": "guild", "title": "A guild job"}, "done")

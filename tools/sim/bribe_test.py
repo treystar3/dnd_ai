@@ -60,13 +60,13 @@ check("success tells the npc it accepted", "persuaded" in talks[0][1] and "take"
 g = guard()
 left = offer(g, 500, [("failure", 99)])
 check("failure keeps the coins", left == 100000, left)
-check("failure costs trust", store.load_npc("g1").trust == 50 + B["trust"]["failure"], store.load_npc("g1").trust)
+check("failure costs trust", simlib.view(store.load_npc("g1")).trust == 50 + B["trust"]["failure"], simlib.view(store.load_npc("g1")).trust)
 check("failure remembered", any("refused" in m.text and "gate" in m.text for m in g.memories))
 check("failure tells the npc to refuse", "do NOT take" in talks[0][1])
 g = guard()
 left = offer(g, 500, [("partial", 40)])
 check("partial keeps the coins and wants more", left == 100000 and "not enough" in talks[0][1])
-check("a bribe is not a flat gift: no gift trust on failure", store.load_npc("g1").trust == 50)
+check("a bribe is not a flat gift: no gift trust on failure", simlib.view(store.load_npc("g1")).trust == 50)
 
 # 3. odds respond to the person
 seen = []

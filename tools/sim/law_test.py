@@ -109,7 +109,7 @@ def fix_notice(seen_ids):
     law.notices = lambda degree, role, is_target=False, assault=False, rng=None: (role in seen_ids)
 def reset():
     mer.memories.clear(); frm.memories.clear(); grd.memories.clear()
-    mer.trust = frm.trust = grd.trust = 50; mer.hidden = []; mer.looks_away_until = -1; frm.looks_away_until = -1; grd.looks_away_until = -1
+    simlib.view(mer).trust = simlib.view(frm).trust = simlib.view(grd).trust = 50; mer.hidden = []; mer.looks_away_until = -1; frm.looks_away_until = -1; grd.looks_away_until = -1
     ws.player.heat.clear(); ws.player.confronted.clear(); ws.player.character.key_items.clear(); ws.player.character.coins = 100000
     ws.player.standing.clear(); ws.player.standing_seen.clear()
     ws.present = [mer, frm]; EVENTS.clear(); NOTES.clear(); ANSWERS.clear(); store.clear_question()
@@ -130,17 +130,17 @@ reset(); fix_degree("failure"); fix_notice({"merchant"})
 n0 = len(ws.pack)
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
 check("a failure takes nothing", len(ws.pack) == n0)
-check("the victim noticing costs trust and heat and is remembered", mer.trust < 50 and ws.heat_here() == 10 and any("Caught" in m.text for m in mer.memories), (mer.trust, ws.heat_here()))
+check("the victim noticing costs trust and heat and is remembered", simlib.view(mer).trust < 50 and ws.heat_here() == 10 and any("Caught" in m.text for m in mer.memories), (simlib.view(mer).trust, ws.heat_here()))
 store_deeds = store.load_world_state() or {}
 reset(); fix_degree("partial"); fix_notice({"farmer"})
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
-check("a partial gets the item; a passer-by who sees it costs half heat and trust 5", ws.heat_here() == 5 and frm.trust == 45 and mer.trust == 50, (ws.heat_here(), frm.trust, mer.trust))
+check("a partial gets the item; a passer-by who sees it costs half heat and trust 5", ws.heat_here() == 5 and simlib.view(frm).trust == 45 and simlib.view(mer).trust == 50, (ws.heat_here(), simlib.view(frm).trust, simlib.view(mer).trust))
 
 reset(); fix_degree("partial"); fix_notice({"farmer", "merchant"})
 frm.looks_away_until = ws.minutes + 100
 seen0 = len(simlib.remembered(store, frm.id, kind="witnessed"))                 # (f476) the earlier thefts' rows stay in the store
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
-check("a bribed witness does not notice", frm.trust == 50 and len(simlib.remembered(store, frm.id, kind="witnessed")) == seen0,   # (f476) by kind
+check("a bribed witness does not notice", simlib.view(frm).trust == 50 and len(simlib.remembered(store, frm.id, kind="witnessed")) == seen0,   # (f476) by kind
       simlib.remembered(store, frm.id))
 
 reset(); fix_degree("success"); fix_notice(set())
@@ -190,11 +190,11 @@ check("ordinary item: 10 heat", ws.heat_here() == 10)
 reset(); fix_notice({"farmer"})
 law.fights_back = lambda *a, **k: False
 ws.after_force(A(kind="talk", target="m1", force=True), "I grab Varro by the collar")
-check("assault: the target remembers, loses trust, heat +20 (a witness saw)", ws.heat_here() == 20 and mer.trust == 40 and any("laid hands" in m.text for m in mer.memories), (ws.heat_here(), mer.trust))
+check("assault: the target remembers, loses trust, heat +20 (a witness saw)", ws.heat_here() == 20 and simlib.view(mer).trust == 40 and any("laid hands" in m.text for m in mer.memories), (ws.heat_here(), simlib.view(mer).trust))
 check("a witness remembers it too", any("lay hands" in m.text for m in frm.memories))
 reset(); law.notices = lambda *a, **k: False
 ws.after_force(A(kind="talk", target="m1", force=True), "I shove Varro")
-check("with no witnesses the victim alone knows, and that is full heat", ws.heat_here() == 20 and mer.trust == 40, ws.heat_here())
+check("with no witnesses the victim alone knows, and that is full heat", ws.heat_here() == 20 and simlib.view(mer).trust == 40, ws.heat_here())
 reset(); real_f = law.fights_back
 law.fights_back = lambda *a, **k: True
 ws.present = [grd, mer]

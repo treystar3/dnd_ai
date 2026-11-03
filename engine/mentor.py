@@ -483,7 +483,7 @@ def remember_chat(player, text: str, reply: str) -> None:
 
 def make_npc(player, minutes: int, turn: int, place_id: str):
     """Her record as a person of the world once the tutorial is over: what she remembers of the player, how she feels, where she is."""
-    from npc.models import NPC, Memory
+    from npc.models import NPC, Memory, Regard
     from engine import clock
     said = [t for who, t in player.mentor.get("chat", []) if who == "Player" and t.strip()]
     day = clock.day(minutes)
@@ -497,8 +497,9 @@ def make_npc(player, minutes: int, turn: int, place_id: str):
     npc = NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
               epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
               concern="Things where they do not belong, and the work the capital sent her south to do.",
-              trust=65, mood="fond of the player, though she would not say so", name_known_to_player=True, met_player=True,
-              knows_player_as=player.character.name, protected=True, memories=mem,
+              mood="fond of the player, though she would not say so", protected=True, memories=mem,
+              regard={player.character.id: Regard(trust=65, met=True, name_known=True, knows_as=player.character.name,   # (f480) hers of them
+                                                  knows_as_source="self")},
               gone=M["npc"]["gone"])                                 # (f382) she goes on her way: a record, in no place
     return own_voice(npc, player)
 

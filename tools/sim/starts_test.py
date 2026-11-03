@@ -43,9 +43,9 @@ check("the guild's record and the titles are theirs", pl.guild_done == {"F": 6, 
 check("reputation by town, and more for what they settled there", pl.reputation.get(home, 0) >= 30 + 12 and pl.reputation.get(near, 0) >= 14, pl.reputation)
 check("standing with the town's groups, in the town's words", standing.word(standing.value(pl, home, "guild", clock.day(store.meta.minutes))) == standing.word(45.0)
       and standing.value(pl, near, "guild", clock.day(store.meta.minutes)) > 10, pl.standing)
-met = [n for n in (store.load_npc(i) for i in store.load_place(home).residents) if n.met_player]
-check("people in the home town already know them, by name, and trust them about as the start says", len(met) >= 10 and all(n.name_known_to_player for n in met)
-      and all(60 <= n.trust <= 80 for n in met) and all(n.last_talk_day >= 0 for n in met), [(n.name, n.trust) for n in met][:4])
+met = [n for n in (store.load_npc(i) for i in store.load_place(home).residents) if simlib.view(n).met]
+check("people in the home town already know them, by name, and trust them about as the start says", len(met) >= 10 and all(simlib.view(n).name_known for n in met)
+      and all(60 <= simlib.view(n).trust <= 80 for n in met) and all(simlib.view(n).last_talk_day >= 0 for n in met), [(n.name, simlib.view(n).trust) for n in met][:4])
 past = [t for t in st["threads"] if t.get("started_as") == "past"]
 check("three situations are already over, built by the engine at their tiers, none active", len(past) == 3 and {t["tier"] for t in past} == {"campaign", "rare", "uncommon"}
       and all(t["status"] != "active" for t in past) and all(t["ended_at"] < store.meta.minutes for t in past), [(t["tier"], t["status"], t["title"]) for t in past])

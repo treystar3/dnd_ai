@@ -96,7 +96,7 @@ SHOWN.clear()
 stood = ws.turn("I buy a healing draught from the herbalist.")
 lines = [t for k, t in SHOWN if k == "narrate"]
 check("a required passage over the remainder is told by a stand-in, the purchase standing", stood is True and store.load_player().character.coins < coins0
-      and [o.kind for o in ws.line_untold] == ["passage"] and any(herb.label() in t and not failures.MACHINERY.search(t) for t in lines),
+      and [o.kind for o in ws.line_untold] == ["passage"] and any(herb.label("player") in t and not failures.MACHINERY.search(t) for t in lines),
       (stood, store.load_player().character.coins, coins0, [o.kind for o in ws.line_untold], lines[:3]))
 check("...the refusal is the budget's, not the model's: no refusal filed, no fallback counted, the stand-in on the budget's record",
       len(refusals.SESSION) == n_ref and len(gateway.FALLBACKS) == n_fall and ws.last_budget.get("stand_ins") == ["passage"] and "narrate" in ws.last_budget.get("refused", []),

@@ -39,7 +39,7 @@ def community(store, world, group: str, exclude: tuple = ()) -> list:
 
 
 def met_elsewhere(store, present_ids: list[str]) -> list:
-    """Everyone the player has met who is not here."""
+    """Everyone the player has met who is not here: (f480) met by any character, the index's aggregate."""
     return store.npc_rows(met_player=True, exclude=list(present_ids))
 
 

@@ -73,7 +73,7 @@ console.npc_says = lambda who, line, g="": said.append((who, line))
 stub.a_Clarify = lambda u, k: {"speaker": clerk.id, "line": "Pay the fee, or something else?"}
 refusals.SESSION.clear()
 ws.ask_back("audit_failed", "i hand it over", "the plan named someone who is not here")
-check("the one being spoken to asks, in one line, instead of a system note", said == [(clerk.label(), "Pay the fee, or something else?")] and not any("not sure" in n for n in notes), (said, notes[-1:]))
+check("the one being spoken to asks, in one line, instead of a system note", said == [(clerk.label("player"), "Pay the fee, or something else?")] and not any("not sure" in n for n in notes), (said, notes[-1:]))
 check("...the refusal is logged with what was asked", refusals.SESSION and refusals.SESSION[-1]["kind"] == "audit_failed" and refusals.SESSION[-1]["asked"].startswith("Pay the fee"))
 check("...and the next line will be read as the answer", ws.pending_clarify == {"text": "i hand it over", "question": "Pay the fee, or something else?"})
 hints = []

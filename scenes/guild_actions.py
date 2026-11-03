@@ -5,6 +5,7 @@ import random
 import re
 
 from core.models import KeyItem
+from engine import regard                                   # (f480)
 from engine import clock, combat, inventory as inv, leveling, money, quests
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
@@ -161,7 +162,7 @@ class GuildActions:
         held = [{"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"], "guild": bool(q["guild"]),
                  "line": quests.progress_line(q, self.pack, self.minutes)}
                 for n, q in enumerate(self.player.quests, 1)]
-        requests = [{"npc": n.id, "name": n.label(), "letter": n.quest_offer["letter"], "title": n.quest_offer["title"]}
+        requests = [{"npc": n.id, "name": n.label(self.acting), "letter": n.quest_offer["letter"], "title": n.quest_offer["title"]}
                     for n in self.present if n.quest_offer]
         hall = self.hall_here()
         return {"hall": self.world.places[hall].name if hall else "", "member": bool(self.rank), "rank": self.rank, "fee": money.fmt(G["joining_fee"]),
@@ -335,11 +336,11 @@ class GuildActions:
         self.player.guild_rank = "F"
         self.give_badge("F")
         from engine.domain_events import JoinedGuild
-        self.notice(JoinedGuild(minute=self.minutes, place=self.player.location, witnesses=(clerk.id,), npc=clerk.id, name=clerk.label()), clerk)
+        self.notice(JoinedGuild(minute=self.minutes, place=self.player.location, witnesses=(clerk.id,), npc=clerk.id, name=clerk.label(self.acting)), clerk)
         self.store.save_player(self.player)
         console.note(f"You join the adventurers' guild at rank F. Paid {money.fmt(G['joining_fee'])}. "
                      "Type #board to see the contracts, #quests for yours.")
-        self.narrate(f"The player pays {clerk.label()} the joining fee and signs the guild register. They are given a "
+        self.narrate(f"The player pays {clerk.label(self.acting)} the joining fee and signs the guild register. They are given a "
                      "rank-F guild badge.", text)
 
     def give_badge(self, letter: str) -> None:
@@ -452,7 +453,7 @@ class GuildActions:
         issuer = q.get("issuer") if q.get("issuer") and self.store.npc_exists(q["issuer"]) else ""
         n = self.npc_by_id(issuer) if issuer else None
         self.notice(ContractDropped(minute=self.minutes, place=self.player.location, witnesses=(issuer,) if n else (), npc=issuer if n else "",
-                                    name=n.label() if n else "", quest=str(q["id"]), title=q["title"], how=how, guild=bool(q.get("guild"))), n)
+                                    name=n.label(self.acting) if n else "", quest=str(q["id"]), title=q["title"], how=how, guild=bool(q.get("guild"))), n)
         if issuer:
             stakes._release(self.store, issuer, q["id"])
 
@@ -532,12 +533,12 @@ class GuildActions:
             if q["guild"]:
                 self.player.guild_done[q["letter"]] = self.player.guild_done.get(q["letter"], 0) + q.get("rank_credit", 1)
             else:
-                payer.trust = min(100, payer.trust + 3)
+                regard.step(payer, self.acting, 3, cause="paid", minute=self.minutes)   # (f480)
             from engine.domain_events import ContractDone
             self.notice(ContractDone(minute=self.minutes, place=q.get("place") if q.get("thread") and q.get("place") else self.player.location,
-                                     witnesses=(payer.id,), npc=payer.id, name=payer.label(), quest=str(q["id"]), title=q["title"],
+                                     witnesses=(payer.id,), npc=payer.id, name=payer.label(self.acting), quest=str(q["id"]), title=q["title"],
                                      thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
-            console.ledger(f"Completed: [{q['letter']}] {q['title']}. {cap_first(payer.label())} pays "
+            console.ledger(f"Completed: [{q['letter']}] {q['title']}. {cap_first(payer.label(self.acting))} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
             if q["guild"]:
                 import random as _r
@@ -590,5 +591,5 @@ class GuildActions:
         self.player.quests.append(q)
         self.store.save_player(self.player)
         from engine import ledger
-        ledger.add("took", quest=str(q["id"]), say=f"The player has taken on {npc.label()}'s request, '{q['title']}'. It is theirs now.")  # (f416)
+        ledger.add("took", quest=str(q["id"]), say=f"The player has taken on {npc.label(self.acting)}'s request, '{q['title']}'. It is theirs now.")  # (f416)
         console.ledger(f"Request taken: [{q['letter']}] {q['title']} (for {npc.name}).")

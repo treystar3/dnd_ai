@@ -802,11 +802,19 @@ class FakeEmbedder:
 
 def two_characters(ws):
     """(f476) The player's character and a second one beside them, for tests whose subject is a list of characters (Bundle D keys
-    regard, obligations and memories by character). Until f480 the second is only made, not yet seen by anyone in the world."""
+    regard, obligations and memories by character). The second has an id of their own ("second", f480)."""
     return ws.player.character, _second_character(ws)
 
 
 def _second_character(ws):
     other, _ = make_character("mage", random.Random(f"second:{ws.player.character.name}"))
     other.name = "Second " + other.name.split()[-1] if other.name else "Second Traveller"
+    other.id = "second"                                      # (f480) a character of their own, by id
     return other
+
+
+def view(npc, who: str = "player"):
+    """(f480) A person's view of a character (npc/models.py Regard), to read or set in a test: what the tests read as npc.trust,
+    npc.met_player, npc.knows_player_as and the rest before views were kept per character. The view is made when it is not there."""
+    from engine import regard
+    return regard.own(npc, who)

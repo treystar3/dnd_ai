@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from engine import regard                                   # (f480)
 from engine import clock, crafting, inventory as inv, items, loot, money, pools
 from llm.contracts import WorkOffer
 from llm.gateway import LLMError, generate
@@ -47,7 +48,7 @@ class WorkActions:
                            "Read the villager's line. If they are offering the stranger paid work, give the task as a short phrase "
                            "(like 'load the grain onto the wagon'), how many minutes it should take, and the pay in copper "
                            "(0 if no amount was named). Respond only with JSON.",
-                           f"{npc.label()} says: {speech}", WorkOffer, temperature=0.1, max_tokens=120)
+                           f"{npc.label(self.acting)} says: {speech}", WorkOffer, temperature=0.1, max_tokens=120)
         except LLMError:                              # (f459) only the model's failure: a replay's parting (an Interrupt) passes through
             return None
         task = got.task.strip().strip(".").lower()
@@ -87,16 +88,16 @@ class WorkActions:
             c.stamina = max(0, pools.current(c, "stamina") - spend)
             job["pay"] = round(job["pay"] * (1 + (pools.mechanic(c, "good_employer") or 0) / 100))
             c.coins += job["pay"]
-            npc.trust = min(100, npc.trust + W["trust_on_finish"])
+            regard.step(npc, self.acting, W["trust_on_finish"], cause="work done", minute=self.minutes)   # (f480)
             npc.work_offer = None
             from engine.domain_events import Worked
-            self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
+            self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting),
                                task=job["task"], paid=job["pay"]), npc)
             self.store.save_player(self.player)
-            console.note(f"Work done: {job['task']}. {cap_first(npc.label())} pays you {money.fmt(job['pay'])}. "
+            console.note(f"Work done: {job['task']}. {cap_first(npc.label(self.acting))} pays you {money.fmt(job['pay'])}. "
                          f"Purse: {money.fmt(c.coins)}")
             self.narrate(f"The player spends {clock.describe_duration(job['minutes'])} working: {job['task']}. When "
-                         f"it's done, {npc.label()} pays them as agreed. Tell it as a short "
+                         f"it's done, {npc.label(self.acting)} pays them as agreed. Tell it as a short "
                          "passage of honest work and its end. Exactly ONE job was done, over that time: do not describe it as instant, "
                          "and do not mention any other jobs or any further payment.", text)
             return
@@ -107,14 +108,14 @@ class WorkActions:
             c.stamina = max(0, pools.current(c, "stamina") - pools.maximum(c, "stamina") * W["stamina_per_hour"] / 100)
         if npc:
             times = 2 if self.owns("helping_hand") else 1
-            npc.trust = min(100, npc.trust + W["unpaid_trust"] * times)
+            regard.step(npc, self.acting, W["unpaid_trust"] * times, cause="unpaid", minute=self.minutes)   # (f480)
             if times > 1:
                 self.reputation_change("work_done")            # Helping Hand: counts twice; the deed below counts once
             self.mercy_spreads()
             from engine.domain_events import Worked
-            self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), unasked=True), npc)
+            self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), unasked=True), npc)
         self.store.save_player(self.player)
-        who = f" alongside {npc.label()}" if npc else ""
+        who = f" alongside {npc.label(self.acting)}" if npc else ""
         self.narrate(f"The player spends an hour working{who}. No pay was agreed, so none changes hands - but the "
                      "help is noticed.", text)
 

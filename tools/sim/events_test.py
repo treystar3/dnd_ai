@@ -130,14 +130,14 @@ for nid in store.list_npcs():
     if n.role == "guild_master" and not n.gone:
         gm = n; break
 check("a guild master exists", gm is not None)
-gm.trust = 90; gm.tier = "known"
+simlib.view(gm).trust = 90; gm.tier = "known"
 gm.location = home_town if world.places[home_town].type != "wasteland" else gm.location
 store.save_npc(gm)
 cat3.setdefault("hit_towns", []).append(pulse.town_of(world, gm.location)); store.save_world_state(state)
 ws.player.party = []
 fe = combat.fighter_from_creature(world.bestiary[boss3["creature"]], boss3["level"], "boss", "e1", "boss", "near"); fe.spawn = boss3["id"]
 events.recruit_allies(ws, [fe])
-print("   dbg", gm.id, gm.location, gm.trust, gm.tier, pulse.town_of(world, gm.location), cat3.get("hit_towns"), cat3["place"], ws.player.character.level)
+print("   dbg", gm.id, gm.location, simlib.view(gm).trust, gm.tier, pulse.town_of(world, gm.location), cat3.get("hit_towns"), cat3["place"], ws.player.character.level)
 check("trusted guild master joins", any(m.get("npc") == gm.id for m in ws.player.party), str([m["name"] for m in ws.player.party]))
 if ws.player.party:
     f = party.fighter(ws.player.party[0]); check("ally becomes a fighter", f.hp > 0)

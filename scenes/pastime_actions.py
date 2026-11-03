@@ -11,6 +11,7 @@ from pathlib import Path
 
 import yaml
 
+from engine import regard                                   # (f480)
 from engine import checks, clock, money
 from ui import console
 
@@ -33,7 +34,7 @@ class PastimeActions:
         priest = next((n for n in self.present if n.role in ("priest", "acolyte", "water_priest")), None)
         self.advance(P["minutes"])
         self.notice(Prayed(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in self.present),
-                           npc=priest.id if priest else "", name=priest.label() if priest else "", god=god["name"] if god else "", temple=at_temple),
+                           npc=priest.id if priest else "", name=priest.label(self.acting) if priest else "", god=god["name"] if god else "", temple=at_temple),
                     *([priest] if priest else []))
         self.store.save_player(self.player)
         where = f"at {self.place.name}" + (", before its altar" if at_temple else "")
@@ -41,7 +42,7 @@ class PastimeActions:
                 if god else " No god is named here; the prayer is the player's own.")
         self.weight_hint = "rich"
         self.narrate(f"THE PLAYER PRAYS {where}: {intent.summary or text}.{tone} Show it as it would be seen - the posture, the quiet, what the "
-                     f"place does around them" + (f"; {priest.label()} notices and lets them be" if priest else "") + ". Nobody answers from on high; "
+                     f"place does around them" + (f"; {priest.label(self.acting)} notices and lets them be" if priest else "") + ". Nobody answers from on high; "
                      "nothing is gained but the moment.", text)
 
     # ---------- gamble
@@ -66,11 +67,11 @@ class PastimeActions:
         won = round(stake * G["payout"][degree])
         c.coins = max(0, c.coins + won)
         self.advance(G["minutes"])
-        self.notice(Gambled(minute=self.minutes, place=self.player.location, witnesses=(who.id,), npc=who.id, name=who.label(), amount=stake, won=won), who)
+        self.notice(Gambled(minute=self.minutes, place=self.player.location, witnesses=(who.id,), npc=who.id, name=who.label(self.acting), amount=stake, won=won), who)
         self.store.save_player(self.player)
         console.ledger((f"Won {money.fmt(won)}" if won > 0 else f"Lost {money.fmt(-won)}" if won < 0 else "Broke even") + f" at {money.fmt(stake)} a throw. Purse: {money.fmt(c.coins)}")
         outcome = ("WINS, and well" if degree == "strong success" else "WINS" if won > 0 else "LOSES the stake" if won < 0 else "comes out even")
-        self.narrate(f"THE GAME HAS DECIDED: the player gambles with {who.label()} ({intent.summary or text}) and {outcome}. "
+        self.narrate(f"THE GAME HAS DECIDED: the player gambles with {who.label(self.acting)} ({intent.summary or text}) and {outcome}. "
                      "Show the play as it would be seen - hands, dice or cards, the faces round the table - and the coin changing hands. "
                      "Nothing else is won or lost.", text)
 
@@ -92,14 +93,14 @@ class PastimeActions:
         self.last_social = ("persuasion", degree, seller.id)
         factor = H["discount"].get(degree)
         if factor is None:
-            seller.trust = max(0, seller.trust + H["annoyed_trust"])
+            regard.step(seller, self.acting, H["annoyed_trust"], cause="annoyed", minute=self.minutes)   # (f480)
             self.advance(clock.TALK_MINUTES)
-            self.narrate(f"THE GAME HAS DECIDED: the player tries to beat {seller.label()} down on a price ({intent.summary or text}) and gets nowhere: "
+            self.narrate(f"THE GAME HAS DECIDED: the player tries to beat {seller.label(self.acting)} down on a price ({intent.summary or text}) and gets nowhere: "
                          "the price stands and the seller is a little cooler for being asked. Show the exchange; nothing is bought.", text)
             return
         self.haggle_factor = factor
         try:
-            console.note(f"{seller.label()} comes down {round((1 - factor) * 100)}%.")
+            console.note(f"{seller.label(self.acting)} comes down {round((1 - factor) * 100)}%.")
             intent.target = seller.id
             self.on_buy(intent, text)
         finally:

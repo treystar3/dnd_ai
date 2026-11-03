@@ -43,17 +43,17 @@ ws = WorldScene(store, world, load_traits(), store.load_player())
 ws.player.mentor["never"] = True
 ws.enter("guild_house")
 people = [n for n in ws.present]
-check("people are present, each doing something", len(people) >= 2 and all(n.activity for n in people), [(n.label(), n.activity) for n in people])
+check("people are present, each doing something", len(people) >= 2 and all(n.activity for n in people), [(n.label("player"), n.activity) for n in people])
 a, b = people[0], people[1]
 sc = truth.scene_of(ws)
 theirs = sc.view(truth.viewer_for_npc(a, world), "townsfolk")
-check("a townsperson is not told what the others here are doing", b.activity not in theirs.text() and any(b.name in l or b.label() in l for l in theirs.lines("present")),
+check("a townsperson is not told what the others here are doing", b.activity not in theirs.text() and any(b.name in l or b.label("player") in l for l in theirs.lines("present")),
       theirs.lines("present"))
 check("...nor is Maren or a hire", b.activity not in sc.view(truth.MAREN, "maren").text() and b.activity not in sc.view(truth.viewer_for_hire("hire:x"), "hire").text())
 check("the narrator is", any(b.activity in l for l in sc.view(truth.NARRATOR, "narrator").present_lines()))
 check("...and so is the reader of the player's words, so 'the one shoeing the horse' finds them",
       any(b.activity in l for l in sc.view(truth.INTERPRETER, "narrator").present_lines()))
-p = npr.conversation_prompt(a, world.places["guild_house"], [], [], [], "hello", [], [], [], truth_text=theirs.text()).render()
+p = npr.conversation_prompt(a, world.places["guild_house"], [], [], [], "hello", [], [], [], truth_text=theirs.text(), who="player").render()
 check("the person's own doing is theirs, as RIGHT NOW", f"RIGHT NOW: {a.activity}" in p)
 
 # ---- the streets: the narrator's, and a speaker's only when asked

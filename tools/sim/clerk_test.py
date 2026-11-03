@@ -43,14 +43,14 @@ ws.player.mentor["never"] = True
 ws.enter("guild_house")
 clerk = ws.clerk_here()
 check("the hall has its clerk", clerk is not None)
-clerk.name_known_to_player = True
+simlib.view(clerk).name_known = True
 seen = {label: desc for label, desc, _ in ws.people_view()}
-check("the narrator is told the clerk's work beside their name", seen.get(clerk.label(), "").startswith("the guild clerk. "), seen.get(clerk.label()))
+check("the narrator is told the clerk's work beside their name", seen.get(clerk.label("player"), "").startswith("the guild clerk. "), seen.get(clerk.label("player")))
 others = [n for n in ws.present if n.id != clerk.id]
 if others:
     o = others[0]
-    check("...and everyone else's", truth.their_work(o.label(), o.role) == "" or seen.get(o.label(), "").startswith(truth.their_work(o.label(), o.role)), seen.get(o.label()))
-check("a frame's list of others names their work too", ws.seen_as(clerk) == f"{clerk.label()}, the guild clerk")
+    check("...and everyone else's", truth.their_work(o.label("player"), o.role) == "" or seen.get(o.label("player"), "").startswith(truth.their_work(o.label("player"), o.role)), seen.get(o.label("player")))
+check("a frame's list of others names their work too", ws.seen_as(clerk) == f"{clerk.label("player")}, the guild clerk")
 
 # ---- a finished contract is handed in by speaking to the clerk
 q = quests._quest("hunt", "F", "Hunt 3 wolves in the Greywood", ws.minutes, place="greywood", creature="wolf", count=3)

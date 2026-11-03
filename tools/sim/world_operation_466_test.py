@@ -118,7 +118,7 @@ stood = ws.turn("I buy a healing draught from the herbalist.")
 check("a pulse that stands keeps what it started when the player's passage fails", stood is True and "t_stands" in thread_ids() and not ws.line_world_failed,
       (stood, thread_ids(), [o.kind for o in ws.line_world_failed]))
 check("...the passage was told by a stand-in, in the narrator's words", [o.kind for o in ws.line_untold] == ["passage"]
-      and any(herb.label() in t and not failures.MACHINERY.search(t) for t in narrated()), narrated())
+      and any(herb.label("player") in t and not failures.MACHINERY.search(t) for t in narrated()), narrated())
 FAIL["titles"] = set()
 
 

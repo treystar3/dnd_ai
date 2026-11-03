@@ -188,6 +188,21 @@ def _v11_hire_memories(store) -> None:
     store._db.execute("UPDATE kv SET json = ? WHERE key = 'player'", (json.dumps(body, ensure_ascii=False),))
 
 
+def _v12_regard(store) -> None:
+    """(f480) A person's view of the player becomes their view of one character, by id: trust, met, the name they were given and whether
+    they know theirs, when they last spoke, the journal's note, Easy Company and who named them first leave the record's top level for
+    regard["player"] (npc/models.py legacy_regard: only what differs from a new acquaintance's, so a person nobody met keeps none). The
+    index columns are unchanged: with one character they hold that character's view."""
+    import json
+    from npc.models import legacy_regard
+    for nid, raw in store._db.execute("SELECT id, json FROM npcs ORDER BY id").fetchall():
+        body = json.loads(raw)
+        moved = legacy_regard(body)
+        if moved is not body:
+            moved.setdefault("regard", {})                          # as save_npc writes it: every record carries its views, none or some
+            store._db.execute("UPDATE npcs SET json = ? WHERE id = ?", (json.dumps(moved, ensure_ascii=False), nid))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -200,6 +215,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (9, "the registry of who someone is and what has become of them", _v9_entities),
     (10, "memories typed: what each is, whom it is about, who said it, what it is about, and when", _v10_memory_kinds),   # (f478)
     (11, "a hire's memories as rows of their own, the player's record carrying only the window", _v11_hire_memories),      # (f479)
+    (12, "a person's view of the player kept as their view of one character, by id", _v12_regard),                          # (f480)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

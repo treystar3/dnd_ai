@@ -6,6 +6,7 @@ State lives in player.field: cd (ability id -> game minute it is ready), camp, h
 import random
 import re
 
+from engine import regard                                   # (f480)
 from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse, questions
 from engine.field import F, tier_value
 from ui import console
@@ -182,11 +183,11 @@ class FieldActionsBase:
         bonus = tier_value(F["influence"]["next_check_bonus"], tier)
         self.fld["edge"] = {"npc": npc.id, "bonus": bonus, "until": self.minutes + 120}
         if gain:
-            npc.trust = min(100, npc.trust + gain)
+            regard.step(npc, self.acting, gain, cause="won over", minute=self.minutes)   # (f480)
             self.store.save_npc(npc)
-        console.note(f"{cap_first(npc.label())} warms to you." if gain else
-                     f"{cap_first(npc.label())} is already as won over as you can make them today, but they're listening.")
-        return (f"They bring {ability.name} to bear on {npc.label()}, who softens toward them and is more willing to listen. "
+        console.note(f"{cap_first(npc.label(self.acting))} warms to you." if gain else
+                     f"{cap_first(npc.label(self.acting))} is already as won over as you can make them today, but they're listening.")
+        return (f"They bring {ability.name} to bear on {npc.label(self.acting)}, who softens toward them and is more willing to listen. "
                 "Describe the effect on the person, subtly, without having them agree to anything yet.")
 
     def spend_edge(self, check: str, npc) -> None:
@@ -240,7 +241,7 @@ class FieldActionsBase:
         place = self.place
         subject = f"{place.name} {' '.join(place.visible)} " + " ".join(
             self.world.places[n].name for n in self.world.neighbors(place.id) if n in self.world.places)
-        subject += " " + " ".join(f"{n.label()} {n.role}" for n in self.present)
+        subject += " " + " ".join(f"{n.label(self.acting)} {n.role}" for n in self.present)
         degree = "strong success" if ability.tier.value == "heavy" else "success"
         out = self.lore(subject, degree)
         if not out.startswith("The player recalls"):
@@ -412,12 +413,13 @@ class FieldFunctions:
         if not npc:
             return None
         self.advance(F["read_the_room"]["minutes"])
-        trust = ("distrusts you" if npc.trust < 30 else "is wary of you" if npc.trust < 45 else "is neutral toward you" if npc.trust < 60
-                 else "likes you" if npc.trust < 80 else "trusts you")
+        t = regard.of(npc, self.acting).trust                 # (f480)
+        trust = ("distrusts you" if t < 30 else "is wary of you" if t < 45 else "is neutral toward you" if t < 60
+                 else "likes you" if t < 80 else "trusts you")
         mood = npc.mood or "even"
         weighs = npc.concern or "nothing you can make out"
-        console.note(f"{cap_first(npc.label())}: mood {mood}; what weighs on them - {weighs}; {trust}.")
-        return (f"They read {npc.label()} closely. Their mood is: {mood}. What weighs on them: {weighs}. They {trust.replace('you', 'the player')}. "
+        console.note(f"{cap_first(npc.label(self.acting))}: mood {mood}; what weighs on them - {weighs}; {trust}.")
+        return (f"They read {npc.label(self.acting)} closely. Their mood is: {mood}. What weighs on them: {weighs}. They {trust.replace('you', 'the player')}. "
                 "Describe the small signs the player notices, without having the person say any of it aloud.")
 
     # ---------- intimidate ----------
@@ -429,10 +431,10 @@ class FieldFunctions:
         bonus = tier_value(F["intimidate"]["bonus"], ability.tier)
         self.fld["edge"] = {"npc": npc.id, "bonus": bonus, "until": self.minutes + F["intimidate"]["expires_minutes"],
                             "only": ["intimidation"]}
-        npc.trust = max(0, npc.trust - F["intimidate"]["trust_cost"])
+        regard.step(npc, self.acting, -(F["intimidate"]["trust_cost"]), cause="intimidated", minute=self.minutes)   # (f480)
         self.store.save_npc(npc)
-        console.note(f"{cap_first(npc.label())} shrinks back from you. Your next attempt to frighten them will be far easier.")
-        return (f"They bring {ability.name} to bear on {npc.label()}, looming, letting menace do the work. Describe the person "
+        console.note(f"{cap_first(npc.label(self.acting))} shrinks back from you. Your next attempt to frighten them will be far easier.")
+        return (f"They bring {ability.name} to bear on {npc.label(self.acting)}, looming, letting menace do the work. Describe the person "
                 "flinching, without having them yield anything yet.")
 
     # ---------- pickpocket ----------
@@ -459,19 +461,19 @@ class FieldFunctions:
             coins = max(1, round(self.rng.randint(*P["coins_per_level"]) * max(1, c.level) * share))
             c.coins += coins
             if degree == "partial":
-                npc.trust = max(0, npc.trust - P["trust_loss"]["partial"])
+                regard.step(npc, self.acting, -(P["trust_loss"]["partial"]), cause="pressed", minute=self.minutes)   # (f480)
                 self.store.save_npc(npc)
-            console.note(f"You lift {money.fmt(coins)} from {npc.label()}." + (" They almost felt it." if degree == "partial" else ""))
+            console.note(f"You lift {money.fmt(coins)} from {npc.label(self.acting)}." + (" They almost felt it." if degree == "partial" else ""))
             from engine.domain_events import Pickpocketed
-            self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, npc=npc.id, name=npc.label(), coins=coins), npc)
-            return (f"They quietly lift a purse from {npc.label()} and walk off with {money.words(coins)}. "
+            self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, npc=npc.id, name=npc.label(self.acting), coins=coins), npc)
+            return (f"They quietly lift a purse from {npc.label(self.acting)} and walk off with {money.words(coins)}. "
                     "Describe the sleight of hand, and that the person does not notice."
                     + (" The person nearly feels it." if degree == "partial" else ""))
-        npc.trust = max(0, npc.trust - P["trust_loss"]["failure"])
+        regard.step(npc, self.acting, -(P["trust_loss"]["failure"]), cause="pressed", minute=self.minutes)   # (f480)
         from engine.domain_events import Pickpocketed
-        self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), caught=True), npc)
-        console.note(f"{cap_first(npc.label())} catches your hand. They will not forget it.")
-        return (f"They reach for {npc.label()}'s purse and are caught. Describe the person's hand closing on their wrist, "
+        self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), caught=True), npc)
+        console.note(f"{cap_first(npc.label(self.acting))} catches your hand. They will not forget it.")
+        return (f"They reach for {npc.label(self.acting)}'s purse and are caught. Describe the person's hand closing on their wrist, "
                 "and the cold look that follows. They get nothing.")
 
     # ---------- commune ----------

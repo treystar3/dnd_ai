@@ -144,7 +144,7 @@ check("the narrator is told companions are not scenery, and that manner is what 
 check("the frame is told a pause is shown once a visit", "shown once for a person in a visit" in wp.DIALOGUE_SYSTEM)
 
 ws.enter("parth"); npc = ws.present[0]; ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
-label = npc.label()
+label = npc.label("player")
 ws.note_shown(f"{label[0].upper() + label[1:]} looks up from the ledger and waits.")
 check("a person pausing their work on the page is on the list, as shown once", any("pausing their work" in l and label in l for l in ws.shown_lines()), ws.shown_lines())
 ws.enter("parth"); ws.present = [npc] + [n for n in ws.present if n.id != npc.id]

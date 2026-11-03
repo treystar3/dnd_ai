@@ -28,50 +28,50 @@ c = collections.Counter(vp.resident_culture("human", "rimelands", random.Random(
 check("a human of the Rimelands is mostly rimelands-raised", c["rimelands"] / 400 > 0.5, c)
 c = collections.Counter(vp.resident_culture("dwarf", "nowhere", random.Random(k)) for k in range(400))
 check("an unlisted region leaves the people's own weights", c["ironvein"] / 400 > 0.6, c)
-npc = types.SimpleNamespace(id="n1", name="Hesk Varley", people="halfling", role="baker", speech={}, said=[], heard=[], trust=50, concern="the oven", motive="", activity="kneading dough")
+npc = types.SimpleNamespace(id="n1", name="Hesk Varley", people="halfling", role="baker", speech={}, said=[], heard=[], regard={}, concern="the oven", motive="", activity="kneading dough")
 vp.ensure_npc(npc, random.Random(1), "saltmarches")
 check("a resident gets a profile once, from their people and region, with no family trade", npc.speech["culture"] in ("heartland", "saltmarches") and npc.speech["background"] == "" and "tells" in npc.speech)
 same = dict(npc.speech)
 vp.ensure_npc(npc, random.Random(99), "rimelands")
 check("...and keeps it", npc.speech == same)
-fact, lines, material = vp.resident_lines(npc, random.Random(2))
+fact, lines, material = vp.resident_lines(npc, random.Random(2), char_id="player")
 from engine import voices as _voices
 _kit = _voices.lines(_voices.kit_of(npc.speech))
 check("the reply is told the plain fact of their people, their kit first, and a few lines on how they talk besides",
       fact.startswith("A halfling") and lines[:len(_kit)] == _kit and len(lines) - len(_kit) <= 2, (fact, lines))
-runs = [vp.resident_lines(npc, random.Random(k))[1] for k in range(200)]
+runs = [vp.resident_lines(npc, random.Random(k), char_id="player")[1] for k in range(200)]
 check("their culture shows in some replies, never all", 0.1 < sum(1 for r in runs if any("way of talking" in l or "comparison" in l or "home shows" in l for l in r)) / 200 < 0.7)
 
 # ---- a stance per conversation
-st = collections.Counter(voice_rules.roll_stance(npc, 600, random.Random(k)) for k in range(400))
+st = collections.Counter(voice_rules.roll_stance(npc, 600, random.Random(k), who="player") for k in range(400))
 check("most talks have no stance; busy and a grievance turn up, wary does not at trust 50, nothing after without a motive",
       st[""] / 400 > 0.3 and any("busy" in k for k in st) and any("grievance" in k and "the oven" in k for k in st)
       and not any("wary" in k for k in st) and not any("after something" in k for k in st), st)
-npc.trust, npc.motive = 30, "buy the mill"
-st = collections.Counter(voice_rules.roll_stance(npc, 600, random.Random(k)) for k in range(400))
+simlib.view(npc).trust, npc.motive = 30, "buy the mill"
+st = collections.Counter(voice_rules.roll_stance(npc, 600, random.Random(k), who="player") for k in range(400))
 check("with low trust and a motive, wary and after turn up", any("wary" in k for k in st) and any("buy the mill" in k for k in st), st)
-day = sum(1 for k in range(400) if "tired" in voice_rules.roll_stance(npc, 600, random.Random(k)))
+day = sum(1 for k in range(400) if "tired" in voice_rules.roll_stance(npc, 600, random.Random(k), who="player"))
 from engine import clock
 dark = next(m for m in range(0, 1440, 30) if clock.is_dark(m)); light = next(m for m in range(0, 1440, 30) if not clock.is_dark(m))
-day = sum(1 for k in range(400) if "tired" in voice_rules.roll_stance(npc, light, random.Random(k)))
-night = sum(1 for k in range(400) if "tired" in voice_rules.roll_stance(npc, dark, random.Random(k)))
+day = sum(1 for k in range(400) if "tired" in voice_rules.roll_stance(npc, light, random.Random(k), who="player"))
+night = sum(1 for k in range(400) if "tired" in voice_rules.roll_stance(npc, dark, random.Random(k), who="player"))
 check("tired is likelier after dark", night > day, (day, night))
 
 # ---- the prompt
 from npc import prompts
 place = types.SimpleNamespace(name="Parth", visible=["a well"])
 full = types.SimpleNamespace(id="n1", name="Hesk Varley", people="halfling", role="baker", location="parth", description="d", personality="p", voice="v", concern="the oven",
-                             activity="kneading", met_player=False, knows_player_as="", trust=50, memories=[], work_offer=None, stock=[], speech=npc.speech, said=["Bread's two copper."], heard=["how much?"])
+                             activity="kneading", regard={}, memories=[], work_offer=None, stock=[], speech=npc.speech, said=["Bread's two copper."], heard=["how much?"])
 p = prompts.conversation_prompt(full, place, ["- wary"], [], [], "what's good today?", [], [], [], stance="busy: kneading. The work comes first",
                                 voice_fact="A halfling.", voice_lines=["Keeps things short and practical, and laughs easily."], material=["a saying from home: 'Mend the net before you need it.'"],
-                                unsaid="SAID LATELY BY YOU (say something new):\n  - Bread's two copper.")
+                                unsaid="SAID LATELY BY YOU (say something new):\n  - Bread's two copper.", who="player")
 text = p.render()
 check("the prompt carries the stance, the people, how they talk, the material and what was said lately, and ends on the line and its room",
       "RIGHT NOW YOU ARE: busy" in text and "YOUR PEOPLE: A halfling." in text and "HOW YOU TALK:" in text and "WORDS YOU MAY USE" in text
       and "SAID LATELY BY YOU" in text and text.rstrip().endswith('THEY SAY: "what\'s good today?"') and "LENGTH" not in text and "THIS CONVERSATION SO FAR" in text, text[-600:])
 check("how they talk and the stance are instructions; the saying is material; the rest is fact", "Keeps things short" in "\n".join(p.texts("instruction"))
       and "busy: kneading" in "\n".join(p.texts("instruction")) and "Mend the net" in "\n".join(p.texts("material")) and "YOU ARE: Hesk" in "\n".join(p.texts("fact")))
-check("the plain request is the same text", prompts.conversation_request(full, place, ["- wary"], [], [], "hi", [], [], []) == prompts.conversation_prompt(full, place, ["- wary"], [], [], "hi", [], [], []).render())
+check("the plain request is the same text", prompts.conversation_request(full, place, ["- wary"], [], [], "hi", [], [], [], who="player") == prompts.conversation_prompt(full, place, ["- wary"], [], [], "hi", [], [], [], who="player").render())
 check("the system prompt gives the stance rule", "Answer the part you care about" in prompts.CONVERSATION_SYSTEM and "nobody drops everything for a stranger" in prompts.CONVERSATION_SYSTEM)
 
 # ---- the repeat guard
@@ -108,10 +108,11 @@ try:
     check("...through the contract", False)
 except ValidationError as e:
     check("...through the contract", "much the same when the player left" in str(e))
-w = types.SimpleNamespace(trust=80); c = types.SimpleNamespace(trust=20)
-check("the written parting follows how they are with the player", voice_rules.written_parting(w, random.Random(1)) in voice_rules.V["partings"]["warm"]
-      and voice_rules.written_parting(c, random.Random(1)) in voice_rules.V["partings"]["wary"])
-check("...and is never one they said lately", voice_rules.written_parting(c, random.Random(1), said=["Hm.", "Go on, then."]) == "Mind yourself.")
+from npc.models import Regard
+w = types.SimpleNamespace(regard={"player": Regard(trust=80)}); c = types.SimpleNamespace(regard={"player": Regard(trust=20)})   # (f480)
+check("the written parting follows how they are with the player", voice_rules.written_parting(w, random.Random(1), who="player") in voice_rules.V["partings"]["warm"]
+      and voice_rules.written_parting(c, random.Random(1), who="player") in voice_rules.V["partings"]["wary"])
+check("...and is never one they said lately", voice_rules.written_parting(c, random.Random(1), said=["Hm.", "Go on, then."], who="player") == "Mind yourself.")
 
 # ---- what counts as a goodbye
 yes = ["Thanks, that's all. Goodbye.", "Thanks, I'll let you get on.", "That's all I wanted to know. Good day.", "I'd best be moving on.", "Goodbye", "bye!",
@@ -148,7 +149,7 @@ check("the record keeps what they said and heard, and a speech profile", smith.s
 plans = stub.calls.get("ActionPlan", 0)
 ws.turn("Thanks, that's all. Goodbye.")
 check("a goodbye never reaches the interpreter", stub.calls.get("ActionPlan", 0) == plans, (plans, stub.calls.get("ActionPlan")))
-check("the person answers with one bare line, and the talk ends", printed and printed[-1][0] == "says" and printed[-1][1] == smith.label() and ws.partner is None, printed[-1:])
+check("the person answers with one bare line, and the talk ends", printed and printed[-1][0] == "says" and printed[-1][1] == smith.label("player") and ws.partner is None, printed[-1:])
 check("the parting is on their record", len(store.load_npc(smith.id).said) == 2, store.load_npc(smith.id).said)
 check("...and on the town's list of partings heard", len(ws._partings_heard) == 1, getattr(ws, "_partings_heard", None))
 ws.turn("I ask the smith what she makes")

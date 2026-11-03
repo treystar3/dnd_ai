@@ -17,6 +17,8 @@ import random
 import re
 from pathlib import Path
 
+from engine import regard
+
 import yaml
 
 from ui import console
@@ -153,7 +155,7 @@ def talk_lines(ws, npc) -> list[str]:
             clue = next((c["text"] for c in th.get("clues", []) if c["npc"] == npc.id), "")
             out.append("YOU CAME LOOKING FOR THE STRANGER on purpose, just now, because of this: " + (clue or th["stages"][th["stage"]]["description"])
                        + " Say so, and say why you came to them of all people, in your own words. You want their help; ask for it plainly.")
-            if not npc.met_player:
+            if not regard.of(npc, ws.acting).met:                                  # (f480)
                 town = _town(ws.world, npc.location)
                 out.append(f"You have never spoken to them before, but you know who they are: the town talks about them ({ws.reputation_words(town)}).")
     return out
@@ -184,7 +186,7 @@ def mark_found(ws, npc, revealed: list[str]) -> list[str]:
         th = next((x for x in state.get("threads", []) if x["id"] == tid), None)
         if th and int(i) < len(th.get("clues", [])) and not th["clues"][int(i)]["found"]:
             th["clues"][int(i)]["found"] = True
-            th["clues"][int(i)]["by"] = npc.label()
+            th["clues"][int(i)]["by"] = npc.label(ws.acting)
             th["touched"] = True
             th["answered"] = True
             found.append(th["clues"][int(i)]["text"])
@@ -257,7 +259,7 @@ def _play_moment(ws, state: dict, th: dict) -> None:
             free = [n for n in ws.present if n.id not in taken and c["holder"] == n.role] or [n for n in ws.present if n.id not in taken]
             if free:
                 c["npc"] = free[0].id
-    holders = [n.label() for n in ws.present if n.id in {c["npc"] for c in th["clues"]}]
+    holders = [n.label(ws.acting) for n in ws.present if n.id in {c["npc"] for c in th["clues"]}]
     from engine import moments, threads
     shape = threads.scene_shape(th)
     if shape and not moments.active(ws.store, ws.player.location, ws.minutes):                     # (f357) the situation's own moment, played by the moments machinery
@@ -293,14 +295,14 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
     people = [n for n in people if not n.gone and n.id not in ws.player.prisoners]
     pick = None
     if S.get("anchors_first"):
-        pick = next((n for n in people if n.anchor and (n.met_player or rep >= S["known_by_all"])), None)
+        pick = next((n for n in people if n.anchor and (regard.of(n, ws.acting).met or rep >= S["known_by_all"])), None)
     if pick is None:
         holder = next((c["npc"] for c in th.get("clues", []) if c["npc"]), "")
         n = next((x for x in people if x.id == holder), None)
-        if n is not None and (n.met_player or rep >= S["known_by_all"]):
+        if n is not None and (regard.of(n, ws.acting).met or rep >= S["known_by_all"]):
             pick = n
     if pick is None:
-        pick = next((n for n in people if n.met_player), None) if rep < S["known_by_all"] else (people[0] if people else None)
+        pick = next((n for n in people if regard.of(n, ws.acting).met), None) if rep < S["known_by_all"] else (people[0] if people else None)
     if pick is None:
         return False
     if not any(c["npc"] == pick.id for c in th.get("clues", [])) and th.get("clues"):
@@ -312,9 +314,9 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
     if court.summon(ws, pick, th):                       # (f320) someone behind a door sends a messenger, and the door opens for the day
         return True
     ws.visit(pick, ws.minutes + 120)
-    known = "someone the player has met" if pick.met_player else "someone the player has not met, who knows them by name"
+    known = "someone the player has met" if regard.of(pick, ws.acting).met else "someone the player has not met, who knows them by name"
     ws.weight_hint = "rich"
-    ws.narrate(f"{pick.label()} ({known}) comes looking for the player, on purpose, and finds them here. Show them arriving and making "
+    ws.narrate(f"{pick.label(ws.acting)} ({known}) comes looking for the player, on purpose, and finds them here. Show them arriving and making "
                "it plain they want a word - what they are doing, how they carry it - without a word of what it is about; the player will ask.")
     console.debug(f"matter: {pick.name} comes looking for the player - {th['title']}")
     return True

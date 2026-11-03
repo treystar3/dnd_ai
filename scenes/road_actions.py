@@ -290,7 +290,7 @@ class RoadActions:
             role = (self.world.places[road["id"]].residents or {})
             who = next((n for n in self.present if n.role in role), None)
             if who is not None:
-                road["aid"] = {"who": who.id, "name": who.label(), "need": (ev.detail or ev.title).strip(), "tier": tier}
+                road["aid"] = {"who": who.id, "name": who.label(self.acting), "need": (ev.detail or ev.title).strip(), "tier": tier}
         self.store.save_player(self.player)
 
     def stop_step(self, intent, refused: bool) -> None:

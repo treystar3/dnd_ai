@@ -76,10 +76,10 @@ stood = ws.turn("I buy a healing draught from the herbalist.")
 paid = [r for r in ledger.LAST if r["kind"] == "paid"]
 check("the buy stands though its telling failed: coins spent and the draught in the pack, in the save", stood is True and store.load_player().character.coins < coins0
       and any(i.good == "healing_draught" for i in store.load_player().character.inventory), (stood, store.load_player().character.coins, coins0))
-check("...its row is on the record with the facts a stand-in is filled from", paid and paid[0].get("facts", {}).get("who") == herb.label() and paid[0]["op"] in [o["id"] for o in store.load_operations()["ops"]], paid)
+check("...its row is on the record with the facts a stand-in is filled from", paid and paid[0].get("facts", {}).get("who") == herb.label("player") and paid[0]["op"] in [o["id"] for o in store.load_operations()["ops"]], paid)
 lines = narrated()
 check("...the player reads a plain line that it stood, filled from those facts, never machinery",
-      any((herb.label() in t or paid[0]["facts"]["amount"] in t) and not failures.MACHINERY.search(t) for t in lines), lines)
+      any((herb.label("player") in t or paid[0]["facts"]["amount"] in t) and not failures.MACHINERY.search(t) for t in lines), lines)
 check("...the passage was an operation of its own, told by a stand-in, and the line is whole", [o.kind for o in ws.line_untold] == ["passage"] and not ws.line_failed
       and ops_of_input() == ["action:buy", "world", "arrival", "law", "tail"], (ws.line_untold, ws.line_failed, ops_of_input()))
 check("...and no story was written for the line", store._kv("story") == story0)

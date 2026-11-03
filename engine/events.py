@@ -630,7 +630,8 @@ def recruit_allies(ws, enemies) -> None:
     for n in ws.store.load_npcs([r.id for r in retrieval.with_role(ws.store, cfg["roles"], not_tier="background", min_trust=cfg["min_trust"])]):
         if pulse.town_of(ws.world, n.location) in towns and not any(m.get("npc") == n.id for m in ws.player.party):
             cands.append(n)
-    cands.sort(key=lambda n: -n.trust)
+    from engine import regard
+    cands.sort(key=lambda n: (-regard.aggregate(n)["trust"], n.id))   # (f480) the world's own doing: the highest trust any character holds
     lvl = ws.player.character.level
     joined = []
     for n in cands[:min(room, cfg["max_join"])]:
@@ -1051,7 +1052,8 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
         risk = base * C["role_risk"].get(n.role, 1.0)
         if n.tier != "background":
             risk *= C["met_risk"]
-        risk *= 1 - min(0.4, max(0.0, (n.trust - 50) * C["trust_shield"]))
+        from engine import regard
+        risk *= 1 - min(0.4, max(0.0, (regard.aggregate(n)["trust"] - 50) * C["trust_shield"]))   # (f480) aggregate: no one is acting
         if rng.random() >= risk:
             continue
         if refuge and rng.random() < C["flee_share"]:

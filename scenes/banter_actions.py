@@ -7,6 +7,7 @@ from __future__ import annotations
 import random
 
 import config
+from engine import regard                                   # (f480)
 from engine import entities
 from engine import banter, clock, money, mentor, pulse, quirks, weather
 from engine import party as rules
@@ -160,9 +161,9 @@ class BanterActions:
                 m = by_name[who]
                 speakers.append(f"{who}: {m.get('blurb', '')}, {self.temper_text(m)}; travelling with the player")
             else:
-                n = next((x for x in self.present if x.name == who or x.label() == who), None)
+                n = next((x for x in self.present if x.name == who or x.label(self.acting) == who), None)
                 speakers.append(f"{who}: {n.activity}" if n else who)
-        others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present if n.name not in speaking and n.label() not in speaking][:4]
+        others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present if n.name not in speaking and n.label(self.acting) not in speaking][:4]
         spoken = [t for _, t in merged if not t.startswith("(")] or [t for _, t in merged]
         try:
             from engine import reach                            # (f344) what the place offers the party; tense in a fight
@@ -190,7 +191,7 @@ class BanterActions:
         promote(clerk, self.store, self.world, self.catalog)        # (f299) the clerk becomes a person before Maren meets her: her personality sets how it goes
         m = banter.manner(clerk)
         console.debug(f"clerk exchange: {clerk.name} reads as {m}")
-        who = clerk.name or clerk.label()
+        who = clerk.name or clerk.label(self.acting)
         clerk_desc = (f"{clerk.description or 'the guild clerk'} Personality: {clerk.personality or 'businesslike'}. Voice: {clerk.voice or 'plain'}. "
                       f"Mood lately: {clerk.mood or 'ordinary'}.")
         people = {mentor.NAME: (mentor.chat_system_persona() + " " + " ".join(quirks.Q["maren"]["blueprint"]),
@@ -204,10 +205,10 @@ class BanterActions:
         self.show_exchange(lines)
         day = clock.day(self.minutes)
         clerk.memories.append(Memory(day=day, turn=self.store.meta.turn, text="Maren Holt brought a newcomer in to be signed into the register and spoke for them."))
-        clerk.trust = min(100, clerk.trust + BN["clerk"].get("vouch_trust", 10))
-        clerk.met_player = True
+        regard.step(clerk, self.acting, BN["clerk"].get("vouch_trust", 10), cause="vouched for", minute=self.minutes)   # (f480)
+        seen = regard.meet(clerk, self.acting, self.minutes)
         if clerk.name:
-            clerk.name_known_to_player = True
+            seen.name_known = True
         self.store.save_npc(clerk)
 
     # ---------- the party among themselves ----------

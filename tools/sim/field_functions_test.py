@@ -215,11 +215,11 @@ for p_ in world.places.values():
 check("a town with someone to test on", npc is not None)
 ws.partner = npc
 n = use("read_the_room", target=npc.id)
-check("read the room tells mood, worry and trust", any(npc.label().capitalize() in x and "mood" in x for x in n), n)
-t0 = npc.trust
+check("read the room tells mood, worry and trust", any(npc.label("player").capitalize() in x and "mood" in x for x in n), n)
+t0 = simlib.view(npc).trust
 n = use("intimidate", target=npc.id)
 npc2 = store.load_npc(npc.id)
-check("intimidate costs goodwill", npc2.trust == max(0, t0 - field.F["intimidate"]["trust_cost"]), (t0, npc2.trust))
+check("intimidate costs goodwill", simlib.view(npc2).trust == max(0, t0 - field.F["intimidate"]["trust_cost"]), (t0, simlib.view(npc2).trust))
 check("...and aids only intimidation", any(l == "cowed" for l, v in ws.check_bonuses("intimidation", npc2))
       and not any(l in ("cowed", "won over") for l, v in ws.check_bonuses("persuasion", npc2)))
 ws.spend_edge("persuasion", npc2)
@@ -237,9 +237,9 @@ n = use("pickpocket", target=npc.id)
 check("...but only once a day per person", any("already tried" in x for x in n) and True, n)
 ws.fld["picked"] = {}
 ws.resolve = lambda check_, n_=None, **k: "failure"
-c0 = char.coins; t0 = store.load_npc(npc.id).trust
+c0 = char.coins; t0 = simlib.view(store.load_npc(npc.id)).trust
 n = use("pickpocket", target=npc.id)
-check("a caught thief gets nothing and is remembered", char.coins == c0 and store.load_npc(npc.id).trust < t0      # (f476) by kind
+check("a caught thief gets nothing and is remembered", char.coins == c0 and simlib.view(store.load_npc(npc.id)).trust < t0      # (f476) by kind
       and simlib.remembered(store, npc.id, kind="experienced", subject="player", about="caught"), n)
 ws.resolve = real_resolve
 ws.partner = None

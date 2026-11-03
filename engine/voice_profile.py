@@ -60,7 +60,7 @@ def ensure_npc(npc, rng: random.Random, region: str = "", taken: list[dict] | tu
     return npc.speech
 
 
-def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tuple[str, list[str], list[str]]:
+def resident_lines(npc, rng: random.Random, toward: str = "the stranger", *, char_id: str) -> tuple[str, list[str], list[str]]:
     """(f347) What a townsperson's reply is told about how they talk: the plain fact of their people and tongue (who), this reply's
     instructions (how their regard shows, and at most one feature of their culture on the culture budget), and any material offered to be
     said as it is (a saying). The same engine as a hire's, on a record instead of a party row."""
@@ -68,7 +68,8 @@ def resident_lines(npc, rng: random.Random, toward: str = "the stranger") -> tup
     if (npc.speech or {}).get("own_voice"):                         # (f374) written by hand: their voice and lines are in the prompt already
         return "", [], []
     member = {"id": npc.id, "name": npc.name, "speech": npc.speech, "said": list(npc.said), "people": npc.people}
-    relation = relation_kind(score=getattr(npc, "trust", 50) - 50)
+    from engine import regard
+    relation = relation_kind(score=regard.of(npc, char_id).trust - 50)          # (f480) how they are with this character
     feature = culture_feature(member, rng)
     lines = voices.lines(voices.kit_of(npc.speech)) + ([accent(member)] if accent(member) else []) \
         + compile(member, rng, relation=relation, toward=toward, budget=2, feature=feature)   # (f350) the kit first: it is the voice; (f410) the accent always

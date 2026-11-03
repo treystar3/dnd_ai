@@ -183,10 +183,10 @@ console.note = lambda t, *a, **k: notes.append(t)
 ws.enter("trading_square")
 sellers = [n for n in ws.present if ws.world.roles[n.role].sells or ws.world.roles[n.role].stock or ws.world.roles[n.role].relics]
 for n in sellers:
-    n.met_player = False
+    simlib.view(n).met = False
 ws.show_shop()
 check("with no seller spoken to, the pane names the traders here and what they deal in", sellers and notes and notes[-1].startswith("No one you have spoken to sells here yet. Trading here: ")
-      and all(n.label() in notes[-1] for n in sellers) and "(" in notes[-1], (len(sellers), notes[-1:]))
+      and all(n.label("player") in notes[-1] for n in sellers) and "(" in notes[-1], (len(sellers), notes[-1:]))
 check("...and the worn rows and shop rows carry rarity too", all("rarity" in w for w in panels[-1][1]["worn"]) if panels[-1][0] == "character" else True)
 console.note = _note
 console.panel = _panel

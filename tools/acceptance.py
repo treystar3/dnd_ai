@@ -103,7 +103,7 @@ class Table:
         from npc.models import NPC
         for p in st.get("present") or []:                     # people standing here, as the scene needs them
             n = NPC(id=p["id"], name=p.get("name", p["id"]), gender=p.get("gender", "male"), people=p.get("people", "human"),
-                    role=p.get("role", "merchant"), location=self.ws.player.location, traits=[], trust=50)
+                    role=p.get("role", "merchant"), location=self.ws.player.location, traits=[])     # (f480) a stranger: no view yet
             self.store.save_npc(n)
             self.ws.residents = self.ws.residents + [n]
             self.ws.present = self.ws.present + [n]
@@ -184,8 +184,8 @@ class Table:
                 if not hits:
                     out.append(f"no {want.get('kind')} '{want.get('name', '')}'" + (f" in state {want['state']}" if want.get("state") else ""))
             elif key == "present":
-                if not any(want.lower() in f"{n.label()} {n.name} {n.role}".lower() for n in ws.present):
-                    out.append(f"nobody here is a {want} ({[n.label() for n in ws.present][:6]})")
+                if not any(want.lower() in f"{n.label(ws.acting)} {n.name} {n.role}".lower() for n in ws.present):
+                    out.append(f"nobody here is a {want} ({[n.label(ws.acting) for n in ws.present][:6]})")
             elif key == "has":
                 from engine import inventory
                 labels = " | ".join(inventory.label(i) for i in ws.player.character.inventory).lower()

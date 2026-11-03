@@ -135,14 +135,14 @@ class SpellActions:
             ahead = spells.waiting(c)
             if ahead:
                 soonest = min(ahead, key=lambda x: spells.learn_level(x[2]))
-                console.note(f"{cap_first(teacher.label())} shakes their head: you are not ready for more yet. Rank "
+                console.note(f"{cap_first(teacher.label(self.acting))} shakes their head: you are not ready for more yet. Rank "
                              f"{spells.numeral(soonest[2])} of {soonest[1].name} is within reach at level {spells.learn_level(soonest[2])}.")
             else:
-                console.note(f"{cap_first(teacher.label())} has no deeper working to teach you: your spells are at their highest rank, "
+                console.note(f"{cap_first(teacher.label(self.acting))} has no deeper working to teach you: your spells are at their highest rank, "
                              "or you know none that grow by rank.")
             return
         self.rank_options = ready
-        console.note(f"{cap_first(teacher.label())} can teach you:")
+        console.note(f"{cap_first(teacher.label(self.acting))} can teach you:")
         for i, (line, a, r) in enumerate(ready, 1):
             console.note(f"  {i}. {a.name} to rank {spells.numeral(r)} ({spells.form_label(a)}) - "
                          f"{money.words(self.fee(spells.teacher_fee(r)))}, {spells.S['teach']['hours']} hours")
@@ -165,7 +165,7 @@ class SpellActions:
         if not self.pay_for_training(fee, f"rank {spells.numeral(r)}"):
             return True
         self.rank_options = None
-        new = self.learn_rank(line, f"learning from {teacher.label()}", text, spells.S["teach"]["hours"])
+        new = self.learn_rank(line, f"learning from {teacher.label(self.acting)}", text, spells.S["teach"]["hours"])
         if new is not None:
             console.note(f"Paid {money.fmt(fee)}.")
         return True

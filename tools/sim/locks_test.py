@@ -77,7 +77,7 @@ VERDICT = {}
 def verdict(**kw): VERDICT.clear(); VERDICT.update(kw)
 ws.judge_object = lambda owner, wanted, text: ObjectVerdict(**VERDICT)
 def reset():
-    for n in (mer, frm, grd): n.memories.clear(); n.trust = 50; n.hidden = []; n.looks_away_until = -1
+    for n in (mer, frm, grd): n.memories.clear(); simlib.view(n).trust = 50; n.hidden = []; n.looks_away_until = -1
     ws.player.heat.clear(); ws.player.confronted.clear(); ws.player.character.key_items.clear()
     ws.present = [mer, frm]; EVENTS.clear(); NOTES.clear(); CALLS.clear(); VERDICT.clear()
     state = store.load_place("parth"); state.hidden = []; state.locks = []; store.save_place(state)
@@ -161,8 +161,8 @@ check("the lock's difficulty reaches the roll", CALLS[-1][0][6] == locks.difficu
 setup_lock(); fix_degree("partial"); fix_notice({"merchant"})
 ws.on_unlock(A(kind="unlock", item="the back room", target="m1"), "I pick the lock")
 check("a partial opens it but is noticed", lk()[0]["state"] == "locked" or lk()[0]["state"] == "open")
-check("the owner who sees a break-in remembers and loses trust", mer.trust < 50                                   # (f476) by kind
-      and simlib.remembered(store, mer.id, kind="experienced", subject="player", about="back room"), (mer.trust, simlib.remembered(store, mer.id)))
+check("the owner who sees a break-in remembers and loses trust", simlib.view(mer).trust < 50                                   # (f476) by kind
+      and simlib.remembered(store, mer.id, kind="experienced", subject="player", about="back room"), (simlib.view(mer).trust, simlib.remembered(store, mer.id)))
 check("a seen break-in costs 10 heat", ws.heat_here() == 10, ws.heat_here())
 
 setup_lock(); fix_degree("success"); fix_notice({"farmer"})

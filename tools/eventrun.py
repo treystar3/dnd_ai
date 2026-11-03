@@ -372,7 +372,7 @@ class EventBot(Bot):
                 self.asked[n.id] += 1
                 self.learn_left = max(0, self.learn_left - 1)
                 self.talks = 0                         # one follow-up question, then leave
-                text = rng.choice([f"I ask {n.label()} what they know about {th['title']}.", f"I go over to {n.label()} and ask about {th['title']}."])
+                text = rng.choice([f"I ask {n.label(self.ws.acting)} what they know about {th['title']}.", f"I go over to {n.label(self.ws.acting)} and ask about {th['title']}."])
                 return text, self.intend("talk", target=n.id, speech=f"What do you know about {th['title']}?"), "talk"
             return None                                # nothing more to learn here now: let time pass
         return None
@@ -380,8 +380,8 @@ class EventBot(Bot):
     def persuade_line(self, n, p: dict, th: dict) -> tuple:
         self.tries[n.id] += 1
         ask = "make peace" if p["kind"] == "treaty" else f"help end {th['title']}"
-        text = self.rng.choice([f"I try to persuade {n.label()} to {ask}.", f"I do my best to convince {n.label()} to {ask}.",
-                                f"I try to talk {n.label()} round: they should {ask}, for everyone's sake."])
+        text = self.rng.choice([f"I try to persuade {n.label(self.ws.acting)} to {ask}.", f"I do my best to convince {n.label(self.ws.acting)} to {ask}.",
+                                f"I try to talk {n.label(self.ws.acting)} round: they should {ask}, for everyone's sake."])
         return text, self.intend("talk", target=n.id, speech=text, checks=["persuasion"]), "persuade"
 
     def travel_line(self, dest: str, key: tuple) -> tuple | None:

@@ -64,7 +64,7 @@ if npc is not None:
     from npc.life import ensure_speech
     ensure_speech(npc, store, world)
     npc.gender = "female"
-    lines = [l for k in range(12) for l in voice_profile.resident_lines(npc, random.Random(k))[1]]
+    lines = [l for k in range(12) for l in voice_profile.resident_lines(npc, random.Random(k), char_id="player")[1]]
     theys = [l for l in lines if re.search(r"\b(they|them|their|themselves)\b", l, re.I)]
     check("what a townswoman is told about how she talks is said of her as she", lines and not theys, theys[:3])
 else:
@@ -102,7 +102,7 @@ for speech in ("None.", "", "...", "n/a"):
 check("...unless what they do is the answer", NPCReply.model_validate({"speech": "", "gesture": "shrugs", "intent": "small_talk"}).gesture == "shrugs")
 SHOWN.clear()
 if npc is not None:
-    ws.show_speech(npc.label(), types.SimpleNamespace(speech="", gesture="shrugs and turns back to the bar"), npc)
+    ws.show_speech(npc.label("player"), types.SimpleNamespace(speech="", gesture="shrugs and turns back to the bar"), npc)
 check("...and no name is printed over an empty line", SHOWN and SHOWN[-1][0] == "narrate" and "shrugs" in SHOWN[-1][1], SHOWN)
 said = "The road north is closed until the thaw, I hear."
 try:

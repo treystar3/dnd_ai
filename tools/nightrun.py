@@ -265,8 +265,9 @@ class Run:
             from scenes.work_actions import offer_open
             p = ws.player
             present = list(getattr(ws, "present", []) or [])
-            talk = {n.id: {"label": n.label(), "met": bool(getattr(n, "met_player", False)), "last_talk_at": int(getattr(n, "last_talk_at", -1)),
-                           "known_as": getattr(n, "knows_player_as", "") or "", "trust": int(getattr(n, "trust", 0) or 0)} for n in present[:12]}
+            from engine import regard                                # (f480) the playing character's view, under the keys the measures read
+            talk = {n.id: {"label": n.label(ws.acting), "met": regard.of(n, ws.acting).met, "last_talk_at": regard.of(n, ws.acting).last_talk_at,
+                           "known_as": regard.of(n, ws.acting).knows_as, "trust": regard.of(n, ws.acting).trust} for n in present[:12]}
             owed = [{"id": q["id"], "kind": q.get("kind", ""), "holder": q.get("issuer", "") or "guild", "title": q.get("title", ""), "state": "taken"}
                     for q in p.quests]
             for n in present:

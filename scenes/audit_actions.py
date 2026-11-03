@@ -31,7 +31,7 @@ class AuditActions:
             present=__import__("engine.truth", fromlist=["scene_of"]).scene_of(self).present_ids(),   # (f313) the one list everyone reads
             abilities={k: a.name for a in self.player.character.actives for k in (a.id.lower(), a.name.lower())},
             place=self.place.name, wildlife=bool(self.wildlife),
-            partner=self.partner.label() if self.partner else "",
+            partner=self.partner.label(self.acting) if self.partner else "",
             workers={n.id for n in self.present if offer_open(n, self.minutes)}, people_at=self.people_at)
         sit.lines = [f"Place: {sit.place}.", "People here: " + (", ".join(sit.present.values()) or "no one") + ".",
                      "Talking with: " + (sit.partner or "no one") + ".",
@@ -53,7 +53,7 @@ class AuditActions:
             if n.gone:
                 continue
             role = n.role.replace("_", " ")
-            out |= {n.id.lower(), n.name.lower(), n.label().lower(), role, role.split()[-1]}
+            out |= {n.id.lower(), n.name.lower(), n.label(self.acting).lower(), role, role.split()[-1]}
         return out
 
     def pack_names(self) -> list[str]:
@@ -88,7 +88,7 @@ class AuditActions:
         sit = self.situation()
         row = self.absent_known(plan, sit)
         if row is not None:                                                        # (f342) the clerk at night, the smith at the inn: the engine knows where they are
-            console.debug(f"audit: {row.label()} is not here; the engine says where they are")
+            console.debug(f"audit: {row.label(self.acting)} is not here; the engine says where they are")
             self.log_turn(text, sit, raw_plan, ia.Result("answered", plan, reason=f"'{row.id}' is not here: the engine said where they are"), time.perf_counter() - start)
             from engine import operation as _op
             if _op.current() is None and self.store._armed:                        # (f470) during the understanding: the walk is an operation of its own
@@ -178,7 +178,7 @@ class AuditActions:
                 console.note("That still didn't come through - try it in different words.")
             self.clarify_commit(text, give_up)
             return
-        people = ", ".join(f"{n.id}: {n.label()}" for n in self.present) or "nobody"
+        people = ", ".join(f"{n.id}: {n.label(self.acting)}" for n in self.present) or "nobody"
         partner = self.partner.id if self.partner else ""
         asked, who = "", None
         try:                                                              # (f470) prepared: the call first, outside any transaction
@@ -193,7 +193,7 @@ class AuditActions:
 
         def commit():                                                     # ...then the question kept, in one small operation (turn())
             if asked and who is not None:
-                console.npc_says(who.label(), asked, "")
+                console.npc_says(who.label(self.acting), asked, "")
             elif asked:
                 console.narrate(asked)
             else:

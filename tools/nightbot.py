@@ -182,7 +182,7 @@ class Bot:
         return f"{p.danger[0]}-{p.danger[1]}" if p and p.danger else ""
 
     def names_here(self) -> list[str]:
-        out = [n.label() for n in self.ws.present] + [m.get("name", "") for m in self.ws.player.party]
+        out = [n.label(self.ws.acting) for n in self.ws.present] + [m.get("name", "") for m in self.ws.player.party]
         p = self.place()
         if p:
             out.append(p.name)
@@ -505,7 +505,7 @@ class Bot:
         draught = next(((n, w) for n, w in sellers if w.item == "healing_draught"), None)
         if draught and inv.count_of(c.inventory, "healing_draught") < 2 and c.coins >= draught[1].price * 2:
             self.label("need:buy")
-            return f"I buy a healing draught from {draught[0].label()}.", self.intend("buy", ware="healing draught", target=draught[0].id), "shop"
+            return f"I buy a healing draught from {draught[0].label(self.ws.acting)}.", self.intend("buy", ware="healing draught", target=draught[0].id), "shop"
         loot = [i for i in c.inventory if not i.good and i.base != "raw_material" and i.uid not in self.tried_gear]
         gear = [i for i in loot if i.item_level >= 1]
         worn = [i.item_level for i in c.equipment.values() if i is not None]
@@ -523,7 +523,7 @@ class Bot:
             if buyer and item.item_level + 5 < max(worn or [1]):
                 self.tried_gear.add(item.uid)
                 self.label("need:sell")
-                return f"I sell the {item.name} to {buyer.label()}.", self.intend("sell", item=item.name, target=buyer.id), "shop"
+                return f"I sell the {item.name} to {buyer.label(self.ws.acting)}.", self.intend("sell", item=item.name, target=buyer.id), "shop"
         return None
 
     def rest_line(self, p) -> tuple[str, dict, str]:
@@ -717,7 +717,7 @@ class Bot:
         if clerk is None:
             wait = self.clerk_wait(g)
             return wait or None
-        line = f"I report to {clerk.label()}: {g['title']} is done."
+        line = f"I report to {clerk.label(self.ws.acting)}: {g['title']} is done."
         return line, self.intend("talk", target=clerk.id, speech=f"{g['title']} - it's done. I'm here for the pay."), "talk"
 
     def goal_hunt(self, g: dict):
@@ -830,7 +830,7 @@ class Bot:
             return "I wait for a while, watching the door.", self.intend("wait", wait_minutes=60), "wait"
         self.talks = 1
         ask = f"I need your help with {g['title']}. Will you help me end it?"
-        return f"I go to {n.label()} and ask for their help with {g['title']}.", self.intend("talk", target=n.id, speech=ask, checks=["persuasion"]), "talk"
+        return f"I go to {n.label(self.ws.acting)} and ask for their help with {g['title']}.", self.intend("talk", target=n.id, speech=ask, checks=["persuasion"]), "talk"
 
     def goal_clear(self, g: dict):
         self.label("follow:clear")
@@ -1024,7 +1024,7 @@ class Bot:
             asked = self.__dict__.setdefault("_asked_of", {}).setdefault(n.id, [])
             q = rng.choice([x for x in self.QUESTIONS if x not in asked] or self.QUESTIONS)
             asked.append(q)
-            return f"I go over to {n.label()} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
+            return f"I go over to {n.label(self.ws.acting)} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
         if pick == "move":
             return self.move_line(p)
         if pick == "parts":
@@ -1138,13 +1138,13 @@ class Bot:
         """What the line is for, in plain words, and the names it must carry so the game reads it as meant."""
         ws, world = self.ws, self.world
         k = intent.get("kind", kind)
-        label = lambda nid: next((n.label() for n in ws.present if n.id == nid), "")
+        label = lambda nid: next((n.label(self.ws.acting) for n in ws.present if n.id == nid), "")
         if k == "move":
             dest = world.places.get(intent.get("destination", ""))
             name = dest.name if dest else intent.get("destination", "")
             return f"go to {name}", [name]
         if k == "talk":
-            who = label(intent.get("target", "")) or (ws.partner.label() if ws.partner else "them")
+            who = label(intent.get("target", "")) or (ws.partner.label(self.ws.acting) if ws.partner else "them")
             if ws.partner is not None and intent.get("checks"):
                 return f"you are talking with {who}; persuade them: {intent.get('speech', '')}", []
             if ws.partner is not None:
@@ -1199,7 +1199,7 @@ class Bot:
                   "to it, never address the game. When you speak to someone, pick up on something they or the game just said when you can.")
         p = Prompt()
         party = ", ".join(m.get("name", "") for m in self.ws.player.party)
-        here = ", ".join(n.label() for n in self.ws.present[:8]) or "nobody"
+        here = ", ".join(n.label(self.ws.acting) for n in self.ws.present[:8]) or "nobody"
         p.fact(f"Where you are: {self.where()}. Here: {here}. With you: {party or 'nobody'}. Your health: {int(self.hp() * 100)}%.", "SCENE")
         if passage:
             p.history(passage[-1400:], "THE GAME JUST SAID")
@@ -1223,7 +1223,7 @@ class Bot:
         if n is None or not getattr(n, "id", ""):
             return
         was = self.met.get(n.id) or {}
-        self.met[n.id] = {"name": n.label(), "place": self.ws.player.location, "minute": self.ws.minutes, "first": was.get("first", self.ws.minutes)}
+        self.met[n.id] = {"name": n.label(self.ws.acting), "place": self.ws.player.location, "minute": self.ws.minutes, "first": was.get("first", self.ws.minutes)}
 
     def _clog(self, kind: str, row: dict) -> None:
         row = {"turn": self.ws.store.meta.turn, "minute": self.ws.minutes, **row}
@@ -1291,9 +1291,9 @@ class Bot:
             self._clog("issuer_visits", {"npc": npc.id, "quest_title": g.get("title", ""), "outcome": g.get("outcome", ""), "gap": gap})
         else:
             speech = self.crng.choice(REVISIT_LINES)
-            self._clog("revisits", {"npc": npc.id, "name": npc.label(), "gap": gap})
+            self._clog("revisits", {"npc": npc.id, "name": npc.label(self.ws.acting), "gap": gap})
         self._note_met(npc)
-        return f'I go over to {npc.label()}. "{speech}"', self.intend("talk", target=npc.id, speech=speech), "talk"
+        return f'I go over to {npc.label(self.ws.acting)}. "{speech}"', self.intend("talk", target=npc.id, speech=speech), "talk"
 
     def _cont_talk(self, partner):
         """Inside a conversation: an offer this person made is taken up; the run's one lie is told; a promise is made."""
@@ -1313,13 +1313,13 @@ class Bot:
             return '"I\'ll do it. You can count on me."', self.intend("accept_quest", target=partner.id), "board"
         if not self.clog["plants"] and crng.random() < self.CW["lie"] * 0.25:
             token = crng.choice(FALSE_NAMES)
-            self._clog("plants", {"npc": partner.id, "name": partner.label(), "token": token, "kind": "name"})
+            self._clog("plants", {"npc": partner.id, "name": partner.label(self.ws.acting), "token": token, "kind": "name"})
             self.label("cont:lie")
             speech = f"My name is {token}, by the way."
             return f'"{speech}"', self.intend("talk", target=partner.id, speech=speech), "talk"
         if partner.id not in {p["npc"] for p in self.clog["promises"]} and crng.random() < self.CW["promise"] * 0.15:
             speech = crng.choice(PROMISES)
-            self._clog("promises", {"npc": partner.id, "name": partner.label(), "text": speech})
+            self._clog("promises", {"npc": partner.id, "name": partner.label(self.ws.acting), "text": speech})
             self.label("cont:promise")
             return f'"{speech}"', self.intend("talk", target=partner.id, speech=speech), "talk"
         return None
@@ -1335,7 +1335,7 @@ class Bot:
             npc = None
         if npc is None or getattr(npc, "gone", "") or not self._reachable(npc.location):
             return
-        self.goals.append({"kind": "revisit", "npc": nid, "place": npc.location, "name": g.get("issuer_name") or npc.label(), "why": "issuer",
+        self.goals.append({"kind": "revisit", "npc": nid, "place": npc.location, "name": g.get("issuer_name") or npc.label(self.ws.acting), "why": "issuer",
                            "title": g.get("title", ""), "outcome": outcome, "tries": 0})
 
     def _abandon(self, q: dict):

@@ -111,7 +111,7 @@ def absent_line(ws, npc) -> str:
     """When the player tries to speak to someone behind the door without being admitted."""
     g = gate(ws.world, npc.location) or {}
     keeper = g.get("keeper", "the keeper").replace("_", " ")
-    return f"{cap_first(npc.label())} is not seen like that. The {keeper} keeps the door; ask there, or be sent for."
+    return f"{cap_first(npc.label(ws.acting))} is not seen like that. The {keeper} keeps the door; ask there, or be sent for."
 
 
 def summon(ws, npc, th: dict) -> bool:
@@ -123,7 +123,7 @@ def summon(ws, npc, th: dict) -> bool:
     grant(ws, npc.location, f"sent for by {npc.name}", A.get("summons_minutes", 1440))
     ws.weight_hint = "rich"
     ws.narrate(f"A messenger from {place.name} (one of the {g.get('keeper', 'keeper').replace('_', ' ')}'s people, or a guard in the crown's colours) finds the player "
-               f"and tells them, with no more than that, that {npc.label()} will see them at {place.name}, today. Show the messenger arriving and going; "
+               f"and tells them, with no more than that, that {npc.label(ws.acting)} will see them at {place.name}, today. Show the messenger arriving and going; "
                "the player decides whether to go.")
     console.debug(f"audience: {npc.name} sends for the player - {th['title']}")
     return True

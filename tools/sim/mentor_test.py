@@ -371,7 +371,7 @@ from scenes.combat_scene import CombatScene
 check("once it is over she is saved as a person of the world", store.npc_exists("maren"))
 mn = store.load_npc("maren")
 check("...who remembers what the player told her", any("They told me" in m.text for m in mn.memories) and any("hire me as practice" in m.text.lower() or "hire me" in m.text.lower() for m in mn.memories), [m.text for m in mn.memories])
-check("...likes them, and knows them by name", mn.trust >= 60 and mn.knows_player_as == c.name and mn.name_known_to_player and mn.protected)
+check("...likes them, and knows them by name", simlib.view(mn).trust >= 60 and simlib.view(mn).knows_as == c.name and simlib.view(mn).name_known and mn.protected)
 hall_id = next(p.id for p in world.places.values() if p.type == "guild" and p.parent == "parth")
 check("(f382) ...and has left Parth on the capital's work: in no place, and not waiting at the hall", mn.gone and "capital" in mn.gone
       and "maren" not in store.load_place(hall_id).residents)

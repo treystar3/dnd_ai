@@ -25,6 +25,7 @@ from scenes.stats_actions import StatsActions
 from scenes.banter_actions import BanterActions
 from scenes.quirk_actions import QuirkActions
 from engine import encounters
+from engine import regard                                   # (f480) what each person makes of each character
 from core.interrupts import Interrupt                      # (f449) stopped on purpose: let through, never rolled back as a fault
 
 
@@ -148,10 +149,21 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 return n
         return self.store.load_npc(nid) if self.store.npc_exists(nid) else None
 
+    @property
+    def acting(self) -> str:
+        """(f480) The id of the character whose line is being played. What a person makes of "the player" is what they make of this
+        character (engine/regard.py): the one place the scene says which character that is (one today; tools/sim/regard_480_test.py
+        names the call sites that read it)."""
+        return self.player.character.id
+
     def notice(self, event, *people) -> None:
         """The world notices a deed of the player's (engine/reactions.py). `people` are the records this code holds for anyone in it, so
         that the reactions change the very objects it will save, whether or not they stand in `present` right now."""
         self._live = {n.id: n for n in people if n is not None}
+        from engine import domain_events as _de
+        if isinstance(event, _de.Deed) and not event.by:
+            import dataclasses
+            event = dataclasses.replace(event, by=self.acting)   # (f480) the deed is the acting character's: whom the world remembers it of
         try:
             self.session.bus.publish(event)                 # (f454) this campaign's bus, whichever is current
         finally:
@@ -335,7 +347,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.store.meta.day = clock.day(self.minutes)
         self.refresh_present()
         if self.partner and self.partner not in self.present:
-            self.time_note(f"{self.partner.label()} heads off for the day.")
+            self.time_note(f"{self.partner.label(self.acting)} heads off for the day.")
             self.end_conversation()
         if clock.period(self.minutes) != before:
             console.debug(f"time of day is now {clock.period(self.minutes)}")
@@ -559,7 +571,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.refresh_present()
         if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
             from engine import doings
-            self.__dict__.setdefault("_arrival_lines", []).extend(doings.changed_lines(getattr(self, "_doing_changes", [])))
+            self.__dict__.setdefault("_arrival_lines", []).extend(doings.changed_lines(getattr(self, "_doing_changes", []), who=self.acting))
         from engine import moments
         moments.on_enter(self)                                                                # (f348) a possibility: something going on as they walk in
         self.home_arrival()
@@ -851,7 +863,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import canon, mentor
         canon.IDS = {m["name"]: m["id"] for m in self.player.party if m.get("name") and m.get("id")}
         canon.IDS[mentor.NAME] = "maren"
-        canon.IDS[self.player.character.name] = "player"
+        canon.IDS[self.player.character.name] = self.player.character.id      # (f480) the character by their id ("player" with one)
         canon.JOURNAL = lambda kind, actor, target, text, data: self.store.journal(self.minutes, kind, actor, target, text, data, self.last_text[:80])
         from engine import names, party as rules                # (f412) each companion's pronoun, for what reaches the screen
         names.set_cast({m["name"].split()[0]: rules.pronoun_of(m) for m in self.player.party if m.get("name") and m.get("permanent")})
@@ -1484,17 +1496,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     NOTE_NEW_MEMORIES = 2
 
     def note_due(self, npc) -> bool:
-        if not npc.name_known_to_player:
+        seen = regard.of(npc, self.acting)                   # (f480) the note is the acting character's, about this person
+        if not seen.name_known:
             return False
-        if not npc.journal_note:
+        if not seen.journal_note:
             return True
-        return abs(npc.trust - npc.note_trust) >= self.NOTE_TRUST_SHIFT or npc.memory_total - npc.note_mem >= self.NOTE_NEW_MEMORIES
+        return abs(seen.trust - seen.note_trust) >= self.NOTE_TRUST_SHIFT or npc.memory_total - seen.note_mem >= self.NOTE_NEW_MEMORIES
 
     def journal_line(self, n, town: str) -> str:
         """One sentence about a person you know by name: their own note when they have written one, a plain line from what is known until then."""
         import re as _re
-        if n.journal_note and not ("[" in n.journal_note or _re.search(r"\b(I|I'm|I've|my|me)\b", n.journal_note)):
-            return n.journal_note                            # (f299) a note written in their own voice, from an older save, is passed over
+        note = regard.of(n, self.acting).journal_note        # (f480)
+        if note and not ("[" in note or _re.search(r"\b(I|I'm|I've|my|me)\b", note)):
+            return note                                      # (f299) a note written in their own voice, from an older save, is passed over
         if n.id == "maren":
             return mentor.M["journal_after"]
         role = n.role.replace("_", " ")
@@ -1507,6 +1521,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         last = next((t for t in reversed(self.fld.get("towns", [])) if t != here), "")
         groups: dict[str, list] = {}
         for n in self.store.load_npcs([r.id for r in self.store.npc_rows(met_player=True) if r.name_known_to_player]):
+            if not (regard.of(n, self.acting).met and regard.of(n, self.acting).name_known):
+                continue                                     # (f480) known by name to another character, not to this one
             town = pulse.town_of(self.world, n.location) if n.location in self.world.places else ""
             groups.setdefault(town, []).append(n)
         virtual = self.mentor_journal_entry()
@@ -1532,9 +1548,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 people.append({"name": n.name, "role": n.role.replace("_", " "), "place": self.where_name(n.location),
                                "line": self.journal_line(n, self.where_name(t) if t else "")})
             out.append({"town": self.where_name(t) if t else "On the road", "tag": tag, "people": people})
-        heard = [{"name": n.name, "by": n.heard_of["by"], "line": n.heard_of["line"]}
+        heard = [{"name": n.name, "by": seen.heard_of["by"], "line": seen.heard_of["line"]}       # (f480) what this character heard
                  for n in sorted(self.store.load_npcs([r.id for r in self.store.npc_rows(heard_of=True)]), key=lambda x: x.name.lower())
-                 if n.heard_of and not (n.met_player and n.name_known_to_player)]
+                 for seen in [regard.of(n, self.acting)] if seen.heard_of and not (seen.met and seen.name_known)]
         known = self.player.character.knowledge
         from engine import matters
         found = [f"{cap_first(e.name)}, {self.where_name(e.place)}: {e.data['clue'].replace('{low_tide}', features.low_tide_text(self.minutes))}"
@@ -2036,7 +2052,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         low = text.lower()
         hits = []
         for n in self.present:
-            words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if n.name_known_to_player and n.name else set())
+            words = {n.role.replace("_", " ")} | ({n.name.split()[0].lower()} if regard.of(n, self.acting).name_known and n.name else set())
             if any(re.search(rf"\b{re.escape(w.lower())}\b", low) for w in words if w):
                 hits.append(n.id)
         for m in self.player.party:
@@ -2266,7 +2282,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import recognition
         by_id = {n.id: n for n in self.present}
         return [(p.label, (f"{work}. " if (work := truth.their_work(p.label, p.role)) else "") + p.desc
-                 + ((" " + knows) if (knows := recognition.seen(by_id[p.id], self.minutes) if p.id in by_id else "") else ""), p.doing)   # (f378) work; (f382) knows you
+                 + ((" " + knows) if (knows := recognition.seen(by_id[p.id], self.minutes, self.acting) if p.id in by_id else "") else ""), p.doing)   # (f378) work; (f382) knows you
                 for p in truth.scene_of(self).present_people() if p.kind not in ("wildlife", "hire", "companion")]
 
     FIRST_SEEN = 2
@@ -2291,8 +2307,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def seen_as(self, n) -> str:
         """(f378) A townsperson as the narrator's frames list them: how the player knows them, and their work when that does not say it."""
         from engine import truth
-        work = truth.their_work(n.label(), n.role)
-        return f"{n.label()}, {work}" if work else n.label()
+        work = truth.their_work(n.label(self.acting), n.role)
+        return f"{n.label(self.acting)}, {work}" if work else n.label(self.acting)
 
     def companions_in(self, event: str) -> list[str]:
         """(f349) The hires the GAME EVENT names, so the narrator may show what one of them does; the rest go unmentioned."""
@@ -2484,7 +2500,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         left = next((n for n in away_rows if n.id == self.last_spoken and n.location == self.player.location and n.away_until > self.minutes), None)
         if left is not None and all(n.id != left.id for n in shown_away):
             shown_away.append(left)                       # the one who just walked off is always listed: "wait for them" must resolve
-        elsewhere = [(n.id, f"{n.label()} ({n.role.replace('_', ' ')})",
+        elsewhere = [(n.id, f"{n.label(self.acting)} ({n.role.replace('_', ' ')})",
                       "just walked away from here and can't be spoken to for a short while"
                       if n.location == self.player.location and n.away_until > self.minutes else self.where_name(n.location))
                      for n in shown_away]
@@ -2492,15 +2508,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         people = people + [(p.id, f"{p.label} ({p.note})", f"{p.desc} {p.doing}.") for p in _sc.present_people() if p.kind in ("maren", "hire", "companion")]
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
-        wares_all = [f"{w.id}: {w.name} - {money.words(self.quote_ware(n, w).price)} (sold by {n.label()}, id {n.id})"   # (f333) the id alone first: the model copies
+        wares_all = [f"{w.id}: {w.name} - {money.words(self.quote_ware(n, w).price)} (sold by {n.label(self.acting)}, id {n.id})"   # (f333) the id alone first: the model copies
                      for n in self.present for w in self.world.roles[n.role].sells] \
-            + [f"{i.name}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock of {n.label()}, id {n.id})" for n, i, p in self.stock_here()]
+            + [f"{i.name}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock of {n.label(self.acting)}, id {n.id})" for n, i, p in self.stock_here()]
         from engine import loadout
         abilities_all = [f"{a.id}: {a.name} ({a.field_use or a.effect.value}{', in a fight' if a.context.value == 'combat' else ''})"
                          for a in loadout.prepared(self.player.character)]
         pack_all = [inv.label(i) for i in self.pack]
         recipes_all = [inv.GOODS[next(iter(r.makes))].name for r in inv.RECIPES.values()]
-        buyers_all = [f"{n.id} ({n.label()}) buys {', '.join(self.world.roles[n.role].buys)}" for n in self.present if self.world.roles[n.role].buys]
+        buyers_all = [f"{n.id} ({n.label(self.acting)}) buys {', '.join(self.world.roles[n.role].buys)}" for n in self.present if self.world.roles[n.role].buys]
         stash_all = [inv.label(i) for i in self.player.stash] if self.can_store() else None
         shown = {"wares": cand.catalogue(text, "wares", wares_all, short), "abilities": cand.catalogue(text, "abilities", abilities_all, short),
                  "pack": cand.catalogue(text, "pack", pack_all, short), "recipes": cand.catalogue(text, "recipes", recipes_all, short),
@@ -2568,7 +2584,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """Someone here who is what the player means: a person's id, a role word ('the smith'), or whoever works in that kind of building."""
         d = dest.lower().strip().replace("the ", "", 1).replace(" ", "_")
         for n in self.present if d else ():
-            if n.id == dest or n.role == d or d in n.label().lower().replace(" ", "_"):
+            if n.id == dest or n.role == d or d in n.label(self.acting).lower().replace(" ", "_"):
                 return n
         for role in self.ROLES_OF.get(kind, ()):
             for n in self.present:
@@ -2589,7 +2605,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def walk_over(self, npc) -> None:
         self.end_conversation()
         self.last_spoken = npc.id
-        console.note(f"You walk over to {npc.label()}.")
+        console.note(f"You walk over to {npc.label(self.acting)}.")
         self.halted = False
 
     @staticmethod
@@ -2642,7 +2658,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.walk_over(npc)
         else:
             usual = routines.usual_line(self.world, self.store.meta.seed, row)
-            self.refuse(f"{row.label()} works here, but is not about at this hour." + (f" You might find them {usual}." if usual else ""))
+            self.refuse(f"{row.label(self.acting)} works here, but is not about at this hour." + (f" You might find them {usual}." if usual else ""))
 
     def names_far_place(self, dest: str, text: str) -> bool:
         """Do the player's own words name this place (or its town)? A bare noun like 'the smithy' does not."""
@@ -2874,9 +2890,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if court.is_gated(self.world, resident) and not court.admitted(self, resident.location):
                 self.refuse(court.absent_line(self, resident))                  # (f320) behind a door that has not opened to them
             elif resident.away_until > self.minutes:
-                self.refuse(f"{resident.label()} has stepped away. Give it a little while.")
+                self.refuse(f"{resident.label(self.acting)} has stepped away. Give it a little while.")
             else:
-                self.refuse(f"{resident.label()} isn't here at this hour.")
+                self.refuse(f"{resident.label(self.acting)} isn't here at this hour.")
             return
         if not npc and self.store.npc_exists(target_id):
             away = self.store.load_npc(target_id)
@@ -2885,28 +2901,28 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                          and mapview.top_of(self.world, away.location) == mapview.top_of(self.world, self.player.location)
                          and not self.world.places[away.location].danger and away.away_until <= self.minutes)
             if not same_town:
-                console.note(f"{away.label()} isn't here. You last saw them at {self.where_name(away.location)}.")
+                console.note(f"{away.label(self.acting)} isn't here. You last saw them at {self.where_name(away.location)}.")
                 return
             self.travel_route(away.location, text)                 # (f342) someone of this town: walk to where they work
             if self.halted:
                 return
             npc = next((n for n in self.present if n.id == target_id), None)
             if not npc:
-                self.refuse(f"{away.label()} is not about at this hour.")
+                self.refuse(f"{away.label(self.acting)} is not about at this hour.")
                 return
         if not npc and not self.present:
             self.narrate("The player says or thinks this aloud, but no one is here to answer. Reflect the silence "
                          "of the place back at them.", text)
             return
         if not npc:
-            here = ", ".join(n.label() for n in self.present)
+            here = ", ".join(n.label(self.acting) for n in self.present)
             self.ask_back("talk_whom", text, f"said to no one in particular; here: {here}")          # (f321) the world asks who they mean
             self.halted = True
             return
         if not self.partner or self.partner.id != npc.id:
             self.end_conversation()
             self.partner = npc
-            self.stance = voice_rules.roll_stance(npc, self.minutes, self.rng)        # (f347) how they are for this conversation
+            self.stance = voice_rules.roll_stance(npc, self.minutes, self.rng, who=self.acting)        # (f347) how they are for this conversation
             if self.stance:
                 console.debug(f"{npc.name} is, this talk: {self.stance}")
         self.last_spoken = npc.id
@@ -2914,22 +2930,22 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         promote(npc, self.store, self.world, self.catalog)
 
         speech = intent.speech or text
-        label_before = npc.label()
-        first_time = not npc.met_player
+        label_before = npc.label(self.acting)
+        first_time = not regard.of(npc, self.acting).met         # (f480) the first meeting is this character's
         from engine import recognition
-        back = "" if first_time or self.convo else recognition.line(npc, self.minutes)       # (f382) they know the player again
+        back = "" if first_time or self.convo else recognition.line(npc, self.minutes, self.acting)       # (f382) they know the player again
         self._back = npc.id if back else None
-        if first_time:
+        if first_time:                                       # (f480) seeded from this character's standing: their name, their deeds
             rep = self.player.reputation.get(pulse.town_of(self.world, npc.location), 0)
-            npc.trust = max(0, min(100, npc.trust + round(rep * pulse.P["reputation"]["trust_per_point"])
-                                   + self.first_meeting_trust(npc) + self.heat_trust() + self.standing_trust(npc)))
+            regard.step(npc, self.acting, round(rep * pulse.P["reputation"]["trust_per_point"]) + self.first_meeting_trust(npc)
+                        + self.heat_trust() + self.standing_trust(npc), cause="first meeting", minute=self.minutes)
         else:
             self.easy_company(npc)
         if first_time and self.has("oathbound") and set(self.world.roles[npc.role].knowledge_groups) & {"guards", "temple"}:
-            npc.trust = min(100, npc.trust + round(self.has("oathbound")))
+            regard.step(npc, self.acting, round(self.has("oathbound")), cause="oathbound", minute=self.minutes)
         if first_time and self.has("trusted_face"):
-            npc.trust = min(100, npc.trust + round(self.has("trusted_face")))
-            console.debug(f"trusted face: {npc.name} starts at trust {npc.trust}")
+            regard.step(npc, self.acting, round(self.has("trusted_face")), cause="trusted face", minute=self.minutes)
+            console.debug(f"trusted face: {npc.name} starts at trust {regard.of(npc, self.acting).trust}")
         check_note = getattr(self, "pending_check", "")
         self.pending_check = ""
         was, self.buffering = self.buffering, True                              # (f384) two jobs handed in are told in one passage
@@ -2945,8 +2961,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                + stakes.talk_lines(self, npc))                                          # (f322) the job they put on the board
         note_due = self.note_due(npc)
         if note_due:
-            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now." + (f" The old note was: {npc.journal_note} - bring it up to date with what has happened since."
-                                                                         if npc.journal_note else ""))]
+            old_note = regard.of(npc, self.acting).journal_note
+            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now." + (f" The old note was: {old_note} - bring it up to date with what has happened since."
+                                                                         if old_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ([back] if back else []) + ctx + secret_lines
         if decided := ledger.decided():                                  # (f416) what the turn has settled so far: never answered against
@@ -2962,14 +2979,15 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
                                    stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"),
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
-                                   wares=self.wares_said(npc))                              # (f418) at the prices the game charges
+                                   wares=self.wares_said(npc), who=self.acting)             # (f418) at the prices the game charges; (f480) to whom
         voices.heard(self, town, npc.id, reply.speech)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]
         if note_due and reply.journal_note.strip():
-            npc.journal_note = " ".join(reply.journal_note.split())[:240]
-            npc.note_trust, npc.note_mem = npc.trust, npc.memory_total + sum(1 for m in npc.memories if m.id is None)
+            seen = regard.own(npc, self.acting)
+            seen.journal_note = " ".join(reply.journal_note.split())[:240]
+            seen.note_trust, seen.note_mem = seen.trust, npc.memory_total + sum(1 for m in npc.memories if m.id is None)
         self.orenna_named(speech)
         self.hear_names(reply.speech)
         if reply.offers_work and reply.offers_work.task.strip():
@@ -2983,7 +3001,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.receive_key_item(reply.gives, npc)
         elif reply.gives:
             console.debug(f"ignored gift '{reply.gives.name}' - not a story object, or offered for sale")
-        speaker = npc.label() if reply.told_own_name else label_before
+        speaker = npc.label(self.acting) if reply.told_own_name else label_before
         self.flush(text)
         if config.NARRATED_DIALOGUE:
             self.narrate_dialogue(npc, label_before, speaker, text, reply, first_time,
@@ -2993,7 +3011,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
         if reply.intent == "lie" and self.has("lie_sense") is not None:
             gift = next((i for i in self.player.character.equipment.values() if "lie_sense" in (i.trait or {}).get("world", {})), None)
-            console.note(f"{gift.name if gift else 'Your relic'} turns cold against your skin. {npc.label()} just lied to you.")
+            console.note(f"{gift.name if gift else 'Your relic'} turns cold against your skin. {npc.label(self.acting)} just lied to you.")
         known = self.player.character.knowledge
         for fact_id in revealed:
             if fact_id not in known and not fact_id.startswith("clue:"):
@@ -3008,7 +3026,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if reply.intent == "leave" and npc.role in ("guild_clerk",):
             reply.intent = "small_talk"            # the clerk stays at the desk: the guild must stay reachable
         if reply.intent == "leave" and npc.id not in self.player.prisoners:
-            console.narrate(f"{cap_first(npc.label())} lets the talk end there and steps away.")        # (f325) fiction, not a system note
+            console.narrate(f"{cap_first(npc.label(self.acting))} lets the talk end there and steps away.")        # (f325) fiction, not a system note
             npc.away_until = self.minutes + 30
             self.store.save_npc(npc)
             self.end_conversation()
@@ -3017,7 +3035,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     def unnamed(self, text: str, *extra) -> str:
         """The text with the real name of anyone the player has not been told hidden behind how the player knows them."""
         people = list(self.present) + ([self.partner] if getattr(self, "partner", None) else []) + [x for x in extra if x]
-        return markup.hide_names(text, people)
+        return markup.hide_names(text, people, self.acting)
 
     def reach_of(self, npc) -> tuple[list[str], str]:
         """(f344) What this townsperson can lay hands on now, and how tense the moment is (engine/reach.py)."""
@@ -3034,7 +3052,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         except Exception:
             heat = ""
         return (reach.within(npc.role, self.place.type, wares=wares, ground=ground),
-                reach.moment(npc.role, getattr(npc, "trust", None), heat, fight=bool(self.combat)))
+                reach.moment(npc.role, regard.of(npc, self.acting).trust, heat, fight=bool(self.combat)))    # (f480)
 
     def frame_reasons(self, npc, reply, revealed=(), note: str = "") -> list[str]:
         """(f347) Why this line of speech earns the narrator's frame, as the engine sees it: the first words between them this visit, trust
@@ -3067,10 +3085,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f347) Everyone present but `who` (an NPC record or a hire's name), by name and as the player knows them: a frame must not open
         on one of them."""
         skip = {getattr(who, "id", None), who if isinstance(who, str) else None}
-        out = [x for n in self.present if n.id not in skip for x in (n.name, n.label())]
+        out = [x for n in self.present if n.id not in skip for x in (n.name, n.label(self.acting))]
         out += [m["name"] for m in self.player.party if m.get("name") and m["name"] not in skip]
         if getattr(self, "partner", None) and self.partner.id not in skip:
-            out += [self.partner.name, self.partner.label()]
+            out += [self.partner.name, self.partner.label(self.acting)]
         from engine import mentor
         if self.mentor_with_you() and who is not mentor.NAME:
             out.append(mentor.NAME)
@@ -3132,7 +3150,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         small call (engine/partings.py), with no frame, and the talk ends; the interpreter never sees it."""
         from engine import partings
         npc = self.partner
-        if not npc or not partings.is_goodbye(text, (npc.name, npc.label())):
+        if not npc or not partings.is_goodbye(text, (npc.name, npc.label(self.acting))):
             return False
         self.part_from(npc, text)
         return True
@@ -3148,7 +3166,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         partings.remember(npc, text, speech)
         self.store.save_npc(npc)
         self.hear_names(speech)
-        speaker = npc.label()
+        speaker = npc.label(self.acting)
         import types
         self.show_speech(speaker, types.SimpleNamespace(speech=speech, gesture=gesture), npc)
         console.narrate(f"You step away from {speaker}.")
@@ -3156,7 +3174,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def on_leave_conversation(self, intent: ActionIntent, text: str) -> None:
         from engine import partings
-        if self.partner and intent.speech.strip() and partings.is_goodbye(intent.speech, (self.partner.name, self.partner.label())):
+        if self.partner and intent.speech.strip() and partings.is_goodbye(intent.speech, (self.partner.name, self.partner.label(self.acting))):
             self.part_from(self.partner, intent.speech.strip())            # (f347) a goodbye read by the interpreter is still a goodbye: two words back
             return
         if self.partner and intent.speech.strip():
@@ -3165,11 +3183,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             intent.speech = f"{intent.speech.strip()} (said in parting - they are about to leave)"
             self.on_talk(intent, text)
             if self.partner:
-                console.narrate(f"You step away from {partner.label()}.")
+                console.narrate(f"You step away from {partner.label(self.acting)}.")
             self.end_conversation()
             return
         if self.partner:
-            console.note(f"You step away from {self.partner.label()}.")
+            console.note(f"You step away from {self.partner.label(self.acting)}.")
         self.end_conversation()
 
     def has_room(self) -> bool:
@@ -3195,7 +3213,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         ware = next((w for w in wares if w.id == wanted), None) or \
             next((w for w in wares if wanted and (wanted in w.name.lower() or w.id in wanted)), None)
         if not ware:
-            self.refuse(f"{seller.label()} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
+            self.refuse(f"{seller.label(self.acting)} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
             return
         self.buy_ware(seller, ware, text)
 
@@ -3337,9 +3355,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return False
         here = next((n for n in self.present if n.id == rows[0].id), None)
         if here is not None:
-            look = here.label()
-            if not here.name_known_to_player:
-                here.name_known_to_player = True                  # asked after by name and pointed out: they are known by it now
+            look = here.label(self.acting)
+            if not regard.of(here, self.acting).name_known:
+                regard.own(here, self.acting).name_known = True   # asked after by name and pointed out: they are known by it now
                 self.store.save_npc(here)
             self.advance(2)
             self.narrate(f"The player looks for {here.name} and finds them here: {look}"
@@ -3347,7 +3365,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                          f"{here.name} out (someone points, or a name called and answered); add no one else.", text)
             return True
         o = self.store.load_npc(rows[0].id)
-        if not (o.met_player or o.heard_of or o.name_known_to_player):
+        seen = regard.of(o, self.acting)
+        if not (seen.met or seen.heard_of or seen.name_known):
             return False                                          # a name the player has no way to know: an ordinary search
         if o.location == self.player.location:
             console.note(f"{o.name} isn't about just now. Try again later in the day.")
@@ -3544,8 +3563,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 console.note(f"You slept in your room and woke fully rested. If you die, you will wake at {self.place.name}.")
             else:
                 console.note(f"You rested here. If you die, you will wake at {self.place.name}.")
-        arrived = [n.label() for n in self.present if n.id not in before]
-        left = [n.label() for n in self.residents if n.id in before and n not in self.present]
+        arrived = [n.label(self.acting) for n in self.present if n.id not in before]
+        left = [n.label(self.acting) for n in self.residents if n.id in before and n not in self.present]
         changes = ""
         if arrived:
             changes += f" Arrived meanwhile: {', '.join(arrived)}."

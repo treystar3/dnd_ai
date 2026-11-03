@@ -103,7 +103,7 @@ check("someone the attempt calls for may appear", ruling.verdict(ws, hermit)["ok
 made = ruling.make_room(ws, hermit)
 h = next((n for n in ws.present if n.role == "hermit"), None)
 check("...a real person of this place: named by the engine, kept, present, a resident, and recorded", h is not None and h.name and store.npc_exists(h.id)
-      and h.id in store.load_place("tidepool_caves").residents and "the hermit" in h.label() and made, (made, [n.label() for n in ws.present]))
+      and h.id in store.load_place("tidepool_caves").residents and "the hermit" in h.label("player") and made, (made, [n.label("player") for n in ws.present]))
 check("...of the role the ruling named, described in its words", h is not None and h.role == "hermit" and "recluse" in h.description)
 wanderer = ruling.appear(ws, Ruling.model_validate({"answer": "", "sense": "yes", "needs": [{"kind": "person", "name": "a stranger", "what": "a traveller"}]},
                                                    context={"capabilities": []}).needs[0])

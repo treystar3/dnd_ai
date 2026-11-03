@@ -131,7 +131,10 @@ class NPCRow:
     heard_of: bool
     protected: bool
 
-    def label(self) -> str:
+    def label(self, who: str = "") -> str:
+        """(f480) By the index alone: the name once any character knows it (the aggregate column), whoever `who` is. One of the call
+        sites that read as though there were one player (tools/sim/regard_480_test.py names them); load_npc(...).label(who) for one
+        character's view."""
         return self.name if self.name_known_to_player else (self.epithet or f"the {self.role.replace('_', ' ')}")
 
 
@@ -140,9 +143,13 @@ NPC_COLUMNS = ("name", "epithet", "name_known_to_player", "role", "location", "t
 
 
 def _npc_index(npc: NPC) -> dict:
-    return {"name": npc.name, "epithet": npc.epithet, "name_known_to_player": int(npc.name_known_to_player), "role": npc.role,
-            "location": npc.location, "tier": npc.tier, "met_player": int(npc.met_player), "gone": npc.gone, "motive": npc.motive,
-            "trust": npc.trust, "mood": npc.mood, "away_until": npc.away_until, "heard_of": int(bool(npc.heard_of)),
+    """(f480) The index columns keep their names and hold the aggregate over every character's view (engine/regard.py aggregate): met by
+    any, the highest trust, the name known to any, heard of by any. With one character, that character's view, as before."""
+    from engine import regard
+    agg = regard.aggregate(npc)
+    return {"name": npc.name, "epithet": npc.epithet, "name_known_to_player": int(agg["name_known"]), "role": npc.role,
+            "location": npc.location, "tier": npc.tier, "met_player": int(agg["met"]), "gone": npc.gone, "motive": npc.motive,
+            "trust": agg["trust"], "mood": npc.mood, "away_until": npc.away_until, "heard_of": int(agg["heard_of"]),
             "protected": int(npc.protected)}
 
 

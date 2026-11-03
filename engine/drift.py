@@ -226,7 +226,8 @@ def travellers(store, world, state: dict, t: int, rng: random.Random) -> str:
     from engine import pulse, threads
     log = state.setdefault("travelled", {})                   # npc id -> {"at": minute, "from": town}: the last move, so they go on, not back
     gap = D.get("every_days", 6) * 1440
-    rows = [r for r in store.npc_rows(role=roles, gone=False, met_player=False) if t - (log.get(r.id) or {}).get("at", -10 ** 9) >= gap]
+    rows = [r for r in store.npc_rows(role=roles, gone=False, met_player=False) if   # (f480) met by no character (the index's aggregate)
+            t - (log.get(r.id) or {}).get("at", -10 ** 9) >= gap]
     rng.shuffle(rows)
     for r in rows[:5]:
         npc = store.load_npc(r.id)

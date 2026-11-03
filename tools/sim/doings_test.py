@@ -53,7 +53,7 @@ check("an innkeeper's doing is an innkeeper's", all(n.activity in [e["text"] for
 m = {"doings": {"all": "dancing, or stamping the time from a bench", "roles": {"innkeeper": "pulling ale as fast as the mugs come back"}}}
 changed = doings.assign(store, ws.present, ws.minutes, moment=m, save=False)
 check("a moment sets everyone's doing, by role where it says", all((n.activity == "pulling ale as fast as the mugs come back") == (n.role == "innkeeper") or n.activity == "dancing, or stamping the time from a bench" for n in ws.present), [(n.role, n.activity) for n in ws.present])
-lines = doings.changed_lines(changed)
+lines = doings.changed_lines(changed, who="player")
 check("a return visit's line says what they do now and what they did then, to be shown, not reported (f374)", lines and " now, not " in lines[0]
       and "on the player's last visit" in lines[0] and "never report it as a change" in lines[0] and lines[0].endswith("."), lines)   # (f423)
 doings.assign(store, ws.present, ws.minutes, save=False)

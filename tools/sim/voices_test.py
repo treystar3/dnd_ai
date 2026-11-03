@@ -118,7 +118,7 @@ check("the first five people of Parth each have a kit, and no two are alike", al
 n0 = ws.residents[0]
 again = life.ensure_speech(n0, store, world)
 check("a person keeps their kit", again["kit"] == kits[0])
-fact, lines, material = vp.resident_lines(n0, random.Random(2))
+fact, lines, material = vp.resident_lines(n0, random.Random(2), char_id="player")
 from engine import entities as _ent
 kit_said = [_ent.gendered(l, _ent.GENDER.get(n0.gender, "")) for l in voices.lines(kits[0])]      # (f422) in their own pronoun
 check("a townsperson's HOW YOU TALK opens with their kit", lines[:len(kit_said)] == kit_said, lines)
@@ -135,9 +135,9 @@ from engine import entities as _ent, party as _party
 check("a hire's HOW YOU SPEAK carries the kit, said with their pronoun", all(_ent.gendered(l[0].upper() + l[1:], _party.pronoun_of(m)) in how
                                                                           for l in voices.lines(voices.kit_of(m))), how[:300])
 text = npr.conversation_prompt(types.SimpleNamespace(id="n1", name="Hesk", people="halfling", role="baker", location="parth", description="d", personality="p", voice="a slow gravelly rumble",
-                                                     concern="c", activity="a", met_player=False, knows_player_as="", trust=50, memories=[], work_offer=None, stock=[],
+                                                     concern="c", activity="a", regard={}, memories=[], work_offer=None, stock=[],
                                                      speech={"kit": terse}, said=[], heard=[]),
-                               types.SimpleNamespace(name="Parth", visible=[]), [], [], [], "hi", [], [], []).render()
+                               types.SimpleNamespace(name="Parth", visible=[]), [], [], [], "hi", [], [], [], who="player").render()
 check("with a kit, the old written voice is not shown", "VOICE:" not in text)
 shutil.rmtree("saves/voices_test", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

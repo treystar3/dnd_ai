@@ -27,7 +27,7 @@ populate_place(store, world, "parth", catalog)
 start = 5 * 1440
 state = pulse.empty_state(start)
 npc = next(store.load_npc(r.id) for r in store.npc_rows(location="parth") if not r.gone)
-npc.tier, npc.traits, npc.motive, npc.met_player = "known", ["ambitious", "calm", "brave"], "to have a say in how Parth is run", True
+npc.tier, npc.traits, npc.motive, simlib.view(npc).met = "known", ["ambitious", "calm", "brave"], "to have a say in how Parth is run", True
 npc.motive_since = start; npc.concern_from = ""
 store.save_npc(npc)
 calls = []

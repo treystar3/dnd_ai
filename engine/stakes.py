@@ -169,7 +169,8 @@ def done(ws, q: dict) -> None:
         n = ws.store.load_npc(q["issuer"])
         n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, kind="experienced", source="self", minute=ws.minutes,   # (f478)
                                  text=f"{name} did my job - {q['title'].lower()}." + (f" {q['result'][0].upper() + q['result'][1:]}." if q.get("result") else ""), importance=2))
-        n.trust = min(100, n.trust + G.get("issuer_thanks_trust", 5))
+        from engine import regard
+        regard.step(n, ws.acting, G.get("issuer_thanks_trust", 5), cause="job done", about=q["id"], minute=ws.minutes)   # (f480)
         ws.store.save_npc(n)
         _release(ws.store, q["issuer"], q["id"])
     if q.get("result"):

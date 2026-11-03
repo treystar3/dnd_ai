@@ -8,6 +8,7 @@ import re
 from typing import NamedTuple
 
 from core.models import Item, KeyItem
+from engine import regard                                   # (f480)
 from engine import clock, crafting, encounters, equipment, inventory as inv, items, ledger, money, needs, pools, property as property_rules
 from npc.models import Memory
 from ui import console
@@ -289,9 +290,9 @@ class InventoryActions:
             return
         c.coins -= amount                                     # coin for nothing is a gift: taken, remembered, and the companions have a view
         from engine.domain_events import Gift
-        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), coin=amount), npc)
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), coin=amount), npc)
         self.store.save_player(self.player)
-        console.ledger(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
+        console.ledger(f"Gave {money.fmt(amount)} to {npc.label(self.acting)}. Purse: {money.fmt(c.coins)}")
         intent.target = npc.id
         intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + \
             f"[They hand you {money.words(amount)}, asking nothing for it.]"
@@ -320,13 +321,13 @@ class InventoryActions:
         degree = self.resolve("persuasion", npc, talking=True, text=text, extra=extra)
         favor = (intent.summary or "").strip().rstrip(".") or "do them a favor"
         paid = degree in ("strong success", "success")
-        npc.trust = max(0, min(100, npc.trust + B["trust"][degree]))
+        regard.step(npc, self.acting, B["trust"][degree], cause="bribed", minute=self.minutes)   # (f480)
         sum_ = money.words(amount)
         if paid:
             c.coins -= amount
             from engine import law
             npc.looks_away_until = self.minutes + law.N["look_away_minutes"]
-            console.ledger(f"Gave {money.fmt(amount)} to {npc.label()}. Purse: {money.fmt(c.coins)}")
+            console.ledger(f"Gave {money.fmt(amount)} to {npc.label(self.acting)}. Purse: {money.fmt(c.coins)}")
             effect = f"You are persuaded and take the {sum_}. You will do what they ask in the story, quietly."
         elif degree == "partial":
             effect = f"You are tempted by the {sum_} but it is not enough; you do NOT take it yet, and you want more or something else."
@@ -334,7 +335,7 @@ class InventoryActions:
             effect = f"You refuse the {sum_} and think less of them for offering. You do NOT take it."
         from engine.domain_events import Bribe
         from engine import law as _law
-        self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), amount=amount,
+        self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), amount=amount,
                           worked=paid, degree=degree, favor=favor, confrontation=False, guard=npc.role in _law.H["guard_roles"]), npc)
         console.debug(f"bribe: {sum_} is {pct:.1f}% of {npc.role} wealth {wealth}; bonus {bonus:+.0f}, traits/duty {mods:+d}; {degree}")
         self.store.save_npc(npc)
@@ -444,7 +445,7 @@ class InventoryActions:
             day = clock.day(self.minutes)
             delivered = key.kind == "quest" and self.is_recipient(npc, key.for_whom)
             if delivered:
-                npc.trust = min(100, npc.trust + R["gift_trust"] + 1)
+                regard.step(npc, self.acting, R["gift_trust"] + 1, cause="a gift", minute=self.minutes)   # (f480)
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
                 console.ledger(f"Delivered: {key.name}.")
             else:
@@ -452,7 +453,7 @@ class InventoryActions:
                 c.item_history.append(f"Gave {key.name} to {npc.name}{meant} (day {day}).")
                 console.ledger(f"Handed over: {key.name}{meant}.")
             from engine.domain_events import Delivered
-            self.notice(Delivered(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
+            self.notice(Delivered(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting),
                                   item=key.name, asked_by=key.source, meant=delivered), npc)
             self.record_delivery(key, npc)
             self.store.save_player(self.player)
@@ -466,9 +467,9 @@ class InventoryActions:
             self.refuse("You aren't carrying that.")
             return
         from engine.domain_events import Gift                 # a thing given for nothing: taken, remembered, and the companions have a view
-        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), item=inv.label(item)), npc)
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), item=inv.label(item)), npc)
         self.store.save_player(self.player)
-        console.ledger(f"Gave {inv.label(item)} to {npc.label()}.")
+        console.ledger(f"Gave {inv.label(item)} to {npc.label(self.acting)}.")
         intent.target = npc.id
         intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They hand you {inv.label(item)}, asking nothing for it.]"
         self.on_talk(intent, text)
@@ -677,7 +678,7 @@ class InventoryActions:
         base = crafting.find_base(words, [f for n in crafters for f in self.world.roles[n.role].commissions])
         crafter = next((n for n in crafters if base and base.family in self.world.roles[n.role].commissions), None)
         if not crafter or not base:
-            offers = "; ".join(f"{n.label()} makes {', '.join(self.world.roles[n.role].commissions)} gear" for n in crafters)
+            offers = "; ".join(f"{n.label(self.acting)} makes {', '.join(self.world.roles[n.role].commissions)} gear" for n in crafters)
             self.refuse("No one here can make that." + (f" {offers}." if offers else ""))
             return
         need = crafting.units_for(base)
@@ -695,7 +696,7 @@ class InventoryActions:
         haggle = 1 - (crafting.mechanic(c, "haggler") + crafting.mechanic(c, "commission_broker")) / 100
         price = round((common_value * crafting.RULES["commission_labor"] + materials_cost) * haggle)
         if c.coins < price:
-            self.refuse(f"{crafter.label()} would want {money.words(price)} for {base.name} in "
+            self.refuse(f"{crafter.label(self.acting)} would want {money.words(price)} for {base.name} in "
                          f"{items.MATERIALS[material].name}; you have {money.words(c.coins)}.")
             return
         c.coins -= price
@@ -703,16 +704,16 @@ class InventoryActions:
             crafting.use_material(self.pack, material, need)
         ready = self.minutes + round(crafting.RULES["commission_days"] * 1440
                                      * (1 - crafting.mechanic(c, "commission_broker") / 100))
-        self.player.commissions.append({"npc": crafter.id, "npc_name": crafter.label(), "item": item.model_dump(),
+        self.player.commissions.append({"npc": crafter.id, "npc_name": crafter.label(self.acting), "item": item.model_dump(),
                                         "ready": ready})
         crafter.memories.append(Memory(day=clock.day(self.minutes), turn=self.store.meta.turn,
                                        text=f"The stranger paid {money.words(price)} for me to make {base.name}."))
         self.store.save_npc(crafter)
         self.store.save_player(self.player)
-        console.ledger(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label()} "
+        console.ledger(f"Commissioned {items.MATERIALS[material].name} {base.label or base.name} from {crafter.label(self.acting)} "
                      f"for {money.fmt(price)}" + (" (your materials)" if use_own else "")
                      + ". Ready in about a day - collect it while they're at work.")
-        self.narrate(f"The player pays {crafter.label()} to make {base.name} from "
+        self.narrate(f"The player pays {crafter.label(self.acting)} to make {base.name} from "
                      f"{items.MATERIALS[material].name}. They agree it will be ready in a day or so.", text)
 
     def collect_commissions(self) -> None:

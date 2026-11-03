@@ -80,7 +80,7 @@ for pers, key in (("Curt and dismissive, bored.", "cold and rude"), ("Warm and k
     w.mentor_clerk_exchange(c)
     check(f"the {key} clerk's manner is in the request", seen and key in seen[0], seen[:1])
     check("both speak, five lines, and the clerk is named", len(SAID) == 5 and {s for s, _ in SAID} == {"Maren Holt", "Odo"}, SAID)
-check("the player now knows the clerk's name and the clerk thinks better of them", st.load_npc("clerk1").name_known_to_player and st.load_npc("clerk1").trust > 50, st.load_npc("clerk1").trust)
+check("the player now knows the clerk's name and the clerk thinks better of them", simlib.view(st.load_npc("clerk1")).name_known and simlib.view(st.load_npc("clerk1")).trust > 50, simlib.view(st.load_npc("clerk1")).trust)
 check("the clerk remembers it", any("brought a newcomer" in m.text for m in st.load_npc("clerk1").memories))
 check("what Maren said is remembered for later talk", any(who == "Maren" for who, _ in w.player.mentor.get("chat", [])))
 

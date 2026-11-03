@@ -50,14 +50,16 @@ def scrub_speech(speech: str, text: str) -> str:
 _NAME_SKIP = {"the", "of", "von", "van", "de", "del", "la", "le", "and"}
 
 
-def hide_names(text: str, npcs) -> str:
-    """Swap the real name of anyone the player has not been told for how the player knows them, so narration never gives it away."""
+def hide_names(text: str, npcs, who: str) -> str:
+    """Swap the real name of anyone the character `who` has not been told for how they know them (f480: their view), so narration never
+    gives it away."""
     if not text:
         return text
+    from engine import regard
     for n in npcs:
-        if getattr(n, "name_known_to_player", True) or not n.name:
+        if not hasattr(n, "regard") or regard.of(n, who).name_known or not n.name:
             continue
-        label = n.label()
+        label = n.label(who)
         parts = [p for p in re.split(r"\s+", n.name.strip()) if len(p) >= 3 and p.lower() not in _NAME_SKIP]
         for token in sorted({n.name.strip(), *parts}, key=len, reverse=True):
             pattern = r"(?<![\w'])" + re.escape(token) + r"(?![\w])"

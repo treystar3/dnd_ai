@@ -84,14 +84,14 @@ def assign(store, people: list, minutes: int, moment: dict | None = None, save: 
     return changed
 
 
-def changed_lines(changed: list[tuple], most: int = 2) -> list[str]:
+def changed_lines(changed: list[tuple], most: int = 2, *, who: str) -> list[str]:
     """For the narrator, on a return visit: who is doing something else since the player last saw them, as what they do now. (f374) Told
     as 'since the player was last here, X has gone from A to B', the narrator wrote it back as a report ('Since your last visit, Maren
     Holt now scrapes mud from a cloak'); told as the present, it is shown."""
     out = []
     for n, before, after in changed:
         if before and after and before != after:
-            out.append(f"{n.label()} is {after.rstrip('.')} now, not {before.rstrip('.')}, which is what they were doing on the player's last "
+            out.append(f"{n.label(who)} is {after.rstrip('.')} now, not {before.rstrip('.')}, which is what they were doing on the player's last "
                        "visit; show it, never report it as a change.")             # (f423) never read as the player's own deed
     return out[:most]
 

@@ -74,7 +74,8 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
     if npc is not None:
         tw = RULES["trust_weight"].get(check, 0)
         if tw:
-            t = (npc.trust - 50) * tw
+            from engine import regard
+            t = (regard.of(npc, c.id).trust - 50) * tw                  # (f480) their trust in this character
             value += t
             why.append(f"trust {t:+.0f}")
         for trait in npc.traits:

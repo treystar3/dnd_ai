@@ -70,7 +70,7 @@ check("the land lists where silverleaf really grows", "Greywood" in silver and "
 check("game animals are listed", any(l.startswith("venison") for l in lines))
 far = land.land_lines(world, "ironvein")
 check("a place with no herbs near says so", all("none that you know of" in l for l in far if l.startswith(("silverleaf", "moonpetal"))), far[:2])
-req = prompts.conversation_request(npc, world.places["parth"], [], [], [], "Where is silverleaf?", [], [], [], land=lines)
+req = prompts.conversation_request(npc, world.places["parth"], [], [], [], "Where is silverleaf?", [], [], [], land=lines, who="player")
 check("the land is in the NPC's prompt", "THE LAND AROUND YOU" in req and "Greywood" in req)
 check("the rules tell NPCs not to guess", "Never say a herb grows somewhere the list does not give" in prompts.CONVERSATION_SYSTEM)
 shutil.rmtree("saves/pulse_log_test", ignore_errors=True)

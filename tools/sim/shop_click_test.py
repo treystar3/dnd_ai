@@ -30,7 +30,7 @@ ws = WorldScene(store, world, load_traits(), store.load_player())
 ws.enter("parth")
 c = ws.player.character
 for n in ws.present:
-    n.met_player = True
+    simlib.view(n).met = True
 d = ws.shop_data()
 check("sellers listed", len(d["sellers"]) > 0, [s["name"] for s in d["sellers"]])
 check("purse shown", d["purse"] == money.fmt(c.coins))
@@ -98,7 +98,7 @@ check("equipped gear is not sellable", all(i.uid not in {e.uid for e in c.equipm
 inn = next(p.id for p in world.places.values() if p.type == "inn")
 ws.enter(inn)
 for n in ws.present:
-    n.met_player = True
+    simlib.view(n).met = True
 sl = next((x for x in ws.shop_data()["sellers"] if any(w["key"] == "room" for w in x["wares"])), None)
 check("an innkeeper sells rooms", sl is not None)
 if sl:

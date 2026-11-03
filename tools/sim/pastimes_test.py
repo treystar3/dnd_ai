@@ -90,10 +90,10 @@ ws.on_haggle(ActionIntent(kind="haggle", target="in1", ware=room.id, summary="ha
 check("a haggle that lands buys at the price it won", bought and bought[-1][1] == round(room.price * pa.PT["haggle"]["discount"]["success"]), bought)
 check("...and the price goes back to normal afterwards", ws.quote_ware(inn, room).price == room.price and ws.haggle_factor == 1.0)
 bought.clear(); narrated.clear()
-trust0 = inn.trust
+trust0 = simlib.view(inn).trust
 ws.resolve = lambda check, npc=None, talking=False, text="", extra=(): "failure"
 ws.on_haggle(ActionIntent(kind="haggle", target="in1", ware=room.id, summary="haggle"), "I haggle")
-check("a haggle that fails buys nothing, and the seller is a little cooler", not bought and inn.trust == trust0 + pa.PT["haggle"]["annoyed_trust"] and "gets nowhere" in narrated[-1], (bought, inn.trust))
+check("a haggle that fails buys nothing, and the seller is a little cooler", not bought and simlib.view(inn).trust == trust0 + pa.PT["haggle"]["annoyed_trust"] and "gets nowhere" in narrated[-1], (bought, simlib.view(inn).trust))
 
 console.note = _note
 shutil.rmtree("saves/pastimes_test", ignore_errors=True)

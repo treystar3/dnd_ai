@@ -138,7 +138,8 @@ class PartyActions:
         if len(self.player.party) >= P["max_party"]:
             console.note(f"Your party is full ({P['max_party']}).")
             return True
-        if n.trust < 50:
+        from engine import regard
+        if regard.of(n, self.acting).trust < 50:              # (f480)
             self.mentor_say("Not yet. Ask me again when I know you better.", beat="the player asks you to join them again but you do not trust them enough yet")
             return True
         old = self.store.load_place(n.location)

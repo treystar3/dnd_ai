@@ -138,21 +138,23 @@ class Reactions:
             line = e.victim_line() if role == "victim" else e.witness_line()
             if line:                                          # (f478) the one it was done to lived it; the others saw it, of the one who did it
                 self.remember(nid, line, spec, day, turn, kind="experienced" if role == "victim" else "witnessed", subject=e.actor, about=about,
-                              minute=e.minute)
+                              minute=e.minute, toward=e.actor)
         if e.target and e.target not in e.witnesses and m.get("unseen_victim"):
             line = e.unseen_line()
             if line:                                          # (f478) found afterwards, not knowing who: about no one
-                self.remember(e.target, line, m["unseen_victim"], day, turn, kind="noticed", subject="", about=about, minute=e.minute)
+                self.remember(e.target, line, m["unseen_victim"], day, turn, kind="noticed", subject="", about=about, minute=e.minute,
+                              toward=e.actor)
 
-    def remember(self, nid: str, text: str, spec: dict, day: int, turn: int, kind: str = "experienced", subject: str = "player",
-                 about: str = "", minute: int = -1) -> None:
+    def remember(self, nid: str, text: str, spec: dict, day: int, turn: int, kind: str = "experienced", subject: str = "",
+                 about: str = "", minute: int = -1, toward: str = "") -> None:
         from engine import memory
         n = self.ws.npc_by_id(nid)
         if n is None or n.gone:
             return
         memory.keep(n, text, day=day, turn=turn, kind=kind, subject=subject, importance=int(spec.get("importance", 1)), about=about, minute=minute)
-        if spec.get("trust"):
-            n.trust = max(0, min(100, n.trust + int(spec["trust"])))
+        if spec.get("trust") and toward:                     # (f480) their trust in the one who did it, with the deed as its cause
+            from engine import regard
+            regard.step(n, toward, int(spec["trust"]), cause="deed", about=about, minute=minute)
         self.ws.store.save_npc(n)
 
     # ---- standing: the tale starts on its way

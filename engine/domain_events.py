@@ -183,10 +183,11 @@ class Deed(Event):
     witnesses: tuple[str, ...] = ()
     npc: str = ""                  # the one it was done to, when there is one
     name: str = ""                 # how they are known to the player (their label), for the lines
+    by: str = ""                   # (f480) the id of the character who did it: stamped by the scene that saw it (WorldScene.notice)
 
     @property
     def actor(self) -> str:
-        return "player"
+        return self.by
 
     @property
     def target(self) -> str:

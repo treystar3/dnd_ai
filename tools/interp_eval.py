@@ -123,12 +123,14 @@ class Bench:
             role = p.get("role", "merchant")
             if role not in self.world.roles:                                        # (f365) a corpus row's role the world has no record of
                 role = "merchant"
-            n = NPC(id=p["id"], name=p.get("name", p["id"]), people="human", role=role, location=ws.player.location, traits=[], trust=50)
+            n = NPC(id=p["id"], name=p.get("name", p["id"]), people="human", role=role, location=ws.player.location, traits=[])     # (f480) a stranger: no view yet
             self.store.save_npc(n)
             people.append(n)
         for pr in sc.get("prisoners", []):                                    # a captive, bound and present
-            n = NPC(id=pr["id"], name=pr.get("name", pr["id"]), people="human", role="prisoner", location=ws.player.location, traits=[], trust=30,
-                    epithet="the captured outlaw", name_known_to_player=False, protected=True)
+            n = NPC(id=pr["id"], name=pr.get("name", pr["id"]), people="human", role="prisoner", location=ws.player.location, traits=[],
+                    epithet="the captured outlaw", protected=True)
+            from engine import regard                                           # (f480) the captive's view of the one who took them
+            regard.set_trust(n, ws.acting, 30, cause="taken captive")
             self.store.save_npc(n)
             people.append(n)
         ws.player.prisoners = {pr["id"]: {"deal": False, "arc": "", "node": "", "tip": False, "asked": 0, "day": 0} for pr in sc.get("prisoners", [])}
