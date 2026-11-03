@@ -92,8 +92,11 @@ ws.player.quests = [
     {"id": "q4", "letter": "E", "title": "Old news", "kind": "hunt", "count": 2, "progress": 0, "guild": True, "deadline": now - 10},
 ]
 r = {q["id"]: q for q in ws.quest_rows()}
-check("a contract row says how far along, for whom and why, and how long is left", r["q1"]["status"] == "2/3" and r["q1"]["for"] == "for Hob Marl: four ewes gone this week" and r["q1"]["left"] == "2d 4h left" and not r["q1"]["urgent"] and not r["q1"]["ready"], r["q1"])
-check("a delivery with no limit, a finished one, and an expired one read so", r["q2"]["status"] == "to deliver" and r["q2"]["left"] == "no time limit" and r["q3"]["ready"] and r["q3"]["status"] == "ready to turn in" and r["q3"]["urgent"] and r["q4"]["left"] == "expired" and r["q4"]["urgent"], (r["q2"], r["q3"]["status"], r["q4"]["left"]))
+check("a contract row says how far along, for whom and why", r["q1"]["status"] == "2/3" and r["q1"]["for"] == "for Hob Marl: four ewes gone this week" and not r["q1"]["ready"], r["q1"])
+# (f491) no contract has a time limit: no row says how long is left, and one an older save gave a deadline that has passed is still in hand
+check("a delivery and a finished one read so, and no row tells time left", r["q2"]["status"] == "to deliver" and r["q3"]["ready"] and r["q3"]["status"] == "ready to turn in"
+      and not any(k in row for row in r.values() for k in ("left", "urgent")), r)
+check("...and a contract past an older save's deadline is still held, not expired", r["q4"]["status"] == "0/2" and len(ws.player.quests) == 4, r["q4"])
 rk = ws.rank_data()
 check("the next rank is three bars: level, contracts at the rank, the trial", rk["rank"] == "D" and rk["next"] and len(rk["needs"]) == 2 and rk["needs"][0]["label"].startswith("level ") and rk["needs"][0]["now"] == 12 and "contracts" in rk["needs"][1]["label"], rk)
 ws.show_quests()

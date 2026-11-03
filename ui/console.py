@@ -589,7 +589,7 @@ def show_help() -> None:
     print("  #shop     see what the merchants here sell and buy, with prices")
     print("  #mount    your mounts and the stable here; #mount <name> to ride one, #mount none to walk")
     print("  #board    the adventurers' guild contract board (at the guild house)")
-    print("  #quests   your contracts and requests, progress, deadlines and guild rank")
+    print("  #quests   your contracts and requests, progress and guild rank")
     print("  #party    your companions and the adventurers travelling with you (#name <companion> = <new name> renames one)")
     print("  #standing how the groups of this town regard you; #rumors what is said of you; #correct <n> sets a false tale straight")
     print("  #dungeon  the floors of the dungeon here, what you've cleared, and when it will be remade")

@@ -657,10 +657,10 @@ class Bot:
                                    "issuer": q.get("issuer", ""), "issuer_name": q.get("issuer_name", "")})     # (f473) for the issuer's visit
             return None
         g["tries"] = g.get("tries", 0) + 1
-        if g["tries"] > 24 or (q.get("deadline") and q["deadline"] <= ws.minutes):
+        if g["tries"] > 24:                                               # (f491) no contract runs out: only the bot's patience does
             self.given_up.add(q["id"])
             self.finish(g, "dropped")
-            if self.cont and not (q.get("deadline") and q["deadline"] <= ws.minutes) and self.crng.random() < self.CW["abandon"]:
+            if self.cont and self.crng.random() < self.CW["abandon"]:
                 return self._abandon(q)                                   # (f473) given up out loud, not left to run out
             return None
         if q["kind"] in ("hunt", "bounty", "materials"):

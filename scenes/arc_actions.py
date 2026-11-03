@@ -128,7 +128,6 @@ class ArcActions:
         q["title"] = s["hook_title"]
         q["multiplier"] = A["contract_mult"][size]
         q["rank_credit"] = A["rank_credit"][size]
-        q["deadline"] = None
         first = arcs.node(arc, "n1")
         tpl = arcs.TEMPLATES[arc["template"]]
         self.log_arc(arc, tpl["words"]["start"].format(name=self.mid_sentence(s["victim_name"]), looks=s["victim_looks"].rstrip("."),
@@ -847,7 +846,7 @@ class ArcActions:
         data, arc = self.my_arc()
         if not arc or arc["id"] != q["arc"]:
             return None
-        return f"[{q['letter']}] {q['title']} - {arcs.step_text(arc)} · no time limit"
+        return f"[{q['letter']}] {q['title']} - {arcs.step_text(arc)}"
 
     def show_arc(self) -> None:
         data, arc = self.my_arc()
@@ -866,4 +865,3 @@ class ArcActions:
             mood = ("on its guard" if camp["alert"] >= 2 else "wary" if camp["alert"] else "unaware of you")
             up = sum(1 for g in camp["guards"] if g["state"] == "up")
             console.note(f"The hideout is {mood}." + (f" {up} guard{'s' if up != 1 else ''} still stand watch." if camp["scouted"] else ""))
-        console.note("No time limit.")

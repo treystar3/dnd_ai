@@ -2,7 +2,7 @@
 
 A quest is a plain dict so it saves simply:
   id, title, kind (hunt|bounty|gather|materials|deliver), letter, guild (bool), issuer, issuer_name,
-  place, creature, good, material, count, progress, to_role, to_name, item, deadline, coins, xp, posted
+  place, creature, good, material, count, progress, to_role, to_name, item, coins, xp, posted (f491: no deadline)
 """
 
 import random
@@ -85,10 +85,9 @@ def plural(name: str) -> str:
 def _quest(kind: str, letter: str, title: str, now: int, guild: bool = True, **fields) -> dict:
     coins, xp = reward(letter, guild)
     q = {"id": streams.new_id(8), "title": title, "kind": kind, "letter": letter, "guild": guild,
-         "issuer": "guild", "issuer_name": "the guild", "count": 1, "progress": 0, "coins": coins, "xp": xp,
-         "deadline": now + G["ranks"][letter]["deadline_days"] * 1440, "posted": now}
-    if kind == "missing":
-        q["deadline"] = None             # a search has no clock; it may grow into a story, and stories wait
+         "issuer": "guild", "issuer_name": "the guild", "count": 1, "progress": 0, "coins": coins, "xp": xp, "posted": now}
+    # (f491) no contract or request has a time limit (the owner, 2026-11-03: "let's get rid of quest time restrictions"): it stays in
+    # hand until it is done, handed in or given up, never forfeit by the clock.
     q.update(fields)
     return q
 
@@ -184,8 +183,7 @@ def post_board(world, store, now: int, size: int, rng: random.Random, rank: str 
             continue
         spot = q.get("place") or (d["place"] if kind in ("delve", "dungeon_boss") and d else None)
         if spot in far:
-            q["extra_days"] = far[spot]
-            q["title"] += f" (expedition, {far[spot]} days out)"
+            q["title"] += f" (expedition, {far[spot]} days out)"           # (f491) how far it is, no longer the days it was given
         if tier["reward_mult"] != 1.0:
             q["multiplier"] = round(q.get("multiplier", 1) * tier["reward_mult"], 3)
             q["hall"] = hall
@@ -334,17 +332,11 @@ def done(q: dict, pack: list) -> bool:
 
 
 def progress_line(q: dict, pack: list, now: int) -> str:
-    if q.get("deadline") is None:
-        left = "no time limit"
-    else:
-        days = max(0, (q["deadline"] - now) // 1440)
-        hours = max(0, (q["deadline"] - now) % 1440 // 60)
-        left = f"{days}d {hours}h left" if q["deadline"] > now else "expired"
     status = "ready to turn in" if done(q, pack) else (
         "to deliver" if q["kind"] == "deliver" else "not yet" if q["kind"] in ("delve", "dungeon_boss", "missing")
         else f"{held(q, pack)}/{q['count']}")
     who = "" if q["guild"] else f" · for {q['issuer_name']}"
-    return f"[{q['letter']}] {q['title']} - {status} · {left}{who}"
+    return f"[{q['letter']}] {q['title']} - {status}{who}"                 # (f491) no time left to tell: nothing runs out
 
 
 def map_offer(world, store, offer, issuer: str, issuer_name: str, now: int, guild: bool = False) -> dict | None:

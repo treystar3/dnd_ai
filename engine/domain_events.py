@@ -500,7 +500,7 @@ class ContractDropped(Deed):
     kind: str = field(init=False, default="contract_dropped")
     quest: str = ""
     title: str = ""
-    how: str = "abandoned"         # abandoned | expired
+    how: str = "abandoned"         # abandoned (f491: a contract no longer expires; "expired" is read only in older saves' journals)
     guild: bool = True
 
     def text(self) -> str:

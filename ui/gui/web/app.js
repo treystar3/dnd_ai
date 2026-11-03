@@ -459,7 +459,7 @@ function renderBoard(d) {
     const row = el("div", "shoprow"), info = el("div", "info");
     info.appendChild(el("div", "nm", `[${q.letter}] ${q.title}`));
     if (q.for) info.appendChild(el("div", "dt", q.for));                 // (f322) who asked, and why
-    info.appendChild(el("div", "dt", `${q.reward} · ${q.xp} XP · ${q.limit}`));
+    info.appendChild(el("div", "dt", `${q.reward} · ${q.xp} XP`));
     if (q.why) info.appendChild(el("div", "warn", q.why));
     const act = el("div", "act");
     const b = shopButton("Accept", `#boardaccept ${q.id}`, q.ok);
@@ -771,7 +771,6 @@ function renderQuests(d) {
     info.appendChild(el("div", "dt", q.for || (q.guild ? "guild contract" : "a request")));
     const pills = el("div", "pills");
     pills.appendChild(el("span", "pill" + (q.ready ? " gold" : /^\d+\/\d+$/.test(q.status) ? " ok" : ""), q.status));
-    pills.appendChild(el("span", "pill" + (q.urgent ? " warn" : ""), q.left));
     info.appendChild(pills);
     const act = el("div", "act"); act.appendChild(shopButton("Abandon", `#questabandon ${q.id}`, true, true));
     row.append(info, act); side.appendChild(row);

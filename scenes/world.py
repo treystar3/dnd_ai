@@ -1788,8 +1788,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.add_mark(intent.mark.strip())
         if self.player.commissions:
             self.collect_commissions()
-        if self.player.quests:
-            self.expire_quests()
+        if self.player.quests:                                           # (f491) nothing expires: a contract is never forfeit by the clock
             if intent.kind in ("give", "show") and intent.target:        # (f378) handing the work over is handing it in; talk does it in on_talk
                 self.turn_in(intent.target)
         if intent.kind in TIME_COST:

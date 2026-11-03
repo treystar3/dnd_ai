@@ -124,11 +124,10 @@ def wants_to_go_on(text: str) -> bool:
 
 
 def make_contract(now: int) -> dict:
-    """The first contract: three wolves in the Greywood, no time limit, so it is still there if the player has to try again."""
+    """The first contract: three wolves in the Greywood, still there if the player has to try again (f491: no contract runs out)."""
     H = M["hunt"]
     title = H["title"].format(name=NAME)
     q = quests._quest("hunt", "F", title, now, place=H["place"], creature=H["creature"], count=H["count"])
-    q["deadline"] = None
     q["mentor"] = True
     return q
 

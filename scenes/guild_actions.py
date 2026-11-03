@@ -157,8 +157,6 @@ class GuildActions:
                              "for": (f"Posted for {q['issuer_name']}, {q.get('issuer_role', '')}".rstrip(", ") + (f": {q['reason']}" if q.get("reason") else ""))
                              if q.get("issuer") not in (None, "guild") else "",
                              "reward": money.fmt(round(coins * mult)), "xp": round(xp * mult),
-                             "limit": "no time limit" if q.get("deadline", 1) is None
-                             else f"{G['ranks'][q['letter']]['deadline_days'] + q.get('extra_days', 0)} days",
                              "ok": not why, "why": why})
         held = [{"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"], "guild": bool(q["guild"]),
                  "line": quests.progress_line(q, self.pack, self.minutes)}
@@ -208,8 +206,7 @@ class GuildActions:
             coins, xp = quests.reward(q["letter"], True, bonus)
             coins, xp = round(coins * q.get("multiplier", 1)), round(xp * q.get("multiplier", 1))
             lock = "" if quests.at_or_below(q["letter"], rank) else "  (above your rank)"
-            console.note(f"  {n}. [{q['letter']}] {q['title']} - {money.fmt(coins)}, {xp} XP, "
-                         f"{'no time limit' if q.get('deadline', 1) is None else str(G['ranks'][q['letter']]['deadline_days'] + q.get('extra_days', 0)) + ' days'}{lock}")
+            console.note(f"  {n}. [{q['letter']}] {q['title']} - {money.fmt(coins)}, {xp} XP{lock}")
         if not board:
             console.note("  (nothing posted)")
         hires = data.get("hires") or []
@@ -267,20 +264,14 @@ class GuildActions:
             self.show_board()
 
     def quest_rows(self) -> list[dict]:
-        """(f327) The contracts in hand as rows for the window: what, for whom and why, how far along, how long is left."""
+        """(f327) The contracts in hand as rows for the window: what, for whom and why, how far along. (f491) Nothing runs out, so no
+        row says how long is left."""
         rows = []
         for q in self.player.quests:
             arc = self.arc_lines(q)
-            if q.get("deadline") is None:
-                left, urgent = "no time limit", False
-            elif q["deadline"] <= self.minutes:
-                left, urgent = "expired", True
-            else:
-                days, hours = (q["deadline"] - self.minutes) // 1440, (q["deadline"] - self.minutes) % 1440 // 60
-                left, urgent = f"{days}d {hours}h left", days < 1
             ready = quests.done(q, self.pack)
             if arc:
-                status = arc.split(" - ", 1)[1].rsplit(" · ", 1)[0]
+                status = arc.split(" - ", 1)[1]                         # (f491) the arc's line no longer ends in a time limit
             elif ready:
                 status = "ready to turn in"
             elif q["kind"] == "deliver":
@@ -291,7 +282,7 @@ class GuildActions:
                 status = f"{quests.held(q, self.pack)}/{q['count']}"
             who = (f"for {q['issuer_name']}" if q.get("issuer_name") else "") + (f": {q['reason']}" if q.get("reason") else "")
             rows.append({"id": q["id"], "letter": q["letter"], "title": q["title"], "for": who.strip(), "guild": bool(q["guild"]),
-                         "status": status, "ready": ready, "left": left, "urgent": urgent})
+                         "status": status, "ready": ready})
         return rows
 
     def rank_data(self) -> dict | None:
@@ -415,8 +406,6 @@ class GuildActions:
             state = self.store.load_place(gid)
             state.board = board
             self.store.save_place(state)
-        days = G["ranks"][q["letter"]]["deadline_days"] + q.get("extra_days", 0)
-        q["deadline"] = None if q.get("deadline", 1) is None else self.minutes + days * 1440
         if q["kind"] == "deliver":
             self.player.character.key_items.append(KeyItem(
                 id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
@@ -512,16 +501,6 @@ class GuildActions:
                 return True
         return False
 
-    def expire_quests(self) -> None:
-        for q in list(self.player.quests):
-            if q.get("deadline") is not None and q["deadline"] <= self.minutes and not quests.done(q, self.pack):
-                self.player.quests.remove(q)
-                self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
-                console.ledger(f"Contract expired: {q['title']}. The reward is forfeit.")
-                self.contract_dropped(q, "expired")
-                self.arc_quest_gone(q, "time ran out")
-                self.store.save_player(self.player)
-
     def turn_in(self, to: str | None = None) -> list[str]:
         """Pay out finished contracts to the clerk (a guild contract) or the one who asked (a personal request). (f378) `to` is the person
         the player is speaking to or handing the work to, and only what they pay for is handed in: walking into the hall no longer does
@@ -604,8 +583,6 @@ class GuildActions:
         q = npc.quest_offer
         npc.quest_offer = None
         self.store.save_npc(npc)
-        if q.get("deadline", 1) is not None:
-            q["deadline"] = self.minutes + G["ranks"][q["letter"]]["deadline_days"] * 1440
         if q["kind"] == "deliver":
             self.player.character.key_items.append(KeyItem(
                 id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
@@ -614,5 +591,4 @@ class GuildActions:
         self.store.save_player(self.player)
         from engine import ledger
         ledger.add("took", quest=str(q["id"]), say=f"The player has taken on {npc.label()}'s request, '{q['title']}'. It is theirs now.")  # (f416)
-        console.ledger(f"Request taken: [{q['letter']}] {q['title']} (for {npc.name}). "
-                     + ("No time limit." if q.get("deadline") is None else f"Due in {G['ranks'][q['letter']]['deadline_days']} days."))
+        console.ledger(f"Request taken: [{q['letter']}] {q['title']} (for {npc.name}).")
