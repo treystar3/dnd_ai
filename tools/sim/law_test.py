@@ -8,7 +8,15 @@ import ui.console as uc
 NOTES = []
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
 ANSWERS = []
-uc.ask = lambda: ANSWERS.pop(0) if ANSWERS else "run"
+def no_ask(*a, **k):
+    raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
+uc.ask = no_ask
+def answered(fn, *a, **k):
+    """(f460) The watch's question ends the turn; the lines in ANSWERS are typed next, each answering the question that stands."""
+    out = fn(*a, **k)
+    while ANSWERS and store.load_question():
+        ws.handle(ANSWERS.pop(0))
+    return out
 from core.models import Item, ItemProperty
 from engine import checks, law, intent_audit as ia, items, clock
 from llm.contracts import ActionIntent as A, ObjectVerdict
@@ -101,10 +109,10 @@ def fix_notice(seen_ids):
     law.notices = lambda degree, role, is_target=False, assault=False, rng=None: (role in seen_ids)
 def reset():
     mer.memories.clear(); frm.memories.clear(); grd.memories.clear()
-    mer.trust = frm.trust = grd.trust = 50; mer.hidden = []; mer.looks_away_until = -1; frm.looks_away_until = -1; grd.looks_away_until = -1
+    simlib.view(mer).trust = simlib.view(frm).trust = simlib.view(grd).trust = 50; mer.hidden = []; mer.looks_away_until = -1; frm.looks_away_until = -1; grd.looks_away_until = -1
     ws.player.heat.clear(); ws.player.confronted.clear(); ws.player.character.key_items.clear(); ws.player.character.coins = 100000
     ws.player.standing.clear(); ws.player.standing_seen.clear()
-    ws.present = [mer, frm]; EVENTS.clear(); NOTES.clear(); ANSWERS.clear()
+    ws.present = [mer, frm]; EVENTS.clear(); NOTES.clear(); ANSWERS.clear(); store.clear_question()
     state = store.load_place("parth"); state.hidden = []; store.save_place(state)
     law.attempt, law.notices = real_attempt, real_notices
 def pack_names(): return [items.display_name(i) if not i.good else i.good for i in ws.pack]
@@ -122,16 +130,18 @@ reset(); fix_degree("failure"); fix_notice({"merchant"})
 n0 = len(ws.pack)
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
 check("a failure takes nothing", len(ws.pack) == n0)
-check("the victim noticing costs trust and heat and is remembered", mer.trust < 50 and ws.heat_here() == 10 and any("Caught" in m.text for m in mer.memories), (mer.trust, ws.heat_here()))
+check("the victim noticing costs trust and heat and is remembered", simlib.view(mer).trust < 50 and ws.heat_here() == 10 and any("Caught" in m.text for m in mer.memories), (simlib.view(mer).trust, ws.heat_here()))
 store_deeds = store.load_world_state() or {}
 reset(); fix_degree("partial"); fix_notice({"farmer"})
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
-check("a partial gets the item; a passer-by who sees it costs half heat and trust 5", ws.heat_here() == 5 and frm.trust == 45 and mer.trust == 50, (ws.heat_here(), frm.trust, mer.trust))
+check("a partial gets the item; a passer-by who sees it costs half heat and trust 5", ws.heat_here() == 5 and simlib.view(frm).trust == 45 and simlib.view(mer).trust == 50, (ws.heat_here(), simlib.view(frm).trust, simlib.view(mer).trust))
 
 reset(); fix_degree("partial"); fix_notice({"farmer", "merchant"})
 frm.looks_away_until = ws.minutes + 100
+seen0 = len(simlib.remembered(store, frm.id, kind="witnessed"))                 # (f476) the earlier thefts' rows stay in the store
 ws.on_steal(A(kind="steal", target="m1", item="torch"), "I lift a torch")
-check("a bribed witness does not notice", frm.trust == 50 and not any("Saw" in m.text for m in frm.memories), frm.memories)
+check("a bribed witness does not notice", simlib.view(frm).trust == 50 and len(simlib.remembered(store, frm.id, kind="witnessed")) == seen0,   # (f476) by kind
+      simlib.remembered(store, frm.id))
 
 reset(); fix_degree("success"); fix_notice(set())
 ws.on_steal(A(kind="steal", target="m1", item="gold crown of the king"), "I lift the king's crown")
@@ -180,16 +190,16 @@ check("ordinary item: 10 heat", ws.heat_here() == 10)
 reset(); fix_notice({"farmer"})
 law.fights_back = lambda *a, **k: False
 ws.after_force(A(kind="talk", target="m1", force=True), "I grab Varro by the collar")
-check("assault: the target remembers, loses trust, heat +20 (a witness saw)", ws.heat_here() == 20 and mer.trust == 40 and any("laid hands" in m.text for m in mer.memories), (ws.heat_here(), mer.trust))
+check("assault: the target remembers, loses trust, heat +20 (a witness saw)", ws.heat_here() == 20 and simlib.view(mer).trust == 40 and any("laid hands" in m.text for m in mer.memories), (ws.heat_here(), simlib.view(mer).trust))
 check("a witness remembers it too", any("lay hands" in m.text for m in frm.memories))
 reset(); law.notices = lambda *a, **k: False
 ws.after_force(A(kind="talk", target="m1", force=True), "I shove Varro")
-check("with no witnesses the victim alone knows, and that is full heat", ws.heat_here() == 20 and mer.trust == 40, ws.heat_here())
+check("with no witnesses the victim alone knows, and that is full heat", ws.heat_here() == 20 and simlib.view(mer).trust == 40, ws.heat_here())
 reset(); real_f = law.fights_back
 law.fights_back = lambda *a, **k: True
 ws.present = [grd, mer]
 ANSWERS[:] = ["pay"]
-ws.after_force(A(kind="talk", target="g1", force=True), "I grab the guard")
+answered(ws.after_force, A(kind="talk", target="g1", force=True), "I grab the guard")
 check("a guard who fights back arrests you", any("under arrest" in n for n in NOTES), NOTES)
 law.fights_back = real_f
 check("fights_back needs an armed role or a hot temper to be likely", law.FB["base"] + law.FB["armed_bonus"] > law.FB["base"])
@@ -201,65 +211,65 @@ def make_wanted(h):
 make_wanted(45)
 ANSWERS[:] = ["I pay the fine"]
 c0 = ws.player.character.coins
-ws.law_check()
+answered(ws.law_check)
 check("heat 45: a guard stops you and you pay the fine", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 39, (c0 - ws.player.character.coins, ws.heat_here()))
-ws.law_check()
+answered(ws.law_check)
 check("they only stop you once a day", len(ANSWERS) == 0 and ws.player.character.coins == c0 - law.fine(45))
 check("the guard remembers", any("paid" in m.text for m in grd.memories))
 
 make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("success", 50)
 ANSWERS[:] = ["I try to talk my way out"]
-ws.law_check()
+answered(ws.law_check)
 check("talking a guard down with a success takes 20 heat off", ws.heat_here() == 25, ws.heat_here())
 make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("strong success", 50)
 ANSWERS[:] = ["talk"]
-ws.law_check()
+answered(ws.law_check)
 check("a strong success takes 30 off", ws.heat_here() == 15)
 make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("partial", 50)
 ANSWERS[:] = ["talk"]; c0 = ws.player.character.coins
-ws.law_check()
+answered(ws.law_check)
 check("a partial means the guard wants the fine", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 39)
 make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("failure", 50)
 ANSWERS[:] = ["talk", "pay"]; c0 = ws.player.character.coins
-ws.law_check()
+answered(ws.law_check)
 check("a failed talk is an arrest, and you can still pay", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 39, ws.heat_here())
 
 make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("success", 50)
 ANSWERS[:] = ["bribe"]; c0 = ws.player.character.coins
-ws.law_check()
+answered(ws.law_check)
 check("a bribe that works costs the fine, takes 20 off, and the guard looks away", c0 - ws.player.character.coins == law.fine(45) and ws.heat_here() == 25 and grd.looks_away_until > ws.minutes, (ws.heat_here(),))
 make_wanted(45); checks.roll = lambda odds, rng=None, c=None: ("failure", 50)
 ANSWERS[:] = ["bribe", "jail"]; c0 = ws.player.character.coins; m0 = ws.minutes
-ws.law_check()
+answered(ws.law_check)
 check("a bribe that fails is an arrest", ws.minutes - m0 >= 2 * 1440 and ws.heat_here() == 39, (ws.minutes - m0, ws.heat_here()))
 
 make_wanted(45)
 ANSWERS[:] = ["run"]
-ws.law_check()
+answered(ws.law_check)
 check("running adds 10", ws.heat_here() == 55, ws.heat_here())
 
 make_wanted(75); c0 = ws.player.character.coins
 ANSWERS[:] = ["jail"]; m0 = ws.minutes
-ws.law_check()
+answered(ws.law_check)
 check("wanted: arrested, jail passes two days, pays half the fine, heat to 39",
       ws.minutes - m0 >= 2 * 1440 and c0 - ws.player.character.coins == round(law.fine(75) * 0.5) and ws.heat_here() == 39 - 4 * 0 or ws.heat_here() in (39, 35, 31),
       (ws.minutes - m0, c0 - ws.player.character.coins, ws.heat_here()))
 make_wanted(75); ws.player.character.coins = 100
 ANSWERS[:] = ["pay"]
-ws.law_check()
+answered(ws.law_check)
 check("wanted, cannot afford the fine: straight to jail, coins to zero, heat 39", ws.player.character.coins == 0, ws.player.character.coins)
 make_wanted(75); ANSWERS[:] = ["pay"]; c0 = ws.player.character.coins
-ws.law_check()
+answered(ws.law_check)
 check("wanted, pay the fine: heat to 39", c0 - ws.player.character.coins == law.fine(75) and ws.heat_here() == 39)
 
 make_wanted(75); ws.present = [mer]
-ws.law_check()
+answered(ws.law_check)
 check("no guard here, no arrest", ws.heat_here() == 75)
 make_wanted(30)
-ws.law_check()
+answered(ws.law_check)
 check("cold does not bring guards", len(ANSWERS) == 0 and ws.heat_here() == 30)
 make_wanted(75); ws.present = [grd, mer]; grd.looks_away_until = ws.minutes + 100
-ws.law_check()
+answered(ws.law_check)
 check("a bribed guard does not arrest", ws.heat_here() == 75)
 
 # cold: prices and trust

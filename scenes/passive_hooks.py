@@ -114,11 +114,13 @@ class PassiveHooks:
         return bonus
 
     def easy_company(self, npc) -> None:
-        if self.owns("easy_company") and npc.met_player and npc.easy_bonus < 10 \
-                and npc.easy_day != clock.day(self.minutes):
-            npc.trust = min(100, npc.trust + 1)
-            npc.easy_bonus += 1
-            npc.easy_day = clock.day(self.minutes)
+        from engine import regard
+        seen = regard.of(npc, self.acting)                    # (f480) Easy Company is this character's, with this person
+        if self.owns("easy_company") and seen.met and seen.easy_bonus < 10 and seen.easy_day != clock.day(self.minutes):
+            regard.step(npc, self.acting, 1, cause="easy company", minute=self.minutes)
+            seen = regard.own(npc, self.acting)
+            seen.easy_bonus += 1
+            seen.easy_day = clock.day(self.minutes)
 
     # ---------- reputation ----------
 

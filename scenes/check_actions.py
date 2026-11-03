@@ -2,6 +2,7 @@
 
 import random
 
+from engine import regard                                   # (f480)
 from engine import checks, clock, money
 from npc.life import promote
 from ui import console
@@ -50,7 +51,7 @@ class CheckActions:
         R = world_perks.P["all_or_nothing"]
         hurt = []
         if npc is not None and check in checks.SOCIAL + ("insight",):
-            npc.trust = max(0, npc.trust + R["bad_trust"])
+            regard.step(npc, self.acting, R["bad_trust"], cause="a check gone badly", minute=self.minutes)   # (f480)
             hurt.append(f"{npc.name.split()[0]} thinks less of you")
         if self.place.danger is None and check in checks.SOCIAL + ("performance", "stealth"):
             self.reputation_add(pulse.town_of(self.world, self.player.location), R["bad_standing"])
@@ -128,13 +129,13 @@ class CheckActions:
         trust = {("intimidation", "failure"): -3, ("intimidation", "success"): -1, ("intimidation", "strong success"): -2,
                  ("deception", "failure"): -5, ("persuasion", "strong success"): 2}.get((check, degree), 0)
         if trust:
-            npc.trust = max(0, min(100, npc.trust + trust))
+            regard.step(npc, self.acting, trust, cause="a check", minute=self.minutes)   # (f480)
             self.store.save_npc(npc)
         from engine.domain_events import LieCaught, Persuaded
         if check in ("persuasion", "intimidation"):
-            self.notice(Persuaded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), how=check, degree=degree), npc)
+            self.notice(Persuaded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), how=check, degree=degree), npc)
         if (check, degree) == ("deception", "failure"):
-            self.notice(LieCaught(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label()), npc)
+            self.notice(LieCaught(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting)), npc)
         return f"[THE GAME HAS DECIDED: they are trying to {what}. {effect} Act on this.]"
 
     SCALE_TELLS = (" Match the tells to how serious the worry really is: an everyday worry (weather, prices, a bad crop, a sore back, "
@@ -142,7 +143,7 @@ class CheckActions:
                    "someone's life) shows as real distress. Never exaggerate, and never turn a small worry into a dramatic scene.")
 
     def insight(self, npc, degree: str) -> str:
-        who = npc.label()
+        who = npc.label(self.acting)
         if degree == "strong success":
             return (f"The player reads {who} clearly. What weighs on them: {npc.concern} Their nature: "
                     f"{npc.personality} Show how the player picks this up from small tells, then state it plainly." + self.SCALE_TELLS)
@@ -156,13 +157,13 @@ class CheckActions:
 
     def stealth(self, npc, degree: str) -> str:
         if degree in ("strong success", "success"):
-            return "The player stays unnoticed." + (f" {npc.label()} has no idea they are being watched." if npc else "")
+            return "The player stays unnoticed." + (f" {npc.label(self.acting)} has no idea they are being watched." if npc else "")
         if degree == "partial":
             return "The player is nearly spotted - a glance their way, a moment of doubt - but not quite."
         if npc:
             from engine.domain_events import CaughtSpying
-            self.notice(CaughtSpying(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label()), npc)
-            return f"{npc.label()} notices the player watching and is unsettled by it."
+            self.notice(CaughtSpying(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting)), npc)
+            return f"{npc.label(self.acting)} notices the player watching and is unsettled by it."
         return "The player is noticed - someone or something turns their way."
 
     def perception(self, npc, degree: str) -> str:
@@ -170,7 +171,7 @@ class CheckActions:
             return "The player looks carefully but notices nothing out of the ordinary."
         if npc:
             extra = f" Something about it hints at this: {npc.concern}" if degree == "strong success" else ""
-            return (f"The player studies {npc.label()} and notices real, telling details of how they look and act "
+            return (f"The player studies {npc.label(self.acting)} and notices real, telling details of how they look and act "
                     f"(only from: {npc.description} {npc.activity}).{extra}")
         return ("The player searches carefully and notices details others would miss - only from what is actually "
                 "in the scene, its marks and anything lying here. Never invent hidden objects or secrets.")
@@ -220,7 +221,7 @@ class CheckActions:
             console.ledger(f"Tips: {money.fmt(tips)}")
         if degree == "strong success":
             for n in audience[:4]:
-                n.trust = min(100, n.trust + 1)
+                regard.step(n, self.acting, 1, cause="a check", minute=self.minutes)   # (f480)
                 self.store.save_npc(n)
         reaction = {"strong success": "The audience is delighted - applause, a few coins, warm looks.",
                     "success": "It goes over well - a few smiles and a coin or two.",

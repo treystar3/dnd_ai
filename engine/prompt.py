@@ -24,6 +24,7 @@ STOP = {"a", "an", "the", "and", "or", "but", "if", "of", "to", "in", "on", "at"
 class Prompt:
     def __init__(self):
         self.parts: list[tuple[str, str, str]] = []          # (kind, label, text)
+        self.tail_at: int | None = None                       # (f475) where the part that changes call to call begins, when marked
 
     def add(self, kind: str, text: str, label: str = "") -> "Prompt":
         assert kind in KINDS, kind
@@ -44,13 +45,38 @@ class Prompt:
         return self.add("history", text, label)
 
     def render(self) -> str:
-        return "\n\n".join((f"{label}:\n{text}" if "\n" in text else f"{label}: {text}") if label else text for _, label, text in self.parts)
+        return "\n\n".join(_one(label, text) for _, label, text in self.parts)
+
+    # ---- (f475) the prompt's shape, measured: where its length goes, its layout without its words, and the part that changes. Ollama
+    # reuses a cached prefix only close to a prompt's end (the Bundle D gap search), so what follows the stable part is what a call pays
+    # to read afresh; the gateway logs all three beside every call, outside the request's hash.
+    def sizes(self) -> list[tuple[str, str, int]]:
+        """Each part's kind, label and rendered characters, in order (the parts and the blank lines between them make render())."""
+        return [(kind, label, len(_one(label, text))) for kind, label, text in self.parts]
+
+    def skeleton(self) -> str:
+        """The layout without the words: each part's kind and label, in order. A reordering moves it; new wording does not."""
+        return "|".join(f"{kind}:{label}" for kind, label, _ in self.parts)
+
+    def mark_tail(self) -> "Prompt":
+        """What is added from here on is the tail: the part that changes from one call to the next."""
+        self.tail_at = len(self.parts)
+        return self
+
+    def tail(self) -> str:
+        """The tail, rendered: from the mark on, or the last part when none was marked."""
+        start = self.tail_at if self.tail_at is not None else max(0, len(self.parts) - 1)
+        return "\n\n".join(_one(label, text) for _, label, text in self.parts[start:])
 
     def __str__(self) -> str:
         return self.render()
 
     def texts(self, *kinds: str) -> list[str]:
         return [t for k, _, t in self.parts if k in kinds]
+
+
+def _one(label: str, text: str) -> str:
+    return (f"{label}:\n{text}" if "\n" in text else f"{label}: {text}") if label else text
 
 
 def words(text: str) -> list[str]:

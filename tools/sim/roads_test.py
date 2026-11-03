@@ -10,7 +10,13 @@ import config
 import ui.console as uc
 NOTES, ANSWERS, NARR = [], [], []
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.ask = lambda *a, **k: ANSWERS.pop(0) if ANSWERS else ""
+def no_ask(*a, **k):
+    raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
+uc.ask = no_ask
+def answer_all():
+    """(f460) The fork's question ends the turn; the lines in ANSWERS are typed next, each answering the question that stands."""
+    while ANSWERS and ws.store.load_question():
+        ws.handle(ANSWERS.pop(0))
 uc.narrate = lambda t: NARR.append(t)
 from engine import exits, mapview, clock
 from scenes.world import WorldScene
@@ -79,6 +85,9 @@ check("...in about the road's time", 10 <= store.meta.minutes - t0 <= 25, store.
 ws.enter("parth"); NARR.clear(); NOTES.clear(); ANSWERS[:] = ["the Old Quarry Road"]
 t0 = store.meta.minutes
 check("'head north' takes the north road", ws.exit_request("head north"))
+asked = store.load_question()
+check("the fork's question ends the turn, the walk out already made (f460)", asked and asked["kind"] == "fork" and P.location == "parth" and store.meta.minutes > t0, (asked, P.location))
+answer_all()
 fork_text = " ".join(NARR)
 check("the fork is narrated from the road's terrain, with no town named", "left fork" in fork_text or "fork" in fork_text and not any(t in fork_text.lower() for t in ("greyhollow", "elmshade", "eldervale")), fork_text[:300])
 check("the player is asked which way", any("Which way" in n for n in NOTES), NOTES)
@@ -86,13 +95,13 @@ check("choosing a road arrives there", P.location == "greyhollow" and "greyhollo
 check("the whole trip takes the whole road's time", 560 <= store.meta.minutes - t0 <= 700, store.meta.minutes - t0)
 check("arriving at one place reveals nothing but where you have been", {r["id"] for r in ws.places_data()["far"]} <= set(P.visited), ws.places_data()["far"])
 
-ws.enter("parth"); NOTES.clear(); ANSWERS[:] = ["huh", "", "what?"]
-ws.exit_request("head east")
+ws.enter("parth"); NOTES.clear(); ANSWERS[:] = ["huh", "hm", "what?"]
+ws.exit_request("head east"); answer_all()
 check("with no clear answer the nearest road is taken", P.location in ("willowmead",) and any("You take" in n for n in NOTES), (P.location, NOTES[-3:]))
 
 ws.enter("parth"); NOTES.clear(); ANSWERS[:] = ["let's go back"]
 t0 = store.meta.minutes; here = P.location
-ws.exit_request("head north")
+ws.exit_request("head north"); answer_all()
 check("or turn back at the fork", P.location == "parth" and any("turn back" in n for n in NOTES), P.location)
 check("...having lost the walk out and back", store.meta.minutes - t0 == 2 * north["fork_minutes"], store.meta.minutes - t0)
 
@@ -151,7 +160,7 @@ def fake_event(route, a, b, m, frac, text, log, resume=None, stop_name="", walke
     calls.append((a, b, resume, stop_name)); return "go"
 ws.road_event = fake_event
 ANSWERS[:] = ["the Old Quarry Road"]; NOTES.clear()
-ws.exit_request("head north")
+ws.exit_request("head north"); answer_all()
 fork = next(g for g in exits.groups(world, "parth") if g["dir"] == "north")["fork_minutes"]
 check("the shared stretch rolls a road event", len(calls) >= 1 and calls[0][0] == "parth", calls)
 check("...which carries on to the fork and the choice", any("Which way" in n for n in NOTES) and P.location == "greyhollow", (P.location, NOTES[-3:]))
@@ -159,14 +168,14 @@ check("a fight there does not pick a road for you", calls[0][2] == "")
 store, ws = fresh("roads_test6"); P = ws.player
 ws.road_event = lambda *a, **k: "fight"
 ANSWERS[:] = ["the Old Quarry Road"]; NOTES.clear()
-ws.exit_request("head north")
+ws.exit_request("head north"); answer_all()
 check("a fight on the shared stretch ends the walk before the fork", not any("Which way" in n for n in NOTES) and P.location == "parth", (P.location, NOTES[-3:]))
 store, ws = fresh("roads_test7"); P = ws.player
 calls = []
 ws.road_event = fake_event
 road_actions.R["max_per_trip"] = 1
 ANSWERS[:] = ["the Old Quarry Road"]
-ws.exit_request("head north")
+ws.exit_request("head north"); answer_all()
 check("the trip's event cap counts the shared stretch", len(calls) == 1, calls)
 road_actions.R["max_per_trip"] = 4
 road_actions.R["chance_per_leg"] = 0
@@ -175,7 +184,7 @@ road_actions.R["chance_per_leg"] = 0
 from engine import roads as roads_mod
 sx, wx = fresh("roads_late")
 stop = roads_mod.make_stop(world, "parth", "greywood", 0.5, 60, "", "", "t")
-wx.world.places[stop["id"]] = type(world.places["parth"]).model_validate(stop["place"])
+wx.world.add_place(type(world.places["parth"]).model_validate(stop["place"]))     # (f451) a stop goes on the campaign's map through its world
 try:
     exits.groups(wx.world, stop["id"])
     ok_late = True

@@ -86,23 +86,37 @@ def seal_chance(evidence: float) -> float:
 
 
 def seal_prompt(combat, boss) -> None:
-    """When the High Keeper is bloodied the seal is within reach: the player may try to wrest it free and free the Executioner."""
-    from ui import console
-    from engine.combat import tell, who
-    S = O["confront"]["seal"]
+    """When the High Keeper is bloodied the seal is within reach: the player may try to wrest it free and free the Executioner. (f460)
+    Nothing is asked here, in the middle of a round: the boss is marked, the scene asks once the round is told (scenes/orenna_actions.py
+    seal_ask), and the next line typed answers (seal_attempt, or seal_declined)."""
     bound = next((f for f in combat.enemies() if f.bound and f.alive), None)
     if not bound:
         return
-    console.note(S["ask"])
-    if console.ask().lower() not in ("y", "yes"):
-        tell(combat, S["quiet"])
-        return
+    boss.boss["seal_ask"] = True
+
+
+def seal_attempt(combat, boss) -> bool:
+    """(f460) The player wrests at the seal: freed and gone from the fight, or the Executioner hits harder. True when freed. The roll is
+    decided by the round and the boss, as it was."""
+    from ui import console
+    from engine.combat import tell
+    S = O["confront"]["seal"]
+    bound = next((f for f in combat.enemies() if f.bound and f.alive), None)
+    if not bound:
+        return False
     rng = random.Random(f"{combat.round}:{boss.id}:seal")
     if rng.random() < seal_chance(boss.boss.get("evidence", 0.0)):
         combat.fighters = [f for f in combat.fighters if f is not bound]
         console.note(S["success"])
         tell(combat, S["success"])
-    else:
-        bound.weapon_damage *= 1.25
-        console.note(S["failure"])
-        tell(combat, S["failure"])
+        return True
+    bound.weapon_damage *= 1.25
+    console.note(S["failure"])
+    tell(combat, S["failure"])
+    return False
+
+
+def seal_declined(combat) -> None:
+    """(f460) The player lets the seal be: the narrator is told the Executioner fights on."""
+    from engine.combat import tell
+    tell(combat, O["confront"]["seal"]["quiet"])

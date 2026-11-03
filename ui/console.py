@@ -589,7 +589,7 @@ def show_help() -> None:
     print("  #shop     see what the merchants here sell and buy, with prices")
     print("  #mount    your mounts and the stable here; #mount <name> to ride one, #mount none to walk")
     print("  #board    the adventurers' guild contract board (at the guild house)")
-    print("  #quests   your contracts and requests, progress, deadlines and guild rank")
+    print("  #quests   your contracts and requests, progress and guild rank")
     print("  #party    your companions and the adventurers travelling with you (#name <companion> = <new name> renames one)")
     print("  #standing how the groups of this town regard you; #rumors what is said of you; #correct <n> sets a false tale straight")
     print("  #dungeon  the floors of the dungeon here, what you've cleared, and when it will be remade")
@@ -670,7 +670,7 @@ def guard_outputs() -> None:
         if getattr(fn, "gated", False):
             continue
 
-        mend = (lambda s: hygiene.undash(hygiene.unnote(hygiene.clean(s)))) if name in STORY else hygiene.clean   # (f396, f403) no dashes in the story; (f404) no notes
+        mend = (lambda s: hygiene.undash(hygiene.unstage(hygiene.unnote(hygiene.clean(s))))) if name in STORY else hygiene.clean   # (f396, f403) no dashes in the story; (f404) no notes; (f449) no stage directions
 
         def gated(*args, _fn=fn, _mend=mend, **kwargs):
             return _fn(*(_mend(a) if isinstance(a, str) else a for a in args),

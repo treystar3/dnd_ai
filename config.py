@@ -26,6 +26,7 @@ MAX_TOKENS = 800
 # measured against it: no narrator or speaker is given a length any more.
 PROSE_MAX_TOKENS = 2048
 REQUEST_TIMEOUT = 120
+CLOSE_WAIT_SECONDS = 2      # (f453) how long a closing campaign waits for its background work (a creation call, people being written) before leaving it behind
 KEEP_ALIVE = "30m"          # how long Ollama keeps the model loaded after a call (its default is 5 minutes, and a cold load costs 20-60 seconds)
 COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
 NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles it in game)
@@ -43,6 +44,8 @@ REFUSALS_LOG = True
 RECORD = bool(int(__import__("os").environ.get("DND_RECORD", "0") or 0))
 RECORD_KEEP = 5
 REFUSALS_LOG_PATH = "logs/refusals.jsonl"   # (f321) every line the game failed to act on, with why and what it asked back
+CRASH_LOG_PATH = "logs/crash.log"           # (f449) every fault the game went on without (a turn rolled back) or stopped on, with its traceback
+CRASH_KEEP = 50                             # how many of the most recent faults the crash log keeps
 AUDIT_LOG = True           # a readable record of every model call, one file per session under logs/audit/ (data/rules/audit_log.yaml)
 
 GAME_TITLE = "Meravia"                      # (f345) the name the home page, the window, the exe and the installer carry

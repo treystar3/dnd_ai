@@ -70,7 +70,7 @@ check("a town that thinks ill of the player says so at the door", not ok and "th
 # ---- the crown sends for the player (door six, through a door)
 ws.player.reputation["lethoria"] = 30
 for n in ws.residents:
-    n.met_player = False; store.save_npc(n)
+    simlib.view(n).met = False; store.save_npc(n)
 ws.enter("lethoria")
 state = store.load_world_state()
 th = {"id": "c1", "title": "The silver-wire shortage", "tier": "uncommon", "place": "lethoria", "pressure": "", "stage": 0, "status": "active",

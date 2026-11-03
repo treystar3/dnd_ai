@@ -169,7 +169,7 @@ class Stub:
         return {"personality": "Plain.", "voice": "Plain.", "concern": "A small worry.", "motive": motive}
 
     def a_NPCReply(self, u, k):
-        out = {"speech": "It is as it is.", "intent": "small_talk"}
+        out = {"speech": "It is as it is.", "intent": "small_talk", **(getattr(self, "reply_extra", None) or {})}   # (f482) a test's planted words
         if self.ask_help and "WORK YOU HAVE OFFERED" not in u:
             r = self.rng.random()
             if r < 0.5:
@@ -610,3 +610,232 @@ def make_character(cls_key: str, rng: random.Random, perks: bool = False):
                                   description="a grey wolf")]
         c.bound_summon = next((a.id for a in actives if a.summon_form == "bound"), "")     # the Warden: its Bound summon
     return c, spec
+
+
+# ------------------------------------------------------------------ (f450) the suite's one way to open a campaign
+
+class Game:
+    """One campaign opened for a test (campaign()): its session (f453: engine/session.py, the store and the world are its), the trait
+    catalog and the player, and the scene built on them the first time it is asked for. close() closes the session, as main.py does
+    when a campaign ends. The rebuild's Bundle B changes only the inside of this class and of campaign(): a test that opens its campaign
+    here never changes again when the runtime does."""
+
+    def __init__(self, name: str, session, catalog, player):
+        self.name, self.session, self.catalog, self.player = name, session, catalog, player
+        self.store, self.world = session.store, session.world
+        self._scene = None
+
+    @property
+    def scene(self):
+        if self._scene is None:
+            self._scene = self.session.scene(self.catalog, self.player)
+        return self._scene
+
+    def close(self) -> None:
+        self.session.close()
+
+    def crash_after_commit(self, kind: str) -> None:
+        """(f467) The next operation of this kind that commits stops the game right after its commit and before its telling (an Interrupt
+        out of the executor, scenes/world.py operation): the save holds the outcome and its presentation entry, and the next load tells
+        it (recover_unshown). The one injection point for the recovery tests."""
+        self.scene.crash_after_commit = kind
+
+
+def campaign(name: str, cls: str = "warrior", seed: int = 1, minutes: int = 600, turn: int = 1, location: str | None = None,
+             never_mentor: bool = True, fresh: bool = True, char_seed: int | None = None) -> Game:
+    """Open a campaign the way the tests did by hand in a hundred files: a fresh save folder (unless fresh=False, for a save copied
+    into place), its seed, clock and turn, a level-1 character of one of the stub's classes, standing where the world starts or at
+    `location`, with Maren kept away unless asked for. Returns the Game; `.scene` builds the WorldScene on first use."""
+    import shutil
+    from engine.session import CampaignSession
+    from npc.traits import load_traits
+    from storage.campaign import PlayerState
+    if fresh:
+        shutil.rmtree(f"saves/{name}", ignore_errors=True)
+    session = CampaignSession.open(name)                     # (f453) born when the save opens, as in main.py
+    store, world = session.store, session.world
+    if not store.player_exists():
+        store.meta.seed, store.meta.turn, store.meta.minutes = seed, turn, minutes
+        store.save_meta()
+        char, _ = make_character(cls, random.Random(seed if char_seed is None else char_seed))
+        player = PlayerState(character=char, location=location or world.start_location)
+        if never_mentor:
+            player.mentor["never"] = True
+        store.save_player(player)
+    return Game(name, session, load_traits(), store.load_player())
+
+
+def residue() -> dict:
+    """(f453) Every binding a session owns that is not at its initial value, by name with what it holds: {} after a clean close."""
+    from engine import session
+    return session.residue()
+
+
+def quiet_console(kinds=("narrate", "say", "note", "ledger")) -> list:
+    """Mute the console's story outputs and collect what would have been shown, as (kind, text), the four lines every test repeated."""
+    from ui import console
+    shown: list = []
+    for fn in kinds:
+        setattr(console, fn, lambda *a, _fn=fn, **k: shown.append((_fn, str(a[0]) if a else "")))
+    console.panel = lambda *a, **k: False
+    return shown
+
+
+# ---- (f476) the proof bench: what a person remembers and owes, read through the store by what it is, never by its wording
+# Bundle D types memory rows (f478) and turns offers, requests and commitments into obligations (f481). Tests that ask by kind and
+# about stay true across those steps: until the rows carry a kind of their own, the kind is read from today's wording (LEGACY_KIND),
+# and from then on from the row. Asking for something the save does not record yet (a source, a state) is refused, never a quiet pass.
+LEGACY_KIND = (("(my own life) ", "own_life"), ("Saw ", "witnessed"))
+
+
+def _memory_columns(store) -> set:
+    with store._lock:
+        return {r[1] for r in store._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+
+
+def _legacy_kind(text: str, turn: int) -> str:
+    for head, kind in LEGACY_KIND:
+        if text.startswith(head):
+            return kind
+    if turn == -1 and text.startswith("I dealt with "):              # an anchor settling a matter (engine/pulse.py): their own life
+        return "own_life"
+    if re.search(r" settled .+\.$| was asked about .+, and let it be\.$", text):   # a matter's holders hear how it ended (engine/matters.py)
+        return "heard"
+    return "experienced"
+
+
+def remembered(store, holder: str, *, kind: str | None = None, subject: str | None = None, about: str | None = None,
+               source: str | None = None, state: str | None = None) -> list[dict]:
+    """(f476) The rows a person remembers, every one (not only the window their record carries), oldest first, that match: kind
+    (experienced, witnessed, noticed, heard, told, own_life...), subject (whom it is about: "player" today), about (words in it),
+    source and state (once the save records them). Each row: {id, day, turn, kind, importance, text, subject}."""
+    cols = _memory_columns(store)
+    for asked, col in ((source, "source"), (state, "state")):
+        if asked is not None and col not in cols:
+            raise ValueError(f"the save does not record a memory's {col} yet (Bundle D f478 adds it)")
+    pick = ["id", "day", "turn", "kind", "importance", "text"] + [c for c in ("subject", "source", "state") if c in cols]
+    with store._lock:
+        rows = store._db.execute(f"SELECT {', '.join(pick)} FROM npc_memory WHERE npc_id = ? AND forgotten = 0 ORDER BY id", (holder,)).fetchall()
+    out = []
+    for r in rows:
+        row = dict(zip(pick, r))
+        if "subject" not in cols:                                     # before f478: the kind and the subject from the wording
+            row["kind"] = _legacy_kind(row["text"], int(row["turn"]))
+            row["subject"] = "player" if row["kind"] in ("experienced", "witnessed") else ""
+        if kind is not None and row["kind"] != kind:
+            continue
+        if subject is not None and row.get("subject") != subject:
+            continue
+        if about is not None and about.lower() not in str(row["text"]).lower():
+            continue
+        if source is not None and row.get("source") != source:
+            continue
+        if state is not None and row.get("state") != state:
+            continue
+        out.append(row)
+    return out
+
+
+def obligation(store, holder: str, about: str | None = None, minutes: int | None = None) -> list[dict]:
+    """(f476) What a person is owed or offers, in one shape: {id, kind, state, title}. (f481) The offers from the registry, open or ended
+    (offered, taken, released, withdrawn, with the reason it ended); the contracts in the player's hand that they posted (taken); a
+    hire's commitments (active). `about`: words in its title."""
+    out = []
+    from engine import obligations                            # (f481) the offers in the registry, open and ended
+    for e in store.find_entities(kind="offer"):
+        if e.links.get("npc") == holder:
+            out.append({"id": e.data.get("key", e.ref), "kind": e.data.get("family", ""),
+                        "state": "open" if (e.data.get("family"), e.state) == ("work", "offered") else e.state,   # the words tests always read
+                        "title": str(e.data.get("title", "")), "reason": (e.history[-1][3] if e.history else "")})
+    p = store.load_player()
+    if p is not None:
+        out += [{"id": q["id"], "kind": q.get("kind", ""), "state": "taken", "title": q.get("title", "")}
+                for q in p.quests if q.get("issuer") == holder]
+        for m in p.party:
+            if m.get("id") == holder or m.get("name") == holder:
+                out += [{"id": f"commitment:{holder}:{i}", "kind": "commitment", "state": "active", "title": str(c.get("text", c) if isinstance(c, dict) else c)}
+                        for i, c in enumerate(m.get("commitments") or [])]
+    return [o for o in out if about is None or about.lower() in o["title"].lower()]
+
+
+def reset_person(store, holder: str) -> None:
+    """(f476) A person remembers nothing: every row of theirs deleted, and the window their record carries emptied."""
+    with store._lock:
+        store._db.execute("DELETE FROM npc_memory WHERE npc_id = ?", (holder,))       # autocommit, as the store's own writes
+    if store.npc_exists(holder):
+        n = store.load_npc(holder)
+        n.memories = []
+        store.save_npc(n)
+
+
+def heard_by(store, about: str) -> list[str]:
+    """(f476) Who holds something they heard or were told of `about` (sorted ids): the rows a person did not see for themselves."""
+    with store._lock:
+        ids = sorted({r[0] for r in store._db.execute("SELECT DISTINCT npc_id FROM npc_memory WHERE forgotten = 0").fetchall()})
+    return [nid for nid in ids if remembered(store, nid, kind="heard", about=about) or remembered(store, nid, kind="told", about=about)]
+
+
+class FakeEmbedder:
+    """(f476) A stand-in embedding model: each word of three letters or more lands in one of 64 places by its hash, so texts that share
+    words are near and the vectors are the same in every process (md5, never hash()). From tools/sim/embed_test.py."""
+    def __init__(self, synonyms: dict | None = None):
+        self.synonyms = dict(synonyms or {})
+        self.calls: list[int] = []
+
+    def vec(self, text: str) -> list[float]:
+        import hashlib
+        v = [0.0] * 64
+        for w in str(text).lower().replace("clustering: ", "").split():
+            w = self.synonyms.get(w.strip(".,?!'"), w.strip(".,?!'"))
+            if len(w) >= 3:
+                v[int(hashlib.md5(w.encode()).hexdigest(), 16) % 64] += 1
+        return v
+
+    def embed(self, model=None, input=None, keep_alive=None, **k):
+        texts = list(input or [])
+        self.calls.append(len(texts))
+        return {"embeddings": [self.vec(t) for t in texts]}
+
+
+def two_characters(ws):
+    """(f476) The player's character and a second one beside them, for tests whose subject is a list of characters (Bundle D keys
+    regard, obligations and memories by character). The second has an id of their own ("second", f480)."""
+    return ws.player.character, _second_character(ws)
+
+
+def _second_character(ws):
+    other, _ = make_character("mage", random.Random(f"second:{ws.player.character.name}"))
+    other.name = "Second " + other.name.split()[-1] if other.name else "Second Traveller"
+    other.id = "second"                                      # (f480) a character of their own, by id
+    return other
+
+
+def offer(store, holder: str, family: str, terms: dict, who: str = "player", minute: int | None = None):
+    """(f481) An offer in the registry for a test, from the person `holder` to the character `who`: what tests set as npc.work_offer
+    ("work") or npc.quest_offer ("request") before offers ended for a reason. An old offer's hour (until) is dropped: nothing ends by age."""
+    from engine import obligations
+    t = {k: v for k, v in dict(terms).items() if k != "until"}
+    return obligations.open_(store, family, holder, who, str(t.get("task") or t.get("title") or family), store.meta.minutes if minute is None else minute,
+                             terms=t)
+
+
+def offered(store, holder: str, family: str, who: str = "player") -> dict | None:
+    """(f481) The terms of the offer of this family that `holder` has standing for `who`, or None."""
+    from engine import obligations
+    e = obligations.current(store, family, holder, who)
+    return dict(e.data["terms"]) if e is not None else None
+
+
+def end_offer(store, holder: str, family: str, who: str = "player") -> None:
+    """(f481) A test's standing offer ended, as when the one who made it is gone."""
+    from engine import obligations
+    e = obligations.current(store, family, holder, who)
+    if e is not None:
+        obligations.close(store, e, "withdrawn" if family == "work" else "released", "gone", store.meta.minutes)
+
+
+def view(npc, who: str = "player"):
+    """(f480) A person's view of a character (npc/models.py Regard), to read or set in a test: what the tests read as npc.trust,
+    npc.met_player, npc.knows_player_as and the rest before views were kept per character. The view is made when it is not there."""
+    from engine import regard
+    return regard.own(npc, who)

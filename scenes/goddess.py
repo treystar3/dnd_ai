@@ -68,7 +68,7 @@ EXPECTS = {
 
 
 class ThresholdScene:
-    def __init__(self):
+    def __init__(self, session=None):
         self.knowledge = json.loads(KNOWLEDGE_PATH.read_text(encoding="utf-8"))
         self.system = gp.goddess_system(self.knowledge)
         self.step = Step.NAME
@@ -87,6 +87,7 @@ class ThresholdScene:
         self.who_choice: dict | None = None                # (f388) the first page's choices (engine/look.py clean)
         self.last_line = ""                                # her last words, for the page
         self.drawn = False                                 # a window is drawing the pages
+        self.session = session                             # (f453) the campaign being made, which waits for the call below if the player leaves
 
     def run(self) -> Character | None:
         """The character made, or None when the player goes back to the main menu (#menu) before it is finished."""
@@ -471,6 +472,8 @@ class ThresholdScene:
                 "they might carry back: what is already in them, drawn out. Invite them, quickly, to choose three."
             )
             self.passives_job = creation.PassivesInBackground(self.interp, self.active_options)   # written while they read
+            if self.session is not None:
+                self.session.own(self.passives_job.thread)                                     # (f453) closed with the save
         elif turn.kind in ("decline", "answer") and turn.text.strip():
             self.concept += f"\nRefinement: {turn.text.strip()}"
             self.read_class()

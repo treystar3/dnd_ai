@@ -21,7 +21,15 @@ uc.dialogue = lambda b, s, t, a: SAID.append((s, t))        # her words framed b
 uc.npc_says = lambda s, t, g="": SAID.append((s, t))        # ...and so do her words alone, once the moment has had its frame (f374)
 uc.narrate = lambda t: SAID.append(("narrate", t))
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.ask = lambda *a, **k: ANSWERS.pop(0) if ANSWERS else ""
+def no_ask(*a, **k):
+    raise AssertionError("the world asked in the middle of a turn (f460/f461: a question ends the turn; the next line answers it)")
+uc.ask = no_ask
+def answer_all(w, default="go on", cap=30):
+    """(f461) Each of Maren's questions ends the line; the lines in ANSWERS are typed next, then 'go on' until she lets them go."""
+    n = 0
+    while w.store.load_question() and n < cap:
+        n += 1
+        w.handle(ANSWERS.pop(0) if ANSWERS else default)
 from engine import combat, mentor, pools, inventory, money
 from core.models import Archetype
 from scenes.world import WorldScene
@@ -57,7 +65,7 @@ player = ws.player; c = player.character
 # ---- she comes over at once, and the scene fits where you stand
 check("her wait is over before it starts", M["gate"]["wait_minutes"] == 0)
 ANSWERS[:] = ["I came looking for work", "I hunt for coin and found this lance in the fields", "no, not really", "ok", "ok", "ok", "go on"]
-ws.mentor_intercept("I look around")
+ws.mentor_intercept("I look around"); answer_all(ws)
 spoken = " ".join(t for _, t in SAID)
 check("she approaches at the first action and the stage is invite", mentor.stage(player) == "invite", mentor.stage(player))
 check("she is seen first, and asks what brings you to Parth", "enamelled A" in spoken and "What brings you to Parth?" in spoken and "table" not in spoken, spoken[:300])
@@ -94,7 +102,7 @@ for pid in ("tilted_plough", "guild_house", "parth_temple"):
     w9.enter(pid)
     ANSWERS[:] = ["work", "proof", "yes", "yes"]
     SAID.clear()
-    w9.mentor_intercept("I look around")
+    w9.mentor_intercept("I look around"); answer_all(w9)
     sp = " ".join(t for _, t in SAID)
     check(f"in {pid} she comes over and the lesson is skipped on two yeses", "enamelled A" in sp and "Good hunting" in sp and "table" not in sp, sp[:200])
 
@@ -144,7 +152,7 @@ ws.mentor_tick()
 check("then she moves on", mentor.stage(player) == "hunt" and any(M["board_step"]["go"] in t for _, t in SAID) and not player.mentor.get("posting"))
 check("she is in the party for the hunt", any(m.get("story") == "maren" and m.get("tutorial") for m in player.party) and len(player.party) == 1, player.party)
 check("the party pane lists her, with her guild rank and her real level", any(a["name"] == mentor.NAME and a["rank"] == "A" and a["level"] >= 100 for a in ws.party_data()["adventurers"]), ws.party_data()["adventurers"])
-check("three wolves in the Greywood, no clock", q and q["creature"] == "wolf" and q["count"] == 3 and q["place"] == "greywood" and q["deadline"] is None, q)
+check("three wolves in the Greywood, no clock", q and q["creature"] == "wolf" and q["count"] == 3 and q["place"] == "greywood" and q.get("deadline") is None, q)
 check("it is a guild contract", q and q["guild"] and q["letter"] == "F")
 check("the board is empty once it is taken", ws.ensure_board() == [])
 SAID.clear(); NOTES.clear()
@@ -363,7 +371,7 @@ from scenes.combat_scene import CombatScene
 check("once it is over she is saved as a person of the world", store.npc_exists("maren"))
 mn = store.load_npc("maren")
 check("...who remembers what the player told her", any("They told me" in m.text for m in mn.memories) and any("hire me as practice" in m.text.lower() or "hire me" in m.text.lower() for m in mn.memories), [m.text for m in mn.memories])
-check("...likes them, and knows them by name", mn.trust >= 60 and mn.knows_player_as == c.name and mn.name_known_to_player and mn.protected)
+check("...likes them, and knows them by name", simlib.view(mn).trust >= 60 and simlib.view(mn).knows_as == c.name and simlib.view(mn).name_known and mn.protected)
 hall_id = next(p.id for p in world.places.values() if p.type == "guild" and p.parent == "parth")
 check("(f382) ...and has left Parth on the capital's work: in no place, and not waiting at the hall", mn.gone and "capital" in mn.gone
       and "maren" not in store.load_place(hall_id).residents)
@@ -511,13 +519,13 @@ stub.a_Narration = keep
 s2, w2 = fresh("mentor_skip")
 SAID.clear()
 ANSWERS[:] = ["work", "proof", "yes I do", "yes, I'm sure"]
-w2.mentor_intercept("I look around")
+w2.mentor_intercept("I look around"); answer_all(w2)
 check("two yeses skip the tutorial", mentor.stage(w2.player) == "done" and w2.player.mentor.get("skipped") and not w2.player.quests)
 check("she says goodbye and no troll", M["approach"]["skip_leave"][0] in " ".join(t for _, t in SAID) and w2.combat is None)
 s3, w3 = fresh("mentor_skip2")
 ANSWERS[:] = ["work", "proof", "yes", "hmm, not really", "ok", "ok", "ok", "go on"]
 SAID.clear()
-w3.mentor_intercept("I look around")
+w3.mentor_intercept("I look around"); answer_all(w3)
 check("a yes then a doubt gets the walkthrough", mentor.stage(w3.player) == "invite" and "nobody is born knowing" in " ".join(t for _, t in SAID).lower())
 for yes in ("yes", "Yeah, I do", "yep sure", "I understand it"):
     check(f"'{yes}' is a yes", mentor.says_yes(yes))
@@ -548,7 +556,7 @@ w6.player.character.coins = max(w6.player.character.coins, 5000)
 c0 = w6.player.character.coins
 ANSWERS[:] = ["work", "proof", "no", "ok", "ok", "ok", "go on"]
 SAID.clear()
-w6.mentor_intercept("I look around")
+w6.mentor_intercept("I look around"); answer_all(w6)
 sp6 = " ".join(t for _, t in SAID)
 check("she goes with them and they end up in the guild hall", w6.player.location == "guild_house" or w6.place.type == "guild", w6.player.location)
 check("at the desk it is the player's turn: nothing is paid until they say so (f271)", mentor.stage(w6.player) == "sign" and not w6.rank and w6.player.character.coins == c0
@@ -568,7 +576,7 @@ s7.meta.minutes = 1800
 w7.player.character.coins = 0
 ANSWERS[:] = ["work", "proof", "no", "ok", "ok", "ok", "go on"]
 SAID.clear()
-w7.mentor_intercept("I look around")
+w7.mentor_intercept("I look around"); answer_all(w7)
 check("short of coin she waits in town and the stage stays invite", mentor.stage(w7.player) == "invite" and not w7.rank, (mentor.stage(w7.player), w7.rank))
 
 # ---- she stops the first thing they do in Parth; arriving alone does not bring her
@@ -577,7 +585,7 @@ SAID.clear()
 w8.mentor_tick()
 check("arriving in Parth does not bring her over", mentor.stage(w8.player) == "" and not SAID)
 ANSWERS[:] = ["work", "proof", "no", "ok", "ok", "ok", "go on"]
-w8.handle("I buy a sword from the smith")
+w8.handle("I buy a sword from the smith"); answer_all(w8)
 spoken8 = " ".join(t for _, t in SAID)
 check("their first action in Parth is stopped by her", mentor.stage(w8.player) in ("invite", "board") and M["approach"]["interrupt"] in spoken8, mentor.stage(w8.player))
 check("...and what they meant to do did not happen", "smith" not in " ".join(t for k, t in SAID if k == "narrate" and "buy" in t.lower()))
@@ -585,7 +593,7 @@ check("...and what they meant to do did not happen", "smith" not in " ".join(t f
 # ---- gates
 s4, w4 = fresh("mentor_test2", level=20)
 SAID.clear()
-w4.mentor_intercept("I look around"); s4.meta.minutes += 100; w4.mentor_intercept("I look around")
+w4.mentor_intercept("I look around"); answer_all(w4); s4.meta.minutes += 100; w4.mentor_intercept("I look around"); answer_all(w4)
 check("an experienced player is left alone", mentor.stage(w4.player) == "" and not SAID)
 s5, w5 = fresh("mentor_test3", location="willowmead")
 w5.mentor_intercept("I look around"); s5.meta.minutes += 100; w5.mentor_intercept("I look around")

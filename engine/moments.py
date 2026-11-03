@@ -133,7 +133,7 @@ def compose(ws, shape: dict, visitor_role: str, rng: random.Random):
     seen = seen_list(ws.store)
     known = truth.scene_of(ws).known_words()
     request = mp.moment_request(ws, shape, visitor_role, seen[-int(M.get("remember", 40)):])
-    ctx = {"roles": sorted({n.role for n in ws.present}), "labels": {n.label(): n.role for n in ws.present}, "visitor": bool(visitor_role),
+    ctx = {"roles": sorted({n.role for n in ws.present}), "labels": {n.label(ws.acting): n.role for n in ws.present}, "visitor": bool(visitor_role),
            "mishap": any(e.get("kind") == "hurt" for e in shape.get("effects") or []),
            "given": mp.MOMENT_SYSTEM + "\n" + request, "known": known,
            "seen": [s.get("line", "") for s in seen], "titles": [s.get("title", "") for s in seen]}
@@ -191,7 +191,7 @@ def start(ws, shape: dict, rng: random.Random | None = None, use_model: bool = T
     ws.store.save_world_state(state)
     if shape.get("mood"):
         for n in ws.present:
-            n.mood, n.mood_until = shape["mood"], until
+            n.mood, n.mood_until, n.mood_source = shape["mood"], until, f"moment:{shape['id']}"     # (f483) with its cause
             ws.store.save_npc(n)
     ws.refresh_present()                                           # the doings the moment gives everyone
     c = ws.player.character
@@ -257,7 +257,8 @@ def end(ws, st) -> None:
         ws.store.save_place(tp)
     for n in ws.present:
         if n.mood_until and n.mood_until <= ws.minutes:
-            n.mood, n.mood_until = "", 0
+            from engine import circumstance                       # (f483) with what gave it
+            circumstance.clear_mood(n)
     console.debug(f"moment ended at {st.id}: {m.get('id')}")
     if ws.player.location == st.id:
         ws.refresh_present()

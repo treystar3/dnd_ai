@@ -14,22 +14,22 @@ ROOT = Path(__file__).resolve().parent.parent
 T = yaml.safe_load((ROOT / "data" / "rules" / "trust.yaml").read_text(encoding="utf-8"))
 
 
-def after_talk(npc, reply, day: int) -> int:
-    """Apply this exchange's change to npc.trust and return it (0 when nothing moved). `reply` has intent and trust_change (llm/contracts.py
-    NPCReply); `day` is the game day, kept on the record as last_talk_day."""
+def after_talk(npc, reply, day: int, who: str, minute: int = -1) -> int:
+    """Apply this exchange's change to the trust of the character `who` (f480: their view, engine/regard.py) and return it (0 when nothing
+    moved). `reply` has intent and trust_change (llm/contracts.py NPCReply); `day` is the game day, kept on the view as last_talk_day."""
+    from engine import regard
     K = T.get("talk") or {}
     step = 0
     cap = int(K.get("cap", 60))
-    if day != getattr(npc, "last_talk_day", -1):
-        if npc.trust < cap:
+    seen = regard.own(npc, who)
+    if day != seen.last_talk_day:
+        if seen.trust < cap:
             step += int(K.get("new_day", 1))
-        npc.last_talk_day = day
+        seen.last_talk_day = day
     step += int((K.get("intents") or {}).get(getattr(reply, "intent", "") or "", 0))
     limit = int(K.get("model_limit", 5))
     step += max(-limit, min(limit, int(getattr(reply, "trust_change", 0) or 0)))
-    before = npc.trust
-    npc.trust = max(0, min(100, npc.trust + step))
-    return npc.trust - before
+    return regard.step(npc, who, step, cause="talk", about=getattr(reply, "intent", "") or "", minute=minute)
 
 
 def problems(intents=()) -> list[str]:

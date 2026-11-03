@@ -3,7 +3,7 @@ and the blessing. The rules and the state are in engine/orenna.py; every word sh
 import re
 
 from core.models import KeyItem
-from engine import clock, combat, orenna
+from engine import clock, combat, orenna, questions
 from ui import console
 
 O = orenna.O
@@ -71,19 +71,29 @@ class OrennaActions:
 
     def orenna_contact(self) -> None:
         C = O["contact"]
-        name = O["contact_name"]
         orenna.set_stage(self.player, "contact")
+        self.player.orenna["due"] = self.minutes + 24 * 60          # (f460) asked once a day, however the two questions below end
+        self.store.save_player(self.player)
         console.narrate(C["arrive"].strip())
         console.say(C["ask"], "The stranger")
-        console.ask()
+        self.ask_next("orenna_name", C["ask"], show=False, speaker="The stranger")   # (f460) the stranger's question ends the turn; the next line answers it
+
+    def on_answer_orenna_name(self, asked: dict, text: str):
+        """(f460) However they came by the name, the stranger carries on, and asks the second question."""
+        C = O["contact"]
         console.narrate(C["after"].strip())
-        self.orenna_say(name, C["speech"])
-        console.note("Go with them to the ruin? (y/n)")
-        if console.ask().lower() not in ("y", "yes"):
+        self.orenna_say(O["contact_name"], C["speech"])
+        self.ask_next("orenna_ruin", "Go with them to the ruin? (y/n)")
+        return True
+
+    def on_answer_orenna_ruin(self, asked: dict, text: str):
+        """(f460) Yes goes to the ruin; no, or a line about something else, is taken as no, and the stranger comes back another day."""
+        C = O["contact"]
+        name = O["contact_name"]
+        yes = questions.yes_no(text)
+        if not yes:
             console.say(C["decline"], name)
-            self.player.orenna["due"] = self.minutes + 24 * 60
-            self.store.save_player(self.player)
-            return
+            return yes is False
         console.say(C["go"], name)
         d = orenna.ruin_dungeon(self.world, self.player.character.level, self.minutes, self.store.meta.seed)
         known = [x for x in self.store.load_dungeons() if x["id"] != d["id"]]
@@ -96,6 +106,7 @@ class OrennaActions:
         self.store.save_player(self.player)
         console.note(f"{name} brings you to {d['name']}. Go down when you are ready.")
         self.show_exits()
+        return True
 
     def orenna_floor_done(self, d: dict, f: int) -> None:
         R = O["ruin"]
@@ -170,10 +181,15 @@ class OrennaActions:
         console.narrate(E["arrive"].strip())
         self.orenna_say("The man in plain cloth", E["speech"])
         self.orenna_lore(E["lore"])
-        console.note(E["press"])
-        if console.ask().lower() not in ("y", "yes"):
+        self.ask_next("executioner", E["press"])                     # (f460) the next line answers; pressed or left, he is met only once
+
+    def on_answer_executioner(self, asked: dict, text: str):
+        """(f460) Yes presses him and the fight begins; no, or a line about something else, leaves him be."""
+        E = O["executioner"]
+        yes = questions.yes_no(text)
+        if not yes:
             console.narrate(E["leave"])
-            return
+            return yes is False
         console.say(E["warn"], "The man in plain cloth")
         creature = self.world.bestiary["bound_executioner"]
         foe = combat.fighter_from_creature(creature, self.player.character.level + 1, "elite", "e1", "the Bound Executioner", "near")
@@ -182,6 +198,38 @@ class OrennaActions:
         from scenes.combat_scene import CombatScene
         console.narrate(E["fight_intro"])
         self.combat = CombatScene.begin(self, creature, [foe], "Facing you,")
+        return True
+
+    # ---------- the seal, in the fight with the High Keeper ----------
+
+    def seal_ask(self) -> None:
+        """(f460) The High Keeper was bloodied this round (engine/orenna.py seal_prompt marked him): the question of the seal is asked
+        now that the round is told, and ends the turn; the next line answers it (on_answer_seal). The mark comes off the saved fight."""
+        if not self.combat:
+            return
+        fight = self.combat.fight
+        boss = next((e for e in fight.fighters if e.boss and e.boss.get("seal_ask")), None)
+        if boss is None:
+            return
+        boss.boss.pop("seal_ask", None)
+        if boss.alive and any(f.bound and f.alive for f in fight.enemies()):
+            self.ask_next("seal", O["confront"]["seal"]["ask"], boss=boss.id)
+        self.store.save_combat(self.combat.to_json())
+
+    def on_answer_seal(self, asked: dict, text: str):
+        """(f460) Yes wrests at the seal, free of a round (as the question was before, asked in the middle of one); no leaves it, and the
+        narrator is told the Executioner fights on; a fight line instead says the same and is then fought as typed."""
+        if not self.combat:
+            return None
+        fight = self.combat.fight
+        boss = fight.get(asked["data"]["boss"])
+        yes = questions.yes_no(text)
+        if yes and boss is not None and boss.alive:
+            orenna.seal_attempt(fight, boss)
+            self.store.save_combat(self.combat.to_json())
+            return True
+        orenna.seal_declined(fight)
+        return yes is False
 
     # ---------- the register and the High Keeper ----------
 

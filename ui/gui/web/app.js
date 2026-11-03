@@ -459,7 +459,7 @@ function renderBoard(d) {
     const row = el("div", "shoprow"), info = el("div", "info");
     info.appendChild(el("div", "nm", `[${q.letter}] ${q.title}`));
     if (q.for) info.appendChild(el("div", "dt", q.for));                 // (f322) who asked, and why
-    info.appendChild(el("div", "dt", `${q.reward} · ${q.xp} XP · ${q.limit}`));
+    info.appendChild(el("div", "dt", `${q.reward} · ${q.xp} XP`));
     if (q.why) info.appendChild(el("div", "warn", q.why));
     const act = el("div", "act");
     const b = shopButton("Accept", `#boardaccept ${q.id}`, q.ok);
@@ -771,7 +771,6 @@ function renderQuests(d) {
     info.appendChild(el("div", "dt", q.for || (q.guild ? "guild contract" : "a request")));
     const pills = el("div", "pills");
     pills.appendChild(el("span", "pill" + (q.ready ? " gold" : /^\d+\/\d+$/.test(q.status) ? " ok" : ""), q.status));
-    pills.appendChild(el("span", "pill" + (q.urgent ? " warn" : ""), q.left));
     info.appendChild(pills);
     const act = el("div", "act"); act.appendChild(shopButton("Abandon", `#questabandon ${q.id}`, true, true));
     row.append(info, act); side.appendChild(row);
@@ -1451,10 +1450,20 @@ function hideHome() {
   $("homepage").hidden = true;
   homeView = "menu";                                      // the next time it opens (#menu), it opens on the menu
   log.textContent = "";                                   // the story of the game left behind is not this character's
+  cur = null; lastBlank = true;                           // (f458) nor its last block: the new game's first line starts a block of its own
   turnLine = null; follow = true; moreBelow(false);
   side.textContent = ""; lastView = null; $("sidetitle").textContent = "";
   tickerClear();
+  forgetCampaign();
   input.focus();
+}
+function forgetCampaign() {                               // (f458) the window forgets the campaign it left: a second game is not played in
+  Object.assign(combat, { active: false, data: null, rows: [], seen: new Set(), mode: "view" });   // the first one's fight, map, journal
+  for (const m of [hitsMap, tipMap]) for (const k of Object.keys(m)) delete m[k];                 // and typed lines
+  mapView = null;
+  journalQuery = ""; journalOpen.clear();
+  history.length = 0; hpos = 0;
+  cr.who = null;                                          // a second New game starts from chance, as the first did (GOALS: leave the start to chance)
 }
 document.addEventListener("keydown", (e) => {            // on the home page: Enter continues the game played last, Escape goes back
   if ($("homepage").hidden) return;

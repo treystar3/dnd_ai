@@ -23,7 +23,7 @@ def short_gesture(gesture: str) -> str:
     return " ".join((gesture or "").split()).strip().rstrip(".")
 
 
-def roll_stance(npc, minutes: int, rng) -> str:
+def roll_stance(npc, minutes: int, rng, *, who: str) -> str:
     """(f347) How this person is for the conversation that is starting, as a plain line for RIGHT NOW YOU ARE, or '' (most talks: they are
     simply themselves). Weights in data/rules/voice.yaml stances; wary needs trust under 50, grievance a concern, after a motive, and
     tired is twice as likely after dark."""
@@ -34,7 +34,7 @@ def roll_stance(npc, minutes: int, rng) -> str:
     opts = {}
     for k, spec in S.items():
         w = spec.get("weight", 0)
-        if k == "wary" and getattr(npc, "trust", 50) >= 50:
+        if k == "wary" and _trust(npc, who) >= 50:                   # (f480) wary of this character
             continue
         if k == "grievance" and not getattr(npc, "concern", ""):
             continue
@@ -53,9 +53,14 @@ def roll_stance(npc, minutes: int, rng) -> str:
                                motive=getattr(npc, "motive", ""))
 
 
-def written_parting(npc, rng, said=()) -> str:
-    """(f347) A parting line from the table, by how they are with the player, not one they said lately."""
-    trust = getattr(npc, "trust", 50)
+def _trust(npc, who: str) -> int:
+    from engine import regard
+    return regard.of(npc, who).trust
+
+
+def written_parting(npc, rng, said=(), *, who: str) -> str:
+    """(f347) A parting line from the table, by how they are with the character `who` (f480), not one they said lately."""
+    trust = _trust(npc, who)
     band = "warm" if trust >= 65 else "plain" if trust >= 45 else "wary"
     opts = [l for l in V.get("partings", {}).get(band, ["Aye."]) if l.lower() not in {s.lower() for s in said}]
     return rng.choice(opts or V.get("partings", {}).get(band, ["Aye."]))

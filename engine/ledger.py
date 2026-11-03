@@ -47,19 +47,60 @@ def begin() -> None:
     ROWS.clear()
 
 
+def reset() -> None:
+    """(f453) A campaign opened or closed (engine/session.py): nothing of another campaign's turns stays in this process."""
+    global LAST
+    ROWS.clear()
+    LAST = []
+    TOTALS.clear()
+
+
 def end() -> list[dict]:
     out = list(ROWS)
     ROWS.clear()
     return out
 
 
-def add(kind: str, **fields) -> dict:
+def rollback() -> None:
+    """(f455) The turn rolled back: its rows are taken back and the totals with them. LAST stays the last turn that stood, which is what
+    the recorder writes after an input and the replayer compares."""
+    for r in ROWS:
+        TOTALS[r["kind"]] -= 1
+        if TOTALS[r["kind"]] <= 0:
+            del TOTALS[r["kind"]]
+    ROWS.clear()
+
+
+def add(kind: str, facts: dict | None = None, **fields) -> dict:
+    """A row of the turn's record. (f462) `facts` are the labels a stand-in line is filled from when the row's telling cannot be written
+    (engine/failures.py stood_lines: what, who, amount), never ids; and when an operation is open (engine/operation.py) the row carries
+    its id and the operation keeps the row, so a rollback of that one operation takes back its rows alone (rollback_op)."""
     if kind not in KINDS:
         raise ValueError(f"ledger row of an undeclared kind: {kind}")
     row = {"kind": kind, **fields}
+    if facts:
+        row["facts"] = {k: str(v) for k, v in facts.items() if v not in (None, "")}
+    from engine import operation
+    op = operation.current()
+    if op is not None:
+        row["op"] = op.id
+        op.rows.append(row)
     ROWS.append(row)
     TOTALS[kind] += 1
     return row
+
+
+def rollback_op(op_id: str) -> None:
+    """(f462) One operation rolled back: its rows and their totals go; the rest of the turn's stay."""
+    keep = []
+    for r in ROWS:
+        if r.get("op") == op_id:
+            TOTALS[r["kind"]] -= 1
+            if TOTALS[r["kind"]] <= 0:
+                del TOTALS[r["kind"]]
+        else:
+            keep.append(r)
+    ROWS[:] = keep
 
 
 def this_turn() -> list[dict]:

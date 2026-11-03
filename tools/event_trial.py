@@ -55,9 +55,8 @@ class Trial:
         from engine import leveling, events
         from npc.life import populate_place
         from npc.traits import load_traits
-        from scenes.world import WorldScene
-        from storage.campaign import CampaignStore, PlayerState
-        from world.loader import load_world
+        from engine.session import CampaignSession
+        from storage.campaign import PlayerState
         import simlib
         self.start_at = time.time()
         self.tier, self.kind, self.level, self.cls, self.seed, self.live = tier, kind, level, cls, seed, live
@@ -72,10 +71,10 @@ class Trial:
             uc.say = lambda *a, **k: None
             uc.wait = lambda *a, **k: None
             uc.ledger = lambda m, *a, **k: self.notes.append(str(m))
-        self.world = load_world()
         self.catalog = load_traits()
         shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
-        self.store = CampaignStore.open_or_create(save)
+        self.session = CampaignSession.open(save)                           # (f457) the campaign's session, as main.py opens it
+        self.store, self.world = self.session.store, self.session.world
         self.t = 400 * DAY
         self.store.meta.seed = seed
         self.store.meta.minutes = self.t
@@ -84,7 +83,7 @@ class Trial:
         while char.level < level:
             leveling.gain_xp(char, leveling.xp_to_next(char.level))
         self.store.save_player(PlayerState(character=char, location="parth"))
-        self.ws = WorldScene(self.store, self.world, self.catalog, self.store.load_player())
+        self.ws = self.session.scene(self.catalog, self.store.load_player())
         self.ws.player.mentor["never"] = True
         self.ws.narrate = lambda text, *a, **k: self.narrations.append(str(text))
         for pid in [p.id for p in events.settlements(self.world)]:
@@ -422,9 +421,9 @@ def main() -> int:
     ap.add_argument("--list", action="store_true")
     a = ap.parse_args()
     if a.list:
-        from world.loader import load_world
+        from world.loader import authored
         from engine import events
-        w = load_world()
+        w = authored()
         print("marked pressures (campaigns): " + ", ".join(sorted(p.id for p in w.pressures.values() if getattr(p, "campaign", False))))
         print("cataclysm kinds: " + ", ".join(events.C["kinds"]))
         return 0

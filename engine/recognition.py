@@ -9,50 +9,41 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 R = yaml.safe_load((ROOT / "data" / "rules" / "recognition.yaml").read_text(encoding="utf-8"))
-WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
 
 
-def last_talk(npc) -> int:
-    """The minute of their last conversation with the player, -1 for never. A record from before the minute was kept has only the day."""
-    at = getattr(npc, "last_talk_at", -1)
-    if at is not None and at >= 0:
-        return at
-    day = getattr(npc, "last_talk_day", -1)
-    return day * 1440 if day is not None and day >= 0 else -1
+def last_talk(npc, who: str) -> int:
+    """The minute of their last conversation with the character `who` (f480), -1 for never. A record from before the minute was kept has
+    only the day."""
+    from engine import regard
+    r = regard.of(npc, who)
+    if r.last_talk_at >= 0:
+        return r.last_talk_at
+    return r.last_talk_day * 1440 if r.last_talk_day >= 0 else -1
 
 
 def ago(now: int, then: int) -> str:
-    """How long since, the way a person would put it."""
+    """How long since, the way a person would put it: (f477) the one converter's words (engine/clock.py ago, data/rules/time_words.yaml)."""
     from engine import clock
-    days = clock.day(now) - clock.day(then)
-    if days <= 0:
-        return "earlier today"
-    if days == 1:
-        return "yesterday"
-    if days < 7:
-        return f"{WORDS[days]} days ago"
-    if days < 14:
-        return "about a week ago"
-    if days < 60:
-        return f"{WORDS.get(days // 7, 'some')} weeks ago"
-    return "months ago"
+    return clock.ago(then, now)
 
 
-def away(npc, now: int) -> bool:
-    """Have they met, and is it long enough since they last spoke that this is the player coming back?"""
-    then = last_talk(npc)
-    return bool(getattr(npc, "met_player", False)) and then >= 0 and now - then >= int(R.get("after_minutes", 180))
+def away(npc, now: int, who: str) -> bool:
+    """Have they met the character `who`, and is it long enough since they last spoke that this is that character coming back?"""
+    from engine import regard
+    then = last_talk(npc, who)
+    return regard.of(npc, who).met and then >= 0 and now - then >= int(R.get("after_minutes", 180))
 
 
-def line(npc, now: int) -> str:
-    """What the person is told as a new conversation opens, or '' when it is no return."""
-    if not away(npc, now):
+def line(npc, now: int, who: str) -> str:
+    """What the person is told as a new conversation opens with the character `who`, or '' when it is no return."""
+    if not away(npc, now, who):
         return ""
-    mem = next((m.text for m in reversed(getattr(npc, "memories", []) or []) if not m.text.startswith("(my own life)")), "")
+    from engine import memory
+    mem = next((memory.render(m.text) for m in reversed(getattr(npc, "memories", []) or []) if m.kind != "own_life"), "")   # (f478) by kind
     last = R["last"].format(memory=mem.rstrip(".") + ".") if mem else ""
-    return R["line"].format(ago=ago(now, last_talk(npc)), last=last)
+    return R["line"].format(ago=ago(now, last_talk(npc, who)), last=last)
 
 
-def seen(npc, now: int) -> str:
-    """What the narrator is told of a present person who knows the player and has not seen them for a while, or ''."""
-    return R["seen"].format(ago=ago(now, last_talk(npc))) if away(npc, now) else ""
+def seen(npc, now: int, who: str) -> str:
+    """What the narrator is told of a present person who knows the character `who` and has not seen them for a while, or ''."""
+    return R["seen"].format(ago=ago(now, last_talk(npc, who))) if away(npc, now, who) else ""

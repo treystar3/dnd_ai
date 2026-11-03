@@ -244,8 +244,12 @@ def streets_asked(text: str) -> bool:
 
 
 def viewer_for_npc(npc, world=None) -> Viewer:
-    """A townsperson's knowledge: the groups set when they became a person, or, before that, the groups their place and role give."""
+    """A townsperson's knowledge: the groups set when they became a person, or, before that, the groups their place and role give; (f483)
+    with the place they live now, read from where they are."""
     groups = set(npc.knowledge_groups)
+    if groups and world is not None:
+        from engine import circumstance
+        groups = circumstance.groups(world, npc)
     if not groups and world is not None:
         groups = {world.locals_group(npc.location) or "", *world.roles[npc.role].knowledge_groups} - {""}
     return Viewer(id=npc.id, kind="npc", groups=frozenset(groups | {"everyone"}))
@@ -281,10 +285,11 @@ def _present_people(ws) -> list[Present]:
     for n in ws.present:
         who = entities.identity(ws, n.id)                                    # (f392) she or he, and their people: never guessed at
         people = f"{who.pronoun}, {who.people}" if who else (ws.world.peoples[n.people].name if n.people in ws.world.peoples else n.people)
-        from scenes.work_actions import offer_open                  # (f395) an offer that still stands
-        note = (f"Has offered the player paid work ({n.work_offer['task']}): the player agreeing to it, doing it or finishing it is a work action, "
-                "and 'taking the pay' once it is done is part of that work." if offer_open(n, ws.minutes) else "")
-        out.append(Present(id=n.id, name=n.name or n.label(), label=n.label(), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
+        from scenes.work_actions import offer_open                  # (f395) an offer that still stands; (f481) in the registry
+        job = offer_open(ws.store, n, ws.acting)
+        note = (f"Has offered the player paid work ({job['task']}): the player agreeing to it, doing it or finishing it is a work action, "
+                "and 'taking the pay' once it is done is part of that work." if job else "")
+        out.append(Present(id=n.id, name=n.name or n.label(ws.acting), label=n.label(ws.acting), kind="npc", doing=n.activity or "", role=n.role.replace("_", " "),
                            desc=f"({people}) {n.description} Manner: {manner(n, ws.catalog, ws.store)}." + (f" Lately: {n.mood}." if n.mood else ""),   # (f334) a mood shows
                            note=note, plain=n.description or "",
                            local=ws.world.locals_group(n.location) or ""))
@@ -466,14 +471,13 @@ def _news(scene: Scene):
 def _fallen(scene: Scene):
     """(f392) The companions who died travelling with the player (engine/entities.py): known to the party and the narrator, so a death
     is spoken of and remembered, and the dead are never seen alive again."""
-    from engine import entities
+    from engine import clock, entities
     ws = scene.ws
     F = T.get("fallen") or {}
     out = []
     dead = [e for e in ws.store.find_entities(kind="hire", state="dead") if ws.minutes - e.since <= F.get("days", 60) * 1440][-F.get("most", 4):]
     for e in reversed(dead):
-        days = (ws.minutes - e.since) // 1440
-        when = "today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+        when = clock.ago(e.since, ws.minutes)                              # (f477) how long ago, in words
         where = f" at {e.data['place_name']}" if e.data.get("place_name") else ""
         out.append(Fact("fallen", f"{e.name} ({entities.people_word(ws.world, e.people) or 'person'}, {e.pronoun}), "
                                   f"{e.data.get('role') and 'a hired ' + e.data['role'] or 'a companion'}: died {when}{where}",
@@ -507,7 +511,7 @@ def _lately(scene: Scene):
             known = frozenset({f"npc:{w}" for w in witnesses} | {"narrator"})
         else:
             continue
-        when = "today" if clock.day(row["minute"]) == clock.day(ws.minutes) else f"day {clock.day(row['minute'])}"
+        when = "today" if clock.day(row["minute"]) == clock.day(ws.minutes) else clock.ago(row["minute"], ws.minutes)   # (f477) never a day number
         out.append(Fact("lately", f"{when}: the stranger {row['text']}", known, id=row["kind"]))
     return out[-int(L.get("most", 8)):]
 
@@ -549,22 +553,21 @@ def _player(scene: Scene):
     return out
 
 
-_WORLD_WORDS: dict = {}
-
-
 def world_words(world) -> frozenset:
     """(f323) The words of every name the world itself has - places, regions, peoples, the world's name - for checking what the pulse's
-    writers say when no scene is standing. Cached per world."""
-    key = getattr(world, "stamp", None) or id(world)          # (f439) this world's own mark, as f434's caches
-    if key not in _WORLD_WORDS:
+    writers say when no scene is standing. (f452) The world's own cache, following the campaign's map by its version: a place the player
+    found may be named, and the set no longer grows per world in the process."""
+    c = world.cache("words")
+    version = getattr(world, "version", 0)
+    if c.get("version") != version or "words" not in c:
         from engine import mentor
         names = {p.name for p in world.places.values()} | {r.name for r in world.regions.values()} | {p.name for p in world.peoples.values()}
-        names |= {world.name, mentor.NAME} | {c.name for c in world.bestiary.values()}
+        names |= {world.name, mentor.NAME} | {c_.name for c_ in world.bestiary.values()}
         words = set()
         for n in names:
             words |= set(_WORD.findall((n or "").lower()))
-        _WORLD_WORDS[key] = frozenset(words)
-    return _WORLD_WORDS[key]
+        c["version"], c["words"] = version, frozenset(words)
+    return c["words"]
 
 
 # ---------- the speech check (f315): nothing named that was not given

@@ -5,6 +5,7 @@ both end here, so prices, haggling, merchant memory and saving are the same eith
 Mixed into WorldScene. A button click runs quietly: one line in the log, no narrated scene and no model call."""
 
 from engine import clock, crafting, inventory as inv, items, money, needs, pools, pulse
+from engine import regard                                   # (f480)
 from scenes.inventory_actions import quality_name
 from ui import console
 
@@ -68,7 +69,7 @@ class ShopActions:
             if quiet:
                 console.note(f"You can't afford {ware.name} ({money.fmt(ware.price)}). Purse: {money.fmt(c.coins)}")
             else:
-                self.narrate(f"The player tries to pay {seller.label()} for {ware.name}, which costs {money.words(ware.price)}, "
+                self.narrate(f"The player tries to pay {seller.label(self.acting)} for {ware.name}, which costs {money.words(ware.price)}, "
                              f"but they only have {money.words(c.coins)}. Show the awkward moment.", text)
                 self.halted = True
             return False
@@ -102,11 +103,12 @@ class ShopActions:
             if ware.kind in world_perks.P["tavern_ear"]["wares"]:
                 self.tavern_ear(seller)
         from engine.domain_events import Traded
-        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(seller.id,), npc=seller.id, name=seller.label(),
+        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(seller.id,), npc=seller.id, name=seller.label(self.acting),
                            item=ware.name, coins=ware.price, bought=True), seller)
         self.store.save_player(self.player)
         from engine import ledger                       # (f417) settled: what the seller says after it, and the passage, read it
-        ledger.add("paid", to=seller.id, amount=ware.price, say=f"The player has paid {seller.label()} for {ware.name}; it is settled.")
+        ledger.add("paid", to=seller.id, amount=ware.price, say=f"The player has paid {seller.label(self.acting)} for {ware.name}; it is settled.",
+                   facts={"who": seller.label(self.acting), "amount": money.fmt(ware.price), "what": ware.name})          # (f464) for the stand-in line
         console.ledger(f"Paid {money.fmt(ware.price)} for {ware.name}. Purse: {money.fmt(c.coins)}")
         if quiet:
             if ware.kind == "room":
@@ -114,7 +116,7 @@ class ShopActions:
             elif ware.kind in ("meal", "drink"):
                 console.note(effect)
         else:
-            self.narrate(f"The player pays {seller.label()} for {ware.name}, and the coins change "
+            self.narrate(f"The player pays {seller.label(self.acting)} for {ware.name}, and the coins change "
                          f"hands. {effect} Describe the exchange.", text)
         return True
 
@@ -125,7 +127,7 @@ class ShopActions:
             if quiet:
                 console.note(f"You can't afford {item.name} ({money.fmt(price)}). Purse: {money.fmt(c.coins)}")
             else:
-                self.narrate(f"The player wants {item.name} from {npc.label()}, which costs {money.words(price)}, but they "
+                self.narrate(f"The player wants {item.name} from {npc.label(self.acting)}, which costs {money.words(price)}, but they "
                              f"only have {money.words(c.coins)}. Show the moment.", text)
                 self.halted = True
             return False
@@ -136,18 +138,19 @@ class ShopActions:
         else:
             crafting.remove_from_stock(npc, item.uid)
         from engine.domain_events import Traded
-        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(),
+        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting),
                            item=item.name, coins=price, bought=True), npc)
         st = self.to_pack(item)
         self.store.save_player(self.player)
         from engine import ledger
-        ledger.add("paid", to=npc.id, amount=price, say=f"The player has bought {item.name} from {npc.label()}; it is settled.")   # (f417)
+        ledger.add("paid", to=npc.id, amount=price, say=f"The player has bought {item.name} from {npc.label(self.acting)}; it is settled.",   # (f417)
+                   facts={"who": npc.label(self.acting), "amount": money.fmt(price), "what": item.name})                    # (f464) for the stand-in line
         console.note(f"Bought {quality_name(item)} (lv {item.item_level}) for {money.fmt(price)}. "
                      f"Purse: {money.fmt(c.coins)}")
         if item.uid.startswith("relic_"):
             self.weight_hint = "major"
         if not quiet:
-            self.narrate(f"The player buys {item.name} from {npc.label()}."
+            self.narrate(f"The player buys {item.name} from {npc.label(self.acting)}."
                          + (" Their pack is full: it is set down here, not carried." if st.left is not None else ""), text)
         return True
 
@@ -159,15 +162,15 @@ class ShopActions:
         self.player.character.coins += paid
         self.use_barter()
         from engine.domain_events import Traded
-        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(buyer.id,), npc=buyer.id, name=buyer.label(),
+        self.notice(Traded(minute=self.minutes, place=self.player.location, witnesses=(buyer.id,), npc=buyer.id, name=buyer.label(self.acting),
                            item=inv.label(sold), coins=paid, bought=False), buyer)
         self.store.save_player(self.player)
         from engine import ledger
         ledger.add("received", by=buyer.id, amount=paid,                                                  # (f417)
-                   say=f"{buyer.label()} has bought {inv.label(sold)} from the player and paid for it; it is settled.")
-        console.note(f"Sold {inv.label(sold)} to {buyer.label()} for {money.fmt(paid)}. Purse: {money.fmt(self.player.character.coins)}")
+                   say=f"{buyer.label(self.acting)} has bought {inv.label(sold)} from the player and paid for it; it is settled.")
+        console.note(f"Sold {inv.label(sold)} to {buyer.label(self.acting)} for {money.fmt(paid)}. Purse: {money.fmt(self.player.character.coins)}")
         if not quiet:
-            self.narrate(f"The player sells {inv.label(sold)} to {buyer.label()}, who pays for it.", text)
+            self.narrate(f"The player sells {inv.label(sold)} to {buyer.label(self.acting)}, who pays for it.", text)
         return paid
 
     def take_stack(self, first):
@@ -185,7 +188,7 @@ class ShopActions:
 
     def met_sellers(self) -> list:
         roles = self.world.roles
-        return [n for n in self.present if n.met_player and (roles[n.role].sells or roles[n.role].stock or roles[n.role].relics)]
+        return [n for n in self.present if regard.of(n, self.acting).met and (roles[n.role].sells or roles[n.role].stock or roles[n.role].relics)]
 
     def trades_here(self) -> str:
         """(f328) Who sells here that you have not spoken to yet, and what they deal in: 'the smith (gear), Pell the carter (trail ration, torch)'."""
@@ -193,11 +196,11 @@ class ShopActions:
         out = []
         for n in self.present:
             r = roles[n.role]
-            if n.met_player or not (r.sells or r.stock or r.relics):
+            if regard.of(n, self.acting).met or not (r.sells or r.stock or r.relics):
                 continue
             deals = [re.sub(r"^(a|an) ", "", w.name) for w in r.sells][:3] + (["gear"] if r.stock else []) + (["relics"] if r.relics else [])
             more = "…" if len(r.sells) > 3 else ""
-            out.append(f"{n.label()} ({', '.join(deals)}{more})")
+            out.append(f"{n.label(self.acting)} ({', '.join(deals)}{more})")
         return ", ".join(out)
 
     def shop_data(self) -> dict:
@@ -222,17 +225,17 @@ class ShopActions:
                 lines.append({"kind": "stock", "key": i.uid, "name": f"{i.name}, {i.title}" if relic else quality_name(i), "rarity": i.rarity,
                               "detail": f"lv {i.item_level} · {i.description if relic else items.summary(i)[:90]}",
                               "price": price, "price_text": money.fmt(price), "price_short": money.short(price), "afford": c.coins >= price, "note": note})
-            sellers.append({"id": n.id, "name": n.label(), "wares": lines,
+            sellers.append({"id": n.id, "name": n.label(self.acting), "wares": lines,
                             "buys": [b for b in role.buys if b != "any"] or (["anything"] if "any" in role.buys else [])})
         sell = []
-        present = [n for n in self.present if n.met_player]
+        present = [n for n in self.present if regard.of(n, self.acting).met]     # (f480)
         for it in self.pack:
             buyer = self.best_buyer(it, present)
             if not buyer:
                 continue
             total = self.sell_total(it, buyer)
             sell.append({"uid": it.uid, "name": inv.label(it), "detail": items.summary(it)[:90], "qty": it.quantity, "rarity": it.rarity,
-                         "total": total, "total_text": money.fmt(total), "total_short": money.short(total), "buyer": buyer.id, "buyer_name": buyer.label(),
+                         "total": total, "total_text": money.fmt(total), "total_short": money.short(total), "buyer": buyer.id, "buyer_name": buyer.label(self.acting),
                          "legendary": it.rarity == "legendary"})
         return {"purse": money.fmt(c.coins), "sellers": sellers, "sell": sell}
 

@@ -6,7 +6,11 @@ Now some people (routines.yaml chance, by role) have one period of the day at on
 square at midday, the temple at dawn. The draw is seeded by the campaign and the person, so it is the same every time it is asked for and
 nothing is stored. In that period they are away from their work and present at the routine place, doing what people do there
 (doings here, not their trade's); the scene adds them to who is present (scenes/world.py refresh_present), their neighbours can say where
-they are at this hour (npc/life.social_circle), and walking to them goes where they are (scenes/world.py go_to_person)."""
+they are at this hour (npc/life.social_circle), and walking to them goes where they are (scenes/world.py go_to_person).
+
+(f483, G2) A habit, once settled, stays when the town gains a place: the draw is over the written world's places only, and someone whose
+written town had nowhere to go takes the first place of a fitting kind the campaign added, never a later one. Records and index rows
+(visitor_ids) are drawn the same way."""
 from __future__ import annotations
 
 import random
@@ -16,18 +20,32 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 R = yaml.safe_load((ROOT / "data" / "rules" / "routines.yaml").read_text(encoding="utf-8"))
-_TOWN: dict[str, list[str]] = {}            # town -> its place ids (the world does not change under a running game)
-
 
 def chance(role: str) -> float:
     return float((R.get("roles") or {}).get(role, R.get("chance", 0.4)))
 
 
+def _written(world, pid: str) -> bool:
+    """(f483) Whether a place is the written world's: a bare World has nothing else."""
+    authored = getattr(world, "is_authored", None)
+    return authored is None or authored(pid)
+
+
 def _places(world, town: str, ptype: str, exclude: str) -> list[str]:
+    """The town's places of a kind, the written world's only (f483, G2): a place this campaign added (an inn found, a square built)
+    never moves a habit already drawn, so who drinks at the Tilted Plough of an evening stays who they were."""
+    from engine import retrieval                        # (f452) the campaign's own list, which follows its map: never a module's, kept
+    return [pid for pid in retrieval.town_places(world, town) if pid != exclude and world.places[pid].type == ptype   # across saves
+            and _written(world, pid)]
+
+
+def _first_added(world, town: str, exclude: str):
+    """(f483) For someone whose written town has no place to go: the first place this campaign added of a kind a routine goes to, in
+    the order places were added, so a later one never moves them (owner's decision: newcomers wait for Stage 4)."""
     from engine import retrieval
-    if town not in _TOWN:
-        _TOWN[town] = retrieval.town_places(world, town)
-    return [pid for pid in _TOWN[town] if pid != exclude and world.places[pid].type == ptype]
+    kinds = {s["where"] for s in R["slots"]}
+    return next((pid for pid in retrieval.town_places(world, town) if pid != exclude and world.places[pid].type in kinds
+                 and not _written(world, pid)), None)
 
 
 def routine_for(world, seed, npc) -> dict | None:
@@ -43,7 +61,12 @@ def routine_for(world, seed, npc) -> dict | None:
         return None
     slots = [s for s in R["slots"] if _places(world, town, s["where"], npc.location)]
     if not slots:
-        return None
+        first = _first_added(world, town, npc.location)
+        if first is None:
+            return None
+        fit = [s for s in R["slots"] if s["where"] == world.places[first].type]
+        s = rng.choices(fit, weights=[float(x.get("weight", 1)) for x in fit])[0]
+        return {"when": s["when"], "place": first}
     s = rng.choices(slots, weights=[float(x.get("weight", 1)) for x in slots])[0]
     return {"when": s["when"], "place": rng.choice(_places(world, town, s["where"], npc.location))}
 

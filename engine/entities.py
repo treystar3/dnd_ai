@@ -79,7 +79,7 @@ def identity(ws, ref: str) -> Identity | None:
         npc = ws.store.load_npc(ref)
     if npc is not None:
         held = ws.store.load_entity(f"captive:{npc.id}")
-        return Identity(ref, npc.name or npc.label(), held.pronoun if held else GENDER.get(npc.gender, "they"), people_word(world, npc.people),
+        return Identity(ref, npc.name or npc.label(ws.acting), held.pronoun if held else GENDER.get(npc.gender, "they"), people_word(world, npc.people),
                         "captive" if held else "npc", "the player's captive" if held else "")
     return None
 

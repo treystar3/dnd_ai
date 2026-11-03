@@ -22,14 +22,14 @@ from core.version import VERSION
 
 if paths.FROZEN:
     os.chdir(paths.APP)          # saves/ and logs/ live beside the exe
+from engine.session import CampaignSession
 from npc.traits import load_traits
 from scenes.goddess import ThresholdScene
-from scenes.world import WorldScene
-from storage.campaign import CampaignStore, PlayerState, SaveTooNew
+from storage.campaign import PlayerState, SaveTooNew
 from storage import saves
 from ui import console
 from llm.gateway import LLMError, unload, warm
-from world.loader import WorldError, authored, campaign_world
+from world.loader import WorldError, authored
 
 
 def main():
@@ -67,6 +67,7 @@ def play(args):
     from llm import embed
     embed.pull_in_background()                     # the small helper model, fetched quietly the first time; the game does not wait for it
     warm()                                         # load the model while the player is at the title and typing their name
+    embed.warm()                                   # (f469) ...and the embedder, so neither first load is paid inside a turn
 
     from engine import data_check                  # the character data, checked as one system before anything uses it
     problems = data_check.check()
@@ -90,7 +91,6 @@ def play(args):
                              "most likely built before its version number was raised. Installing it again will change nothing.")
 
     from scenes import home
-    from npc import backfill
     choice = ("new", "") if args.new else None
     while True:
         console.combat_state(None)                 # a fight from the game just left must not linger in the window
@@ -103,40 +103,38 @@ def play(args):
         if kind == "new":
             name = saves.new_name()
         try:
-            store = CampaignStore.open_or_create(name)
-        except SaveTooNew as e:
+            session = CampaignSession.open(name)       # (f453) the campaign's session: its store, its map (f434: its own, never another
+        except SaveTooNew as e:                        # save's), the work it starts in the background, and what it closes when it ends
             console.note(str(e))
             continue
         saves.touch(name)
         console.home_done()
-        world = campaign_world()                   # (f434) this campaign's own copy: what one save finds is never another's
+        store, world = session.store, session.world
         if store.player_exists():
             player = store.load_player()
             console.note(f"Continuing as {player.character.name}, {player.character.custom_class}.")
         else:
-            character = ThresholdScene().run()
+            character = ThresholdScene(session=session).run()
             if character is None:                      # Main menu during creation: there is no game yet, so a new one is not kept
-                store.close()
+                session.close()
                 if kind == "new":
                     saves.discard(name)
                 continue
             player = PlayerState(character=character, location=world.start_location)
             store.save_player(player)
 
-        scene = WorldScene(store, world, catalog, player)
-        rec = None
+        scene = session.scene(catalog, player)
         if config.RECORD:                              # (f440) this session, kept so the real turn can replay it (tools/rerun.py)
-            from engine import recording
-            rec = recording.Recorder(store).install()
+            session.record()
         try:
             scene.run()
         finally:
-            if rec is not None:
-                rec.close()
-            store.close()                              # the database is written through as it goes; closing folds the write-ahead log in
-            backfill.drop(store)                       # people still being written for this game must never reach the next one
+            session.close()                            # the recorder, the background work, the database (written through as it goes;
+                                                       # closing folds the write-ahead log in) and every binding this campaign set
         if getattr(scene, "to_menu", False):
             choice = None                              # the main menu: New game, Load and the rest are there
+            warm()                                     # (f469) back at the home page: both models warm again while the player reads it
+            embed.warm()
         else:
             return
 
@@ -146,17 +144,21 @@ def guarded(run, bridge):
     try:
         run()
     except LLMError as e:
+        from engine import crashlog
+        crashlog.record(e, "outside a turn: the model gave no usable answer")             # (f449) written down, so the logs sent carry it
         console.out("\nThe model couldn't produce a usable answer and the game can't continue from this point.")
-        console.out("If you were already playing, everything up to the start of your last action is saved; that action is not.")
+        console.out("If you were already playing, what the world had settled before it stopped is saved, and is told when you come back.")
         console.out("If you were still creating your character, nothing was saved - run main.py to start creation again.")
-        console.out(f"(details: {e} - see logs/llm_calls.jsonl)")
+        console.out(f"(details: {e} - see logs/llm_calls.jsonl and logs/crash.log)")
         if bridge:
             bridge.failed = True
     except KeyboardInterrupt:
-        console.out("\nInterrupted. Progress up to the start of the last action is saved; an action cut off partway is not.")
+        console.out("\nInterrupted. What the world had settled before it stopped is saved, and is told when you come back.")
     except SystemExit:
         raise
     except Exception as e:
+        from engine import crashlog
+        crashlog.record(e, "outside a turn")                   # (f449) a fault in a turn no longer reaches here (scenes/world.py turn); these are the rest
         if bridge:
             bridge.failed = True
         if "connect" in f"{type(e).__name__} {e}".lower():
@@ -164,7 +166,8 @@ def guarded(run, bridge):
             console.out(f"    ollama pull {config.MODEL}")
         elif bridge:
             import traceback
-            console.out("\nSomething went wrong and the game has to stop. Progress up to the start of your last action is saved; that action is not.")
+            console.out("\nSomething went wrong and the game has to stop. What the world had settled before it stopped is saved, and is told when you come back.")
+            console.out("The details are written to logs/crash.log.")
             console.out(traceback.format_exc())
         else:
             raise

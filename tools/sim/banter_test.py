@@ -80,7 +80,7 @@ for pers, key in (("Curt and dismissive, bored.", "cold and rude"), ("Warm and k
     w.mentor_clerk_exchange(c)
     check(f"the {key} clerk's manner is in the request", seen and key in seen[0], seen[:1])
     check("both speak, five lines, and the clerk is named", len(SAID) == 5 and {s for s, _ in SAID} == {"Maren Holt", "Odo"}, SAID)
-check("the player now knows the clerk's name and the clerk thinks better of them", st.load_npc("clerk1").name_known_to_player and st.load_npc("clerk1").trust > 50, st.load_npc("clerk1").trust)
+check("the player now knows the clerk's name and the clerk thinks better of them", simlib.view(st.load_npc("clerk1")).name_known and simlib.view(st.load_npc("clerk1")).trust > 50, simlib.view(st.load_npc("clerk1")).trust)
 check("the clerk remembers it", any("brought a newcomer" in m.text for m in st.load_npc("clerk1").memories))
 check("what Maren said is remembered for later talk", any(who == "Maren" for who, _ in w.player.mentor.get("chat", [])))
 
@@ -310,10 +310,15 @@ check("filler is not a phrase", banter.repeats("I do not know what you mean.", [
 check("the memory filter: their own life is not a memory of the player", True)
 
 # the first meeting (f273): whatever the first answer, she asks her pointed question; a hostile answer to that earns one more
-asked = []
-def feed(answers):
+def meet(w2, answers):
+    """(f461) Each of her questions ends the line; the answers are typed next ('go on' when they run out). How many she asked."""
     it = iter(answers)
-    uc.ask = lambda *a, **k: (asked.append(1), next(it, "go on"))[1]
+    n = 0
+    w2.mentor_approach(interrupt=False)
+    while w2.store.load_question() and n < 20:
+        n += 1
+        w2.handle(next(it, "go on"))
+    return n
 counts = []
 for answers in (["I'm a new adventurer looking for guild work.", "I hunt for coin and bought this sword with it", "no", "go on"],
                 ["nothing", "I'm new here, looking for work", "no", "go on"],
@@ -324,12 +329,7 @@ for answers in (["I'm a new adventurer looking for guild work.", "I hunt for coi
     ch2, _ = simlib.make_character("warrior", random.Random(2)); st2.save_player(PlayerState(character=ch2, location="parth"))
     w2 = WorldScene(st2, load_world(), load_traits(), st2.load_player())
     w2.mentor_escort = lambda: None
-    asked.clear(); feed(answers)
-    try:
-        w2.mentor_approach(interrupt=False)
-    except StopIteration:
-        pass
-    counts.append(len(asked))
+    counts.append(meet(w2, answers))
 check("a plain first answer and an evasive one both get her pointed question; a hostile answer to it, one more; a question back, one more (f279)",
       counts[1] == counts[0] and counts[2] == counts[0] + 1 and counts[3] == counts[0] + 1, counts)
 

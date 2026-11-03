@@ -83,7 +83,10 @@ class QuirkActions:
             if r.weights:
                 m["detail_weights"] = r.weights
             return r.details
-        except LLMError:
+        except LLMError as e:
+            from engine import budget
+            if isinstance(e, budget.Deferred):
+                self.defer("persona", {"member": m["id"]})      # (f469) written at a later turn's tail (run_deferred)
             return []
 
     def quirk_crew(self) -> list[dict]:
@@ -385,7 +388,9 @@ class QuirkActions:
             self.companion_show(m, said or ask, "(on arriving)")
             rules.said(m, said or ask)
             m["quirks"]["errand_day"] = day
-            self._errand = (m, E)                                              # (f422) the ask is in their own words; no bracketed note under it
+            self._errand = (m, E)
+            from engine import obligations                     # (f481) the ask is an offer, ended by the answer to it
+            obligations.open_(self.store, "errand", f"hire:{m.get('id', '')}", self.acting, ask[:120], self.minutes, terms={"errand": E.get("kind", "")})                                              # (f422) the ask is in their own words; no bracketed note under it
             self.store.save_player(self.player)
             return
 
@@ -397,6 +402,9 @@ class QuirkActions:
         m, E = pending
         self._errand = None
         day = clock.day(self.minutes)
+        from engine import obligations
+        asked = obligations.current(self.store, "errand", f"hire:{m.get('id', '')}", self.acting)
+        end = lambda to, cause: obligations.close(self.store, asked, to, cause, self.minutes)     # (f481) the answer ends the ask, for a reason
         extra = {"sum": money.words(E["cost"])} if "cost" in E else {}
         if is_answer(YES, text) or about_errand(YES, text, m):
             c = self.player.character
@@ -405,6 +413,7 @@ class QuirkActions:
                     console.note(f"You cannot cover {money.fmt(E['cost'])}.")
                     console.say(quirks.errand_text(m, "no_line", **extra).replace(m["name"].split()[0] + " ", "", 1), m["name"])
                     m["quirks"]["errand"] = "no"
+                    end("released", "cannot_pay")
                     rules.remember(m, day, quirks.errand_text(m, "memory_no", **extra), 2)
                     self.store.save_player(self.player)
                     return True
@@ -413,6 +422,7 @@ class QuirkActions:
                 self.advance_quiet(E["minutes"])
             console.narrate(quirks.errand_text(m, "yes_line", **extra))
             m["quirks"]["errand"] = "yes"
+            end("taken", "agreed")
             m["bond"] = m.get("bond", 0) + 3
             rules.remember(m, day, quirks.errand_text(m, "memory_yes", **extra), 3)
             if E.get("where") == "town_other":
@@ -422,10 +432,12 @@ class QuirkActions:
         if is_answer(NO, text):
             console.narrate(quirks.errand_text(m, "no_line", **extra))
             m["quirks"]["errand"] = "no"
+            end("released", "refused")
             m["bond"] = m.get("bond", 0) - 1
             rules.remember(m, day, quirks.errand_text(m, "memory_no", **extra), 3)
             self.store.save_player(self.player)
             return True
+        end("released", "no_answer")                          # (f481) something else said: the ask is let lie
         q = m["quirks"]                                      # something else: the ask stands unanswered and they let it lie for today;
         q["errand_ignored"] = q.get("errand_ignored", 0) + 1  # (f386) twice, and they let it go for good (one was asked six times,
         if q["errand_ignored"] >= 2:                         # another seven)

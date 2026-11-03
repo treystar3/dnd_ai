@@ -66,8 +66,8 @@ check("THE WORLD NOW names a matter's place, not its id", "self.where_name(t['pl
 check("the road writer is asked about the player, never 'a traveler'", "a traveler" not in road_prompts.SYSTEM and "the traveler" not in rsrc)
 
 # ---- the town and its people
-n = types.SimpleNamespace(label=lambda: "the innkeeper")
-line = doings.changed_lines([(n, "wiping the bar", "stacking chairs")])
+n = types.SimpleNamespace(label=lambda who: "the innkeeper")
+line = doings.changed_lines([(n, "wiping the bar", "stacking chairs")], who="player")
 check("a revisit line cannot read as the player's own deed", line and "on the player's last visit" in line[0] and "as when the player" not in line[0], line)
 cond = towns.Condition("mourning", "Varn Tolley lost lately", "black cloth on the doors", "")
 check("a mourning town names whom it mourns", "Varn Tolley" in towns.mourned(cond))

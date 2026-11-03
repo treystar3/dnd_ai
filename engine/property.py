@@ -40,10 +40,10 @@ def register(world, player) -> None:
                    [f"{cap_first(P['homes'][town]['name'])}, bought and paid for - yours.",
                     "A bed, a table, a hearth that is yours to light, and a door that locks from the inside."]
                    + [f"A {P['upgrades'][u]['name']}, built to your orders." for u in h["upgrades"]])
-        world.places[pid] = Place(
+        world.add_place(Place(                                    # (f451) rebuilt from the deed each time: through the campaign's world
             id=pid, name=f"your {'ruined ' if ruined else ''}house in {t.name}", type="home", region=t.region, parent=town,
             visible=visible,
-            storage=True, biome=t.biome, trade_level=t.trade_level, stations=stations, locals_group=t.locals_group)
+            storage=True, biome=t.biome, trade_level=t.trade_level, stations=stations, locals_group=t.locals_group), replace=True)
 
 
 def for_sale(town: str) -> bool:

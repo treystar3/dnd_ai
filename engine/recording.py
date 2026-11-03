@@ -34,6 +34,14 @@ import config
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
+ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
+                         # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_call)
+
+
+def orphan(threads) -> None:
+    """(f453) A session closed with these threads still running (engine/session.py close): remembered, and the dead ones forgotten."""
+    ORPHANS.difference_update({t for t in ORPHANS if not t.is_alive()})
+    ORPHANS.update(threads)
 
 
 def request_hash(k: dict) -> str:
@@ -55,7 +63,7 @@ def commit() -> str:
 
 
 class Recorder:
-    def __init__(self, store, name: str = "", folder: Path | None = None):
+    def __init__(self, store, name: str = "", folder: Path | None = None, rows: bool = False):
         from engine import streams
         from storage import statehash
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -72,19 +80,24 @@ class Recorder:
                 out.close()
         streams.STRICT = True
         from core.version import VERSION
+        from engine import budget
         from llm import embed
         from npc import life
         (self.dir / "meta.json").write_text(json.dumps({
             "made": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": store.meta.seed, "steps": store.meta.steps,
             "turn": store.meta.turn, "data": statehash.data_hash(), "model": config.MODEL, "version": VERSION,
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
-            "save": store.meta.name}, indent=1), encoding="utf-8")
+            "save": store.meta.name,
+            "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds")},     # (f468) the speeds the budget priced calls at
+            indent=1), encoding="utf-8")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8")
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None
         self.undo = []
+        self.rows = rows                     # (f476) each input's turn row names the rows and keys it changed (a kept recording's re-bless)
+        self.last_dump = statehash.dump(store) if rows else None
         prune()
 
     # ---- what the session depended on from outside the save
@@ -165,10 +178,20 @@ class Recorder:
     def _call(self, kind: str, real, k: dict):
         if self.asking is not None and threading.get_ident() == self.asking:
             return real(**k)                             # (f442) the player's side deciding its line: the input, not the game
+        if threading.current_thread() in ORPHANS:
+            return real(**k)                             # (f453) a closed session's thread, still running: not this session's call
         t0 = time.perf_counter()
+        from llm import gateway
         row = {"i": self.n_call, "input": self.n_input, "kind": kind, "title": ((k.get("format") or {}).get("title", "")
                if isinstance(k.get("format"), dict) else ""), "req": request_hash(k),
+               "task": getattr(gateway._TASK, "name", "") if kind == "chat" else "",            # (f468) the task, for the budget's estimate (outside the hash)
                "request": {key: v for key, v in k.items() if key != "format"}}
+        from engine import budget, operation
+        op = operation.current()
+        row["op"] = op.id if op is not None else ""                                             # (f471) the operation it was made inside, if any
+        row["need"] = budget.need(row["task"]) if kind == "chat" and row["task"] else ("embed" if kind == "embed" else "")   # ...and whether the line needed it
+        if kind == "chat" and getattr(gateway._TASK, "shape", None):
+            row["shape"] = dict(gateway._TASK.shape)                                             # (f475) the prompt's shape, outside the hash
         self.n_call += 1
         try:
             out = real(**k)
@@ -184,6 +207,9 @@ class Recorder:
             row["done"] = getattr(out, "done_reason", "stop")
             row["tokens"] = {t: getattr(out, t, None) for t in ("prompt_eval_count", "eval_count", "prompt_eval_duration", "eval_duration",
                                                                  "load_duration", "total_duration") if getattr(out, t, None) is not None}
+            cached = gateway.cached_count(out)
+            if cached is not None:
+                row["tokens"]["cached"] = cached                                                 # (f475) prompt tokens the server had cached
         self._write_call(row)
         return out
 
@@ -195,12 +221,20 @@ class Recorder:
         """After an input: the state, what the turn recorded, and what was shown."""
         if not self.open_input:
             return
-        from engine import ledger
+        from engine import ledger, operation
         from storage import statehash
-        self.turns.write(json.dumps({"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
-                                     "state": statehash.digest(self.store), "outcomes": ledger.LAST,
-                                     "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown)},
-                                    ensure_ascii=False, default=str) + "\n")
+        ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]}                                 # (f463) the operations the input committed
+               for o in self.store.load_operations()["ops"] if o.get("steps") == self.store.meta.steps]
+        presented, operation.PRESENTED[:] = list(operation.PRESENTED), []                           # (f467) what reached the page, and how
+        row = {"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
+               "state": statehash.digest(self.store), "outcomes": ledger.LAST, "operations": ops, "presented": presented,
+               "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
+               "shown_text": list(self.shown)}                       # (f459) the lines, for a re-bless to name the one that moved
+        if self.rows:                                                # (f476) the rows and keys this input changed
+            now = statehash.dump(self.store)
+            row["rows"] = statehash.changes(self.last_dump, now)
+            self.last_dump = now
+        self.turns.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
         self.turns.flush()
         self.shown, self.open_input = [], False
 

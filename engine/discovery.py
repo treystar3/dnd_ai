@@ -18,17 +18,16 @@ def slug(name: str) -> str:
 
 
 def apply_all(world, data: dict) -> None:
-    """Put everything discovered so far into the world (call after loading it, and after each new find)."""
+    """Put everything discovered so far on the campaign's map (call after opening it, and after each new find). (f451) Through the
+    campaign world's own operations (world/campaign.py): a found place and the way to it from its anchor, a track and its way."""
     for d in data["places"]:
-        if d["place"]["id"] not in world.places:
-            world.places[d["place"]["id"]] = Place(**d["place"])
-        a = world.places.get(d["anchor"])
-        if a is not None:
-            a.connects.setdefault(d["place"]["id"], d["minutes"])
+        world.add_place(Place(**d["place"]))
+        if d["anchor"] in world.places:
+            world.link(d["anchor"], d["place"]["id"], d["minutes"])
     for t in data["tracks"]:
         if t["id"] not in world.roads and t["from"] in world.places and t["to"] in world.places:
-            world.roads[t["id"]] = Road(id=t["id"], name=t["name"], description=t["description"], to=t["to"], **{"from": t["from"]})
-            world.places[t["from"]].connects.setdefault(t["to"], t["minutes"])
+            world.add_road(Road(id=t["id"], name=t["name"], description=t["description"], to=t["to"], **{"from": t["from"]}))
+            world.link(t["from"], t["to"], t["minutes"])
 
 
 def names(world, data: dict) -> list[str]:

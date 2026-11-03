@@ -36,9 +36,15 @@ I want your honest thoughts as a reader, from the transcripts alone:
 4. Coherence. Does the world hold together from one passage to the next? Do people answer what was said to them? Do they contradict
    earlier facts, forget things, name things that were never there, repeat themselves? Does the same situation get described
    inconsistently? Does it make sense why things happen?
-5. The people. Do characters feel distinct from one another? Do any companions or recurring characters have a voice of their own? Is
+5. Memory and time. When the player comes back to someone, do they remember them, and what passed between them? Count each of these
+   you find, and give the examples: someone speaking of time passed ("last week", "yesterday") that does not match the days shown; someone
+   the player has met greeting them as a stranger, or a stranger greeting them as an old friend; a promise, a job or a debt forgotten,
+   or spoken of as done before it was, or as still open after it was settled; a name the player gave (even a false one) used, lost, or
+   used again after the player took it back; a companion who has left still acting in a scene; news of something the player did reaching
+   someone who could not have known it. Say also where memory was done well.
+6. The people. Do characters feel distinct from one another? Do any companions or recurring characters have a voice of their own? Is
    anyone memorable?
-6. Anything else that looks odd, broken, wasteful or worth fixing, and anything that is clearly excellent.
+7. Anything else that looks odd, broken, wasteful or worth fixing, and anything that is clearly excellent.
 
 Be concrete: for every finding give the run folder and a line number (or the turn number and time shown in the transcript), and quote the
 relevant text briefly. Separate what you are sure of from what you are guessing. Rank the findings by how much they would matter to a
@@ -49,4 +55,5 @@ Write your full report to FOLDER/THOUGHTS.md, and return a summary of your main 
 ## After
 
 Set each reading beside the night's summary.md (its Consistency section counts much of what a reader trips over) and the last night's
-reading. A finding the counts do not cover is a candidate for a new count.
+reading. A finding the counts do not cover is a candidate for a new count. (f474) Set the reader's counts for question 5 beside the
+summary's "Continuity (from the page)" rows, C1 to C8: where the reader found slips the rows did not, the row is missing something.

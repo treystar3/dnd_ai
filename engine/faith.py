@@ -13,7 +13,6 @@ from engine import events, pulse
 
 F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "world" / "faith.yaml").read_text(encoding="utf-8"))
 GODS, VOICES = F["gods"], F["voices"]
-_cache: dict = {}
 
 
 def seat(world, place_id: str) -> str | None:
@@ -31,11 +30,7 @@ def seat(world, place_id: str) -> str | None:
     for city in GODS:
         if city in world.places and world.places[city].name.lower() == ruler:
             return city
-    mark = getattr(world, "stamp", None) or id(world)          # (f434) this world's own mark: a freed world's id can come round again
-    if _cache.get("world") != mark:
-        _cache.clear()                                         # only the world being played is kept, however many saves are opened
-        _cache["world"], _cache["seat"] = mark, {}
-    seats = _cache["seat"]
+    seats = world.cache("faith").setdefault("seat", {})       # (f452) the world's own cache, which dies with it
     if town not in seats:
         dist = events.distances(world, town)
         near = sorted((dist.get(c, 10 ** 9), c) for c in GODS if c in world.places and world.places[c].type == "city")

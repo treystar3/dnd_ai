@@ -27,20 +27,22 @@ anyone:                       # for a role with no list of its own, and when a r
   - "sitting on a step"
 
 by_role:
+  # (f449) `at` lists the kinds of place a doing belongs to: work that happens at the fields, the water or the shaft is not done in a
+  # town square ("The sun-browned reaper comes along, and is soon walking a furrow", said in Parth). A doing without `at` fits anywhere.
   farmer:
-    - {text: "yoking an ox", when: [dawn, morning]}
-    - {text: "walking a furrow", when: [morning, midday]}
+    - {text: "yoking an ox", when: [dawn, morning], at: [fields, village]}
+    - {text: "walking a furrow", when: [morning, midday], at: [fields, village]}
     - {text: "eating bread and cheese", when: [midday]}
     - {text: "mending a gate", when: [afternoon]}
-    - {text: "driving a muck cart", when: [morning, afternoon]}
+    - {text: "driving a muck cart", when: [morning, afternoon], at: [fields, village]}
     - {text: "arguing with the miller's boy", when: [afternoon, evening]}
     - "scraping mud off a boot"
   shepherd:
-    - {text: "counting sheep", when: [dawn, morning, evening]}
+    - {text: "counting sheep", when: [dawn, morning, evening], at: [fields, hills, village]}
     - "whistling to a sheepdog"
-    - {text: "checking a ewe's foot", when: [morning, midday, afternoon]}
+    - {text: "checking a ewe's foot", when: [morning, midday, afternoon], at: [fields, hills, village]}
     - "leaning on a crook"
-    - {text: "shearing sheep", when: [midday, afternoon]}
+    - {text: "shearing sheep", when: [midday, afternoon], at: [fields, hills, village]}
     - "carrying a lamb"
   hunter:
     - {text: "carrying a brace of birds", when: [morning, midday]}
@@ -186,23 +188,23 @@ by_role:
     - "checking a flask"
     - "weighing a sack"
   orchard_keeper:
-    - {text: "pruning trees", when: [morning, afternoon]}
+    - {text: "pruning trees", when: [morning, afternoon], at: [fields, village, yard]}
     - "sorting apples"
-    - {text: "working the cider press", when: [afternoon, evening]}
+    - {text: "working the cider press", when: [afternoon, evening], at: [fields, village, yard]}
     - "stacking baskets"
-    - "staking a sapling"
+    - {text: "staking a sapling", at: [fields, village, yard]}
   fisher:
     - {text: "mending a net", when: [afternoon, evening]}
     - "gutting fish"
-    - {text: "casting a net", when: [dawn, morning]}
-    - "baling a boat"
+    - {text: "casting a net", when: [dawn, morning], at: [coast, river, wetland, yard]}
+    - {text: "baling a boat", at: [coast, river, wetland, yard]}
     - "selling fish"
     - {text: "coiling a line", when: [midday, afternoon]}
   miner:
-    - {text: "coming off a shift", when: [afternoon, evening]}
+    - {text: "coming off a shift", when: [afternoon, evening], at: [mountains, hills, underground, village]}
     - "fixing a pick"
     - "coughing up dust"
-    - {text: "lining up at the shaft", when: [dawn, morning]}
+    - {text: "lining up at the shaft", when: [dawn, morning], at: [mountains, hills, underground, village]}
     - "sorting ore"
   lumberjack:
     - {text: "splitting logs", when: [morning, midday, afternoon]}
@@ -251,16 +253,16 @@ by_role:
   dockhand:
     - "rolling a barrel"
     - "coiling a rope"
-    - "waiting for a boat"
+    - {text: "waiting for a boat", at: [coast, river, yard]}
     - "arguing over a tally"
-    - {text: "eating on a bollard", when: [midday]}
+    - {text: "eating on a bollard", when: [midday], at: [coast, river, yard]}
     - "pushing a barrow"
   bargeman:
-    - "poling a barge"
-    - "checking a mooring line"
+    - {text: "poling a barge", at: [coast, river, yard]}
+    - {text: "checking a mooring line", at: [coast, river, yard]}
     - "unloading crates"
     - "smoking a pipe"
-    - {text: "washing the deck", when: [morning]}
+    - {text: "washing the deck", when: [morning], at: [coast, river, yard]}
   merchant:
     - "counting coin"
     - "haggling with a farmer"

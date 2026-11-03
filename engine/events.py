@@ -456,7 +456,7 @@ def judge(ws, state, th, deed) -> bool:
             th["times"][i] += round(left * E["judge"]["partial_delay"])
         th["partial"] = th.get("partial", 0) + 1
         pulse.add_news(state, f"{th['title']}: word is that {v.reason.rstrip('.').lower()} - it has bought some time.",
-                       th["place"], ws.minutes, th["groups"], thread=th["id"])
+                       th["place"], ws.minutes, th["groups"], thread=th["id"], certainty="they say")
         console.note(f"What you have done has set {th['title']} back. It is not over.")
         return True
     return False
@@ -471,7 +471,7 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     if th.get("triumph"):
         pulse.apply_effects(store, world, ws.catalog, state, th["triumph"].get("effects", []), th["tier"], t, th["title"],
                             raw=True, thread_id=th["id"])
-        pulse.add_news(state, th["triumph"]["description"], th["place"], t, th["groups"], thread=th["id"])
+        pulse.add_news(state, th["triumph"]["description"], th["place"], t, th["groups"], thread=th["id"], certainty="they say")
     won = th.get("won_path") or {}
     if won.get("side"):
         loser = world.places[won["side"]].name
@@ -630,7 +630,8 @@ def recruit_allies(ws, enemies) -> None:
     for n in ws.store.load_npcs([r.id for r in retrieval.with_role(ws.store, cfg["roles"], not_tier="background", min_trust=cfg["min_trust"])]):
         if pulse.town_of(ws.world, n.location) in towns and not any(m.get("npc") == n.id for m in ws.player.party):
             cands.append(n)
-    cands.sort(key=lambda n: -n.trust)
+    from engine import regard
+    cands.sort(key=lambda n: (-regard.aggregate(n)["trust"], n.id))   # (f480) the world's own doing: the highest trust any character holds
     lvl = ws.player.character.level
     joined = []
     for n in cands[:min(room, cfg["max_join"])]:
@@ -659,7 +660,8 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
                 ws.store.save_world_state(state)
             else:
                 console.note(f"{n.name} is carried out of the fight, badly hurt but alive.")
-                n.mood = "badly wounded, but alive"
+                from engine import circumstance            # (f483)
+                circumstance.set_mood(n, "badly wounded, but alive", ws.minutes, "a fight beside the stranger")
                 ws.store.save_npc(n)
 
 
@@ -902,7 +904,7 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
     state["threads"].append(thread)
     state["campaign"] = thread_id
     state["cataclysms"] = state.get("cataclysms", 0) + 1
-    pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id)
+    pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id, certainty="they say")
     from engine import pulselog
     row = pulselog.note("thread", f"[cataclysm:{kid}] {proposal.title} from {origin.name} - begins")
     pulse.apply_effects(store, world, catalog, state, stage_rows[0]["effects"], "cataclysm", t, thread["title"], raw=True, thread_id=thread_id, row=row)
@@ -919,7 +921,7 @@ def on_stage(store, world, catalog, state, th: dict, t: int, rng: random.Random)
     hits = th["hits"]
     sig = th["stages"][i].get("signs")
     if sig:
-        pulse.add_news(state, sig, th["place"], t, th["groups"], thread=th["id"])
+        pulse.add_news(state, sig, th["place"], t, th["groups"], thread=th["id"], certainty="they say")
     for town in hits[i] if i < len(hits) else []:
         if _player_in(store, world, town) and [s for s in live_spawns(state, t, th["id"]) if not s["boss"]]:      # (f324) fought for, not rolled
             state.setdefault("assaults", []).append({"thread": th["id"], "town": town, "stage": i, "minute": t})
@@ -1051,11 +1053,13 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
         risk = base * C["role_risk"].get(n.role, 1.0)
         if n.tier != "background":
             risk *= C["met_risk"]
-        risk *= 1 - min(0.4, max(0.0, (n.trust - 50) * C["trust_shield"]))
+        from engine import regard
+        risk *= 1 - min(0.4, max(0.0, (regard.aggregate(n)["trust"] - 50) * C["trust_shield"]))   # (f480) aggregate: no one is acting
         if rng.random() >= risk:
             continue
         if refuge and rng.random() < C["flee_share"]:
-            n.mood = f"shaken, a refugee from {world.places[town].name}"
+            from engine import circumstance                # (f483)
+            circumstance.set_mood(n, f"shaken, a refugee from {world.places[town].name}", t, f"fell:{town}")
             n.memories.append(_memory(t, f"Fled {world.places[town].name} when {th['title']} came."))
             store.save_npc(n)
             pulse.move_npc(store, n, refuge)
@@ -1083,7 +1087,7 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
 
 def _memory(t: int, text: str):
     from npc.models import Memory
-    return Memory(day=clock.day(t), turn=-1, text=text, importance=3)
+    return Memory(day=clock.day(t), turn=-1, text=text, importance=3, kind="experienced", subject="", source="self", minute=int(t))   # (f478) about no one
 
 
 def _vacancy_for(state: dict, world, place_id: str, role: str, t: int, rng: random.Random) -> None:

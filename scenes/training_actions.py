@@ -100,10 +100,10 @@ class TrainingActions:
         levels = leveling.gain_xp(c, xp)
         c.last_drill_day = day
         self.store.save_player(self.player)
-        console.note(f"Drilled for {d['hours']} hours with {teacher.label()}. Paid {money.fmt(fee)}. +{xp} XP.")
+        console.note(f"Drilled for {d['hours']} hours with {teacher.label(self.acting)}. Paid {money.fmt(fee)}. +{xp} XP.")
         if levels:
             console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
-        self.narrate(f"The player spends {d['hours']} hours sparring and drilling under {teacher.label()}'s eye - "
+        self.narrate(f"The player spends {d['hours']} hours sparring and drilling under {teacher.label(self.acting)}'s eye - "
                      "sweat, bruises, and a few hard-won lessons.", text)
 
     def tutor(self, teacher, skill: str, text: str) -> None:
@@ -118,9 +118,9 @@ class TrainingActions:
         self.advance(t["hours"] * 60 // (2 if self.owns("meditative_study") else 1))
         c.trained[skill] = min(t["cap"], have + t["bonus"])
         self.store.save_player(self.player)
-        console.note(f"Studied {skill} with {teacher.label()}. Paid {money.fmt(fee)}. "
+        console.note(f"Studied {skill} with {teacher.label(self.acting)}. Paid {money.fmt(fee)}. "
                      f"{skill.capitalize()} +{c.trained[skill]}% from training.")
-        self.narrate(f"The player spends {t['hours']} hours learning {skill} from {teacher.label()} - practice, "
+        self.narrate(f"The player spends {t['hours']} hours learning {skill} from {teacher.label(self.acting)} - practice, "
                      "correction, and the knack of it starting to settle in.", text)
 
     def passive_slots(self) -> int:
@@ -142,7 +142,7 @@ class TrainingActions:
             nxt = min((spells.distinct(c.actives) - a["starting"] + 1) * a["levels_per_new"], (len(c.passives) - p["starting"] + 1) * p["levels_per_new"])
             self.refuse(f"You can't take on another ability or trait yet - you'll have room for one more at level {nxt}.")
             return
-        console.wait(f"{cap_first(teacher.label())} considers what to teach you.")
+        console.wait(f"{cap_first(teacher.label(self.acting))} considers what to teach you.")
         want = lesson_ask.read_request(c, request)
         slots = lessons.plan(c, want, rng=streams.get("lessons"), can_active=can_a, can_passive=can_p)   # (f439) not the machine's entropy
         try:
@@ -192,10 +192,10 @@ class TrainingActions:
         (c.passives if passive else c.actives).append(pick)
         self.learn_options = None
         from engine.domain_events import Trained
-        self.notice(Trained(minute=self.minutes, place=self.player.location, witnesses=(teacher.id,), npc=teacher.id, name=teacher.label(), ability=pick.name), teacher)
+        self.notice(Trained(minute=self.minutes, place=self.player.location, witnesses=(teacher.id,), npc=teacher.id, name=teacher.label(self.acting), ability=pick.name), teacher)
         self.store.save_player(self.player)
         uses = f" (uses {pick.attribute})" if not passive and pick.attribute else ""
         console.note(f"Learned {pick.name}{uses}. Paid {money.fmt(fee)}.")
         what = "the trait" if passive else ""
-        self.narrate(f"The player spends {a['hours']} hours learning {what} {pick.name} from {teacher.label()}: "
+        self.narrate(f"The player spends {a['hours']} hours learning {what} {pick.name} from {teacher.label(self.acting)}: "
                      f"{pick.description}".replace("  ", " "), text)

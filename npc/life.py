@@ -220,7 +220,10 @@ def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog)
     )
     npc.personality, npc.voice = profile.personality, profile.voice
     if not npc.concern_from:                                 # (f317) a concern a matter gave them stays
-        npc.concern = profile.concern
+        from engine import circumstance                      # (f483) their own, from who they are
+        circumstance.set_concern(npc, profile.concern, "profile")
+    if not npc.first_description and npc.description:        # (f483) how they first looked, kept through any revision
+        npc.first_description = npc.description
     npc.motive = (profile.motive.strip() or npc.motive) if has_motive else ""
     if npc.motive and not npc.motive_since:
         npc.motive_since = store.meta.minutes
@@ -268,9 +271,11 @@ def social_circle(npc: NPC, store: CampaignStore, world: World) -> tuple[list[st
     return here, known
 
 
-def note_mentions(speaker: NPC, speech: str, store: CampaignStore) -> list[str]:
-    """People the speaker named aloud who the player has not met (or does not know by name) are noted as heard of, with what was said.
-    Matches a full name, or a first name of 5+ letters that only one person has. Returns the names newly noted."""
+def note_mentions(speaker: NPC, speech: str, store: CampaignStore, who: str) -> list[str]:
+    """People the speaker named aloud who the character `who` has not met (or does not know by name) are noted as heard of by that
+    character (f480: on their view), with what was said. Matches a full name, or a first name of 5+ letters that only one person has.
+    Returns the names newly noted."""
+    from engine import regard
     import re
     text = " ".join(speech.split())
     if not text:
@@ -278,8 +283,12 @@ def note_mentions(speaker: NPC, speech: str, store: CampaignStore) -> list[str]:
     from engine import retrieval
     added = []
     for row in retrieval.named_in(store, text, exclude=(speaker.id,)):            # the index's names against the words; nothing parsed
-        if row.heard_of or (row.met_player and row.name_known_to_player):
-            continue
+        if row.heard_of or (row.met_player and row.name_known_to_player):     # by the index (any character): a cheap first pass
+            if not store.npc_exists(row.id):
+                continue
+            seen = regard.of(store.load_npc(row.id), who)
+            if seen.heard_of or (seen.met and seen.name_known):
+                continue
         first = row.name.split()[0]
         m = re.search(r"\b(?:" + "|".join([re.escape(row.name), re.escape(first)]) + r")\b", text, re.I)
         if not m:
@@ -287,11 +296,17 @@ def note_mentions(speaker: NPC, speech: str, store: CampaignStore) -> list[str]:
         o = store.load_npc(row.id)                        # only the one named is read in full
         sentences = re.split(r"(?<=[.!?])\s+", text)
         line = next((s for s in sentences if m.group(0).lower() in s.lower()), text)
-        o.heard_of = {"by": speaker.name if speaker.name_known_to_player else speaker.label(), "day": clock.day(store.meta.minutes),
-                      "line": line[:200].strip()}
+        regard.own(o, who).heard_of = {"by": speaker.label(who), "day": clock.day(store.meta.minutes), "line": line[:200].strip(),
+                                       "source": speaker.id, "certainty": "hearsay"}          # (f482) a name heard is hearsay, with its teller
         store.save_npc(o)
         added.append(o.name)
     return added
+
+
+def _offered(store, npc, who: str) -> dict | None:
+    """(f481) The work this person has offered the character and that still stands (engine/obligations.py), for WORK YOU HAVE OFFERED."""
+    from scenes.work_actions import offer_open
+    return offer_open(store, npc, who)
 
 
 def converse(
@@ -309,6 +324,8 @@ def converse(
     worn: list[str] = (),
     house: set[str] | list[str] = (),
     wares: list[str] | None = None,
+    *,
+    who: str,
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -316,21 +333,21 @@ def converse(
     this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk. wares (f418): what they
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
     from engine import banter, matters, voice_profile
-    facts = world.facts_known_by(set(npc.knowledge_groups)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
+    from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
+    facts = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
     rng = rng or streams.get("scene")
     from engine import voices
     ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
-    voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng)
+    voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng, char_id=who)
     recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
     reply = generate(
         "npc_conversation", prompts.CONVERSATION_SYSTEM,
         prompts.conversation_prompt(
             npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
             [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
-            f"day {clock.day(store.meta.minutes)}, {clock.period(store.meta.minutes)}, "
-            f"weather: {weather.describe(store.meta.seed, store.meta.minutes)[1].lower()}",
+            clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
             wares if wares is not None else
             [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells]
             + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
@@ -339,7 +356,8 @@ def converse(
                if world.roles[npc.role].commissions else []),
             extra, land.land_lines(world, npc.location), truth_text=truth_text,
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
-            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn),
+            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
+            work=_offered(store, npc, who),
         ),
         NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
@@ -364,31 +382,36 @@ def converse(
     if dropped:
         console.debug(f"ignored reveals {npc.name} does not know: {dropped}")
 
-    from engine import trust as _trust
-    step = _trust.after_talk(npc, reply, clock.day(store.meta.minutes))      # (f362) the engine moves trust from what happened; the model's say counts within its limit
+    from engine import regard, trust as _trust
+    step = _trust.after_talk(npc, reply, clock.day(store.meta.minutes), who, store.meta.minutes)   # (f362) the engine moves trust from what happened
+    seen = regard.of(npc, who)                                # (f480) this character's view: trust, name, the meeting, the hour
     if step:
         from engine import canon
-        canon.journal("trust", "player", npc.id, f"{npc.name}'s trust moved {step:+d} to {npc.trust}", step=step, trust=npc.trust)
+        canon.journal("trust", who, npc.id, f"{npc.name}'s trust moved {step:+d} to {seen.trust}", step=step, trust=seen.trust)
 
+    seen = regard.meet(npc, who, store.meta.minutes)
     if reply.told_own_name:
-        npc.name_known_to_player = True
+        seen.name_known = True
     claimed = reply.learned_player_name.strip()
     if claimed and claimed.lower() in player_text.lower():
-        npc.knows_player_as = claimed
+        seen.knows_as, seen.knows_as_source = claimed, "self"
+        from engine import memory                            # (f482) what they were told, by whom: a claim, never a fact
+        memory.keep(npc, f"{{them}} told me their name is {claimed}.", day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told",
+                    subject=who, source=who, about=f"name:{who}", minute=store.meta.minutes)
     elif claimed:
         console.debug(f"ignored name '{claimed}': the player never said it")
 
-    if not npc.met_player:
-        npc.met_player = True
-    npc.last_talk_at = store.meta.minutes                   # (f382) when they last spoke: the next talk, long after, is a return
-    for name in note_mentions(npc, reply.speech, store):
+    seen.last_talk_at = store.meta.minutes                   # (f382) when they last spoke: the next talk, long after, is a return
+    for name in note_mentions(npc, reply.speech, store, who):
         console.debug(f"{npc.name} named {name}: noted as heard of")
-    if reply.remember.strip():
-        npc.memories.append(Memory(day=clock.day(store.meta.minutes), turn=store.meta.turn, text=reply.remember.strip()))
+    if reply.remember.strip():                              # (f482) what this talk gave them to keep: what they were told, by whom
+        from engine import memory
+        memory.keep(npc, reply.remember.strip(), day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told", subject=who,
+                    source=who, minute=store.meta.minutes)
     store.save_npc(npc)
 
     console.debug(
-        f"{npc.name}: intent={reply.intent} trust {npc.trust} ({step:+d}) reveals={revealed} "
+        f"{npc.name}: intent={reply.intent} trust {seen.trust} ({step:+d}) reveals={revealed} "
         f"remember={reply.remember!r}"
     )
     return reply, revealed
@@ -398,7 +421,10 @@ def manner(npc: NPC, catalog: TraitCatalog, store: CampaignStore) -> str:
     """How someone comes across from a distance, from their traits. Rolls traits for older saves that lack them."""
     if not npc.traits:
         assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
-        store.save_npc(npc)
+        if store.writable():
+            store.save_npc(npc)
+        else:
+            store.save_npc_later(npc)                     # (f470) read during the understanding, outside any operation: the next operation saves it
     return ", ".join(t.replace("_", " ") for t in npc.traits)
 
 

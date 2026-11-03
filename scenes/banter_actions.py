@@ -7,6 +7,7 @@ from __future__ import annotations
 import random
 
 import config
+from engine import regard                                   # (f480)
 from engine import entities
 from engine import banter, clock, money, mentor, pulse, quirks, weather
 from engine import party as rules
@@ -103,7 +104,10 @@ class BanterActions:
         try:
             r = generate("exchange", system, P_, Exchange, temperature=0.9, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                          relaxed_context=dict(ctx, recent={n: l[-1:] for n, l in (recent or {}).items()}, kit=False))
-        except LLMError:
+        except LLMError as e:
+            from engine import budget
+            if isinstance(e, budget.Deferred):
+                self.__dict__["_deferred_exchange"] = True       # (f469) a later turn's: the party's caller queues it (party_banter)
             return None
         self._last_claims = [(l.speaker, l.text) for l in r.lines if l.text]     # what was said, for canon and for what they remember saying
         self._last_topic = (hook or "") + " " + situation
@@ -157,9 +161,9 @@ class BanterActions:
                 m = by_name[who]
                 speakers.append(f"{who}: {m.get('blurb', '')}, {self.temper_text(m)}; travelling with the player")
             else:
-                n = next((x for x in self.present if x.name == who or x.label() == who), None)
+                n = next((x for x in self.present if x.name == who or x.label(self.acting) == who), None)
                 speakers.append(f"{who}: {n.activity}" if n else who)
-        others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present if n.name not in speaking and n.label() not in speaking][:4]
+        others = [f"{self.seen_as(n)}: {n.activity}" for n in self.present if n.name not in speaking and n.label(self.acting) not in speaking][:4]
         spoken = [t for _, t in merged if not t.startswith("(")] or [t for _, t in merged]
         try:
             from engine import reach                            # (f344) what the place offers the party; tense in a fight
@@ -187,7 +191,7 @@ class BanterActions:
         promote(clerk, self.store, self.world, self.catalog)        # (f299) the clerk becomes a person before Maren meets her: her personality sets how it goes
         m = banter.manner(clerk)
         console.debug(f"clerk exchange: {clerk.name} reads as {m}")
-        who = clerk.name or clerk.label()
+        who = clerk.name or clerk.label(self.acting)
         clerk_desc = (f"{clerk.description or 'the guild clerk'} Personality: {clerk.personality or 'businesslike'}. Voice: {clerk.voice or 'plain'}. "
                       f"Mood lately: {clerk.mood or 'ordinary'}.")
         people = {mentor.NAME: (mentor.chat_system_persona() + " " + " ".join(quirks.Q["maren"]["blueprint"]),
@@ -201,10 +205,10 @@ class BanterActions:
         self.show_exchange(lines)
         day = clock.day(self.minutes)
         clerk.memories.append(Memory(day=day, turn=self.store.meta.turn, text="Maren Holt brought a newcomer in to be signed into the register and spoke for them."))
-        clerk.trust = min(100, clerk.trust + BN["clerk"].get("vouch_trust", 10))
-        clerk.met_player = True
+        regard.step(clerk, self.acting, BN["clerk"].get("vouch_trust", 10), cause="vouched for", minute=self.minutes)   # (f480)
+        seen = regard.meet(clerk, self.acting, self.minutes)
         if clerk.name:
-            clerk.name_known_to_player = True
+            seen.name_known = True
         self.store.save_npc(clerk)
 
     # ---------- the party among themselves ----------
@@ -609,8 +613,11 @@ class BanterActions:
             return False
         wants = self.banter_wants(pick, hook_kind, about, kind)
         sit = G["situation"][kind].format(place=self.place.name)
+        self.__dict__.pop("_deferred_exchange", None)
         lines = self.talk_among(present, pick, plan, sit, hook_kind, hook, about, wants, context.scene_for_hook(hook_kind))
         if not lines:
+            if self.__dict__.pop("_deferred_exchange", False):   # (f469) the budget deferred it: spoken at a later turn's tail (run_deferred)
+                self.defer("banter", {"crew": [m["id"] for m in present], "why": kind})
             return False
         if hook_kind == "personal" and about is not None:
             thing = hook.split(": ", 1)[-1]

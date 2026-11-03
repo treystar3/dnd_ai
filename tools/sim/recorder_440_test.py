@@ -16,11 +16,8 @@ for fn in ("narrate", "say", "note", "ledger"):
 uc.panel = lambda name, data: False
 from engine import recording, streams
 from llm import gateway
-from npc.traits import load_traits
-from scenes.world import WorldScene
 from storage import statehash
-from storage.campaign import CampaignStore, PlayerState
-from world.loader import authored, campaign_world
+from storage.campaign import CampaignStore
 
 bad = []
 def check(n, ok, x=""):
@@ -29,15 +26,9 @@ def check(n, ok, x=""):
 
 SAVE = "recorder_440_test"
 OUT = Path("saves/recorder_440_out")
-shutil.rmtree(f"saves/{SAVE}", ignore_errors=True)
 shutil.rmtree(OUT, ignore_errors=True)
-store = CampaignStore.open_or_create(SAVE)
-store.meta.seed, store.meta.turn, store.meta.minutes = 40, 1, 480
-store.save_meta()
-char, _ = simlib.make_character("warrior", random.Random(40))
-player = PlayerState(character=char, location=authored().start_location)
-player.mentor["never"] = True
-store.save_player(player)
+game = simlib.campaign(SAVE, seed=40, turn=1, minutes=480)                 # (f450) the suite's one way to open a campaign
+store = game.store
 start = statehash.digest(store)
 
 fail = {"on": False}
@@ -62,7 +53,7 @@ def ask(*a, main=False, **k):
         stub.plan = plan
     return text
 uc.ask = ask_before = ask
-ws = WorldScene(store, campaign_world(), load_traits(), store.load_player())
+ws = game.scene
 rec = recording.Recorder(store, folder=OUT).install()
 check("a recording session is strict while it records", streams.STRICT is True)
 ws.run()

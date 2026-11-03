@@ -115,7 +115,7 @@ ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
 state = store.load_world_state() or pulse.empty_state(ws.minutes)
 th = {"id": "th_test", "title": "The Quiet Mill", "tier": "uncommon", "place": "parth", "status": "active", "touched": True, "made": ws.minutes - 1440,
       "stage": 0, "stages": [{"name": "Silence", "description": "The mill wheel has stopped."}], "times": [ws.minutes - 1440], "told": True,
-      "paths": [{"id": "talk_" + npc.id, "name": "Talk them round", "how": f"Ask {npc.label()} to open the mill again", "kind": "persuade", "target": npc.id, "spawn": "", "done": False}]}
+      "paths": [{"id": "talk_" + npc.id, "name": "Talk them round", "how": f"Ask {npc.label("player")} to open the mill again", "kind": "persuade", "target": npc.id, "spawn": "", "done": False}]}
 state.setdefault("threads", []).append(th)
 store.save_world_state(state)
 talker = Bot(ws, world, random.Random(9), stub, persona="talker")

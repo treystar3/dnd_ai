@@ -47,6 +47,30 @@ PERSONAS = {
 ROTATION = ["steady", "talker", "wanderer", "hunter", "careful"]
 ROAD_SLACK = 6                 # a road's wilds may top out this far past the band: the character deters what is well below them
 AVOID_DAYS = 3                 # after a death: keep away from where it happened
+# (f473) Continuity: what a player does that the world then has to remember. A promise made in words, a false name told once a run and
+# set straight later to the one told, people gone back to a game day or more after the last talk, work and requests taken up, a contract
+# given up out loud, the one who posted a contract visited when it is over. Off unless the harness asks (tools/nightrun.py turns it on,
+# --no-continuity off), and drawn from a stream of its own (Bot.crng), so the golden recording's session (tools/rerun.py --make) and every
+# test that drives the bot are unmoved. The weights are per persona, like PERSONAS: the chance a turn offers each step.
+CONTINUITY = {
+    "steady":   {"revisit": 0.6, "promise": 0.5, "lie": 0.4, "accept": 0.9, "abandon": 0.3, "issuer": 0.6},
+    "talker":   {"revisit": 1.3, "promise": 1.0, "lie": 0.9, "accept": 0.8, "abandon": 0.2, "issuer": 0.9},
+    "wanderer": {"revisit": 0.8, "promise": 0.6, "lie": 0.6, "accept": 0.5, "abandon": 0.4, "issuer": 0.4},
+    "hunter":   {"revisit": 0.3, "promise": 0.4, "lie": 0.4, "accept": 0.6, "abandon": 0.5, "issuer": 0.3},
+    "careful":  {"revisit": 0.9, "promise": 0.8, "lie": 0.3, "accept": 0.9, "abandon": 0.2, "issuer": 0.8},
+}
+REVISIT_AFTER = 1440           # a person is gone back to no sooner than a game day after the last talk with them
+CORRECT_AFTER = 30             # turns after the lie before the bot goes back and sets it straight
+CONT_LOG_KEEP = 200            # rows kept per kind in the continuity log (the night's run.json carries it)
+FALSE_NAMES = ["Vosk Hallarin", "Teodric Mallowby", "Ysmer Quell", "Brannoc Velt", "Odessa Thrimble", "Caspar Wendrake", "Liesl Orvane",
+               "Mattias Corrow", "Wenna Starke", "Joris Fellaby"]       # names no table in data/ holds: a sighting of one on the page is the lie
+REVISIT_LINES = ["Do you remember me? We spoke a while back.", "It's me again. How have things been since we last talked?",
+                 "We've met before, I think. How are you keeping?"]
+# (f493) only to someone the bot did promise to come back to: the baseline night's bot said "I'm back like I promised" to people it had
+# promised nothing, and both blind readers counted the game for accepting a promise never made
+PROMISED_RETURN_LINES = ["I'm back, as I said I'd be. Has anything changed since I was here?", "I said I'd come back, and here I am. How are things?"]
+PROMISES = ["I'll come back this way before long, I promise.", "If you need a hand with anything, I'll be back to help. You have my word.",
+            "I promise I'll look into it and come back to you.", "Keep my place by the fire. I'll be back, I swear it."]
 STOP = {"the", "you", "your", "a", "an", "it", "its", "he", "his", "she", "her", "they", "their", "there", "as", "when", "but", "and", "then",
         "what", "who", "where", "that", "this", "in", "on", "at", "with", "for", "from", "of", "to", "by", "i", "we", "no", "yes", "not", "if",
         "so", "or", "is", "are", "was", "were", "be", "do", "does", "did", "have", "has", "had", "one", "some", "all", "any", "here", "now", "the player"}
@@ -98,8 +122,13 @@ class Bot:
     LEAVE = ["Thanks, I'll let you get on.", "That's all I wanted to know. Good day.", "I'd best be moving on."]
     JOB_KINDS = ("hunt", "bounty", "gather", "materials")
 
-    def __init__(self, ws, world, rng: random.Random, stub=None, persona: str = "", run=None):
+    def __init__(self, ws, world, rng: random.Random, stub=None, persona: str = "", run=None, continuity: bool = False):
         self.ws, self.world, self.rng, self.stub, self.run = ws, world, rng, stub, run
+        self.cont = bool(continuity)                 # (f473) the continuity steps, on a stream of their own seeded from the bot's (no draw taken)
+        self.crng = random.Random("continuity:" + ",".join(str(x) for x in rng.getstate()[1][:4]))
+        self.CW = dict(CONTINUITY.get(persona) or CONTINUITY["steady"])
+        self.met: dict[str, dict] = {}               # person id -> {name, place, minute of the last talk, first}
+        self.clog: dict[str, list] = {k: [] for k in ("revisits", "promises", "plants", "corrections", "accepted", "abandoned", "issuer_visits")}
         self.persona = persona
         self.P = dict(PERSONAS.get(persona) or PERSONAS["steady"])
         self.talks = 0                               # lines said in the conversation open now
@@ -156,7 +185,7 @@ class Bot:
         return f"{p.danger[0]}-{p.danger[1]}" if p and p.danger else ""
 
     def names_here(self) -> list[str]:
-        out = [n.label() for n in self.ws.present] + [m.get("name", "") for m in self.ws.player.party]
+        out = [n.label(self.ws.acting) for n in self.ws.present] + [m.get("name", "") for m in self.ws.player.party]
         p = self.place()
         if p:
             out.append(p.name)
@@ -228,6 +257,7 @@ class Bot:
     # ---- what happened since the last line: deaths, contracts, doors
     def watch(self) -> None:
         self.read_refusals()
+        self._confirm_cont()
         c = self.c
         if c.deaths > self.deaths_seen:
             self.stats["deaths"] += c.deaths - self.deaths_seen
@@ -282,7 +312,10 @@ class Bot:
         goal = self.meta.get("goal", "") if self.meta.get("_fresh") else ""
         passage = self.passage()
         source = "template"
-        if self.persona and self.stub is None and self.run is not None and kind != "fight" and text not in self.OUTLANDISH:   # (f395) said as is
+        verbatim = bool(self.__dict__.get("_cont_now"))                  # (f493) a continuity step's line is typed as written: reworded, the
+        if verbatim:                                                         # baseline night's lie lost its false name, and the bot later set
+            self._pending_cont = dict(self.__dict__["_cont_now"], line=text)  # straight a name it had never given
+        if self.persona and self.stub is None and self.run is not None and kind != "fight" and text not in self.OUTLANDISH and not verbatim:   # (f395)
             line = self.model_line(text, intent, kind, passage)
             if line:
                 text, source = line, "model"
@@ -300,6 +333,9 @@ class Bot:
             self.stats["fights"] += 1
         self.meta = {"goal": goal, "persona": self.persona, "source": source, "refers": refers, "band": self.band_text(),
                      "bot_seconds": round(time.perf_counter() - t0, 2)}
+        cont = self.__dict__.pop("_cont_now", None)
+        if cont:
+            self.meta["cont"] = cont                                      # (f473) the night's row says which continuity step this was
         self.recent.append(text)
         if self.stub is not None:
             self.stub.plan = [intent]
@@ -333,6 +369,8 @@ class Bot:
         waiting = self.stop_step()                                        # (f427) what a stop on the road holds for the player
         if waiting:
             return waiting
+        if self.cont:
+            self.continuity_goals()                                       # (f473) may push a revisit; the goal loop below walks it
         p = self.place()
         fresh = [n for n in ws.present if n.id not in self.spoken_to]
         if p is not None and p.danger is None and fresh and self.here_for <= 1 and self.rng.random() < self.P["chat"] * 0.35:
@@ -381,6 +419,7 @@ class Bot:
         partner = ws.partner
         g = self.goals[-1] if self.goals else {}
         self.talks += 1
+        self._note_met(partner)
         if g.get("kind") == "persuade" and g.get("npc") == partner.id:
             g["tries"] = g.get("tries", 0) + 1
             self.label("follow:persuade")
@@ -402,7 +441,13 @@ class Bot:
             self.talks = 0
             self.stats["goals_done"]["report"] += 1
             self.goals.pop()
+            if self.cont:
+                self._issuer_goal(g, "done")                              # (f473) the one who posted it, told it is over
             return rng.choice(self.LEAVE), self.intend("leave_conversation"), "leave"
+        if self.cont:
+            step = self._cont_talk(partner)                               # (f473) an offer taken up, the lie, a promise
+            if step:
+                return step
         self.label("idle:talk")
         q = self.question_for(g) if self.talks <= self.P["talk"] else ""
         if q:
@@ -467,7 +512,7 @@ class Bot:
         draught = next(((n, w) for n, w in sellers if w.item == "healing_draught"), None)
         if draught and inv.count_of(c.inventory, "healing_draught") < 2 and c.coins >= draught[1].price * 2:
             self.label("need:buy")
-            return f"I buy a healing draught from {draught[0].label()}.", self.intend("buy", ware="healing draught", target=draught[0].id), "shop"
+            return f"I buy a healing draught from {draught[0].label(self.ws.acting)}.", self.intend("buy", ware="healing draught", target=draught[0].id), "shop"
         loot = [i for i in c.inventory if not i.good and i.base != "raw_material" and i.uid not in self.tried_gear]
         gear = [i for i in loot if i.item_level >= 1]
         worn = [i.item_level for i in c.equipment.values() if i is not None]
@@ -485,7 +530,7 @@ class Bot:
             if buyer and item.item_level + 5 < max(worn or [1]):
                 self.tried_gear.add(item.uid)
                 self.label("need:sell")
-                return f"I sell the {item.name} to {buyer.label()}.", self.intend("sell", item=item.name, target=buyer.id), "shop"
+                return f"I sell the {item.name} to {buyer.label(self.ws.acting)}.", self.intend("sell", item=item.name, target=buyer.id), "shop"
         return None
 
     def rest_line(self, p) -> tuple[str, dict, str]:
@@ -615,12 +660,15 @@ class Bot:
             hall = self.hall_of.get(q["id"]) or self.nearest_hall()
             self.finish(g)
             if hall:
-                self.goals.append({"kind": "report", "place": hall, "title": q["title"], "tries": 0})
+                self.goals.append({"kind": "report", "place": hall, "title": q["title"], "tries": 0,
+                                   "issuer": q.get("issuer", ""), "issuer_name": q.get("issuer_name", "")})     # (f473) for the issuer's visit
             return None
         g["tries"] = g.get("tries", 0) + 1
-        if g["tries"] > 24 or (q.get("deadline") and q["deadline"] <= ws.minutes):
+        if g["tries"] > 24:                                               # (f491) no contract runs out: only the bot's patience does
             self.given_up.add(q["id"])
             self.finish(g, "dropped")
+            if self.cont and self.crng.random() < self.CW["abandon"]:
+                return self._abandon(q)                                   # (f473) given up out loud, not left to run out
             return None
         if q["kind"] in ("hunt", "bounty", "materials"):
             if "place" not in g:
@@ -676,7 +724,7 @@ class Bot:
         if clerk is None:
             wait = self.clerk_wait(g)
             return wait or None
-        line = f"I report to {clerk.label()}: {g['title']} is done."
+        line = f"I report to {clerk.label(self.ws.acting)}: {g['title']} is done."
         return line, self.intend("talk", target=clerk.id, speech=f"{g['title']} - it's done. I'm here for the pay."), "talk"
 
     def goal_hunt(self, g: dict):
@@ -789,7 +837,7 @@ class Bot:
             return "I wait for a while, watching the door.", self.intend("wait", wait_minutes=60), "wait"
         self.talks = 1
         ask = f"I need your help with {g['title']}. Will you help me end it?"
-        return f"I go to {n.label()} and ask for their help with {g['title']}.", self.intend("talk", target=n.id, speech=ask, checks=["persuasion"]), "talk"
+        return f"I go to {n.label(self.ws.acting)} and ask for their help with {g['title']}.", self.intend("talk", target=n.id, speech=ask, checks=["persuasion"]), "talk"
 
     def goal_clear(self, g: dict):
         self.label("follow:clear")
@@ -977,12 +1025,13 @@ class Bot:
         if pick == "talk":
             n = rng.choice(present)
             self.spoken_to.append(n.id)
+            self._note_met(n)
             self.talks = 1
             topic = rng.choice(self.TOPICS)
             asked = self.__dict__.setdefault("_asked_of", {}).setdefault(n.id, [])
             q = rng.choice([x for x in self.QUESTIONS if x not in asked] or self.QUESTIONS)
             asked.append(q)
-            return f"I go over to {n.label()} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
+            return f"I go over to {n.label(self.ws.acting)} and ask about {topic}.", self.intend("talk", target=n.id, speech=q), "talk"
         if pick == "move":
             return self.move_line(p)
         if pick == "parts":
@@ -1096,13 +1145,13 @@ class Bot:
         """What the line is for, in plain words, and the names it must carry so the game reads it as meant."""
         ws, world = self.ws, self.world
         k = intent.get("kind", kind)
-        label = lambda nid: next((n.label() for n in ws.present if n.id == nid), "")
+        label = lambda nid: next((n.label(self.ws.acting) for n in ws.present if n.id == nid), "")
         if k == "move":
             dest = world.places.get(intent.get("destination", ""))
             name = dest.name if dest else intent.get("destination", "")
             return f"go to {name}", [name]
         if k == "talk":
-            who = label(intent.get("target", "")) or (ws.partner.label() if ws.partner else "them")
+            who = label(intent.get("target", "")) or (ws.partner.label(self.ws.acting) if ws.partner else "them")
             if ws.partner is not None and intent.get("checks"):
                 return f"you are talking with {who}; persuade them: {intent.get('speech', '')}", []
             if ws.partner is not None:
@@ -1157,7 +1206,7 @@ class Bot:
                   "to it, never address the game. When you speak to someone, pick up on something they or the game just said when you can.")
         p = Prompt()
         party = ", ".join(m.get("name", "") for m in self.ws.player.party)
-        here = ", ".join(n.label() for n in self.ws.present[:8]) or "nobody"
+        here = ", ".join(n.label(self.ws.acting) for n in self.ws.present[:8]) or "nobody"
         p.fact(f"Where you are: {self.where()}. Here: {here}. With you: {party or 'nobody'}. Your health: {int(self.hp() * 100)}%.", "SCENE")
         if passage:
             p.history(passage[-1400:], "THE GAME JUST SAID")
@@ -1176,9 +1225,156 @@ class Bot:
             self.stats["model_failed"] += 1
         return line
 
+    # ---- (f473) continuity: people gone back to, promises, the lie and its correction, offers taken, a contract given up
+    def _note_met(self, n) -> None:
+        if n is None or not getattr(n, "id", ""):
+            return
+        was = self.met.get(n.id) or {}
+        self.met[n.id] = {"name": n.label(self.ws.acting), "place": self.ws.player.location, "minute": self.ws.minutes, "first": was.get("first", self.ws.minutes)}
+
+    def _confirm_cont(self) -> None:
+        """(f493) A continuity step stands only if its turn did: when the game answered the lie or the promise with a failure line (the turn
+        rolled back), the step is taken back, so no correction is ever made of a name the page never saw."""
+        step = self.__dict__.pop("_pending_cont", None)
+        if not step:
+            return
+        from engine import failures
+        said = self.passage()
+        if not any(h in said for h in failures.lines()):
+            return
+        kind = step.get("step")
+        rows = self.clog.get(kind) or []
+        if kind in ("plants", "promises") and rows and rows[-1].get("npc") == step.get("npc"):
+            rows.pop()                                                       # the step logged on that turn: it never reached the page
+            self.stats["cont_taken_back"] = self.stats.get("cont_taken_back", 0) + 1
+
+    def _clog(self, kind: str, row: dict) -> None:
+        row = {"turn": self.ws.store.meta.turn, "minute": self.ws.minutes, **row}
+        self.clog[kind].append(row)
+        del self.clog[kind][:-CONT_LOG_KEEP]
+        self._cont_now = {"step": kind, **{k: v for k, v in row.items() if k in ("npc", "token", "quest", "gap", "kind")}}
+
+    def _reachable(self, place: str) -> bool:
+        return place == self.ws.player.location or (place in self.world.places and self.route(place) is not None)
+
+    def continuity_goals(self) -> None:
+        """Push a revisit when one is due: first the person the lie was told to, once enough turns have passed; then, now and then,
+        someone talked to a game day or more ago whose place can be reached."""
+        if any(g.get("kind") == "revisit" for g in self.goals):
+            return
+        ws, crng = self.ws, self.crng
+        plant = next((p for p in self.clog["plants"] if not p.get("corrected")), None)
+        if plant and ws.store.meta.turn - plant["turn"] >= CORRECT_AFTER and plant["npc"] in self.met:
+            m = self.met[plant["npc"]]
+            if self._reachable(m["place"]):
+                self.goals.append({"kind": "revisit", "npc": plant["npc"], "place": m["place"], "name": m["name"], "why": "correct", "tries": 0})
+                return
+        if crng.random() >= self.CW["revisit"] * 0.08:
+            return
+        partner = getattr(getattr(ws, "partner", None), "id", "")
+        due = sorted((nid, m) for nid, m in self.met.items() if ws.minutes - m["minute"] >= REVISIT_AFTER and nid != partner)
+        crng.shuffle(due)
+        for nid, m in due[:6]:
+            if self._reachable(m["place"]):
+                self.goals.append({"kind": "revisit", "npc": nid, "place": m["place"], "name": m["name"], "why": "return", "tries": 0})
+                return
+
+    def goal_revisit(self, g: dict):
+        ws = self.ws
+        why = g.get("why", "return")
+        self.label("revisit:" + why)
+        if ws.player.location != g["place"]:
+            g["_long"] = True
+            return self.go_step(g, g["place"])
+        npc = next((n for n in ws.present if n.id == g["npc"]), None)
+        if npc is None:
+            g["waited"] = g.get("waited", 0) + 1
+            if g["waited"] > 2:
+                if why == "correct":
+                    plant = next((p for p in self.clog["plants"] if p["npc"] == g["npc"] and not p.get("corrected")), None)
+                    if plant:
+                        plant["missed"] = plant.get("missed", 0) + 1
+                        if plant["missed"] >= 3:
+                            plant["corrected"] = "never found"
+                self.finish(g, "dropped")
+                return None
+            return f"I wait a while to see whether {g['name']} comes by.", self.intend("wait", wait_minutes=60), "wait"
+        self.finish(g)
+        self.spoken_to.append(npc.id)
+        self.talks = 1
+        gap = ws.minutes - (self.met.get(npc.id) or {}).get("minute", ws.minutes)
+        if why == "correct":
+            plant = next(p for p in self.clog["plants"] if p["npc"] == npc.id and not p.get("corrected"))
+            plant["corrected"] = ws.store.meta.turn
+            speech = f"I owe you the truth. I told you my name was {plant['token']}. It isn't. I'm {self.c.name}."
+            self._clog("corrections", {"npc": npc.id, "token": plant["token"], "gap": gap})
+        elif why == "issuer":
+            speech = (f"The work you posted, {g.get('title') or 'the job'}: it's done. I wanted to tell you myself." if g.get("outcome") == "done"
+                      else f"I couldn't see the work you posted through, {g.get('title') or 'the job'}. I'm sorry.")
+            self._clog("issuer_visits", {"npc": npc.id, "quest_title": g.get("title", ""), "outcome": g.get("outcome", ""), "gap": gap})
+        else:
+            promised = any(p["npc"] == npc.id for p in self.clog["promises"])      # (f493) "as I said I'd be" only where it was said
+            speech = self.crng.choice(PROMISED_RETURN_LINES if promised else REVISIT_LINES)
+            self._clog("revisits", {"npc": npc.id, "name": npc.label(self.ws.acting), "gap": gap, "promised": promised})
+        self._note_met(npc)
+        return f'I go over to {npc.label(self.ws.acting)}. "{speech}"', self.intend("talk", target=npc.id, speech=speech), "talk"
+
+    def _cont_talk(self, partner):
+        """Inside a conversation: an offer this person made is taken up; the run's one lie is told; a promise is made."""
+        ws, crng = self.ws, self.crng
+        if partner is None:
+            return None
+        self._note_met(partner)                                           # the one told the lie must be found again to be set straight
+        from scenes.work_actions import offer_open
+        from engine import obligations                     # (f481)
+        took = {(a["npc"], a["kind"]) for a in self.clog["accepted"]}
+        if offer_open(ws.store, partner, ws.acting) and (partner.id, "work") not in took and crng.random() < self.CW["accept"] * 0.6:
+            self._clog("accepted", {"npc": partner.id, "kind": "work"})
+            self.label("cont:accept")
+            return '"I\'ll take the work."', self.intend("work", target=partner.id), "work"
+        if obligations.current(ws.store, "request", partner.id, ws.acting) and (partner.id, "request") not in took and crng.random() < self.CW["accept"] * 0.5:
+            self._clog("accepted", {"npc": partner.id, "kind": "request"})
+            self.label("cont:accept")
+            return '"I\'ll do it. You can count on me."', self.intend("accept_quest", target=partner.id), "board"
+        if not self.clog["plants"] and crng.random() < self.CW["lie"] * 0.25:
+            token = crng.choice(FALSE_NAMES)
+            self._clog("plants", {"npc": partner.id, "name": partner.label(self.ws.acting), "token": token, "kind": "name"})
+            self.label("cont:lie")
+            speech = f"My name is {token}, by the way."
+            return f'"{speech}"', self.intend("talk", target=partner.id, speech=speech), "talk"
+        if partner.id not in {p["npc"] for p in self.clog["promises"]} and crng.random() < self.CW["promise"] * 0.15:
+            speech = crng.choice(PROMISES)
+            self._clog("promises", {"npc": partner.id, "name": partner.label(self.ws.acting), "text": speech})
+            self.label("cont:promise")
+            return f'"{speech}"', self.intend("talk", target=partner.id, speech=speech), "talk"
+        return None
+
+    def _issuer_goal(self, g: dict, outcome: str) -> None:
+        """When a contract is over (reported, or given up): go and tell the one who posted it, if a person did and they can be reached."""
+        nid = g.get("issuer") or ""
+        if not nid or nid == "guild" or self.crng.random() >= self.CW["issuer"]:
+            return
+        try:
+            npc = self.ws.store.load_npc(nid)
+        except Exception:
+            npc = None
+        if npc is None or getattr(npc, "gone", "") or not self._reachable(npc.location):
+            return
+        self.goals.append({"kind": "revisit", "npc": nid, "place": npc.location, "name": g.get("issuer_name") or npc.label(self.ws.acting), "why": "issuer",
+                           "title": g.get("title", ""), "outcome": outcome, "tries": 0})
+
+    def _abandon(self, q: dict):
+        self._clog("abandoned", {"quest": q["id"], "title": q.get("title", ""), "issuer": q.get("issuer", "")})
+        self.label("cont:abandon")
+        self._issuer_goal({"issuer": q.get("issuer", ""), "issuer_name": q.get("issuer_name", ""), "title": q.get("title", "")}, "abandoned")
+        return f"I give up the contract: {q['title']}.", self.intend("abandon_quest", item=q["title"]), "board"
+
     def report(self) -> dict:
         s = dict(self.stats)
         s["goals_done"] = dict(self.stats["goals_done"])
         s["goals_dropped"] = dict(self.stats["goals_dropped"])
         s["places"] = len(self.visited)
+        if self.cont:                                                     # (f473) what the continuity counts compare the page against
+            s["continuity"] = {k: len(v) for k, v in self.clog.items()}
+            s["continuity_log"] = {k: list(v) for k, v in self.clog.items()}
         return s

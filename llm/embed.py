@@ -70,6 +70,27 @@ def pull_in_background() -> None:
     threading.Thread(target=run, daemon=True).start()
 
 
+def warm(session=None):
+    """(f469) One small embed on a daemon thread, so the embedder's first load is paid at the home page and not inside the first turn's
+    checks; the session owns the thread when there is one (engine/session.py own: a close waits for it). Nothing when the model is not
+    there or embedding is off. Returns the thread, or None."""
+    if not available():
+        return None
+
+    def run():
+        try:
+            from llm.gateway import threads
+            _client().embed(model=config.EMBED_MODEL, input=["clustering: ready"], keep_alive=config.KEEP_ALIVE,
+                            **({"options": threads()} if threads() else {}))
+        except Exception:
+            pass
+    t = threading.Thread(target=run, daemon=True, name="embed-warmup")
+    t.start()
+    if session is not None:
+        session.own(t)
+    return t
+
+
 def vectors(texts: list[str]) -> list[list[float]] | None:
     """One vector per text, from the cache where it can. None if the model is not there or fails."""
     if not available():
@@ -85,6 +106,8 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
         except Exception:
             _state["failed"] = True
             return None
+        from engine import budget
+        budget.embed(len(want))                       # (f468) the texts this call read, on the turn's budget (part of the required path)
         with _lock:
             for t, v in zip(want, got):
                 n = math.sqrt(sum(x * x for x in v)) or 1.0

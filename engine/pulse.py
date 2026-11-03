@@ -152,7 +152,8 @@ def news_for(store, world, npc, now: int, limit: int = 5) -> list[str]:
     """News this person has heard: it must have reached where they are, and be news their circles would carry; the window turns over
     by the day (news_window)."""
     state = store.load_world_state()
-    groups = set(npc.knowledge_groups) | {"everyone"}
+    from engine import circumstance                          # (f483) the circles they were raised among, and where they live now
+    groups = circumstance.groups(world, npc) | {"everyone"}
     return [news_text(n, now) for n in news_window(state, world, npc.location, now, limit, key=f"{store.meta.seed}:{getattr(npc, 'id', 'here')}", groups=groups)]
 
 
@@ -236,12 +237,14 @@ def catch_up(store, world, catalog, now: int) -> dict:
         slot_chance = P["interval_hours"] / (events.E["campaign"]["every_days"] * 24)
         if not state.get("campaign") and rng.random() < slot_chance and budget > 0:
             done = False
+            LAST["attempted"] = ""
             if events.cataclysm_due(state, t, events.player_level(store), rng):
                 done = events.start_cataclysm(store, world, catalog, state, t, rng)
             if not done:
                 done = start_thread(store, world, catalog, state, t, rng, tier="campaign")
-            if done:
+            if done or LAST["attempted"] == "model":                   # (f466) a call made is spent, whatever came of it (survey 12.16)
                 budget -= 1
+            if done:
                 changed = True
             continue
         if rng.random() >= P["eventful_chance"]:
@@ -252,18 +255,19 @@ def catch_up(store, world, catalog, now: int) -> dict:
             engine_made = bool(motives.M.get("engine", True))
             if (budget <= 0 and not engine_made) or (engine_budget <= 0 and engine_made):
                 continue
+            LAST["attempted"] = ""
             done = move_motive(store, world, catalog, state, t, rng)
-            if done and engine_made:
+            if LAST["attempted"] == "model":                           # (f466) the cap counts the calls made, not the situations that came of them:
+                budget -= 1                                            # a model that fails every try is tried twice an operation, not once a pulse
+            elif done and engine_made:
                 engine_budget -= 1
-            elif done:
-                budget -= 1
         else:
-            LAST["made_by"] = ""
+            LAST["made_by"] = LAST["attempted"] = ""
             done = start_thread(store, world, catalog, state, t, rng, allow=(budget > 0, engine_budget > 0))
+            if LAST["attempted"] == "model":                           # (f466) as above: the call was made, so it is spent
+                budget -= 1
             if done and LAST["made_by"] == "engine":
                 engine_budget -= 1
-            elif done:
-                budget -= 1
         if done:
             changed = True
     from engine import drift
@@ -274,7 +278,8 @@ def catch_up(store, world, catalog, now: int) -> dict:
 
 
 FINISHED_KEPT = 30
-LAST = {"made_by": ""}            # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget)
+LAST = {"made_by": "", "attempted": ""}   # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget);
+                                          # (f466) and who was asked to, whatever came of it: a model call made counts against the cap
 
 
 # ---------- threads ----------
@@ -330,6 +335,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     from engine import threads, truth
     proposal, info = None, None
     engine_made = made_by == "engine" or (not made_by and rule.get("engine"))
+    LAST["attempted"] = "engine" if engine_made else "model"         # (f466) the attempt is on the record before its outcome is
     if not engine_made:
         system = pp.THREAD_SYSTEM + (pp.BIG_EXTRA if big else "")
         extra = ""
@@ -343,6 +349,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
                 validation_context={"stages": rule["stages"], "known": truth.world_words(world)},      # (f323) nothing named that the world does not have
             )
         except LLMError as e:
+            if getattr(e, "budget", False):
+                LAST["attempted"] = ""                          # (f469) the budget skipped the call: no attempt against the cap (owner question 7)
             if rule.get("fallback") != "engine" or made_by == "model":
                 console.debug(f"pulse: no situation this time ({e})")
                 pulselog.note("miss", f"tried to start a {tier} situation at {place.name}: the model gave nothing usable ({e})")
@@ -384,7 +392,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
         state["campaign"] = thread["id"]
-    add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
+    add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id, certainty="they say")
     here = home_town(world, store.load_player().location) if store.player_exists() else ""
     row = pulselog.note("thread", thread_row_text(tier, bool(info), proposal.title, world.places[proposal.place].name, days, rule["stages"]),
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
@@ -514,7 +522,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             stage = th["stages"][th["stage"]]
             row = pulselog.note("stage", f"{th['title']} - stage {th['stage'] + 1}/{len(th['stages'])}: {stage['description'][:140]}", place=th["place"])
             apply_effects(store, world, catalog, state, stage["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
-            add_news(state, stage["description"], th["place"], t, th["groups"], thread=th["id"])
+            add_news(state, stage["description"], th["place"], t, th["groups"], thread=th["id"], certainty="they say")
             if th["tier"] == "cataclysm":
                 events.on_stage(store, world, catalog, state, th, t, rng)
             elif th["tier"] in events.BIG:
@@ -522,7 +530,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             changed = True
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
-                who = resolver(store, world, th, rng)
+                who = resolver(store, world, th, rng, t)
                 pulselog.note("end", f"{th['title']} - settled by {who}", how="settled", place=th["place"], tier=th["tier"])
                 end_thread(store, state, th, "resolved", f"{th['title']} - settled by {who}.", t)
                 th["result"] = "others"
@@ -546,23 +554,26 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
     return changed
 
 
-def resolver(store, world, th, rng) -> str:
+def resolver(store, world, th, rng, t: int | None = None) -> str:
     """Who dealt with it, off-screen: one of the town's anchors when one fits (f323), a guild contractor sometimes, else the watch or
-    the people. Whoever it was remembers it, and so does the town."""
+    the people. Whoever it was remembers it, and so does the town. t: when (the matter's last time when not given)."""
+    t = int(th["times"][-1]) if t is None else t
     from engine import retrieval
     from npc.models import Memory
     town = town_of(world, th["place"])
     anchors = [n for n in store.load_npcs([r.id for r in retrieval.people_in_town(store, world, town)]) if n.anchor]
     if anchors and rng.random() < P.get("anchor_settles", 0.5):
         n = rng.choice(anchors)
-        n.memories.append(Memory(day=clock.day(th["times"][-1]), turn=-1, text=f"I dealt with {th['title'].lower()} myself, in the end.", importance=2))
+        n.memories.append(Memory(day=clock.day(th["times"][-1]), turn=-1, text=f"I dealt with {th['title'].lower()} myself, in the end.", importance=2,
+                                 kind="own_life", subject="", source="self", minute=int(th["times"][-1])))     # (f478) their own life
         store.save_npc(n)
         return f"{n.name}, the {n.role.replace('_', ' ')}"
     if rng.random() < 0.4:
         for n in store.load_npcs([r.id for r in store.npc_rows(role="guild_contractor", gone=False)][:1]):     # the first, as before
-            n.mood = rng.choice([f"proud, after settling {th['title'].lower()}",
-                                 f"nursing a fresh wound from {th['title'].lower()}",
-                                 f"flush with coin from {th['title'].lower()}"])
+            from engine import circumstance                # (f483) with its cause and its clock
+            circumstance.set_mood(n, rng.choice([f"proud, after settling {th['title'].lower()}",
+                                                 f"nursing a fresh wound from {th['title'].lower()}",
+                                                 f"flush with coin from {th['title'].lower()}"]), t, f"thread:{th['id']}")
             store.save_npc(n)
             return f"{n.name}, a guild contractor"
     place = world.places.get(th["place"])
@@ -590,6 +601,13 @@ def lift(state: dict, th: dict, t: int) -> None:
 
 def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     lift(state, th, t)
+    from engine import circumstance                          # (f483) the worry the matter gave the people in it goes with it
+    for nid in sorted({c.get("npc") for c in th.get("clues", []) if c.get("npc")} | ({th["sender"]} if th.get("sender") else set())):
+        if store.npc_exists(nid):
+            n = store.load_npc(nid)
+            if circumstance.release_concern(n, th["id"], "settled" if status == "resolved" else "let_go", t,
+                                            line=f"{th['title']} is over, and off my mind." if status == "resolved" else f"{th['title']} came to its end."):
+                store.save_npc(n)
     th["status"] = status
     th["ended_at"] = t
     if state.get("campaign") == th["id"]:
@@ -637,8 +655,10 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     npc = rng.choice(movers)
     from engine import motives
     if motives.M.get("engine", True):                                   # (f360) the engine's own step: no call
+        LAST["attempted"] = "engine"
         last[npc.id] = t
         return motives.move(store, world, state, npc, t, rng)
+    LAST["attempted"] = "model"                                         # (f466) the call is about to be made: counted whatever comes of it
     place = world.places[npc.location]
     request = (f"PERSON: {npc.id} - {npc.name}, {npc.people} {npc.role.replace('_', ' ')}\n"
                f"PERSONALITY: {npc.personality}\nTRAITS: {', '.join(npc.traits)}\nWORRY: {npc.concern}\n"
@@ -648,6 +668,8 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     try:
         step = generate("pulse_motive", pp.MOTIVE_SYSTEM, request, MotiveStep, temperature=0.9, max_tokens=900)
     except LLMError as e:
+        if getattr(e, "budget", False):
+            LAST["attempted"] = ""                              # (f469) as above
         console.debug(f"pulse: {npc.name}'s life holds still ({e})")
         return False
     last[npc.id] = t
@@ -658,10 +680,10 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     if step.status != "continuing":
         npc.motive_done_at = t                                      # (f331) after a while a new one may take hold (engine/drift.py)
     from npc.models import Memory
-    npc.memories.append(Memory(day=clock.day(t), turn=-1, text=f"(my own life) {step.happened}"))
+    npc.memories.append(Memory(day=clock.day(t), turn=-1, text=step.happened, kind="own_life", subject="", source="self", minute=int(t)))   # (f478)
     store.save_npc(npc)
     if step.gossip.strip():
-        add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"])
+        add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
     state["history"].append({"minute": t, "text": f"{npc.name}: {step.happened}", "place": npc.location})
     console.debug(f"pulse: {npc.name} - {step.happened} [{step.status}]")
     return True
@@ -713,8 +735,8 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         npc.relations[e["other"]] = r
         store.save_npc(npc)
     elif kind == "mood" and npc and e.get("text"):
-        npc.mood = e["text"]
-        npc.mood_until = t + P.get("drift", {}).get("moods", {}).get("days", 6) * 1440      # (f331) a mood the world gave fades
+        from engine import circumstance                        # (f331) a mood the world gave fades; (f483) and says what gave it
+        circumstance.set_mood(npc, e["text"], t, e.get("thread") and f"thread:{e['thread']}" or "the world")
         store.save_npc(npc)
     elif kind == "move" and npc and known(world, e.get("place")):
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
@@ -732,9 +754,9 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         ps.extra_roles[e["role"]] = ps.extra_roles.get(e["role"], 0) + 1
         store.save_place(ps)
     elif kind == "trait" and npc and catalog and tier in P["may_change_traits"]:
-        from npc.traits import change_trait
+        from engine import identity                       # (f483) the one way who someone is changes: kept, and remembered
         if e.get("remove") in npc.traits and e.get("add") in catalog.traits and e["add"] not in npc.traits:
-            change_trait(npc, catalog, e["remove"], e["add"], cause, clock.day(t))
+            identity.revise(npc, catalog, e["remove"], e["add"], cause, t)
             store.save_npc(npc)
     elif kind in ("prices", "danger") and (known(world, e.get("place")) or (kind == "danger" and e.get("place") in world.roads)):
         lo, hi = lim[kind]["min"], lim[kind]["max"]
@@ -761,10 +783,10 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         data = store.load_discoveries()
         if discovery.add_lead(data, e["place"], e["text"], t, random.Random(f"{t}:lead:{e['place']}")):
             store.save_discoveries(data)
-            add_news(state, e["text"], e["place"], t, [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"])
+            add_news(state, e["text"], e["place"], t, [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"], certainty="they say")
     elif kind == "fact" and e.get("text"):
         add_news(state, e["text"], e.get("place") or "", t,
-                 [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"])
+                 [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"], certainty="they say")
     else:
         return "ignored: the person or place it names is unknown, or the change is not allowed here"
     state["effects"] = [x for x in state["effects"] if x["until"] > t - 1440]
@@ -789,7 +811,10 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). Left
     None (a model's own words for it), the words are read for a death as before."""
     npc.gone = how
-    npc.work_offer = npc.quest_offer = None
+    from engine import obligations                         # (f481) what they offered ends with them, for that reason
+    for e in obligations.open_ones(store, holder=npc.id):
+        fam = e.data.get("family")
+        obligations.close(store, e, "withdrawn" if fam == "work" else "released", "gone" if fam != "contract" else "issuer_gone", t, npc=npc)
     store.save_npc(npc)
     store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": dead, "mourned": mourned})
     ps = store.load_place(npc.location)
@@ -802,6 +827,7 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     for q in list(player.quests):
         if q.get("issuer") == npc.id or (q.get("kind") == "deliver" and q.get("to_name") and q["to_name"] in npc.name):
             player.quests.remove(q)
+            obligations.close(store, obligations.find(store, str(q["id"])), "released", "issuer_gone", t)   # (f481)
             c.key_items = [k for k in c.key_items if k.id != f"quest_{q['id']}"]
             c.item_history.append(f"{q['title']} - it came to nothing. {npc.name}: {how} (day {clock.day(t)}).")
     for order in list(player.commissions):
@@ -812,7 +838,7 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     store.save_player(player)
 
 
-NEWS_KEEP = 300
+NEWS_KEEP = int(P["news"].get("keep", 300))     # (f482) in data (pulse.yaml news.keep)
 
 
 def cap_news(news: list) -> list:
@@ -830,11 +856,13 @@ def cap_news(news: list) -> list:
     return out[-NEWS_KEEP:]
 
 
-def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: str = "") -> None:
+def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: str = "", *, certainty: str = "sure", source: str = "") -> None:
     """A piece of news. `thread` (f331) ties it to the situation it is about, so arrival can find a situation's own news. The same
     news from the same place while the first telling is still news is one tale told again, not a second row: the row counts its
     tellings (`times`, read by news_text) and becomes the newest. A tale of the player's deeds (engine/standing.py, `deed`) is never
-    folded: each one moves standing where it arrives."""
+    folded: each one moves standing where it arrives. (f482) Each says how sure it is: `certainty` sure (the engine's own fact), they
+    say (words the model wrote: a situation's telling, a road's news, gossip), rumour (a tale twisted in the telling); `source` who it came
+    from, when one person did. Folding keeps both: a tale told again keeps its first teller."""
     if not (text and text.strip()):
         return
     text = text.strip()
@@ -847,10 +875,15 @@ def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: s
             n["groups"] = list(dict.fromkeys(list(n["groups"]) + list(groups)))
             if thread:
                 n["thread"] = thread
+            n.setdefault("certainty", certainty)
+            if source and not n.get("source"):
+                n["source"] = source
             news.append(news.pop(i))
             state["news"] = cap_news(news)
             return
-    row = {"text": text, "origin": origin, "minute": t, "groups": groups}
+    row = {"text": text, "origin": origin, "minute": t, "groups": groups, "certainty": certainty}
+    if source:
+        row["source"] = source
     if thread:
         row["thread"] = thread
     news.append(row)

@@ -124,11 +124,10 @@ def wants_to_go_on(text: str) -> bool:
 
 
 def make_contract(now: int) -> dict:
-    """The first contract: three wolves in the Greywood, no time limit, so it is still there if the player has to try again."""
+    """The first contract: three wolves in the Greywood, still there if the player has to try again (f491: no contract runs out)."""
     H = M["hunt"]
     title = H["title"].format(name=NAME)
     q = quests._quest("hunt", "F", title, now, place=H["place"], creature=H["creature"], count=H["count"])
-    q["deadline"] = None
     q["mentor"] = True
     return q
 
@@ -467,17 +466,24 @@ def chat_request(player, where: str, text: str, scene: str = "", unsaid: str = "
     return f"FACTS:\n{facts(player, where, text + ' ' + scene)}{now}{more}\n\nWHAT WAS SAID LATELY:\n{talk}\n\nTHE PLAYER SAYS TO YOU: {text}"
 
 
+def _chat_cap() -> int:
+    """(f479) How much of what was said between Maren and the player she keeps: one number (data/rules/memory.yaml maren.chat), where
+    there were two (twelve after a talk, twenty-four after a line of hers)."""
+    from engine import memory
+    return int((memory.caps().get("maren") or {}).get("chat") or 24)
+
+
 def remember_chat(player, text: str, reply: str) -> None:
     log = player.mentor.setdefault("chat", [])
     log += [["Player", text[:300]]] + ([[NAME.split()[0], reply[:400]]] if reply else [])
-    del log[:-12]
+    del log[:-_chat_cap()]                                   # (f479) one cap, in data
     if reply:
         player.mentor["last_voice"] = True
 
 
 def make_npc(player, minutes: int, turn: int, place_id: str):
     """Her record as a person of the world once the tutorial is over: what she remembers of the player, how she feels, where she is."""
-    from npc.models import NPC, Memory
+    from npc.models import NPC, Memory, Regard
     from engine import clock
     said = [t for who, t in player.mentor.get("chat", []) if who == "Player" and t.strip()]
     day = clock.day(minutes)
@@ -491,8 +497,10 @@ def make_npc(player, minutes: int, turn: int, place_id: str):
     npc = NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
               epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
               concern="Things where they do not belong, and the work the capital sent her south to do.",
-              trust=65, mood="fond of the player, though she would not say so", name_known_to_player=True, met_player=True,
-              knows_player_as=player.character.name, protected=True, memories=mem,
+              mood="fond of the player, though she would not say so", mood_source="the lesson", concern_state="active",   # (f483)
+              protected=True, memories=mem,
+              regard={player.character.id: Regard(trust=65, met=True, name_known=True, knows_as=player.character.name,   # (f480) hers of them
+                                                  knows_as_source="self")},
               gone=M["npc"]["gone"])                                 # (f382) she goes on her way: a record, in no place
     return own_voice(npc, player)
 
@@ -569,7 +577,7 @@ def remember_said(player, text: str) -> None:
     """What she has just said goes into the lately-said log, so the next thing she says follows from it."""
     log = player.mentor.setdefault("chat", [])
     log.append([NAME.split()[0], text[:400]])
-    del log[:-24]
+    del log[:-_chat_cap()]                                   # (f479) one cap, in data
     player.mentor["last_voice"] = True
 
 

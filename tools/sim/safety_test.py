@@ -39,10 +39,10 @@ def _boom(self_, text):
     st.save_player(w.player)
     st.meta.turn += 1
     raise LLMError("the model failed after the save")
-_h = WorldScene.handle
-WorldScene.handle = _boom
+_h = WorldScene.take_line                            # (f463) the line's first operation; (f470) the line taken whole, inside it
+WorldScene.take_line = _boom
 ok = w.turn("I pick up a rock")
-WorldScene.handle = _h
+WorldScene.take_line = _h
 check("a turn in which the model fails after a save is rolled back: nothing kept", ok is False and st.load_player().character.coins == coins0
       and CampaignStore.open_or_create("safety").meta.turn == turn0, (ok, st.load_player().character.coins, coins0))
 check("...and what the scene holds in memory is put back too", w.player.character.coins == coins0, w.player.character.coins)

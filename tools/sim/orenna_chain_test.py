@@ -9,7 +9,13 @@ SAID, NOTES, ANSWERS = [], [], []
 uc.say = lambda t, s="": SAID.append((s, t))
 uc.narrate = lambda t: SAID.append(("narrate", t))
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
-uc.ask = lambda: ANSWERS.pop(0) if ANSWERS else "n"
+def no_ask(*a, **k):
+    raise AssertionError("the world asked in the middle of a turn (f460: a question ends the turn; the next line answers it)")
+uc.ask = no_ask
+def answer_all():
+    """(f460) A question of the quest's ends the turn; the lines in ANSWERS are typed next, each answering the question that stands."""
+    while ANSWERS and store.load_question():
+        ws.handle(ANSWERS.pop(0))
 from engine import combat, orenna, pools, dungeons
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
@@ -59,6 +65,8 @@ check("the contact does not come at once", orenna.stage(player) == "named" and n
 store.meta.minutes = o["due"] + 1
 ANSWERS[:] = ["I heard it in a dream", "y"]
 ws.orenna_tick()
+check("the stranger's question ends the turn (f460)", bool(store.load_question()) and store.load_question()["kind"] == "orenna_name" and orenna.stage(player) == "contact", store.load_question())
+answer_all()
 check("the contact asks how you know the name and the coin is shown", any("half-circle" in t for s, t in SAID if s == "narrate") and any("how you came by it" in t for s, t in SAID))
 check("agreeing takes you to the ruin", orenna.stage(player) == "ruin" and player.location == "dungeon_first_hall", (orenna.stage(player), player.location))
 d = next(x for x in store.load_dungeons() if x["id"] == "dungeon_first_hall")
@@ -109,7 +117,7 @@ check("no step repeats elsewhere", orenna.stage(player) == "registry")
 o2_before = list(o["trails_done"])
 ws.orenna_executioner_test = None
 ANSWERS[:] = ["y"]
-ws.orenna_executioner()
+ws.orenna_executioner(); answer_all()
 check("pressing him starts a fight", FIGHTS and FIGHTS[-1][0] == "bound_executioner")
 ws.orenna_fight_over("victory")
 check("he escapes in a flash, saying nothing", any("flash of pale light" in t for s, t in SAID if s == "narrate") and not any("Thank you" in t for s, t in SAID))
@@ -134,21 +142,31 @@ check("the Executioner is bound", bound.bound)
 check("strong evidence leaves the keeper with no guards to summon", keeper.boss["guards"] >= 4, keeper.boss)
 check("the keeper has the phases of a boss", keeper.boss["tier"] == "leader" and "lines" in keeper.boss)
 
-# wresting the seal
+# wresting the seal (f460: bloodied, the keeper is marked; the scene asks once the round is told; the next line answers)
 fight = combat.Combat(fighters=[combat.fighter_from_character(c), keeper, bound])
-ANSWERS[:] = ["y"]
-orenna.O["confront"]["seal"]["ask"]
-import random as _r
 keeper.boss["evidence"] = 3.0
+NOTES.clear()
+orenna.seal_prompt(fight, keeper)
+check("bloodied, the seal is marked for the question and nothing is asked in the middle of the round", keeper.boss.get("seal_ask") is True and not NOTES, NOTES)
+ws.combat = REAL(ws, fight, "high_keeper")
+ws.seal_ask()
+asked = store.load_question()
+check("the scene asks once the round is told, and the question ends the turn", bool(asked) and asked["kind"] == "seal" and "seal_ask" not in keeper.boss and ws.halted and any("seal" in n for n in NOTES), (asked, NOTES))
 tries = 0
 while any(f.bound for f in fight.fighters) and tries < 40:
     fight.round = tries + 1
-    ANSWERS[:] = ["y"]
-    orenna.seal_prompt(fight, keeper); tries += 1
-check("the seal can be wrested, freeing the Executioner from the fight", not any(f.bound for f in fight.fighters))
-fight2 = combat.Combat(fighters=[combat.fighter_from_character(c), keeper, bound]); ANSWERS[:] = ["n"]
-orenna.seal_prompt(fight2, keeper)
-check("declining leaves him bound", any(f.bound for f in fight2.fighters))
+    if not store.load_question():
+        keeper.boss["seal_ask"] = True
+        ws.seal_ask()
+    ws.handle("y"); tries += 1
+check("the seal can be wrested by the next line, freeing the Executioner from the fight", not any(f.bound for f in fight.fighters))
+check("the question is spent once answered", store.load_question() is None)
+fight2 = combat.Combat(fighters=[combat.fighter_from_character(c), keeper, bound])
+ws.combat = REAL(ws, fight2, "high_keeper")
+keeper.boss["seal_ask"] = True
+ws.seal_ask(); ws.handle("n")
+check("declining leaves him bound, and the narrator is told he fights on", any(f.bound for f in fight2.fighters) and any("never leaves" in s for s in fight2.story), fight2.story)
+ws.combat = None
 
 # losing is not the end
 ws.orenna_fight_over("defeat")

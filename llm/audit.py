@@ -96,7 +96,10 @@ def record(task: str, attempt: int, elapsed: float, messages: list[dict], raw: s
             _turn_written = _turn
         why = A["tasks"].get(task, "")
         verdict = "accepted" if error is None else f"rejected - {error}"
-        lines.append(f"\n## #{_count} · {task} · attempt {attempt + 1} · {elapsed:.1f}s" + (f" · {model}" if model else ""))
+        from engine import operation as _op
+        op = _op.current()
+        where = f" · operation {op.id} ({op.kind})" if op is not None else " · outside any operation"      # (f471) the key to the turn log's ops
+        lines.append(f"\n## #{_count} · {task} · attempt {attempt + 1} · {elapsed:.1f}s" + (f" · {model}" if model else "") + where)
         lines.append(f"**Why:** {why or task}  ")
         lines.append(f"**Verdict:** {verdict}\n")
         system = next((m["content"] for m in messages if m["role"] == "system"), "")

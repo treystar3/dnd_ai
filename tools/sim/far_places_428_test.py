@@ -73,7 +73,7 @@ stop.update(bound=far.to)
 ws.player.road = stop
 ws.ensure_road_place()
 ws.enter(stop["id"])
-ahead = max(world.places[stop["id"]].connects, key=world.places[stop["id"]].connects.get)
+ahead = max(ws.world.places[stop["id"]].connects, key=ws.world.places[stop["id"]].connects.get)     # (f451) the stop is on the campaign's map
 w, a = move(ahead, "I walk on.")
 check("walking on from a stop on the road goes on the way the journey was going", w == [ahead], (ahead, w, a))
 

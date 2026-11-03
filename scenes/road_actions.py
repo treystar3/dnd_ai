@@ -33,7 +33,7 @@ class RoadActions:
     def ensure_road_place(self) -> None:
         road = self.player.road
         if road and road["id"] not in self.world.places:
-            self.world.places[road["id"]] = Place(**road["place"])
+            self.world.add_place(Place(**road["place"]))             # (f451) through the campaign's world
 
     def leave_road(self, new_place: str) -> None:
         """Called when the player stands anywhere but the stop: tidy it away."""
@@ -45,7 +45,7 @@ class RoadActions:
             if not npc.gone:
                 pulse.remove_npc(self.store, self.world, npc, "moved on along the road", self.minutes, dead=False)
         self.player.road = None
-        self.world.places.pop(road["id"], None)
+        self.world.remove_place(road["id"])                         # (f451) the only place ever taken off the map, with its ways
         self.end_conversation()
         self.last_spoken = None
         self.present = []
@@ -236,6 +236,8 @@ class RoadActions:
             stop = roads.make_stop(self.world, a, b, frac, minutes, ev.scene, role, ev.title, ev.detail, stop_name)
             stop.update(log=log[-6:], text=text, resume=(route[-1] if resume is None else resume) if hostile else "",
                         bound=route[-1], kind=kind, tier=tier)
+            back, onward = list(stop["place"]["connects"])[0], list(stop["place"]["connects"])[-1]   # (f492) the stop's own ends, real places:
+            back, onward = self.world.places[back].name, self.world.places[onward].name               # `a` may be the stop left behind, tidied next
             if camp:
                 stop["camp"] = max(1, round(sum(self.world.places[wild].danger) / 2))
             if (self.player.road or {}).get("id") not in stop["place"]["connects"]:      # (f426) never one the new stop is joined to
@@ -260,7 +262,7 @@ class RoadActions:
                     console.note("You saw them before they saw you (Scout Ahead).")
                 return "fight"
             self.stop_waits(ev, kind, tier, b, prize)
-            console.note(f"You stop here, on the road. Onward to {self.world.places[b].name}, or back to {self.world.places[a].name}.")
+            console.note(f"You stop here, on the road. Onward to {onward}, or back to {back}.")
             self.show_exits()
             return "stopped"
         return "go"
@@ -288,7 +290,7 @@ class RoadActions:
             role = (self.world.places[road["id"]].residents or {})
             who = next((n for n in self.present if n.role in role), None)
             if who is not None:
-                road["aid"] = {"who": who.id, "name": who.label(), "need": (ev.detail or ev.title).strip(), "tier": tier}
+                road["aid"] = {"who": who.id, "name": who.label(self.acting), "need": (ev.detail or ev.title).strip(), "tier": tier}
         self.store.save_player(self.player)
 
     def stop_step(self, intent, refused: bool) -> None:
@@ -377,11 +379,11 @@ class RoadActions:
         t = self.minutes
         near = a if self.rng.random() < 0.5 else b
         if ev.news.strip():
-            pulse.add_news(state, ev.news, near, t, ["everyone"])
+            pulse.add_news(state, ev.news, near, t, ["everyone"], certainty="they say")
         lim_v, lim_d = R["danger_effect"]["max_value"][tier], R["danger_effect"]["max_days"][tier]
         for e in ev.effects:
             if e.kind == "fact" and e.text:
-                pulse.add_news(state, e.text, near, t, [g for g in e.groups if g in self.world.knowledge_groups] or ["everyone"])
+                pulse.add_news(state, e.text, near, t, [g for g in e.groups if g in self.world.knowledge_groups] or ["everyone"], certainty="they say")
             elif e.kind == "mark" and e.place in self.world.places and e.text and not self.world.places[e.place].danger:
                 ps = self.store.load_place(e.place)
                 ps.marks = (ps.marks + [e.text])[-12:]
@@ -392,7 +394,7 @@ class RoadActions:
                 data = self.store.load_discoveries()
                 if discovery.add_lead(data, spot, e.text, t, self.rng):
                     self.store.save_discoveries(data)
-                    pulse.add_news(state, e.text, spot, t, ["everyone"])
+                    pulse.add_news(state, e.text, spot, t, ["everyone"], certainty="they say")
             elif e.kind == "danger" and e.value:
                 key = e.place if e.place in self.world.roads else roads.edge_key(self.world, a, b)
                 state.setdefault("effects", []).append({"kind": "danger", "place": key, "value": max(-lim_v, min(lim_v, e.value)),

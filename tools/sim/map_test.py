@@ -64,8 +64,7 @@ ws.player.heard.append(nb)
 NOTES.clear(); ws.command("#map")
 check("a place you have heard of is listed in text", any("away" in n and "heard of" in n for n in NOTES), NOTES)
 
-mapview.LAYOUT_CACHE.clear()
-w2 = load_world()
+w2 = load_world()                                                  # (f452) a fresh world has a fresh layout of its own
 t = next(p for p in w2.places.values() if not p.parent)
 t.x, t.y = 123.0, 456.0
 check("own x/y overrides the layout", mapview.layout(w2)[t.id] == (123.0, 456.0))

@@ -7,6 +7,7 @@ import random
 import re
 
 from engine import arcs, checks, clock, field, leveling, money, pulse, quests
+from engine import regard                                   # (f480)
 from engine.arcs import A
 from engine.arc_prompts import SYSTEM, user
 from llm.contracts import ArcStory
@@ -128,7 +129,6 @@ class ArcActions:
         q["title"] = s["hook_title"]
         q["multiplier"] = A["contract_mult"][size]
         q["rank_credit"] = A["rank_credit"][size]
-        q["deadline"] = None
         first = arcs.node(arc, "n1")
         tpl = arcs.TEMPLATES[arc["template"]]
         self.log_arc(arc, tpl["words"]["start"].format(name=self.mid_sentence(s["victim_name"]), looks=s["victim_looks"].rstrip("."),
@@ -164,8 +164,30 @@ class ArcActions:
         except LLMError as e:
             console.debug(f"arc story: model failed ({e}); using plain wording")
             out = self.plain_story(arc, nodes)
+            from engine import budget
+            if isinstance(e, budget.Deferred):
+                out["plain"] = True                             # (f469) plain for now: a later turn's tail dresses it (redress_arc)
+                self.defer("arc", {"arc": arc["id"]})
         out["nodes"] = [{**n} for n in out["nodes"]]
         return out
+
+    def redress_arc(self, arc_id: str) -> None:
+        """(f469) An arc dressed in plain wording because its one call was deferred: dressed now, when the budget allows, and its contract
+        retitled; deferred or dropped again, the plain wording stands."""
+        data = self.arc_data()
+        arc = next((a for a in data.get("arcs", []) if a.get("id") == arc_id), None)
+        if arc is None or not (arc.get("story") or {}).get("plain"):
+            return
+        q = next((x for x in self.player.quests if x.get("arc") == arc_id), None)
+        if q is None:
+            return
+        story = self.dress_arc(arc, q)
+        if story.get("plain"):
+            return
+        arc["story"] = story
+        self.store.save_arcs(data)
+        q["title"] = story.get("hook_title") or q.get("title", "")
+        self.store.save_player(self.player)
 
     def plain_story(self, arc: dict, nodes: list[dict]) -> dict:
         rng = random.Random(arc["id"])
@@ -373,8 +395,11 @@ class ArcActions:
         npc = NPC(id=_unique_id(self.store, f"prisoner {name}"), name=name, gender=gender, people=folk, role="prisoner",
                   location=self.player.location, epithet=epithet,
                   description=looks or "Bound, bloodied and watching you.", activity="sitting bound where you left them",
-                  protected=True, name_known_to_player=named,
-                  trust=max(0, min(100, PR["trust_start"] + self.player.outlaw_rep // 5)))
+                  protected=True)
+        from engine import regard                           # (f480) the captive's view of the one who took them
+        regard.own(npc, self.acting).name_known = named
+        regard.set_trust(npc, self.acting, max(0, min(100, PR["trust_start"] + self.player.outlaw_rep // 5)), cause="taken captive",
+                         minute=self.minutes)
         assign_traits(npc, self.catalog, npc_rng(self.store.meta.seed, npc.id))
         self.store.save_npc(npc)
         ps = self.store.load_place(self.player.location)
@@ -393,7 +418,7 @@ class ArcActions:
         self.residents = self.residents + [npc]
         self.refresh_present()
         w = entities.WORDS[entities.GENDER[gender]]
-        console.note(f"{cap_first(npc.label())} throws down {w['their']} weapon and yields. Question {w['them']}, let {w['them']} go, "
+        console.note(f"{cap_first(npc.label(self.acting))} throws down {w['their']} weapon and yields. Question {w['them']}, let {w['them']} go, "
                      f"hand {w['them']} to the watch, or put an end to it.")
         return npc
 
@@ -463,7 +488,7 @@ class ArcActions:
                 rep_open = self.player.outlaw_rep >= M["open_at"]
                 if self.player.outlaw_rep <= M["shut_at"]:
                     gate += M["shut_extra_trust"]
-        open_ = (pr and pr["deal"]) or degree in ("success", "strong success") or npc.trust >= gate or rep_open
+        open_ = (pr and pr["deal"]) or degree in ("success", "strong success") or regard.of(npc, self.acting).trust >= gate or rep_open
         what = f"what this is about and who is behind it" if secret["kind"] == "arc" else "something worth knowing about the roads"
         if open_:
             clue = self.secret_text(secret)
@@ -523,7 +548,7 @@ class ArcActions:
 
     def trail_goes_cold(self, data: dict, arc: dict, n: dict, npc) -> None:
         """They will not talk. The trail turns up another way - slower."""
-        console.note(f"{cap_first(npc.label())} will say no more. You find the thread another way, at a cost of time.")
+        console.note(f"{cap_first(npc.label(self.acting))} will say no more. You find the thread another way, at a cost of time.")
         n["clue_given"] = True
         text = self.secret_text({"kind": "arc", "node": n["id"], "arc": arc["id"], "victim": ""})
         self.advance_arc(data, arc, n, True, text)
@@ -561,7 +586,7 @@ class ArcActions:
         towns = sorted({n["place"] for n in arc["nodes"] if n["kind"] == "contact"})
         self.arc_effects(arc, state, towns, failure=False)
         if towns:
-            pulse.add_news(state, f"Word along the roads of trouble that has a name now: {s['title']}.", towns[0], self.minutes, ["everyone"])
+            pulse.add_news(state, f"Word along the roads of trouble that has a name now: {s['title']}.", towns[0], self.minutes, ["everyone"], certainty="they say")
         self.store.save_world_state(state)
         self.weight_hint = "rich"
 
@@ -698,7 +723,7 @@ class ArcActions:
             chance = min(X["chance_most"], X["chance_per_day"] * (day + 1))
             if random.Random(f"{self.store.meta.seed}:{e.ref}:slip:{day}").random() < chance:
                 w = entities.WORDS.get(e.pronoun, {"them": "them", "their": "their"})
-                console.note(f"{cap_first(npc.label())} has worked {w['their']} bonds loose and slipped away while you were not watching.")
+                console.note(f"{cap_first(npc.label(self.acting))} has worked {w['their']} bonds loose and slipped away while you were not watching.")
                 self.drop_prisoner(npc, "slipped their bonds and got away", partial_node=True, state="escaped")
 
     def bring_prisoners(self, place_id: str) -> None:
@@ -745,11 +770,11 @@ class ArcActions:
         node_pending = pr.get("node")
         self.end_conversation()
         self.drop_prisoner(npc, "handed over to the watch", partial_node=bool(node_pending), state="handed_over")
-        self.standing_report("prisoner_handed_over", [guard], npc.label())
-        console.note(f"{cap_first(guard.label())} takes {npc.label()} into custody. Paid: {money.fmt(coins)}"
+        self.standing_report("prisoner_handed_over", [guard], npc.label(self.acting))
+        console.note(f"{cap_first(guard.label(self.acting))} takes {npc.label(self.acting)} into custody. Paid: {money.fmt(coins)}"
                      + (" - and it counts toward your bounty." if bounty else "."))
         self.weight_hint = "brief"
-        self.narrate(f"The player hands the bound captive {npc.name} over to {guard.name}, {guard.label()}. "
+        self.narrate(f"The player hands the bound captive {npc.name} over to {guard.name}, {guard.label(self.acting)}. "
                      "Describe the handover.", text)
         self.store.save_player(self.player)
 
@@ -810,7 +835,7 @@ class ArcActions:
                 f"A traveler broke a promise of mercy and killed a captive." if broke else "A traveler put a captive outlaw to the sword.")
         pulse.add_news(state, news, pulse.town_of(self.world, self.player.location), self.minutes, ["outlaws", "hunters"])
         self.store.save_world_state(state)
-        console.note(f"{cap_first(npc.label())} is {verdict}. Outlaws will hear of it ({delta:+d} with them).")
+        console.note(f"{cap_first(npc.label(self.acting))} is {verdict}. Outlaws will hear of it ({delta:+d} with them).")
         self.weight_hint = "brief"
         self.narrate(f"The player has {verdict} the captive {npc.name}, who {tell}. "
                      + ("They had been promised mercy. " if pr.get("deal") and how == "kill" else "")
@@ -825,7 +850,7 @@ class ArcActions:
         data, arc = self.my_arc()
         if not arc or arc["id"] != q["arc"]:
             return None
-        return f"[{q['letter']}] {q['title']} - {arcs.step_text(arc)} · no time limit"
+        return f"[{q['letter']}] {q['title']} - {arcs.step_text(arc)}"
 
     def show_arc(self) -> None:
         data, arc = self.my_arc()
@@ -844,4 +869,3 @@ class ArcActions:
             mood = ("on its guard" if camp["alert"] >= 2 else "wary" if camp["alert"] else "unaware of you")
             up = sum(1 for g in camp["guards"] if g["state"] == "up")
             console.note(f"The hideout is {mood}." + (f" {up} guard{'s' if up != 1 else ''} still stand watch." if camp["scouted"] else ""))
-        console.note("No time limit.")

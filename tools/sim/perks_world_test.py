@@ -49,15 +49,15 @@ def take(mid):
 give("all_or_nothing")
 check("all or nothing 1: a partial is a success", WP.gamble(c, "partial") == "success")
 check("all or nothing 2: ...and the die says so too", all(checks.roll(50, random.Random(s), c=c)[0] != "partial" for s in range(200)))
-npc = types.SimpleNamespace(trust=50, name="Marta Voss", role="merchant")
+npc = types.SimpleNamespace(regard={}, name="Marta Voss", role="merchant")                 # (f480) views by character
 ws.player.reputation[town.id] = 10
 NOTES.clear()
 ws.bad_failure("persuasion", npc)
-check("all or nothing 1: a bad failure costs trust and standing", npc.trust == 45 and ws.player.reputation[town.id] == 9, (npc.trust, ws.player.reputation.get(town.id)))
+check("all or nothing 1: a bad failure costs trust and standing", simlib.view(npc).trust == 45 and ws.player.reputation[town.id] == 9, (simlib.view(npc).trust, ws.player.reputation.get(town.id)))
 ws.bad_failure("persuasion", npc)
-check("all or nothing 2: ...every time", npc.trust == 40 and ws.player.reputation[town.id] == 8)
+check("all or nothing 2: ...every time", simlib.view(npc).trust == 40 and ws.player.reputation[town.id] == 8)
 take("all_or_nothing")
-check("without it, a partial stays a partial and nothing is taken", WP.gamble(c, "partial") == "partial" and (ws.bad_failure("persuasion", npc) is None and npc.trust == 40))
+check("without it, a partial stays a partial and nothing is taken", WP.gamble(c, "partial") == "partial" and (ws.bad_failure("persuasion", npc) is None and simlib.view(npc).trust == 40))
 
 # ---- Borrowed Hands: the best of you and your companions
 ws.player.party = [{"id": "h1", "name": "Rue Quill", "role": "archer", "level": 5, "active": True}]

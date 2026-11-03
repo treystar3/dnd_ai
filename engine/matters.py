@@ -6,7 +6,9 @@ look for the player (summons). Every thread of every tier also carries the truth
 and the real paths that end it, so a thread met through any door can be looked into by talking to people and ended by a deed.
 
 A clue is a fact a person knows (npc/life.converse lists it under WHAT YOU KNOW with the id clue:<thread>:<n>); when their speech
-carries it, it is found, and the matter is in the journal. A path met ends the thread (engine/events.after_deed → finish) and the town
+carries it, it is found, and the matter is in the journal. (f483) What they know is their own: a knows row of their memory (about
+thread:<id>:<n>, from themselves, held, then told:<character> once said), written where they become its holder (hold), so it outlives
+the matter and the trim of finished matters; clue_facts reads those rows. A path met ends the thread (engine/events.after_deed → finish) and the town
 remembers who did it (remember → the place's memory, which the truth layer gives to every speaker there).
 
 Thread fields this module keeps: door, hidden, truth, clues [{text, holder, npc, found}], reveal, revealed, touched, moment, summons,
@@ -14,7 +16,10 @@ sender, opened, answered."""
 from __future__ import annotations
 
 import random
+import re
 from pathlib import Path
+
+from engine import regard
 
 import yaml
 
@@ -97,6 +102,25 @@ def _bind_holders(store, world, th: dict) -> None:
                     c["npc"] = free[0].id
         if c["npc"]:
             used.add(c["npc"])
+    t = int(th.get("opened", th.get("made", store.meta.minutes)) or 0)
+    for i, c in enumerate(th["clues"]):
+        if c["npc"]:
+            hold(store, th, i, c["npc"], t)                  # (f483) what they know of it is theirs
+
+
+def hold(store, th: dict, i: int, nid: str, t: int) -> None:
+    """(f483) The clue is this person's to know: a knows row about thread:<id>:<n>, in its words, from themselves, held. Written once;
+    it stays among what they know after the matter is over and gone from the world's record."""
+    from engine import clock, memory
+    if not nid or not store.npc_exists(nid) or i >= len(th.get("clues") or []):
+        return
+    about = f"thread:{th['id']}:{i}"
+    if any(r["kind"] == "knows" and r["about"] == about for r in memory.records(store, nid)):
+        return
+    n = store.load_npc(nid)
+    memory.keep(n, th["clues"][i]["text"], day=clock.day(t), turn=-1, kind="knows", subject="", importance=2, source="self", about=about,
+                minute=int(t), state="held")
+    store.save_npc(n)
 
 
 def _open_word(store, th: dict) -> None:
@@ -107,8 +131,8 @@ def _open_word(store, th: dict) -> None:
     if not c["npc"]:
         return
     npc = store.load_npc(c["npc"])
-    npc.concern = c["text"]
-    npc.concern_from = th["id"]
+    from engine import circumstance                          # (f483) the matter's, until the matter ends
+    circumstance.set_concern(npc, c["text"], th["id"])
     store.save_npc(npc)
 
 
@@ -123,24 +147,34 @@ def bind_for(store, world, npc) -> None:
             continue
         if _town(world, th["place"]) != _town(world, npc.location):
             continue
-        for c in th["clues"]:
+        for i, c in enumerate(th["clues"]):
             if not c["npc"] and c["holder"] == npc.role and npc.id not in {x["npc"] for x in th["clues"]}:
                 c["npc"] = npc.id
+                hold(store, th, i, npc.id, store.meta.minutes)          # (f483)
                 changed = True
     if changed:
         store.save_world_state(state)
 
 
 def clue_facts(store, world, npc) -> list:
-    """The clues this person holds and has not yet given away, as facts for WHAT YOU KNOW (npc/prompts): id clue:<thread>:<n>."""
+    """The clues this person holds and has not yet given away, as facts for WHAT YOU KNOW (npc/prompts): id clue:<thread>:<n>. (f483)
+    Read from their knows rows: a clue to a matter still open, not yet found. What they know of a matter that has ended stays theirs,
+    among their memories, and is a clue to nothing."""
+    from engine import memory
     from world.loader import Fact
+    rows = [r for r in memory.records(store, npc.id) if r["kind"] == "knows" and str(r["about"]).startswith("thread:") and r.get("state", "held") == "held"]
+    if not rows:
+        return []
+    threads = {th["id"]: th for th in store.load_world_state().get("threads", [])}
     out = []
-    for th in store.load_world_state().get("threads", []):
-        if th["status"] != "active":
+    for r in rows:
+        parts = str(r["about"]).split(":")
+        if len(parts) != 3 or not parts[2].isdigit():
             continue
-        for i, c in enumerate(th.get("clues", [])):
-            if c["npc"] == npc.id and not c["found"]:
-                out.append(Fact(id=f"clue:{th['id']}:{i}", text=c["text"], known_by=[]))
+        th, i = threads.get(parts[1]), int(parts[2])
+        if not th or th["status"] != "active" or i >= len(th.get("clues", [])) or th["clues"][i]["found"]:
+            continue
+        out.append(Fact(id=f"clue:{th['id']}:{i}", text=r["text"], known_by=[]))
     return out
 
 
@@ -152,7 +186,7 @@ def talk_lines(ws, npc) -> list[str]:
             clue = next((c["text"] for c in th.get("clues", []) if c["npc"] == npc.id), "")
             out.append("YOU CAME LOOKING FOR THE STRANGER on purpose, just now, because of this: " + (clue or th["stages"][th["stage"]]["description"])
                        + " Say so, and say why you came to them of all people, in your own words. You want their help; ask for it plainly.")
-            if not npc.met_player:
+            if not regard.of(npc, ws.acting).met:                                  # (f480)
                 town = _town(ws.world, npc.location)
                 out.append(f"You have never spoken to them before, but you know who they are: the town talks about them ({ws.reputation_words(town)}).")
     return out
@@ -183,7 +217,8 @@ def mark_found(ws, npc, revealed: list[str]) -> list[str]:
         th = next((x for x in state.get("threads", []) if x["id"] == tid), None)
         if th and int(i) < len(th.get("clues", [])) and not th["clues"][int(i)]["found"]:
             th["clues"][int(i)]["found"] = True
-            th["clues"][int(i)]["by"] = npc.label()
+            th["clues"][int(i)]["by"] = npc.label(ws.acting)
+            ws.store.set_memory_state(npc.id, "knows", f"thread:{tid}:{i}", f"told:{ws.acting}")     # (f483) they have said it, to whom
             th["touched"] = True
             th["answered"] = True
             found.append(th["clues"][int(i)]["text"])
@@ -206,7 +241,8 @@ def _note(state: dict, town: str, kind: str, now: int) -> None:
 
 def on_arrival(ws) -> None:
     """The player is somewhere in a town, at the end of a turn: a pending moment plays out in front of them, or someone comes looking
-    for them. A moment prefers the turn they arrive on."""
+    for them. A moment prefers the turn they arrive on. (f466) The body of the line's arrival operation (scenes/world.py arrival): what it
+    stamps on a situation (told_at, told, the moment shown) commits with it; the narrations it asks for are passage operations after."""
     entering = getattr(ws, "_door_loc", None) != ws.player.location
     ws._door_loc = ws.player.location
     if ws.combat or getattr(ws, "halted", False) or ws.player.location not in ws.world.places or ws.world.places[ws.player.location].danger:
@@ -249,13 +285,14 @@ def on_arrival(ws) -> None:
 def _play_moment(ws, state: dict, th: dict) -> None:
     """The situation as it would be seen, happening in front of the player, with the people here part of it."""
     stage = th["stages"][th["stage"]]["description"]
-    for c in th.get("clues", []):                     # the people here saw it: a clue nobody holds yet settles on one of them, their role first
+    for i, c in enumerate(th.get("clues", [])):       # the people here saw it: a clue nobody holds yet settles on one of them, their role first
         if not c["npc"]:
             taken = {x["npc"] for x in th["clues"]}
             free = [n for n in ws.present if n.id not in taken and c["holder"] == n.role] or [n for n in ws.present if n.id not in taken]
             if free:
                 c["npc"] = free[0].id
-    holders = [n.label() for n in ws.present if n.id in {c["npc"] for c in th["clues"]}]
+                hold(ws.store, th, i, free[0].id, ws.minutes)            # (f483)
+    holders = [n.label(ws.acting) for n in ws.present if n.id in {c["npc"] for c in th["clues"]}]
     from engine import moments, threads
     shape = threads.scene_shape(th)
     if shape and not moments.active(ws.store, ws.player.location, ws.minutes):                     # (f357) the situation's own moment, played by the moments machinery
@@ -291,18 +328,19 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
     people = [n for n in people if not n.gone and n.id not in ws.player.prisoners]
     pick = None
     if S.get("anchors_first"):
-        pick = next((n for n in people if n.anchor and (n.met_player or rep >= S["known_by_all"])), None)
+        pick = next((n for n in people if n.anchor and (regard.of(n, ws.acting).met or rep >= S["known_by_all"])), None)
     if pick is None:
         holder = next((c["npc"] for c in th.get("clues", []) if c["npc"]), "")
         n = next((x for x in people if x.id == holder), None)
-        if n is not None and (n.met_player or rep >= S["known_by_all"]):
+        if n is not None and (regard.of(n, ws.acting).met or rep >= S["known_by_all"]):
             pick = n
     if pick is None:
-        pick = next((n for n in people if n.met_player), None) if rep < S["known_by_all"] else (people[0] if people else None)
+        pick = next((n for n in people if regard.of(n, ws.acting).met), None) if rep < S["known_by_all"] else (people[0] if people else None)
     if pick is None:
         return False
     if not any(c["npc"] == pick.id for c in th.get("clues", [])) and th.get("clues"):
         th["clues"][0]["npc"] = pick.id                     # what they come with
+        hold(ws.store, th, 0, pick.id, ws.minutes)          # (f483)
     th["sender"] = pick.id
     th["summons"] = "met"
     th["touched"] = True
@@ -310,9 +348,9 @@ def _send_someone(ws, state: dict, th: dict) -> bool:
     if court.summon(ws, pick, th):                       # (f320) someone behind a door sends a messenger, and the door opens for the day
         return True
     ws.visit(pick, ws.minutes + 120)
-    known = "someone the player has met" if pick.met_player else "someone the player has not met, who knows them by name"
+    known = "someone the player has met" if regard.of(pick, ws.acting).met else "someone the player has not met, who knows them by name"
     ws.weight_hint = "rich"
-    ws.narrate(f"{pick.label()} ({known}) comes looking for the player, on purpose, and finds them here. Show them arriving and making "
+    ws.narrate(f"{pick.label(ws.acting)} ({known}) comes looking for the player, on purpose, and finds them here. Show them arriving and making "
                "it plain they want a word - what they are doing, how they carry it - without a word of what it is about; the player will ask.")
     console.debug(f"matter: {pick.name} comes looking for the player - {th['title']}")
     return True
@@ -419,7 +457,7 @@ def reveal(ws, state: dict, th: dict) -> None:
         th["stage"] += 1
         stage = th["stages"][th["stage"]]
         pulse.apply_effects(ws.store, ws.world, ws.catalog, state, stage["effects"], th["tier"], ws.minutes, th["title"], raw=True, thread_id=th["id"])
-        pulse.add_news(state, stage["description"], th["place"], ws.minutes, th["groups"], thread=th["id"])
+        pulse.add_news(state, stage["description"], th["place"], ws.minutes, th["groups"], thread=th["id"], certainty="they say")
     ws.weight_hint = "rich"
     ws.narrate("THE JOB IS DONE AND PAID, AND THERE IS MORE TO IT THAN THE POSTING SAID. What the player finds, now: " + th["reveal"]
                + " Show it plainly, as a thing seen or found, and stop there: no conclusions, no one explaining it.")
@@ -464,10 +502,10 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
     ps.memory = (ps.memory + [{"text": text, "minute": minutes}])[-12:]
     store.save_place(ps)
     line = f"{name} settled {th['title'].lower()}." if how == "settled" else f"{name} was asked about {th['title'].lower()}, and let it be."
-    for nid in {c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set()):
-        if store.npc_exists(nid):
+    for nid in sorted({c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set())):   # (f478) in order,
+        if store.npc_exists(nid):                                                            # never the set's, so the row ids are the same in every process
             n = store.load_npc(nid)
-            n.memories.append(Memory(day=clock.day(minutes), turn=turn, text=line, importance=2))
+            n.memories.append(Memory(day=clock.day(minutes), turn=turn, text=line, importance=2, kind="heard", subject="", source="town", minute=minutes))
             store.save_npc(n)
     console.debug(f"matter: {town} remembers - {text}")
 
@@ -490,7 +528,13 @@ def town_memory(store, world, place_id: str, now: int) -> list[str]:
     if town not in world.places or world.places[town].danger:
         return []
     keep = D["memory"]["keep_days"] * 1440
-    return [m["text"] for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]   # a moment's memory fades sooner (engine/moments.py)
+    return [_undated(m["text"]) for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]
+
+
+def _undated(text: str) -> str:
+    """(f477) A town memory written with its date ("(spring, day 12)") is read without it: a day number is never told, and such rows
+    age out within their month."""
+    return re.sub(r"\s*\((?:spring|summer|autumn|winter), day \d+\)", "", text)   # a moment's memory fades sooner (engine/moments.py)
 
 
 # ---------- the journal

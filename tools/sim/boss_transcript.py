@@ -9,9 +9,8 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else "boss_transcript.md"
 stub = simlib.Stub("warrior", SEED)
 simlib.install(stub)
 import config
-from world.loader import load_world
-from storage.campaign import CampaignStore, PlayerState
-from scenes.world import WorldScene
+from engine.session import CampaignSession
+from storage.campaign import PlayerState
 from npc.traits import load_traits
 from engine import items, pulse, events, combat, bosses
 from scenes.combat_scene import CombatScene
@@ -19,15 +18,15 @@ from scenes import combat_prompts as cp
 from ui import console
 
 shutil.rmtree("saves/boss_transcript", ignore_errors=True)
-world = load_world()
-store = CampaignStore.open_or_create("boss_transcript")
+session = CampaignSession.open("boss_transcript")              # (f457) the campaign's session, as main.py opens it
+store, world = session.store, session.world
 store.meta.seed = SEED; store.meta.minutes = 400 * 1440; store.save_meta()
 rng = random.Random(SEED)
 char, _ = simlib.make_character("warrior", rng)
 char.level = 60
 store.save_player(PlayerState(character=char, location="parth"))
 catalog = load_traits()
-ws = WorldScene(store, world, catalog, store.load_player())
+ws = session.scene(catalog, store.load_player())
 t = 400 * 1440
 state = pulse.empty_state(t); store.save_world_state(state)
 

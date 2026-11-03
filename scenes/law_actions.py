@@ -6,8 +6,9 @@ and describes that object; the engine owns whether it exists, what it is worth, 
 import re
 
 from core.models import KeyItem
+from engine import regard                                   # (f480)
 from engine import voice_rules
-from engine import checks, clock, inventory as inv, items, law, locks, money, pools, pulse, standing
+from engine import checks, clock, inventory as inv, items, law, locks, money, pools, pulse, questions, standing
 from engine.domain_events import BreakIn, Bribe, FinePaid, Jailed, PersonHarmed, RanFromWatch, TalkedOut, Theft
 from engine.combat import RULES as COMBAT_RULES
 from llm.contracts import ObjectVerdict
@@ -97,7 +98,7 @@ class LawActions:
         return {"mode": "new", "records": records, "save": save, "value": 0, "label": wanted or "something", "story": True, "owner": owner}
 
     def judge_object(self, owner, wanted: str, text: str) -> ObjectVerdict:
-        who = (f"{owner.label()}, a {owner.role.replace('_', ' ')}. {owner.description} {owner.activity}".strip() if owner
+        who = (f"{owner.label(self.acting)}, a {owner.role.replace('_', ' ')}. {owner.description} {owner.activity}".strip() if owner
                else f"the place itself: {self.place.name} ({self.place.type})")
         place = f"{self.place.name} ({self.place.type})"
         return generate("plausible_object", PLAUSIBLE_SYSTEM,
@@ -121,7 +122,7 @@ class LawActions:
             if blocked:
                 self.narrate(blocked, text)
                 return
-        holder = owner.label() if owner else f"the {self.place.name}"
+        holder = owner.label(self.acting) if owner else f"the {self.place.name}"
         # the roll
         zone = law.zone_level(self.world, self.player.location)
         triggers = self.check_triggers("stealth", False)
@@ -181,12 +182,12 @@ class LawActions:
     def record_theft(self, loot, owner, noticed, took, degree, nothing, day, turn) -> None:
         """The world learns of it (engine/reactions.py): who saw it remembers and trusts less, the tale starts, the watch may hear."""
         self.notice(Theft(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in noticed),
-                          npc=owner.id if owner else "", name=owner.label() if owner else "", item=loot["label"], took=took,
+                          npc=owner.id if owner else "", name=owner.label(self.acting) if owner else "", item=loot["label"], took=took,
                           story=bool(loot["story"]), value=int(loot["value"] or 0)), owner, *noticed)
 
     def theft_event(self, loot, holder, degree, took, nothing, hopeless, owner, noticed) -> str:
         what = loot["label"]
-        who = ", ".join(n.label() for n in noticed)
+        who = ", ".join(n.label(self.acting) for n in noticed)
         if nothing:
             base = (f"The player quietly goes through {holder} looking for {what}, but {nothing}. Describe the search coming up "
                     f"empty. Do not invent anything they find. " + voice_rules.NOTHING)
@@ -401,7 +402,7 @@ class LawActions:
 
     def record_break_in(self, lock, owner, noticed, opened, day, turn) -> None:
         self.notice(BreakIn(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in noticed),
-                            npc=owner.id if owner else "", name=owner.label() if owner else "", lock=lock["name"], opened=opened), owner, *noticed)
+                            npc=owner.id if owner else "", name=owner.label(self.acting) if owner else "", lock=lock["name"], opened=opened), owner, *noticed)
 
     def unlock_event(self, lock, degree, opened, hopeless, tool, changed, noticed) -> str:
         what = lock["name"]
@@ -416,7 +417,7 @@ class LawActions:
         if changed:
             base += " Their stolen key no longer fits; the lock has been changed."
         if noticed:
-            who = ", ".join(n.label() for n in noticed)
+            who = ", ".join(n.label(self.acting) for n in noticed)
             base += (f" {who} notice{'s' if len(noticed) == 1 else ''} and react: sharp words, alarm or a hard stare. "
                      f"Nobody draws a weapon or attacks; the game handles what comes next.")
         return base
@@ -428,10 +429,10 @@ class LawActions:
         if not npc:
             return
         seen = [w for w in self.watchers(npc) if law.notices("success", w.role, assault=True)]
-        self.notice(PersonHarmed(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in [npc] + seen), npc=npc.id, name=npc.label()), npc, *seen)
+        self.notice(PersonHarmed(minute=self.minutes, place=self.player.location, witnesses=tuple(n.id for n in [npc] + seen), npc=npc.id, name=npc.label(self.acting)), npc, *seen)
         if law.fights_back(npc.role, npc.traits):
-            console.debug(f"{npc.label()} fights back")
-            self.narrate(f"{npc.label()} does not take it. They break free and hit back, shoving the player away and shouting for "
+            console.debug(f"{npc.label(self.acting)} fights back")
+            self.narrate(f"{npc.label(self.acting)} does not take it. They break free and hit back, shoving the player away and shouting for "
                          f"help. No one is killed; keep it to a scuffle of a few seconds.", text)
             if npc.role in H["guard_roles"]:
                 self.arrest(npc, self.town_here(), forced=True)
@@ -456,15 +457,30 @@ class LawActions:
         else:
             self.law_confront(guard, town)
 
-    def ask_choice(self, options: dict[str, tuple[str, ...]], menu: str) -> str:
-        for _ in range(3):
-            console.note(menu)
-            said = console.ask().lower()
-            for key, words in options.items():
-                if any(re.search(rf"\b{w}", said) for w in words):
-                    return key
-            console.note("The guard waits for a straight answer.")
-        return "run"
+    def ask_law(self, keys: tuple[str, ...], menu: str, guard, town: str, fine: int) -> None:
+        """(f460) The watch's question ends the turn: the next line typed answers it (on_answer_law). A line that picks none of the
+        choices is asked again, and after questions.TRIES of those the player is taken to have run, as the loop it replaces did."""
+        self.ask_next("law", menu, guard=guard.id, town=town, fine=fine, keys=list(keys), tries=0)
+
+    def on_answer_law(self, asked: dict, text: str):
+        d = asked["data"]
+        guard = next((n for n in self.present if n.id == d["guard"]), None)
+        if guard is None:
+            try:
+                guard = self.store.load_npc(d["guard"])
+            except Exception:
+                return None
+        said = text.lower()
+        pick = next((k for k in d["keys"] if any(re.search(rf"\b{w}", said) for w in self.WORDS[k])), None)
+        if pick is None:
+            tries = d.get("tries", 0) + 1
+            if tries < questions.TRIES:
+                console.note("The guard waits for a straight answer.")
+                self.ask_next("law", asked["question"], **{**d, "tries": tries})
+                return True
+            pick = "run"
+        self.settle(guard, d["town"], pick, d["fine"])
+        return True
 
     WORDS = {"pay": ("pay", "fine", "settle", "coin"), "talk": ("talk", "persuade", "convince", "explain", "argue", "plead", "reason"),
              "bribe": ("bribe", "slip", "grease", "sweeten"), "run": ("run", "flee", "escape", "bolt", "dash"),
@@ -473,25 +489,23 @@ class LawActions:
     def law_confront(self, guard, town: str) -> None:
         heat = law.current_heat(self.player, town, clock.day(self.minutes))
         fine = law.fine(heat)
-        self.narrate(f"{guard.label()} steps into the player's path: word of their thieving has reached the watch. Describe the guard "
+        self.narrate(f"{guard.label(self.acting)} steps into the player's path: word of their thieving has reached the watch. Describe the guard "
                      f"stopping them, stern, hand near a weapon but not drawing it. Do not resolve anything; the game will.", "")
         menu = (f"The watch wants {money.fmt(fine)}. You can: pay the fine, talk your way out, offer a bribe, or run.")
-        pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "talk", "bribe", "run")}, menu)
-        self.settle(guard, town, pick, fine)
+        self.ask_law(("pay", "talk", "bribe", "run"), menu, guard, town, fine)         # (f460) answered by the next line
 
     def arrest(self, guard, town: str, forced: bool = False) -> None:
         heat = law.current_heat(self.player, town, clock.day(self.minutes))
         fine = law.fine(heat)
-        self.narrate(f"{guard.label()} and the watch take hold of the player: they are wanted here. Describe the arrest. "
+        self.narrate(f"{guard.label(self.acting)} and the watch take hold of the player: they are wanted here. Describe the arrest. "
                      f"Do not resolve anything; the game will.", "")      # (f413) no length (f375)
         if self.owns("above_the_law"):
             menu = (f"You are under arrest - but your kind are not jailed. Pay the fine ({money.fmt(fine)}); what your purse cannot cover, "
                     f"your name will. Or offer a bribe, or run.")
-            pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "bribe", "run")}, menu)
+            self.ask_law(("pay", "bribe", "run"), menu, guard, town, fine)
         else:
             menu = (f"You are under arrest. Pay the fine ({money.fmt(fine)}), serve time in jail, offer a bribe, or run.")
-            pick = self.ask_choice({k: self.WORDS[k] for k in ("pay", "jail", "bribe", "run")}, menu)
-        self.settle(guard, town, pick, fine)
+            self.ask_law(("pay", "jail", "bribe", "run"), menu, guard, town, fine)     # (f460) answered by the next line
 
     def settle(self, guard, town: str, pick: str, fine: int) -> None:
         c, day = self.player.character, clock.day(self.minutes)
@@ -501,9 +515,9 @@ class LawActions:
             if c.coins >= fine:
                 c.coins -= fine
                 law.set_heat(self.player, town, H["after_paid"], day)
-                self.notice(FinePaid(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(), amount=fine), guard)
+                self.notice(FinePaid(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(self.acting), amount=fine), guard)
                 console.note(f"You pay {money.fmt(fine)}. Purse: {money.fmt(c.coins)}")
-                self.narrate(f"The player pays {guard.label()} the fine. The guard counts it and lets them go with a warning.", "")
+                self.narrate(f"The player pays {guard.label(self.acting)} the fine. The guard counts it and lets them go with a warning.", "")
             else:
                 console.note("You cannot cover the fine.")
                 self.serve_time(guard, town, fine)
@@ -514,8 +528,8 @@ class LawActions:
             relief = H["talk_relief"].get(degree, 0)
             if relief:
                 law.set_heat(self.player, town, heat - relief, day)
-                self.notice(TalkedOut(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label()), guard)
-                self.narrate(f"The player talks {guard.label()} down. The guard relents with a warning. Keep it short.", "")
+                self.notice(TalkedOut(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(self.acting)), guard)
+                self.narrate(f"The player talks {guard.label(self.acting)} down. The guard relents with a warning. Keep it short.", "")
             elif degree == "partial":
                 console.note("The guard is not swayed - he wants the fine.")
                 self.settle(guard, town, "pay", fine)
@@ -525,8 +539,8 @@ class LawActions:
         elif pick == "bribe":
             self.settle_bribe(guard, town, fine)
         else:
-            self.notice(RanFromWatch(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label()), guard)
-            self.narrate(f"The player bolts from {guard.label()} and slips away through the crowd.", "")
+            self.notice(RanFromWatch(minute=self.minutes, place=self.player.location, witnesses=seen, npc=guard.id, name=guard.label(self.acting)), guard)
+            self.narrate(f"The player bolts from {guard.label(self.acting)} and slips away through the crowd.", "")
         self.store.save_npc(guard)
         self.store.save_player(self.player)
 
@@ -544,13 +558,13 @@ class LawActions:
             c.coins -= fine
             law.set_heat(self.player, town, law.current_heat(self.player, town, day) - H["bribe_relief"], day)
             guard.looks_away_until = self.minutes + law.N["look_away_minutes"]
-            self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
+            self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(self.acting), amount=fine,
                               worked=True, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.ledger(f"The coins vanish. Purse: {money.fmt(c.coins)}")
-            self.narrate(f"The player slips {guard.label()} some coin. The guard pockets it and turns away.", "")
+            self.narrate(f"The player slips {guard.label(self.acting)} some coin. The guard pockets it and turns away.", "")
         else:
-            guard.trust = max(0, guard.trust + B["trust"][degree])
-            self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), amount=fine,
+            regard.step(guard, self.acting, B["trust"][degree], cause="bribed", minute=self.minutes)   # (f480)
+            self.notice(Bribe(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(self.acting), amount=fine,
                               worked=False, degree=degree, favor="forget what they knew", confrontation=True, guard=True), guard)
             console.note("The guard refuses. You are arrested.")
             self.arrest(guard, town, forced=True)
@@ -563,7 +577,7 @@ class LawActions:
         c.coins -= price
         self.advance(H["jail_days"] * 1440)
         law.set_heat(self.player, town, H["after_paid"], clock.day(self.minutes))
-        self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), days=H["jail_days"]), guard)
+        self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(self.acting), days=H["jail_days"]), guard)
         console.note(f"You serve {H['jail_days']} days and pay {money.fmt(price)}. Purse: {money.fmt(c.coins)}")
         self.narrate(f"The player spends {H['jail_days']} days in the town cells and is released with a stern warning. "
                      f"Describe the stay.", "")
@@ -579,8 +593,8 @@ class LawActions:
         if lost:
             self.reputation_add(pulse.town_of(self.world, town), -lost, spread=False)
         law.set_heat(self.player, town, H["after_paid"], day)
-        self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(), walked=True), guard)
+        self.notice(Jailed(minute=self.minutes, place=self.player.location, witnesses=(guard.id,), npc=guard.id, name=guard.label(self.acting), walked=True), guard)
         console.note(f"No cell for you. You pay {money.fmt(paid)}" + (f"; the rest ({money.fmt(owed)}) is paid in standing here ({-lost})" if owed else "")
                      + f". Purse: {money.fmt(c.coins)} (Above the Law)")
-        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label()} takes what coin they have"
+        self.narrate(f"The watch cannot hold the player: their kind are fined, not jailed. {guard.label(self.acting)} takes what coin they have"
                      + (" and makes sure the whole street knows the rest went unpaid" if owed else "") + ".", "")

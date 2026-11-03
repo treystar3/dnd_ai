@@ -37,7 +37,7 @@ def moment_request(ws, shape: dict, visitor_role: str, seen: list[dict]) -> str:
     from npc import life
     place = ws.place
     visible = "\n".join(f"  - {v}" for v in place.visible) or "  (nothing in particular)"
-    people = "\n".join(f"  - {n.role}: {n.label()}. {n.description} Doing now: {n.activity}" for n in ws.present) or "  (no one)"
+    people = "\n".join(f"  - {n.role}: {n.label(ws.acting)}. {n.description} Doing now: {n.activity}" for n in ws.present) or "  (no one)"
     town = "\n".join(life.town_lines(ws.store, ws.world, ws.player.location))
     from engine import truth
     here = truth.scene_of(ws).view(truth.NARRATOR, "narrator")

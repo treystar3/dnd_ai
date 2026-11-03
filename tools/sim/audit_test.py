@@ -115,7 +115,7 @@ check("the changed plan is what runs", ran == [("on_give", "give")], ran)
 check("the turn passed", store.meta.turn == turn0 + 1)
 log = [json.loads(l) for l in open(config.TURN_LOG_PATH)]
 check("the turn is logged with raw and final plans", len(log) == 1 and [s["kind"] for s in log[0]["raw"]] == ["talk", "buy"] and [s["kind"] for s in log[0]["final"]] == ["give"] and log[0]["audit"] == "changed", log)
-check("the log keeps who was here for promoting", log[0]["present"] == {"g1": guard.label()}, log[0].get("present"))
+check("the log keeps who was here for promoting", log[0]["present"] == {"g1": guard.label("player")}, log[0].get("present"))
 
 ran.clear(); NOTES.clear(); turn0 = store.meta.turn
 ws.interpret = lambda text, hint="": [A(kind="talk", target="ghost", speech="x")]

@@ -18,10 +18,6 @@ from engine import hygiene, road_prompts
 from llm import gateway
 from llm.contracts import RoadEvent
 from llm.gateway import LLMError
-from npc.traits import load_traits
-from scenes.world import WorldScene
-from storage.campaign import CampaignStore, PlayerState
-from world.loader import campaign_world
 
 bad = []
 def check(n, ok, x=""):
@@ -38,13 +34,8 @@ check("...nor is the writer told of checks", "CHECKS" not in road_prompts.user("
                                                                                  "", True) and "check says" not in road_prompts.SYSTEM)
 
 # ---- pressing on is ruled as it is tried
-shutil.rmtree("saves/hazard_ruled_447_test", ignore_errors=True)
-store = CampaignStore.open_or_create("hazard_ruled_447_test")
-store.meta.seed = 47; store.meta.minutes = 600; store.save_meta()
-char, _ = simlib.make_character("warrior", random.Random(47))
-store.save_player(PlayerState(character=char, location="parth"))
-ws = WorldScene(store, campaign_world(), load_traits(), store.load_player())
-ws.player.mentor["never"] = True
+game = simlib.campaign("hazard_ruled_447_test", seed=47, location="parth")        # (f450) the suite's one way to open a campaign
+store, ws = game.store, game.scene
 hz = {"tier": "normal", "what": "A fissure has opened across the road.", "behind": "parth"}
 asked = []
 real = gateway._client

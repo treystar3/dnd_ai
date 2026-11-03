@@ -81,13 +81,13 @@ ws.player.mentor["never"] = True
 ws.enter("guild_house")
 ws.apply_backfill()
 clerk = ws.clerk_here()
-clerk.name_known_to_player = True
+simlib.view(clerk).name_known = True
 everyone = ws.people_view()
 check("the hall has more people than the eye takes in at once", len(everyone) > ws.FIRST_SEEN, everyone)
 first, more = ws.first_seen(everyone)
 check("walking in, two are seen first and the rest are a number", len(first) == ws.FIRST_SEEN and more == len(everyone) - ws.FIRST_SEEN,
       (first, more))
-check("...and the clerk the player knows by name is one of them", clerk.label() in [l for l, _, _ in first], (clerk.label(), first))
+check("...and the clerk the player knows by name is one of them", clerk.label("player") in [l for l, _, _ in first], (clerk.label("player"), first))
 check("the same moment gives the same first sight", ws.first_seen(everyone) == (first, more))
 
 def narration_asked(fn):

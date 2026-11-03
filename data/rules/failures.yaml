@@ -12,3 +12,203 @@ turn_not_taken:
   - "That didn't take. You are where you were, as you were; try it again."
   - "Lost before it started, so nothing has happened. Say it once more."
   - "That never quite began. The world is as you left it; say it again."
+# (f449) The same line has now failed twice running on the game's own fault (not the model's): saying it a third time will not help.
+# The player is told to turn to something else, still in the world's words; what went wrong is in logs/crash.log.
+turn_not_possible:
+  - "That one the world will not take, however it is said. Turn your hand to something else."
+  - "Twice now that has come to nothing, and it will again. Try another thing."
+  - "Whatever stands in the way of that, saying it again will not move it. Do something else for now."
+  - "The world has no way to take that one. Leave it, and try something else."
+
+# (f459) The rebuild's Stage 3: an action that committed is never undone because its passage could not be written. The player reads a
+# plain line in the narrator's voice telling what stood, filled from the outcome's facts ({what}, {who}, {amount}: labels, never ids),
+# one list per kind of ledger row (engine/ledger.py KINDS); a row with no facts to fill a line takes stood_any. None of these is a turn
+# not taken: the night's count of failed turns never sees them (engine/failures.py lines() is the two lists above and nothing else).
+stood_any:
+  - "What you did stands; the telling of it slipped away. The world has kept the deed."
+  - "The deed is done, though no words came for it. Carry on; nothing is lost."
+  - "It happened, and it holds. The story of it will have to wait for another breath."
+  - "That stands as done. The words for it did not come, but the world remembers."
+  - "Done, and kept. Only the telling is missing; the rest is as real as the ground."
+  - "The thing is settled. No passage came, and none is needed for it to be so."
+stood:
+  gained:
+    - "{what} is in your pack now; the words for how it got there did not come."
+    - "You have {what}. The moment went untold, but the having is real."
+    - "{what} is yours, kept and counted. The telling slipped away."
+    - "Into the pack went {what}. That much stands, whatever words were lost."
+    - "You carry {what} from here on. The story of it went unsaid."
+    - "{what}, taken and kept. Nothing more came of the moment, and nothing more was needed."
+  paid:
+    - "You paid {who} {amount}; it is settled, though the scene went untold."
+    - "{amount} changed hands with {who}. The bargain holds."
+    - "The coin is spent: {amount} to {who}. What was bought is yours."
+    - "You have paid {amount}. {who} has it, and the matter is closed."
+    - "{who} took {amount} from you, fair and done. The words for it never came."
+    - "Paid, {amount} to {who}, and that is the end of it."
+  received:
+    - "{who} paid you {amount}. The coin is in your purse, whatever else was lost."
+    - "{amount} came to you from {who}. It is counted."
+    - "You were paid: {amount}, from {who}. That stands."
+    - "Your purse is heavier by {amount}, {who}'s coin. The rest of the moment slipped by."
+    - "{who} has settled with you, {amount}. Done."
+    - "The payment stands, {amount} from {who}, though the scene went untold."
+  found:
+    - "You found {what}. The finding stands, even untold."
+    - "{what} is found, and yours to make of what you will."
+    - "There it was: {what}. The words for the moment did not come, but the find is real."
+    - "You came upon {what}. The world has marked it so."
+    - "{what}, found and kept in mind. The telling slipped away."
+    - "The search turned up {what}. That much holds."
+  moved:
+    - "You are at {what} now. The way there went untold."
+    - "You have come to {what}. Look about you; the words will follow another time."
+    - "{what}: that is where you stand. The crossing itself slipped by unsaid."
+    - "You moved to {what}, and there you are."
+    - "The ground under you is {what}'s. How you came went untold."
+    - "You stand at {what}. Nothing of the way there was kept but the arriving."
+  took:
+    - "You have taken on {what}. It is yours to see through."
+    - "{what} is your charge now. The words at the taking did not come."
+    - "The task is accepted: {what}. That stands."
+    - "You said yes to {what}. The world holds you to it."
+    - "{what} is written down as yours. The moment of it went untold."
+    - "Taken on: {what}. Carry it from here."
+  made:
+    - "{what} is here now, real as anything. The telling of it slipped away."
+    - "The world has {what} in it from this moment. Words or no words, it stands."
+    - "{what} is real now. Nothing more came of the moment than that, and that is enough."
+    - "Here is {what}, made and kept. The story of it went unsaid."
+    - "{what} exists now, and will tomorrow. The telling will have to wait."
+    - "What you asked for is here: {what}. It holds."
+  changed:
+    - "{what} is not as it was. The moment went untold, but the change is real."
+    - "You have changed {what}. It stays changed."
+    - "{what} bears the mark of what you did. The words for it did not come."
+    - "Something is different about {what} now, and will stay so."
+    - "{what}, altered by your hand. The telling slipped away."
+    - "The change to {what} holds. Only its telling is missing."
+  departed:
+    - "{who} is gone from here. The parting went untold."
+    - "{who} has left. The words at the leaving did not come."
+    - "You will not find {who} here now; they have gone."
+    - "{who} went on their way. That much stands."
+    - "The place is without {who} now. The moment slipped by unsaid."
+    - "{who} departed, and the world has marked it."
+  ended:
+    - "{what} is at an end. The words for its ending did not come."
+    - "That matter, {what}, is closed. It stands closed."
+    - "{what} is finished. The telling slipped away, but the ending holds."
+    - "An end to {what}. Nothing more will come of it."
+    - "{what} is settled for good. The moment went unsaid."
+    - "You brought {what} to its end. The world has marked it done."
+  tended:
+    - "{who} saw to your wounds. You feel the better for it, though the moment went untold."
+    - "Your hurts were tended by {who}. The care stands."
+    - "{who} bound what needed binding. The words for it did not come."
+    - "You are mended, by {who}'s hands. The telling slipped away."
+    - "{who} tended you. The relief is real whatever was left unsaid."
+    - "The wounds are seen to; {who} did it. That holds."
+  left:
+    - "{what} lies here still, left where it was. The moment went untold."
+    - "You left {what} behind. It stays where you left it."
+    - "{what} is not in your pack; it lies here. That stands."
+    - "Left lying: {what}. The words for it did not come."
+    - "{what} remains here, untaken. The world has marked it so."
+    - "You did not take {what}. It is still here, for now."
+  given:
+    - "You handed {what} to {who}. It is theirs now, whatever was left unsaid."
+    - "{who} has {what} from you. The giving stands."
+    - "{what} passed from your hands to {who}'s. The moment went untold."
+    - "Given: {what}, to {who}. That holds."
+    - "{who} took {what} from you with thanks that went unspoken. It is theirs."
+    - "You gave {who} {what}. The words for the moment did not come."
+  hurt:
+    - "You were hurt by {what}: {amount} of your health gone. The moment went untold."
+    - "{what} caught you. You are down {amount} of health, and that stands."
+    - "The hurt is real: {amount} of health lost to {what}."
+    - "{what} left its mark on you, {amount} of health. The telling slipped away."
+    - "You bled for that: {amount} of health, to {what}."
+    - "{what} hurt you. The wound stands, {amount} of health gone, whatever was left unsaid."
+  closed:
+    - "{what} is shut. There is no way through it now."
+    - "The way is closed: {what}. The words for it did not come."
+    - "{what} will not open. That stands."
+    - "You find {what} shut against you, and it stays so."
+    - "Closed, {what}. The moment went untold."
+    - "{what} is barred. Nothing more came of the moment than that."
+  end:
+    - "There is no way further in than {what}. That is the end of it."
+    - "{what} is as far as it goes. The telling slipped away."
+    - "The way ends at {what}. Nothing lies beyond."
+    - "You have reached the end: {what}. The words for it did not come."
+    - "{what}, and no further. The world has marked it so."
+    - "Beyond {what} there is nothing. That stands."
+  worked:
+    - "The work is done, {what}. The telling of it slipped away."
+    - "You worked, and {what} is finished. That stands."
+    - "{what}: done, and counted. The words for the labour did not come."
+    - "Your hands did {what}. The world has marked it done."
+    - "The job stands finished: {what}."
+    - "{what} is seen to. The moment went untold, but the work is real."
+  gathered:
+    - "You gathered {what}. It is in your pack, though the moment went untold."
+    - "{what}, gathered and kept. That stands."
+    - "Your gathering turned up {what}. The telling slipped away."
+    - "{what} is yours, picked and carried. The words for it did not come."
+    - "Gathered: {what}. The world has marked it so."
+    - "You have {what} from the gathering. That much holds."
+  refused:
+    - "That part, {what}, did not happen. The rest stands."
+    - "{what} came to nothing; the world would not have it. What else you did holds."
+    - "No to {what}. The rest of what you did is as you left it."
+    - "{what} was not to be. The remainder stands."
+    - "The world said no to {what}. Everything else holds."
+    - "Of all you did, {what} did not happen. The rest did."
+  not_done:
+    - "You did not get to {what} this turn. What came before it stands."
+    - "{what} waits; the turn ran out before it. The rest holds."
+    - "Not yet done: {what}. Everything before it is as it stands."
+    - "{what} was left for another moment. What you did before holds."
+    - "The turn ended before {what}. The rest is done."
+    - "{what} is still ahead of you. Everything else stands."
+# A line of several actions in which some committed and a later one did not (decision 13): what stood is named in {done}.
+part_stood:
+  - "Part of that stood: {done}. The rest came to nothing, and is as it was."
+  - "{done}: that much is done. What followed slipped away, and nothing of it is lost."
+  - "You got as far as this: {done}. The rest of the line did not take; say it again if you will."
+  - "What stands is {done}. The remainder never began; the world is as it was before it."
+  - "{done} holds. After that, nothing happened; try the rest once more."
+  - "This much is real: {done}. The rest fell short of happening."
+# An outcome that committed but was never shown before the game closed (decision 8): told once on the next load, before its lines.
+shown_later:
+  - "Before you left, this much had happened and went untold. Here it is now."
+  - "The world kept something back from last time. It is told now, once."
+  - "When you were last here, this stood and was not shown. Now it is."
+  - "Something settled before you went away, unspoken then. Here it is."
+  - "A moment from before, kept for your return."
+  - "This was so when you left, and was never told. It is told now."
+# A fight round whose telling could not be written: the numbers carry the blows.
+round_stood:
+  - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."
+  - "That exchange stands as it fell. The telling slipped away; the wounds did not."
+  - "The round holds: what was struck was struck. The words for it did not come."
+  - "Blows traded, the round over. Only the telling is missing."
+  - "The fight moved on a round. What the numbers show is what happened."
+  - "That round is written in wounds, not words. It stands."
+# A fight won whose aftermath could not be written: the win and its gains stand ({xp}, {coins}, {fallen}, {found} as the facts allow).
+victory_stood:
+  - "The fight is won, and it stands. {xp} experience is yours; the telling of the end slipped away."
+  - "Victory. {xp} experience earned, and the field is quiet. The words for the last blows did not come."
+  - "They are beaten. You are the better by {xp} experience, whatever went unsaid."
+  - "The fight ended in your favour, and that holds. Nothing of the win is lost but its telling."
+  - "Won. The story of the end will have to wait; the end itself is sure."
+  - "The last of them is down. The field is yours, and so is what it left."
+# The goddess at a death whose words could not be written: her own lines, in her voice. The death stands either way.
+goddess_silent:
+  - "Hush now... I have you. The words I meant for you went out with the tide, and still I have you."
+  - "Oh, child. I had something to say, and the cold took it from me. Breathe. That part I can still give."
+  - "There you are. Whatever I meant to tell you is lost in the water... it does not matter. Go on; go back."
+  - "I reached for words and found only cold. Never mind them. You are not finished yet."
+  - "Little one... I lose things, down here. The thing I would have said is one of them. The breath I give you is not."
+  - "Not the words I wanted. They slipped. Take the warmth instead, and go."

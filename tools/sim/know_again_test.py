@@ -55,7 +55,7 @@ CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "Any work going?"}]
 ws.turn("Any work going?")
 check("a first meeting is no return", "THEY ARE BACK" not in asked_npc(), asked_npc()[-400:])
-check("...and when they last spoke is kept, to the minute", store.load_npc(clerk.id).last_talk_at >= 120, store.load_npc(clerk.id).last_talk_at)
+check("...and when they last spoke is kept, to the minute", simlib.view(store.load_npc(clerk.id)).last_talk_at >= 120, simlib.view(store.load_npc(clerk.id)).last_talk_at)
 ws.end_conversation()
 CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "One more thing."}]
@@ -69,7 +69,7 @@ store.meta.minutes += 2 * 1440; store.save_meta()
 ws.enter("guild_house")
 seen = {l: d for l, d, _ in ws.people_view()}
 clerk = ws.clerk_here()
-check("the narrator is told who in the room knows the player", "Knows the player; last spoke with them two days ago" in seen.get(clerk.label(), ""), seen.get(clerk.label()))
+check("the narrator is told who in the room knows the player", "Knows the player; last spoke with them two days ago" in seen.get(clerk.label("player"), ""), seen.get(clerk.label("player")))
 CALLS.clear()
 REASONS = []
 _frame = ws.frame_reasons
@@ -83,8 +83,9 @@ CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "And the board?"}]
 ws.turn("And the board?")
 check("...once, at the start of the talk", "THEY ARE BACK" not in asked_npc())
+# (f477) the words are the one converter's (data/rules/time_words.yaml): by calendar day, and past a month by the season it was then
 check("the way it is put", recognition.ago(1440 * 10 + 60, 1440 * 9) == "yesterday" and recognition.ago(1440 * 20, 1440 * 10) == "about a week ago"
-      and recognition.ago(1440 * 90, 0) == "months ago")
+      and recognition.ago(1440 * 90, 0) == "last spring", recognition.ago(1440 * 90, 0))
 
 # ---- companions: no second 'Morning.'
 def comp(speech, heard):

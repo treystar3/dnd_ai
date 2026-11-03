@@ -1,0 +1,78 @@
+"""(f476) The fence around Bundle D's pure modules: the builders that turn what was read from the save into a speaker's brief, a recall or
+a conversation's next step, and decide nothing else. Each is a function of what it is given, so it may not reach the save, a scene or the
+model, the clock or a uuid; may not draw dice except from its own keyed stream (engine/streams.py keyed); and may not let an order come
+from a set's iteration or an object's id(), the orders that change from one process to the next and would part a replay.
+
+    from tools import purity
+    purity.problems(path)            # -> ["engine/brief.py:42: iterates a set unsorted", ...]
+
+tools/sim/fence_476_test.py runs it on every module in PURE that exists; Bundle D adds each pure module to PURE as it is written."""
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py"]   # grows as Bundle D writes them
+FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "time", "datetime", "uuid")
+RANDOM_OK = {"keyed"}                         # streams.keyed(...) is the one die a pure module may roll
+
+
+def _imports(tree: ast.AST) -> list[tuple[int, str]]:
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out += [(node.lineno, a.name) for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            out.append((node.lineno, mod))
+            if mod in ("", "llm"):
+                out += [(node.lineno, f"{mod}.{a.name}".lstrip(".")) for a in node.names]
+    return out
+
+
+def _is_set(node: ast.AST) -> bool:
+    return isinstance(node, (ast.Set, ast.SetComp)) or (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                                                         and node.func.id in ("set", "frozenset"))
+
+
+def problems_in(source: str, name: str = "<source>") -> list[str]:
+    tree = ast.parse(source)
+    bad = []
+    for line, mod in _imports(tree):
+        if any(mod == f or mod.startswith(f + ".") for f in FORBIDDEN_IMPORTS):
+            bad.append(f"{name}:{line}: imports {mod}")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.For, ast.comprehension)) and _is_set(node.iter):
+            bad.append(f"{name}:{getattr(node, 'lineno', getattr(node.iter, 'lineno', 0))}: iterates a set unsorted")
+        if isinstance(node, ast.Name) and node.id == "id" and isinstance(node.ctx, ast.Load):
+            bad.append(f"{name}:{node.lineno}: orders by id()")              # called, or handed on as a sort key
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "random":
+                bad.append(f"{name}:{node.lineno}: " + ("makes its own Random" if f.attr in ("Random", "SystemRandom") else f"rolls random.{f.attr}")
+                           + " (draw from streams.keyed)")
+            if isinstance(f, ast.Name) and f.id == "Random":
+                bad.append(f"{name}:{node.lineno}: makes its own Random (draw from streams.keyed)")
+            if isinstance(f, ast.Attribute) and f.attr in ("get", "new_id") and isinstance(f.value, ast.Name) and f.value.id == "streams":
+                bad.append(f"{name}:{node.lineno}: draws streams.{f.attr} (a pure module draws only streams.keyed)")
+        if isinstance(node, (ast.ListComp, ast.GeneratorExp)) and any(_is_set(g.iter) for g in node.generators):
+            pass                                                      # reported once, through its comprehension
+    return sorted(set(bad), key=lambda b: (int(b.split(":")[1]) if b.split(":")[1].isdigit() else 0, b))
+
+
+def problems(path: str | Path) -> list[str]:
+    p = Path(path)
+    if not p.is_absolute():
+        p = ROOT / p
+    rel = p.relative_to(ROOT).as_posix() if p.is_relative_to(ROOT) else p.name
+    return problems_in(p.read_text(encoding="utf-8"), rel)
+
+
+def check_all() -> list[str]:
+    """Every pure module that exists, fenced."""
+    out = []
+    for rel in PURE:
+        if (ROOT / rel).exists():
+            out += problems(rel)
+    return out

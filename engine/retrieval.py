@@ -12,7 +12,10 @@ import re
 
 
 def town_places(world, town: str) -> list[str]:
-    """Every place id inside a settlement (the town itself and all its parts), so 'who is in this town' is one indexed query."""
+    """Every place id inside a settlement (the town itself and all its parts), so 'who is in this town' is one indexed query. (f452) The
+    campaign's world keeps the list itself, following its map; a bare World is walked."""
+    if hasattr(world, "town_places"):
+        return world.town_places(town)
     from engine import mapview
     return [pid for pid in world.places if mapview.top_of(world, pid) == town]
 
@@ -36,7 +39,7 @@ def community(store, world, group: str, exclude: tuple = ()) -> list:
 
 
 def met_elsewhere(store, present_ids: list[str]) -> list:
-    """Everyone the player has met who is not here."""
+    """Everyone the player has met who is not here: (f480) met by any character, the index's aggregate."""
     return store.npc_rows(met_player=True, exclude=list(present_ids))
 
 

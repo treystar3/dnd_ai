@@ -108,14 +108,14 @@ def _v7_maren_moves_on(store) -> None:
     if not store.npc_exists("maren"):
         return
     from engine import mentor
-    from world.loader import load_world
+    from world.loader import authored                 # (f451) the one parse of the written world, never a second
     npc = store.load_npc("maren")
     if npc.gone:
         return
     npc.gone = mentor.M["npc"]["gone"]
     store.save_npc(npc)
     minutes = getattr(store.meta, "minutes", 0) or 0
-    mentor.moved_on(store, load_world(), npc, minutes)
+    mentor.moved_on(store, authored(), npc, minutes)
 
 
 def _v8_hire_pronouns(store) -> None:
@@ -142,6 +142,116 @@ def _v9_entities(store) -> None:
         store.execute(stmt)
 
 
+def typed_memory(store) -> None:
+    """(f478) npc_memory's typed columns and their indexes: added by v10 to an older save, and made with a new one (storage/campaign.py)."""
+    for col, ddl in (("subject", "TEXT NOT NULL DEFAULT ''"), ("source", "TEXT NOT NULL DEFAULT ''"), ("about", "TEXT NOT NULL DEFAULT ''"),
+                     ("minute", "INTEGER NOT NULL DEFAULT -1"), ("times", "INTEGER NOT NULL DEFAULT 1"),
+                     ("state", "TEXT NOT NULL DEFAULT ''")):                     # (f483) a knows row's: held, or told:<character ids>
+        have = {r[1] for r in store._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+        if col not in have:
+            store._db.execute(f"ALTER TABLE npc_memory ADD COLUMN {col} {ddl}")
+    store._db.execute("CREATE INDEX IF NOT EXISTS npc_memory_kind ON npc_memory (npc_id, kind, minute)")
+    store._db.execute("CREATE INDEX IF NOT EXISTS npc_memory_subject ON npc_memory (npc_id, subject)")
+
+
+def _v10_memory_kinds(store) -> None:
+    """(f478) What people remember, typed: each row says what it is (experienced, witnessed, noticed, heard, told, own_life...), whom it
+    is about (subject), who said it (source), what it is about (about, so a repeat counts up) and when to the minute. Old rows are typed
+    the least-work way (GOALS.md S8): "(my own life) " rows become own_life with the prefix stripped (it was machinery in the text); a
+    row the world wrote with no turn (turn -1) is about no one: an anchor's "I dealt with ... myself" is their own life, a disaster
+    lived through is experienced; every other row was something the player did, experienced, about the player."""
+    typed_memory(store)
+    store.execute("UPDATE npc_memory SET kind = 'own_life', subject = '', text = substr(text, 15) WHERE text LIKE '(my own life) %'")
+    store.execute("UPDATE npc_memory SET kind = 'own_life', subject = '' WHERE kind = 'event' AND turn = -1 AND text LIKE 'I dealt with %'")
+    store.execute("UPDATE npc_memory SET kind = 'experienced', subject = '' WHERE kind = 'event' AND turn = -1")
+    store.execute("UPDATE npc_memory SET kind = 'experienced', subject = 'player' WHERE kind = 'event'")
+
+
+def _v11_hire_memories(store) -> None:
+    """(f479) A hire's memories leave the player's record for rows under hire:<id>, typed as a townsperson's are: what they lived with
+    the player experienced, a fact the player told them told (by the player), weight as importance, key as about, count as times. Each
+    keeps its stamped day. The record then carries only the window the party reads, rebuilt from the rows when the player is loaded."""
+    import json
+    from engine import memory
+    raw = store._kv_text("player")
+    if not raw:
+        return
+    body = json.loads(raw)
+    for m in body.get("party") or []:
+        if not m.get("id"):
+            continue
+        for x in m.get("memories") or []:
+            r = memory.hire_row(x)
+            store._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
+                              "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (f"hire:{m['id']}", r["day"], r["turn"], r["kind"], r["importance"],
+                                                                         r["text"], r["subject"], r["source"], r["about"], r["minute"], r["times"]))
+        m.pop("memories", None)
+    store._db.execute("UPDATE kv SET json = ? WHERE key = 'player'", (json.dumps(body, ensure_ascii=False),))
+
+
+def _v12_regard(store) -> None:
+    """(f480) A person's view of the player becomes their view of one character, by id: trust, met, the name they were given and whether
+    they know theirs, when they last spoke, the journal's note, Easy Company and who named them first leave the record's top level for
+    regard["player"] (npc/models.py legacy_regard: only what differs from a new acquaintance's, so a person nobody met keeps none). The
+    index columns are unchanged: with one character they hold that character's view."""
+    import json
+    from npc.models import legacy_regard
+    for nid, raw in store._db.execute("SELECT id, json FROM npcs ORDER BY id").fetchall():
+        body = json.loads(raw)
+        moved = legacy_regard(body)
+        if moved is not body:
+            moved.setdefault("regard", {})                          # as save_npc writes it: every record carries its views, none or some
+            store._db.execute("UPDATE npcs SET json = ? WHERE id = ?", (json.dumps(moved, ensure_ascii=False), nid))
+
+
+def _v13_offers(store) -> None:
+    """(f481) A person's standing work offer and request leave their record for the registry: each an offer (data/rules/lifecycles.yaml),
+    from them to the one character there was then, still offered (an old work offer's hour is gone: GOALS.md S2, nothing ends by age; the
+    world withdraws it for a reason on the next line if the day is over or the player has left the town). The ids are fixed by the person
+    and the family, so the step is the same every time it runs."""
+    import json
+    from core.models import Entity
+    for nid, raw in store._db.execute("SELECT id, json FROM npcs ORDER BY id").fetchall():
+        body = json.loads(raw)
+        work, ask = body.pop("work_offer", None), body.pop("quest_offer", None)
+        for fam, terms, title in (("work", work, (work or {}).get("task", "")), ("request", ask, (ask or {}).get("title", ""))):
+            if not terms:
+                continue
+            t = {k: v for k, v in dict(terms).items() if k != "until"}
+            e = Entity(ref=f"obl:{nid}:{fam}", kind="offer", name=str(title)[:120], state="offered", since=0, owner="player", links={"npc": nid},
+                       data={"family": fam, "with": "player", "title": str(title), "terms": t, "key": f"{fam}:{nid}"},
+                       history=[[0, "", "offered", "brought forward from an older save"]])
+            store._db.execute("INSERT OR REPLACE INTO entities (ref, kind, state, place, owner, deadline, json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                              (e.ref, e.kind, e.state, e.place, e.owner, 0, e.model_dump_json()))
+        if work is not None or ask is not None or "work_offer" in raw or "quest_offer" in raw:
+            store._db.execute("UPDATE npcs SET json = ? WHERE id = ?", (json.dumps(body, ensure_ascii=False), nid))
+
+
+def _v14_knows(store) -> None:
+    """(f483) What a person knows of a matter becomes their own: npc_memory gains its state column (typed_memory), and every clue held
+    in a matter still open becomes a knows row of its holder's (about thread:<id>:<n>, from themselves, held, or told:player when its
+    words were found), dated when the matter opened. A clue whose holder is gone from the save is left to the matter."""
+    import json
+    typed_memory(store)
+    raw = store._kv_text("world_state")
+    if not raw:
+        return
+    from engine import clock
+    have = {r[0] for r in store._db.execute("SELECT id FROM npcs").fetchall()}
+    for th in json.loads(raw).get("threads") or []:
+        if th.get("status") != "active":
+            continue
+        t = int(th.get("opened", th.get("made", 0)) or 0)
+        for i, c in enumerate(th.get("clues") or []):
+            nid, about = c.get("npc") or "", f"thread:{th.get('id')}:{i}"
+            if nid not in have or store._db.execute("SELECT 1 FROM npc_memory WHERE npc_id = ? AND kind = 'knows' AND about = ? AND forgotten = 0",
+                                                    (nid, about)).fetchone():
+                continue
+            store._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times, state) "
+                              "VALUES (?, ?, -1, 'knows', 2, ?, '', 'self', ?, ?, 1, ?)",
+                              (nid, clock.day(t), str(c.get("text", "")), about, t, "told:player" if c.get("found") else "held"))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -152,6 +262,11 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (7, "Maren leaves Parth once the lesson is over, on the capital's work", _v7_maren_moves_on),
     (8, "every hire keeps the pronoun they were drawn with", _v8_hire_pronouns),
     (9, "the registry of who someone is and what has become of them", _v9_entities),
+    (10, "memories typed: what each is, whom it is about, who said it, what it is about, and when", _v10_memory_kinds),   # (f478)
+    (11, "a hire's memories as rows of their own, the player's record carrying only the window", _v11_hire_memories),      # (f479)
+    (12, "a person's view of the player kept as their view of one character, by id", _v12_regard),                          # (f480)
+    (13, "work offered and requests made kept as offers that end for a reason", _v13_offers),                               # (f481)
+    (14, "what a person knows of a matter kept as their own, past the matter's end", _v14_knows),                          # (f483)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

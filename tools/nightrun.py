@@ -84,6 +84,7 @@ class Run:
         self.calls: list[dict] = []
         self.sub_answers = 0
         self.hesitations = 0                         # turns in a row the model failed
+        self.crash_streak = 0                        # (f492) of those, the turns the game failed on its own fault (crash.log)
         self.reason = ""
         self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
         self.passage: list[str] = []                 # (f368) everything the game said since the last line: what the bot's next line answers
@@ -197,6 +198,13 @@ class Run:
                    hesitated=row.get("hesitated", False), level_after=self.bot.c.level, deaths=self.bot.c.deaths,
                    notes=self.turn_notes[-8:], state=self.state_now(),
                    outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
+        from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
+        row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
+                   deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
+                   stand_ins=list(_budget.LAST.get("stand_ins") or []),
+                   recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
+        row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
+        self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
         if not row["hesitated"]:
             self.hesitations = 0
         self.rows.append(row)
@@ -244,9 +252,44 @@ class Run:
             return {"place": p.location, "spot": getattr(p, "spot", ""), "minutes": ws.minutes, "delve": bool(p.delve), "at_dungeon": ws.dungeon_here() is not None,
                     "party_mode": getattr(p, "party_mode", "with"), "party": [m.get("name", "") for m in p.party],
                     "prisoners": len(held), "prisoner_days": max(held, default=0),
-                    "foes": [e.level for e in ws.combat.fight.enemies()] if getattr(ws, "combat", None) else []}   # (f414) for the page's level-gap count
+                    "foes": [e.level for e in ws.combat.fight.enemies()] if getattr(ws, "combat", None) else [],   # (f414) for the page's level-gap count
+                    **self.continuity_state(ws)}                                                               # (f473)
         except Exception as e:
             return {"error": str(e)[:120]}
+
+    def continuity_state(self, ws) -> dict:
+        """(f473) The truth the page's continuity counts (tools/page_measures.py continuity) are read against: who is here and what each
+        knows of the player, the one being talked to, what is owed (contracts held, offers and requests standing) and the hires'
+        commitments, and the deeds this turn recorded with who saw them. Keyed by id; small and flat."""
+        try:
+            from scenes.work_actions import offer_open
+            p = ws.player
+            present = list(getattr(ws, "present", []) or [])
+            from engine import regard                                # (f480) the playing character's view, under the keys the measures read
+            talk = {n.id: {"label": n.label(ws.acting), "met": regard.of(n, ws.acting).met, "last_talk_at": regard.of(n, ws.acting).last_talk_at,
+                           "known_as": regard.of(n, ws.acting).knows_as, "trust": regard.of(n, ws.acting).trust} for n in present[:12]}
+            from engine import obligations                         # (f481) what is owed, from the registry, under the ids the measures read
+            owed = [o for o in obligations.for_state(ws.store, ws.acting, p.quests) if o["kind"] not in ("work", "request")
+                    or o["holder"] in {n.id for n in present}]
+            ended = obligations.closed_since(ws.store, 0)            # (f481) what closed since the last turn read, each with its reason
+            seen = self.__dict__.get("_closed_seen")
+            closed = [] if seen is None else [{k: c[k] for k in ("id", "state", "reason", "cause")} for c in ended if c["ref"] not in seen]
+            self._closed_seen = {c["ref"] for c in ended}
+            deeds = []
+            rows = ws.store.journal_tail(30)
+            last = self.__dict__.get("_deed_seq")
+            if last is not None:
+                for r in rows:
+                    w = (r.get("data") or {}).get("witnesses") if isinstance(r.get("data"), dict) else None
+                    if r["seq"] > last and w is not None:
+                        deeds.append({"kind": r.get("kind", ""), "minute": r.get("minute"), "place": (r.get("data") or {}).get("place", ""),
+                                      "target": r.get("target", ""), "witnesses": list(w)[:12], "text": str(r.get("text", ""))[:120]})
+            self._deed_seq = max([r["seq"] for r in rows], default=last or 0)
+            return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
+                    "commitments": sum(1 for m in p.party for c in (m.get("commitments") or []) if c.get("state", "active") == "active"),   # (f481) held
+                    "deeds": deeds}
+        except Exception as e:
+            return {"continuity_error": str(e)[:120]}
 
     def done(self) -> str:
         if self.stop_when is not None:
@@ -257,7 +300,11 @@ class Run:
             return f"turn limit ({self.max_turns})"
         if time.time() - self.started >= self.hours * 3600:
             return f"time limit ({self.hours:g} hours)"
-        if self.hesitations >= 12:
+        if self.hesitations >= 12:                                           # (f492) a fault of the game's own is named as one
+            if self.crash_streak >= self.hesitations:
+                return "the game failed 12 turns in a row on its own fault (crash.log)"
+            if self.crash_streak:
+                return f"12 turns failed in a row ({self.crash_streak} of them the game's own fault, crash.log)"
             return "the model stopped answering (12 turns failed in a row)"
         if self.live and self.hesitations >= 3:
             from llm import setup_check
@@ -403,6 +450,7 @@ def batch(args) -> None:
         cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
                "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start, "--persona", persona] \
             + (["--stub"] if args.stub else []) + (["--record"] if args.record else [])     # (f444) each run keeps its recording
+        cmd += ["--no-continuity"] if args.no_continuity else []                                  # (f473)
         print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start}, playing as {persona} -> {out}", flush=True)
         return subprocess.Popen(cmd), {"cls": cls, "seed": seed, "start": start, "persona": persona, "out": out, "started": time.time()}
 
@@ -475,6 +523,8 @@ def main() -> None:
     ap.add_argument("--start", default="green", help="(f367) the starting point (data/rules/starts.yaml): green, known, veteran, scarred, legend")
     ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
     ap.add_argument("--persona", default="", help=f"(f368) the kind of player the bot is: {', '.join(PERSONAS)} (default: by the seed, in that order)")
+    ap.add_argument("--no-continuity", action="store_true", help="(f473) leave out the bot's continuity steps (promises, a lie set straight, "
+                    "people gone back to, offers taken, contracts given up, issuers visited), which a night plays by default")
     ap.add_argument("--personas", default="", help="with --runs: the personas to rotate through, comma-separated (default: all, in order)")
     ap.add_argument("--parallel", type=int, default=1, help="(f370) with --runs: play this many runs at once, for a card with the memory for them (the Ollama server "
                                                              "must allow it: OLLAMA_NUM_PARALLEL, see tools/HOSTED.md)")
@@ -494,6 +544,7 @@ def main() -> None:
     config.TURN_LOG_PATH = str(out / "turns_game.jsonl")
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
+    config.CRASH_LOG_PATH = str(out / "crash.log")            # (f492) each run's faults in its own folder: runs on one card never interleave
     config.LOG_MAX_MB = 10 ** 6
     config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
 
@@ -519,17 +570,15 @@ def main() -> None:
     problems = data_check.check()
     if problems:
         die("The game's data has problems:\n" + "\n".join(f"  - {p}" for p in problems))
-    from world.loader import load_world
+    from engine.session import CampaignSession
     from npc.traits import load_traits
-    from npc import backfill
-    from storage.campaign import CampaignStore, PlayerState
-    from scenes.world import WorldScene
+    from storage.campaign import PlayerState
     from engine import turnlog
 
-    world = load_world()
     rng = random.Random(args.seed)
     shutil.rmtree(f"saves/{save}", ignore_errors=True)
-    store = CampaignStore.open_or_create(save)
+    session = CampaignSession.open(save)                                 # (f457) the campaign's session, as main.py opens it
+    store, world = session.store, session.world
     store.meta.seed, store.meta.turn, store.meta.minutes = args.seed, 1, 8 * 60
     store.save_meta()
     from engine import quests, starts
@@ -556,22 +605,20 @@ def main() -> None:
     store.save_player(player)
     catalog = load_traits()
     began = starts.apply(store, world, catalog, player, args.start, rng, char.name)     # (f367) the clock, the record, the town's memory of them
-    ws = WorldScene(store, world, catalog, store.load_player())
+    ws = session.scene(catalog, store.load_player())
     ws.player.mentor["never"] = True
     party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
-    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run)
+    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=not args.no_continuity)   # (f473)
     run.bot = bot
     if stub is not None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    rec = None
     if args.record:                                                  # (f442) after the run's own hooks, so they are recorded as installed
-        from engine import recording
         store.save_player(ws.player)                                 # what the run set up in memory (the party, Maren left out) opens the recording
-        rec = recording.Recorder(store, folder=Path(out) / "recording").install(apart=True)   # the bot's reads never change the save
+        session.record(apart=True, folder=Path(out) / "recording")   # the bot's reads never change the save; closed first when the session closes
     print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, playing as {persona}, starting as {args.start} ({point.get('text', '')}; "
           f"{began['met']} met, {len(began['situations'])} past situations), with " + (", ".join(f"{m['name']} the {m['role']}" for m in party) or "nobody") + f"; logs in {out}; "
           f"stops after {args.hours:g} h" + (f" or {args.turns} turns" if args.turns else "") + ". Ctrl+C stops it early.", flush=True)
@@ -618,18 +665,23 @@ def main() -> None:
             store.save_player(ws.player)
         except Exception:
             pass
-        if rec is not None:
-            rec.close()                                                  # (f442) the recording's last row, then the save is closed
-        store.close()
-        backfill.drop(store)
+        session.close()                                                  # (f457) the recording's last row, the background work, the save
         turnlog.write_session_stats()
         texts = [r.get("text", "") for r in run.rows]
+        server = {}
+        if not args.stub:
+            try:
+                from llm import setup_check
+                server = setup_check.server_report()                     # (f475) the server's version, the model on the card, its context
+            except Exception as e:
+                server = {"error": str(e)[:120]}
         run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,
                     "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
-                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD}})          # (f387) which voice this night tried
+                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD},          # (f387) which voice this night tried
+                    "server": server})
         if not args.stub:
             from llm.gateway import unload
             unload()

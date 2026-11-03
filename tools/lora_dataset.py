@@ -144,9 +144,28 @@ def system_for(task: str, system: str, prompts: str) -> str | None:
     return system
 
 
+def version_of(row: dict) -> str:
+    """(f475) The system half of a call's prompt version (llm/gateway.py shape): the instructions it was trained to answer. The layout
+    half moves whenever an optional part is left out, so it is not what splits one prompt from the next."""
+    return str(row.get("prompt_version") or "").split(".")[0]
+
+
+def newest_versions(paths: list[Path], tasks: list[str]) -> dict[str, str]:
+    """(f475) Per task, the version of its newest logged call that has one. Rows from different prompts are never mixed in one task's
+    files: a brief rewritten in Bundle D makes every older night's rows for that task a different prompt."""
+    newest: dict[str, tuple[str, str]] = {}
+    for path in paths:
+        for r in rows_of(path):
+            v = version_of(r)
+            if v and r.get("task") in tasks and str(r.get("time", "")) >= newest.get(r["task"], ("", ""))[0]:
+                newest[r["task"]] = (str(r.get("time", "")), v)
+    return {t: v for t, (_, v) in newest.items()}
+
+
 def build(runs: list[Path], holdout: list[Path], out: Path, prompts: str = "short", tasks: list[str] | None = None) -> dict:
     """Write the files. Returns the counts that summary.md is written from."""
     tasks = tasks or list(L.get("tasks") or [])
+    keep = newest_versions([r / "llm_calls.jsonl" for r in list(runs) + list(holdout) if (r / "llm_calls.jsonl").exists()], tasks)   # (f475)
     counts: dict = {"train": collections.defaultdict(collections.Counter), "eval": collections.defaultdict(collections.Counter),
                     "reasons": collections.defaultdict(collections.Counter), "runs": {"train": [str(r) for r in runs], "eval": [str(r) for r in holdout]}}
     files: dict[tuple[str, str, str], list[str]] = collections.defaultdict(list)
@@ -156,6 +175,10 @@ def build(runs: list[Path], holdout: list[Path], out: Path, prompts: str = "shor
             if not path.exists():
                 continue
             calls = [c for c in calls_of(rows_of(path)) if c[0]["task"] in tasks]
+            for c in calls:                                       # (f475) one prompt version per task: an older prompt's rows are left out
+                if keep.get(c[0]["task"]) and version_of(c[0]) != keep[c[0]["task"]]:
+                    counts[split][c[0]["task"]]["dropped: an older prompt version"] += 1
+            calls = [c for c in calls if not keep.get(c[0]["task"]) or version_of(c[0]) == keep[c[0]["task"]]]
             by_prompt: dict[tuple[str, str], list[dict]] = {}
             superseded: set[int] = set()
             for call in calls:

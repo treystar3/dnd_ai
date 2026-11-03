@@ -2,7 +2,7 @@
 The rules (which roads leave where, forks, matching the player's words) are in engine/exits.py; this is the play of it."""
 import re
 
-from engine import clock, exits, mapview, roads
+from engine import clock, exits, mapview, questions, roads
 from engine.roads import R
 from llm.gateway import LLMError
 from ui import console
@@ -138,21 +138,32 @@ class ExitActions:
             console.note(f"You take {exits.option_label(chosen)}.")
             self.travel_route(chosen["to"], text, already=fork, events=events)
             return
-        console.note("The road forks: " + "; ".join(exits.option_label(m) for m in members) + ". Which way?")
-        for _ in range(3):
-            answer = console.ask()
-            if exits.wants_back(answer):
-                self.advance(fork, exert=True)
-                console.note("You turn back and walk the road home.")
-                self.halted = True                                  # (f416) the player's choice, not a refusal
-                return
-            chosen = exits.pick(gp, answer)
-            if chosen:
-                break
-            console.note("Which fork? " + "; ".join(exits.option_label(m) for m in members) + ", or turn back.")
-        chosen = chosen or members[0]
+        self.ask_next("fork", "The road forks: " + "; ".join(exits.option_label(m) for m in members) + ". Which way?",
+                      top=top, dir=gp["dir"], text=text, events=events, tries=0)   # (f460) the walk out is walked; the next line answers
+
+    def on_answer_fork(self, asked: dict, text: str):
+        """(f460) The answer at a fork: a road named or pointed at is taken (the walk out already made: already=fork), 'back' turns back
+        (the player's choice, not a refusal, f416), and a line that names no road is asked again, then after questions.TRIES of those
+        the nearest road is taken, as the loop it replaces did. The fork is found again from the world: a road is not JSON."""
+        d = asked["data"]
+        gp = next((g for g in exits.groups(self.world, d["top"]) if g["dir"] == d["dir"]), None)
+        if gp is None or len(gp["members"]) < 2:
+            return None
+        members, fork = gp["members"], gp["fork_minutes"]
+        if exits.wants_back(text):
+            self.advance(fork, exert=True)
+            console.note("You turn back and walk the road home.")
+            return True
+        chosen = exits.pick(gp, text)
+        if chosen is None:
+            tries = d.get("tries", 0) + 1
+            if tries < questions.TRIES:
+                self.ask_next("fork", "Which fork? " + "; ".join(exits.option_label(m) for m in members) + ", or turn back.", **{**d, "tries": tries})
+                return True
+            chosen = members[0]
         console.note(f"You take {exits.option_label(chosen)}.")
-        self.travel_route(chosen["to"], text, already=fork, events=events)
+        self.travel_route(chosen["to"], d["text"], already=fork, events=d.get("events") or 0)
+        return True
 
     # ---------- what the player has heard of ----------
 

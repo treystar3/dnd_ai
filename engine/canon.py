@@ -159,7 +159,7 @@ BUCKETS = {
     "trait":      {"key": "traits",      "label": "True of you (you said it before)",           "days": None, "cap": 20, "canon": True},
     "possession": {"key": "possessions", "label": "Something you own",                          "days": 10,   "cap": 8},
     "intention":  {"key": "intentions",  "label": "Something you mean to do",                   "days": 30,   "cap": 6},
-    "commitment": {"key": "commitments", "label": "Something you have promised, or owe",        "days": 60,   "cap": 6},
+    "commitment": {"key": "commitments", "label": "Something you have promised, or owe",        "days": None, "cap": 6},   # (f481) held until it ends for a reason
     "moment":     {"key": "state_now",   "label": "True of you for now (you said it today)",    "days": 1,    "cap": 6},
     "situation":  {"key": "situations",  "label": "True of you for a while (an ongoing situation)", "days": 14, "cap": 6},
     "opinion":    {"key": "opinions",    "label": "What you have said of {about}",              "days": None, "cap": 16},
@@ -174,6 +174,8 @@ def _fresh(x: dict, days: int | None, day: int | None) -> bool:
 def keep_light(member: dict, bucket: str, facts: list[str], day: int, who: str = "", weights: dict | None = None) -> None:
     """A fact that is not canon: kept in its own bucket for as long as such things stay true. The same thing said again (by meaning) only
     refreshes it."""
+    if bucket == "commitment":
+        return keep_commitments(member, facts, day, who, weights)
     B = BUCKETS[bucket]
     items = [x for x in member.get(B["key"], []) if _fresh(x, B["days"], day)]
     for f in clean(facts):
@@ -188,6 +190,89 @@ def keep_light(member: dict, bucket: str, facts: list[str], day: int, who: str =
         items.append({"text": f, "day": day, "gravity": (weights or {}).get(_norm(f), "personal")})
         _event(who or member.get("name", ""), f, bucket)
     member[B["key"]] = items[-B["cap"]:]
+
+
+def _obl() -> dict:
+    from engine import obligations
+    return obligations.family("commitment")
+
+
+def _active(x: dict) -> bool:
+    return x.get("state", "active") == "active"
+
+
+def _ends(member: dict, day: int, cap: int) -> None:
+    """The held ones, then the last `cap` that ended: what ended stays a while for the measures and the journal, never without bound."""
+    items = member.get("commitments", [])
+    member["commitments"] = [x for x in items if _active(x)] + [x for x in items if not _active(x)][-cap:]
+
+
+def _end(member: dict, x: dict, state: str, cause: str, day: int, who: str) -> None:
+    from engine import streams
+    lines = ((_obl().get("reasons") or {}).get(state) or {}).get(cause) or [cause.replace("_", " ")]
+    x.update(state=state, ended=day, why=streams.keyed("commitment", member.get("id", ""), x["text"], day).choice(list(lines)))
+    _event(who or member.get("name", ""), x["text"], f"commitment {state}")
+    journal("commitment", f"hire:{member.get('id', '')}", "", f"{member.get('name', '')}: {x['text']} - {state} ({x['why']})", state=state, cause=cause)
+
+
+def keep_commitments(member: dict, facts: list[str], day: int, who: str = "", weights: dict | None = None) -> None:
+    """(f481, GOALS.md S2) What a hire has promised or owes, held until it ends for a reason (kept, or let go when they leave or die),
+    never by age. The same thing said again refreshes it. Six are held; one said beyond them is kept as their word (commitments_said,
+    capped) and logged, and none of the six is let go to make room."""
+    O = _obl()
+    cap, said_cap = int(O.get("open_cap", 6)), int(O.get("said_cap", 20))
+    items = member.get("commitments", [])
+    for f in clean(facts):
+        held = [x for x in items if _active(x)]
+        texts = [x["text"] for x in held]
+        sims = _sims(f, texts) if texts else []
+        same = (max(sims) >= config.SIM_RESTATE if sims else False) if sims is not None else f.lower() in {t.lower() for t in texts}
+        if same:
+            hit = held[sims.index(max(sims))] if sims else next(x for x in held if x["text"].lower() == f.lower())
+            hit["day"] = day
+            _event(who or member.get("name", ""), f, "commitment (again)")
+            continue
+        if len(held) >= cap:
+            member["commitments_said"] = (member.get("commitments_said", []) + [{"text": f, "day": day}])[-said_cap:]
+            _event(who or member.get("name", ""), f, "commitment beyond the six held: kept as their word")
+            journal("commitment", f"hire:{member.get('id', '')}", "", f"{member.get('name', '')} said: {f} (beyond the six held)", state="said")
+            continue
+        items.append({"text": f, "day": day, "gravity": (weights or {}).get(_norm(f), "personal"), "state": "active"})
+        _event(who or member.get("name", ""), f, "commitment")
+    member["commitments"] = items
+    _ends(member, day, cap)
+
+
+def keep_kept(member: dict, kept: list[str], day: int, who: str = "") -> None:
+    """(f481) A promise or debt they now say is settled: the held one it names is fulfilled, with a reason, by meaning (or, with no
+    embedder, by shared words). One said settled that matches none is left alone: nothing is ended on a guess."""
+    O = _obl()
+    floor = float(O.get("kept_similarity", 0.55))
+    for k in clean(kept):
+        held = [x for x in member.get("commitments", []) if _active(x)]
+        if not held:
+            return
+        sims = _sims(k, [x["text"] for x in held])
+        if sims:
+            best = max(range(len(held)), key=lambda i: sims[i])
+            hit = held[best] if sims[best] >= floor else None
+        else:
+            words = lambda t: {w for w in re.findall(r"[a-z]{4,}", t.lower())}
+            scored = sorted(((len(words(k) & words(x["text"])), i) for i, x in enumerate(held)), reverse=True)
+            hit = held[scored[0][1]] if scored and scored[0][0] >= 2 else None
+        if hit is not None:
+            _end(member, hit, "fulfilled", "kept", day, who)
+    _ends(member, day, int(O.get("open_cap", 6)))
+
+
+def release_commitments(member: dict, cause: str, day: int) -> int:
+    """(f481) A hire who leaves or dies lets go of what they had promised, each for that reason. Returns how many."""
+    n = 0
+    for x in member.get("commitments", []):
+        if _active(x):
+            _end(member, x, "released", cause, day, member.get("name", ""))
+            n += 1
+    return n
 
 
 JOURNAL = None                # bound by the scene: fn(kind, actor, target, text, data) -> None (storage event_log); None in tools without a game
@@ -265,6 +350,8 @@ def _keep_into(member: dict, about_me, about_world, day: int, details, given_fac
     buckets = dict(buckets or {})
     if now:
         buckets["moment"] = list(buckets.get("moment", [])) + list(now)
+    if buckets.get("kept"):
+        keep_kept(member, buckets["kept"], day, who)            # (f481) before what is new: a promise said settled is settled first
     for b in ("possession", "intention", "commitment", "moment", "situation"):
         if buckets.get(b):
             keep_light(member, b, buckets[b], day, who, buckets.get(WEIGHTS))
@@ -279,21 +366,21 @@ def _keep_into(member: dict, about_me, about_world, day: int, details, given_fac
         new, wrong, unsure = vet(member, claims, details, given_facts, who, kept_as=b)
         bad += wrong
         key = BUCKETS[b]["key"]
-        for c in new:
+        room = max(0, BUCKETS[b]["cap"] - len(member.get(key, [])))     # (f483, owner question 8) who they are is never evicted for room:
+        for c in new[:room]:                                            # a claim past the cap waits unsettled, and none of the held goes
             member.setdefault(key, []).append({"text": c, "day": day, "gravity": (buckets.get(WEIGHTS) or {}).get(_norm(c), "personal")})
-        del member.setdefault(key, [])[:-BUCKETS[b]["cap"]]
-        _unsettle(member, unsure, day, b)
+        _unsettle(member, list(unsure) + list(new[room:]), day, b)
     world = clean(about_world) + clean(buckets.get("world", []))
     have = {x["text"].lower() for x in member.get("beliefs", [])}
     for c in world:
-        if c.lower() not in have:
-            member.setdefault("beliefs", []).append({"text": c, "day": day})
+        if c.lower() not in have:                                   # (f482) a hire's word about the world: theirs, never the world's
+            member.setdefault("beliefs", []).append({"text": c, "day": day, "source": "self", "certainty": "their word"})
             _event(who or member.get("name", ""), c, "belief")
     del member.setdefault("beliefs", [])[:-MAX_BELIEFS]
     return bad
 
 
-HELD = tuple(B["key"] for B in BUCKETS.values()) + ("beliefs", "unsettled")
+HELD = tuple(B["key"] for B in BUCKETS.values()) + ("beliefs", "unsettled", "commitments_said")
 
 
 def _unsettle(member: dict, claims: list[str], day: int, kept_as: str) -> None:
@@ -323,11 +410,12 @@ def settle_again(member: dict, day: int, details=None, given_facts=None, who: st
         new, _wrong, unsure = vet(member, [x["text"]], details, given_facts, who, kept_as=b)
         if unsure:
             continue
+        key = BUCKETS[b]["key"]
+        if new and len(member.get(key, [])) >= BUCKETS[b]["cap"]:
+            continue                                                     # (f483) still no room: it waits on, and nothing held is let go
         held.remove(x)
         if new:
-            key = BUCKETS[b]["key"]
             member.setdefault(key, []).append({"text": x["text"], "day": x.get("day", day), "gravity": "personal"})
-            del member[key][:-BUCKETS[b]["cap"]]
 
 
 class Pending:
@@ -367,7 +455,7 @@ def records(member: dict, day: int | None = None) -> list[dict]:
                      "gravity": x.get("gravity", "light")} for x in member.get(B["key"], [])]
             continue
         out += [{"kind": "canon" if B.get("canon") else "state", "text": f"{B['label']}: {x['text']}", "gravity": x.get("gravity", "personal")}
-                for x in member.get(B["key"], []) if _fresh(x, B["days"], day)]
+                for x in member.get(B["key"], []) if _fresh(x, B["days"], day) and _active(x)]     # (f481) a promise kept or let go is not offered back
     out += [{"kind": "belief", "text": "You believe: " + x["text"], "gravity": "light"} for x in member.get("beliefs", [])]
     return out
 
@@ -417,6 +505,7 @@ EXTRACT_SYSTEM = ("You read lines a person in a fantasy world just said and list
                   "  possession: something they own or carry.\n"
                   "  intention: something they mean to do, soon or someday.\n"
                   "  commitment: something they have promised, or owe, to someone.\n"
+                  "  kept: a promise or debt of theirs that they now say is settled - paid back, done, kept - in the words of the promise.\n"
                   "  moment: true only of this moment or this day - what they are eating, paying for, feeling in their legs, doing now.\n"
                   "  world: a fact about the world beyond the moment (a place, a people, a custom).\n"
                   "Give each a weight, how heavy it is to talk about: light (anyone might mention it over a meal - a food, a habit, a skill), "
@@ -492,6 +581,8 @@ def route(f, others: list[str]) -> tuple[str, str | None]:
         for n in others:
             if re.search(rf"\b{re.escape(n.split()[0])}\b", f.text) if n.split() else False:
                 return n, "opinion"
+    if f.kind == "kept":
+        return "self", "kept"                                     # (f481) a promise of theirs they say is settled, however long it lasted
     if f.lasts == "now":
         return "self", "moment"
     if f.lasts == "while" and f.kind in ("backstory", "trait"):

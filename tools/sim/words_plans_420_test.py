@@ -84,9 +84,9 @@ for words, want in (("2 silver", True), ("the coins", True), ("some silver to th
 real_gen = wa.generate
 for task in ("", "none", "0", "N/A"):
     wa.generate = lambda *a, task=task, **k: WorkOffer(task=task, pay=0, minutes=60)
-    check(f"a reading of {task!r} is no offer of work", ws.inferred_offer(types.SimpleNamespace(label=lambda: "the smith"), "x") is None)
+    check(f"a reading of {task!r} is no offer of work", ws.inferred_offer(types.SimpleNamespace(label=lambda who: "the smith"), "x") is None)
 wa.generate = lambda *a, **k: WorkOffer(task="load the grain onto the wagon", pay=20, minutes=60)
-check("...while a real task is kept", ws.inferred_offer(types.SimpleNamespace(label=lambda: "the smith"), "x").task.startswith("load"))
+check("...while a real task is kept", ws.inferred_offer(types.SimpleNamespace(label=lambda who: "the smith"), "x").task.startswith("load"))
 wa.generate = real_gen
 
 # ---- one generic-word list; whole-word naming

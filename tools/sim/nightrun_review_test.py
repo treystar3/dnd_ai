@@ -89,7 +89,7 @@ ws.enter("guild_house"); ws.apply_backfill()
 first = ws.clerk_here() or ws.present[0]
 typo = first.id[:3] + first.id[3:].replace(first.id[4], first.id[4] + "x", 1)            # 'bixdie_wigglewick' for 'bixie_wigglewick'
 check("a target near enough to someone here is them: a slip of the pen", ws.settle_target(typo) == first.id, (typo, first.id))
-check("...their name or how the player knows them", ws.settle_target(first.label()) == first.id and ws.settle_target(f"the {first.label()}") == first.id)
+check("...their name or how the player knows them", ws.settle_target(first.label("player")) == first.id and ws.settle_target(f"the {first.label("player")}") == first.id)
 wolf = world.bestiary["wolf"]
 ws.wildlife = (wolf, [combat.fighter_from_creature(wolf, 3, "elite", "e1", "hippogriff (elite)", "far")])
 check("'wildlife:hippogriff (elite)' and 'wildlife: raven' are the creature that is about", ws.settle_target("wildlife:hippogriff (elite)") == "wildlife"

@@ -113,16 +113,17 @@ def _concern(store, q: dict) -> None:
     n = store.load_npc(q["issuer"])
     if n.gone:
         return
-    n.concern, n.concern_from = q["reason"], f"quest:{q['id']}"
+    from engine import circumstance                          # (f483) the job's, until it is done or dropped
+    circumstance.set_concern(n, q["reason"], f"quest:{q['id']}")
     store.save_npc(n)
 
 
-def _release(store, npc_id: str, qid: str) -> None:
+def _release(store, npc_id: str, qid: str, state: str = "settled") -> None:
     if not store.npc_exists(npc_id):
         return
     n = store.load_npc(npc_id)
-    if n.concern_from == f"quest:{qid}":
-        n.concern, n.concern_from = "", ""
+    from engine import circumstance                          # (f483) settled when the job is done, let go when it was dropped
+    if circumstance.release_concern(n, f"quest:{qid}", state, store.meta.minutes):
         store.save_npc(n)
 
 
@@ -153,7 +154,8 @@ def taken(ws, q: dict) -> None:
     if not q.get("issuer") or not ws.store.npc_exists(q["issuer"]):
         return
     n = ws.store.load_npc(q["issuer"])
-    n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, text=f"The guild says the stranger has taken on my job: {q['title'].lower()}.", importance=2))
+    n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, text=f"The guild says the stranger has taken on my job: {q['title'].lower()}.", importance=2,
+                             kind="heard", source="guild", minute=ws.minutes))                 # (f478) the guild's word, about the player
     ws.store.save_npc(n)
 
 
@@ -166,9 +168,10 @@ def done(ws, q: dict) -> None:
     town = pulse.town_of(ws.world, ws.player.location)                  # paid at the hall: the hall's town is the one that remembers
     if q.get("issuer") and ws.store.npc_exists(q["issuer"]):
         n = ws.store.load_npc(q["issuer"])
-        n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn,
+        n.memories.append(Memory(day=clock.day(ws.minutes), turn=ws.store.meta.turn, kind="experienced", source="self", minute=ws.minutes,   # (f478)
                                  text=f"{name} did my job - {q['title'].lower()}." + (f" {q['result'][0].upper() + q['result'][1:]}." if q.get("result") else ""), importance=2))
-        n.trust = min(100, n.trust + G.get("issuer_thanks_trust", 5))
+        from engine import regard
+        regard.step(n, ws.acting, G.get("issuer_thanks_trust", 5), cause="job done", about=q["id"], minute=ws.minutes)   # (f480)
         ws.store.save_npc(n)
         _release(ws.store, q["issuer"], q["id"])
     if q.get("result"):
@@ -182,7 +185,7 @@ def done(ws, q: dict) -> None:
             ws.store.save_place(tp)
         state = ws.store.load_world_state()
         if state:
-            pulse.add_news(state, f"{q['result'][0].upper() + q['result'][1:]} - {name}'s doing, they say.", town, ws.minutes, ["everyone"])
+            pulse.add_news(state, f"{q['result'][0].upper() + q['result'][1:]} - {name}'s doing, they say.", town, ws.minutes, ["everyone"], certainty="they say")
             if q["kind"] in ("hunt", "bounty") and q.get("place") in ws.world.places:
                 D = G.get("done_danger", {"value": -15, "days": 5})
                 state["effects"].append({"kind": "danger", "place": q["place"], "value": D["value"], "until": ws.minutes + D["days"] * 1440, "cause": q["title"]})
@@ -221,6 +224,7 @@ def _open_matter(ws, q: dict) -> None:
     matters._bind_holders(ws.store, ws.world, th)
     if th["clues"] and not th["clues"][0]["npc"] and q.get("issuer"):
         th["clues"][0]["npc"] = q["issuer"]
+        matters.hold(ws.store, th, 0, q["issuer"], ws.minutes)             # (f483) what the issuer knows of it is theirs
     ws.store.save_world_state(state)
     ws.weight_hint = "rich"
     ws.narrate("AND THERE IS MORE TO IT THAN THE POSTING SAID. What the player finds, now: " + m.get("reveal", "")

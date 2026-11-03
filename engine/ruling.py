@@ -65,7 +65,7 @@ def request(ws, words: str, text: str) -> str:
     c = ws.player.character
     place = ws.place
     parts = features.lines(ws) or ["(none known)"]
-    people = [f"{n.label()} ({n.role.replace('_', ' ')})" for n in ws.present][:8] or ["no one"]
+    people = [f"{n.label(ws.acting)} ({n.role.replace('_', ' ')})" for n in ws.present][:8] or ["no one"]
     gear = ", ".join(i.name for i in c.equipment.values())[:200] or "nothing"
     pack = ", ".join(inventory.label(i) for i in c.inventory[:12]) or "nothing"
     abilities = ", ".join(a.name for a in c.actives[:12]) or "none"
@@ -194,7 +194,7 @@ def make_room(ws, r) -> list[str]:
         elif n.kind == "person":
             npc = appear(ws, n)
             if npc is not None:
-                out.append(f"{npc.label()} ({npc.role.replace('_', ' ')}): {npc.description}")
+                out.append(f"{npc.label(ws.acting)} ({npc.role.replace('_', ' ')}): {npc.description}")
         elif n.kind == "thing":
             ws.add_mark(f"{n.name}: {n.what}".strip(": "))
             ledger.add("made", ref=f"thing:{n.name}", name=n.name, how="ruled", say=f"{n.name} is here: {n.what}")
@@ -229,7 +229,7 @@ def appear(ws, n):
     ws.residents = ws.residents + [npc]
     ws.present = ws.present + [npc]
     ws.__dict__.setdefault("_appeared", {}).setdefault((pid, clock.day(ws.minutes)), []).append(npc.id)
-    ledger.add("made", ref=f"person:{npc.id}", name=npc.label(), how="ruled", say=f"{npc.label()} is here now: {npc.description}")
+    ledger.add("made", ref=f"person:{npc.id}", name=npc.label(ws.acting), how="ruled", say=f"{npc.label(ws.acting)} is here now: {npc.description}")
     return npc
 
 

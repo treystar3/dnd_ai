@@ -39,10 +39,10 @@ class DungeonActions:
                 changed = True
         if changed:
             self.store.save_dungeons(list(known.values()))
-        for d in known.values():
+        for d in known.values():                                    # (f451) through the campaign's world
             if d["entrance"] not in self.world.places:
-                self.world.places[d["entrance"]] = dungeons.entrance_place(d, self.world)
-            self.world.places[d["place"]].connects.setdefault(d["entrance"], 10)
+                self.world.add_place(dungeons.entrance_place(d, self.world))
+            self.world.link(d["place"], d["entrance"], 10)
 
     def dungeon_here(self) -> dict | None:
         return next((d for d in self.store.load_dungeons() if d["entrance"] == self.player.location), None)
@@ -177,6 +177,10 @@ class DungeonActions:
         """A remade dungeon invalidates postings and delve quests that point at floors it no longer has."""
         def stale(q):
             return q.get("kind") == "delve" and q.get("dungeon") == dungeon_id and q.get("floor", 0) >= len(fresh["floors"])
+        from engine import obligations                                      # (f481) let go: the floors it named are gone
+        for q in self.player.quests:
+            if stale(q):
+                obligations.close(self.store, obligations.find(self.store, str(q["id"])), "released", "place_changed", self.minutes)
         self.player.quests = [q for q in self.player.quests if not stale(q)]
         for pid in {self.player.location}:
             try:

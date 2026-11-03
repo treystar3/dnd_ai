@@ -3,8 +3,8 @@
 
 interval_hours: 8               # the world pulses this often
 eventful_chance: 0.35           # chance a pulse does anything at all (the rest are quiet)
-max_new_events_per_action: 2    # model calls the pulse may make while the player does one thing
-                                # (long stretches of time are compressed: timers still run, fewer new events)
+max_new_events_per_action: 2    # model calls the pulse may make per operation (the world's: one of the player's lines, or the game's opening);
+                                # a call made is spent whatever came of it (f466). Long stretches of time are compressed: timers still run, fewer new events
 max_engine_events_per_action: 8 # (f353) the engine's own situations cost no call, so a long absence may start this many of them
 
 # What an eventful pulse does, by weight.
@@ -78,6 +78,7 @@ effects:
 news:
   hours_per_walking_hour: 1.5
   keep_days: 45                       # how long news stays "news" before it's just history
+  keep: 300                           # (f482) the most news kept at once; the oldest plain gossip goes first
 
 # Seasons. The campaign starts on the first day of the first season.
 seasons:

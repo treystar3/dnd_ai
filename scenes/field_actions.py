@@ -6,7 +6,8 @@ State lives in player.field: cd (ability id -> game minute it is ready), camp, h
 import random
 import re
 
-from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse
+from engine import regard                                   # (f480)
+from engine import clock, dungeons, encounters, field, forge, inventory as inv, items, money, pools, pulse, questions
 from engine.field import F, tier_value
 from ui import console
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
@@ -182,11 +183,11 @@ class FieldActionsBase:
         bonus = tier_value(F["influence"]["next_check_bonus"], tier)
         self.fld["edge"] = {"npc": npc.id, "bonus": bonus, "until": self.minutes + 120}
         if gain:
-            npc.trust = min(100, npc.trust + gain)
+            regard.step(npc, self.acting, gain, cause="won over", minute=self.minutes)   # (f480)
             self.store.save_npc(npc)
-        console.note(f"{cap_first(npc.label())} warms to you." if gain else
-                     f"{cap_first(npc.label())} is already as won over as you can make them today, but they're listening.")
-        return (f"They bring {ability.name} to bear on {npc.label()}, who softens toward them and is more willing to listen. "
+        console.note(f"{cap_first(npc.label(self.acting))} warms to you." if gain else
+                     f"{cap_first(npc.label(self.acting))} is already as won over as you can make them today, but they're listening.")
+        return (f"They bring {ability.name} to bear on {npc.label(self.acting)}, who softens toward them and is more willing to listen. "
                 "Describe the effect on the person, subtly, without having them agree to anything yet.")
 
     def spend_edge(self, check: str, npc) -> None:
@@ -240,7 +241,7 @@ class FieldActionsBase:
         place = self.place
         subject = f"{place.name} {' '.join(place.visible)} " + " ".join(
             self.world.places[n].name for n in self.world.neighbors(place.id) if n in self.world.places)
-        subject += " " + " ".join(f"{n.label()} {n.role}" for n in self.present)
+        subject += " " + " ".join(f"{n.label(self.acting)} {n.role}" for n in self.present)
         degree = "strong success" if ability.tier.value == "heavy" else "success"
         out = self.lore(subject, degree)
         if not out.startswith("The player recalls"):
@@ -412,12 +413,13 @@ class FieldFunctions:
         if not npc:
             return None
         self.advance(F["read_the_room"]["minutes"])
-        trust = ("distrusts you" if npc.trust < 30 else "is wary of you" if npc.trust < 45 else "is neutral toward you" if npc.trust < 60
-                 else "likes you" if npc.trust < 80 else "trusts you")
+        t = regard.of(npc, self.acting).trust                 # (f480)
+        trust = ("distrusts you" if t < 30 else "is wary of you" if t < 45 else "is neutral toward you" if t < 60
+                 else "likes you" if t < 80 else "trusts you")
         mood = npc.mood or "even"
         weighs = npc.concern or "nothing you can make out"
-        console.note(f"{cap_first(npc.label())}: mood {mood}; what weighs on them - {weighs}; {trust}.")
-        return (f"They read {npc.label()} closely. Their mood is: {mood}. What weighs on them: {weighs}. They {trust.replace('you', 'the player')}. "
+        console.note(f"{cap_first(npc.label(self.acting))}: mood {mood}; what weighs on them - {weighs}; {trust}.")
+        return (f"They read {npc.label(self.acting)} closely. Their mood is: {mood}. What weighs on them: {weighs}. They {trust.replace('you', 'the player')}. "
                 "Describe the small signs the player notices, without having the person say any of it aloud.")
 
     # ---------- intimidate ----------
@@ -429,10 +431,10 @@ class FieldFunctions:
         bonus = tier_value(F["intimidate"]["bonus"], ability.tier)
         self.fld["edge"] = {"npc": npc.id, "bonus": bonus, "until": self.minutes + F["intimidate"]["expires_minutes"],
                             "only": ["intimidation"]}
-        npc.trust = max(0, npc.trust - F["intimidate"]["trust_cost"])
+        regard.step(npc, self.acting, -(F["intimidate"]["trust_cost"]), cause="intimidated", minute=self.minutes)   # (f480)
         self.store.save_npc(npc)
-        console.note(f"{cap_first(npc.label())} shrinks back from you. Your next attempt to frighten them will be far easier.")
-        return (f"They bring {ability.name} to bear on {npc.label()}, looming, letting menace do the work. Describe the person "
+        console.note(f"{cap_first(npc.label(self.acting))} shrinks back from you. Your next attempt to frighten them will be far easier.")
+        return (f"They bring {ability.name} to bear on {npc.label(self.acting)}, looming, letting menace do the work. Describe the person "
                 "flinching, without having them yield anything yet.")
 
     # ---------- pickpocket ----------
@@ -459,19 +461,19 @@ class FieldFunctions:
             coins = max(1, round(self.rng.randint(*P["coins_per_level"]) * max(1, c.level) * share))
             c.coins += coins
             if degree == "partial":
-                npc.trust = max(0, npc.trust - P["trust_loss"]["partial"])
+                regard.step(npc, self.acting, -(P["trust_loss"]["partial"]), cause="pressed", minute=self.minutes)   # (f480)
                 self.store.save_npc(npc)
-            console.note(f"You lift {money.fmt(coins)} from {npc.label()}." + (" They almost felt it." if degree == "partial" else ""))
+            console.note(f"You lift {money.fmt(coins)} from {npc.label(self.acting)}." + (" They almost felt it." if degree == "partial" else ""))
             from engine.domain_events import Pickpocketed
-            self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, npc=npc.id, name=npc.label(), coins=coins), npc)
-            return (f"They quietly lift a purse from {npc.label()} and walk off with {money.words(coins)}. "
+            self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, npc=npc.id, name=npc.label(self.acting), coins=coins), npc)
+            return (f"They quietly lift a purse from {npc.label(self.acting)} and walk off with {money.words(coins)}. "
                     "Describe the sleight of hand, and that the person does not notice."
                     + (" The person nearly feels it." if degree == "partial" else ""))
-        npc.trust = max(0, npc.trust - P["trust_loss"]["failure"])
+        regard.step(npc, self.acting, -(P["trust_loss"]["failure"]), cause="pressed", minute=self.minutes)   # (f480)
         from engine.domain_events import Pickpocketed
-        self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(), caught=True), npc)
-        console.note(f"{cap_first(npc.label())} catches your hand. They will not forget it.")
-        return (f"They reach for {npc.label()}'s purse and are caught. Describe the person's hand closing on their wrist, "
+        self.notice(Pickpocketed(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), caught=True), npc)
+        console.note(f"{cap_first(npc.label(self.acting))} catches your hand. They will not forget it.")
+        return (f"They reach for {npc.label(self.acting)}'s purse and are caught. Describe the person's hand closing on their wrist, "
                 "and the cold look that follows. They get nothing.")
 
     # ---------- commune ----------
@@ -753,34 +755,82 @@ class FieldFunctions:
         console.note(f"{items.display_name(item)} - its rolls:")
         for n, p in enumerate(item.properties, 1):
             console.note(f"  {n}. {forge.prop_text(item, p)}")
-        keep = None
-        for _ in range(3):
-            console.note(f"Which roll do you keep? (1-{len(item.properties)}, or 'cancel')")
-            said = console.ask().lower()
-            if "cancel" in said or said in ("no", "stop"):
-                console.note("You leave it as it is.")
-                return None
-            m = re.search(r"\d+", said)
-            if m and 1 <= int(m.group()) <= len(item.properties):
-                keep = int(m.group()) - 1
-                break
-        if keep is None:
-            console.note("You leave it as it is.")
+        self.ask_next("reforge_keep", f"Which roll do you keep? (1-{len(item.properties)}, or 'cancel')", item=item.uid, ability=ability.id, tries=0)
+        return None                             # (f460) nothing is spent until the work is done (on_answer_reforge_take, field_finish)
+
+    def on_answer_reforge_keep(self, asked: dict, text: str):
+        """(f460) Which roll to keep: a number rerolls the rest and asks whether to take them; 'cancel' or a no leaves the piece as it is;
+        anything else is asked again, up to questions.TRIES lines, then the piece is left as it is."""
+        d = asked["data"]
+        item = self.gear_by_uid(d["item"])
+        if item is None or forge.reforge_problem(item) is not None:
             return None
-        fresh = forge.reroll(item, keep, self.rng)
-        old = list(item.properties)
-        console.note("New rolls:")
-        for n, p in enumerate(fresh, 1):
-            console.note(f"  {n}. {forge.prop_text(item, p)}")
-        console.note("Take the new rolls, or keep the old ones? (new / old)")
-        said = console.ask().lower()
-        took = "new" in said and "old" not in said or said.strip() in ("n", "yes", "y", "new")
-        item.properties = fresh if took else old
+        said = text.lower()
+        if "cancel" in said or questions.yes_no(text) is False:
+            console.note("You leave it as it is.")
+            return True
+        m = re.search(r"\d+", said)
+        if m and 1 <= int(m.group()) <= len(item.properties):
+            fresh = forge.reroll(item, int(m.group()) - 1, self.rng)
+            console.note("New rolls:")
+            for n, p in enumerate(fresh, 1):
+                console.note(f"  {n}. {forge.prop_text(item, p)}")
+            self.ask_next("reforge_take", "Take the new rolls, or keep the old ones? (new / old)", item=item.uid, ability=d["ability"],
+                          fresh=[p.model_dump() for p in fresh], tries=0)
+            return True
+        tries = d.get("tries", 0) + 1
+        if tries >= questions.TRIES:
+            console.note("You leave it as it is.")
+            return True
+        self.ask_next("reforge_keep", asked["question"], **{**d, "tries": tries})
+        return True
+
+    def on_answer_reforge_take(self, asked: dict, text: str):
+        """(f460) New rolls or old: the piece is reforged either way and cannot be again; the work's cost, cooldown, minutes and telling
+        come now (field_finish). An unclear line is asked again, up to questions.TRIES, then the old rolls are kept."""
+        d = asked["data"]
+        item = self.gear_by_uid(d["item"])
+        if item is None or item.reforged:
+            return None
+        said = text.lower().strip()
+        new = ("new" in said and "old" not in said) or said in ("n", "yes", "y", "new")
+        old = ("old" in said and "new" not in said) or said in ("no", "old", "keep")
+        if not new and not old:
+            tries = d.get("tries", 0) + 1
+            if tries < questions.TRIES:
+                self.ask_next("reforge_take", asked["question"], **{**d, "tries": tries})
+                return True
+            old = True
+        if new and not old:
+            from core.models import ItemProperty
+            item.properties = [ItemProperty(**p) for p in d["fresh"]]
         item.reforged = True
         self.advance(F["reforge"]["minutes"])
+        console.note(f"You {'take the new rolls' if new and not old else 'keep the old rolls'}. The {items.display_name(item)} cannot be reforged again.")
+        self.field_finish(d["ability"], f"They reforge {items.display_name(item)} at length, hammering and tempering it. Describe the work, "
+                                        "without saying what the result is.", text)
+        return True
+
+    def gear_by_uid(self, uid: str):
+        """(f460) A piece worn or carried, by its uid: how a question's data names an item across turns."""
+        c = self.player.character
+        return next((i for i in list(c.equipment.values()) + self.pack if i.uid == uid), None)
+
+    def field_finish(self, ability_id: str, result: str, text: str) -> None:
+        """(f460) The end of a field use whose work waited on an answer (reforging): what on_ability does when a use comes off at once,
+        its cost from the pool it draws on, its cooldown, a few minutes, the save, and the narrator told what happened."""
+        from engine.combat import RULES
+        c = self.player.character
+        ability = next((a for a in c.actives if a.id == ability_id), None)
+        if ability is not None:
+            pool_name = ability.resource.value
+            table = "ability_cost_percent" if pool_name == "mana" else "stamina_cost_percent"
+            cost = pools.reference_pool(pool_name, c.level) * RULES[table][ability.tier.value] / 100
+            setattr(c, pool_name, max(0, pools.current(c, pool_name) - cost))
+            self.field_cooldown_start(ability)
+            self.advance(clock.OTHER_MINUTES)
         self.store.save_player(self.player)
-        console.note(f"You {'take the new rolls' if took else 'keep the old rolls'}. The {items.display_name(item)} cannot be reforged again.")
-        return f"They reforge {items.display_name(item)} at length, hammering and tempering it. Describe the work, without saying what the result is."
+        self.narrate((f"Outside of any fight, the player uses {ability.name}: {ability.description} " if ability is not None else "") + result, text)
 
     def field_salvage(self, ability, intent, text: str) -> str | None:
         c = self.player.character

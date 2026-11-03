@@ -97,7 +97,7 @@ def town_places(world, town: str) -> set[str]:
 
 def condition(store, world, place_id: str, now: int) -> Condition:
     """The town's condition right now, by the first rule of data/rules/towns.yaml that holds."""
-    from engine import pulse
+    from engine import clock, pulse
     town = pulse.town_of(world, place_id)
     if town not in world.places or world.places[town].danger:
         return Condition()
@@ -127,7 +127,7 @@ def condition(store, world, place_id: str, now: int) -> Condition:
         elif "fell_within_days" in rule:                                   # (f324) the town fell to a cataclysm
             fell = state.get("fallen", {}).get(town)
             if fell is not None and now - fell <= rule["fell_within_days"] * 1440:
-                why = f"fell {max(1, (now - fell) // 1440)} days ago"
+                why = f"fell {clock.ago(fell, now)}"                       # (f477) in words
         elif rule.get("festival"):
             f = festival_today(world, place_id, now)
             if f:

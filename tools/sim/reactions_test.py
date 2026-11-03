@@ -52,10 +52,13 @@ check("anyone else is loaded from the store", ws.npc_by_id("x1") is not None and
 
 # ---- a theft, seen by the victim and a bystander
 with store.transaction():
-    publish(Theft(minute=ws.minutes, place="trading_square", witnesses=("m1", "f1"), npc="m1", name=mer.label(), item="a silver cup", took=True, story=False, value=5000))
-check("the victim remembers being caught, and trusts less", any(m.text == "Caught the stranger taking a silver cup from me." and m.importance == 3 for m in mer.memories) and mer.trust == 35, ([m.text for m in mer.memories], mer.trust))
-check("the bystander remembers seeing it", any(m.text == f"Saw the stranger took a silver cup from {mer.label()}." for m in frm.memories) and frm.trust == 45, [m.text for m in frm.memories])
-check("the guard, who saw nothing, remembers nothing", not grd.memories)
+    publish(Theft(minute=ws.minutes, by="player", place="trading_square", witnesses=("m1", "f1"), npc="m1", name=mer.label("player"), item="a silver cup", took=True, story=False, value=5000))
+# (f476) by what each one is to the deed, read through the store: the victim experienced it (defining), the bystander witnessed it
+check("the victim remembers being caught, and trusts less", any(r["importance"] == 3 for r in simlib.remembered(store, mer.id, kind="experienced", subject="player", about="silver cup"))
+      and simlib.view(mer).trust == 35, (simlib.remembered(store, mer.id), simlib.view(mer).trust))
+check("the bystander remembers seeing it", simlib.remembered(store, frm.id, kind="witnessed", subject="player", about="silver cup") and simlib.view(frm).trust == 45,
+      simlib.remembered(store, frm.id))
+check("the guard, who saw nothing, remembers nothing", not grd.memories and not simlib.remembered(store, grd.id))
 check("standing moves in the town at once", standing.value(ws.player, "parth", "merchants", day) == -5 and standing.value(ws.player, "parth", "outlaws", day) == 3, ws.player.standing)
 check("the watch hears of it", law.current_heat(ws.player, "parth", day) > 0, ws.player.heat)
 deeds = store.load_world_state().get("deeds", []) if store.load_world_state() else []
@@ -67,42 +70,44 @@ check("it was written to the store through the held copy", any("silver cup" in m
 # ---- a theft nobody saw
 heat0 = law.current_heat(ws.player, "parth", day); st0 = dict(ws.player.standing.get("parth", {}))
 with store.transaction():
-    publish(Theft(minute=ws.minutes, place="trading_square", witnesses=(), npc="m1", name=mer.label(), item="a loaf", took=True))
+    publish(Theft(minute=ws.minutes, by="player", place="trading_square", witnesses=(), npc="m1", name=mer.label("player"), item="a loaf", took=True))
 check("an unseen theft leaves the owner a memory that something is gone", any("Loaf" in m.text or "loaf" in m.text and "gone missing" in m.text for m in mer.memories), [m.text for m in mer.memories][-1:])
 check("but no tale, no heat and no ledger row", law.current_heat(ws.player, "parth", day) == heat0 and dict(ws.player.standing.get("parth", {})) == st0 and len(store.load_world_state().get("deeds", [])) == 1)
 
 # ---- a lawless place: people still remember, the town has no law and no standing to move
 heat0 = law.current_heat(ws.player, "parth", day); st0 = dict(ws.player.standing.get("parth", {})); n0 = len(mer.memories)
 with store.transaction():
-    publish(Theft(minute=ws.minutes, place="south_fields", witnesses=("m1",), npc="m1", name=mer.label(), item="a hat", took=False))
+    publish(Theft(minute=ws.minutes, by="player", place="south_fields", witnesses=("m1",), npc="m1", name=mer.label("player"), item="a hat", took=False))
 check("in the wild the victim remembers but nothing else moves", len(mer.memories) == n0 + 1 and law.current_heat(ws.player, "parth", day) == heat0 and dict(ws.player.standing.get("parth", {})) == st0)
 
 # ---- a bribe to the watch, in a confrontation: the tale is about the watch, and the companions see it
 with store.transaction():
-    publish(Bribe(minute=ws.minutes, place="trading_square", witnesses=("g1",), npc="g1", name=grd.label(), amount=300, worked=True, degree="success", favor="forget what they knew", confrontation=True, guard=True))
-check("the guard remembers taking it", any(m.text == f"Took {money.words(300)} from the stranger to forget what I knew." for m in grd.memories), [m.text for m in grd.memories])
+    publish(Bribe(minute=ws.minutes, by="player", place="trading_square", witnesses=("g1",), npc="g1", name=grd.label("player"), amount=300, worked=True, degree="success", favor="forget what they knew", confrontation=True, guard=True))
+from engine import memory as _memory                        # (f478) the line keeps a slot for the one who did it, read as "the stranger"
+check("the guard remembers taking it", any(_memory.render(m.text) == f"Took {money.words(300)} from the stranger to forget what I knew." for m in grd.memories),
+      [m.text for m in grd.memories])
 check("the watch's standing drops and the outlaws warm", standing.value(ws.player, "parth", "guards", day) < -3 and standing.value(ws.player, "parth", "outlaws", day) > 3, ws.player.standing)
 check("the companions get their say on it", DEEDS == ["bribe"], DEEDS)
 with store.transaction():
-    publish(Bribe(minute=ws.minutes, place="trading_square", witnesses=("m1",), npc="m1", name=mer.label(), amount=100, worked=False, degree="failure", favor="look the other way at the gate", confrontation=False, guard=False))
+    publish(Bribe(minute=ws.minutes, by="player", place="trading_square", witnesses=("m1",), npc="m1", name=mer.label("player"), amount=100, worked=False, degree="failure", favor="look the other way at the gate", confrontation=False, guard=False))
 check("a refused bribe in talk is remembered with what it was for, and starts no tale about the watch",
       any(f"tried to bribe me with {money.words(100)} (look the other way at the gate). I refused" in m.text for m in mer.memories) and standing.value(ws.player, "parth", "guards", day) == standing.value(ws.player, "parth", "guards", day), [m.text for m in mer.memories][-1:])
 
 # ---- a finished guild contract: the clerk remembers, the guild thinks more of you, the town does too
 rep0 = ws.player.reputation.get("parth", 0)
 with store.transaction():
-    publish(ContractDone(minute=ws.minutes, place="trading_square", witnesses=("g1",), npc="g1", name=grd.label(), quest="q1", title="Wolves at the fold", guild=True, coins=1200, letter="F"))
+    publish(ContractDone(minute=ws.minutes, by="player", place="trading_square", witnesses=("g1",), npc="g1", name=grd.label("player"), quest="q1", title="Wolves at the fold", guild=True, coins=1200, letter="F"))
 check("the payer remembers paying", any("finished wolves at the fold; I paid" in m.text for m in grd.memories), [m.text for m in grd.memories][-1:])
 check("the guild and the town think more of you", standing.value(ws.player, "parth", "guild", day) == 4 and ws.player.reputation.get("parth", 0) == rep0 + 4, (ws.player.standing, ws.player.reputation))
 
 # ---- flags pick the companions' deeds and the reputation key
 DEEDS.clear()
 with store.transaction():
-    publish(Rested(minute=ws.minutes, place="tilted_plough", inn=True, late=True, slept=True))
+    publish(Rested(minute=ws.minutes, by="player", place="tilted_plough", inn=True, late=True, slept=True))
 check("a late sleep at an inn is two things the companions may mind", sorted(DEEDS) == ["inn", "sleep_late"], DEEDS)
 rep0 = ws.player.reputation.get("parth", 0)
 with store.transaction():
-    publish(Persuaded(minute=ws.minutes, place="trading_square", witnesses=("m1",), npc="m1", name=mer.label(), how="intimidation", degree="success"))
+    publish(Persuaded(minute=ws.minutes, by="player", place="trading_square", witnesses=("m1",), npc="m1", name=mer.label("player"), how="intimidation", degree="success"))
 check("an intimidation is a threat the town notes, and a deed the ledger keeps", ws.player.reputation.get("parth", 0) == rep0 - 2 and any(d["kind"] == "persuade" and d["degree"] == "success" for d in store.load_world_state()["deeds"]))
 
 # ---- a kind the table does not know is skipped; registering again does not double anything
@@ -111,11 +116,11 @@ class Odd(Deed):
     kind: str = field(init=False, default="odd_thing")
 n0 = len(mer.memories)
 with store.transaction():
-    publish(Odd(minute=ws.minutes, witnesses=("m1",), npc="m1"))
+    publish(Odd(minute=ws.minutes, by="player", witnesses=("m1",), npc="m1"))
 check("an unknown kind of deed is nothing to the world (and not an error)", len(mer.memories) == n0)
 reactions.register(ws); reactions.register(ws)
 with store.transaction():
-    publish(Theft(minute=ws.minutes, place="trading_square", witnesses=("f1",), npc="f1", name=frm.label(), item="an apple", took=True))
+    publish(Theft(minute=ws.minutes, by="player", place="trading_square", witnesses=("f1",), npc="f1", name=frm.label("player"), item="an apple", took=True))
 check("registered three times, a deed is still remembered once", sum("apple" in m.text for m in frm.memories) == 1, [m.text for m in frm.memories])
 
 # ---- what the town can be told of it: the "lately" facet, by who saw what
@@ -135,7 +140,7 @@ check("the facet is in the townsfolk's and the narrator's views", "lately" in tr
 from engine.domain_events import ContractDropped
 g0 = standing.value(ws.player, "parth", "guild", day)
 with store.transaction():
-    publish(ContractDropped(minute=ws.minutes, place="trading_square", quest="q2", title="Rats in the granary", how="abandoned", guild=True))
+    publish(ContractDropped(minute=ws.minutes, by="player", place="trading_square", quest="q2", title="Rats in the granary", how="abandoned", guild=True))
 check("a guild contract dropped costs standing with the guild", standing.value(ws.player, "parth", "guild", day) == g0 - 2, (g0, standing.value(ws.player, "parth", "guild", day)))
 
 # ---- the news list keeps the tales that move standing; the journal does not grow without bound

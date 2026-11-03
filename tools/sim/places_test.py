@@ -79,7 +79,7 @@ from npc import prompts as _pr
 from npc.models import NPC as _NPC
 _n = _NPC(id="b1", name="Phineas", people="human", role="baker", location="trading_square", description="A baker.")
 _req = _pr.conversation_request(_n, _w2.places["trading_square"], [], [], [], "where is the smith?", [], [], [],
-                                truth_text=_tr.scene_of(ws).view(_tr.viewer_for_npc(_n, _w2), "townsfolk").text())
+                                truth_text=_tr.scene_of(ws).view(_tr.viewer_for_npc(_n, _w2), "townsfolk").text(), who="player")
 check("...and the conversation request carries it", "WHAT THIS TOWN HAS" in _req and "smithy: no smithy building in Parth" in _req)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")

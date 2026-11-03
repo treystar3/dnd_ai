@@ -89,10 +89,11 @@ def apply(store, world, catalog, player, name: str, rng: random.Random, who: str
         for town in resolve(world, key, towns):
             residents = populate_place(store, world, town, catalog, first_batch=None)
             for n in residents[:int((m or {}).get("people", 4))]:
-                n.met_player = True
-                n.name_known_to_player = True
-                n.trust = max(0, min(100, int((m or {}).get("trust", 55)) + rng.randint(-6, 6)))
-                n.last_talk_day = max(0, day - rng.randint(1, 20))
+                from engine import regard                     # (f480) the start's people know this character
+                seen = regard.meet(n, player.character.id, -1)
+                seen.name_known = True
+                regard.set_trust(n, player.character.id, max(0, min(100, int((m or {}).get("trust", 55)) + rng.randint(-6, 6))), cause="the start")
+                seen.last_talk_day = max(0, day - rng.randint(1, 20))
                 store.save_npc(n)
                 done["met"] += 1
     for p in sp.get("past") or []:

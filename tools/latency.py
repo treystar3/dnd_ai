@@ -2,6 +2,7 @@
 
     python tools/latency.py RUN_DIR                    a night run's folder (tools/nightrun.py): calls and turns, written to RUN_DIR/summary.md
     python tools/latency.py --calls logs/llm_calls.jsonl   any call log on its own (a real session's, for instance)
+    python tools/latency.py --baseline RUN_DIR...          (f475) a night's speech-task sizes, first tries and continuity counts, as YAML
 
 The call log carries one row per attempt: its task, its wall seconds and, since the gateway began keeping them, Ollama's own
 counts (`tokens`: prompt and written tokens, the milliseconds each took, a model load). A night run adds turns.jsonl, one row per
@@ -75,6 +76,85 @@ def calls_table(rows: list[dict]) -> list[str]:
     return lines
 
 
+# (f475) The speech tasks Bundle D's briefs change, measured before they change (GOALS.md S7: prompt ceilings measured first). The list is
+# the baseline's own (data/measured/bundle_d_baseline.yaml speech_tasks), read when it is there.
+SPEECH = ("npc_conversation", "npc_parting", "npc_profile", "dialogue_frame", "work_offer_read", "hire_chat", "canon_extract", "canon_check",
+          "exchange", "overheard", "mentor_chat")
+BASELINE = Path(__file__).resolve().parent.parent / "data" / "measured" / "bundle_d_baseline.yaml"
+
+
+def speech_tasks() -> tuple[str, ...]:
+    try:
+        import yaml
+        got = (yaml.safe_load(BASELINE.read_text(encoding="utf-8")) or {}).get("speech_tasks")
+        return tuple(got) if got else SPEECH
+    except Exception:
+        return SPEECH
+
+
+def prompt_chars(row: dict) -> int | None:
+    """(f475) What one attempt read, in characters: the gateway's own count since f475, else the messages as logged (a night logs them
+    whole); None when the log shortened the system prompt and the true size cannot be known."""
+    if isinstance(row.get("chars"), int):
+        return row["chars"]
+    msgs = row.get("messages") or []
+    if any("[...shortened in log]" in str(m.get("content") or "") for m in msgs):
+        return None
+    return sum(len(str(m.get("content") or "")) for m in msgs[:2]) or None
+
+
+def speech_measures(calls: list[dict]) -> dict:
+    """(f475) Per speech task: calls, prompt characters (p50, p95, most) at the first try, the tail's p50 when logged, first-try
+    acceptance (first tries with no error, of all first tries), and the share of prompt tokens the server had cached, when it said."""
+    out = {}
+    for task in speech_tasks():
+        first = [r for r in calls if r.get("task") == task and int(r.get("attempt", 0) or 0) == 0]
+        if not first:
+            continue
+        sizes = [c for c in (prompt_chars(r) for r in first) if c is not None]
+        tails = [r["tail_chars"] for r in first if isinstance(r.get("tail_chars"), int)]
+        toks = [r["tokens"] for r in first if isinstance(r.get("tokens"), dict) and isinstance(r["tokens"].get("cached"), int)]
+        out[task] = {"calls": len(first), "first_try": round(sum(1 for r in first if not r.get("error")) / len(first), 3),
+                     "p50": int(pct(sizes, .5)) if sizes else None, "p95": int(pct(sizes, .95)) if sizes else None,
+                     "max": max(sizes) if sizes else None, "tail_p50": int(pct(tails, .5)) if tails else None,
+                     "cached": round(sum(t["cached"] for t in toks) / max(1, sum(t.get("prompt", 0) for t in toks)), 3) if toks else None}
+    return out
+
+
+def speech_table(calls: list[dict]) -> list[str]:
+    """(f475) The speech tasks' prompt sizes and first-try acceptance, for summary.md."""
+    m = speech_measures(calls)
+    if not m:
+        return ["No speech calls on this night."]
+    lines = ["| Speech task | Calls | First try accepted | Prompt chars p50 | p95 | Most | Tail p50 | Cached |",
+             "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+    for task, r in m.items():
+        cell = lambda v: "-" if v is None else str(v)
+        lines.append(f"| {task} | {r['calls']} | {round(100 * r['first_try'])}% | {cell(r['p50'])} | {cell(r['p95'])} | {cell(r['max'])} | "
+                     f"{cell(r['tail_p50'])} | {'-' if r['cached'] is None else str(round(100 * r['cached'])) + '%'} |")
+    return lines
+
+
+def baseline(run_dirs: list[Path], note: str = "") -> dict:
+    """(f475) A night's measures as Bundle D's baseline (data/measured/bundle_d_baseline.yaml): the speech tasks over every run, and each
+    run's continuity counts (tools/page_measures.py). The blind reading's memory-and-time counts are added by hand once it is read."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import page_measures
+    calls, cont = [], {}
+    for d in run_dirs:
+        d = Path(d)
+        calls += load(d / "llm_calls.jsonl")
+        info = json.loads((d / "run.json").read_text(encoding="utf-8")) if (d / "run.json").exists() else {}
+        m = page_measures.continuity(load(d / "turns_game.jsonl"), load(d / "turns.jsonl"), info)
+        cont[d.name] = {"C1": [len(m["c1_time_slips"]), m["c1_time_spoken"]], "C2": [len(m["c2_met_as_stranger"]), len(m["c2_stranger_as_met"])],
+                        "C3": [len(m["c3_open_as_done"]), len(m["c3_closed_as_open"])], "C4": {k: list(v) for k, v in m["c4_raised"].items()},
+                        "C5": [len(m["c5_vanished"]), m["c5_lapsed"]],
+                        "C6": [m["c6_false_name"][k] for k in ("kept", "spread", "after", "narrated", "planted")],
+                        "C7": [[n, t, a, b] for n, t, a, b in m["c7_left_named"]], "C8": [len(m["c8_unseen_spoken_of"]), m["c8_witnesses_spoke"]]}
+    return {"night": note or ", ".join(Path(d).name for d in run_dirs), "speech_tasks": list(speech_tasks()), "tasks": speech_measures(calls),
+            "continuity": cont}
+
+
 def turns_table(rows: list[dict]) -> list[str]:
     """Per kind of line the bot typed: how many, how long they took, how long to the first word, calls per turn."""
     by: dict[str, list[dict]] = collections.defaultdict(list)
@@ -97,6 +177,19 @@ def turns_table(rows: list[dict]) -> list[str]:
     embed_s = sum(float(r.get("embed_seconds") or 0) for r in rows)
     lines.append(f"\n{len(rows)} turns in {fmt(sum(secs) / 60, 1)} minutes; {fmt(100 * model / sum(secs), 0) if sum(secs) else '-'}% of it in the model; "
                  f"{embeds} embedding calls taking {fmt(embed_s, 1)} s; {sum(int(r.get('background_calls') or 0) for r in rows)} calls on background threads.")
+    req = [float(r["required_seconds"]) for r in rows if r.get("required_seconds") is not None]
+    if req:                                                                                  # (f468) the budget's measures, apart from the failed turns
+        try:
+            from engine import budget as _budget
+            limit = float(_budget.B.get("limit_seconds") or 60)
+        except Exception:
+            limit = 60.0
+        lines.append(f"The budget: {sum(len(r.get('deferred') or []) for r in rows)} optional calls deferred and "
+                     f"{sum(len(r.get('dropped') or []) for r in rows)} dropped; {sum(1 for r in rows if r.get('stand_ins'))} turns told by a stand-in, "
+                     f"{sum(1 for r in rows if 'passage' in (r.get('stand_ins') or []))} of them stood without a passage; "
+                     f"{sum(int(r.get('recovered') or 0) for r in rows)} outcomes told at a load; "                                 # (f471)
+                     f"the required path estimated at p50 {fmt(pct(req, .5))} s and p90 {fmt(pct(req, .9))} s, over {limit:g} s in "
+                     f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above).")
     slow = sorted(rows, key=lambda r: -float(r.get("seconds") or 0))[:5]
     if slow:
         lines.append("\nSlowest turns:")
@@ -288,8 +381,11 @@ def summarise(run_dir: Path) -> str:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import page_measures
         lines += ["", "## The page", ""] + page_measures.table(game_turns, turns, calls, info)
+        lines += ["", "## Continuity (from the page)", ""] + page_measures.continuity_table(game_turns, turns, info)    # (f474)
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
+    if calls:                                                       # (f475) the speech tasks Bundle D changes, measured first
+        lines += ["", "## Speech tasks (prompt size and first try)", ""] + speech_table(calls)
     text = "\n".join(lines) + "\n"
     (run_dir / "summary.md").write_text(text, encoding="utf-8")
     return text
@@ -299,6 +395,10 @@ def main() -> None:
     args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
         print(__doc__)
+        return
+    if args[0] == "--baseline":                                     # (f475) --baseline RUN_DIR... : the night's measures, as YAML
+        import yaml
+        print(yaml.safe_dump(baseline([Path(a) for a in args[1:]]), sort_keys=False, allow_unicode=True, width=140))
         return
     if args[0] == "--calls":
         rows = load(Path(args[1] if len(args) > 1 else "logs/llm_calls.jsonl"))

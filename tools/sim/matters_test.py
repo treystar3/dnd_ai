@@ -103,7 +103,7 @@ if holder:
           and next(t for t in store.load_world_state()["threads"] if t["id"] == "m2")["touched"])
     j = matters.journal(ws)
     check("the journal lists what was found, who said it, and how the matter stands - and nothing not found",
-          any(m["title"] == th2["title"] and len(m["found"]) == 1 and holder.label() in m["found"][0] and m["standing"] == "still going on" for m in j), j)
+          any(m["title"] == th2["title"] and len(m["found"]) == 1 and holder.label("player") in m["found"][0] and m["standing"] == "still going on" for m in j), j)
 
 # ---- the board with more behind it: the job pays, the reveal shows, the matter stays open
 state = store.load_world_state(); state["doors"]["parth"] = "word"; store.save_world_state(state)
@@ -148,7 +148,7 @@ state = store.load_world_state(); state["threads"] = [t for t in state["threads"
 t4 = birth("m4", 1, contract=None, reveal="")
 state = store.load_world_state(); t4 = next(t for t in state["threads"] if t["id"] == "m4"); t4["door"], t4["summons"], t4["moment"] = "summons", "pending", ""; store.save_world_state(state)
 for n in people:
-    n.met_player = False; store.save_npc(n)
+    simlib.view(n).met = False; store.save_npc(n)
 narrated.clear()
 ws._door_loc = None
 matters.on_arrival(ws)

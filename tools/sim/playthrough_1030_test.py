@@ -59,22 +59,22 @@ ws.narrate = lambda req, text="", *a, **k: asked.append(req)
 who = None
 for pid in ("parth", "trading_square", "guild_house"):
     ws.enter(pid)
-    who = next((n for n in ws.present if not n.name_known_to_player and len(n.name.split()) >= 2), None)
+    who = next((n for n in ws.present if not simlib.view(n).name_known and len(n.name.split()) >= 2), None)
     if who is not None:
         break
 check("(the square has someone the player does not know by name)", who is not None, [n.name for n in ws.present])
 if who is not None:
-    who.heard_of = {"by": "Belney", "day": 0, "line": f"{who.name} works here."}
+    simlib.view(who).heard_of = {"by": "Belney", "day": 0, "line": f"{who.name} works here."}
     store.save_npc(who)
     asked.clear()
     ws.on_search(ActionIntent(kind="search", seek=who.name), f"I look for {who.name}")
     check("looking for someone by name who is here finds them", asked and who.name in asked[-1] and "picking" in asked[-1], asked[-1:])
-    check("...and they are known by that name now", store.load_npc(who.id).name_known_to_player and who.name_known_to_player)
+    check("...and they are known by that name now", simlib.view(store.load_npc(who.id)).name_known and simlib.view(who).name_known)
     check("...not a search for wild game", not any("no wild game" in a for a in asked))
 away = next((store.load_npc(i) for i in store.list_npcs() if store.load_npc(i).location not in (ws.player.location, "")
              and store.load_npc(i).id not in {n.id for n in ws.present}), None)
 if away is not None:
-    away.heard_of = {"by": "Belney", "day": 0, "line": f"{away.name} works elsewhere."}
+    simlib.view(away).heard_of = {"by": "Belney", "day": 0, "line": f"{away.name} works elsewhere."}
     store.save_npc(away)
     NOTES.clear(); asked.clear(); ws.halted = False
     ws.on_search(ActionIntent(kind="search", seek=away.name), f"I look for {away.name}")

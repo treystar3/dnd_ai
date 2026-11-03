@@ -145,10 +145,11 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                          land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                          stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                         worn: list[str] = ()) -> str:
+                         worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None) -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
-                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn).render()
+                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn, now=now, who=who,
+                               work=work).render()
 
 
 def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
@@ -156,11 +157,12 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                        worn: list[str] = ()):
+                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
     voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
-    saying offered to be said as it is; unsaid: what they said lately, so they say something new."""
+    saying offered to be said as it is; unsaid: what they said lately, so they say something new. who (f480): the id of the character
+    in front of them, whose view of them (engine/regard.py) the request reads."""
     from engine.prompt import Prompt
     p = Prompt()
     p.fact(_identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land))
@@ -175,7 +177,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     samples = (getattr(npc, "speech", None) or {}).get("samples") or []
     if samples:                                                     # (f374) a person written by hand: their way of talking, shown
         p.history("\n".join(f"- {s}" for s in samples), "HOW YOU SOUND (things you have said: the way you talk, to keep; never say these again)")
-    p.fact(_knowledge(npc, facts, convo, wares, extra))
+    p.fact(_knowledge(npc, facts, convo, wares, extra, now, who, work))
     p.history(unsaid)
     if worn:
         p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
@@ -205,24 +207,29 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
     )
 
 
-def _knowledge(npc, facts, convo, wares, extra) -> str:
-    if not npc.met_player:
+def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, work: dict | None = None) -> str:
+    from engine import regard
+    seen = regard.of(npc, char_id)                                  # (f480) their view of the one in front of them
+    if not seen.met:
         who = "A stranger you have never met."
-    elif npc.knows_player_as:
-        who = f"Someone you have met before. They told you their name is {npc.knows_player_as}."
+    elif seen.knows_as:
+        who = f"Someone you have met before. They told you their name is {seen.knows_as}."
     else:
         who = "Someone you have met before, though you don't know their name."
-    shared = [m for m in npc.memories if not m.text.startswith("(my own life)")]        # their own life is given separately
-    memories = "\n".join(f"  - day {m.day}: {m.text}" for m in shared[-12:]) or "  (none)"
+    from engine import memory as _memory
+    shared = [m for m in npc.memories if m.kind != "own_life"]        # their own life is given separately (f478: by kind, not by a prefix)
+    from engine import clock
+    memories = "\n".join(f"  - {clock.ago_day(m.day, now, npc.id) if now is not None else f'day {m.day}'}: {_memory.render(m.text)}"   # (f477) from now, in words
+                         for m in shared[-12:]) or "  (none)"
     known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
     return (
-        f"THE PERSON IN FRONT OF YOU: {who} {trust_words(npc.trust).capitalize()}.\n\n"
+        f"THE PERSON IN FRONT OF YOU: {who} {trust_words(seen.trust).capitalize()}.\n\n"
         f"WHAT YOU KNOW:\n{known}\n\n"
         + (("WHAT YOU SELL (fixed prices - quote them exactly; the player pays through the game when they agree, so "
             "never pretend coins have already changed hands):\n" + "\n".join(f"  - {w}" for w in wares) + "\n\n")
            if wares else "")
-        + (f"WORK YOU HAVE OFFERED THEM (not yet done): {npc.work_offer['task']} for {npc.work_offer['pay']} copper\n\n"
-           if getattr(npc, "work_offer", None) else "")
+        + (f"WORK YOU HAVE OFFERED THEM (not yet done): {work['task']} for {work['pay']} copper\n\n"     # (f481) the offer that stands
+           if work else "")
         + (("RIGHT NOW YOU ALSO KNOW:\n" + "\n".join(f"  - {x}" for x in extra) + "\n\n") if extra else "") +
         f"YOUR MEMORIES OF THEM:\n{memories}"
     )

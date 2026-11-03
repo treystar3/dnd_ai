@@ -86,16 +86,16 @@ ws = WorldScene(store, world, load_traits(), store.load_player()); ws.enter("par
 npc = next(n for n in ws.residents if n.role == "smith")
 ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
 reply = types.SimpleNamespace(speech="Horseshoes, a copper apiece.", gesture="wipes her hands on her apron, leaving a dark smear across the leather", intent="small_talk", trust_change=0, gives=None)
-ws.narrate_dialogue(npc, npc.label(), npc.label(), "i ask what she makes", reply, False)
+ws.narrate_dialogue(npc, npc.label("player"), npc.label("player"), "i ask what she makes", reply, False)
 check("the first words with someone this visit are framed, and the frame is told why", printed[-1][0] == "frame" and "WHY THIS LINE GETS A FRAME: the first words" in asked[-1], (printed[-1], asked[-1][:300]))
 n = len(asked)
-ws.narrate_dialogue(npc, npc.label(), npc.label(), "and nails?", reply, False)
+ws.narrate_dialogue(npc, npc.label("player"), npc.label("player"), "and nails?", reply, False)
 check("an ordinary second line is the words alone: no frame call, and the gesture whole (f375)",
-      len(asked) == n and printed[-1] == ("says", npc.label(), "Horseshoes, a copper apiece.", "wipes her hands on her apron, leaving a dark smear across the leather"), printed[-1])
+      len(asked) == n and printed[-1] == ("says", npc.label("player"), "Horseshoes, a copper apiece.", "wipes her hands on her apron, leaving a dark smear across the leather"), printed[-1])
 nudged = types.SimpleNamespace(speech="Aye, a copper.", gesture="", intent="small_talk", trust_change=1, gives=None)
 check("trust nudged by one is not a moment", ws.frame_reasons(npc, nudged) == [], ws.frame_reasons(npc, nudged))
 moved = types.SimpleNamespace(speech="Fine. Two copper, and that's a favour.", gesture="", intent="bargain", trust_change=2, gives=None)
-ws.narrate_dialogue(npc, npc.label(), npc.label(), "i haggle", moved, False, reasons=ws.frame_reasons(npc, moved))
+ws.narrate_dialogue(npc, npc.label("player"), npc.label("player"), "i haggle", moved, False, reasons=ws.frame_reasons(npc, moved))
 check("trust that moved earns a frame", printed[-1][0] == "frame" and "trust in the player has just moved" in asked[-1])
 check("an intent of 'refuse' on an ordinary answer is not a moment", ws.frame_reasons(npc, types.SimpleNamespace(intent="refuse", speech="The mill is past the bridge.", trust_change=0, gives=None)) == [])
 check("a refusal, a gift, a leaving and a judged attempt do too", voice_rules.V["frame_when"]["refuse"] in ws.frame_reasons(npc, types.SimpleNamespace(intent="refuse", speech="No. Not for you.", trust_change=0, gives=None))
@@ -117,17 +117,17 @@ check("no stance text is a line to quote back", not any(w in t["text"] for t in 
 # ---- what was shown this visit
 ws.enter("parth"); ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
 check("nothing shown yet on arrival", ws.shown_lines() == [])
-label = npc.label()
+label = npc.label("player")
 ws.note_shown(f"Rain. {label[0].upper() + label[1:]} works the bellows while the square empties.")
 lines = ws.shown_lines()
 check("after a passage: the place, the weather and the person it described are on the list",
       any("place itself" in l for l in lines) and any("weather" in l for l in lines) and any(label in l for l in lines), lines)
 others = [n for n in ws.present if n.id != npc.id]
-check("a person the passage did not describe is not", not others or not any(others[0].label() in l for l in lines), lines)
+check("a person the passage did not describe is not", not others or not any(others[0].label("player") in l for l in lines), lines)
 ws.enter("parth"); ws.present = [npc] + [n for n in ws.present if n.id != npc.id]
-head = npc.label().split()[-1]
+head = npc.label("player").split()[-1]
 ws.note_shown(f"A muscular {head} strikes a glowing rod of iron.")
-check("a person described by a paraphrase of their epithet counts as shown", any(npc.label() in l for l in ws.shown_lines()), (npc.label(), ws.shown_lines()))
+check("a person described by a paraphrase of their epithet counts as shown", any(npc.label("player") in l for l in ws.shown_lines()), (npc.label("player"), ws.shown_lines()))
 check("the revisit line never invents a change", "never invent a change" in ws.brevity() or not ws.revisit)
 ws.narrate_dialogue(npc, label, label, "hello", reply, False, reasons=["test"])
 check("a frame is told the list", "ALREADY SHOWN THIS VISIT" in asked[-1] and label in asked[-1], asked[-1][:400])

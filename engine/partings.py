@@ -57,16 +57,20 @@ def request(ws, npc, text: str):
     from engine.prompt import Prompt
     from npc.prompts import trust_words
     p = Prompt()
-    who = (f"someone you have met before, who told you their name is {npc.knows_player_as}" if npc.knows_player_as
-           else "someone you have met before" if npc.met_player else "a stranger")
+    from engine import regard
+    seen = regard.of(npc, ws.acting)                                     # (f480) their view of the one leaving
+    who = (f"someone you have met before, who told you their name is {seen.knows_as}" if seen.knows_as
+           else "someone you have met before" if seen.met else "a stranger")
     p.fact(f"YOU ARE: {npc.name}, a {npc.people.replace('_', '-')} {npc.role.replace('_', ' ')} at {ws.world.places[npc.location].name}.\n"
            f"PERSONALITY: {npc.personality or 'not yet known'}\nVOICE: {npc.voice or 'plain'}\nON YOUR MIND: {npc.concern or 'nothing in particular'}\n"
-           f"THE ONE LEAVING: {who}; {trust_words(npc.trust)}.")
+           f"THE ONE LEAVING: {who}; {trust_words(seen.trust)}.")
+    from engine import clock, weather
+    p.fact(clock.now_line(ws.minutes, weather.describe(ws.store.meta.seed, ws.minutes)[1].lower()), "NOW")   # (f477) the hour, as they know it
     stance = getattr(ws, "stance", "")
     if stance:
         p.instruction(stance, "RIGHT NOW YOU ARE")
     if npc.speech:
-        fact, lines, material = voice_profile.resident_lines(npc, ws.rng)
+        fact, lines, material = voice_profile.resident_lines(npc, ws.rng, char_id=ws.acting)
         p.fact(fact, "YOUR PEOPLE")
         if lines:
             p.instruction("\n".join(f"- {l}" for l in lines), "HOW YOU TALK")
@@ -98,7 +102,7 @@ def line(ws, npc, text: str) -> tuple[str, str]:
                      validation_context={"known": known, "recent": list(npc.said[-6:]), "heard": heard}, relaxed_context={"known": known})
         speech, gesture = r.speech.strip(), (r.gesture or "").strip()
     except LLMError:
-        speech, gesture = voice_rules.written_parting(npc, ws.rng, list(npc.said) + heard), ""
+        speech, gesture = voice_rules.written_parting(npc, ws.rng, list(npc.said) + heard, who=ws.acting), ""
     ws._partings_heard = (heard + [speech])[-10:]                   # (f347) the town's partings lately: no chorus across people
     return speech, gesture
 

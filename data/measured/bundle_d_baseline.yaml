@@ -1,0 +1,256 @@
+# (f475, tools/latency.py --baseline) Bundle D's baseline: what the speech tasks cost and how often they were accepted at the first
+# try, and what the page showed of memory and time, measured on the tree before Bundle D (GOALS.md, 2026-11-03: S7, prompt ceilings
+# measured first). A measurement, outside the data hash like card_profile.yaml; engine/data_check.py checks its task names. Bundle D's
+# closing gate (f490) reads it. Do not hand-edit numbers; the blind reading's counts are the one part written by hand.
+#
+#   night:        the night it was measured on (pod night 20261103_0520: four 10-hour runs at ed8fdf4, continuity on), or pending
+#   speech_tasks: the tasks measured (each one in budget.yaml)
+#   tasks:        per task: calls, first_try (first tries accepted, of all), p50 / p95 / max prompt characters, tail_p50, cached
+#   continuity:   per run, the page's C1-C8 counts (tools/page_measures.py continuity)
+#   blind:        the blind reading's memory-and-time counts (tools/blind_review.md question 5), by hand once read
+#   estimates:    per input of each golden, the required path's seconds with every answer at its expected size (card_profile --expected)
+night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
+  faults (fixed in f492), the warrior (440) and mage (504) on Runpod''s network outage at 07:32 UTC'
+speech_tasks:
+- npc_conversation
+- npc_parting
+- npc_profile
+- dialogue_frame
+- work_offer_read
+- hire_chat
+- canon_extract
+- canon_check
+- exchange
+- overheard
+- mentor_chat
+tasks:
+  npc_conversation:
+    calls: 583
+    first_try: 0.952
+    p50: 29155
+    p95: 36345
+    max: 39629
+    tail_p50: null
+    cached: null
+  npc_profile:
+    calls: 63
+    first_try: 1.0
+    p50: 2516
+    p95: 2774
+    max: 2873
+    tail_p50: null
+    cached: null
+  dialogue_frame:
+    calls: 288
+    first_try: 0.861
+    p50: 9142
+    p95: 10715
+    max: 11665
+    tail_p50: null
+    cached: null
+  work_offer_read:
+    calls: 16
+    first_try: 1.0
+    p50: 564
+    p95: 780
+    max: 826
+    tail_p50: null
+    cached: null
+  hire_chat:
+    calls: 314
+    first_try: 0.978
+    p50: 14194
+    p95: 16275
+    max: 17461
+    tail_p50: null
+    cached: null
+  canon_extract:
+    calls: 54
+    first_try: 1.0
+    p50: 3319
+    p95: 3998
+    max: 4988
+    tail_p50: null
+    cached: null
+  canon_check:
+    calls: 4
+    first_try: 1.0
+    p50: 845
+    p95: 853
+    max: 853
+    tail_p50: null
+    cached: null
+  exchange:
+    calls: 147
+    first_try: 0.898
+    p50: 12573
+    p95: 15039
+    max: 16496
+    tail_p50: null
+    cached: null
+  overheard:
+    calls: 239
+    first_try: 1.0
+    p50: 1174
+    p95: 1326
+    max: 1479
+    tail_p50: null
+    cached: null
+continuity:
+  20261103_0520_mage_2:
+    C1:
+    - 0
+    - 0
+    C2:
+    - 0
+    - 1
+    C3:
+    - 0
+    - 0
+    C4: {}
+    C5:
+    - 0
+    - 0
+    C6:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    C7: []
+    C8:
+    - 2
+    - 0
+  20261103_0520_priest_4:
+    C1:
+    - 0
+    - 0
+    C2:
+    - 0
+    - 0
+    C3:
+    - 0
+    - 0
+    C4:
+      kept:
+      - 0
+      - 1
+    C5:
+    - 0
+    - 0
+    C6:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+    C7: []
+    C8:
+    - 0
+    - 0
+  20261103_0520_summoner_3:
+    C1:
+    - 0
+    - 0
+    C2:
+    - 0
+    - 0
+    C3:
+    - 0
+    - 0
+    C4: {}
+    C5:
+    - 0
+    - 0
+    C6:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+    C7: []
+    C8:
+    - 0
+    - 0
+  20261103_0520_warrior_1:
+    C1:
+    - 0
+    - 0
+    C2:
+    - 0
+    - 0
+    C3:
+    - 0
+    - 0
+    C4:
+      expired:
+      - 0
+      - 1
+    C5:
+    - 0
+    - 0
+    C6:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    C7: []
+    C8:
+    - 3
+    - 0
+blind:
+  20261103_0520_mage_2:
+    time_slips: 2
+    met_as_stranger: 0
+    owed_wrong: 7
+    false_name: 1
+    left_still_acting: 2
+    news_unseen: 0
+  20261103_0520_warrior_1:
+    time_slips: 4
+    met_as_stranger: 0
+    owed_wrong: 8
+    false_name: 1
+    left_still_acting: 1
+    news_unseen: 1
+estimates:
+  stub_short:
+    0: 10.4
+    1: 67.8
+    2: 33.1
+    3: 19.7
+    6: 28.1
+    7: 20.8
+    8: 8.9
+    9: 18.8
+    10: 18.1
+    11: 18.0
+    12: 12.9
+    13: 12.8
+    14: 12.9
+    15: 12.8
+    16: 18.1
+    17: 18.0
+    18: 12.9
+    19: 12.8
+    20: 12.9
+    21: 3.1
+    22: 12.8
+    23: 12.8
+    24: 12.9
+    25: 12.9
+    26: 17.9
+    27: 18.7
+    28: 19.1
+    29: 19.4
+    30: 31.5
+    31: 12.9
+    32: 13.0
+    33: 12.9
+    34: 29.7
+    35: 18.8
+    36: 69.3
+    37: 39.6
+    38: 33.6
+    39: 20.2

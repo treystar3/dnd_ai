@@ -132,7 +132,7 @@ class PropertyActions:
         console.note(f"You buy {h['name']}: {money.fmt(h['price'])}. It is called 'your house in {self.world.places[town].name}' "
                      f"now; you can sleep there free, and keep your item box in it. Type #home.")
         self.weight_hint = "major"
-        self.narrate(f"The player buys {h['name']} from {agent.label()} and is handed the key. "
+        self.narrate(f"The player buys {h['name']} from {agent.label(self.acting)} and is handed the key. "
                      "Describe the signing and the first look at the door.", text)
         return True
 

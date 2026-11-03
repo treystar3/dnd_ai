@@ -25,23 +25,18 @@ R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / 
 KINDS: dict[str, dict] = {k: (v or {}) for k, v in R["kinds"].items()}
 AFTER_DEED = ("kill", "persuade", "deliver", "quest_done", "dungeon_cleared", "found", "defend")     # the ledger kinds that can end an event
 
-_OFF: list = []                  # how to unsubscribe what is registered now (one scene at a time: a new game, a test's fresh scene)
-
-
 def register(ws) -> None:
-    """Subscribe the world's reactions, bound to this scene. Registering again (another scene) replaces the earlier binding."""
-    unregister()
-    rx = Reactions(ws)
-    for fn in (rx.ledger, rx.memories, rx.standing, rx.reputation, rx.heat, rx.hires):
-        _OFF.append(de.subscribe(de.Deed, fn))
-    _OFF.append(de.subscribe(de.MemberDied, rx.fallen))           # (f392) the registry keeps who travelled with the player, and who fell
-    _OFF.append(de.subscribe(de.MemberLeft, rx.departed))
-
-
-def unregister() -> None:
-    for off in _OFF:
+    """Subscribe the world's reactions, bound to this scene, on its session's bus (f454: engine/session.py; a closed campaign's reactions
+    never hear the next campaign's deeds). Registering again on the same session (a test's fresh scene) replaces the earlier binding."""
+    session = ws.session
+    for off in getattr(session, "reaction_offs", ()):
         off()
-    _OFF.clear()
+    rx = Reactions(ws)
+    bus = session.bus
+    offs = [bus.subscribe(de.Deed, fn) for fn in (rx.ledger, rx.memories, rx.standing, rx.reputation, rx.heat, rx.hires)]
+    offs.append(bus.subscribe(de.MemberDied, rx.fallen))          # (f392) the registry keeps who travelled with the player, and who fell
+    offs.append(bus.subscribe(de.MemberLeft, rx.departed))
+    session.reaction_offs = offs
 
 
 def rule(kind: str) -> dict:
@@ -85,12 +80,21 @@ class Reactions:
         ent.data.update(how=e.text(), place=self.ws.player.location, place_name=self.ws.place.name if self.ws.place else "",
                         note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player")
         entities.move(self.ws.store, ent, "dead", e.minute or self.ws.minutes, e.text())
+        self._let_go(e.member_id, "hire_died")
 
     def departed(self, e) -> None:
         from engine import entities
         ent = self._hire_entity(e.member_id)
         if ent is not None and not entities.final(ent):
             entities.move(self.ws.store, ent, "departed", e.minute or self.ws.minutes, e.text())
+        self._let_go(e.member_id, "hire_left")
+
+    def _let_go(self, member_id: str, cause: str) -> None:
+        """(f481) What a hire had promised or owed is let go when they die or leave, each for that reason."""
+        from engine import canon, clock
+        m = next((x for x in self.ws.player.party if x.get("id") == member_id), None)
+        if m is not None:
+            canon.release_commitments(m, cause, clock.day(self.ws.minutes))
 
     # ---- where and when
 
@@ -124,7 +128,8 @@ class Reactions:
         row = dict(row)
         deed = deeds.log(self.ws.store, row.pop("kind"), e.minute, e.place or self.ws.player.location, **row)
         if deed["kind"] in AFTER_DEED:
-            events.after_deed(self.ws, deed)
+            events.after_deed(self.ws, deed)              # legacy (f466): the judge's model call (engine/events.py judge) runs inside the action's
+                                                          # operation, capped by events.yaml; f470's ratchet counts it, a later stage moves it
 
     # ---- who remembers
 
@@ -133,27 +138,32 @@ class Reactions:
         if not m:
             return
         day, turn = self.day(e), self.ws.store.meta.turn
-        for nid in e.witnesses:
+        about = f"deed:{e.kind}:{getattr(e, 'item', '') or getattr(e, 'lock', '') or e.target or ''}"[:80]   # (f478) the same deed again counts up
+        for nid in sorted(e.witnesses):
             role = "victim" if nid == e.target else "witness"
             spec = m.get(role)
             if not spec:
                 continue
             line = e.victim_line() if role == "victim" else e.witness_line()
-            if line:
-                self.remember(nid, line, spec, day, turn)
+            if line:                                          # (f478) the one it was done to lived it; the others saw it, of the one who did it
+                self.remember(nid, line, spec, day, turn, kind="experienced" if role == "victim" else "witnessed", subject=e.actor, about=about,
+                              minute=e.minute, toward=e.actor)
         if e.target and e.target not in e.witnesses and m.get("unseen_victim"):
             line = e.unseen_line()
-            if line:
-                self.remember(e.target, line, m["unseen_victim"], day, turn)
+            if line:                                          # (f478) found afterwards, not knowing who: about no one
+                self.remember(e.target, line, m["unseen_victim"], day, turn, kind="noticed", subject="", about=about, minute=e.minute,
+                              toward=e.actor)
 
-    def remember(self, nid: str, text: str, spec: dict, day: int, turn: int) -> None:
-        from npc.models import Memory
+    def remember(self, nid: str, text: str, spec: dict, day: int, turn: int, kind: str = "experienced", subject: str = "",
+                 about: str = "", minute: int = -1, toward: str = "") -> None:
+        from engine import memory
         n = self.ws.npc_by_id(nid)
         if n is None or n.gone:
             return
-        n.memories.append(Memory(importance=int(spec.get("importance", 1)), day=day, turn=turn, text=text))
-        if spec.get("trust"):
-            n.trust = max(0, min(100, n.trust + int(spec["trust"])))
+        memory.keep(n, text, day=day, turn=turn, kind=kind, subject=subject, importance=int(spec.get("importance", 1)), about=about, minute=minute)
+        if spec.get("trust") and toward:                     # (f480) their trust in the one who did it, with the deed as its cause
+            from engine import regard
+            regard.step(n, toward, int(spec["trust"]), cause="deed", about=about, minute=minute)
         self.ws.store.save_npc(n)
 
     # ---- standing: the tale starts on its way

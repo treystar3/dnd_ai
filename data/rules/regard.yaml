@@ -1,0 +1,7 @@
+# (f480, GOALS.md owner's decision 2026-11-03: a townsperson's view of each character is kept separate) What one person keeps of their
+# view of each character (npc/models.py Regard, engine/regard.py). Every store has a cap: these are regard's.
+#
+#   moves        the last trust moves kept with their cause (the journal keeps the whole trail)
+#   characters   the characters one person keeps a view of; past it, the one longest unseen is forgotten (never the one acting)
+moves: 12
+characters: 16

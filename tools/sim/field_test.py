@@ -190,16 +190,16 @@ if True:
     npcs = list(ws.present)[:1]
     check("town has someone to test with", bool(npcs))
     npc = npcs[0]; ws.partner = npc
-    t0 = npc.trust
+    t0 = simlib.view(npc).trust
     n = use("Do influence", target=npc.id)
     npc2 = store.load_npc(npc.id)
-    check("influence raises trust", npc2.trust > t0, (t0, npc2.trust, n))
+    check("influence raises trust", simlib.view(npc2).trust > t0, (t0, simlib.view(npc2).trust, n))
     check("influence edge on next social check", any(l == "won over" for l, v in ws.check_bonuses("persuasion", npc)))
     ws.spend_edge("persuasion", npc)
     check("edge spent", "edge" not in ws.fld)
     ws.advance_quiet(130)
     n = use("Do influence", target=npc.id)
-    check("no second trust gain same day", store.load_npc(npc.id).trust == npc2.trust, n)
+    check("no second trust gain same day", simlib.view(store.load_npc(npc.id)).trust == simlib.view(npc2).trust, n)
 
 # --- recall: lore about the place; refunds when nothing new
 ws.advance_quiet(130)

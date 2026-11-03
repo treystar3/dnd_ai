@@ -13,7 +13,7 @@ from core.models import Item
 import config
 from engine import entities
 from engine import ability_traits as AT
-from engine import accessories, bosses, inventory, clock, combat, death, events, items, ledger, leveling, loot, mentor, money, party, pools, taming
+from engine import accessories, bosses, inventory, clock, combat, death, events, failures, items, ledger, leveling, loot, mentor, money, party, pools, taming
 from llm.contracts import AccessoryName, CombatIntent, GoddessLine, LegendaryName, LootName, Narration
 from llm.gateway import LLMError, generate
 from scenes import combat_prompts as cp
@@ -310,6 +310,8 @@ class CombatScene:
 
     @classmethod
     def resume(cls, ws, raw: str) -> "CombatScene":
+        from engine import spellcraft
+        spellcraft._CAST.clear()                           # (f455) the fighters are new objects: a casting context keyed by the old ones is dead
         data = json.loads(raw)
         return cls(ws, combat.Combat(**data["fight"]), data["creature"])
 
@@ -957,6 +959,13 @@ class CombatScene:
         return fighting, out
 
     def narrate_round(self, text: str) -> None:
+        """(f464) The round's telling is a passage operation of its own, run once the round has committed (scenes/world.py mark_passage):
+        the round stands whatever becomes of the telling, and a telling that cannot be written is round_stood in its place, the numbers
+        carrying the blows."""
+        place, when = self.ws.place.name, self.ws.time_label()        # the round's place and hour as they were: a death moves the player and the clock before the telling runs
+        self.ws.mark_passage("round", lambda: self.narrate_round_now(text, place, when), failures.round_stood)
+
+    def narrate_round_now(self, text: str, place: str | None = None, when: str | None = None) -> None:
         f = self.fight
         p = f.player
         foes, gone = self.foes_now()
@@ -964,7 +973,7 @@ class CombatScene:
         from engine import battlefield as bfm, voice_rules
         boss = any(e.boss for e in f.fighters if e.side == "enemy" and e.alive) or any(e.startswith("BOSS") for e in f.story)
         result = fresh("combat_narrate", cp.NARRATE_SYSTEM,
-                       cp.narrate_request(self.ws.place.name, self.ws.time_label(), text, f.story,
+                       cp.narrate_request(place or self.ws.place.name, when or self.ws.time_label(), text, f.story,
                                           p.weapon_name, you, foes, f.round - 1, self.ws.gear_line(),
                                           self.ws.recent_narration, ground=bfm.narrative_snapshot(f),
                                           shown=self.fight_shown, worn=self.ws.worn_words("prose"),                         # (f349)
@@ -1141,8 +1150,19 @@ class CombatScene:
         ws.trial_over(won, f)
         ws.store.save_player(ws.player)
 
+    def forget_marks(self) -> None:
+        """(f465) The fight is over: what the perks and the heals remembered about it goes (engine/combat_perks.py QUARRY, WITHER;
+        engine/healing.py LAST are keyed by the fight's own mark); nothing of a finished fight stays in the process."""
+        from engine import combat_perks, healing
+        key = combat.fight_key(self.fight)
+        combat_perks.QUARRY.pop(key, None)
+        for k in [k for k in combat_perks.WITHER if k[0] == key]:
+            del combat_perks.WITHER[k]
+        healing.LAST.pop(key, None)
+
     def finish(self) -> None:
         f, ws = self.fight, self.ws
+        self.forget_marks()
         if f.duel:
             self.finish_duel()
             return
@@ -1318,12 +1338,35 @@ class CombatScene:
         if yielded:
             fallen += (f". THOSE WHO YIELDED (alive and beaten, waiting on the player's choice: tell nothing of what becomes of them): "
                        f"{', '.join(combat.who(e) for e in yielded)}")
+        taken = self.take_prisoners(yielded)                               # (f464) the facts before the passage: they commit with the round
+        self.ws.hold_yielded([e for e in yielded if e not in taken])         # (f385) the rest wait on the player's word
+        facts = {"xp": str(total_xp), "coins": money.fmt(coins) if coins else "", "fallen": ", ".join(combat.who(e) for e in dead),
+                 "found": ", ".join(name_of(i) for i in found)}
+        place, when = self.ws.place.name, self.ws.time_label()        # as they were at the win: what follows a fight may move the player
+        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, noticed, lying, skinnable, fallen, place, when),
+                             lambda rng: failures.victory_stood(facts, rng))     # (f464) the passage after the win: an operation of its own
+        console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
+        for item in found:
+            if item.rarity == "legendary":
+                console.legendary_reveal(item)
+            else:
+                console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
+        if levels:
+            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
+            self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
+        if skinnable:
+            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
+                         "say so if you want to.")
+
+    def aftermath_now(self, dead: list, noticed: list, lying: list, skinnable: int, fallen: str, place: str = "", when: str = "") -> None:
+        """(f464) The passage after a fight won, written from the facts the round committed, as an operation of its own: the win stands
+        whatever becomes of its telling (victory_stood in its place). `place` and `when` are the win's, captured when it was marked."""
         from scenes import world_prompts as wp
         end_habits = self.ws.habits_due("fight_end")             # (f412) the companions' habits as it ends, folded into this passage
         aftermath = fresh(
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
             self.aftermath_opening() +
-            f"PLACE: {self.ws.place.name}\nTIME AND WEATHER: {self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
+            f"PLACE: {place or self.ws.place.name}\nTIME AND WEATHER: {when or self.ws.time_label()}\nTHE PLAYER: {self.ws.gear_line()}\n"
             f"THE PLAYER IS: {combat.condition(self.fight.player)}\nTHE FALLEN: {fallen}\n"
             + (f"THE PLAYER'S OWN WHO DIED IN THIS FIGHT (their companions; the passage does not pass over them, and gives each death to the "
                f"one named, never to the player): {'; '.join(lost)}\n"
@@ -1349,20 +1392,6 @@ class CombatScene:
         after_text = self.ws.unnamed(aftermath.text)                 # (f419) a name the player was never told stays hidden here too
         console.narrate(after_text)
         self.ws.remember_narration(after_text)
-        taken = self.take_prisoners(yielded)
-        self.ws.hold_yielded([e for e in yielded if e not in taken])         # (f385) the rest wait on the player's word
-        console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
-        for item in found:
-            if item.rarity == "legendary":
-                console.legendary_reveal(item)
-            else:
-                console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
-        if levels:
-            console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
-            self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
-        if skinnable:
-            console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
-                         "say so if you want to.")
 
     def aftermath_opening(self) -> str:
         """(f412) Where the passage after a fight begins, chosen by the engine and never the last two places, and how the last few began:
@@ -1545,6 +1574,17 @@ class CombatScene:
                          LootName, temperature=0.9, max_tokens=150)
         item.name, item.description = named.name.strip(), named.description.strip()
 
+    def goddess_now(self, said: list, event: str) -> None:
+        """(f464) The goddess at a death: her words from the model, remembered against her next return; a passage operation of its own,
+        goddess_silent in its place when they cannot be written."""
+        ws = self.ws
+        line = generate("goddess_line", gp.goddess_system(ws.goddess_knowledge()),
+                        gp.narration_request("death", event, [("Orenna, on an earlier return", s) for s in said[-4:]]),
+                        GoddessLine, temperature=0.9, validation_context={"said": said})
+        ws.player.goddess_said = (said + [line.speech])[-8:]
+        ws.store.save_player(ws.player)
+        console.say(line.speech, "The Goddess")
+
     def defeat(self) -> None:
         ws = self.ws
         c = ws.player.character
@@ -1559,11 +1599,7 @@ class CombatScene:
         if said:
             event += (" She remembers every earlier return and what she said then (below, as RECENT CONVERSATION): this time she begins"
                       " elsewhere, on a different image, and never repeats an opening.")
-        line = generate("goddess_line", gp.goddess_system(ws.goddess_knowledge()),
-                        gp.narration_request("death", event, [("Orenna, on an earlier return", s) for s in said[-4:]]),
-                        GoddessLine, temperature=0.9, validation_context={"said": said})
-        ws.player.goddess_said = (said + [line.speech])[-8:]
-        console.say(line.speech, "The Goddess")
+        ws.mark_passage("goddess", lambda: self.goddess_now(said, event), failures.goddess_silent)   # (f464) her words, an operation of their own: the death stands either way
         console.ledger("Lost: " + " · ".join(lost))
         days = combat.RULES["death"]["days_pass"]
         ws.advance_quiet(days * clock.MINUTES_PER_DAY)

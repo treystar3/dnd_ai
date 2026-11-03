@@ -15,25 +15,14 @@ uc.panel = lambda name, data: False
 from engine import data_check, failures, refusals, turnlog
 from llm import gateway
 from llm.gateway import LLMError
-from npc.traits import load_traits
-from scenes.world import WorldScene
-from storage.campaign import CampaignStore, PlayerState
-from world.loader import campaign_world
 
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-shutil.rmtree("saves/outage_line_437_test", ignore_errors=True)
-world = campaign_world()
-store = CampaignStore.open_or_create("outage_line_437_test")
-store.meta.seed = 37; store.meta.minutes = 600; store.save_meta()
-char, _ = simlib.make_character("warrior", random.Random(37))
-store.save_player(PlayerState(character=char, location="trading_square"))
-ws = WorldScene(store, world, load_traits(), store.load_player())
-ws.player.mentor["never"] = True
-store.save_player(ws.player)
+game = simlib.campaign("outage_line_437_test", seed=37, location="trading_square")     # (f450) the suite's one way to open a campaign
+store, ws = game.store, game.scene
 
 real = gateway._client
 def chat(**k):

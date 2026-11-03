@@ -131,7 +131,10 @@ class NPCRow:
     heard_of: bool
     protected: bool
 
-    def label(self) -> str:
+    def label(self, who: str = "") -> str:
+        """(f480) By the index alone: the name once any character knows it (the aggregate column), whoever `who` is. One of the call
+        sites that read as though there were one player (tools/sim/regard_480_test.py names them); load_npc(...).label(who) for one
+        character's view."""
         return self.name if self.name_known_to_player else (self.epithet or f"the {self.role.replace('_', ' ')}")
 
 
@@ -140,9 +143,13 @@ NPC_COLUMNS = ("name", "epithet", "name_known_to_player", "role", "location", "t
 
 
 def _npc_index(npc: NPC) -> dict:
-    return {"name": npc.name, "epithet": npc.epithet, "name_known_to_player": int(npc.name_known_to_player), "role": npc.role,
-            "location": npc.location, "tier": npc.tier, "met_player": int(npc.met_player), "gone": npc.gone, "motive": npc.motive,
-            "trust": npc.trust, "mood": npc.mood, "away_until": npc.away_until, "heard_of": int(bool(npc.heard_of)),
+    """(f480) The index columns keep their names and hold the aggregate over every character's view (engine/regard.py aggregate): met by
+    any, the highest trust, the name known to any, heard of by any. With one character, that character's view, as before."""
+    from engine import regard
+    agg = regard.aggregate(npc)
+    return {"name": npc.name, "epithet": npc.epithet, "name_known_to_player": int(agg["name_known"]), "role": npc.role,
+            "location": npc.location, "tier": npc.tier, "met_player": int(agg["met"]), "gone": npc.gone, "motive": npc.motive,
+            "trust": agg["trust"], "mood": npc.mood, "away_until": npc.away_until, "heard_of": int(agg["heard_of"]),
             "protected": int(npc.protected)}
 
 
@@ -198,13 +205,50 @@ CREATE INDEX IF NOT EXISTS npcs_role ON npcs (role, gone);
 """
 
 
+class StaleOperation(RuntimeError):
+    """(f462) An operation tried to commit over a record revision it had not seen: another writer committed meanwhile."""
+
+
+class WriteOutsideOperation(RuntimeError):
+    """(f462) With the write fence armed, a row was written outside any operation (CampaignStore.in_operation)."""
+
+
+WRITES = ("INSERT", "UPDATE", "DELETE", "REPLACE")
+
+
+class _Guarded:
+    """(f462) The database handle behind the store, with the write fence on it: once armed (arm(True), by the executor for the life of a
+    line, f463), a row written outside any operation (in_operation) is a fault, WriteOutsideOperation, except under exempt() (mark_shown:
+    what is left to show is no state). Reads, BEGIN, COMMIT, ROLLBACK and DDL pass; everything else on the handle (backup, close) is the
+    connection's own. Nothing arms it in this feature."""
+
+    def __init__(self, db, store):
+        self._db, self._store = db, store
+
+    def execute(self, sql, *args):
+        s = self._store
+        if sql.lstrip().split(None, 1)[0].upper() in WRITES:
+            if s._armed and s._in_operation == 0 and s._exempt == 0:
+                raise WriteOutsideOperation(f"{sql.lstrip().split(None, 1)[0]} outside any operation, with the write fence armed")
+            s._writes += 1                                     # (f470) counted: an operation that wrote nothing may end void
+        return self._db.execute(sql, *args)
+
+    def __getattr__(self, name):
+        return getattr(self._db, name)
+
+
 class CampaignStore:
     def __init__(self, root: Path, meta: CampaignMeta, db: sqlite3.Connection):
         self.root = root
         self.meta = meta
-        self._db = db
+        self._db = _Guarded(db, self)
         self._lock = threading.RLock()
         self._depth = 0
+        self._armed = False            # (f462) the write fence
+        self._in_operation = 0         # (f462) operations open (the executor's, f463)
+        self._exempt = 0               # (f462) writes the fence lets through (mark_shown)
+        self._writes = 0               # (f470) rows written since the store opened: an operation compares before and after
+        self._later: list = []         # (f470) people a read filled in outside any operation, saved by the next (save_npc_later)
 
     # ---------- opening ----------
 
@@ -223,6 +267,7 @@ class CampaignStore:
             db.executescript(SCHEMA_V1)                   # an older one is brought forward step by step below (storage/migrations.py)
             db.executescript(SCHEMA_V2)
             db.executescript(SCHEMA_V3)
+            migrations.typed_memory(store)                # (f478) memories typed, as v10 makes them on an older save
             store.set_version(migrations.CURRENT)
             if (root / "campaign.json").exists():
                 store._import_legacy()
@@ -329,6 +374,11 @@ class CampaignStore:
                              "owner = excluded.owner, deadline = excluded.deadline, json = excluded.json",
                              (e.ref, e.kind, e.state, e.place, e.owner, int(e.deadline), e.model_dump_json()))
 
+    def delete_entity(self, ref: str) -> None:
+        """(f481) A registry row removed: a final offer or obligation past its keeping (engine/obligations.py trim)."""
+        with self._lock, self.transaction():
+            self._db.execute("DELETE FROM entities WHERE ref = ?", (ref,))
+
     def load_entity(self, ref: str):
         from core.models import Entity
         with self._lock:
@@ -383,12 +433,173 @@ class CampaignStore:
         return self._kv_text("player") is not None
 
     def load_player(self) -> PlayerState:
-        return PlayerState.model_validate_json(self._kv_text("player") or "")
+        player = PlayerState.model_validate_json(self._kv_text("player") or "")
+        if self._memory_typed():                     # (f479) each hire's window, from their rows
+            from engine import memory
+            for m in player.party:
+                if m.get("id") and "memories" not in m:
+                    m["memories"] = memory.hire_window(memory.records(self, f"hire:{m['id']}"))
+        return player
 
     def save_player(self, player: PlayerState) -> None:
         with self.transaction():                     # the clock and turn count live beside the player; one without the other lost the time on reload
-            self._put("player", player.model_dump_json())
+            body = json.loads(player.model_dump_json())
+            if self._memory_typed():                 # (f479) a hire's memories are rows; the player's record carries none of them
+                for m, out in zip(player.party, body.get("party") or []):
+                    if m.get("id"):
+                        self._save_hire_memories(m)
+                    out.pop("memories", None)
+                    out.pop("memories_unsaved", None)
+            self._put("player", json.dumps(body, ensure_ascii=False))
             self.save_meta()
+
+    def _save_hire_memories(self, member: dict) -> None:
+        """(f479) A hire's new memories become rows under hire:<id> (the ones culled from the window before they were written too), the
+        updated ones are updated in place, and every kind is held to the hire's cap."""
+        from engine import memory
+        from npc.models import Memory
+        holder = f"hire:{member['id']}"
+        kinds = set()
+        for x in list(member.get("memories_unsaved") or []) + list(member.get("memories") or []):
+            r = memory.hire_row(x)
+            if "id" not in x:
+                m = Memory(**{k: r[k] for k in ("day", "turn", "kind", "importance", "text", "subject", "source", "minute", "times")})
+                cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
+                                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (holder, m.day, m.turn, m.kind, m.importance, m.text, m.subject,
+                                                                                  m.source, r["about"], m.minute, m.times))
+                x["id"] = int(cur.lastrowid)
+                kinds.add(r["kind"])
+            elif x.pop("dirty", False):
+                self._db.execute("UPDATE npc_memory SET text = ?, day = ?, importance = ?, times = ? WHERE id = ?",
+                                 (r["text"], r["day"], r["importance"], r["times"], int(x["id"])))
+        member.pop("memories_unsaved", None)
+        for kind in sorted(kinds):
+            self._trim(holder, kind)
+
+    # ---- (f460) the question the world is waiting on, if any: a kv row that is there only while one stands (engine/questions.py). In
+    # the save rather than on the scene, so a rolled-back turn takes its question back with it and a save closed on a question asks it
+    # again when it opens; a row rather than a field of the player, so a save with no question standing dumps as it did.
+    def load_question(self) -> dict | None:
+        return self._kv("question")
+
+    def save_question(self, question: dict) -> None:
+        with self.transaction():
+            self._put("question", json.dumps(question, ensure_ascii=False))
+
+    def clear_question(self) -> None:
+        with self.transaction():
+            self._drop("question")
+
+    # ---------- (f462) the operation record: the history of what committed, and what of it is left to show; outside the state digest ----------
+
+    def load_deferred(self) -> list:
+        """(f469) The optional calls the budget deferred to a later turn: [{kind, data, from_steps}], oldest first. State, in the digest:
+        a replay must find the same queue (scenes/world.py defer, run_deferred)."""
+        return self._kv("deferred") or []
+
+    def save_deferred(self, rows: list) -> None:
+        if rows:
+            self._put("deferred", json.dumps(rows, ensure_ascii=False))
+        else:
+            self._drop("deferred")
+
+    def load_operations(self) -> dict:
+        """{"revision": n, "ops": [record, ...]}: the last RETENTION operations committed, oldest first (engine/operation.py)."""
+        return self._kv("operations") or {"revision": 0, "ops": []}
+
+    def revision(self) -> int:
+        """The record's revision: what an operation reads when it opens, and must still find when it commits."""
+        return int(self.load_operations().get("revision") or 0)
+
+    def commit_operation(self, op, first_of_line: bool = False, keep: int | None = None) -> dict:
+        """Inside the caller's open transaction: the operation's record appended with the revision bumped, the record trimmed to `keep`
+        (engine/operation.py RETENTION["operations"]), the meta saved when this is the line's first commit (f463: the input's count is
+        saved with the first operation that stands, not before), and the presentation entry of its held lines, cleared when they are shown
+        (mark_shown). Raises StaleOperation, and writes nothing, when the record's revision is not the one the operation saw when it
+        opened: another writer committed meanwhile."""
+        from engine import operation as _op
+        if self._depth == 0:
+            raise RuntimeError("commit_operation: no transaction is open; an operation commits inside its own")
+        rec = self.load_operations()
+        at = int(rec.get("revision") or 0)
+        if at != op.revision_seen:
+            raise StaleOperation(f"operation {op.id} ({op.kind}) saw revision {op.revision_seen}; the record is at {at}")
+        rec["revision"] = at + 1
+        entry = {**op.record(), "revision": rec["revision"]}
+        rec["ops"].append(entry)
+        keep = int(_op.RETENTION.get("operations") or 200) if keep is None else keep
+        if len(rec["ops"]) > keep:
+            del rec["ops"][:len(rec["ops"]) - keep]
+        self._put("operations", json.dumps(rec, ensure_ascii=False))
+        if first_of_line:
+            self.save_meta()
+        pres = self._kv("presentation") or {}
+        pres[op.id] = {"lines": list(op.lines), "steps": op.steps, "kind": op.kind, "calls": op.presentation()}   # (f467) the calls, to make again
+        self._put("presentation", json.dumps(pres, ensure_ascii=False))
+        return entry
+
+    def find_operation(self, op_id: str) -> dict | None:
+        return next((o for o in self.load_operations()["ops"] if o.get("id") == op_id), None)
+
+    def unshown(self) -> dict:
+        """The presentation entries of operations whose lines have not reached the page: op id -> {"lines", "steps", "kind"} (f467 tells
+        them at the next load)."""
+        return self._kv("presentation") or {}
+
+    def mark_shown(self, op_id: str) -> None:
+        """The operation's lines reached the page: its presentation entry goes. Autocommit at depth 0, and exempt from the write fence: a
+        change to what is left to show is no change of state (storage/statehash.py NOT_STATE_ROWS)."""
+        with self.exempt():
+            pres = self._kv("presentation") or {}
+            if op_id in pres:
+                del pres[op_id]
+                if pres:
+                    self._put("presentation", json.dumps(pres, ensure_ascii=False))
+                else:
+                    self._drop("presentation")
+
+    # ---------- (f462) the write fence ----------
+
+    def writable(self) -> bool:
+        """(f470) Whether a write would pass the fence now: not armed, or inside an operation, or exempt. A lazy fill a read makes (a
+        manner rolled for an older save's person, npc/life.py manner; a merchant's stock laid out, scenes/inventory_actions.py
+        ensure_stock) keeps its result in memory and hands the record to save_npc_later: the next operation saves it first thing."""
+        return not self._armed or self._in_operation > 0 or self._exempt > 0
+
+    def save_npc_later(self, npc) -> None:
+        """(f470) A person changed by a read outside any operation (a lazy fill): saved by the next operation (flush_later), so the save
+        reads as it did when the fill was saved at once."""
+        if all(x is not npc for x in self._later):
+            self._later.append(npc)
+
+    def flush_later(self) -> None:
+        later, self._later = list(self._later), []
+        for npc in later:
+            self.save_npc(npc)
+
+    def arm(self, on: bool = True) -> None:
+        """Armed, the store refuses a row written outside any operation (in_operation): the executor (f463) arms it for the life of a
+        line, so no writer slips a change past the record. Off by default; nothing arms it in this feature."""
+        self._armed = on
+
+    @contextmanager
+    def in_operation(self):
+        """An operation is open: writes inside it pass the fence (every save_* opens a transaction of its own, so the fence counts
+        operations, not transaction depth)."""
+        self._in_operation += 1
+        try:
+            yield
+        finally:
+            self._in_operation -= 1
+
+    @contextmanager
+    def exempt(self):
+        """A write the fence lets through outside any operation: the presentation entries (mark_shown)."""
+        self._exempt += 1
+        try:
+            yield
+        finally:
+            self._exempt -= 1
 
     def legendary_names(self) -> list[str]:
         return self._kv("legendaries") or []
@@ -485,11 +696,64 @@ class CampaignStore:
         with self._lock, self.transaction():
             self._db.execute(f"INSERT INTO npcs ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))}) ON CONFLICT(id) DO UPDATE SET {sets}",
                              (npc.id, npc.model_dump_json(exclude={"memories", "memory_total"})) + tuple(idx[c] for c in NPC_COLUMNS))
+            kinds = set()
             for m in npc.memories:                        # a memory made this turn becomes a row; the ones already rows are left alone
                 if m.id is None:
-                    cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text) VALUES (?, ?, ?, ?, ?, ?)",
-                                           (npc.id, m.day, m.turn, m.kind, int(m.importance), m.text))
-                    m.id = cur.lastrowid
+                    m.id = self._keep_row(npc.id, m)
+                    kinds.add(m.kind)
+            for kind in sorted(kinds):                    # (f478) every kind within its cap, in the same transaction as the write
+                self._trim(npc.id, kind)
+
+    def _memory_typed(self) -> bool:
+        """(f478) Whether npc_memory has its typed columns (an older save on its way through its migrations does not yet)."""
+        return "subject" in self._memory_cols()
+
+    def _memory_cols(self) -> set[str]:
+        return {r[1] for r in self._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+
+    def set_memory_state(self, npc_id: str, kind: str, about: str, state: str) -> bool:
+        """(f483) A row's state moved (a knows row held, then told to someone): the newest row of that kind and about. False for none."""
+        with self._lock, self.transaction():
+            got = self._db.execute("SELECT id FROM npc_memory WHERE npc_id = ? AND kind = ? AND about = ? AND forgotten = 0 ORDER BY id DESC LIMIT 1",
+                                   (npc_id, kind, about)).fetchone()
+            if got:
+                self._db.execute("UPDATE npc_memory SET state = ? WHERE id = ?", (state, got[0]))
+            return bool(got)
+
+    def _keep_row(self, npc_id: str, m) -> int:
+        """(f478) One memory as a row: the same thing again (its about) counts up on the row it already has, else a new row."""
+        if not self._memory_typed():                    # a migration before v10 saving a person: the row as that schema has it
+            cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text) VALUES (?, ?, ?, ?, ?, ?)",
+                                   (npc_id, m.day, m.turn, "event", int(m.importance), m.text))
+            return int(cur.lastrowid)
+        if m.about:
+            got = self._db.execute("SELECT id FROM npc_memory WHERE npc_id = ? AND kind = ? AND about = ? AND forgotten = 0 ORDER BY id DESC LIMIT 1",
+                                   (npc_id, m.kind, m.about)).fetchone()
+            if got:
+                self._db.execute("UPDATE npc_memory SET times = times + 1, day = ?, turn = ?, minute = ?, importance = MAX(importance, ?) WHERE id = ?",
+                                 (m.day, m.turn, m.minute, int(m.importance), got[0]))
+                return int(got[0])
+        if "state" in self._memory_cols():                # (f483)
+            cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times, state) "
+                                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (npc_id, m.day, m.turn, m.kind, int(m.importance), m.text, m.subject, m.source, m.about, int(m.minute), int(m.times),
+                                    m.state))
+            return int(cur.lastrowid)
+        cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               (npc_id, m.day, m.turn, m.kind, int(m.importance), m.text, m.subject, m.source, m.about, int(m.minute), int(m.times)))
+        return int(cur.lastrowid)
+
+    def _trim(self, npc_id: str, kind: str) -> None:
+        """(f478) A person keeps at most their cap of each kind (data/rules/memory.yaml). Past it, rows are deleted lowest importance first,
+        then oldest: a defining memory (importance 3) goes last, but within the cap like any other, so no kind grows without bound on a
+        long campaign. The journal keeps the trail of what happened."""
+        from engine import memory
+        cap = memory.cap(npc_id, kind)
+        n = int(self._db.execute("SELECT COUNT(*) FROM npc_memory WHERE npc_id = ? AND kind = ? AND forgotten = 0", (npc_id, kind)).fetchone()[0])
+        if n > cap:
+            self._db.execute("DELETE FROM npc_memory WHERE id IN (SELECT id FROM npc_memory WHERE npc_id = ? AND kind = ? AND forgotten = 0 "
+                             "ORDER BY importance ASC, minute ASC, id ASC LIMIT ?)", (npc_id, kind, n - cap))
 
     # ---------- what people remember: rows, with the record carrying a window ----------
 
@@ -501,10 +765,19 @@ class CampaignStore:
         """What a person remembers, oldest first: every defining memory, then the newest of the rest up to the limit. Recency is not
         importance: a defining memory is never pushed out by routine ones."""
         with self._lock:
-            rows = self._db.execute("SELECT id, day, turn, kind, importance, text FROM npc_memory WHERE npc_id = ? AND forgotten = 0 AND importance >= ? "
+            have = self._memory_cols()
+            typed, stated = "subject" in have, "state" in have
+            cols = "id, day, turn, kind, importance, text" + (", subject, source, about, minute, times" if typed else "") + (", state" if stated else "")
+            rows = self._db.execute(f"SELECT {cols} FROM npc_memory WHERE npc_id = ? AND forgotten = 0 AND importance >= ? "
                                     "ORDER BY (importance >= ?) DESC, id DESC LIMIT ?", (npc_id, int(min_importance), MEMORY_DEFINING, int(limit))).fetchall()
         rows.sort(key=lambda r: r[0])
-        return [Memory(id=r[0], day=r[1], turn=r[2], kind=r[3], importance=r[4], text=r[5]) for r in rows]
+        from engine import memory
+        out = []
+        for r in rows:
+            extra = dict(zip(("subject", "source", "about", "minute", "times", "state") if stated else ("subject", "source", "about", "minute", "times"),
+                             r[6:])) if typed else {}
+            out.append(Memory(id=r[0], day=r[1], turn=r[2], kind=r[3], importance=r[4], text=memory.render(r[5]), **extra))   # (f478) {them} read
+        return out
 
     def memory_count(self, npc_id: str) -> int:
         with self._lock:
