@@ -184,7 +184,7 @@ def done(ws, q: dict) -> None:
             ws.store.save_place(tp)
         state = ws.store.load_world_state()
         if state:
-            pulse.add_news(state, f"{q['result'][0].upper() + q['result'][1:]} - {name}'s doing, they say.", town, ws.minutes, ["everyone"])
+            pulse.add_news(state, f"{q['result'][0].upper() + q['result'][1:]} - {name}'s doing, they say.", town, ws.minutes, ["everyone"], certainty="they say")
             if q["kind"] in ("hunt", "bounty") and q.get("place") in ws.world.places:
                 D = G.get("done_danger", {"value": -15, "days": 5})
                 state["effects"].append({"kind": "danger", "place": q["place"], "value": D["value"], "until": ws.minutes + D["days"] * 1440, "cause": q["title"]})

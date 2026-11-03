@@ -423,7 +423,7 @@ def reveal(ws, state: dict, th: dict) -> None:
         th["stage"] += 1
         stage = th["stages"][th["stage"]]
         pulse.apply_effects(ws.store, ws.world, ws.catalog, state, stage["effects"], th["tier"], ws.minutes, th["title"], raw=True, thread_id=th["id"])
-        pulse.add_news(state, stage["description"], th["place"], ws.minutes, th["groups"], thread=th["id"])
+        pulse.add_news(state, stage["description"], th["place"], ws.minutes, th["groups"], thread=th["id"], certainty="they say")
     ws.weight_hint = "rich"
     ws.narrate("THE JOB IS DONE AND PAID, AND THERE IS MORE TO IT THAN THE POSTING SAID. What the player finds, now: " + th["reveal"]
                + " Show it plainly, as a thing seen or found, and stop there: no conclusions, no one explaining it.")

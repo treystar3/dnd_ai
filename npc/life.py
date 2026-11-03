@@ -293,7 +293,8 @@ def note_mentions(speaker: NPC, speech: str, store: CampaignStore, who: str) -> 
         o = store.load_npc(row.id)                        # only the one named is read in full
         sentences = re.split(r"(?<=[.!?])\s+", text)
         line = next((s for s in sentences if m.group(0).lower() in s.lower()), text)
-        regard.own(o, who).heard_of = {"by": speaker.label(who), "day": clock.day(store.meta.minutes), "line": line[:200].strip()}
+        regard.own(o, who).heard_of = {"by": speaker.label(who), "day": clock.day(store.meta.minutes), "line": line[:200].strip(),
+                                       "source": speaker.id, "certainty": "hearsay"}          # (f482) a name heard is hearsay, with its teller
         store.save_npc(o)
         added.append(o.name)
     return added
@@ -390,14 +391,19 @@ def converse(
     claimed = reply.learned_player_name.strip()
     if claimed and claimed.lower() in player_text.lower():
         seen.knows_as, seen.knows_as_source = claimed, "self"
+        from engine import memory                            # (f482) what they were told, by whom: a claim, never a fact
+        memory.keep(npc, f"{{them}} told me their name is {claimed}.", day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told",
+                    subject=who, source=who, about=f"name:{who}", minute=store.meta.minutes)
     elif claimed:
         console.debug(f"ignored name '{claimed}': the player never said it")
 
     seen.last_talk_at = store.meta.minutes                   # (f382) when they last spoke: the next talk, long after, is a return
     for name in note_mentions(npc, reply.speech, store, who):
         console.debug(f"{npc.name} named {name}: noted as heard of")
-    if reply.remember.strip():
-        npc.memories.append(Memory(day=clock.day(store.meta.minutes), turn=store.meta.turn, text=reply.remember.strip()))
+    if reply.remember.strip():                              # (f482) what this talk gave them to keep: what they were told, by whom
+        from engine import memory
+        memory.keep(npc, reply.remember.strip(), day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told", subject=who,
+                    source=who, minute=store.meta.minutes)
     store.save_npc(npc)
 
     console.debug(

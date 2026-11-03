@@ -391,7 +391,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
         state["cooldowns"][pressure.id] = t
     if tier == "campaign":
         state["campaign"] = thread["id"]
-    add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id)
+    add_news(state, proposal.news, proposal.place, t, thread["groups"], thread=thread_id, certainty="they say")
     here = home_town(world, store.load_player().location) if store.player_exists() else ""
     row = pulselog.note("thread", thread_row_text(tier, bool(info), proposal.title, world.places[proposal.place].name, days, rule["stages"]),
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
@@ -521,7 +521,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             stage = th["stages"][th["stage"]]
             row = pulselog.note("stage", f"{th['title']} - stage {th['stage'] + 1}/{len(th['stages'])}: {stage['description'][:140]}", place=th["place"])
             apply_effects(store, world, catalog, state, stage["effects"], th["tier"], t, th["title"], raw=True, thread_id=th["id"], row=row)
-            add_news(state, stage["description"], th["place"], t, th["groups"], thread=th["id"])
+            add_news(state, stage["description"], th["place"], t, th["groups"], thread=th["id"], certainty="they say")
             if th["tier"] == "cataclysm":
                 events.on_stage(store, world, catalog, state, th, t, rng)
             elif th["tier"] in events.BIG:
@@ -673,7 +673,7 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     npc.memories.append(Memory(day=clock.day(t), turn=-1, text=step.happened, kind="own_life", subject="", source="self", minute=int(t)))   # (f478)
     store.save_npc(npc)
     if step.gossip.strip():
-        add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"])
+        add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
     state["history"].append({"minute": t, "text": f"{npc.name}: {step.happened}", "place": npc.location})
     console.debug(f"pulse: {npc.name} - {step.happened} [{step.status}]")
     return True
@@ -773,10 +773,10 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         data = store.load_discoveries()
         if discovery.add_lead(data, e["place"], e["text"], t, random.Random(f"{t}:lead:{e['place']}")):
             store.save_discoveries(data)
-            add_news(state, e["text"], e["place"], t, [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"])
+            add_news(state, e["text"], e["place"], t, [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"], certainty="they say")
     elif kind == "fact" and e.get("text"):
         add_news(state, e["text"], e.get("place") or "", t,
-                 [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"])
+                 [g for g in e.get("groups", []) if g in world.knowledge_groups] or ["everyone"], certainty="they say")
     else:
         return "ignored: the person or place it names is unknown, or the change is not allowed here"
     state["effects"] = [x for x in state["effects"] if x["until"] > t - 1440]
@@ -828,7 +828,7 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     store.save_player(player)
 
 
-NEWS_KEEP = 300
+NEWS_KEEP = int(P["news"].get("keep", 300))     # (f482) in data (pulse.yaml news.keep)
 
 
 def cap_news(news: list) -> list:
@@ -846,11 +846,13 @@ def cap_news(news: list) -> list:
     return out[-NEWS_KEEP:]
 
 
-def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: str = "") -> None:
+def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: str = "", *, certainty: str = "sure", source: str = "") -> None:
     """A piece of news. `thread` (f331) ties it to the situation it is about, so arrival can find a situation's own news. The same
     news from the same place while the first telling is still news is one tale told again, not a second row: the row counts its
     tellings (`times`, read by news_text) and becomes the newest. A tale of the player's deeds (engine/standing.py, `deed`) is never
-    folded: each one moves standing where it arrives."""
+    folded: each one moves standing where it arrives. (f482) Each says how sure it is: `certainty` sure (the engine's own fact), they
+    say (words the model wrote: a situation's telling, a road's news, gossip), rumour (a tale twisted in the telling); `source` who it came
+    from, when one person did. Folding keeps both: a tale told again keeps its first teller."""
     if not (text and text.strip()):
         return
     text = text.strip()
@@ -863,10 +865,15 @@ def add_news(state, text: str, origin: str, t: int, groups: list[str], thread: s
             n["groups"] = list(dict.fromkeys(list(n["groups"]) + list(groups)))
             if thread:
                 n["thread"] = thread
+            n.setdefault("certainty", certainty)
+            if source and not n.get("source"):
+                n["source"] = source
             news.append(news.pop(i))
             state["news"] = cap_news(news)
             return
-    row = {"text": text, "origin": origin, "minute": t, "groups": groups}
+    row = {"text": text, "origin": origin, "minute": t, "groups": groups, "certainty": certainty}
+    if source:
+        row["source"] = source
     if thread:
         row["thread"] = thread
     news.append(row)

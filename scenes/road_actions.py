@@ -379,11 +379,11 @@ class RoadActions:
         t = self.minutes
         near = a if self.rng.random() < 0.5 else b
         if ev.news.strip():
-            pulse.add_news(state, ev.news, near, t, ["everyone"])
+            pulse.add_news(state, ev.news, near, t, ["everyone"], certainty="they say")
         lim_v, lim_d = R["danger_effect"]["max_value"][tier], R["danger_effect"]["max_days"][tier]
         for e in ev.effects:
             if e.kind == "fact" and e.text:
-                pulse.add_news(state, e.text, near, t, [g for g in e.groups if g in self.world.knowledge_groups] or ["everyone"])
+                pulse.add_news(state, e.text, near, t, [g for g in e.groups if g in self.world.knowledge_groups] or ["everyone"], certainty="they say")
             elif e.kind == "mark" and e.place in self.world.places and e.text and not self.world.places[e.place].danger:
                 ps = self.store.load_place(e.place)
                 ps.marks = (ps.marks + [e.text])[-12:]
@@ -394,7 +394,7 @@ class RoadActions:
                 data = self.store.load_discoveries()
                 if discovery.add_lead(data, spot, e.text, t, self.rng):
                     self.store.save_discoveries(data)
-                    pulse.add_news(state, e.text, spot, t, ["everyone"])
+                    pulse.add_news(state, e.text, spot, t, ["everyone"], certainty="they say")
             elif e.kind == "danger" and e.value:
                 key = e.place if e.place in self.world.roads else roads.edge_key(self.world, a, b)
                 state.setdefault("effects", []).append({"kind": "danger", "place": key, "value": max(-lim_v, min(lim_v, e.value)),

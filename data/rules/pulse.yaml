@@ -78,6 +78,7 @@ effects:
 news:
   hours_per_walking_hour: 1.5
   keep_days: 45                       # how long news stays "news" before it's just history
+  keep: 300                           # (f482) the most news kept at once; the oldest plain gossip goes first
 
 # Seasons. The campaign starts on the first day of the first season.
 seasons:

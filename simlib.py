@@ -169,7 +169,7 @@ class Stub:
         return {"personality": "Plain.", "voice": "Plain.", "concern": "A small worry.", "motive": motive}
 
     def a_NPCReply(self, u, k):
-        out = {"speech": "It is as it is.", "intent": "small_talk"}
+        out = {"speech": "It is as it is.", "intent": "small_talk", **(getattr(self, "reply_extra", None) or {})}   # (f482) a test's planted words
         if self.ask_help and "WORK YOU HAVE OFFERED" not in u:
             r = self.rng.random()
             if r < 0.5:

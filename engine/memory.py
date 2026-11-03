@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 KINDS = ("experienced", "witnessed", "noticed", "heard", "told", "own_life", "promise_heard", "said", "knows", "revision")
+CLAIMS = ("told", "heard", "said", "promise_heard")    # (f482) what someone said, never what is: no rule reads these (the fence in claims_482_test)
 FIRST_HAND = ("experienced", "witnessed", "noticed", "own_life")
 THEM = "the stranger"
 _CAPS: dict | None = None
@@ -22,6 +23,22 @@ def caps() -> dict:
         import yaml
         _CAPS = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "memory.yaml").read_text(encoding="utf-8")) or {}
     return _CAPS
+
+
+def certainty(kind: str) -> str:
+    """(f482) How sure a person is of a memory of this kind (data/rules/memory.yaml certainty): sure, they say, hearsay, their word."""
+    return str((caps().get("certainty") or {}).get(kind, "sure"))
+
+
+def strip_relative(text: str) -> str:
+    """(f482) A claim kept without the words of time true only on the day it was said ("yesterday", "last week"): the row's minute keeps
+    when it was said, and the telling says how long ago from now (f477)."""
+    import re
+    out = text
+    for w in sorted(caps().get("relative_time") or [], key=len, reverse=True):
+        out = re.sub(rf"(,\s*)?\b{re.escape(w)}\b(\s*,)?", " ", out, flags=re.I)
+    out = re.sub(r"\s+([,.;!?])", r"\1", re.sub(r"\s{2,}", " ", out)).strip()
+    return out[:1].upper() + out[1:] if out else text
 
 
 def cap(holder: str, kind: str) -> int:
@@ -77,6 +94,8 @@ def keep(npc, text: str, *, day: int, turn: int, kind: str = "experienced", subj
     from npc.models import Memory
     if kind not in KINDS:
         raise ValueError(f"no such kind of memory: {kind}")
+    if kind in CLAIMS:
+        text = strip_relative(text)                         # (f482) "yesterday" is true only on the day it was said
     m = Memory(day=day, turn=turn, text=text, importance=int(importance), kind=kind, subject=subject,
                source=source or ("self" if kind in FIRST_HAND else ""), about=about, minute=int(minute))
     npc.memories.append(m)
@@ -95,7 +114,14 @@ def render(text: str) -> str:
 def problems() -> list[str]:
     """The startup check: every cap a whole number above zero, every kind one KINDS knows."""
     bad = []
+    for kind, word in ((caps() or {}).get("certainty") or {}).items():       # (f482)
+        if kind not in KINDS or not isinstance(word, str) or not word.strip():
+            bad.append(f"memory.yaml certainty.{kind}: needs a kind KINDS knows and a word")
+    if not all(isinstance(w, str) and w.strip() for w in (caps() or {}).get("relative_time") or []):
+        bad.append("memory.yaml relative_time: needs words")
     for holder, table in (caps() or {}).items():
+        if holder in ("certainty", "relative_time"):
+            continue
         for kind, n in (table or {}).items():
             if kind not in KINDS and holder != "maren":
                 bad.append(f"memory.yaml {holder}.{kind}: no such kind of memory")

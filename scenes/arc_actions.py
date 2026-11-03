@@ -586,7 +586,7 @@ class ArcActions:
         towns = sorted({n["place"] for n in arc["nodes"] if n["kind"] == "contact"})
         self.arc_effects(arc, state, towns, failure=False)
         if towns:
-            pulse.add_news(state, f"Word along the roads of trouble that has a name now: {s['title']}.", towns[0], self.minutes, ["everyone"])
+            pulse.add_news(state, f"Word along the roads of trouble that has a name now: {s['title']}.", towns[0], self.minutes, ["everyone"], certainty="they say")
         self.store.save_world_state(state)
         self.weight_hint = "rich"
 

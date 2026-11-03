@@ -45,7 +45,7 @@ def move(store, world, state: dict, npc, t: int, rng: random.Random) -> bool:
         npc.mood = row["mood"]
         npc.mood_until = t + int((pulse.P.get("drift") or {}).get("moods", {}).get("days", 6)) * 1440
     if row["gossip"]:
-        pulse.add_news(state, row["gossip"], npc.location, t, [world.locals_group(npc.location) or "everyone"])
+        pulse.add_news(state, row["gossip"], npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
     npc.motive_step = int(getattr(npc, "motive_step", 0) or 0) + 1
     state["history"].append({"minute": t, "text": f"{npc.name}: {row['line']}", "place": npc.location})
     ended = False

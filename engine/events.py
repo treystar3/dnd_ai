@@ -456,7 +456,7 @@ def judge(ws, state, th, deed) -> bool:
             th["times"][i] += round(left * E["judge"]["partial_delay"])
         th["partial"] = th.get("partial", 0) + 1
         pulse.add_news(state, f"{th['title']}: word is that {v.reason.rstrip('.').lower()} - it has bought some time.",
-                       th["place"], ws.minutes, th["groups"], thread=th["id"])
+                       th["place"], ws.minutes, th["groups"], thread=th["id"], certainty="they say")
         console.note(f"What you have done has set {th['title']} back. It is not over.")
         return True
     return False
@@ -471,7 +471,7 @@ def finish(ws, state, th, how: str, ending: str) -> None:
     if th.get("triumph"):
         pulse.apply_effects(store, world, ws.catalog, state, th["triumph"].get("effects", []), th["tier"], t, th["title"],
                             raw=True, thread_id=th["id"])
-        pulse.add_news(state, th["triumph"]["description"], th["place"], t, th["groups"], thread=th["id"])
+        pulse.add_news(state, th["triumph"]["description"], th["place"], t, th["groups"], thread=th["id"], certainty="they say")
     won = th.get("won_path") or {}
     if won.get("side"):
         loser = world.places[won["side"]].name
@@ -903,7 +903,7 @@ def start_cataclysm(store, world, catalog, state, t: int, rng: random.Random) ->
     state["threads"].append(thread)
     state["campaign"] = thread_id
     state["cataclysms"] = state.get("cataclysms", 0) + 1
-    pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id)
+    pulse.add_news(state, proposal.news, origin.id, t, ["everyone"], thread=thread_id, certainty="they say")
     from engine import pulselog
     row = pulselog.note("thread", f"[cataclysm:{kid}] {proposal.title} from {origin.name} - begins")
     pulse.apply_effects(store, world, catalog, state, stage_rows[0]["effects"], "cataclysm", t, thread["title"], raw=True, thread_id=thread_id, row=row)
@@ -920,7 +920,7 @@ def on_stage(store, world, catalog, state, th: dict, t: int, rng: random.Random)
     hits = th["hits"]
     sig = th["stages"][i].get("signs")
     if sig:
-        pulse.add_news(state, sig, th["place"], t, th["groups"], thread=th["id"])
+        pulse.add_news(state, sig, th["place"], t, th["groups"], thread=th["id"], certainty="they say")
     for town in hits[i] if i < len(hits) else []:
         if _player_in(store, world, town) and [s for s in live_spawns(state, t, th["id"]) if not s["boss"]]:      # (f324) fought for, not rolled
             state.setdefault("assaults", []).append({"thread": th["id"], "town": town, "stage": i, "minute": t})

@@ -373,8 +373,8 @@ def _keep_into(member: dict, about_me, about_world, day: int, details, given_fac
     world = clean(about_world) + clean(buckets.get("world", []))
     have = {x["text"].lower() for x in member.get("beliefs", [])}
     for c in world:
-        if c.lower() not in have:
-            member.setdefault("beliefs", []).append({"text": c, "day": day})
+        if c.lower() not in have:                                   # (f482) a hire's word about the world: theirs, never the world's
+            member.setdefault("beliefs", []).append({"text": c, "day": day, "source": "self", "certainty": "their word"})
             _event(who or member.get("name", ""), c, "belief")
     del member.setdefault("beliefs", [])[:-MAX_BELIEFS]
     return bad
