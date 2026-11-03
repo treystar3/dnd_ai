@@ -66,6 +66,10 @@ check("...and run.json keeps the party as the game knew them, and what the outpu
       and isinstance(info.get("hygiene"), dict), (info.get("cast"), info.get("hygiene")))
 check("the summary has a consistency section", "## Consistency" in summary and "| Longest run of one refusal |" in summary
       and "| Companion sentences with the other gender's pronoun |" in summary, summary[summary.find("## Consistency"):][:800])
+# (f474) continuity, counted from the page against the truth each row keeps (who is here and what each knows, what is owed, deeds)
+check("each row keeps the continuity truth, and the summary counts continuity from the page, all eight",
+      rows and all({"talk", "owed", "deeds", "commitments"} <= set(x.get("state") or {}) for x in rows) and "## Continuity (from the page)" in summary
+      and all(f"| C{i} " in summary for i in range(1, 9)), summary[summary.find("## Continuity"):][:900])
 r2 = subprocess.run([sys.executable, "tools/latency.py", str(out)], capture_output=True, text=True, timeout=120)
 check("tools/latency.py reads the folder again on its own", r2.returncode == 0 and "Calls by task" in r2.stdout, r2.stderr[-500:])
 r3 = subprocess.run([sys.executable, "tools/latency.py", "--calls", str(out / "llm_calls.jsonl")], capture_output=True, text=True, timeout=120)

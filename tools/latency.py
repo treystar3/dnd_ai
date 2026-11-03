@@ -301,6 +301,7 @@ def summarise(run_dir: Path) -> str:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import page_measures
         lines += ["", "## The page", ""] + page_measures.table(game_turns, turns, calls, info)
+        lines += ["", "## Continuity (from the page)", ""] + page_measures.continuity_table(game_turns, turns, info)    # (f474)
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
     text = "\n".join(lines) + "\n"
