@@ -801,7 +801,10 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). Left
     None (a model's own words for it), the words are read for a death as before."""
     npc.gone = how
-    npc.work_offer = npc.quest_offer = None
+    from engine import obligations                         # (f481) what they offered ends with them, for that reason
+    for e in obligations.open_ones(store, holder=npc.id):
+        fam = e.data.get("family")
+        obligations.close(store, e, "withdrawn" if fam == "work" else "released", "gone" if fam != "contract" else "issuer_gone", t, npc=npc)
     store.save_npc(npc)
     store.journal(t, "npc_gone", "", npc.id, f"{npc.name} is gone: {how}", {"how": how, "place": npc.location, "dead": dead, "mourned": mourned})
     ps = store.load_place(npc.location)
@@ -814,6 +817,7 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     for q in list(player.quests):
         if q.get("issuer") == npc.id or (q.get("kind") == "deliver" and q.get("to_name") and q["to_name"] in npc.name):
             player.quests.remove(q)
+            obligations.close(store, obligations.find(store, str(q["id"])), "released", "issuer_gone", t)   # (f481)
             c.key_items = [k for k in c.key_items if k.id != f"quest_{q['id']}"]
             c.item_history.append(f"{q['title']} - it came to nothing. {npc.name}: {how} (day {clock.day(t)}).")
     for order in list(player.commissions):

@@ -551,6 +551,10 @@ def check() -> list[str]:
     from engine import regard as _regard
     bad += _regard.problems()
 
+    # ---- (f481) offers and obligations: every family's reasons and memories name a final state of its lifecycle
+    from engine import obligations as _obligations
+    bad += _obligations.problems()
+
     # ---- (f477) how long ago, in words: bands ascending, no digits or dashes, every {n} covered
     from engine import clock as _clock
     bad += _clock.time_words_problems()

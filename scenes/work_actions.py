@@ -22,15 +22,13 @@ PAY_WORDS = re.compile(r"\b(pay|paid|wage|wages|coin|coins|copper|coppers|silver
 TASK_WORDS = re.compile(r"\b(work|job|task|chore|chores|haul|carry|labou?r|help|clear|load|dig|chop|tend|mend|fetch|move)\b", re.I)
 
 
-OFFER_HOURS = 6                     # (f395) an offer of work stands this long; then it is gone, not waiting to swallow a later "I take her offer"
-
-
-def offer_open(npc, now: int) -> dict | None:
-    """The work this person has offered the player, if the offer still stands."""
-    o = getattr(npc, "work_offer", None)
-    if not o or o.get("until", 10 ** 12) < now:
-        return None
-    return o
+def offer_open(store, npc, who: str) -> dict | None:
+    """The work this person has offered the character `who`, if the offer stands: its terms {task, pay, minutes}. (f481) An offer no longer
+    stands for a reason, never by the clock: the working day is over, the character left town, other work was offered in its place
+    (engine/obligations.py; f395's six hours are gone)."""
+    from engine import obligations
+    e = obligations.current(store, "work", npc.id, who)
+    return dict(e.data.get("terms") or {}) if e is not None else None
 
 
 class WorkActions:
@@ -65,7 +63,10 @@ class WorkActions:
         minutes = max(15, min(W["max_minutes"], offer.minutes or 60))
         fair = W["wage_per_hour"] * minutes / 60
         pay = round(max(fair * (1 - W["wage_spread"]), min(fair * (1 + W["wage_spread"]), offer.pay or fair)))
-        npc.work_offer = {"task": offer.task.strip(), "pay": max(1, pay), "minutes": minutes, "until": self.minutes + OFFER_HOURS * 60}
+        from engine import obligations                     # (f481) an offer in the registry; a second one withdraws the first, for that reason
+        obligations.close(self.store, obligations.current(self.store, "work", npc.id, self.acting), "withdrawn", "other_work", self.minutes, npc=npc)
+        obligations.open_(self.store, "work", npc.id, self.acting, offer.task.strip(), self.minutes,
+                          terms={"task": offer.task.strip(), "pay": max(1, pay), "minutes": minutes})
         self.store.save_npc(npc)
         console.debug(f"Work offered: {offer.task.strip()} - {money.words(pay)}, about "
                      f"{clock.describe_duration(minutes)}.")
@@ -75,13 +76,13 @@ class WorkActions:
             npc = next((n for n in self.present if n.id == nid), None)
             if npc:
                 return npc
-        return next((n for n in self.present if offer_open(n, self.minutes)), None)
+        return next((n for n in self.present if offer_open(self.store, n, self.acting)), None)
 
     def on_work(self, intent, text: str) -> None:
         npc = self.worker_for(intent)
         c = self.player.character
-        if npc and offer_open(npc, self.minutes):
-            job = npc.work_offer
+        job = offer_open(self.store, npc, self.acting) if npc else None
+        if job:
             tending = self.owns("tireless_tending")
             self.advance(job["minutes"] // 2 if tending else job["minutes"], exert=True)
             spend = 0 if tending else pools.maximum(c, "stamina") * W["stamina_per_hour"] / 100 * job["minutes"] / 60
@@ -89,7 +90,8 @@ class WorkActions:
             job["pay"] = round(job["pay"] * (1 + (pools.mechanic(c, "good_employer") or 0) / 100))
             c.coins += job["pay"]
             regard.step(npc, self.acting, W["trust_on_finish"], cause="work done", minute=self.minutes)   # (f480)
-            npc.work_offer = None
+            from engine import obligations
+            obligations.close(self.store, obligations.current(self.store, "work", npc.id, self.acting), "taken", "done", self.minutes, npc=npc)   # (f481)
             from engine.domain_events import Worked
             self.notice(Worked(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting),
                                task=job["task"], paid=job["pay"]), npc)

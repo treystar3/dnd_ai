@@ -67,15 +67,15 @@ text, intent, kind = bot._cont_talk(a)
 check("...told once a run: the next turn makes a promise instead, logged to whom", kind == "talk" and len(bot.clog["plants"]) == 1
       and bot.clog["promises"] and bot.clog["promises"][0]["npc"] == a.id and bot.clog["promises"][0]["text"] in text, (text, bot.clog["promises"]))
 check("...and a promise to the same person is made once", bot._cont_talk(a) is None)
-a.work_offer = {"task": "carry sacks to the mill", "pay": 30, "minutes": 60, "until": ws.minutes + 360}
+simlib.offer(store, a.id, "work", {"task": "carry sacks to the mill", "pay": 30, "minutes": 60})   # (f481) an offer in the registry
 text, intent, kind = bot._cont_talk(a)
 check("work this person offered is taken up, by its own action", kind == "work" and intent.get("kind") == "work" and intent.get("target") == a.id
       and bot.clog["accepted"][-1] == {**bot.clog["accepted"][-1], "npc": a.id, "kind": "work"}, (text, intent))
-a.work_offer = None
-a.quest_offer = {"title": "Find my lost goat", "what": "a goat"}
+simlib.end_offer(store, a.id, "work")
+simlib.offer(store, a.id, "request", {"title": "Find my lost goat", "what": "a goat"})
 text, intent, kind = bot._cont_talk(a)
 check("...and a personal request is accepted", intent.get("kind") == "accept_quest" and bot.clog["accepted"][-1]["kind"] == "request", (text, intent))
-a.quest_offer = None
+simlib.end_offer(store, a.id, "request")
 check("the turn's step goes on the night's row", bot.__dict__.get("_cont_now", {}).get("step") == "accepted", bot.__dict__.get("_cont_now"))
 ws.partner = None
 
@@ -155,7 +155,7 @@ check("the report counts each kind of step and keeps the log", rep["continuity"]
 # ---- the night's per-turn state: who is here and what each knows, what is owed, the turn's deeds and who saw them
 run = types.SimpleNamespace()
 ws.player.quests.append(dict(q))
-b.work_offer = {"task": "mend a fence", "pay": 20, "minutes": 60, "until": ws.minutes + 120}
+simlib.offer(store, b.id, "work", {"task": "mend a fence", "pay": 20, "minutes": 60})
 s1 = nightrun.Run.continuity_state(run, ws)
 check("the state names who is here, with what each knows of the player", b.id in s1["talk"] and {"label", "met", "last_talk_at", "known_as", "trust"}
       <= set(s1["talk"][b.id]), s1.get("talk", {}).get(b.id))
@@ -167,9 +167,13 @@ with store.transaction():
 store.meta.minutes += 400
 s2 = nightrun.Run.continuity_state(run, ws)
 check("a deed recorded since: in the state with who saw it", len(s2["deeds"]) == 1 and s2["deeds"][0]["witnesses"] == [b.id], s2["deeds"])
-check("...the offer, past its hours, reads lapsed", any(o["id"] == f"work:{b.id}" and o["state"] == "lapsed" for o in s2["owed"]), s2["owed"])
-check("...and a deed is counted once", nightrun.Run.continuity_state(run, ws)["deeds"] == [])
-b.work_offer = None
+check("...the offer, past the hours it used to last, still stands (nothing ends by age, f481)",
+      any(o["id"] == f"work:{b.id}" and o["state"] == "open" for o in s2["owed"]), s2["owed"])
+simlib.end_offer(store, b.id, "work")
+s3 = nightrun.Run.continuity_state(run, ws)
+check("...and a deed is counted once", s3["deeds"] == [])
+check("...an offer that ends is in the state's closed, with its reason (f481)", any(c["id"] == f"work:{b.id}" and c["state"] == "withdrawn" and c["reason"]
+      for c in s3["closed"]), s3.get("closed"))
 ws.player.quests.clear()
 
 g.close()

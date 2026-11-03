@@ -216,9 +216,11 @@ check("'the far right road' is the far right fork", (exits.pick(fork, "I take th
 check("'the right fork' is the right fork", (exits.pick(fork, "I take the right fork.") or {}).get("to") == "b")
 
 # ---- offers of work lapse
-n = types.SimpleNamespace(work_offer={"task": "haul nets", "pay": 5, "minutes": 60, "until": 1000})
-check("an offer of work stands until its hour", offer_open(n, 900) and not offer_open(n, 1001))
-check("...an older offer with no hour stands", offer_open(types.SimpleNamespace(work_offer={"task": "x", "pay": 1, "minutes": 30}), 10 ** 9))
+n = types.SimpleNamespace(id="haul1")                                   # (f481) an offer stands until it ends for a reason, never by its hour
+simlib.offer(ws.store, "haul1", "work", {"task": "haul nets", "pay": 5, "minutes": 60, "until": 1000})
+check("an offer of work stands until it ends for a reason, past any hour", (offer_open(ws.store, n, "player") or {}).get("task") == "haul nets")
+simlib.end_offer(ws.store, "haul1", "work")
+check("...and once withdrawn it stands no more", offer_open(ws.store, n, "player") is None)
 
 store.close()
 shutil.rmtree("saves/ruling_test", ignore_errors=True)

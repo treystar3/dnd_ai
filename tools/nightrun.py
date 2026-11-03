@@ -268,15 +268,13 @@ class Run:
             from engine import regard                                # (f480) the playing character's view, under the keys the measures read
             talk = {n.id: {"label": n.label(ws.acting), "met": regard.of(n, ws.acting).met, "last_talk_at": regard.of(n, ws.acting).last_talk_at,
                            "known_as": regard.of(n, ws.acting).knows_as, "trust": regard.of(n, ws.acting).trust} for n in present[:12]}
-            owed = [{"id": q["id"], "kind": q.get("kind", ""), "holder": q.get("issuer", "") or "guild", "title": q.get("title", ""), "state": "taken"}
-                    for q in p.quests]
-            for n in present:
-                if getattr(n, "work_offer", None):
-                    owed.append({"id": f"work:{n.id}", "kind": "work", "holder": n.id, "title": str(n.work_offer.get("task", ""))[:80],
-                                 "state": "open" if offer_open(n, ws.minutes) else "lapsed"})
-                if getattr(n, "quest_offer", None):
-                    owed.append({"id": f"request:{n.id}", "kind": "request", "holder": n.id, "title": str((n.quest_offer or {}).get("title", ""))[:80],
-                                 "state": "offered"})
+            from engine import obligations                         # (f481) what is owed, from the registry, under the ids the measures read
+            owed = [o for o in obligations.for_state(ws.store, ws.acting, p.quests) if o["kind"] not in ("work", "request")
+                    or o["holder"] in {n.id for n in present}]
+            ended = obligations.closed_since(ws.store, 0)            # (f481) what closed since the last turn read, each with its reason
+            seen = self.__dict__.get("_closed_seen")
+            closed = [] if seen is None else [{k: c[k] for k in ("id", "state", "reason", "cause")} for c in ended if c["ref"] not in seen]
+            self._closed_seen = {c["ref"] for c in ended}
             deeds = []
             rows = ws.store.journal_tail(30)
             last = self.__dict__.get("_deed_seq")
@@ -287,7 +285,7 @@ class Run:
                         deeds.append({"kind": r.get("kind", ""), "minute": r.get("minute"), "place": (r.get("data") or {}).get("place", ""),
                                       "target": r.get("target", ""), "witnesses": list(w)[:12], "text": str(r.get("text", ""))[:120]})
             self._deed_seq = max([r["seq"] for r in rows], default=last or 0)
-            return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed,
+            return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
                     "commitments": sum(len(m.get("commitments") or []) for m in p.party), "deeds": deeds}
         except Exception as e:
             return {"continuity_error": str(e)[:120]}

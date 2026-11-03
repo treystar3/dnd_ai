@@ -35,3 +35,18 @@ captive:
     chance_per_day: 0.15
     chance_most: 0.6                  # the chance grows with every day held, to this
     left_days: 2                      # a captive left behind somewhere is gone after this many days
+
+# (f481, GOALS.md S2: nothing ends by age) What is offered between a person and a character, and what is owed. An offer waits for a yes
+# and ends when it is taken, said no to (released) or withdrawn; an obligation stands until it is kept (fulfilled), broken or let go
+# (released). Every end has its reason, from data/rules/obligations.yaml; none is a clock.
+offer:
+  states: [offered, taken, released, withdrawn]
+  start: offered
+  final: [taken, released, withdrawn]
+  moves: {offered: [taken, released, withdrawn]}
+
+obligation:
+  states: [active, fulfilled, broken, released]
+  start: active
+  final: [fulfilled, broken, released]
+  moves: {active: [fulfilled, broken, released]}

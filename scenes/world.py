@@ -40,7 +40,7 @@ from scenes.inventory_actions import InventoryActions
 from scenes.shop_actions import ShopActions
 from scenes.gear_actions import GearActions
 from scenes.check_actions import CheckActions
-from scenes.work_actions import WorkActions
+from scenes.work_actions import WorkActions, offer_open
 from scenes.guild_actions import GuildActions
 from scenes.training_actions import TrainingActions
 from scenes.dungeon_actions import DungeonActions
@@ -1835,6 +1835,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         alone, and what the player did stands."""
         self.ensure_dungeons()
         self.run_pulse()
+        from engine import obligations
+        obligations.lapse(self)                                  # (f481) work offers that no longer stand, withdrawn for their reason
 
     def passage(self, text: str) -> None:
         """(f463) The passage of a line of several actions, held back until here (flush). (f464) An operation of its own, before the pulse:
@@ -2932,6 +2934,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         speech = intent.speech or text
         label_before = npc.label(self.acting)
         first_time = not regard.of(npc, self.acting).met         # (f480) the first meeting is this character's
+        if not self.convo:                                       # (f481) a new conversation: a request left without a yes in the last is let go
+            from engine import obligations
+            asked = obligations.current(self.store, "request", npc.id, self.acting)
+            if asked is not None and asked.since < self.minutes:
+                obligations.close(self.store, asked, "released", "no_answer", self.minutes, npc=npc)
         from engine import recognition
         back = "" if first_time or self.convo else recognition.line(npc, self.minutes, self.acting)       # (f382) they know the player again
         self._back = npc.id if back else None
@@ -2992,9 +2999,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.hear_names(reply.speech)
         if reply.offers_work and reply.offers_work.task.strip():
             self.record_work_offer(reply.offers_work, npc)
-        elif reply.offers_quest and reply.offers_quest.what.strip() and not npc.quest_offer:
+        elif reply.offers_quest and reply.offers_quest.what.strip() and not self.request_of(npc):
             self.record_quest_offer(reply.offers_quest, npc)
-        elif not npc.work_offer and not (reply.offers_quest and reply.offers_quest.what.strip()) and self.promises_pay(reply.speech):
+        elif not offer_open(self.store, npc, self.acting) and not (reply.offers_quest and reply.offers_quest.what.strip()) and self.promises_pay(reply.speech):
             if (offer := self.inferred_offer(npc, reply.speech)) is not None:       # pay was promised in words: make it a real, payable offer
                 self.record_work_offer(offer, npc)
         if reply.gives and reply.gives.name.strip() and reply.intent != "bargain" and self.story_object(reply.gives.name):
@@ -3315,8 +3322,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             letter = getattr(npc, "rank", "") or "FFFEED"[zlib.crc32(npc.id.encode()) % 6]        # (f374) Maren is A rank, not a drawn F
             lines.append(f"You are a rank-{letter} member of the adventurers' guild, between contracts. You know the "
                          "Greywood and its dangers from your own jobs, and you size up newcomers.")
-        if npc.quest_offer:
-            lines.append(f"You have asked them to: {npc.quest_offer['title']}, and are waiting for their answer.")
+        if (asked := self.request_of(npc)):                                     # (f481) from the registry
+            lines.append(f"You have asked them to: {asked['title']}, and are waiting for their answer.")
         if npc.mood:
             lines.append(f"How you've been lately: {npc.mood}")
         if npc.motive:

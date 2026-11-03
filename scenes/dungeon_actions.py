@@ -177,6 +177,10 @@ class DungeonActions:
         """A remade dungeon invalidates postings and delve quests that point at floors it no longer has."""
         def stale(q):
             return q.get("kind") == "delve" and q.get("dungeon") == dungeon_id and q.get("floor", 0) >= len(fresh["floors"])
+        from engine import obligations                                      # (f481) let go: the floors it named are gone
+        for q in self.player.quests:
+            if stale(q):
+                obligations.close(self.store, obligations.find(self.store, str(q["id"])), "released", "place_changed", self.minutes)
         self.player.quests = [q for q in self.player.quests if not stale(q)]
         for pid in {self.player.location}:
             try:

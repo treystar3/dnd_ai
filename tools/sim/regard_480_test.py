@@ -12,7 +12,8 @@ from pathlib import Path
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
-simlib.install(simlib.Stub("warrior", 2))
+stub = simlib.Stub("warrior", 2)
+simlib.install(stub)
 shown = simlib.quiet_console()
 from engine import domain_events as de, regard
 from npc.models import NPC, LEGACY_REGARD
@@ -76,7 +77,7 @@ check("a gift from the second moves only the second's trust", regard.of(n, c1.id
       (regard.of(n, c1.id).trust, regard.of(n, c2.id).trust))
 check("...and the move keeps its cause", regard.of(n, c2.id).moves[-1] == {"minute": 200, "n": 6, "cause": "a gift", "about": "loaf"},
       regard.of(n, c2.id).moves)
-regard.meet(n, c2.id, 300).knows_as = "Bel's friend"
+regard.own(n, c2.id).knows_as = "Bel's friend"                # named, but not yet met: the meeting comes below, in play
 store.save_npc(n)
 back = store.load_npc("b1")
 check("both names they were given survive a reload, each with its own character", regard.of(back, c1.id).knows_as == "Aric"
@@ -95,7 +96,9 @@ ws.enter(ws.player.location)
 ws.present = [store.load_npc("b1")] + [p for p in ws.present if p.id != "b1"]
 first = ws.player.character
 ws.player.character = c2
+stub.plan = [{"kind": "talk", "target": "b1", "speech": "Good morning to you."}]
 ws.turn('I say to Bel Hart, "Good morning to you."')
+stub.plan = None
 ws.player.character = first
 after = store.load_npc("b1")
 check("the second's first meeting is their own: met now, seeded from their standing (50 and what their name is worth here)",

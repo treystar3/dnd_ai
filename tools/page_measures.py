@@ -363,7 +363,11 @@ def continuity(game_turns: list[dict], turns: list[dict], info: dict) -> dict:
     closed: dict[str, dict] = {}
     open_at: dict[str, dict[str, dict]] = {}
     vanished, lapsed, last = [], 0, {}
+    reasoned, ended_for = 0, {}                                           # (f481) ends the game recorded with a reason (state.closed)
     for t, s in states:
+        for c in s.get("closed") or []:
+            if c.get("id") and c.get("reason"):
+                ended_for[c["id"]] = c["reason"]
         here = {p for p in (s.get("talk") or {})}
         now = {o["id"]: o for o in (s.get("owed") or []) if o.get("id")}
         open_at[str(t)] = now
@@ -380,11 +384,14 @@ def continuity(game_turns: list[dict], turns: list[dict], info: dict) -> dict:
             tw = _words(o.get("title", ""))
             said = [x for x in lines_at.get(str(t), []) if tw & _words(x)]
             how = next((k for x in said for head, k in CLOSED_AS if x.startswith(head)), "other" if said else "unsaid")
+            if how == "unsaid" and oid in ended_for:
+                how = "reasoned"                                          # (f481) ended for a reason the holder can give, not vanished
+                reasoned += 1
             if how == "unsaid":
                 vanished.append((t, o.get("kind"), o.get("title", "")[:50]))
             closed[oid] = {**o, "closed": t, "how": how, "minute": s.get("minutes")}
         last = now
-    out["c5_vanished"], out["c5_lapsed"] = vanished, lapsed
+    out["c5_vanished"], out["c5_lapsed"], out["c5_reasoned"] = vanished, lapsed, reasoned
     open_as_done, done_as_open = [], []
     for _, t, lab, words, nid, m in spoken:
         if not nid:
@@ -496,7 +503,8 @@ def continuity_table(game_turns: list[dict], turns: list[dict], info: dict) -> l
     lines.append("| C4 A kept or broken matter raised by its holder the next time they speak (raised of met), by how it ended | "
                  + ("; ".join(f"{h} {x} of {n}" for h, (x, n) in sorted(r.items())) or "none met again") + " |")
     v = m["c5_vanished"]
-    lines.append(f"| C5 Owed things gone with no line saying so / work offers left to lapse | {len(v)} / {m['c5_lapsed']}"
+    lines.append(f"| C5 Owed things gone with no line saying so / work offers left to lapse / ended for a reason the game kept (f481) | "
+                 f"{len(v)} / {m['c5_lapsed']} / {m.get('c5_reasoned', 0)}"
                  + (f" (e.g. {_ex(v, 2, lambda x: f'turn {x[0]} {x[1]} {x[2]!r}')})" if v else "") + " |")
     c6 = m["c6_false_name"]
     lines.append("| C6 The false name given: kept by the one told / spread to others / said after it was set straight / in narration | "

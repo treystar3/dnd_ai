@@ -122,8 +122,7 @@ class NPC(BaseModel):
     hidden: list[dict] = []       # story objects the player went looking for on this person: {"name", "description", "worth", "taken"}
     stock: list = []              # gear for sale (Item data), replaced on restock
     stock_day: int = -1           # day the current stock was laid out
-    work_offer: dict | None = None  # paid work offered to the player: {task, pay, minutes}
-    quest_offer: dict | None = None # a personal request offered to the player, waiting for a yes          # game minute until which they've stepped away (after ending a conversation)
+    # (f481) work offered and requests made are offers in the registry (engine/obligations.py), each ending for a reason          # game minute until which they've stepped away (after ending a conversation)
     speech: dict = {}             # (f347) who they are when they speak: the culture that raised them and how it shows (engine/voice_profile.py); rolled when first spoken to
     said: list[str] = []          # (f347) their last few replies to the player, so they do not say the same thing twice (llm/contracts.py NPCReply)
     heard: list[str] = []         # (f347) what the player said to draw each of those, so the same question may get much the same answer

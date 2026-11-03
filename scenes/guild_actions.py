@@ -162,8 +162,10 @@ class GuildActions:
         held = [{"id": q["id"], "n": n, "letter": q["letter"], "title": q["title"], "guild": bool(q["guild"]),
                  "line": quests.progress_line(q, self.pack, self.minutes)}
                 for n, q in enumerate(self.player.quests, 1)]
-        requests = [{"npc": n.id, "name": n.label(self.acting), "letter": n.quest_offer["letter"], "title": n.quest_offer["title"]}
-                    for n in self.present if n.quest_offer]
+        from engine import obligations                                     # (f481) requests standing, from the registry
+        asked = {n.id: (n, obligations.current(self.store, "request", n.id, self.acting)) for n in self.present}
+        requests = [{"npc": n.id, "name": n.label(self.acting), "letter": e.data["terms"]["letter"], "title": e.data["terms"]["title"]}
+                    for n, e in asked.values() if e is not None]
         hall = self.hall_here()
         return {"hall": self.world.places[hall].name if hall else "", "member": bool(self.rank), "rank": self.rank, "fee": money.fmt(G["joining_fee"]),
                 "fee_ok": c.coins >= G["joining_fee"], "clerk": bool(clerk), "postings": postings, "held": held,
@@ -249,7 +251,7 @@ class GuildActions:
             else:
                 console.note("You no longer hold that.")
         elif cmd == "#boardrequest" and len(parts) >= 2:
-            npc = next((x for x in self.present if x.id == parts[1] and x.quest_offer), None)
+            npc = next((x for x in self.present if x.id == parts[1] and self.request_of(x)), None)
             if npc:
                 self.take_personal(npc)
             else:
@@ -366,8 +368,8 @@ class GuildActions:
         return best
 
     def on_accept_quest(self, intent, text: str) -> None:
-        npc = next((n for n in self.present if n.id == intent.target and n.quest_offer), None) or \
-            next((n for n in self.present if n.quest_offer), None)
+        npc = next((n for n in self.present if n.id == intent.target and self.request_of(n)), None) or \
+            next((n for n in self.present if self.request_of(n)), None)
         if npc and not self.clerk_here():
             self.take_personal(npc)
             return
@@ -412,6 +414,9 @@ class GuildActions:
                 id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
                 source="the adventurers' guild", day=clock.day(self.minutes), for_whom=q["to_role"].replace("_", " ")))
         self.player.quests.append(q)
+        from engine import obligations                                      # (f481) the contract held, until handed in, walked away from or let go
+        obligations.open_(self.store, "contract", q.get("issuer", "") or "", self.acting, q["title"], self.minutes, terms={"quest": q["id"]},
+                          key=str(q["id"]))
         self.store.save_player(self.player)
         from engine import ledger                                           # (f416) and the turn's record: a contract taken by a line the
         ledger.add("took", quest=str(q["id"]),                              # clerk never answered was told 'Nothing comes of that here'
@@ -436,6 +441,8 @@ class GuildActions:
             self.halted = True
             return
         self.player.quests.remove(q)
+        from engine import obligations                                      # (f481) broken, with how
+        obligations.close(self.store, obligations.find(self.store, str(q["id"])), "broken", "abandoned", self.minutes)
         self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
         self.store.save_player(self.player)
         console.ledger(f"Abandoned: {q['title']}.")
@@ -528,6 +535,8 @@ class GuildActions:
             c.coins += coins
             levels = leveling.gain_xp(c, xp)
             self.player.quests.remove(q)
+            from engine import obligations                                  # (f481) kept: fulfilled at the hand-in
+            obligations.close(self.store, obligations.find(self.store, str(q["id"])), "fulfilled", "handed_in", self.minutes)
             if q.get("thread") and self.owns("rally_the_town"):
                 self.reputation_change("contract_done", q.get("place") or self.player.location)
             if q["guild"]:
@@ -567,12 +576,19 @@ class GuildActions:
 
     # ---------- personal requests ----------
 
+    def request_of(self, npc) -> dict | None:
+        """(f481) The request this person has made of the acting character and is waiting on a yes for: its posting, or None."""
+        from engine import obligations
+        e = obligations.current(self.store, "request", npc.id, self.acting)
+        return dict(e.data["terms"]) if e is not None else None
+
     def record_quest_offer(self, offer, npc) -> None:
         q = self.map_request(offer, npc)
         if not q:
             console.debug(f"ignored request '{offer.what}' - not something the game can track")
             return
-        npc.quest_offer = q
+        from engine import obligations                                     # (f481) an offer in the registry, waiting on a yes
+        obligations.open_(self.store, "request", npc.id, self.acting, q["title"], self.minutes, terms=q)
         self.store.save_npc(npc)
         console.note(f"Request offered: [{q['letter']}] {q['title']} - {money.words(q['coins'])}, {q['xp']} XP. "
                      "Say yes to take it on.")
@@ -581,8 +597,11 @@ class GuildActions:
         return quests.map_offer(self.world, self.store, offer, npc.id, npc.name, self.minutes, guild=False)
 
     def take_personal(self, npc) -> None:
-        q = npc.quest_offer
-        npc.quest_offer = None
+        from engine import obligations                                     # (f481) the yes: the offer taken, the contract held
+        e = obligations.current(self.store, "request", npc.id, self.acting)
+        q = dict(e.data["terms"])
+        obligations.close(self.store, e, "taken", "agreed", self.minutes, npc=npc)
+        obligations.open_(self.store, "contract", npc.id, self.acting, q["title"], self.minutes, terms={"quest": q["id"]}, key=str(q["id"]))
         self.store.save_npc(npc)
         if q["kind"] == "deliver":
             self.player.character.key_items.append(KeyItem(

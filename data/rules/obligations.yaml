@@ -1,0 +1,44 @@
+# (f481, GOALS.md S2 and G4, the owner's answers of 2026-11-03 to Bundle D's questions 1 to 3) Offers and obligations between a person
+# (or a hire) and a character, kept in the registry (engine/obligations.py, data/rules/lifecycles.yaml offer and obligation). Nothing ends
+# by age: each ends for a reason a person could give, and each reason is one of several lines here, drawn from the holder's own stream.
+#
+#   kind      offer (waits for a yes) or obligation (stands until kept, broken or let go)
+#   reasons   per final state, per cause: the lines it is said with (the first is the plain one)
+#   remember  per final state: what the holder keeps of it ({title}; {them} is the character), or none
+#   open_cap  the most open ones a holder keeps of this family with one character (a new one past it ends the oldest only where said)
+families:
+  work:
+    kind: offer
+    open_cap: 1
+    reasons:
+      taken: {done: ["The work was done and paid for.", "Done as agreed, and paid."]}
+      withdrawn:
+        day_over: ["The working day was over; the job will keep for someone else.", "By the end of the day the job had gone to someone else.",
+                   "The light went, and with it the job."]
+        left_town: ["The stranger left town before taking the work.", "They went on their way, and the work went to someone else."]
+        other_work: ["Something else needed doing instead.", "The first job was dropped for another."]
+        gone: ["The one who offered it is gone."]
+    remember: {}
+  request:
+    kind: offer
+    open_cap: 1
+    reasons:
+      taken: {agreed: ["The stranger said yes.", "Taken on, with a yes."]}
+      released:
+        refused: ["The stranger said no.", "Turned down, plainly."]
+        no_answer: ["No answer came, and the asking passed.", "Asked, and left unanswered; it was not asked again."]
+        gone: ["The one who asked is gone."]
+    remember:
+      released: "Asked {them} to {title}, and had no yes."
+  contract:
+    kind: obligation
+    open_cap: 0                       # contracts are held by the player's hand, capped there
+    reasons:
+      fulfilled: {handed_in: ["Handed in and paid.", "Done, and paid for at the end."]}
+      broken:
+        abandoned: ["Walked away from.", "Given up on, part done or not begun."]
+      released:
+        issuer_gone: ["The one who asked for it is gone; it came to nothing.", "Nobody is left to pay for it."]
+        place_changed: ["What it was for is not there any more.", "The place it named has changed past it."]
+    remember: {}                      # the hand-in and the walking away are deeds: the reactions already give the issuer the memory
+keep_days: 30                         # a final row is kept this long for the measures and the journal, then removed (its memory stays)

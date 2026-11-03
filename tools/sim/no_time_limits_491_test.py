@@ -46,7 +46,7 @@ npc = next(iter(ws.present), None)
 offer = quests._quest("hunt", "F", "Wolves at the fold", ws.minutes, guild=False, issuer=npc.id if npc else "x", issuer_name=npc.name if npc else "X",
                       place=gid, creature="wolf", count=2)
 if npc is not None:
-    npc.quest_offer = dict(offer)
+    simlib.offer(ws.store, npc.id, "request", dict(offer))      # (f481)
     shown.clear()
     ws.take_personal(npc)
     line = " ".join(t for k, t in shown if k == "ledger")

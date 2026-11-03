@@ -299,6 +299,12 @@ def note_mentions(speaker: NPC, speech: str, store: CampaignStore, who: str) -> 
     return added
 
 
+def _offered(store, npc, who: str) -> dict | None:
+    """(f481) The work this person has offered the character and that still stands (engine/obligations.py), for WORK YOU HAVE OFFERED."""
+    from scenes.work_actions import offer_open
+    return offer_open(store, npc, who)
+
+
 def converse(
     npc: NPC,
     store: CampaignStore,
@@ -346,6 +352,7 @@ def converse(
             extra, land.land_lines(world, npc.location), truth_text=truth_text,
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
+            work=_offered(store, npc, who),
         ),
         NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running

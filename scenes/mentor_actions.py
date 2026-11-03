@@ -728,7 +728,10 @@ class MentorActions:
         from scenes.combat_scene import CombatScene
         H = M["hunt"]
         if not mentor.has_contract(self.player):
-            self.player.quests.append(mentor.make_contract(self.minutes))
+            q = mentor.make_contract(self.minutes)
+            self.player.quests.append(q)
+            from engine import obligations                                  # (f481) Maren's contract, held like any other
+            obligations.open_(self.store, "contract", "maren", self.acting, q["title"], self.minutes, terms={"quest": q["id"]}, key=str(q["id"]))
         console.narrate(M["arrive"]["found_narrate"].strip())
         self.mentor_say(mentor.line(self.player, "found", self.mentor_seed()), beat="the wolves have been found and are coming")
         creature = self.world.bestiary[H["creature"]]

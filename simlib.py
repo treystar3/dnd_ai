@@ -737,19 +737,16 @@ def remembered(store, holder: str, *, kind: str | None = None, subject: str | No
 
 
 def obligation(store, holder: str, about: str | None = None, minutes: int | None = None) -> list[dict]:
-    """(f476) What a person is owed or offers, in one shape: {id, kind, state, title}. Until f481 it is read from where each lives today
-    (a work offer and a request on the person, the contracts in the player's hand that they posted, a hire's commitments); from then
-    on, from the obligations themselves. `about`: words in its title."""
+    """(f476) What a person is owed or offers, in one shape: {id, kind, state, title}. (f481) The offers from the registry, open or ended
+    (offered, taken, released, withdrawn, with the reason it ended); the contracts in the player's hand that they posted (taken); a
+    hire's commitments (active). `about`: words in its title."""
     out = []
-    if store.npc_exists(holder):
-        from scenes.work_actions import offer_open
-        n = store.load_npc(holder)
-        now = store.meta.minutes if minutes is None else minutes
-        if getattr(n, "work_offer", None):
-            out.append({"id": f"work:{holder}", "kind": "work", "state": "open" if offer_open(n, now) else "lapsed",
-                        "title": str(n.work_offer.get("task", ""))})
-        if getattr(n, "quest_offer", None):
-            out.append({"id": f"request:{holder}", "kind": "request", "state": "offered", "title": str(n.quest_offer.get("title", ""))})
+    from engine import obligations                            # (f481) the offers in the registry, open and ended
+    for e in store.find_entities(kind="offer"):
+        if e.links.get("npc") == holder:
+            out.append({"id": e.data.get("key", e.ref), "kind": e.data.get("family", ""),
+                        "state": "open" if (e.data.get("family"), e.state) == ("work", "offered") else e.state,   # the words tests always read
+                        "title": str(e.data.get("title", "")), "reason": (e.history[-1][3] if e.history else "")})
     p = store.load_player()
     if p is not None:
         out += [{"id": q["id"], "kind": q.get("kind", ""), "state": "taken", "title": q.get("title", "")}
@@ -811,6 +808,30 @@ def _second_character(ws):
     other.name = "Second " + other.name.split()[-1] if other.name else "Second Traveller"
     other.id = "second"                                      # (f480) a character of their own, by id
     return other
+
+
+def offer(store, holder: str, family: str, terms: dict, who: str = "player", minute: int | None = None):
+    """(f481) An offer in the registry for a test, from the person `holder` to the character `who`: what tests set as npc.work_offer
+    ("work") or npc.quest_offer ("request") before offers ended for a reason. An old offer's hour (until) is dropped: nothing ends by age."""
+    from engine import obligations
+    t = {k: v for k, v in dict(terms).items() if k != "until"}
+    return obligations.open_(store, family, holder, who, str(t.get("task") or t.get("title") or family), store.meta.minutes if minute is None else minute,
+                             terms=t)
+
+
+def offered(store, holder: str, family: str, who: str = "player") -> dict | None:
+    """(f481) The terms of the offer of this family that `holder` has standing for `who`, or None."""
+    from engine import obligations
+    e = obligations.current(store, family, holder, who)
+    return dict(e.data["terms"]) if e is not None else None
+
+
+def end_offer(store, holder: str, family: str, who: str = "player") -> None:
+    """(f481) A test's standing offer ended, as when the one who made it is gone."""
+    from engine import obligations
+    e = obligations.current(store, family, holder, who)
+    if e is not None:
+        obligations.close(store, e, "withdrawn" if family == "work" else "released", "gone", store.meta.minutes)
 
 
 def view(npc, who: str = "player"):

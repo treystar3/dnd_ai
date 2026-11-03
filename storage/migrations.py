@@ -203,6 +203,29 @@ def _v12_regard(store) -> None:
             store._db.execute("UPDATE npcs SET json = ? WHERE id = ?", (json.dumps(moved, ensure_ascii=False), nid))
 
 
+def _v13_offers(store) -> None:
+    """(f481) A person's standing work offer and request leave their record for the registry: each an offer (data/rules/lifecycles.yaml),
+    from them to the one character there was then, still offered (an old work offer's hour is gone: GOALS.md S2, nothing ends by age; the
+    world withdraws it for a reason on the next line if the day is over or the player has left the town). The ids are fixed by the person
+    and the family, so the step is the same every time it runs."""
+    import json
+    from core.models import Entity
+    for nid, raw in store._db.execute("SELECT id, json FROM npcs ORDER BY id").fetchall():
+        body = json.loads(raw)
+        work, ask = body.pop("work_offer", None), body.pop("quest_offer", None)
+        for fam, terms, title in (("work", work, (work or {}).get("task", "")), ("request", ask, (ask or {}).get("title", ""))):
+            if not terms:
+                continue
+            t = {k: v for k, v in dict(terms).items() if k != "until"}
+            e = Entity(ref=f"obl:{nid}:{fam}", kind="offer", name=str(title)[:120], state="offered", since=0, owner="player", links={"npc": nid},
+                       data={"family": fam, "with": "player", "title": str(title), "terms": t, "key": f"{fam}:{nid}"},
+                       history=[[0, "", "offered", "brought forward from an older save"]])
+            store._db.execute("INSERT OR REPLACE INTO entities (ref, kind, state, place, owner, deadline, json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                              (e.ref, e.kind, e.state, e.place, e.owner, 0, e.model_dump_json()))
+        if work is not None or ask is not None or "work_offer" in raw or "quest_offer" in raw:
+            store._db.execute("UPDATE npcs SET json = ? WHERE id = ?", (json.dumps(body, ensure_ascii=False), nid))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -216,6 +239,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (10, "memories typed: what each is, whom it is about, who said it, what it is about, and when", _v10_memory_kinds),   # (f478)
     (11, "a hire's memories as rows of their own, the player's record carrying only the window", _v11_hire_memories),      # (f479)
     (12, "a person's view of the player kept as their view of one character, by id", _v12_regard),                          # (f480)
+    (13, "work offered and requests made kept as offers that end for a reason", _v13_offers),                               # (f481)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

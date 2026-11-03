@@ -374,6 +374,11 @@ class CampaignStore:
                              "owner = excluded.owner, deadline = excluded.deadline, json = excluded.json",
                              (e.ref, e.kind, e.state, e.place, e.owner, int(e.deadline), e.model_dump_json()))
 
+    def delete_entity(self, ref: str) -> None:
+        """(f481) A registry row removed: a final offer or obligation past its keeping (engine/obligations.py trim)."""
+        with self._lock, self.transaction():
+            self._db.execute("DELETE FROM entities WHERE ref = ?", (ref,))
+
     def load_entity(self, ref: str):
         from core.models import Entity
         with self._lock:

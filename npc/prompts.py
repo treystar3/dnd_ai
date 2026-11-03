@@ -145,10 +145,11 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                          land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                          stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                         worn: list[str] = (), now: int | None = None, *, who: str) -> str:
+                         worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None) -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
-                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn, now=now, who=who).render()
+                               land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn, now=now, who=who,
+                               work=work).render()
 
 
 def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
@@ -156,7 +157,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                        worn: list[str] = (), now: int | None = None, *, who: str):
+                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
     voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
@@ -176,7 +177,7 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     samples = (getattr(npc, "speech", None) or {}).get("samples") or []
     if samples:                                                     # (f374) a person written by hand: their way of talking, shown
         p.history("\n".join(f"- {s}" for s in samples), "HOW YOU SOUND (things you have said: the way you talk, to keep; never say these again)")
-    p.fact(_knowledge(npc, facts, convo, wares, extra, now, who))
+    p.fact(_knowledge(npc, facts, convo, wares, extra, now, who, work))
     p.history(unsaid)
     if worn:
         p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
@@ -206,7 +207,7 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
     )
 
 
-def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str) -> str:
+def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, work: dict | None = None) -> str:
     from engine import regard
     seen = regard.of(npc, char_id)                                  # (f480) their view of the one in front of them
     if not seen.met:
@@ -227,8 +228,8 @@ def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str) -
         + (("WHAT YOU SELL (fixed prices - quote them exactly; the player pays through the game when they agree, so "
             "never pretend coins have already changed hands):\n" + "\n".join(f"  - {w}" for w in wares) + "\n\n")
            if wares else "")
-        + (f"WORK YOU HAVE OFFERED THEM (not yet done): {npc.work_offer['task']} for {npc.work_offer['pay']} copper\n\n"
-           if getattr(npc, "work_offer", None) else "")
+        + (f"WORK YOU HAVE OFFERED THEM (not yet done): {work['task']} for {work['pay']} copper\n\n"     # (f481) the offer that stands
+           if work else "")
         + (("RIGHT NOW YOU ALSO KNOW:\n" + "\n".join(f"  - {x}" for x in extra) + "\n\n") if extra else "") +
         f"YOUR MEMORIES OF THEM:\n{memories}"
     )

@@ -55,10 +55,8 @@ check("since f478 a memory's source is recorded and can be asked by", [r["text"]
 simlib.reset_person(store, "pb1")
 check("reset_person leaves no row and an empty window", simlib.remembered(store, "pb1") == [] and store.load_npc("pb1").memories == [])
 
-far = store.load_npc("pb1")
-far.work_offer = {"task": "Mend the fence by the barn", "pay": 5, "minutes": 120, "until": store.meta.minutes + 600}
-far.quest_offer = {"id": "rq1", "title": "Wolves at the fold", "letter": "F"}
-store.save_npc(far)
+simlib.offer(store, "pb1", "work", {"task": "Mend the fence by the barn", "pay": 5, "minutes": 120})     # (f481) offers in the registry
+simlib.offer(store, "pb1", "request", {"id": "rq1", "title": "Wolves at the fold", "letter": "F"})
 p = store.load_player()
 p.quests.append({"id": "qq1", "title": "Clear the cellar rats", "kind": "hunt", "issuer": "pb1", "letter": "F", "guild": False, "count": 1, "progress": 0})
 store.save_player(p)

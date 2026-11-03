@@ -1302,12 +1302,13 @@ class Bot:
             return None
         self._note_met(partner)                                           # the one told the lie must be found again to be set straight
         from scenes.work_actions import offer_open
+        from engine import obligations                     # (f481)
         took = {(a["npc"], a["kind"]) for a in self.clog["accepted"]}
-        if offer_open(partner, ws.minutes) and (partner.id, "work") not in took and crng.random() < self.CW["accept"] * 0.6:
+        if offer_open(ws.store, partner, ws.acting) and (partner.id, "work") not in took and crng.random() < self.CW["accept"] * 0.6:
             self._clog("accepted", {"npc": partner.id, "kind": "work"})
             self.label("cont:accept")
             return '"I\'ll take the work."', self.intend("work", target=partner.id), "work"
-        if getattr(partner, "quest_offer", None) and (partner.id, "request") not in took and crng.random() < self.CW["accept"] * 0.5:
+        if obligations.current(ws.store, "request", partner.id, ws.acting) and (partner.id, "request") not in took and crng.random() < self.CW["accept"] * 0.5:
             self._clog("accepted", {"npc": partner.id, "kind": "request"})
             self.label("cont:accept")
             return '"I\'ll do it. You can count on me."', self.intend("accept_quest", target=partner.id), "board"
