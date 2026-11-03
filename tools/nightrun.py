@@ -249,9 +249,44 @@ class Run:
             return {"place": p.location, "spot": getattr(p, "spot", ""), "minutes": ws.minutes, "delve": bool(p.delve), "at_dungeon": ws.dungeon_here() is not None,
                     "party_mode": getattr(p, "party_mode", "with"), "party": [m.get("name", "") for m in p.party],
                     "prisoners": len(held), "prisoner_days": max(held, default=0),
-                    "foes": [e.level for e in ws.combat.fight.enemies()] if getattr(ws, "combat", None) else []}   # (f414) for the page's level-gap count
+                    "foes": [e.level for e in ws.combat.fight.enemies()] if getattr(ws, "combat", None) else [],   # (f414) for the page's level-gap count
+                    **self.continuity_state(ws)}                                                               # (f473)
         except Exception as e:
             return {"error": str(e)[:120]}
+
+    def continuity_state(self, ws) -> dict:
+        """(f473) The truth the page's continuity counts (tools/page_measures.py continuity) are read against: who is here and what each
+        knows of the player, the one being talked to, what is owed (contracts held, offers and requests standing) and the hires'
+        commitments, and the deeds this turn recorded with who saw them. Keyed by id; small and flat."""
+        try:
+            from scenes.work_actions import offer_open
+            p = ws.player
+            present = list(getattr(ws, "present", []) or [])
+            talk = {n.id: {"label": n.label(), "met": bool(getattr(n, "met_player", False)), "last_talk_at": int(getattr(n, "last_talk_at", -1)),
+                           "known_as": getattr(n, "knows_player_as", "") or "", "trust": int(getattr(n, "trust", 0) or 0)} for n in present[:12]}
+            owed = [{"id": q["id"], "kind": q.get("kind", ""), "holder": q.get("issuer", "") or "guild", "title": q.get("title", ""), "state": "taken"}
+                    for q in p.quests]
+            for n in present:
+                if getattr(n, "work_offer", None):
+                    owed.append({"id": f"work:{n.id}", "kind": "work", "holder": n.id, "title": str(n.work_offer.get("task", ""))[:80],
+                                 "state": "open" if offer_open(n, ws.minutes) else "lapsed"})
+                if getattr(n, "quest_offer", None):
+                    owed.append({"id": f"request:{n.id}", "kind": "request", "holder": n.id, "title": str((n.quest_offer or {}).get("title", ""))[:80],
+                                 "state": "offered"})
+            deeds = []
+            rows = ws.store.journal_tail(30)
+            last = self.__dict__.get("_deed_seq")
+            if last is not None:
+                for r in rows:
+                    w = (r.get("data") or {}).get("witnesses") if isinstance(r.get("data"), dict) else None
+                    if r["seq"] > last and w is not None:
+                        deeds.append({"kind": r.get("kind", ""), "minute": r.get("minute"), "place": (r.get("data") or {}).get("place", ""),
+                                      "target": r.get("target", ""), "witnesses": list(w)[:12], "text": str(r.get("text", ""))[:120]})
+            self._deed_seq = max([r["seq"] for r in rows], default=last or 0)
+            return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed,
+                    "commitments": sum(len(m.get("commitments") or []) for m in p.party), "deeds": deeds}
+        except Exception as e:
+            return {"continuity_error": str(e)[:120]}
 
     def done(self) -> str:
         if self.stop_when is not None:
@@ -408,6 +443,7 @@ def batch(args) -> None:
         cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
                "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start, "--persona", persona] \
             + (["--stub"] if args.stub else []) + (["--record"] if args.record else [])     # (f444) each run keeps its recording
+        cmd += ["--no-continuity"] if args.no_continuity else []                                  # (f473)
         print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start}, playing as {persona} -> {out}", flush=True)
         return subprocess.Popen(cmd), {"cls": cls, "seed": seed, "start": start, "persona": persona, "out": out, "started": time.time()}
 
@@ -480,6 +516,8 @@ def main() -> None:
     ap.add_argument("--start", default="green", help="(f367) the starting point (data/rules/starts.yaml): green, known, veteran, scarred, legend")
     ap.add_argument("--starts", default="", help="with --runs: the starting points to rotate through, comma-separated (default: the file's rotation)")
     ap.add_argument("--persona", default="", help=f"(f368) the kind of player the bot is: {', '.join(PERSONAS)} (default: by the seed, in that order)")
+    ap.add_argument("--no-continuity", action="store_true", help="(f473) leave out the bot's continuity steps (promises, a lie set straight, "
+                    "people gone back to, offers taken, contracts given up, issuers visited), which a night plays by default")
     ap.add_argument("--personas", default="", help="with --runs: the personas to rotate through, comma-separated (default: all, in order)")
     ap.add_argument("--parallel", type=int, default=1, help="(f370) with --runs: play this many runs at once, for a card with the memory for them (the Ollama server "
                                                              "must allow it: OLLAMA_NUM_PARALLEL, see tools/HOSTED.md)")
@@ -564,7 +602,7 @@ def main() -> None:
     party = hire_party(ws, args.party)
 
     run = Run(out, args.hours, args.turns, live=not args.stub)
-    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run)
+    bot = Bot(ws, world, random.Random(args.seed * 7 + 1), stub, persona=persona, run=run, continuity=not args.no_continuity)   # (f473)
     run.bot = bot
     if stub is not None:
         stub.bot = bot
