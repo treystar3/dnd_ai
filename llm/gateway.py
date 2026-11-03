@@ -23,6 +23,11 @@ import config
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
 
 _client = ollama.Client(timeout=config.REQUEST_TIMEOUT)
+try:                                   # (f475) keep what the server reports beyond the client's own fields (a cached-prompt count)
+    ollama.ChatResponse.model_config["extra"] = "allow"
+    ollama.ChatResponse.model_rebuild(force=True)
+except Exception:
+    pass
 _writes = 0
 SYSTEM_PREVIEW = 300
 RETRY_TEMPERATURE_STEP = 0.15
@@ -87,6 +92,30 @@ def _chars(system: str, user) -> int:
     """(f468) What a call reads, in characters: the budget's price is from text alone."""
     from engine.prompt import Prompt
     return len(system or "") + len(user.render() if isinstance(user, Prompt) else str(user or ""))
+
+
+def shape(system: str, typed, user_text) -> dict:
+    """(f475) A call's shape, logged beside it and outside its request's hash: what it reads in characters, where they go (the system
+    prompt, then each typed part), the tail that changes from call to call (engine/prompt.py tail), and its prompt version, a hash of
+    the system text and the layout (version.layout): new wording keeps the layout's half, a reordering moves it."""
+    import hashlib
+    system = system or ""
+    if typed is not None:
+        parts, tail, skel = typed.sizes(), len(typed.tail()), typed.skeleton()
+    else:
+        parts, tail, skel = [], len(str(user_text or "")), ""
+    version = hashlib.sha256(system.encode("utf-8")).hexdigest()[:8] + "." + hashlib.sha256(skel.encode("utf-8")).hexdigest()[:6]
+    return {"chars": len(system) + len(str(user_text or "")), "sizes": [["system", "", len(system)]] + [[k, l, n] for k, l, n in parts],
+            "tail_chars": tail, "prompt_version": version}
+
+
+def cached_count(response) -> int | None:
+    """(f475) The prompt tokens the server read from its cache, when it says (a field the client does not name); None when it does not."""
+    extra = getattr(response, "model_extra", None) or {}
+    for k, v in sorted(extra.items()):
+        if "cache" in k and isinstance(v, int) and not isinstance(v, bool):
+            return v
+    return None
 
 
 def _tally(task: str, ok: bool, attempts: int) -> None:
@@ -168,6 +197,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         {"role": "user", "content": typed.render() if typed else user},
     ]
     last_error: Exception | None = None
+    _TASK.shape = form = shape(system, typed, messages[1]["content"])      # (f475) logged with every attempt; the recorder keeps it too
 
     tuned = dict(getattr(config, "SAMPLING", {}).get(task, {}))
     base = tuned.pop("temperature", temperature)
@@ -208,7 +238,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                     else f"the model server failed: {str(e)[:200] or type(e).__name__}"
                     if isinstance(e, (httpx.HTTPError, ollama.ResponseError, ConnectionError))
                     else f"the call failed: {type(e).__name__}: {str(e)[:200]}")
-            _log(task, attempt, time.perf_counter() - start, messages, "", what)
+            _log(task, attempt, time.perf_counter() - start, messages, "", what, shape=form)
             audit.record(task, attempt, time.perf_counter() - start, messages, "", what, typed, config.MODEL)
             _debug(f"{task} (attempt {attempt + 1}): {what}")
             if timed_out:
@@ -222,7 +252,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         if response.done_reason == "length":
             last_error = LLMError("cut off at the length limit")
             reason = cut_off_reason(task, schema, max_tokens)
-            _log(task, attempt, elapsed, messages, raw[:2000], reason, usage)
+            _log(task, attempt, elapsed, messages, raw[:2000], reason, usage, shape=form)
             audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
             if said and said[-1] == reason:
                 break
@@ -265,7 +295,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
                         except Exception:
                             pass
             if not reason:
-                _log(task, attempt, elapsed, messages, raw, None, usage)
+                _log(task, attempt, elapsed, messages, raw, None, usage, shape=form)
                 audit.record(task, attempt, elapsed, messages, raw, None, typed, config.MODEL)
                 _tally(task, True, attempt + 1)
                 try:
@@ -284,7 +314,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         except ValidationError as e:
             last_error = e
             reason = _summarize(e)
-        _log(task, attempt, elapsed, messages, raw, reason, usage)
+        _log(task, attempt, elapsed, messages, raw, reason, usage, shape=form)
         audit.record(task, attempt, elapsed, messages, raw, reason, typed, config.MODEL)
         _debug(f"rejected {task} (attempt {attempt + 1}): {reason[:200]}")
         if said and said[-1] == reason:         # (f447) told the same thing twice and it answered the same way: a third try is wasted time
@@ -372,8 +402,12 @@ def _usage(response) -> dict | None:
     if count is None:
         return None
     ms = lambda name: round((getattr(response, name, 0) or 0) / 1e6)
-    return {"prompt": count, "out": getattr(response, "eval_count", 0) or 0, "read_ms": ms("prompt_eval_duration"),
-            "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
+    out = {"prompt": count, "out": getattr(response, "eval_count", 0) or 0, "read_ms": ms("prompt_eval_duration"),
+           "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
+    cached = cached_count(response)
+    if cached is not None:
+        out["cached"] = cached                          # (f475) of the prompt's tokens, how many the server had cached
+    return out
 
 
 _tag = threading.local()
@@ -391,7 +425,7 @@ def tagged(**fields):
         _tag.fields = before
 
 
-def _log(task, attempt, elapsed, messages, raw, error, usage=None):
+def _log(task, attempt, elapsed, messages, raw, error, usage=None, shape=None):
     global _writes
     path = Path(config.LOG_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -409,6 +443,8 @@ def _log(task, attempt, elapsed, messages, raw, error, usage=None):
     }
     if usage:
         entry["tokens"] = usage                         # what the call cost the model (tools/latency.py reads these)
+    if shape:
+        entry.update(shape)                             # (f475) chars, sizes, tail_chars, prompt_version: the prompt's shape, measured
     entry.update(getattr(_tag, "fields", None) or {})
     with _log_lock:
         with path.open("a", encoding="utf-8") as f:

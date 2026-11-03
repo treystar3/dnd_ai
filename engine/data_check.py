@@ -115,6 +115,33 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
     return bad
 
 
+def baseline_problems(base: dict | None = None) -> list[str]:
+    """(f475) data/measured/bundle_d_baseline.yaml, when it is there: its speech tasks are tasks budget.yaml knows, what it measured is
+    among them, and each measure is a number where one is given. A renamed task would otherwise leave Bundle D's gate comparing nothing."""
+    path = ROOT / "data" / "measured" / "bundle_d_baseline.yaml"
+    if base is None:
+        if not path.exists():
+            return []
+        base = _load("data/measured/bundle_d_baseline.yaml") or {}
+    bad: list[str] = []
+    known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    listed = list(base.get("speech_tasks") or [])
+    if not listed:
+        bad.append("bundle_d_baseline.yaml speech_tasks: needs the tasks it measures")
+    stray = sorted(set(listed) - known)
+    if stray:
+        bad.append("bundle_d_baseline.yaml speech_tasks: budget.yaml does not know " + ", ".join(stray))
+    for task, m in (base.get("tasks") or {}).items():
+        if task not in listed:
+            bad.append(f"bundle_d_baseline.yaml tasks.{task}: not among its speech_tasks")
+            continue
+        for k in ("calls", "first_try", "p50", "p95", "max"):
+            v = (m or {}).get(k)
+            if v is not None and (not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0):
+                bad.append(f"bundle_d_baseline.yaml tasks.{task}.{k}: needs a number, not {v!r}")
+    return bad
+
+
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
@@ -512,6 +539,9 @@ def check() -> list[str]:
         need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
         for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "median_turn_seconds", "longest_turn_seconds"):
             need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")
+
+    # ---- (f475) Bundle D's baseline (data/measured, outside the hash): every task it measures is one the budget knows
+    bad += baseline_problems()
 
     # ---- (f437) what the player reads when a turn could not be taken: enough lines, all different, never machinery
     from engine import failures as _failures

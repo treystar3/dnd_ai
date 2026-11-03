@@ -105,10 +105,12 @@ REQUIRED_TITLES = {"ActionPlan": "interpret_action", "Narration": "narrate", "Co
 # (f468) A recording made before its call rows carried the task (f468's recorder): the required tasks by their schema's title, nearly enough.
 
 
-def estimate_inputs(folder: Path) -> list[tuple[int, float]]:
+def estimate_inputs(folder: Path, expected: bool = False) -> list[tuple[int, float]]:
     """(f468) Per input, the seconds the required path estimates from the recording's own text (engine/budget.py estimate: the prompt's
     characters read, the answer's written, at the card's speeds): the chat calls of required tasks and the embed calls those need. The
-    done-when's measure, read from a night recording, never from the suite."""
+    done-when's measure, read from a night recording, never from the suite. (f475) `expected`: every answer priced at its task's
+    expected size (budget.yaml answer_tokens), not the recorded one. A stand-in model's answers are a few words, so a stub recording
+    priced by them measures the prompts alone; Bundle D's gate prices both goldens this way, before and after."""
     from engine import budget
     per: dict[int, float] = {}
     for c in calls_of(folder):
@@ -122,7 +124,7 @@ def estimate_inputs(folder: Path) -> list[tuple[int, float]]:
             continue
         chars = sum(len(str(m.get("content") or "")) for m in (c.get("request") or {}).get("messages") or [])
         ans = c.get("answer") if isinstance(c.get("answer"), str) else None
-        per[i] = per.get(i, 0.0) + budget.estimate(task, chars, len(ans) if ans is not None else None)
+        per[i] = per.get(i, 0.0) + budget.estimate(task, chars, len(ans) if ans is not None and not expected else None)
     return sorted(per.items())
 
 
@@ -149,10 +151,11 @@ def main() -> int:
     ap.add_argument("--measured-on", default="", help="(f444) the card the recording was made on, when it is not --card: scale to --card")
     ap.add_argument("--vram-gb", type=float, default=0, help="(f444) what the model and its context took on the measuring card")
     ap.add_argument("--estimate", action="store_true", help="(f468) per input, the seconds the required path estimates (engine/budget.py), and the inputs over the limit")
+    ap.add_argument("--expected", action="store_true", help="(f475) with --estimate: price every answer at its task's expected size, not the recorded one")
     a = ap.parse_args()
     folder = Path(a.recording)
     if a.estimate:
-        rows = estimate_inputs(folder)
+        rows = estimate_inputs(folder, expected=a.expected)
         over = [(i, s) for i, s in rows if s > BUDGET]
         for i, s in rows:
             print(f"input {i}: {s:.1f} s on the required path")

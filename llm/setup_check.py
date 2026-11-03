@@ -46,6 +46,25 @@ def server_up() -> bool:
     return _get("/api/version") is not None
 
 
+def server_report(ps: dict | None = None, version: dict | None = None) -> dict:
+    """(f475) What the server is running, for a night's run.json and the game's debug log: its version, each loaded model with how much
+    of it sits on the card and the context it was loaded with, and a warning for each thing that would make turns slower than the card
+    profile says: a model not wholly on the GPU (it spills to the processor and runs many times slower), or a context that is not the
+    game's NUM_CTX (the server loaded it for some other caller, and reloads it when the game's call comes)."""
+    version = _get("/api/version") if version is None else version
+    ps = _get("/api/ps") if ps is None else ps
+    out = {"version": (version or {}).get("version", ""), "loaded": [], "warnings": []}
+    for m in (ps or {}).get("models") or []:
+        size, vram, ctx = int(m.get("size") or 0), int(m.get("size_vram") or 0), m.get("context_length")
+        out["loaded"].append({"name": m.get("name", ""), "size_gb": round(size / 1e9, 2), "vram_gb": round(vram / 1e9, 2), "context": ctx})
+        if size and vram < size:
+            out["warnings"].append(f"{m.get('name', '')} is not wholly on the GPU ({vram / 1e9:.1f} of {size / 1e9:.1f} GB): it runs slower than "
+                                   "the card profile says")
+        if ctx and int(ctx) != int(config.NUM_CTX):
+            out["warnings"].append(f"{m.get('name', '')} was loaded with a context of {ctx}, not the game's {config.NUM_CTX}")
+    return out
+
+
 def model_present(name: str = "") -> bool:
     name = name or config.MODEL
     data = _get("/api/tags") or {}
@@ -248,6 +267,11 @@ def ensure_ready() -> bool:
                                 [("Check again", "retry"), ("Quit", "quit")])
                 continue
             if model_present():
+                try:
+                    for w in server_report()["warnings"]:          # (f475) a model off the card, or loaded for another context
+                        console.debug(f"model server: {w}")
+                except Exception:
+                    pass
                 console.setup_done()
                 return True
             hw = hardware()

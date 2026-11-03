@@ -188,6 +188,8 @@ class Recorder:
         op = operation.current()
         row["op"] = op.id if op is not None else ""                                             # (f471) the operation it was made inside, if any
         row["need"] = budget.need(row["task"]) if kind == "chat" and row["task"] else ("embed" if kind == "embed" else "")   # ...and whether the line needed it
+        if kind == "chat" and getattr(gateway._TASK, "shape", None):
+            row["shape"] = dict(gateway._TASK.shape)                                             # (f475) the prompt's shape, outside the hash
         self.n_call += 1
         try:
             out = real(**k)
@@ -203,6 +205,9 @@ class Recorder:
             row["done"] = getattr(out, "done_reason", "stop")
             row["tokens"] = {t: getattr(out, t, None) for t in ("prompt_eval_count", "eval_count", "prompt_eval_duration", "eval_duration",
                                                                  "load_duration", "total_duration") if getattr(out, t, None) is not None}
+            cached = gateway.cached_count(out)
+            if cached is not None:
+                row["tokens"]["cached"] = cached                                                 # (f475) prompt tokens the server had cached
         self._write_call(row)
         return out
 

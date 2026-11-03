@@ -1,0 +1,67 @@
+# (f475, tools/latency.py --baseline) Bundle D's baseline: what the speech tasks cost and how often they were accepted at the first
+# try, and what the page showed of memory and time, measured on the tree before Bundle D (GOALS.md, 2026-11-03: S7, prompt ceilings
+# measured first). A measurement, outside the data hash like card_profile.yaml; engine/data_check.py checks its task names. Bundle D's
+# closing gate (f490) reads it. Do not hand-edit numbers; the blind reading's counts are the one part written by hand.
+#
+#   night:        the night it was measured on (pod night 20261103_0520: four 10-hour runs at ed8fdf4, continuity on), or pending
+#   speech_tasks: the tasks measured (each one in budget.yaml)
+#   tasks:        per task: calls, first_try (first tries accepted, of all), p50 / p95 / max prompt characters, tail_p50, cached
+#   continuity:   per run, the page's C1-C8 counts (tools/page_measures.py continuity)
+#   blind:        the blind reading's memory-and-time counts (tools/blind_review.md question 5), by hand once read
+#   estimates:    per input of each golden, the required path's seconds with every answer at its expected size (card_profile --expected)
+night: pending
+speech_tasks:
+- npc_conversation
+- npc_parting
+- npc_profile
+- dialogue_frame
+- work_offer_read
+- hire_chat
+- canon_extract
+- canon_check
+- exchange
+- overheard
+- mentor_chat
+tasks: {}
+continuity: {}
+blind: {}
+estimates:
+  stub_short:
+    0: 10.4
+    1: 67.8
+    2: 33.1
+    3: 19.7
+    6: 28.1
+    7: 20.8
+    8: 8.9
+    9: 18.8
+    10: 18.1
+    11: 18.0
+    12: 12.9
+    13: 12.8
+    14: 12.9
+    15: 12.8
+    16: 18.1
+    17: 18.0
+    18: 12.9
+    19: 12.8
+    20: 12.9
+    21: 3.1
+    22: 12.8
+    23: 12.8
+    24: 12.9
+    25: 12.9
+    26: 17.9
+    27: 18.7
+    28: 19.1
+    29: 19.4
+    30: 31.5
+    31: 12.9
+    32: 13.0
+    33: 12.9
+    34: 29.7
+    35: 18.8
+    36: 69.3
+    37: 39.6
+    38: 33.6
+    39: 20.2

@@ -660,12 +660,20 @@ def main() -> None:
         session.close()                                                  # (f457) the recording's last row, the background work, the save
         turnlog.write_session_stats()
         texts = [r.get("text", "") for r in run.rows]
+        server = {}
+        if not args.stub:
+            try:
+                from llm import setup_check
+                server = setup_check.server_report()                     # (f475) the server's version, the model on the card, its context
+            except Exception as e:
+                server = {"error": str(e)[:120]}
         run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,
                     "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
-                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD}})          # (f387) which voice this night tried
+                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD},          # (f387) which voice this night tried
+                    "server": server})
         if not args.stub:
             from llm.gateway import unload
             unload()
