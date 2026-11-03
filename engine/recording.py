@@ -63,7 +63,7 @@ def commit() -> str:
 
 
 class Recorder:
-    def __init__(self, store, name: str = "", folder: Path | None = None):
+    def __init__(self, store, name: str = "", folder: Path | None = None, rows: bool = False):
         from engine import streams
         from storage import statehash
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -96,6 +96,8 @@ class Recorder:
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None
         self.undo = []
+        self.rows = rows                     # (f476) each input's turn row names the rows and keys it changed (a kept recording's re-bless)
+        self.last_dump = statehash.dump(store) if rows else None
         prune()
 
     # ---- what the session depended on from outside the save
@@ -224,11 +226,15 @@ class Recorder:
         ops = [{"id": o["id"], "kind": o["kind"], "rows": o["rows"]}                                 # (f463) the operations the input committed
                for o in self.store.load_operations()["ops"] if o.get("steps") == self.store.meta.steps]
         presented, operation.PRESENTED[:] = list(operation.PRESENTED), []                           # (f467) what reached the page, and how
-        self.turns.write(json.dumps({"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
-                                     "state": statehash.digest(self.store), "outcomes": ledger.LAST, "operations": ops, "presented": presented,
-                                     "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
-                                     "shown_text": list(self.shown)},                       # (f459) the lines, for a re-bless to name the one that moved
-                                    ensure_ascii=False, default=str) + "\n")
+        row = {"i": self.n_input, "turn": self.store.meta.turn, "steps": self.store.meta.steps,
+               "state": statehash.digest(self.store), "outcomes": ledger.LAST, "operations": ops, "presented": presented,
+               "shown": hashlib.sha256("\n".join(self.shown).encode("utf-8")).hexdigest(), "lines": len(self.shown),
+               "shown_text": list(self.shown)}                       # (f459) the lines, for a re-bless to name the one that moved
+        if self.rows:                                                # (f476) the rows and keys this input changed
+            now = statehash.dump(self.store)
+            row["rows"] = statehash.changes(self.last_dump, now)
+            self.last_dump = now
+        self.turns.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
         self.turns.flush()
         self.shown, self.open_input = [], False
 

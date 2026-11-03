@@ -11,12 +11,15 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-out = subprocess.run([sys.executable, "tools/rerun.py", "--golden"], capture_output=True, text=True, timeout=900)
-lines = [l for l in (out.stdout + out.stderr).splitlines() if l.strip()]
-last = lines[-1] if lines else ""
-check("the golden recording replays through the real turn: every input the same state, outcomes and words", out.returncode == 0
-      and last.startswith("all ") and "inputs matched" in last, lines[-6:])
-check("...and it is the recording the tree was built on, not one made on other rules or content",
-      not any("data hash differs" in l for l in lines), [l for l in lines if "hash" in l][:2])
+# (f476) both kept recordings: stub_short (the night bot's walk) and stub_party (a script's: the party's talk and its claims, a lie, work,
+# a request taken and given up, the party held back while a deed is done, a reply that fails and the line said again)
+for name in ("stub_short", "stub_party"):
+    out = subprocess.run([sys.executable, "tools/rerun.py", "--golden", name], capture_output=True, text=True, timeout=900)
+    lines = [l for l in (out.stdout + out.stderr).splitlines() if l.strip()]
+    last = lines[-1] if lines else ""
+    check(f"{name} replays through the real turn: every input the same state, outcomes and words", out.returncode == 0
+          and last.startswith("all ") and "inputs matched" in last, lines[-6:])
+    check(f"...and it is the recording the tree was built on, not one made on other rules or content",
+          not any("data hash differs" in l for l in lines), [l for l in lines if "hash" in l][:2])
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

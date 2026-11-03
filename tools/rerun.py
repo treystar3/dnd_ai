@@ -32,6 +32,12 @@ os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 GOLDEN = ROOT / "data" / "replay" / "sessions" / "stub_short"
+SCRIPTS = ROOT / "data" / "replay" / "scripts"        # (f476) a kept recording made from a script: data/replay/scripts/<name>.py
+
+
+def golden(name: str = "stub_short") -> Path:
+    """(f476) A kept recording by name: stub_short (the night bot's), stub_party (a script's)."""
+    return ROOT / "data" / "replay" / "sessions" / name
 
 
 from core.interrupts import Interrupt    # (f449) raised on purpose, and let through every catch that would otherwise make it a failed try
@@ -67,6 +73,13 @@ def report_rebless(old: dict, new: dict) -> None:
         print("the calls' titles are the same, in the same order")
     req = [(c.get("i"), c.get("input"), c.get("title")) for c, d in zip(old["calls"], new["calls"]) if c.get("req") != d.get("req")]
     print(f"calls whose request differs: {len(req)}" + (": " + ", ".join(f"call {i} (input {n}, {t})" for i, n, t in req[:12]) if req else ""))
+    if req:                                                                     # (f476) grouped by title
+        by = {}
+        for _, _, t in req:
+            by[t] = by.get(t, 0) + 1
+        print("  by title: " + ", ".join(f"{t} {n}" for t, n in sorted(by.items(), key=lambda x: (-x[1], str(x[0])))))
+    report_rows(old, new, changed)
+    report_placement(old, new)
     print(f"inputs whose outcomes differ: {[t['i'] for t, u in zip(ot, nt) if t.get('outcomes') != u.get('outcomes')][:20] or 'none'}")
     moved = [(t, u) for t, u in zip(ot, nt) if t.get("shown") != u.get("shown")]
     print(f"inputs whose shown words differ: {[t['i'] for t, _ in moved][:20] or 'none'}")
@@ -77,6 +90,56 @@ def report_rebless(old: dict, new: dict) -> None:
             continue
         k = next((j for j, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
         print(f"  input {t['i']}: line {k + 1} moved: {a[k] if k < len(a) else '(none)'!r} -> {b[k] if k < len(b) else '(none)'!r}")
+
+
+def report_rows(old: dict, new: dict, changed: list) -> None:
+    """(f476) For each input whose state differs, the rows and keys that moved, from each recording's own record of what it changed
+    (engine/recording.py rows): what the new one changed that the kept one did not, and the other way, every key named."""
+    for t, u in changed[:12]:
+        a, b = t.get("rows"), u.get("rows")
+        if a is None or b is None:
+            print(f"  input {t['i']}: {'the kept recording' if a is None else 'the new one'} holds no rows to compare")
+            continue
+        for table in sorted(set(a) | set(b)):
+            x, y = a.get(table, {}), b.get(table, {})
+            for part in ("added", "gone", "changed"):
+                px, py = x.get(part) or {}, y.get(part) or {}
+                if isinstance(px, list) or isinstance(py, list):
+                    px, py = {str(k): "" for k in (px or [])}, {str(k): "" for k in (py or [])}
+                for key in sorted(set(px) | set(py), key=str):
+                    vx, vy = px.get(key), py.get(key)
+                    if vx == vy:
+                        continue
+                    if part == "changed" and isinstance(vx, dict) and isinstance(vy, dict):
+                        cols = sorted(set(vx) | set(vy))
+                        moved = [f"{c} {vx.get(c, '(unchanged)')!r} -> {vy.get(c, '(unchanged)')!r}" for c in cols if vx.get(c) != vy.get(c)]
+                        print(f"  input {t['i']}: {table} {key} {part}: " + "; ".join(moved))
+                    else:
+                        print(f"  input {t['i']}: {table} {key} {part}: {vx!r} -> {vy!r}")
+
+
+def placement(rec: dict) -> dict:
+    """(f476) Each task's calls by the kind of operation they were made inside (engine/recording.py call op, joined to the turn's
+    operations), or "outside": where Bundle D moves a call out of a transaction, this is what moves."""
+    kind_of = {o["id"]: o["kind"] for t in rec["turns"] for o in (t.get("operations") or [])}
+    out: dict = {}
+    for c in rec["calls"]:
+        task = c.get("task") or c.get("title") or c.get("kind", "?")
+        where = kind_of.get(c.get("op") or "", "outside") if c.get("op") else "outside"
+        out.setdefault(task, {})
+        out[task][where] = out[task].get(where, 0) + 1
+    return out
+
+
+def report_placement(old: dict, new: dict) -> None:
+    a, b = placement(old), placement(new)
+    moved = [(t, a.get(t, {}), b.get(t, {})) for t in sorted(set(a) | set(b)) if a.get(t) != b.get(t)]
+    if not moved:
+        print("calls by operation kind: unchanged")
+        return
+    print("calls by operation kind that moved:")
+    for t, x, y in moved:
+        print(f"  {t}: {x} -> {y}")
 
 
 def _failure(err: list):
@@ -251,7 +314,7 @@ def timer(folder: Path, url: str):
 
 # ---------- the kept stub recording
 
-def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str = "wanderer") -> Path:
+def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str = "wanderer", rows: bool = True) -> Path:
     """Record a session of n inputs under the stub, chosen by the night bot: walks, talk, road stops and fights, a pane command, and
     a turn whose model call fails and is rolled back, then said again. Run in a process of its own (it installs the stub)."""
     import random
@@ -311,7 +374,7 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         last["text"] = text
         return text
     console.ask = ask
-    session.record(folder=folder)
+    session.record(folder=folder, rows=rows)                # (f476) a kept recording names the rows each input changed
     try:
         ws.run()
     finally:
@@ -320,11 +383,28 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     return folder
 
 
+def make_scripted_recording(folder: Path, name: str) -> Path:
+    """(f476) Record a kept session from its script (data/replay/scripts/<name>.py): the script builds the save (setup), plants the
+    stand-in model's answers, and gives each line with the actions the stub reads it as (STEPS); its CENSUS names what the recording
+    must hold, and the maker refuses one that holds less. Run in a process of its own (it installs the stub)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(f"script_{name}", SCRIPTS / f"{name}.py")
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    script.record(folder, ROOT)
+    rec = load(folder)
+    missing = script.census(rec)
+    if missing:
+        raise SystemExit(f"the {name} recording lacks what its script promises: {', '.join(missing)}")
+    return folder
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("recording", nargs="?", help="a recording folder (recordings/<name>)")
     ap.add_argument("--loose", action="store_true", help="serve answers by order and kind even where a prompt's words changed")
-    ap.add_argument("--golden", action="store_true", help="replay the kept stub recording")
+    ap.add_argument("--golden", nargs="?", const="stub_short", default=None, metavar="NAME",
+                    help="replay a kept recording (stub_short when no name is given; stub_party, made from its script)")
     ap.add_argument("--rebless", action="store_true", help="with --golden: record it again, and say what changed")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
     ap.add_argument("--inputs", type=int, default=40)
@@ -336,17 +416,26 @@ def main() -> int:
         print(f"recorded {a.make}")
         return 0
     if a.golden and a.rebless:
-        old = load(GOLDEN) if (GOLDEN / "meta.json").exists() else None
-        tmp = GOLDEN.with_name("stub_short_new")
-        make_stub_recording(tmp, a.inputs)
+        target = golden(a.golden)
+        old = load(target) if (target / "meta.json").exists() else None
+        tmp = target.with_name(target.name + "_new")
+        shutil.rmtree(tmp, ignore_errors=True)
+        if (SCRIPTS / f"{a.golden}.py").exists():
+            make_scripted_recording(tmp, a.golden)                        # (f476) a script's recording
+        else:
+            make_stub_recording(tmp, a.inputs)
         new = load(tmp)
         if old:
             report_rebless(old, new)
-        shutil.rmtree(GOLDEN, ignore_errors=True)
-        tmp.rename(GOLDEN)
-        print(f"kept {GOLDEN.relative_to(ROOT)}: read the differences above before committing it")
+        else:
+            print(f"{a.golden}: kept for the first time ({len(new['inputs'])} inputs, {len(new['calls'])} calls)")
+            for t, w in sorted(placement(new).items()):
+                print(f"  {t}: {w}")
+        shutil.rmtree(target, ignore_errors=True)
+        tmp.rename(target)
+        print(f"kept {target.relative_to(ROOT)}: read the differences above before committing it")
         return 0
-    folder = GOLDEN if a.golden else Path(a.recording or "")
+    folder = golden(a.golden) if a.golden else Path(a.recording or "")
     if not (folder / "meta.json").exists():
         ap.error(f"no recording at {folder}")
     out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)

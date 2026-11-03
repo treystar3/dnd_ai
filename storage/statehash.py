@@ -122,3 +122,45 @@ def data_hash(root: Path = ROOT) -> str:
             h.update(f.read_bytes())
     h.update(f"\0{config.MODEL}\0{VERSION}\0{migrations.CURRENT}".encode("utf-8"))
     return h.hexdigest()
+
+
+def _short(v, n: int = 80):
+    s = json.dumps(v, ensure_ascii=False, sort_keys=True, default=str) if not isinstance(v, str) else v
+    return s if len(s) <= n else s[:n - 3] + "..."
+
+
+def changes(before: dict, after: dict) -> dict:
+    """(f476) What one input changed, row by row, from two dump()s: per table, each row added, gone or changed, keyed by its first
+    column (a memory's id, an entity's ref, a person's id, a kv key), and for a changed row the columns, or for a JSON column the keys
+    (one level down), that moved, each with its new value cut short. A re-bless names these, so a feature that predicted "memory row
+    1, its kind" can be held to exactly that. Empty when nothing moved."""
+    out: dict = {}
+    for table, (_sql, _keys, js) in TABLES.items():
+        old = {json.dumps(r[0], default=str): r for r in before.get(table, [])}
+        new = {json.dumps(r[0], default=str): r for r in after.get(table, [])}
+        t: dict = {}
+        added = [k for k in new if k not in old]
+        gone = [k for k in old if k not in new]
+        if added:
+            t["added"] = {json.loads(k) if k.startswith('"') else k: _short(new[k][1:], 160) for k in added[:40]}
+        if gone:
+            t["gone"] = [json.loads(k) if k.startswith('"') else k for k in gone[:40]]
+        moved = {}
+        for k in new:
+            if k in old and old[k] != new[k]:
+                diff = {}
+                for i, (a, b) in enumerate(zip(old[k], new[k])):
+                    if a == b:
+                        continue
+                    if i in js and isinstance(a, dict) and isinstance(b, dict):
+                        for sub in sorted(set(a) | set(b)):
+                            if a.get(sub) != b.get(sub):
+                                diff[f"{i}.{sub}"] = _short(b.get(sub, "(gone)"))
+                    else:
+                        diff[str(i)] = _short(b)
+                moved[json.loads(k) if k.startswith('"') else k] = diff
+        if moved:
+            t["changed"] = dict(list(moved.items())[:40])
+        if t:
+            out[table] = t
+    return out

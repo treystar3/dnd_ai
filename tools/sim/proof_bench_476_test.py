@@ -11,6 +11,16 @@ from engine import clock
 from llm import embed
 from npc.models import NPC, Memory
 
+def rerun_census() -> list:
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("stub_party_script", Path("data/replay/scripts/stub_party.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    import rerun
+    return mod.census(rerun.load(rerun.golden("stub_party")))
+
+
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x, file=sys.__stdout__)
@@ -73,6 +83,33 @@ embed._cache["a line"] = [1.0]
 check("a warm embedding cache is the campaign's: residue names it while it is open", "embed._cache" in simlib.residue(), simlib.residue())
 game.close()
 check("...and closing the campaign leaves nothing of it in the process", simlib.residue() == {} and not embed._cache, simlib.residue())
+
+# ---- what an input changed, by row, and the re-bless report that names every key
+import io, contextlib
+import rerun
+from storage import statehash
+before = {"npc_memory": [[1, "f1", 1, 1, "event", 1, "Sold the stranger seed.", 0]], "npcs": [["f1", {"trust": 50, "met_player": False}]],
+          "kv": [], "places": [], "event_log": [], "entities": []}
+after = {"npc_memory": [[1, "f1", 1, 1, "experienced", 1, "Sold {them} seed.", 0], [2, "f1", 1, 2, "event", 1, "Talked.", 0]],
+         "npcs": [["f1", {"trust": 52, "met_player": True}]], "kv": [], "places": [], "event_log": [], "entities": []}
+ch = statehash.changes(before, after)
+check("changes() names a row added, a column changed and a JSON key moved (keyed as a recording's JSON keeps them)",
+      "2" in ch["npc_memory"]["added"] and ch["npc_memory"]["changed"]["1"] == {"4": "experienced", "6": "Sold {them} seed."}
+      and ch["npcs"]["changed"]["f1"] == {"1.met_player": "true", "1.trust": "52"}, ch)
+old_t = [{"i": 7, "state": {"all": "a", "npc_memory": "x"}, "rows": {"npc_memory": {"changed": {1: {"4": "event"}}}}}]
+new_t = [{"i": 7, "state": {"all": "b", "npc_memory": "y"}, "rows": {"npc_memory": {"changed": {1: {"4": "experienced", "8": "player"}}}}}]
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    rerun.report_rows({"turns": old_t}, {"turns": new_t}, list(zip(old_t, new_t)))
+said = buf.getvalue()
+check("the re-bless report names every key that moved in each recording, with both values",
+      "npc_memory 1 changed" in said and "4 'event' -> 'experienced'" in said and "8 '(unchanged)' -> 'player'" in said, said)
+rec_new = rerun.load(rerun.golden("stub_party"))
+place = rerun.placement(rec_new)
+check("calls are placed by the kind of operation they were made in: the townsfolk's replies inside the talk, the party's outside any",
+      "action:talk" in place.get("npc_conversation", {}) and "action:talk" not in place.get("hire_chat", {}), place)
+check("stub_party holds a reply that failed every try and the same line said again, and its census is whole",
+      any(c.get("title") == "NPCReply" and c.get("error") for c in rec_new["calls"]) and not rerun_census(), rerun_census())
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)
 sys.exit(1 if bad else 0)

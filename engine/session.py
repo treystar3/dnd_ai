@@ -128,11 +128,12 @@ class CampaignSession:
         from scenes.world import WorldScene
         return WorldScene(self.store, self.world, catalog, player, session=self)
 
-    def record(self, apart: bool = False, folder=None):
-        """(f440) Record this session, so the real turn can replay it (tools/rerun.py); closed first when the session closes."""
+    def record(self, apart: bool = False, folder=None, rows: bool = False):
+        """(f440) Record this session, so the real turn can replay it (tools/rerun.py); closed first when the session closes. (f476) `rows`:
+        each input's row also names the rows and keys it changed, for a kept recording's re-bless."""
         from engine import recording
         if self.recorder is None:
-            self.recorder = recording.Recorder(self.store, folder=folder).install(apart=apart)
+            self.recorder = recording.Recorder(self.store, folder=folder, rows=rows).install(apart=apart)
         return self.recorder
 
     def own(self, thread: threading.Thread | None) -> threading.Thread | None:
