@@ -65,7 +65,10 @@ CONT_LOG_KEEP = 200            # rows kept per kind in the continuity log (the n
 FALSE_NAMES = ["Vosk Hallarin", "Teodric Mallowby", "Ysmer Quell", "Brannoc Velt", "Odessa Thrimble", "Caspar Wendrake", "Liesl Orvane",
                "Mattias Corrow", "Wenna Starke", "Joris Fellaby"]       # names no table in data/ holds: a sighting of one on the page is the lie
 REVISIT_LINES = ["Do you remember me? We spoke a while back.", "It's me again. How have things been since we last talked?",
-                 "I'm back, as I said I'd be. Has anything changed since I was here?", "We've met before, I think. How are you keeping?"]
+                 "We've met before, I think. How are you keeping?"]
+# (f493) only to someone the bot did promise to come back to: the baseline night's bot said "I'm back like I promised" to people it had
+# promised nothing, and both blind readers counted the game for accepting a promise never made
+PROMISED_RETURN_LINES = ["I'm back, as I said I'd be. Has anything changed since I was here?", "I said I'd come back, and here I am. How are things?"]
 PROMISES = ["I'll come back this way before long, I promise.", "If you need a hand with anything, I'll be back to help. You have my word.",
             "I promise I'll look into it and come back to you.", "Keep my place by the fire. I'll be back, I swear it."]
 STOP = {"the", "you", "your", "a", "an", "it", "its", "he", "his", "she", "her", "they", "their", "there", "as", "when", "but", "and", "then",
@@ -254,6 +257,7 @@ class Bot:
     # ---- what happened since the last line: deaths, contracts, doors
     def watch(self) -> None:
         self.read_refusals()
+        self._confirm_cont()
         c = self.c
         if c.deaths > self.deaths_seen:
             self.stats["deaths"] += c.deaths - self.deaths_seen
@@ -308,7 +312,10 @@ class Bot:
         goal = self.meta.get("goal", "") if self.meta.get("_fresh") else ""
         passage = self.passage()
         source = "template"
-        if self.persona and self.stub is None and self.run is not None and kind != "fight" and text not in self.OUTLANDISH:   # (f395) said as is
+        verbatim = bool(self.__dict__.get("_cont_now"))                  # (f493) a continuity step's line is typed as written: reworded, the
+        if verbatim:                                                         # baseline night's lie lost its false name, and the bot later set
+            self._pending_cont = dict(self.__dict__["_cont_now"], line=text)  # straight a name it had never given
+        if self.persona and self.stub is None and self.run is not None and kind != "fight" and text not in self.OUTLANDISH and not verbatim:   # (f395)
             line = self.model_line(text, intent, kind, passage)
             if line:
                 text, source = line, "model"
@@ -1225,6 +1232,22 @@ class Bot:
         was = self.met.get(n.id) or {}
         self.met[n.id] = {"name": n.label(self.ws.acting), "place": self.ws.player.location, "minute": self.ws.minutes, "first": was.get("first", self.ws.minutes)}
 
+    def _confirm_cont(self) -> None:
+        """(f493) A continuity step stands only if its turn did: when the game answered the lie or the promise with a failure line (the turn
+        rolled back), the step is taken back, so no correction is ever made of a name the page never saw."""
+        step = self.__dict__.pop("_pending_cont", None)
+        if not step:
+            return
+        from engine import failures
+        said = self.passage()
+        if not any(h in said for h in failures.lines()):
+            return
+        kind = step.get("step")
+        rows = self.clog.get(kind) or []
+        if kind in ("plants", "promises") and rows and rows[-1].get("npc") == step.get("npc"):
+            rows.pop()                                                       # the step logged on that turn: it never reached the page
+            self.stats["cont_taken_back"] = self.stats.get("cont_taken_back", 0) + 1
+
     def _clog(self, kind: str, row: dict) -> None:
         row = {"turn": self.ws.store.meta.turn, "minute": self.ws.minutes, **row}
         self.clog[kind].append(row)
@@ -1290,8 +1313,9 @@ class Bot:
                       else f"I couldn't see the work you posted through, {g.get('title') or 'the job'}. I'm sorry.")
             self._clog("issuer_visits", {"npc": npc.id, "quest_title": g.get("title", ""), "outcome": g.get("outcome", ""), "gap": gap})
         else:
-            speech = self.crng.choice(REVISIT_LINES)
-            self._clog("revisits", {"npc": npc.id, "name": npc.label(self.ws.acting), "gap": gap})
+            promised = any(p["npc"] == npc.id for p in self.clog["promises"])      # (f493) "as I said I'd be" only where it was said
+            speech = self.crng.choice(PROMISED_RETURN_LINES if promised else REVISIT_LINES)
+            self._clog("revisits", {"npc": npc.id, "name": npc.label(self.ws.acting), "gap": gap, "promised": promised})
         self._note_met(npc)
         return f'I go over to {npc.label(self.ws.acting)}. "{speech}"', self.intend("talk", target=npc.id, speech=speech), "talk"
 

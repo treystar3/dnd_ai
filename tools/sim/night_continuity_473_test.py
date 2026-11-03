@@ -94,7 +94,8 @@ if rv:
     bot.goals = [rv]
     text, intent, kind = bot.goal_revisit(rv)
     check("...walked to them: a talk that says it has been a while, with the gap logged", kind == "talk" and intent.get("target") == rv["npc"]
-          and any(line in text for line in nightbot.REVISIT_LINES) and bot.clog["revisits"][-1]["gap"] >= nightbot.REVISIT_AFTER, (text, bot.clog["revisits"]))
+          and any(line in text for line in (nightbot.PROMISED_RETURN_LINES if bot.clog["revisits"][-1].get("promised") else nightbot.REVISIT_LINES))   # (f493)
+      and bot.clog["revisits"][-1]["gap"] >= nightbot.REVISIT_AFTER, (text, bot.clog["revisits"]))
     check("...and the goal is done", rv not in bot.goals)
 
 # ---- the lie set straight, to the one it was told to, once enough turns have passed
