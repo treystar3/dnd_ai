@@ -145,7 +145,8 @@ def _v9_entities(store) -> None:
 def typed_memory(store) -> None:
     """(f478) npc_memory's typed columns and their indexes: added by v10 to an older save, and made with a new one (storage/campaign.py)."""
     for col, ddl in (("subject", "TEXT NOT NULL DEFAULT ''"), ("source", "TEXT NOT NULL DEFAULT ''"), ("about", "TEXT NOT NULL DEFAULT ''"),
-                     ("minute", "INTEGER NOT NULL DEFAULT -1"), ("times", "INTEGER NOT NULL DEFAULT 1")):
+                     ("minute", "INTEGER NOT NULL DEFAULT -1"), ("times", "INTEGER NOT NULL DEFAULT 1"),
+                     ("state", "TEXT NOT NULL DEFAULT ''")):                     # (f483) a knows row's: held, or told:<character ids>
         have = {r[1] for r in store._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
         if col not in have:
             store._db.execute(f"ALTER TABLE npc_memory ADD COLUMN {col} {ddl}")
@@ -226,6 +227,31 @@ def _v13_offers(store) -> None:
             store._db.execute("UPDATE npcs SET json = ? WHERE id = ?", (json.dumps(body, ensure_ascii=False), nid))
 
 
+def _v14_knows(store) -> None:
+    """(f483) What a person knows of a matter becomes their own: npc_memory gains its state column (typed_memory), and every clue held
+    in a matter still open becomes a knows row of its holder's (about thread:<id>:<n>, from themselves, held, or told:player when its
+    words were found), dated when the matter opened. A clue whose holder is gone from the save is left to the matter."""
+    import json
+    typed_memory(store)
+    raw = store._kv_text("world_state")
+    if not raw:
+        return
+    from engine import clock
+    have = {r[0] for r in store._db.execute("SELECT id FROM npcs").fetchall()}
+    for th in json.loads(raw).get("threads") or []:
+        if th.get("status") != "active":
+            continue
+        t = int(th.get("opened", th.get("made", 0)) or 0)
+        for i, c in enumerate(th.get("clues") or []):
+            nid, about = c.get("npc") or "", f"thread:{th.get('id')}:{i}"
+            if nid not in have or store._db.execute("SELECT 1 FROM npc_memory WHERE npc_id = ? AND kind = 'knows' AND about = ? AND forgotten = 0",
+                                                    (nid, about)).fetchone():
+                continue
+            store._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times, state) "
+                              "VALUES (?, ?, -1, 'knows', 2, ?, '', 'self', ?, ?, 1, ?)",
+                              (nid, clock.day(t), str(c.get("text", "")), about, t, "told:player" if c.get("found") else "held"))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -240,6 +266,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (11, "a hire's memories as rows of their own, the player's record carrying only the window", _v11_hire_memories),      # (f479)
     (12, "a person's view of the player kept as their view of one character, by id", _v12_regard),                          # (f480)
     (13, "work offered and requests made kept as offers that end for a reason", _v13_offers),                               # (f481)
+    (14, "what a person knows of a matter kept as their own, past the matter's end", _v14_knows),                          # (f483)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

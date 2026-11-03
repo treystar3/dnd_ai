@@ -27,6 +27,7 @@ class Memory(BaseModel):
     about: str = ""             # (f478) what it is about, so the same thing again counts up (times) instead of filling the rows
     minute: int = -1            # (f478) when, to the minute (-1: only the day is known)
     times: int = 1
+    state: str = ""             # (f483) a knows row's: held, or told:<character ids> once they have said it
     id: int | None = None
 
 

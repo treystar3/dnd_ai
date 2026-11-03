@@ -244,8 +244,12 @@ def streets_asked(text: str) -> bool:
 
 
 def viewer_for_npc(npc, world=None) -> Viewer:
-    """A townsperson's knowledge: the groups set when they became a person, or, before that, the groups their place and role give."""
+    """A townsperson's knowledge: the groups set when they became a person, or, before that, the groups their place and role give; (f483)
+    with the place they live now, read from where they are."""
     groups = set(npc.knowledge_groups)
+    if groups and world is not None:
+        from engine import circumstance
+        groups = circumstance.groups(world, npc)
     if not groups and world is not None:
         groups = {world.locals_group(npc.location) or "", *world.roles[npc.role].knowledge_groups} - {""}
     return Viewer(id=npc.id, kind="npc", groups=frozenset(groups | {"everyone"}))

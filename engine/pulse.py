@@ -152,7 +152,8 @@ def news_for(store, world, npc, now: int, limit: int = 5) -> list[str]:
     """News this person has heard: it must have reached where they are, and be news their circles would carry; the window turns over
     by the day (news_window)."""
     state = store.load_world_state()
-    groups = set(npc.knowledge_groups) | {"everyone"}
+    from engine import circumstance                          # (f483) the circles they were raised among, and where they live now
+    groups = circumstance.groups(world, npc) | {"everyone"}
     return [news_text(n, now) for n in news_window(state, world, npc.location, now, limit, key=f"{store.meta.seed}:{getattr(npc, 'id', 'here')}", groups=groups)]
 
 

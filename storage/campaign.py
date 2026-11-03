@@ -706,7 +706,19 @@ class CampaignStore:
 
     def _memory_typed(self) -> bool:
         """(f478) Whether npc_memory has its typed columns (an older save on its way through its migrations does not yet)."""
-        return "subject" in {r[1] for r in self._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+        return "subject" in self._memory_cols()
+
+    def _memory_cols(self) -> set[str]:
+        return {r[1] for r in self._db.execute("PRAGMA table_info(npc_memory)").fetchall()}
+
+    def set_memory_state(self, npc_id: str, kind: str, about: str, state: str) -> bool:
+        """(f483) A row's state moved (a knows row held, then told to someone): the newest row of that kind and about. False for none."""
+        with self._lock, self.transaction():
+            got = self._db.execute("SELECT id FROM npc_memory WHERE npc_id = ? AND kind = ? AND about = ? AND forgotten = 0 ORDER BY id DESC LIMIT 1",
+                                   (npc_id, kind, about)).fetchone()
+            if got:
+                self._db.execute("UPDATE npc_memory SET state = ? WHERE id = ?", (state, got[0]))
+            return bool(got)
 
     def _keep_row(self, npc_id: str, m) -> int:
         """(f478) One memory as a row: the same thing again (its about) counts up on the row it already has, else a new row."""
@@ -721,6 +733,12 @@ class CampaignStore:
                 self._db.execute("UPDATE npc_memory SET times = times + 1, day = ?, turn = ?, minute = ?, importance = MAX(importance, ?) WHERE id = ?",
                                  (m.day, m.turn, m.minute, int(m.importance), got[0]))
                 return int(got[0])
+        if "state" in self._memory_cols():                # (f483)
+            cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times, state) "
+                                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                   (npc_id, m.day, m.turn, m.kind, int(m.importance), m.text, m.subject, m.source, m.about, int(m.minute), int(m.times),
+                                    m.state))
+            return int(cur.lastrowid)
         cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                (npc_id, m.day, m.turn, m.kind, int(m.importance), m.text, m.subject, m.source, m.about, int(m.minute), int(m.times)))
@@ -747,15 +765,17 @@ class CampaignStore:
         """What a person remembers, oldest first: every defining memory, then the newest of the rest up to the limit. Recency is not
         importance: a defining memory is never pushed out by routine ones."""
         with self._lock:
-            typed = self._memory_typed()
-            cols = "id, day, turn, kind, importance, text" + (", subject, source, about, minute, times" if typed else "")
+            have = self._memory_cols()
+            typed, stated = "subject" in have, "state" in have
+            cols = "id, day, turn, kind, importance, text" + (", subject, source, about, minute, times" if typed else "") + (", state" if stated else "")
             rows = self._db.execute(f"SELECT {cols} FROM npc_memory WHERE npc_id = ? AND forgotten = 0 AND importance >= ? "
                                     "ORDER BY (importance >= ?) DESC, id DESC LIMIT ?", (npc_id, int(min_importance), MEMORY_DEFINING, int(limit))).fetchall()
         rows.sort(key=lambda r: r[0])
         from engine import memory
         out = []
         for r in rows:
-            extra = dict(zip(("subject", "source", "about", "minute", "times"), r[6:])) if typed else {}
+            extra = dict(zip(("subject", "source", "about", "minute", "times", "state") if stated else ("subject", "source", "about", "minute", "times"),
+                             r[6:])) if typed else {}
             out.append(Memory(id=r[0], day=r[1], turn=r[2], kind=r[3], importance=r[4], text=memory.render(r[5]), **extra))   # (f478) {them} read
         return out
 

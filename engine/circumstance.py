@@ -4,7 +4,10 @@
   the one writer; drift lets it fade when the clock runs out (engine/drift.py).
 - A concern has a cause (concern_from) and a state (concern_state: active, then settled or let go). It is released when what caused it
   ends (a matter, a motive, a job), leaving them a line of their own life, never left on their mind after its cause is gone.
-- A person's identity changes through identity.revise (engine/identity.py), never by writing a trait or a profile in place."""
+- A person's identity changes through identity.revise (engine/identity.py), never by writing a trait or a profile in place.
+- (part 2) What circles a person knows by: those they were raised among (knowledge_groups, set once when they became a person) and the
+  place they live now (lives_among, read from their location every time, never stored), so someone who fled to another town hears its
+  news and knows its ways."""
 from __future__ import annotations
 
 
@@ -43,3 +46,16 @@ def release_concern(npc, source: str, state: str, t: int, line: str = "", day: i
         from engine import clock, memory
         memory.keep(npc, line, day=clock.day(t) if day < 0 else day, turn=turn, kind="own_life", subject="", minute=int(t), importance=2)
     return True
+
+
+def lives_among(world, npc) -> str:
+    """(f483) The local group of where they live now, read from their location; '' for none."""
+    loc = getattr(npc, "location", "")
+    if world is None or loc not in world.places:
+        return ""
+    return world.locals_group(loc) or ""
+
+
+def groups(world, npc) -> set[str]:
+    """(f483) The circles they know by: what they were raised among, and where they live now."""
+    return (set(getattr(npc, "knowledge_groups", []) or []) | {lives_among(world, npc)}) - {""}

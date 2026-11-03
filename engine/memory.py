@@ -53,6 +53,8 @@ def records(store, holder: str) -> list[dict]:
     {id, day, turn, kind, importance, text, subject, source, about, minute, times}, the slot read."""
     cols = ("id", "day", "turn", "kind", "importance", "text", "subject", "source", "about", "minute", "times")
     with store._lock:
+        if "state" in store._memory_cols():                                           # (f483)
+            cols = cols + ("state",)
         rows = store._db.execute(f"SELECT {', '.join(cols)} FROM npc_memory WHERE npc_id = ? AND forgotten = 0 ORDER BY id", (holder,)).fetchall()
     return [dict(zip(cols, r), text=render(r[5])) for r in rows]
 
@@ -89,7 +91,7 @@ def hire_window(rows: list[dict]) -> list[dict]:
 
 
 def keep(npc, text: str, *, day: int, turn: int, kind: str = "experienced", subject: str = "player", importance: int = 1,
-         source: str = "", about: str = "", minute: int = -1):
+         source: str = "", about: str = "", minute: int = -1, state: str = ""):
     """A memory made: appended to the person's window, written as a row when they are saved (and trimmed to its kind's cap there)."""
     from npc.models import Memory
     if kind not in KINDS:
@@ -97,7 +99,7 @@ def keep(npc, text: str, *, day: int, turn: int, kind: str = "experienced", subj
     if kind in CLAIMS:
         text = strip_relative(text)                         # (f482) "yesterday" is true only on the day it was said
     m = Memory(day=day, turn=turn, text=text, importance=int(importance), kind=kind, subject=subject,
-               source=source or ("self" if kind in FIRST_HAND else ""), about=about, minute=int(minute))
+               source=source or ("self" if kind in FIRST_HAND else ""), about=about, minute=int(minute), state=state)
     npc.memories.append(m)
     return m
 

@@ -224,6 +224,7 @@ def _open_matter(ws, q: dict) -> None:
     matters._bind_holders(ws.store, ws.world, th)
     if th["clues"] and not th["clues"][0]["npc"] and q.get("issuer"):
         th["clues"][0]["npc"] = q["issuer"]
+        matters.hold(ws.store, th, 0, q["issuer"], ws.minutes)             # (f483) what the issuer knows of it is theirs
     ws.store.save_world_state(state)
     ws.weight_hint = "rich"
     ws.narrate("AND THERE IS MORE TO IT THAN THE POSTING SAID. What the player finds, now: " + m.get("reveal", "")

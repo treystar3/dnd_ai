@@ -333,7 +333,8 @@ def converse(
     this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk. wares (f418): what they
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
     from engine import banter, matters, voice_profile
-    facts = world.facts_known_by(set(npc.knowledge_groups)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
+    from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
+    facts = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
     rng = rng or streams.get("scene")
