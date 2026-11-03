@@ -130,6 +130,8 @@ Before building, and again before calling it done:
 5. Will it bloat on a long campaign? Is it easy to extend later, with its numbers in data?
 6. Does it keep identities straight: names, pronouns and voices?
 7. Is it tested, and does the full suite pass?
+8. Does it assume there is only ever one player, where a character's id would do? Multiplayer is a goal (owner's decision below): a
+   store, a prompt or a view of the world that can only ever hold one player will have to be built twice.
 
 If a request seems to pull against a goal here, raise it with the owner before building. If the owner decides, record the decision
 below.
@@ -140,6 +142,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 
 | Decision | Feature |
 | --- | --- |
+| Multiplayer is a goal to build eventually: "multiplayer should be a goal to eventually implement and design decisions made now should keep that in mind for the future." Players share one campaign and can split up and reunite in it. "Model calls will run on each player's card individually": each player's own card serves the model calls for that player, as a single player's does today. Group narration: "it should be shared third person narration"; a player playing alone is still told as "you". How time works when players separate is open until it is researched (see Open questions). These are working decisions: "these aren't concrete and if changes are needed they can be while the game is in development." Decided 2026-11-03. | |
 | The longest turn finishes within 60 seconds of model time on the RTX 3060 12 GB: the typed line's required calls (understanding, the outcome, its passage, and the embed calls those need), from the line typed to the last required line shown. One-time loads belong to a warm-up at the home page; background work and the window's pane re-runs are not counted. The budget is not raised; it is revisited only after a recorded night is re-timed on a real 3060 and the required path alone, with optional calls deferred and smaller prompts, still breaches the minute. The owner took this as a recommendation on 2026-11-02, with the Bundle C decisions below. | f459 |
 | Bundle C (the rebuild's Stage 3), the owner taking the survey's and the design's recommendations on 2026-11-02 (the rebuild plan's Bundle C tabs hold them in full): each action of a typed line is its own operation, committed apart (a transfer and its payment together; the world's own work, the pulse and arrivals and the law, apart from the player's and able to fail apart; a partly committed line typed again is a new input). A committed action is never undone because its narration failed: the player reads a plain line telling what stood, from many lines in data, and a partly committed line is told as part of it stood. A question asked inside a turn ends the operation; its answer is the next typed line, Maren's tutorial included. Past the budget an optional call is deferred to a later turn, never to a thread, or dropped with its fallback; a required call still running is given a deadline from what is left, never an instruction to be brief; a crash between commit and display is told once on the next load, from data. What has been shown is not state. Measurements live outside the data hash and the budget's tunables in data/rules/budget.yaml; the record keeps a capped window. This narrows the f449 row's "rolled back whole" from the turn to the operation. | f459 |
 | A turn the game cannot take leaves nothing behind and never ends the game. Whatever fails inside a turn, the model or the game itself, the turn is rolled back whole (the world's additions, the record and the caches come back as they were, with Bundle B), the player is told in the narrator's words, and the fault is written to logs/crash.log so it still surfaces. The same line failing twice running on the game's own fault is told to be left. The owner took these as recommendations on 2026-11-02 (with the four Bundle B decisions kept in the rebuild plan: the session is born when the save opens; the campaign world presents the map only in Bundle B; a simlib helper lands first). | f449 |
@@ -208,5 +211,6 @@ Newest first. Each is a call the owner made about what the game should be; follo
 
 ## Open questions
 
+- Multiplayer's clock: how does time work when players separate (one player fighting while another travels for days, sleeping while another fights)? To be researched first: how MUDs and other shared worlds handled players who split up.
 - Should a class's "main" attributes be the ones its abilities and weapon actually use? A mage was shown Dexterity as a main stat.
 - Should the home page pick up a save folder copied in from an installed copy of the game?
