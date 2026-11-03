@@ -39,11 +39,11 @@ def move(store, world, state: dict, npc, t: int, rng: random.Random) -> bool:
     from npc.models import Memory
     row = step_for(npc, world, t)
     npc.memories.append(Memory(day=clock.day(t), turn=-1, text=row["line"], kind="own_life", subject="", source="self", minute=int(t)))   # (f478)
-    if not npc.concern_from:                                            # a matter's concern (engine/matters.py) wins
-        npc.concern = row["line"]
+    from engine import circumstance                                     # (f483) each with its cause
+    if not npc.concern_from or npc.concern_from == "motive":           # a matter's concern (engine/matters.py) wins
+        circumstance.set_concern(npc, row["line"], "motive")
     if row["mood"]:
-        npc.mood = row["mood"]
-        npc.mood_until = t + int((pulse.P.get("drift") or {}).get("moods", {}).get("days", 6)) * 1440
+        circumstance.set_mood(npc, row["mood"], t, "motive")
     if row["gossip"]:
         pulse.add_news(state, row["gossip"], npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
     npc.motive_step = int(getattr(npc, "motive_step", 0) or 0) + 1

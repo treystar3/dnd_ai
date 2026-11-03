@@ -1,20 +1,20 @@
 {
- "made": "2026-11-03T18:44:19+00:00",
+ "made": "2026-11-03T20:24:38+00:00",
  "seed": 52,
  "steps": 0,
  "turn": 1,
- "data": "2783647ac60de519179f737c18f00cfa8a24171575eb34ef090b88eaba8169af",
+ "data": "3e6fa9262d09d357ef62e8dc526334b3ecb78cdad9b7f901ffb59be8beb26ebd",
  "model": "gemma4:12b",
  "version": "0.0.4.1",
- "commit": "d6d58482399c68db39ad545dc5a83abf9d4a1a10",
+ "commit": "37b74312430161c6dbbf1b4b905b7993cd36b4a8",
  "start": {
   "kv": "35388d892bfe8635b7b2e2392519fb5b48e238b0d0b1626d731ba95579f46eba",
   "places": "59b1865593d654da94f268a757920f9b74eaa4dfff4a59c4a88430f68f5512ad",
-  "npcs": "156e4263a5ac2481af1cc87ed479b6346052cd3d18fc34c2389a6db4776a5346",
+  "npcs": "0752e26d700664fd7da1ffcac38c07fa82db208df13050f967cdad84f48f077a",
   "npc_memory": "7542161296dc6dc8f85eb6363fcb0017e4879e5252032e4abfa723ca401d9d94",
   "event_log": "f202dea03cb0a0f512e78d3e05eeb9c07c8e0490b6d3df9298887be198638329",
   "entities": "30a794841dd4d7cb210b3c0aa045d6443b9f5cc0cc9b3a602fd1df72a78d2567",
-  "all": "3394f75806f93625bff57aec6f87058517ca9a349e3e08e23abc0be87601061d"
+  "all": "ffcaf313976f8f52dd5a7cca715bce41cda3aa7950398f5ee092d6b718465467"
  },
  "embed": true,
  "backfill": null,

@@ -366,10 +366,10 @@ def _keep_into(member: dict, about_me, about_world, day: int, details, given_fac
         new, wrong, unsure = vet(member, claims, details, given_facts, who, kept_as=b)
         bad += wrong
         key = BUCKETS[b]["key"]
-        for c in new:
+        room = max(0, BUCKETS[b]["cap"] - len(member.get(key, [])))     # (f483, owner question 8) who they are is never evicted for room:
+        for c in new[:room]:                                            # a claim past the cap waits unsettled, and none of the held goes
             member.setdefault(key, []).append({"text": c, "day": day, "gravity": (buckets.get(WEIGHTS) or {}).get(_norm(c), "personal")})
-        del member.setdefault(key, [])[:-BUCKETS[b]["cap"]]
-        _unsettle(member, unsure, day, b)
+        _unsettle(member, list(unsure) + list(new[room:]), day, b)
     world = clean(about_world) + clean(buckets.get("world", []))
     have = {x["text"].lower() for x in member.get("beliefs", [])}
     for c in world:
@@ -410,11 +410,12 @@ def settle_again(member: dict, day: int, details=None, given_facts=None, who: st
         new, _wrong, unsure = vet(member, [x["text"]], details, given_facts, who, kept_as=b)
         if unsure:
             continue
+        key = BUCKETS[b]["key"]
+        if new and len(member.get(key, [])) >= BUCKETS[b]["cap"]:
+            continue                                                     # (f483) still no room: it waits on, and nothing held is let go
         held.remove(x)
         if new:
-            key = BUCKETS[b]["key"]
             member.setdefault(key, []).append({"text": x["text"], "day": x.get("day", day), "gravity": "personal"})
-            del member[key][:-BUCKETS[b]["cap"]]
 
 
 class Pending:

@@ -660,7 +660,8 @@ def fallen_allies(ws, fallen_ids: set[str]) -> None:
                 ws.store.save_world_state(state)
             else:
                 console.note(f"{n.name} is carried out of the fight, badly hurt but alive.")
-                n.mood = "badly wounded, but alive"
+                from engine import circumstance            # (f483)
+                circumstance.set_mood(n, "badly wounded, but alive", ws.minutes, "a fight beside the stranger")
                 ws.store.save_npc(n)
 
 
@@ -1057,7 +1058,8 @@ def _catch_people(store, world, state, th, town: str, fell: bool, refuge: str, t
         if rng.random() >= risk:
             continue
         if refuge and rng.random() < C["flee_share"]:
-            n.mood = f"shaken, a refugee from {world.places[town].name}"
+            from engine import circumstance                # (f483)
+            circumstance.set_mood(n, f"shaken, a refugee from {world.places[town].name}", t, f"fell:{town}")
             n.memories.append(_memory(t, f"Fled {world.places[town].name} when {th['title']} came."))
             store.save_npc(n)
             pulse.move_npc(store, n, refuge)

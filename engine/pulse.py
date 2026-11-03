@@ -529,7 +529,7 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             changed = True
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
-                who = resolver(store, world, th, rng)
+                who = resolver(store, world, th, rng, t)
                 pulselog.note("end", f"{th['title']} - settled by {who}", how="settled", place=th["place"], tier=th["tier"])
                 end_thread(store, state, th, "resolved", f"{th['title']} - settled by {who}.", t)
                 th["result"] = "others"
@@ -553,9 +553,10 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
     return changed
 
 
-def resolver(store, world, th, rng) -> str:
+def resolver(store, world, th, rng, t: int | None = None) -> str:
     """Who dealt with it, off-screen: one of the town's anchors when one fits (f323), a guild contractor sometimes, else the watch or
-    the people. Whoever it was remembers it, and so does the town."""
+    the people. Whoever it was remembers it, and so does the town. t: when (the matter's last time when not given)."""
+    t = int(th["times"][-1]) if t is None else t
     from engine import retrieval
     from npc.models import Memory
     town = town_of(world, th["place"])
@@ -568,9 +569,10 @@ def resolver(store, world, th, rng) -> str:
         return f"{n.name}, the {n.role.replace('_', ' ')}"
     if rng.random() < 0.4:
         for n in store.load_npcs([r.id for r in store.npc_rows(role="guild_contractor", gone=False)][:1]):     # the first, as before
-            n.mood = rng.choice([f"proud, after settling {th['title'].lower()}",
-                                 f"nursing a fresh wound from {th['title'].lower()}",
-                                 f"flush with coin from {th['title'].lower()}"])
+            from engine import circumstance                # (f483) with its cause and its clock
+            circumstance.set_mood(n, rng.choice([f"proud, after settling {th['title'].lower()}",
+                                                 f"nursing a fresh wound from {th['title'].lower()}",
+                                                 f"flush with coin from {th['title'].lower()}"]), t, f"thread:{th['id']}")
             store.save_npc(n)
             return f"{n.name}, a guild contractor"
     place = world.places.get(th["place"])
@@ -598,6 +600,13 @@ def lift(state: dict, th: dict, t: int) -> None:
 
 def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     lift(state, th, t)
+    from engine import circumstance                          # (f483) the worry the matter gave the people in it goes with it
+    for nid in sorted({c.get("npc") for c in th.get("clues", []) if c.get("npc")} | ({th["sender"]} if th.get("sender") else set())):
+        if store.npc_exists(nid):
+            n = store.load_npc(nid)
+            if circumstance.release_concern(n, th["id"], "settled" if status == "resolved" else "let_go", t,
+                                            line=f"{th['title']} is over, and off my mind." if status == "resolved" else f"{th['title']} came to its end."):
+                store.save_npc(n)
     th["status"] = status
     th["ended_at"] = t
     if state.get("campaign") == th["id"]:
@@ -725,8 +734,8 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         npc.relations[e["other"]] = r
         store.save_npc(npc)
     elif kind == "mood" and npc and e.get("text"):
-        npc.mood = e["text"]
-        npc.mood_until = t + P.get("drift", {}).get("moods", {}).get("days", 6) * 1440      # (f331) a mood the world gave fades
+        from engine import circumstance                        # (f331) a mood the world gave fades; (f483) and says what gave it
+        circumstance.set_mood(npc, e["text"], t, e.get("thread") and f"thread:{e['thread']}" or "the world")
         store.save_npc(npc)
     elif kind == "move" and npc and known(world, e.get("place")):
         if world.places[e["place"]].danger or not world.peoples_at(e["place"]):
@@ -744,9 +753,9 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         ps.extra_roles[e["role"]] = ps.extra_roles.get(e["role"], 0) + 1
         store.save_place(ps)
     elif kind == "trait" and npc and catalog and tier in P["may_change_traits"]:
-        from npc.traits import change_trait
+        from engine import identity                       # (f483) the one way who someone is changes: kept, and remembered
         if e.get("remove") in npc.traits and e.get("add") in catalog.traits and e["add"] not in npc.traits:
-            change_trait(npc, catalog, e["remove"], e["add"], cause, clock.day(t))
+            identity.revise(npc, catalog, e["remove"], e["add"], cause, t)
             store.save_npc(npc)
     elif kind in ("prices", "danger") and (known(world, e.get("place")) or (kind == "danger" and e.get("place") in world.roads)):
         lo, hi = lim[kind]["min"], lim[kind]["max"]

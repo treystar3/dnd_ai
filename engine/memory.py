@@ -120,7 +120,7 @@ def problems() -> list[str]:
     if not all(isinstance(w, str) and w.strip() for w in (caps() or {}).get("relative_time") or []):
         bad.append("memory.yaml relative_time: needs words")
     for holder, table in (caps() or {}).items():
-        if holder in ("certainty", "relative_time"):
+        if holder in ("certainty", "relative_time", "identity"):
             continue
         for kind, n in (table or {}).items():
             if kind not in KINDS and holder != "maren":

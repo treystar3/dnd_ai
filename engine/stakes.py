@@ -113,16 +113,17 @@ def _concern(store, q: dict) -> None:
     n = store.load_npc(q["issuer"])
     if n.gone:
         return
-    n.concern, n.concern_from = q["reason"], f"quest:{q['id']}"
+    from engine import circumstance                          # (f483) the job's, until it is done or dropped
+    circumstance.set_concern(n, q["reason"], f"quest:{q['id']}")
     store.save_npc(n)
 
 
-def _release(store, npc_id: str, qid: str) -> None:
+def _release(store, npc_id: str, qid: str, state: str = "settled") -> None:
     if not store.npc_exists(npc_id):
         return
     n = store.load_npc(npc_id)
-    if n.concern_from == f"quest:{qid}":
-        n.concern, n.concern_from = "", ""
+    from engine import circumstance                          # (f483) settled when the job is done, let go when it was dropped
+    if circumstance.release_concern(n, f"quest:{qid}", state, store.meta.minutes):
         store.save_npc(n)
 
 

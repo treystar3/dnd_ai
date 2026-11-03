@@ -18,6 +18,8 @@ townsfolk: {experienced: 40, witnessed: 20, noticed: 10, heard: 16, told: 16, ow
 hire: {experienced: 60, told: 20}
 # (f479) Maren's log of what was said lately between her and the player: one cap where there were two (12 and 24)
 maren: {chat: 24}
+# (f483) how many trait changes a person's record keeps (engine/identity.py); each also leaves a revision row, capped above
+identity: {trait_history: 8}
 # (f482, GOALS.md S1 and S5: a spoken claim never becomes fact) How sure a person is of what they hold, by kind: what they saw or lived is
 # sure; what they were told is what someone said; what reached them from others is hearsay. A claim is never read by the rules (a fence,
 # tools/sim/claims_482_test.py), only offered back to the one who holds it, as what it is.

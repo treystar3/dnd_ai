@@ -110,6 +110,9 @@ class NPC(BaseModel):
 
     motive: str = ""              # an active goal that moves forward off-screen; most people have none
     mood: str = ""                # how they've been lately, set by what has happened to them
+    mood_source: str = ""         # (f483) what gave them the mood: a matter, a motive, a moment, a town's fall (engine/circumstance.py)
+    concern_state: str = ""       # (f483) active while it is on their mind; settled or let go once its cause has ended
+    first_description: str = ""   # (f483) how they first looked, kept when a revision changes them (engine/identity.py)
     mood_until: int = 0           # (f331) the game minute a mood the world gave them fades (engine/drift.py); 0 for one with no clock yet
     motive_done_at: int = -1      # (f331) the minute a motive ended (achieved or given up), -1 for never; after a while a new one may take hold
     motive_since: int = 0         # (f334) the minute the motive took hold; 0 for one from before this was kept

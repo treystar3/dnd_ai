@@ -25,6 +25,11 @@ class Trait(BaseModel):
     description: str
     rarity: Literal["common", "uncommon", "rare"] = "common"
     conflicts: list[str] = []
+    word: str = ""                # (f483) how it reads in their own words, where the id does not (data/traits.yaml)
+
+    @property
+    def said(self) -> str:
+        return self.word or self.id.replace("_", " ")
 
 
 class TraitCatalog:

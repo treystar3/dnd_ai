@@ -3,6 +3,7 @@
 #
 # rarity:    common, uncommon or rare - how often it is rolled.
 # conflicts: traits that can never appear together. Listing one side is enough.
+# word:      (f483) how the trait reads in a person's own words ("less set in my ways than I was"), where the id does not; else the id.
 # Add, remove or reword freely. Descriptions are what the NPC's voice is built from.
 
 # --- common ---
@@ -139,6 +140,7 @@
   conflicts: [vengeful]
 - id: set_in_ways
   description: Distrusts new things and new people.
+  word: set in my ways
   rarity: common
   conflicts: [adventurous]
 
@@ -181,6 +183,7 @@
   conflicts: [cheerful]
 - id: hot_tempered
   description: Quick to anger and quick to shout.
+  word: hot-tempered
   rarity: uncommon
   conflicts: [patient]
 - id: lazy

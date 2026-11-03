@@ -126,7 +126,8 @@ def people(store, world, state: dict, t: int, rng: random.Random) -> str:
                 npc.mood_until = t + M.get("days", 6) * 1440        # a mood from before moods had clocks gets one now
                 changed = True
             elif t >= npc.mood_until:
-                npc.mood, npc.mood_until = "", 0
+                from engine import circumstance                       # (f483) the mood and what gave it fade together
+                circumstance.clear_mood(npc)
                 changed = True
                 faded += 1
         if not npc.motive and npc.motive_done_at >= 0 and t - npc.motive_done_at >= V.get("cooldown_days", 12) * 1440:
@@ -165,8 +166,11 @@ def motive_ends(npc, store, world, V: dict, M: dict, t: int, rng: random.Random)
     motive = npc.motive.strip().rstrip(".")
     matters.town_note(store, world, npc.location, rng.choice(lines).format(name=npc.name, role=role, motive=motive), t)
     moods = O.get("mood_made" if made else "mood_failed")
+    from engine import circumstance                                    # (f483) the mood says what gave it; the worry its goal gave them goes
     if moods:
-        npc.mood, npc.mood_until = rng.choice(moods), t + M.get("days", 6) * 1440
+        circumstance.set_mood(npc, rng.choice(moods), t, "motive", days=M.get("days", 6))
+    circumstance.release_concern(npc, "motive", "settled" if made else "let_go", t,
+                                 line=f"I {'saw it through' if made else 'gave it up'}: {motive}." if motive else "")
     npc.motive, npc.motive_since, npc.motive_done_at = "", 0, t
 
 

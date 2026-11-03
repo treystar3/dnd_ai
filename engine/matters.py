@@ -110,8 +110,8 @@ def _open_word(store, th: dict) -> None:
     if not c["npc"]:
         return
     npc = store.load_npc(c["npc"])
-    npc.concern = c["text"]
-    npc.concern_from = th["id"]
+    from engine import circumstance                          # (f483) the matter's, until the matter ends
+    circumstance.set_concern(npc, c["text"], th["id"])
     store.save_npc(npc)
 
 

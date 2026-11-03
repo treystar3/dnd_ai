@@ -462,7 +462,7 @@ class GuildActions:
         self.notice(ContractDropped(minute=self.minutes, place=self.player.location, witnesses=(issuer,) if n else (), npc=issuer if n else "",
                                     name=n.label(self.acting) if n else "", quest=str(q["id"]), title=q["title"], how=how, guild=bool(q.get("guild"))), n)
         if issuer:
-            stakes._release(self.store, issuer, q["id"])
+            stakes._release(self.store, issuer, q["id"], "let_go")          # (f483) dropped, not done
 
     # ---------- progress ----------
 

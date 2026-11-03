@@ -220,7 +220,10 @@ def promote(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog)
     )
     npc.personality, npc.voice = profile.personality, profile.voice
     if not npc.concern_from:                                 # (f317) a concern a matter gave them stays
-        npc.concern = profile.concern
+        from engine import circumstance                      # (f483) their own, from who they are
+        circumstance.set_concern(npc, profile.concern, "profile")
+    if not npc.first_description and npc.description:        # (f483) how they first looked, kept through any revision
+        npc.first_description = npc.description
     npc.motive = (profile.motive.strip() or npc.motive) if has_motive else ""
     if npc.motive and not npc.motive_since:
         npc.motive_since = store.meta.minutes

@@ -497,7 +497,8 @@ def make_npc(player, minutes: int, turn: int, place_id: str):
     npc = NPC(id="maren", name=NAME, people="human", role="guild_contractor", location=place_id, gender="female", tier="significant",
               epithet="the A-rank adventurer", description="A broad-shouldered woman in her middle years in dark plate with gold detailing and a greatsword on her back.",
               concern="Things where they do not belong, and the work the capital sent her south to do.",
-              mood="fond of the player, though she would not say so", protected=True, memories=mem,
+              mood="fond of the player, though she would not say so", mood_source="the lesson", concern_state="active",   # (f483)
+              protected=True, memories=mem,
               regard={player.character.id: Regard(trust=65, met=True, name_known=True, knows_as=player.character.name,   # (f480) hers of them
                                                   knows_as_source="self")},
               gone=M["npc"]["gone"])                                 # (f382) she goes on her way: a record, in no place
