@@ -421,12 +421,48 @@ class CampaignStore:
         return self._kv_text("player") is not None
 
     def load_player(self) -> PlayerState:
-        return PlayerState.model_validate_json(self._kv_text("player") or "")
+        player = PlayerState.model_validate_json(self._kv_text("player") or "")
+        if self._memory_typed():                     # (f479) each hire's window, from their rows
+            from engine import memory
+            for m in player.party:
+                if m.get("id") and "memories" not in m:
+                    m["memories"] = memory.hire_window(memory.records(self, f"hire:{m['id']}"))
+        return player
 
     def save_player(self, player: PlayerState) -> None:
         with self.transaction():                     # the clock and turn count live beside the player; one without the other lost the time on reload
-            self._put("player", player.model_dump_json())
+            body = json.loads(player.model_dump_json())
+            if self._memory_typed():                 # (f479) a hire's memories are rows; the player's record carries none of them
+                for m, out in zip(player.party, body.get("party") or []):
+                    if m.get("id"):
+                        self._save_hire_memories(m)
+                    out.pop("memories", None)
+                    out.pop("memories_unsaved", None)
+            self._put("player", json.dumps(body, ensure_ascii=False))
             self.save_meta()
+
+    def _save_hire_memories(self, member: dict) -> None:
+        """(f479) A hire's new memories become rows under hire:<id> (the ones culled from the window before they were written too), the
+        updated ones are updated in place, and every kind is held to the hire's cap."""
+        from engine import memory
+        from npc.models import Memory
+        holder = f"hire:{member['id']}"
+        kinds = set()
+        for x in list(member.get("memories_unsaved") or []) + list(member.get("memories") or []):
+            r = memory.hire_row(x)
+            if "id" not in x:
+                m = Memory(**{k: r[k] for k in ("day", "turn", "kind", "importance", "text", "subject", "source", "minute", "times")})
+                cur = self._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
+                                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (holder, m.day, m.turn, m.kind, m.importance, m.text, m.subject,
+                                                                                  m.source, r["about"], m.minute, m.times))
+                x["id"] = int(cur.lastrowid)
+                kinds.add(r["kind"])
+            elif x.pop("dirty", False):
+                self._db.execute("UPDATE npc_memory SET text = ?, day = ?, importance = ?, times = ? WHERE id = ?",
+                                 (r["text"], r["day"], r["importance"], r["times"], int(x["id"])))
+        member.pop("memories_unsaved", None)
+        for kind in sorted(kinds):
+            self._trim(holder, kind)
 
     # ---- (f460) the question the world is waiting on, if any: a kv row that is there only while one stands (engine/questions.py). In
     # the save rather than on the scene, so a rolled-back turn takes its question back with it and a save closed on a question asks it

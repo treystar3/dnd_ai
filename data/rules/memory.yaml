@@ -14,3 +14,7 @@
 #   knows          a thing they know, held for a matter (f483)
 #   revision       how they changed (f483)
 townsfolk: {experienced: 40, witnessed: 20, noticed: 10, heard: 16, told: 16, own_life: 12, promise_heard: 8, said: 8, knows: 12, revision: 8}
+# (f479) a hire's memories, as rows under hire:<id> (about 80 in all): what they lived with the player, and what the player told them
+hire: {experienced: 60, told: 20}
+# (f479) Maren's log of what was said lately between her and the player: one cap where there were two (12 and 24)
+maren: {chat: 24}

@@ -466,10 +466,17 @@ def chat_request(player, where: str, text: str, scene: str = "", unsaid: str = "
     return f"FACTS:\n{facts(player, where, text + ' ' + scene)}{now}{more}\n\nWHAT WAS SAID LATELY:\n{talk}\n\nTHE PLAYER SAYS TO YOU: {text}"
 
 
+def _chat_cap() -> int:
+    """(f479) How much of what was said between Maren and the player she keeps: one number (data/rules/memory.yaml maren.chat), where
+    there were two (twelve after a talk, twenty-four after a line of hers)."""
+    from engine import memory
+    return int((memory.caps().get("maren") or {}).get("chat") or 24)
+
+
 def remember_chat(player, text: str, reply: str) -> None:
     log = player.mentor.setdefault("chat", [])
     log += [["Player", text[:300]]] + ([[NAME.split()[0], reply[:400]]] if reply else [])
-    del log[:-12]
+    del log[:-_chat_cap()]                                   # (f479) one cap, in data
     if reply:
         player.mentor["last_voice"] = True
 
@@ -568,7 +575,7 @@ def remember_said(player, text: str) -> None:
     """What she has just said goes into the lately-said log, so the next thing she says follows from it."""
     log = player.mentor.setdefault("chat", [])
     log.append([NAME.split()[0], text[:400]])
-    del log[:-24]
+    del log[:-_chat_cap()]                                   # (f479) one cap, in data
     player.mentor["last_voice"] = True
 
 

@@ -166,6 +166,28 @@ def _v10_memory_kinds(store) -> None:
     store.execute("UPDATE npc_memory SET kind = 'experienced', subject = 'player' WHERE kind = 'event'")
 
 
+def _v11_hire_memories(store) -> None:
+    """(f479) A hire's memories leave the player's record for rows under hire:<id>, typed as a townsperson's are: what they lived with
+    the player experienced, a fact the player told them told (by the player), weight as importance, key as about, count as times. Each
+    keeps its stamped day. The record then carries only the window the party reads, rebuilt from the rows when the player is loaded."""
+    import json
+    from engine import memory
+    raw = store._kv_text("player")
+    if not raw:
+        return
+    body = json.loads(raw)
+    for m in body.get("party") or []:
+        if not m.get("id"):
+            continue
+        for x in m.get("memories") or []:
+            r = memory.hire_row(x)
+            store._db.execute("INSERT INTO npc_memory (npc_id, day, turn, kind, importance, text, subject, source, about, minute, times) "
+                              "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (f"hire:{m['id']}", r["day"], r["turn"], r["kind"], r["importance"],
+                                                                         r["text"], r["subject"], r["source"], r["about"], r["minute"], r["times"]))
+        m.pop("memories", None)
+    store._db.execute("UPDATE kv SET json = ? WHERE key = 'player'", (json.dumps(body, ensure_ascii=False),))
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -177,6 +199,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (8, "every hire keeps the pronoun they were drawn with", _v8_hire_pronouns),
     (9, "the registry of who someone is and what has become of them", _v9_entities),
     (10, "memories typed: what each is, whom it is about, who said it, what it is about, and when", _v10_memory_kinds),   # (f478)
+    (11, "a hire's memories as rows of their own, the player's record carrying only the window", _v11_hire_memories),      # (f479)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

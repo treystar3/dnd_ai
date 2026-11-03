@@ -345,7 +345,7 @@ def remember(member: dict, day: int, text: str, weight: int = 1, key: str = "", 
     if key:
         for x in mem:
             if x.get("key") == key:
-                x.update(text=text, day=day, weight=max(x.get("weight", 1), int(weight)))
+                x.update(text=text, day=day, weight=max(x.get("weight", 1), int(weight)), dirty=True)   # (f479) its row is updated at the save
                 return
     same = _same_memory(text, [x["text"] for x in mem if not x.get("key")])
     if same is not None:
@@ -354,11 +354,15 @@ def remember(member: dict, day: int, text: str, weight: int = 1, key: str = "", 
             x["count"] = x.get("count", 1) + 1              # a thing that happened again; a fact told again is still one fact
         x["day"] = day
         x["weight"] = max(x.get("weight", 1), int(weight))
+        x["dirty"] = True                                   # (f479) its row is updated at the save
         return
     mem.append({"day": day, "text": text, "weight": int(weight), "count": 1, "kind": kind, **({"key": key} if key else {})})
-    while len(mem) > MEMORY_KEEP:
+    while len(mem) > MEMORY_KEEP:                           # (f479) the window the record carries; every memory is a row (storage/campaign.py)
         old = mem[:len(mem) // 2]
-        mem.remove(min(old, key=lambda x: (x["weight"], x["day"])))
+        gone = min(old, key=lambda x: (x["weight"], x["day"]))
+        mem.remove(gone)
+        if "id" not in gone:
+            member.setdefault("memories_unsaved", []).append(gone)    # culled before it was ever written: it is written at the save
 
 
 def _same_memory(text: str, olds: list[str]) -> int | None:
