@@ -100,8 +100,8 @@ check("the re-bless report names every key that moved in each recording, with bo
       "npc_memory 1 changed" in said and "4 'event' -> 'experienced'" in said and "8 '(unchanged)' -> 'player'" in said, said)
 rec_new = rerun.load(rerun.golden("stub_party"))
 place = rerun.placement(rec_new)
-check("calls are placed by the kind of operation they were made in: the townsfolk's replies inside the talk, the party's outside any",
-      "action:talk" in place.get("npc_conversation", {}) and "action:talk" not in place.get("hire_chat", {}), place)
+check("calls are placed by the kind of operation they were made in: (f485) the townsfolk's replies outside any operation, the hire's not in the talk",
+      set(place.get("npc_conversation", {})) == {"outside"} and "action:talk" not in place.get("hire_chat", {}), place)
 check("stub_party holds a reply that failed every try and the same line said again, and its census is whole",
       any(c.get("title") == "NPCReply" and c.get("error") for c in rec_new["calls"]) and not rerun_census(), rerun_census())
 

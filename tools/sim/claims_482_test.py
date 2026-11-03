@@ -42,7 +42,11 @@ check("...with 'yesterday' struck from it", daughter and "yesterday" not in daug
 check("the name the character gave is told too, beside their view's name and its source", len(named) == 1 and named[0]["source"] == ws.acting
       and regard.of(store.load_npc("c1"), ws.acting).knows_as == "Arwen" and regard.of(store.load_npc("c1"), ws.acting).knows_as_source == "self",
       (named, store.load_npc("c1").regard))
-check("...held by the one told and no one else", not simlib.remembered(store, "c2", about="baron") and not simlib.remembered(store, "c2", about="Arwen"))
+check("...held by the one told and no one else", not simlib.remembered(store, "c2", about="baron")
+      and not any(r["kind"] == "told" for r in simlib.remembered(store, "c2", about="Arwen")))
+check("(f485) ...while the one standing by keeps the name said aloud, as heard: hearsay, from the character",
+      [(r["kind"], r["source"]) for r in simlib.remembered(store, "c2", about="Arwen")] == [("heard", ws.acting)]
+      and regard.of(store.load_npc("c2"), ws.acting).heard_of.get("certainty") == "hearsay", simlib.remembered(store, "c2", about="Arwen"))
 news = " ".join(x.get("text", "") for x in (store.load_world_state() or {}).get("news", []))
 check("...and it moves nothing else: the claim is in no news, no fact of the world and nothing any rule reads",
       "baron" not in news.lower() and "Arwen" not in news

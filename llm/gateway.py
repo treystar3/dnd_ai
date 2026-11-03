@@ -163,7 +163,12 @@ def generate(
     (the repetition guard off, say) before giving up: the fallback ladder every speaker shares.
     (f468) The turn's budget is asked first (engine/budget.py allow): a call it does not allow raises its own error, a kind of LLMError
     so the site's fallback stands, that is no failure of the model's (no fallback counted, no refusal filed, no tally)."""
-    from engine import budget, operation
+    from engine import asked, budget, operation
+    if asked.wanted(task):                          # (f485) an operation needs it: asked outside its transaction, and the operation run again
+        from engine.prompt import Prompt
+        k = asked.key(task, system, user.render() if isinstance(user, Prompt) else str(user), getattr(schema, "__name__", ""))
+        return asked.call(task, k, lambda: generate(task, system, user, schema, temperature, retries, validation_context, max_tokens,
+                                                    relaxed_context, _quiet))
     budget.allow(task, _chars(system, user))
     operation.note_legacy(task)                     # (f470) made inside an operation's transaction: the ratchet's residue
     try:

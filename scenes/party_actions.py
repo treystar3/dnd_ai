@@ -722,13 +722,13 @@ class PartyActions:
         said = [["Player", text[:250]]] + ([[m["name"].split()[0], reply[:300]]] if reply else ([[m["name"].split()[0], f"({gesture})"]] if gesture else []))
         recent += said
         del recent[:-12]
-        if self.player.party_mode == "with":               # (f290) the others travelling with you heard it: 'what about you?' has something to follow on from
-            for o in self.player.party:
-                if o is m or not o.get("permanent") or o.get("story"):
-                    continue
-                log = o.setdefault("talk", [])
-                log += [[f"Player (to {m['name'].split()[0]})", text[:250]]] + said[1:]
-                del log[:-12]
+        from engine import presence                         # (f290) the others here heard it: 'what about you?' has something to follow on from;
+        for o in presence.hires(self):                      # (f485) those here and awake (engine/presence.py), never one downed, fallen or away
+            if o is m or not o.get("permanent") or o.get("story"):
+                continue
+            log = o.setdefault("talk", [])
+            log += [[f"Player (to {m['name'].split()[0]})", text[:250]]] + said[1:]
+            del log[:-12]
         if reply and m.get("permanent"):                    # the others travelling along heard it: whether any joins in is theirs to have reason for
             self.chime_in(m, text, reply)
         day = self.minutes // 1440

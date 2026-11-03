@@ -479,6 +479,19 @@ class CampaignStore:
     # ---- (f460) the question the world is waiting on, if any: a kv row that is there only while one stands (engine/questions.py). In
     # the save rather than on the scene, so a rolled-back turn takes its question back with it and a save closed on a question asks it
     # again when it opens; a row rather than a field of the player, so a save with no question standing dumps as it did.
+    # ---- (f485) the conversation under way (scenes/world.py talk_record): a kv row there only while one is, written with the operation
+    # that moved it, so it rolls back with that operation and is there again when the save is opened.
+    def load_talk(self) -> dict | None:
+        return self._kv("talk")
+
+    def save_talk(self, rec: dict) -> None:
+        with self.transaction():
+            self._put("talk", json.dumps(rec, ensure_ascii=False))
+
+    def clear_talk(self) -> None:
+        with self.transaction():
+            self._drop("talk")
+
     def load_question(self) -> dict | None:
         return self._kv("question")
 

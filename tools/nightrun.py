@@ -285,7 +285,8 @@ class Run:
                         deeds.append({"kind": r.get("kind", ""), "minute": r.get("minute"), "place": (r.get("data") or {}).get("place", ""),
                                       "target": r.get("target", ""), "witnesses": list(w)[:12], "text": str(r.get("text", ""))[:120]})
             self._deed_seq = max([r["seq"] for r in rows], default=last or 0)
-            return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
+            open_talk = ws.store.load_talk() or {}                                       # (f485) the open conversation, as the save keeps it
+            return {"partner": open_talk.get("speaker", "") or getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
                     "commitments": sum(1 for m in p.party for c in (m.get("commitments") or []) if c.get("state", "active") == "active"),   # (f481) held
                     "deeds": deeds}
         except Exception as e:

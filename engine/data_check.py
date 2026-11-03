@@ -73,6 +73,8 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
     bad: list[str] = []
     B = _load("data/rules/budget.yaml") if B is None else B
     found = task_literals() if found is None else found
+    from engine import asked as _asked                                 # (f485) what is asked outside an operation is a task the code asks for
+    bad += _asked.problems(set(found))
 
     def need(ok, msg):
         if not ok:

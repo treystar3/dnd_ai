@@ -217,7 +217,7 @@ check("...and a creature nothing here knows of still gets the plain answer", any
 # ---- the shape of the catches, in the source
 world_src = Path("scenes/world.py").read_text(encoding="utf-8")
 check("the turn's catch lets an Interrupt through before it catches everything else",
-      world_src.index("except Interrupt:\n            raise") < world_src.index("except Exception as e:\n            # (f449)"))
+      world_src.index("except Interrupt:\n            raise") < world_src.index("except (Exception, _asked.Drift) as e:\n            # (f449)"))
 gw = Path("llm/gateway.py").read_text(encoding="utf-8")
 check("...and so does the gateway's", gw.index("except Interrupt:\n            raise") < gw.index("except Exception as e:\n            # A timeout"))
 sys.path.insert(0, "tools")

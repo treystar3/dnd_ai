@@ -104,6 +104,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner: NPC | None = None
         self.last_spoken: str | None = None
         self.convo: list[tuple[str, str]] = []
+        self._talk_saved = store.load_talk()  # (f485) a save opened mid-talk: put back once the one spoken with is here (restore_talk)
         self.to_menu = False          # (f345) #menu: the run loop ends and main.py shows the home page
         self.last_crash = False       # (f449) the last turn rolled back on the game's own fault (logs/crash.log), not the model's
         self.broken: dict[str, int] = {}     # (f449) lines that failed that way, and how often: the second time, the player is told to leave it
@@ -395,6 +396,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         if not n.gone                                                                     # (f422) the dead and departed are not here
                         and (on_stop or clock.in_hours(self.minutes, self.world.roles[n.role].hours) and n.away_until <= self.minutes
                              and court.visible(self, n) and not routines.away(self.world, seed, n, self.minutes, cast))]   # (f352)
+        if self.__dict__.get("_talk_saved") and self.present:
+            self.restore_talk()
         bound = self.escorted()                                             # (f392) the registry says who walks bound at the player's side
         for n in self.residents:                                            # a prisoner bound at the player's side is here whatever the hour or the door
             if n.id in bound and not n.gone and all(p.id != n.id for p in self.present):
@@ -883,7 +886,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     HELD = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "combat_numbers", "legendary_reveal")   # (f463) the story bindings an operation holds
     ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
-              "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran")
+              "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
+              "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done")
+    # (f485) the conversation goes back whole: who is being spoken with and how they are this talk, with its lines (convo, last_spoken
+    # above), so a first talk that did not stand opens a new conversation when it is tried again, with the stance it had; and the step's
+    # own state, so an operation run again to be given its answer (engine/asked.py) starts where the first attempt did.
     # (f465) The scene's own state a line writes outside the save: snapshotted by the session at every operation's start and put back by a
     # rollback beside the `_` caches (engine/session.py begin_turn, rollback), so a rolled-back operation leaves no trace of itself in what
     # the narrator remembers, who was last spoken to, what was in view, the plan, the road, the fight that is coming. Declared, not guessed:
@@ -911,7 +918,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         player's: its failure is rolled back alone and written to logs/crash.log, it halts nothing, and the player is told nothing of it
         (Bundle C, owner question 4); the line's outcome is of the player's operations alone (line_failed), the world's failures kept
         beside it (line_world_failed) for the turn log. `op_id`: an id drawn beforehand, when the caller looked for its record first."""
-        from engine import operation as _op
+        from engine import asked as _asked, operation as _op
         index = len(self.line_ops) + len(self.line_failed) + len(self.line_world_failed)
         pending_at = len(self.pending)
         if world and where == "turn":
@@ -933,6 +940,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.unhold(real)                          # symmetric: the real bindings are back before anything is shown or dropped
                 if op.void and self.store._writes == writes0:
                     raise _Void()                              # (f470) nothing took the line and nothing was written: no record, nothing kept
+                self.save_talk()                               # (f485) the conversation, with the operation that moved it
                 self.store.save_player(self.player)            # (f464) what the operation changed of the player is its to keep: a later
                 self.store.commit_operation(op, first_of_line=(index == 0))   # operation's rollback reloads the player from the save
             _op.end("committed")
@@ -946,6 +954,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.unshown_ops[op.id] = waiting              # (f464) marked shown once the passages its later lines wait on have run
             else:
                 self.store.mark_shown(op.id)
+        except _asked.NeedAnswer as e:
+            self.give_back(op, pending_at)                        # (f485) stood down to ask the model outside: nothing kept, nothing
+            op.need = e                                           # counted as failed, nothing halted; asked_operation asks and runs it again
         except _Void:
             _op.end("void")                                       # (f470) ended without a record and not counted; what the scene changed in
             self.passages = [p for p in self.passages if p[4] != op.id]    # memory (a yielded foe let go) stands, nothing was written, and
@@ -958,7 +969,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             if op is not None:
                 op.failure = self.last_failure
-        except Exception as e:
+        except (Exception, _asked.Drift) as e:
             # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
             # the place, and the player reads a line in the narrator's words (run()). What stood before it stands. (f466) A world
             # operation's fault is written there as the world's, and the player reads nothing of it.
@@ -1075,10 +1086,150 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         held, the store is reloaded, the narration it queued for the passage is dropped, its held lines with it, and the line is halted:
         what came before it stands, nothing after it is done. (f466) A world operation's failure halts nothing: the world's operations
         after it run all the same, each apart."""
+        if op is not None:
+            (self.line_world_failed if world else self.line_failed).append(op)
+        self.give_back(op, pending_at)
+        if not world:
+            self.halted = True
+
+    ASKED_MAX = 12                                   # (f485) the most model calls one operation may ask outside it
+
+    def asked_operation(self, kind: str, text: str, body, world: bool = False, keep=None):
+        """(f485, engine/asked.py) An operation that may need the model: run as a restartable attempt. When its body reaches a call asked
+        outside, the operation stands down (give_back), the call is made with no operation open, and the operation runs again from its
+        start, the dice, the plan's steps and what reads had filled in put back as they were, the answer (or its failure) given at the same
+        point. Returns (op, what the body returned) for the attempt that ended, committed or not."""
+        import copy
+        from engine import asked, pulselog, refusals
+        serve = asked._Serving()
+        plan0 = [copy.deepcopy(x) for x in keep] if keep is not None else None
+        later0 = list(self.store._later)
+        marks0 = (len(refusals.SESSION), len(pulselog.LOG))
+        for _ in range(self.ASKED_MAX):
+            snap = streams.snapshot()
+            held = {id(x): x for x in [*self.residents, *self.present, self.partner, self.player] if x is not None}
+            states = {k: x.model_copy(deep=True) for k, x in held.items()}       # who is here and who acts, as found: put back in place,
+            lists = (list(self.residents), list(self.present), self.partner, self.player)   # the same objects, so a holder sees the re-run
+            meta = self.store.meta.model_copy()          # the clock and the input's count as they stand in memory (a give-back reloads the save's)
+            asked.begin(serve)
+            result = None
+            try:
+                with self.operation(kind, text, world=world) as op:
+                    result = body(op)
+            finally:
+                asked.end()
+            need = op.__dict__.pop("need", None)
+            if need is None:
+                return op, result
+            streams.restore(snap)                        # the attempt that stood down drew nothing that counts
+            for k, x in held.items():
+                x.__dict__.update(states[k].__dict__)
+            self.residents, self.present, self.partner, self.player = list(lists[0]), list(lists[1]), lists[2], lists[3]
+            self.store.meta = meta
+            if keep is not None:
+                keep[:] = [copy.deepcopy(x) for x in plan0]
+            self.store._later = list(later0)
+            for log, n in ((refusals.SESSION, marks0[0]), (pulselog.LOG, marks0[1])):     # what the attempt noted goes with it
+                while len(log) > n:
+                    log.pop()
+            try:
+                serve.answers.append((need.key, need.ask(), None))
+            except Interrupt:
+                raise
+            except Exception as e:                       # the model's failure, or the game's own in the call: the body is given it
+                serve.answers.append((need.key, None, e))
+        raise RuntimeError(f"{kind}: more than {self.ASKED_MAX} model calls asked for one operation")
+
+    def prepare_step(self, i: int, plan: list, text: str) -> bool:
+        """(f485) Before a step's operation, its prepare if its kind has one (prepare_<kind>): what the step would do first that is its own
+        thing (a walk, a hand-in), each an operation of its own. False when one of those did not stand: the step is not done."""
+        fn = getattr(self, f"prepare_{plan[i].kind}", None)
+        if fn is None:
+            return True
+        failed = len(self.line_failed)
+        try:
+            fn(plan[i], text)                            # reads only, outside any operation: the write fence is armed
+        except Interrupt:
+            raise
+        except Exception as e:                           # a write there, or any fault: the game's own (logs/crash.log), the step not done
+            from engine import crashlog
+            crashlog.record(e, "turn", text=text, place=self.player.location, turn=self.store.meta.turn, operation=f"prepare_{plan[i].kind}")
+            self.last_failure, self.last_crash = f"{type(e).__name__}: {e}"[:200], True
+            return False
+        return len(self.line_failed) == failed and not self.halted
+
+    def prepare_talk(self, intent, text: str) -> None:
+        """(f485) Before the talk's own operation: the walk to someone of this town who is elsewhere (action:go) and the work handed in by
+        speaking to who pays it (action:handin), each its own operation, so a reply that fails leaves them standing. The talk itself then
+        finds them here, with what was handed in (on_talk)."""
+        if (self.hire_by_id(intent.target) and not self.mentor_with_you()) or self.mentor_wants_talk(intent, text):
+            return
+        target_id = intent.target if intent.target not in ("", "none", "null") else ""
+        if target_id and not any(n.id == target_id for n in self.present) and not self.store.npc_exists(target_id):
+            target_id = ""
+        target_id = target_id or (self.partner.id if self.partner else "") or (self.last_spoken or "")
+        if not target_id:
+            return
+        if not any(n.id == target_id for n in self.present) and not any(n.id == target_id for n in self.residents) and self.store.npc_exists(target_id):
+            away = self.store.load_npc(target_id)
+            from engine import mapview
+            if (away.location in self.world.places and away.location != self.player.location
+                    and mapview.top_of(self.world, away.location) == mapview.top_of(self.world, self.player.location)
+                    and not self.world.places[away.location].danger and away.away_until <= self.minutes):
+                self.asked_operation("action:go", text, lambda op: self.travel_route(away.location, text))
+                if self.halted:
+                    return
+        npc = next((n for n in self.present if n.id == target_id), None)
+        if npc is None or not self.player.quests:
+            return
+
+        def _handin(op):
+            was, self.buffering = self.buffering, True                  # (f384) two jobs handed in are told in one passage
+            handed = self.turn_in(npc.id)
+            self.buffering = was
+            self._handed_in = (npc.id, handed)
+            op.void = not handed
+        self.asked_operation("action:handin", text, _handin)
+
+    def characters(self) -> list:
+        """(f485) The characters in this scene: the one player's today (engine/presence.py reads it)."""
+        return [self.player.character]
+
+    def talk_record(self) -> dict:
+        """(f485) The conversation as the save keeps it (kv talk): who is spoken with, how they are this talk, its lines, who spoke last.
+        Written with each operation's commit, so it rolls back with the operation and is there when the save is opened again."""
+        from engine import presence
+        lines = [list(x) for x in (self.convo or [])][-presence.lines_cap():]
+        return {"speaker": self.partner.id if self.partner else "", "stance": getattr(self, "stance", "") or "", "lines": lines,
+                "last_spoken": self.last_spoken or ""}
+
+    def save_talk(self) -> None:
+        rec = self.talk_record()
+        if not rec["speaker"] and not rec["lines"] and not rec["last_spoken"]:
+            if self.store.load_talk() is not None:
+                self.store.clear_talk()
+            return
+        if self.store.load_talk() != rec:
+            self.store.save_talk(rec)
+
+    def restore_talk(self) -> None:
+        """(f485) A save opened mid-talk: the conversation as it was, once the one spoken with is here."""
+        rec = self.__dict__.pop("_talk_saved", None)
+        if not rec:
+            return
+        self.last_spoken = rec.get("last_spoken") or None
+        who = next((n for n in self.present if n.id == rec.get("speaker")), None)
+        if who is not None:
+            self.partner, self.stance = who, rec.get("stance", "")
+            self.convo = [tuple(x) for x in rec.get("lines") or []]
+
+    def give_back(self, op, pending_at: int) -> None:
+        """(f463) What an operation that did not stand gives back: its record, the session's snapshot of what the database never held, the
+        store reloaded, the narration it queued and its held lines. (f485) Alone, for an operation that stood down to ask the model
+        outside its transaction: nothing of it is counted, nothing halted."""
         from engine import operation as _op
         _op.end("rolled_back")
         if op is not None:
-            (self.line_world_failed if world else self.line_failed).append(op)
             op.held = []
             self.passages = [p for p in self.passages if p[4] != op.id]      # (f464) the passages it queued go with it
         self.session.rollback(self, op.id if op is not None else "")
@@ -1094,8 +1245,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
         del self.pending[pending_at:]
         self.step = None
-        if not world:
-            self.halted = True
 
     def defer(self, kind: str, data: dict) -> None:
         """(f469) An optional call the budget deferred (engine/budget.py Deferred, the table's `later: deferred`): queued in the save,
@@ -1203,11 +1352,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.ran = []
                 plan = None
                 self.collecting = True                     # (f464) a narration asked for by an action is a passage operation after it
-                with self.operation("line", text) as op:   # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
+                def _line(op):                             # (f470) the line taken whole (an answer, a fight's round, an intercept), or void
                     self._wrote_turn = False               # (f351) the narrator's mark is a flag, not a turn number; set inside the operation, so a rollback takes it back
-                    taken = self.take_line(text)
-                    if taken is None:
+                    got = self.take_line(text)
+                    if got is None:
                         op.void = True
+                    return got
+                op, taken = self.asked_operation("line", text, _line)
                 if op.state == "rolled_back":
                     return False
                 if not taken:                              # (f470) the understanding outside any transaction: the interpreter and the audit read
@@ -1215,20 +1366,28 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     if plan is False:
                         return False
                     if plan is not None:
-                        with self.operation(f"action:{plan[0].kind}", text) as op:
+                        def _first(op):
                             self._wrote_turn = False
                             self.pending_clarify = None    # (f470) a question this line answered is spent inside the first action's commit
                             self.run_step(0, plan, text)
-                        if op.state != "committed":
-                            return False
+                        before = len(self.line_ops)
+                        stood = self.prepare_step(0, plan, text) and self.asked_operation(f"action:{plan[0].kind}", text, _first,
+                                                                                            keep=plan)[0].state == "committed"
+                        prepared = any(o.kind in ("action:go", "action:handin") for o in self.line_ops[before:])
+                        if not stood and not prepared:
+                            return False                   # the first action did not stand: the line is not taken (a board refresh aside)
+                        if not stood:                      # (f485) its prepare's own operation stood (the walk, the hand-in): what stood stands
+                            plan = plan[:1]
                 self.run_passages()
                 if plan is not None:
                     for i in range(1, len(plan)):
                         if self.combat or self.halted:
                             console.debug(f"stopping after {i} of {len(plan)} actions")
                             break
-                        with self.operation(f"action:{plan[i].kind}", text) as op:
-                            self.run_step(i, plan, text)
+                        if not self.prepare_step(i, plan, text):     # (f485) the step's own prepare (a walk, a hand-in) did not stand
+                            self.run_passages()
+                            break
+                        op, _ = self.asked_operation(f"action:{plan[i].kind}", text, lambda op, i=i: self.run_step(i, plan, text), keep=plan)
                         self.run_passages()
                         if op.state != "committed":
                             break                              # what stood stands; the rest of the line is not done
@@ -2957,9 +3116,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             console.debug(f"trusted face: {npc.name} starts at trust {regard.of(npc, self.acting).trust}")
         check_note = getattr(self, "pending_check", "")
         self.pending_check = ""
-        was, self.buffering = self.buffering, True                              # (f384) two jobs handed in are told in one passage
-        handed = self.turn_in(npc.id) if self.player.quests else []             # (f378) finished work is handed in by speaking to who pays
-        self.buffering = was
+        pre = self.__dict__.pop("_handed_in", None)                           # (f485) handed in by the prepare, its own operation
+        if pre is not None and pre[0] == npc.id:
+            handed = pre[1]
+        else:
+            was, self.buffering = self.buffering, True                          # (f384) two jobs handed in are told in one passage
+            handed = self.turn_in(npc.id) if self.player.quests else []         # (f378) finished work is handed in by speaking to who pays
+            self.buffering = was
         if handed:
             check_note = (check_note + " [THE GAME HAS DECIDED: the stranger has handed in " + "; ".join(handed)
                           + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()
@@ -2990,6 +3153,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
                                    wares=self.wares_said(npc), who=self.acting)             # (f418) at the prices the game charges; (f480) to whom
         voices.heard(self, town, npc.id, reply.speech)
+        from engine import presence                                            # (f485) what was said aloud reaches those standing by
+        claimed = (getattr(reply, "learned_player_name", "") or "").strip()
+        if claimed and claimed.lower() in speech.lower():
+            presence.overheard_name(self, npc, self.acting, claimed)
+        told = [f for f in (self.world.lore.get(r) for r in revealed if not str(r).startswith("clue:")) if f is not None]
+        if told:
+            presence.overheard_facts(self, npc, told)
         if reply.intent == "leave" and not has_parting(reply.speech):
             reply.intent = "small_talk"            # nobody walks off without a word: no goodbye or dismissal in the speech, no leaving
         self.convo += [("Stranger", speech), (npc.name, reply.speech)]
@@ -3103,14 +3273,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             out.append(mentor.NAME)
         return out
 
-    def show_speech(self, speaker: str, reply, npc) -> None:
-        """(f347) The words alone, with the person's own gesture when it is short enough to read as one (voice_rules.short_gesture)."""
+    def show_speech(self, speaker: str, reply, npc, stood_in: bool = False) -> None:
+        """(f347) The words alone, with the person's own gesture when it is short enough to read as one (voice_rules.short_gesture).
+        (f485) `stood_in`: the narrator's frame was dropped or failed: with no gesture of their own, one from data (voice.yaml
+        frame_stand_in), drawn for this speaker; never the same machinery line twice running."""
         from engine import quirks
         gesture = voice_rules.short_gesture(quirks.bare_gesture(self.unnamed(getattr(reply, "gesture", "") or "", npc), npc.name))   # no 'Rossy gives...': the label is printed
+        if stood_in and not gesture:
+            gesture = streams.keyed("frame_stand_in", npc.id, "", self.store.meta.steps).choice(voice_rules.V["frame_stand_in"])
         from llm.contracts import NO_WORDS
         if NO_WORDS.fullmatch(reply.speech or ""):                     # (f422) no words: what they do, and no name over an empty line
             done = self.unnamed(getattr(reply, "gesture", "") or "", npc).strip()
-            line = f"{speaker} {done}" if done and not done.lower().startswith(speaker.lower()) else (done or f"{speaker} says nothing.")
+            silent = streams.keyed("no_words", npc.id, "", self.store.meta.steps).choice(voice_rules.V["no_words"]).format(speaker=speaker)
+            line = f"{speaker} {done}" if done and not done.lower().startswith(speaker.lower()) else (done or silent)
             console.narrate(cap_first(line.rstrip(".") + "."))
             self.remember_narration(line)
             return
@@ -3143,7 +3318,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 context={"speaker": [npc.name, known_as, speaker], "others": self.other_names(npc), "speech": reply.speech}, worn=self.worn_words("prose"),
             )
         except LLMError:
-            self.show_speech(speaker, reply, npc)
+            self.show_speech(speaker, reply, npc, stood_in=True)     # (f485) dropped or failed: the words, with a gesture from data if none
             return
         before, after = self.unnamed(frame.before, npc), self.unnamed(frame.after, npc)
         console.dialogue(before, speaker, reply.speech, after)
