@@ -41,4 +41,34 @@ families:
         issuer_gone: ["The one who asked for it is gone; it came to nothing.", "Nobody is left to pay for it."]
         place_changed: ["What it was for is not there any more.", "The place it named has changed past it."]
     remember: {}                      # the hand-in and the walking away are deeds: the reactions already give the issuer the memory
+  commitment:                         # (f481 part 2) what a hire has promised or owes, held on the hire's own record (engine/canon.py)
+    kind: obligation
+    open_cap: 6                       # held at once; one said beyond them is kept as their word, and none of the six is let go for it
+    said_cap: 20
+    kept_similarity: 0.55             # how near a "that's settled" must be to the promise it names, by meaning
+    reasons:
+      fulfilled: {kept: ["Kept, as they said they would.", "Settled, by their own account.", "Done, and said so."]}
+      released:
+        hire_left: ["They left the company before it came to anything.", "They went their way with it still unsettled."]
+        hire_died: ["They died with it still owed.", "It died with them."]
+    remember: {}
+  bribe:                              # (f481 part 2) paid to look away: kept once the time agreed has passed
+    kind: obligation
+    open_cap: 0
+    reasons:
+      fulfilled: {term_kept: ["They looked away as long as they were paid to.", "The time bought has run, and they kept to it."]}
+      broken: {talked: ["They talked, paid or not."]}
+      released: {gone: ["The one who was paid is gone."]}
+    remember: {}
+  errand:                             # (f481 part 2) the one small thing a companion asks
+    kind: offer
+    open_cap: 1
+    reasons:
+      taken: {agreed: ["The stranger said yes.", "Done for them, with a yes."]}
+      released:
+        refused: ["The stranger said no.", "Turned down."]
+        cannot_pay: ["The stranger could not cover it.", "There was not the coin for it."]
+        no_answer: ["Asked, and let lie unanswered.", "No answer came; they let it be for the day."]
+        gone: ["The one who asked is gone."]
+    remember: {}                      # the companion already keeps what came of it (scenes/quirk_actions.py)
 keep_days: 30                         # a final row is kept this long for the measures and the journal, then removed (its memory stays)

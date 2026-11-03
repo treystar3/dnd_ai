@@ -36,13 +36,18 @@ def open_(store, fam: str, holder: str, who: str, title: str, minute: int, terms
     ref = f"obl:{streams.new_id(8, 'obl')}"
     while store.load_entity(ref) is not None:               # the id stream repeats after a reload at the same turn: never write over a row
         ref = f"obl:{streams.new_id(8, 'obl')}"
-    return entities.begin(store, kind, ref, title[:120], minute, owner=who,
-                          links={"npc": holder} if holder else {},
+    links = {"hire": holder.split(":", 1)[1]} if holder.startswith("hire:") else {"npc": holder} if holder else {}   # (part 2) a hire's, by id
+    return entities.begin(store, kind, ref, title[:120], minute, owner=who, links=links,
                           data={"family": fam, "with": who, "title": title, "terms": dict(terms or {}), "key": key or f"{fam}:{holder}"})
 
 
+def holder_of(e) -> str:
+    """Whose it is: a person's id, or hire:<id> for a hire's."""
+    return f"hire:{e.links['hire']}" if e.links.get("hire") else e.links.get("npc", "")
+
+
 def _mine(e, fam: str | None, holder: str | None, who: str | None) -> bool:
-    return (fam is None or e.data.get("family") == fam) and (holder is None or e.links.get("npc") == holder) \
+    return (fam is None or e.data.get("family") == fam) and (holder is None or holder_of(e) == holder) \
         and (who is None or e.data.get("with") == who)
 
 
@@ -101,6 +106,15 @@ def lapse(ws) -> list:
     work for the day, or the character has left their town. Returns what was withdrawn."""
     from engine import clock, pulse
     out = []
+    for e in open_ones(ws.store, "bribe", who=ws.acting):        # (part 2) paid to look away: kept once the time bought has passed
+        if ws.minutes >= int((e.data.get("terms") or {}).get("until", 0)):
+            close(ws.store, e, "fulfilled", "term_kept", ws.minutes)
+            out.append(e)
+    asked = getattr(ws, "_errand", None)
+    for e in open_ones(ws.store, "errand", who=ws.acting):       # (part 2) an errand's ask is answered on the next line, or let lie
+        if not asked or f"hire:{asked[0].get('id', '')}" != holder_of(e):
+            close(ws.store, e, "released", "no_answer", ws.minutes)
+            out.append(e)
     here = pulse.town_of(ws.world, ws.player.location) if ws.player.location in ws.world.places else ""
     for e in open_ones(ws.store, "work", who=ws.acting):
         holder = e.links.get("npc", "")

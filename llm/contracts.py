@@ -1758,7 +1758,7 @@ class ExtractedFact(BaseModel):
     subject is 'self' (the speaker), 'player', 'world', or the name of someone else."""
     speaker: str
     subject: str = "self"
-    kind: Literal["backstory", "trait", "possession", "intention", "commitment", "moment", "world"] = "backstory"
+    kind: Literal["backstory", "trait", "possession", "intention", "commitment", "kept", "moment", "world"] = "backstory"   # (f481) kept: a promise settled
     text: str
     weight: Literal["light", "personal", "heavy"] = "personal"
     lasts: Literal["years", "while", "now"] = "years"
@@ -1771,10 +1771,11 @@ class ExtractedFact(BaseModel):
             data = dict(data)
             k = str(data.get("kind", "") or "").lower().strip()
             k = {"life": "backstory", "now": "moment", "self": "backstory", "past": "backstory", "history": "backstory", "possessions": "possession",
-                 "intentions": "intention", "plan": "intention", "promise": "commitment", "debt": "commitment", "state": "moment"}.get(k, k)
+                 "intentions": "intention", "plan": "intention", "promise": "commitment", "debt": "commitment", "state": "moment",
+                 "settled": "kept", "paid": "kept", "fulfilled": "kept", "done": "kept"}.get(k, k)
             if data.get("about") == "world":
                 k = "world"
-            data["kind"] = k if k in ("backstory", "trait", "possession", "intention", "commitment", "moment", "world") else "backstory"
+            data["kind"] = k if k in ("backstory", "trait", "possession", "intention", "commitment", "kept", "moment", "world") else "backstory"
             g = str(data.get("weight", "") or "").lower().strip()
             data["weight"] = g if g in ("light", "personal", "heavy") else "personal"
             if "text" not in data and "claim" in data:          # the schema calls it claim

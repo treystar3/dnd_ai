@@ -286,7 +286,8 @@ class Run:
                                       "target": r.get("target", ""), "witnesses": list(w)[:12], "text": str(r.get("text", ""))[:120]})
             self._deed_seq = max([r["seq"] for r in rows], default=last or 0)
             return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
-                    "commitments": sum(len(m.get("commitments") or []) for m in p.party), "deeds": deeds}
+                    "commitments": sum(1 for m in p.party for c in (m.get("commitments") or []) if c.get("state", "active") == "active"),   # (f481) held
+                    "deeds": deeds}
         except Exception as e:
             return {"continuity_error": str(e)[:120]}
 

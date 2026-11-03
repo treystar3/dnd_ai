@@ -80,12 +80,21 @@ class Reactions:
         ent.data.update(how=e.text(), place=self.ws.player.location, place_name=self.ws.place.name if self.ws.place else "",
                         note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player")
         entities.move(self.ws.store, ent, "dead", e.minute or self.ws.minutes, e.text())
+        self._let_go(e.member_id, "hire_died")
 
     def departed(self, e) -> None:
         from engine import entities
         ent = self._hire_entity(e.member_id)
         if ent is not None and not entities.final(ent):
             entities.move(self.ws.store, ent, "departed", e.minute or self.ws.minutes, e.text())
+        self._let_go(e.member_id, "hire_left")
+
+    def _let_go(self, member_id: str, cause: str) -> None:
+        """(f481) What a hire had promised or owed is let go when they die or leave, each for that reason."""
+        from engine import canon, clock
+        m = next((x for x in self.ws.player.party if x.get("id") == member_id), None)
+        if m is not None:
+            canon.release_commitments(m, cause, clock.day(self.ws.minutes))
 
     # ---- where and when
 

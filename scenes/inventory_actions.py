@@ -327,6 +327,9 @@ class InventoryActions:
             c.coins -= amount
             from engine import law
             npc.looks_away_until = self.minutes + law.N["look_away_minutes"]
+            from engine import obligations                     # (f481) what they were paid for, kept once the time bought has passed
+            obligations.open_(self.store, "bribe", npc.id, self.acting, favor, self.minutes,
+                              terms={"until": npc.looks_away_until, "amount": amount})
             console.ledger(f"Gave {money.fmt(amount)} to {npc.label(self.acting)}. Purse: {money.fmt(c.coins)}")
             effect = f"You are persuaded and take the {sum_}. You will do what they ask in the story, quietly."
         elif degree == "partial":
