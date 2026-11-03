@@ -84,6 +84,7 @@ class Run:
         self.calls: list[dict] = []
         self.sub_answers = 0
         self.hesitations = 0                         # turns in a row the model failed
+        self.crash_streak = 0                        # (f492) of those, the turns the game failed on its own fault (crash.log)
         self.reason = ""
         self.stop_when = None                        # a run with a goal (tools/eventrun.py) says when it is reached
         self.passage: list[str] = []                 # (f368) everything the game said since the last line: what the bot's next line answers
@@ -202,6 +203,8 @@ class Run:
                    deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
                    stand_ins=list(_budget.LAST.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
+        row["crashed"] = bool(row["hesitated"] and getattr(getattr(self.bot, "ws", None), "last_crash", False))   # (f492) the game's fault
+        self.crash_streak = self.crash_streak + 1 if row["crashed"] else 0 if not row["hesitated"] else self.crash_streak
         if not row["hesitated"]:
             self.hesitations = 0
         self.rows.append(row)
@@ -297,7 +300,11 @@ class Run:
             return f"turn limit ({self.max_turns})"
         if time.time() - self.started >= self.hours * 3600:
             return f"time limit ({self.hours:g} hours)"
-        if self.hesitations >= 12:
+        if self.hesitations >= 12:                                           # (f492) a fault of the game's own is named as one
+            if self.crash_streak >= self.hesitations:
+                return "the game failed 12 turns in a row on its own fault (crash.log)"
+            if self.crash_streak:
+                return f"12 turns failed in a row ({self.crash_streak} of them the game's own fault, crash.log)"
             return "the model stopped answering (12 turns failed in a row)"
         if self.live and self.hesitations >= 3:
             from llm import setup_check
@@ -537,6 +544,7 @@ def main() -> None:
     config.TURN_LOG_PATH = str(out / "turns_game.jsonl")
     config.SESSION_STATS_PATH = str(out / "sessions.jsonl")
     config.REFUSALS_LOG_PATH = str(out / "refusals.jsonl")
+    config.CRASH_LOG_PATH = str(out / "crash.log")            # (f492) each run's faults in its own folder: runs on one card never interleave
     config.LOG_MAX_MB = 10 ** 6
     config.LOG_FULL_PROMPTS = True                           # (f361) every system prompt whole: a run's log is training data (tools/lora_dataset.py)
 

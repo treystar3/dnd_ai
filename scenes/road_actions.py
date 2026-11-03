@@ -236,6 +236,8 @@ class RoadActions:
             stop = roads.make_stop(self.world, a, b, frac, minutes, ev.scene, role, ev.title, ev.detail, stop_name)
             stop.update(log=log[-6:], text=text, resume=(route[-1] if resume is None else resume) if hostile else "",
                         bound=route[-1], kind=kind, tier=tier)
+            back, onward = list(stop["place"]["connects"])[0], list(stop["place"]["connects"])[-1]   # (f492) the stop's own ends, real places:
+            back, onward = self.world.places[back].name, self.world.places[onward].name               # `a` may be the stop left behind, tidied next
             if camp:
                 stop["camp"] = max(1, round(sum(self.world.places[wild].danger) / 2))
             if (self.player.road or {}).get("id") not in stop["place"]["connects"]:      # (f426) never one the new stop is joined to
@@ -260,7 +262,7 @@ class RoadActions:
                     console.note("You saw them before they saw you (Scout Ahead).")
                 return "fight"
             self.stop_waits(ev, kind, tier, b, prize)
-            console.note(f"You stop here, on the road. Onward to {self.world.places[b].name}, or back to {self.world.places[a].name}.")
+            console.note(f"You stop here, on the road. Onward to {onward}, or back to {back}.")
             self.show_exits()
             return "stopped"
         return "go"

@@ -54,12 +54,10 @@ class InventoryActions:
         return Stowed(kept, leftover)
 
     def ground_here(self) -> list[Item]:
-        state = self.store.load_place(self.player.location)
-        before = len(state.ground)
-        found = inv.ground_items(state, self.minutes)
-        if len(state.ground) != before:
-            self.store.save_place(state)
-        return found
+        """(f492) What lies here, read and never written: the understanding asks it outside any operation, with the write fence armed (a
+        night's search crashed twelve turns in a row on the tidy-up that used to be saved here). What has lain too long is left out of
+        the answer and dropped from the row the next time the place is written (inventory.leave_on_ground, pick_up)."""
+        return inv.ground_items(self.store.load_place(self.player.location), self.minutes)
 
     def stash_cap(self) -> int:
         return R["stash_slots"] + property_rules.stash_bonus(self.player)

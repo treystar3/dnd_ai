@@ -203,6 +203,7 @@ def ground_items(state, now: int) -> list[Item]:
 
 
 def leave_on_ground(state, item: Item, now: int) -> None:
+    ground_items(state, now)                     # (f492) what has lain too long goes whenever the ground is written, not when it is read
     state.ground.append({"item": item.model_dump(), "minute": now})
 
 
