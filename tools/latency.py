@@ -3,6 +3,10 @@
     python tools/latency.py RUN_DIR                    a night run's folder (tools/nightrun.py): calls and turns, written to RUN_DIR/summary.md
     python tools/latency.py --calls logs/llm_calls.jsonl   any call log on its own (a real session's, for instance)
     python tools/latency.py --baseline RUN_DIR...          (f475) a night's speech-task sizes, first tries and continuity counts, as YAML
+    python tools/latency.py --against RUN_DIR...           (f490) a night's speech tasks beside Bundle D's baseline and their ceilings
+    python tools/latency.py --gate                         (f490) the goldens priced at expected answers against their pre-D prices
+    python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
+    python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
 
 The call log carries one row per attempt: its task, its wall seconds and, since the gateway began keeping them, Ollama's own
 counts (`tokens`: prompt and written tokens, the milliseconds each took, a model load). A night run adds turns.jsonl, one row per
@@ -133,6 +137,155 @@ def speech_table(calls: list[dict]) -> list[str]:
         lines.append(f"| {task} | {r['calls']} | {round(100 * r['first_try'])}% | {cell(r['p50'])} | {cell(r['p95'])} | {cell(r['max'])} | "
                      f"{cell(r['tail_p50'])} | {'-' if r['cached'] is None else str(round(100 * r['cached'])) + '%'} |")
     return lines
+
+
+# (f490) Bundle D's closing: the night's speech tasks beside the baseline's, each task's prompt ceiling (data/measured/prompt_ceilings.yaml,
+# reported and never enforced: GOALS.md S7), and the goldens priced with every answer at its expected size against their pre-D prices.
+CEILINGS = Path(__file__).resolve().parent.parent / "data" / "measured" / "prompt_ceilings.yaml"
+GOLDENS = Path(__file__).resolve().parent.parent / "data" / "replay" / "sessions"
+
+
+def _yaml(path: Path) -> dict:
+    try:
+        import yaml
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def ceilings() -> dict:
+    """(f490) Per speech task, its prompt ceiling in characters, and the closing's marks."""
+    return _yaml(CEILINGS)
+
+
+def against(calls: list[dict], base: dict | None = None, ceil: dict | None = None) -> list[str]:
+    """(f490) The speech tasks on this night beside the baseline's: calls, first-try acceptance and its move in points, the prompt's p95
+    beside the baseline's and the task's ceiling, the most, and the share of prompt tokens the server had cached. Then the closing's
+    size and acceptance marks, each said as held or not (the bundle's other marks are read from the page and the blind reading)."""
+    base = _yaml(BASELINE) if base is None else base
+    ceil = ceilings() if ceil is None else ceil
+    marks = ceil.get("closing") or {}
+    was = base.get("tasks") or {}
+    tops = {t: (v or {}).get("chars") for t, v in (ceil.get("ceilings") or {}).items()}
+    m = speech_measures(calls)
+    if not m:
+        return ["No speech calls on this night."]
+    cell = lambda v: "-" if v is None else str(v)
+    lines = ["| Speech task | Calls | First try | Before | Points | Prompt p95 | Before | Ceiling | Most | Cached |",
+             "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+    dearer, over, fell = [], [], []
+    for task, r in m.items():
+        b = was.get(task) or {}
+        moved = None if b.get("first_try") is None else round(100 * (r["first_try"] - b["first_try"]))
+        if r["p95"] is not None and b.get("p95") is not None and r["p95"] > b["p95"]:
+            dearer.append(task)
+        if r["p95"] is not None and tops.get(task) and r["p95"] > tops[task]:
+            over.append(task)
+        if task in (marks.get("first_try_tasks") or []) and moved is not None and moved < -int(marks.get("first_try_points", 5)):
+            fell.append(f"{task} {moved:+d}")
+        lines.append(f"| {task} | {r['calls']} | {round(100 * r['first_try'])}% | {'-' if b.get('first_try') is None else str(round(100 * b['first_try'])) + '%'} | "
+                     f"{'-' if moved is None else f'{moved:+d}'} | {cell(r['p95'])} | {cell(b.get('p95'))} | {cell(tops.get(task))} | {cell(r['max'])} | "
+                     f"{'-' if r['cached'] is None else str(round(100 * r['cached'])) + '%'} |")
+    conv = (m.get("npc_conversation") or {}).get("p95")
+    mark = marks.get("npc_conversation_p95")
+    lines.append("")
+    lines.append(f"Size: {len(m) - len(dearer)} of {len(m)} tasks at or below the baseline's p95" + (f" (dearer: {', '.join(dearer)})" if dearer else "")
+                 + (f"; npc_conversation's p95 {conv} against the mark of {mark}, " + ("held" if conv <= mark else "not held") if conv is not None and mark else "")
+                 + f"; over their ceiling: {', '.join(over) if over else 'none'}.")
+    lines.append(f"Acceptance: first tries within {marks.get('first_try_points', 5)} points of the baseline for "
+                 f"{', '.join(marks.get('first_try_tasks') or []) or 'no task named'}: " + (f"not held ({'; '.join(fell)})" if fell else "held") + ".")
+    return lines
+
+
+def speech_inputs(folder: Path) -> set[int]:
+    """(f490) The inputs of a recording that made a speech call."""
+    import card_profile
+    tasks = set(speech_tasks())
+    return {int(c.get("input", 0)) for c in card_profile.calls_of(Path(folder)) if c.get("kind") != "embed"
+            and (c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) in tasks}
+
+
+def dearer(now: dict, before: dict, inputs: set[int] | None = None) -> list[tuple[int, float | None, float]]:
+    """(f490) The inputs priced above their pre-D price (to the tenth of a second the baseline keeps), of those with a speech call when
+    they are named; an input the baseline never priced counts as dearer."""
+    out = []
+    for i, s in sorted(now.items()):
+        if inputs is not None and i not in inputs:
+            continue
+        b = before.get(i)
+        if b is None or round(s, 1) > float(b):
+            out.append((i, b, round(s, 1)))
+    return out
+
+
+def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple[int, float | None, float]]]:
+    """(f490) The goldens against their pre-D prices (the baseline's estimates), every answer at its expected size: per golden, the inputs
+    with a speech call priced dearer than before. Empty lists everywhere: the gate holds."""
+    import card_profile
+    base = _yaml(BASELINE) if base is None else base
+    out = {}
+    for name, before in (base.get("estimates") or {}).items():
+        folder = Path(root) / name
+        now = dict(card_profile.estimate_inputs(folder, expected=True))
+        out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder))
+    return out
+
+
+def golden_sizes(root: Path = GOLDENS) -> dict[str, tuple[int, str]]:
+    """(f490) Per speech task, the largest prompt any golden recording sends, and the golden it is in."""
+    import card_profile
+    tasks = set(speech_tasks())
+    out: dict[str, tuple[int, str]] = {}
+    for folder in sorted(Path(root).iterdir()) if Path(root).exists() else []:
+        if not (folder / "calls.jsonl.gz").exists():
+            continue
+        for c in card_profile.calls_of(folder):
+            task = c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")
+            if c.get("kind") == "embed" or task not in tasks:
+                continue
+            n = sum(len(str(m.get("content") or "")) for m in (c.get("request") or {}).get("messages") or [])
+            if n > out.get(task, (0, ""))[0]:
+                out[task] = (n, folder.name)
+    return out
+
+
+def ceilings_from(run_dirs: list[Path] = (), base: dict | None = None, root: Path = GOLDENS, kept: dict | None = None) -> dict:
+    """(f490) Each speech task's ceiling: the night's p95 (the runs given; with none, the baseline night's), never under the largest
+    prompt a golden sends, rounded up to `round_to`. A task measured by neither keeps the ceiling it had."""
+    kept = ceilings() if kept is None else kept
+    step = int(kept.get("round_to") or 500)
+    night = speech_measures([r for d in run_dirs for r in load(Path(d) / "llm_calls.jsonl")]) if run_dirs else \
+        ((_yaml(BASELINE) if base is None else base).get("tasks") or {})
+    gold = golden_sizes(root)
+    out = {}
+    for task in speech_tasks():
+        p95 = (night.get(task) or {}).get("p95")
+        g, where = gold.get(task, (None, ""))
+        if p95 is None and g is None:
+            if (kept.get("ceilings") or {}).get(task):
+                out[task] = dict(kept["ceilings"][task])
+            continue
+        chars = -(-max(x for x in (p95, g) if x is not None) // step) * step
+        src = [f"{'the night' if run_dirs else 'the baseline night'}'s p95 {p95}" if p95 is not None else "",
+               f"{where}'s largest {g}" if g is not None else ""]
+        out[task] = {"chars": chars, "from": "; ".join(s for s in src if s)}
+    return out
+
+
+def write_ceilings(run_dirs: list[Path] = (), note: str = "") -> str:
+    """(f490) data/measured/prompt_ceilings.yaml written from ceilings_from(), its closing marks kept as they were."""
+    import yaml
+    kept = ceilings()
+    rows = ceilings_from(run_dirs, kept=kept)
+    old = CEILINGS.read_text(encoding="utf-8") if CEILINGS.exists() else "# (f490) prompt ceilings\n"
+    head = old.split("\nsource:")[0]
+    marks = ("closing:" + old.split("\nclosing:", 1)[1]) if "\nclosing:" in old else ""      # the marks as written, comments and all
+    body = {"source": note or (", ".join(Path(d).name for d in run_dirs) if run_dirs else "the baseline night and the goldens: the post-D night pending"),
+            "round_to": int(kept.get("round_to") or 500),
+            "ceilings": {t: {"chars": v["chars"], "from": v.get("from", "")} for t, v in rows.items()}}
+    text = head.rstrip("\n") + "\n" + yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=140, default_flow_style=None) + marks
+    CEILINGS.write_text(text, encoding="utf-8")
+    return text
 
 
 def baseline(run_dirs: list[Path], note: str = "") -> dict:
@@ -386,6 +539,8 @@ def summarise(run_dir: Path) -> str:
     lines += calls_table(calls) if calls else ["No calls recorded."]
     if calls:                                                       # (f475) the speech tasks Bundle D changes, measured first
         lines += ["", "## Speech tasks (prompt size and first try)", ""] + speech_table(calls)
+        if BASELINE.exists():                                       # (f490) beside the baseline's, with each task's ceiling
+            lines += ["", "## Speech tasks against Bundle D's baseline", ""] + against(calls)
     text = "\n".join(lines) + "\n"
     (run_dir / "summary.md").write_text(text, encoding="utf-8")
     return text
@@ -399,6 +554,23 @@ def main() -> None:
     if args[0] == "--baseline":                                     # (f475) --baseline RUN_DIR... : the night's measures, as YAML
         import yaml
         print(yaml.safe_dump(baseline([Path(a) for a in args[1:]]), sort_keys=False, allow_unicode=True, width=140))
+        return
+    if args[0] == "--against":                                      # (f490) --against RUN_DIR... : the speech tasks beside the baseline's
+        print("\n".join(against([r for a in args[1:] for r in load(Path(a) / "llm_calls.jsonl")])))
+        return
+    if args[0] == "--gate":                                         # (f490) the goldens against their pre-D prices; exit 1 when dearer
+        got = gate()
+        for name, rows in got.items():
+            print(f"{name}: " + ("every input with a speech call at or below its pre-D price" if not rows else
+                                 "dearer than before: " + ", ".join(f"input {i} ({b} s before, {s} s now)" for i, b, s in rows)))
+        sys.exit(1 if any(got.values()) else 0)
+    if args[0] == "--ceilings":                                     # (f490) --ceilings [RUN_DIR...] : write data/measured/prompt_ceilings.yaml
+        print(write_ceilings([Path(a) for a in args[1:]]))
+        return
+    if args[0] == "--estimates":                                    # (f490) --estimates RECORDING : its inputs priced at expected answers
+        import card_profile
+        for i, s in card_profile.estimate_inputs(Path(args[1]), expected=True):
+            print(f"    {i}: {round(s, 1)}")
         return
     if args[0] == "--calls":
         rows = load(Path(args[1] if len(args) > 1 else "logs/llm_calls.jsonl"))

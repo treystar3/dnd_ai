@@ -144,6 +144,34 @@ def baseline_problems(base: dict | None = None) -> list[str]:
     return bad
 
 
+def ceilings_problems(ceil: dict | None = None) -> list[str]:
+    """(f490) data/measured/prompt_ceilings.yaml, when it is there: every speech task the baseline names has a ceiling, each a whole number
+    of characters, none for a task the baseline does not name; the closing's marks name speech tasks and are numbers."""
+    if ceil is None:
+        if not (ROOT / "data" / "measured" / "prompt_ceilings.yaml").exists():
+            return []
+        ceil = _load("data/measured/prompt_ceilings.yaml") or {}
+    bad: list[str] = []
+    listed = set((_load("data/measured/bundle_d_baseline.yaml") or {}).get("speech_tasks") or [])
+    tops = ceil.get("ceilings") or {}
+    for task in sorted(listed - set(tops)):
+        bad.append(f"prompt_ceilings.yaml ceilings: no ceiling for the speech task {task}")
+    for task, v in tops.items():
+        if task not in listed:
+            bad.append(f"prompt_ceilings.yaml ceilings.{task}: not a speech task the baseline names")
+        n = (v or {}).get("chars") if isinstance(v, dict) else None
+        if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+            bad.append(f"prompt_ceilings.yaml ceilings.{task}.chars: a whole number of characters above zero")
+    marks = ceil.get("closing") or {}
+    for task in sorted(set(marks.get("first_try_tasks") or []) - listed):
+        bad.append(f"prompt_ceilings.yaml closing.first_try_tasks: {task} is not a speech task the baseline names")
+    for k in ("first_try_points", "many_points", "npc_conversation_p95"):
+        v = marks.get(k)
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+            bad.append(f"prompt_ceilings.yaml closing.{k}: a whole number")
+    return bad
+
+
 def check() -> list[str]:
     broken = []
     for f in sorted((ROOT / "data").rglob("*.yaml")):              # every data file, not only the ones cross-checked below
@@ -548,6 +576,7 @@ def check() -> list[str]:
 
     # ---- (f475) Bundle D's baseline (data/measured, outside the hash): every task it measures is one the budget knows
     bad += baseline_problems()
+    bad += ceilings_problems()                                      # (f490)
 
     # ---- (f478) how much of each kind of memory a person keeps
     from engine import memory as _memory

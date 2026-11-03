@@ -13,8 +13,14 @@ local night's.
 | A10 | 24 GB | 2 to 3 | Lambda |
 | A100 40 GB | 40 GB | 5 to 6 | Lambda, RunPod |
 
-The model's weights take about 8 GB; each run at once adds its own context cache, a few gigabytes at the game's 32k context. `ollama ps`
-on the box shows how much of the model sits on the card: anything under 100% GPU means one run too many.
+The model's weights take about 8 GB. (f490) The server holds one context cache per request it serves at once, not per run: the night
+script starts Ollama with `OLLAMA_NUM_PARALLEL` set to PARALLEL, each of those slots is the game's 32k context (about a gigabyte on
+Gemma 4, an estimate: most of its layers keep only a sliding window), and the server's prompt cache and per-slot checkpoints sit in the
+box's memory, not on the card. Runs beyond the slots wait their turn. A run does not keep a slot of its own either: a request goes to the
+idle slot whose last prompt shares the most with it, and every townsperson's call shares the same rules, so one run's speaker pushes
+another's out. A night with more than one run at once cannot measure what one player's calls reuse: judge cache hits and turn time from
+one run at a time (PARALLEL=1, RUNS run one after another). `ollama ps` on the box shows how much of the model sits on the card: anything
+under 100% GPU means one slot too many.
 
 Disk: a **container disk of 30 GB** and no volume disk. The model is 8 GB, Ollama itself about 1.5 GB, the game and its libraries under
 half a gigabyte, and a night's logs about 100 MB per run (full prompts) plus the zip, so 15 GB is used and 30 leaves room. Put the game in
@@ -38,6 +44,21 @@ when the pod is terminated, which is what you want once the zip is downloaded.
 4. Download `out/night_<when>.zip` from the box's file browser, then **terminate** the machine. A stopped one still bills for its disk.
 5. At home, unzip it beside the other nights and read it as usual: each run's `summary.md` ends with the Play section, and
    `tools/lora_dataset.py --runs-dir` takes the whole folder.
+
+## Bundle D's closing night (f490)
+
+The night that closes Bundle D is run as its baseline was (four runs at once, continuity on, the same personas and seeds) and measured
+against `data/measured/bundle_d_baseline.yaml`: prompt sizes and first tries compare whatever the runs at once, and turn time is priced
+from the card's profile, not the night's clock. Its cache-hit rate is reported, never judged: with four runs at once it is not one
+player's (above). Before terminating the box, count the two-speaker reply's first tries on the card:
+`python tools/live_check.py --mode addressees --runs 20` (saves/live_check_report.md). At home:
+
+    python tools/latency.py --against <run folders>     the speech tasks' sizes, first tries and cache hits beside the baseline's
+    python tools/latency.py --gate                      the goldens priced at expected answers: no input dearer than before Bundle D
+    python tools/latency.py --ceilings <run folders>    each speech task's ceiling from the night's p95 (data/measured/prompt_ceilings.yaml)
+
+`brief.yaml many_addressees` stays `one_call` only if the two-speaker reply's first tries are within the closing's `many_points` of
+npc_conversation's baseline; otherwise it becomes `flat_each`.
 
 ## What to expect
 

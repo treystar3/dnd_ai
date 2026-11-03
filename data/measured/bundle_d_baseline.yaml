@@ -8,7 +8,9 @@
 #   tasks:        per task: calls, first_try (first tries accepted, of all), p50 / p95 / max prompt characters, tail_p50, cached
 #   continuity:   per run, the page's C1-C8 counts (tools/page_measures.py continuity)
 #   blind:        the blind reading's memory-and-time counts (tools/blind_review.md question 5), by hand once read
-#   estimates:    per input of each golden, the required path's seconds with every answer at its expected size (card_profile --expected)
+#   estimates:    per input of each golden, the required path's seconds with every answer at its expected size (card_profile --expected);
+#                 (f490, tools/latency.py --estimates) stub_party's from its recording as first kept (f476, 26b5239), before any request
+#                 changed: it was kept after the baseline night
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
   faults (fixed in f492), the warrior (440) and mage (504) on Runpod''s network outage at 07:32 UTC'
 speech_tasks:
@@ -254,3 +256,19 @@ estimates:
     37: 39.6
     38: 33.6
     39: 20.2
+  stub_party:
+    0: 11.2
+    1: 43.1
+    2: 18.5
+    3: 64.6
+    4: 21.1
+    5: 21.4
+    6: 20.9
+    7: 21.1
+    8: 9.3
+    9: 22.6
+    10: 1.6
+    11: 23.4
+    12: 1.6
+    13: 67.0
+    14: 20.9

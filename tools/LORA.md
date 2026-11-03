@@ -13,6 +13,13 @@ folder. A two-hour run holds about 570 townsfolk replies, 700 narrations and 1,2
 twenty thousand examples a first adapter wants. Freeze the prompts of the tasks you mean to train while collecting: an adapter learns the
 prompts it was trained against.
 
+(f490) A prompt is named by its version: since f475 every logged call carries `prompt_version`, a hash of its system text and then of its
+layout, and `tools/lora_dataset.py` keeps, per task, only the rows of that task's newest system text. A night logged under an older prompt
+adds nothing to that task once a newer night is in the folder (summary.md counts them as "dropped: an older prompt version"), and a night
+from before f475 has no version and is dropped the same way. Bundle D (f476 to f490) rewrote what every speaker is given, so the nights
+before it are written off for the speech tasks: train npc_conversation, npc_parting, dialogue_frame, hire_chat, exchange and mentor_chat
+only from nights at or after f490, and never from a folder holding only older nights, where the newest of the old prompts would be kept.
+
 ## 2. Build the data
 
     python tools/lora_dataset.py --runs-dir logs/nightrun --out lora/data
