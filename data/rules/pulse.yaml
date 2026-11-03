@@ -74,6 +74,8 @@ effects:
   relation: {min: -25, max: 25}       # change in how one person feels about another
   max_days: 60                        # longest any temporary effect lasts (campaign events can renew them)
 
+history_keep: 200                     # (f484) the most lines the world's history keeps; trimmed at every append (pulse.add_history)
+
 # News travels along roads. It reaches a place this many hours after it happened, per hour of walking between.
 news:
   hours_per_walking_hour: 1.5

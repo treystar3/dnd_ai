@@ -182,12 +182,14 @@ def start(ws, shape: dict, rng: random.Random | None = None, use_model: bool = T
         doings["roles"][visitor_role] = prop.visitor_doing.strip().rstrip(".")      # the visitor does their own thing, not the room's
     line = _fmt(prop.line.strip(), ws)
     m = {"id": shape["id"], "title": prop.title.strip(), "since": now, "until": until, "line": line, "doings": doings,
-         "visitor": visitor.id if visitor else "", "end": {"memory": prop.memory.strip()}, "written": bool(getattr(prop, "written", False))}
+         "visitor": visitor.id if visitor else "", "end": {"memory": prop.memory.strip()}, "written": bool(getattr(prop, "written", False)),
+         "present": sorted(n.id for n in ws.present if not getattr(n, "gone", ""))}     # (f484) who was there: each keeps it at its end
     st.moment, st.moment_last = m, now
     ws.store.save_place(st)
     from engine import pulse
     state = ws.store.load_world_state() or pulse.empty_state(now)         # never a partial state: the pulse's shape, with the moment added
-    state["moments_seen"] = (state.get("moments_seen") or []) + [{"shape": shape["id"], "title": m["title"], "line": line, "place": pid, "minute": now}]
+    state["moments_seen"] = ((state.get("moments_seen") or []) + [{"shape": shape["id"], "title": m["title"], "line": line, "place": pid,
+                                                                  "minute": now}])[-int(M.get("seen_keep", 200)):]          # (f484) capped at every append
     ws.store.save_world_state(state)
     if shape.get("mood"):
         for n in ws.present:
@@ -231,35 +233,61 @@ def make_visitor(ws, st, spec: dict, rng: random.Random):
 
 
 def tick(ws) -> None:
-    """A moment that has run its minutes ends."""
+    """A moment that has run its minutes ends: here, or (f484) at a place the player has walked out of, which is filed all the same."""
     st = ws.store.load_place(ws.player.location)
     if st.moment and st.moment.get("until", 0) <= ws.minutes:
         end(ws, st)
+    recent = [e.get("place") for e in reversed(seen_list(ws.store)[-20:])]
+    for pid in dict.fromkeys(p for p in recent if p and p != ws.player.location):
+        other = ws.store.load_place(pid)
+        if other.moment and other.moment.get("until", 0) <= ws.minutes:
+            close(ws.store, ws.world, other, ws.minutes)
+
+
+def close(store, world, st, now: int) -> str:
+    """(f484) The moment at this place ends, wherever the player is: the visitor takes the road, the town files it (engine/town_memory.py,
+    a moment's term and cap), and each person who was there when it began keeps it as their own, at importance 1 (owner question 7).
+    Returns the visitor's id, if one left."""
+    from engine import clock, memory as mem, pulse, town_memory
+    m = st.moment or {}
+    gone = ""
+    if m.get("visitor") and store.npc_exists(m["visitor"]):
+        v = store.load_npc(m["visitor"])
+        v.gone = "took the road on"
+        store.save_npc(v)
+        st.residents = [r for r in st.residents if r != v.id]
+        gone = v.id
+    st.moment = {}
+    store.save_place(st)
+    words = (m.get("end") or {}).get("memory", "").strip()
+    if words:
+        place = world.places.get(st.id)
+        town = pulse.town_of(world, st.id)
+        text = words.replace("{place}", place.name if place else "here").replace("{town}", world.places[town].name if town in world.places else "here")
+        text = text.replace("{visitor}", "a visitor")
+        town_memory.file(store, world, st.id, "moment", text[:1].upper() + text[1:], now, subjects=[f"moment:{m.get('id', '')}:{m.get('since', now)}"])
+        line = str((M.get("memory") or {}).get("present", "I was there for {memory}.")).format(memory=text[:1].lower() + text[1:])
+        for nid in m.get("present") or []:
+            if nid != gone and store.npc_exists(nid):
+                n = store.load_npc(nid)
+                if not n.gone:
+                    mem.keep(n, line, day=clock.day(now), turn=-1, kind="experienced", subject="", importance=1, source="self",
+                             about=f"moment:{m.get('id', '')}:{m.get('since', now)}", minute=now)
+                    store.save_npc(n)
+    return gone
 
 
 def end(ws, st) -> None:
-    """The moment ends: the visitor takes the road, the town keeps a memory, the people go back to their own doings."""
-    from engine import pulse
-    m = st.moment or {}
-    if m.get("visitor") and ws.store.npc_exists(m["visitor"]):
-        v = ws.store.load_npc(m["visitor"])
-        v.gone = "took the road on"
-        ws.store.save_npc(v)
-        st.residents = [r for r in st.residents if r != v.id]
-        ws.residents = [n for n in ws.residents if n.id != v.id]
-    st.moment = {}
-    ws.store.save_place(st)
-    memory = (m.get("end") or {}).get("memory", "")
-    if memory:
-        town = pulse.town_of(ws.world, st.id)
-        tp = ws.store.load_place(town) if town != st.id else st
-        tp.memory = (tp.memory + [{"text": _fmt(memory, ws), "minute": ws.minutes, "until": ws.minutes + int(M.get("memory_days", 3)) * 1440}])[-30:]
-        ws.store.save_place(tp)
+    """The moment ends here: as close() does, and the scene lets the visitor go and the people go back to their own doings."""
+    mid = (st.moment or {}).get("id")
+    gone = close(ws.store, ws.world, st, ws.minutes)
+    if gone:
+        ws.residents = [n for n in ws.residents if n.id != gone]
     for n in ws.present:
         if n.mood_until and n.mood_until <= ws.minutes:
             from engine import circumstance                       # (f483) with what gave it
             circumstance.clear_mood(n)
-    console.debug(f"moment ended at {st.id}: {m.get('id')}")
+    console.debug(f"moment ended at {st.id}: {mid}")
     if ws.player.location == st.id:
         ws.refresh_present()
 

@@ -496,11 +496,10 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
     town = _town(world, th["place"])
     if town not in world.places or world.places[town].danger:
         return
-    when = f"{clock.season(minutes)}, day {clock.day(minutes)}"
-    text = M[how].format(title=th["title"], name=name, when=when)
-    ps = store.load_place(town)
-    ps.memory = (ps.memory + [{"text": text, "minute": minutes}])[-12:]
-    store.save_place(ps)
+    from engine import town_memory                         # (f484) the one writer: typed, its words undated, a settled one's mark after its month
+    text = M[how].format(title=th["title"], name=name)
+    town_memory.file(store, world, town, how, text, minutes, subjects=[f"thread:{th['id']}"] if th.get("id") else [],
+                     mark=M["mark"].format(title=th["title"], name=name) if how == "settled" else "")
     line = f"{name} settled {th['title'].lower()}." if how == "settled" else f"{name} was asked about {th['title'].lower()}, and let it be."
     for nid in sorted({c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set())):   # (f478) in order,
         if store.npc_exists(nid):                                                            # never the set's, so the row ids are the same in every process
@@ -511,24 +510,16 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
 
 
 def town_note(store, world, place_id: str, text: str, minutes: int) -> None:
-    """(f323) A line in the town's memory that is not the player's doing: what its own people settled."""
-    from engine import pulse, clock
-    town = pulse.town_of(world, place_id)
-    if town not in world.places or world.places[town].danger:
-        return
-    ps = store.load_place(town)
-    ps.memory = (ps.memory + [{"text": f"{text} ({clock.season(minutes)}, day {clock.day(minutes)})", "minute": minutes}])[-12:]
-    store.save_place(ps)
+    """(f323) A line in the town's memory that is not the player's doing: what its own people settled. (f484) Undated, through the one
+    writer."""
+    from engine import town_memory
+    town_memory.file(store, world, place_id, "note", text, minutes)
 
 
-def town_memory(store, world, place_id: str, now: int) -> list[str]:
-    """What this town remembers of the matters that ended here lately."""
-    from engine import pulse
-    town = pulse.town_of(world, place_id)
-    if town not in world.places or world.places[town].danger:
-        return []
-    keep = D["memory"]["keep_days"] * 1440
-    return [_undated(m["text"]) for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]
+def town_memory(store, world, place_id: str, now: int, only=None) -> list[str]:
+    """What this town remembers lately (engine/town_memory.py lines): the matters that ended here, the jobs done, its moments."""
+    from engine import town_memory as tm
+    return tm.lines(store, world, place_id, now, only)
 
 
 def _undated(text: str) -> str:

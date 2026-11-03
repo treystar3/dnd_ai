@@ -447,6 +447,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.player = self.store.load_player()
             pools.fill_missing(self.player.character)
         drift.apply_player(self.player, deltas)                                                 # (f331) what the drift owes the record this scene holds
+        from engine import town_memory
+        town_memory.sweep(self.store, self.world, self.player.location, self.minutes)        # (f484) past their term; a settled matter leaves its mark
         self.__dict__.pop("_streets_cache", None)                                           # (f357) the world may have moved: read the streets afresh
         events.apply_player_events(self)
         self.arc_tick()

@@ -359,6 +359,8 @@ def check() -> list[str]:
     _types = {p_.get("type", "") for p_ in _load("data/world/places.yaml")}
     bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES), _types | {"road", "dungeon", "home"})    # (f449) `at`: the kinds of place, the made ones too
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
+    from engine import town_memory as _tm                                                       # (f484) every kind with a term and a cap
+    bad += _tm.problems()
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
     RD_ = _load("data/rules/road.yaml")                                                       # (f427) what stops the walk, and who is there

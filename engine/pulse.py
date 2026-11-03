@@ -277,6 +277,12 @@ def catch_up(store, world, catalog, now: int) -> dict:
     return deltas
 
 
+def add_history(state: dict, text: str, place: str, t: int) -> None:
+    """(f484) One line of the world's history: the one writer, the record held to its cap (pulse.yaml history_keep) at every append."""
+    state.setdefault("history", []).append({"minute": int(t), "text": text, "place": place})
+    del state["history"][:-int(P.get("history_keep", 200))]
+
+
 FINISHED_KEPT = 30
 LAST = {"made_by": "", "attempted": ""}   # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget);
                                           # (f466) and who was asked to, whatever came of it: a model call made counts against the cap
@@ -612,8 +618,7 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
     th["ended_at"] = t
     if state.get("campaign") == th["id"]:
         state["campaign"] = ""
-    state["history"].append({"minute": t, "text": line, "place": th["place"]})
-    state["history"] = state["history"][-200:]
+    add_history(state, line, th["place"], t)
     done = sorted([x for x in state.get("threads", []) if x["status"] != "active"], key=lambda x: x.get("ended_at", x.get("made", 0)))
     if len(done) > FINISHED_KEPT:                     # the finished records kept are the ones that ended last - never the one ending now,
         drop = {x["id"] for x in done[:-FINISHED_KEPT]}   # which used to be first out when it was the oldest made (a cataclysm, every time)
@@ -684,7 +689,7 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     store.save_npc(npc)
     if step.gossip.strip():
         add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
-    state["history"].append({"minute": t, "text": f"{npc.name}: {step.happened}", "place": npc.location})
+    add_history(state, f"{npc.name}: {step.happened}", npc.location, t)
     console.debug(f"pulse: {npc.name} - {step.happened} [{step.status}]")
     return True
 
@@ -913,7 +918,8 @@ def context_for_place(store, world, catalog, state, place, t, big: bool = False)
     cond = towns.condition(store, world, place.id, t)                      # (f323) the state the town is in, what is settled, what the stranger did
     if cond.name != "calm":
         town_lines.append(f"THE TOWN IS {cond.name.upper()} ({cond.why}): what you write must fit that.")
-    settled = matters.town_memory(store, world, place.id, t)
+    from engine import town_memory
+    settled = matters.town_memory(store, world, place.id, t, only=town_memory.SETTLEMENTS)    # (f484) settlements, never a moment
     if settled:
         town_lines.append("SETTLED LATELY (it stays settled; do not start the same trouble again): " + "; ".join(settled))
     region = world.places[town].region if town in world.places else place.region

@@ -47,7 +47,7 @@ def move(store, world, state: dict, npc, t: int, rng: random.Random) -> bool:
     if row["gossip"]:
         pulse.add_news(state, row["gossip"], npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
     npc.motive_step = int(getattr(npc, "motive_step", 0) or 0) + 1
-    state["history"].append({"minute": t, "text": f"{npc.name}: {row['line']}", "place": npc.location})
+    pulse.add_history(state, f"{npc.name}: {row['line']}", npc.location, t)       # (f484) the one writer, capped
     ended = False
     if npc.motive_step >= int(M.get("steps_most", 3)):
         D = pulse.P.get("drift") or {}
