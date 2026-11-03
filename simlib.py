@@ -178,6 +178,12 @@ class Stub:
                 out["offers_quest"] = {"kind": "hunt", "what": self.rng.choice(["wolves", "boars", "goblins", "bandits"]), "count": 3}
         return out
 
+    def a_NPCReplyMany(self, u, k):
+        """(f487) One block per character the format names, or what a test planted (many_extra: a list of blocks, as given)."""
+        ids = (((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties") or {}).get("to", {}).get("enum") or []
+        blocks = getattr(self, "many_extra", None) or [{"to": t} for t in ids]
+        return {"speech": "It is as it is.", "intent": "small_talk", "answers": blocks}
+
     def a_DialogueFrame(self, u, k):
         return {"before": "", "after": ""}
 

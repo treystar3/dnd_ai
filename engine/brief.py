@@ -78,6 +78,8 @@ def problems() -> list[str]:
     for k in ("lore", "prefilter", "recent_lines"):
         if not isinstance(R.get(k), int) or R.get(k) < 1:
             bad.append(f"brief.yaml townsfolk.{k}: a whole number above zero")
+    if R.get("many_addressees", "one_call") not in ("one_call", "flat_each"):
+        bad.append("brief.yaml townsfolk.many_addressees: one_call or flat_each")
     for facet in ("land", "town", "board"):
         if not (R.get("asked") or {}).get(facet):
             bad.append(f"brief.yaml townsfolk.asked.{facet}: needs its words")

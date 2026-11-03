@@ -4,6 +4,8 @@
   python tools/live_check.py --runs 5
   python tools/live_check.py --mode continuity  the same questions asked again and again in one sitting: does she remember being asked?
   python tools/live_check.py --mode both
+  python tools/live_check.py --mode addressees  (f487) two characters to one townsperson: one NPCReplyMany call each time, first-try
+                                                acceptance counted beside a single NPCReply's; the number f490 sets many_addressees from
   python tools/live_check.py --vary             run 1 is the usual Bram and Isel; every later run gives them a different personality
                                                 (temperaments, motive, habit, flaw, details), the same ones every time you use --vary
 
@@ -26,7 +28,7 @@ import ui.console as uc
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
-ap.add_argument("--mode", choices=["independent", "continuity", "both"], default="independent")
+ap.add_argument("--mode", choices=["independent", "continuity", "both", "addressees"], default="independent")
 ap.add_argument("--model", default="", help="run the game's characters on this model instead of config.MODEL (config.py is not changed)")
 ap.add_argument("--report", default="live_check_report.md", help="the report's file name, in saves/")
 ap.add_argument("--vary", action="store_true", help="a different personality pair for each run after the first (repeatable)")
@@ -34,6 +36,55 @@ ap.add_argument("--judge-model", default="", help="judge with this model instead
 args = ap.parse_args()
 if args.model:
     config.MODEL = args.model
+
+
+def addressees(runs: int) -> None:
+    """(f487) Two characters speak to one townsperson, `runs` times, and one character alone as many times: how often the model's first
+    answer is taken, for each contract. Written to saves/<report>."""
+    from engine.session import CampaignSession
+    from npc import life
+    from npc.traits import load_traits
+    from storage.campaign import PlayerState
+    sys.path.insert(0, str(ROOT))
+    import simlib
+    name = "live_check_addressees"
+    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    session = CampaignSession.open(name)
+    store, world = session.store, session.world
+    char, _ = simlib.make_character("warrior", random.Random(1))
+    store.save_player(PlayerState(character=char, location="guild_house"))
+    ws = session.scene(load_traits(), store.load_player())
+    ws.enter("guild_house")
+    npc = sorted(ws.present, key=lambda n: n.id)[0]
+    tries = {"NPCReplyMany": [], "NPCReply": []}
+    real = gw._client.chat
+
+    def chat(**k):
+        tries.setdefault(k["format"].get("title", ""), []).append(time.time())
+        return real(**k)
+    gw._client.chat = chat
+    first = {"NPCReplyMany": 0, "NPCReply": 0}
+    for i in range(runs):
+        for title, speakers in (("NPCReplyMany", [("player", "the stranger", "Good day. Is there work going?"),
+                                                  ("second", "the stranger's friend", "And where might we sleep tonight?")]),
+                                ("NPCReply", [("player", "the stranger", "Good day. Is there work going?")])):
+            n0 = len(tries[title])
+            try:
+                life.converse_many(npc, store, world, ws.catalog, [], speakers)
+                first[title] += len(tries[title]) - n0 == 1
+            except Exception as e:
+                print(f"{title} run {i + 1}: failed: {e}")
+    gw._client.chat = real
+    lines = [f"# Addressees ({config.MODEL})", "", f"runs: {runs}"] + [f"- {t}: first try taken {first[t]}/{runs}" for t in first]
+    (ROOT / "saves" / args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+    session.close()
+    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+
+
+if args.mode == "addressees":
+    addressees(args.runs)
+    sys.exit(0)
 
 SAID, CALLS, REFUSED = [], [], []
 uc.say = lambda t, s="": SAID.append((s or "", t))

@@ -1013,6 +1013,22 @@ def _no_tics(speech: str, last: str = "") -> None:
 NO_WORDS = re.compile(r"\W*(?:none|n/?a|nothing|silence|no reply|no answer|\.\.\.)?\W*", re.I)      # (f422) speech that says nothing
 
 
+class NPCAnswer(BaseModel):
+    """(f487) What one reply means for one of the characters spoken to: their own trust, the name they gave, what to remember of them,
+    what they promised, the note, the work or the request or the thing offered to them."""
+    to: str = ""
+    trust_change: int = 0
+    learned_name: str = ""
+    remember: str = ""
+    they_promised: str = ""
+    journal_note: str = ""
+    offers_work: WorkOffer | None = None
+    offers_quest: QuestOffer | None = None
+    gives: GiftProposal | None = None
+
+    _blank = blank_placeholders("learned_name", "remember", "they_promised", "journal_note")
+
+
 class NPCReply(BaseModel):
     speech: str
     gesture: str = ""
@@ -1032,6 +1048,12 @@ class NPCReply(BaseModel):
 
     def spoken(self):
         return [("", self.speech)]
+
+    def answers(self, to: str = "") -> list[NPCAnswer]:
+        """(f487) The one block of a reply to one character, for the one commit path (npc/life.py apply_answer)."""
+        return [NPCAnswer(to=to, trust_change=self.trust_change, learned_name=self.learned_player_name, remember=self.remember,
+                          they_promised=self.they_promised, journal_note=self.journal_note, offers_work=self.offers_work,
+                          offers_quest=self.offers_quest, gives=self.gives)]
 
     @model_validator(mode="after")
     def clean_note(self):
@@ -1893,3 +1915,55 @@ class PersonaDetails(BaseModel):
             if caps:
                 raise ValueError(f"no names of people in a secret ('{caps[0]}')")
         return self
+
+
+
+class NPCReplyManyBase(BaseModel):
+    """(f487) A townsperson answering two or more characters at once: what is said aloud comes once (the speech, the gesture, the intent,
+    the facts it carries, whether it gives their name); then one block for each character spoken to, each with what it means for them.
+    Made per call by many_reply(ids): the server's grammar holds the number of blocks and the ids they may carry; this checks that each
+    character has exactly one block and that a name is learned only from that character's own words."""
+    speech: str
+    gesture: str = ""
+    intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
+    reveals: list[str] = []
+    told_own_name: bool = False
+    answers: list[NPCAnswer]
+
+    _blank = blank_placeholders("gesture")
+
+    def spoken(self):
+        return [("", self.speech)]
+
+    @model_validator(mode="after")
+    def one_each(self, info: ValidationInfo):
+        ctx = info.context or {}
+        want = list(ctx.get("to") or [])
+        if not want:
+            return self
+        got = [a.to for a in self.answers]
+        stray = [t for t in got if t not in want]
+        if stray:
+            raise ValueError(f"a block for {stray[0]}, who did not speak to you: one block for each of {', '.join(want)}, and no other")
+        doubled = sorted({t for t in got if got.count(t) > 1})
+        if doubled:
+            raise ValueError(f"two blocks for {doubled[0]}: one block for each of them")
+        missing = [t for t in want if t not in got]
+        if missing:
+            raise ValueError(f"no block for {missing[0]}: one block for each of {', '.join(want)}")
+        words = ctx.get("words") or {}
+        for a in self.answers:
+            n = (a.learned_name or "").strip()
+            if n and n.lower() not in str(words.get(a.to, "")).lower():
+                raise ValueError(f"the name '{n}' is not in what {a.to} said: a name is learned only from the one who gave it")
+        return self
+
+
+def many_reply(ids: list[str]):
+    """(f487) The contract for one reply to these characters: as many blocks as there are of them, each `to` one of their ids."""
+    from typing import Literal as _L
+    from pydantic import Field, create_model
+    To = _L[tuple(ids)]
+    Answer = create_model("NPCAnswer", __base__=NPCAnswer, to=(To, ...))
+    return create_model("NPCReplyMany", __base__=NPCReplyManyBase,
+                        answers=(list[Answer], Field(min_length=len(ids), max_length=len(ids))))

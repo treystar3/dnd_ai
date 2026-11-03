@@ -22,3 +22,8 @@ townsfolk:
     board: [guild_clerk, guild_master, quartermaster, guild_instructor]
     town: [innkeeper, guard, watch_captain]
     land: [herbalist, hunter]
+  # (f487) Two or more characters to one townsperson: one call with a block for each (one_call, NPCReplyMany), or one plain reply per
+  # character in order (flat_each). Set from the night's measure (f490): one_call stays only if its first-try acceptance on the card is
+  # within 10 points of a single reply's.
+  many_addressees: one_call
+

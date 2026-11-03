@@ -97,7 +97,7 @@ def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
     }
 
 
-REQUIRED_TITLES = {"ActionPlan": "interpret_action", "Narration": "narrate", "CombatIntent": "combat_interpret", "NPCReply": "npc_conversation",
+REQUIRED_TITLES = {"ActionPlan": "interpret_action", "Narration": "narrate", "CombatIntent": "combat_interpret", "NPCReply": "npc_conversation", "NPCReplyMany": "npc_conversation",
                    "NPCProfile": "npc_profile", "ResidentSet": "populate_place", "Ruling": "ruling", "CanonCheck": "canon_check",
                    "Extracted": "canon_extract", "MentorReply": "mentor_chat", "MentorSpeech": "mentor_speech", "MentorLines": "mentor_voice",
                    "RoadEvent": "road_event", "LessonWant": "lesson_want", "LessonNames": "generate_lessons", "DiscoveryProposal": "discovery",
