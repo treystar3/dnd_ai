@@ -3085,7 +3085,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not self.partner or self.partner.id != npc.id:
             self.end_conversation()
             self.partner = npc
-            self.stance = voice_rules.roll_stance(npc, self.minutes, self.rng, who=self.acting)        # (f347) how they are for this conversation
+            self.stance = voice_rules.roll_stance(npc, self.minutes, streams.keyed("stance", npc.id, f"{npc.id}:{self.minutes}"),
+                                                  who=self.acting)        # (f347) how they are for this conversation; (f486) its own die
             if self.stance:
                 console.debug(f"{npc.name} is, this talk: {self.stance}")
         self.last_spoken = npc.id
@@ -3134,8 +3135,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         note_due = self.note_due(npc)
         if note_due:
             old_note = regard.of(npc, self.acting).journal_note
-            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now." + (f" The old note was: {old_note} - bring it up to date with what has happened since."
-                                                                         if old_note else ""))]
+            ctx = ctx + [("JOURNAL NOTE DUE: write journal_note now: one plain sentence, under 28 words, that the STRANGER writes in THEIR journal "
+                          "about YOU: your role, where you are found, and what they have learned of you, with you in the third person by name "
+                          '("Fenella Reeve, the guild clerk in Parth; fussy about her ledgers and anxious about mistakes"). Never your own '
+                          'thought about the stranger, never in your voice, never "I" or "my".'      # (f486) the rule where it is used
+                          + (f" The old note was: {old_note} - bring it up to date with what has happened since." if old_note else ""))]
         secret_lines, pending_secret = self.secret_lines(npc, speech)
         ctx = ([back] if back else []) + ctx + secret_lines
         if decided := ledger.decided():                                  # (f416) what the turn has settled so far: never answered against
@@ -3146,10 +3150,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         town = pulse.town_of(self.world, self.player.location)
         from engine import truth
         view = truth.scene_of(self).view(truth.viewer_for_npc(npc, self.world), "townsfolk").asking(speech)      # (f375) the streets when asked
+        from engine import brief                                        # (f486) the town's list and the board in full only when the line is
+        town_lines = view.lines("town")                                 # about them, or the role's work is them; the checks read the list always
+        view.drop |= {f for f in ("town", "board") if not brief.asked(f, speech, npc.role)}
         console.debug(f"truth view for {npc.name}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         reply, revealed = converse(npc, self.store, self.world, self.catalog, self.convo,
                                    f"{speech} {check_note}".strip(), ctx, truth_text=view.text(), known=view.scene.known_words(),
-                                   stance=getattr(self, "stance", ""), rng=self.rng, worn=self.worn_words("speech"),
+                                   stance=getattr(self, "stance", ""), rng=streams.keyed("voice", npc.id, f"{npc.id}", len(self.convo)),   # (f486)
+                                   worn=self.worn_words("speech"), pronoun=brief.pronoun(self, self.acting), given_also=town_lines,
                                    house=voices.house_phrases(self, town, npc.id),          # (f350) what everyone else here has been saying
                                    wares=self.wares_said(npc), who=self.acting)             # (f418) at the prices the game charges; (f480) to whom
         voices.heard(self, town, npc.id, reply.speech)
@@ -3501,7 +3509,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                          "Greywood and its dangers from your own jobs, and you size up newcomers.")
         if (asked := self.request_of(npc)):                                     # (f481) from the registry
             lines.append(f"You have asked them to: {asked['title']}, and are waiting for their answer.")
-        if npc.mood:
+        if npc.mood and (npc.mood_until <= 0 or npc.mood_until > self.minutes):     # (f486) a mood past its time is no longer theirs
             lines.append(f"How you've been lately: {npc.mood}")
         if npc.motive:
             lines.append(f"What you're working toward (private - share it only if it comes up naturally): {npc.motive}")
@@ -3522,7 +3530,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         faith = faith_mod.line(self.world, npc)
         if faith:
             lines.append(faith)
-        if "orenna_name" in self.player.character.knowledge:
+        if "orenna_name" in self.player.character.knowledge and "orenna" in (self.last_text or "").lower():   # (f486) only when it is said
             lines.append("No one living has ever heard the name Orenna. If the stranger says it, it means nothing to you; you do not "
                          "recognise it, and you do not pretend to.")
         lines += self.guild_knowledge(npc)

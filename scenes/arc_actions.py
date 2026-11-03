@@ -497,9 +497,8 @@ class ArcActions:
         elif degree == "partial":
             lines.append(f"[THE GAME HAS DECIDED: you are shaken. You almost say too much - let slip that you DO know {what}, "
                          "and nothing more. Do not say it.]")
-        else:
-            lines.append(f"[YOU KNOW {what}. You will not tell the stranger unless they persuade you, frighten you, or win your "
-                         "trust. You may stall, bargain, bluff about small things, or refuse. Do not reveal or hint at what it is.]")
+        # (f486, the owner's decision: someone may hold a secret without knowing it until its gate opens) while it is shut, nothing of
+        # it reaches their brief: a line telling them to keep it was a line telling them there was something to keep
         return lines, {"open": bool(open_), "pressed": pressed, "secret": secret}
 
     def secret_text(self, secret: dict) -> str:

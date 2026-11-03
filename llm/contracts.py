@@ -1026,8 +1026,9 @@ class NPCReply(BaseModel):
     offers_work: WorkOffer | None = None
     offers_quest: QuestOffer | None = None
     journal_note: str = ""
+    they_promised: str = ""             # (f486, G4) a promise the one in front of you made you in this exchange, in a few words; else empty
 
-    _blank = blank_placeholders("gesture", "remember", "learned_player_name", "journal_note")
+    _blank = blank_placeholders("gesture", "remember", "learned_player_name", "journal_note", "they_promised")
 
     def spoken(self):
         return [("", self.speech)]

@@ -84,7 +84,8 @@ stood = ws.turn('I say to Tam, "Good day to you."')
 check("an optional frame that does not fit after the reserve is dropped: not called, the reply made and standing plain, the talk stood",
       stood is True and stub.calls.get("DialogueFrame", 0) == frames0 and stub.calls.get("BoardStakes", 0) == stakes0 and stub.calls.get("NPCReply", 0) >= 1
       and ws.last_budget.get("calls") == 3 and not ws.last_budget.get("refused"), (stood, stub.calls.get("DialogueFrame", 0), frames0, ws.last_budget))
-check("...the budget names what it dropped; no refusal is filed and no fallback counted", "dialogue_frame" in ws.last_budget.get("dropped", []) and "board_stakes" in ws.last_budget.get("dropped", [])
+check("...the budget names what it dropped; no refusal is filed and no fallback counted", "dialogue_frame" in ws.last_budget.get("dropped", [])
+      and ("board_stakes" in ws.last_budget.get("dropped", []) or stub.calls.get("BoardStakes", 0) == stakes0)    # (f486) a farmer's good day reads no board
       and len(refusals.SESSION) == n_ref and len(gateway.FALLBACKS) == n_fall and ws.last_budget["estimated"] > 0, (ws.last_budget, refusals.SESSION[n_ref:]))
 
 B.update(limit_seconds=2.5, margin_seconds=0, floor_seconds=1, reserve_seconds=0.2)      # the understanding fits (two seconds), the passage does not

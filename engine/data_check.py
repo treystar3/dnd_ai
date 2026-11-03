@@ -363,6 +363,8 @@ def check() -> list[str]:
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
     from engine import town_memory as _tm                                                       # (f484) every kind with a term and a cap
     bad += _tm.problems()
+    from engine import brief as _brief                                                          # (f486) the brief's numbers and words
+    bad += _brief.problems()
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
     RD_ = _load("data/rules/road.yaml")                                                       # (f427) what stops the walk, and who is there

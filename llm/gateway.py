@@ -270,7 +270,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             reason = ""
             if hasattr(result, "spoken"):
                 from engine import truth
-                given = system + "\n" + messages[1]["content"]
+                given = system + "\n" + messages[1]["content"] + "".join("\n" + str(x) for x in (validation_context or {}).get("given_also", ()))   # (f486)
                 known = (validation_context or {}).get("known", ())
                 for who, text in result.spoken():
                     lifted = copied(text, system, typed) if typed is not None else ""

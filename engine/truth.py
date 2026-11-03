@@ -164,6 +164,7 @@ class View:
         self.scene, self.viewer, self.profile = scene, viewer, profile
         self.skip: set[str] = set()
         self.allow: set[str] = set()                  # (f375) narrator-only facts this viewer is given for this reply ('crowd')
+        self.drop: set[str] = set()                   # (f486) facets left out of this reply (engine/brief.py asked): read alone with lines()
 
     def asking(self, text: str) -> "View":
         """(f375) The same view for a reply to these words: the street scene comes in when they are about the town or its streets."""
@@ -177,7 +178,7 @@ class View:
         return self
 
     def facets(self) -> list[str]:
-        return list(T["profiles"][self.profile])
+        return [f for f in T["profiles"][self.profile] if f not in self.drop]
 
     def lines(self, name: str) -> list[str]:
         if name == "present":

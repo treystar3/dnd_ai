@@ -326,6 +326,8 @@ def converse(
     wares: list[str] | None = None,
     *,
     who: str,
+    pronoun: str = "",
+    given_also: list[str] = (),
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
@@ -334,7 +336,10 @@ def converse(
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
     from engine import banter, matters, voice_profile
     from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
-    facts = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
+    every = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
+    from engine import brief                                # (f486) the lore that bears on this line, every clue held, and the rest named
+    facts, index = brief.lore(every, player_text, [w for _, w in convo])
+    extra = list(extra) + ([index] if index else [])
     _, people_known = social_circle(npc, store, world)
     here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
     rng = rng or streams.get("scene")
@@ -354,13 +359,14 @@ def converse(
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
                if world.roles[npc.role].commissions else []),
-            extra, land.land_lines(world, npc.location), truth_text=truth_text,
+            extra, land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text,   # (f486) when asked
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
-            work=_offered(store, npc, who),
+            work=_offered(store, npc, who), pronoun=pronoun,
         ),
         NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
+                            "given_also": list(given_also),        # (f486) the town's list, for the checks, given or not
                             "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
@@ -404,6 +410,10 @@ def converse(
     seen.last_talk_at = store.meta.minutes                   # (f382) when they last spoke: the next talk, long after, is a return
     for name in note_mentions(npc, reply.speech, store, who):
         console.debug(f"{npc.name} named {name}: noted as heard of")
+    if reply.they_promised.strip():                         # (f486, G4) a promise made to them in words: theirs to remember, a claim
+        from engine import memory
+        memory.keep(npc, f"{{them}} promised me: {reply.they_promised.strip()}", day=clock.day(store.meta.minutes), turn=store.meta.turn,
+                    kind="promise_heard", subject=who, source=who, minute=store.meta.minutes, importance=2)
     if reply.remember.strip():                              # (f482) what this talk gave them to keep: what they were told, by whom
         from engine import memory
         memory.keep(npc, reply.remember.strip(), day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told", subject=who,
