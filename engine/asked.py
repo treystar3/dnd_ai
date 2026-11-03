@@ -31,6 +31,12 @@ def tasks() -> frozenset:
     return _TASKS
 
 
+def most() -> int:
+    """(f489) The most calls one operation may ask outside it (budget.yaml asked_max)."""
+    B = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}
+    return int(B.get("asked_max", 48))
+
+
 class NeedAnswer(BaseException):
     """The body reached a call that is asked outside: roll back, ask, run again. A BaseException, so no `except Exception` a body keeps
     for its own fallbacks can mistake it for a failure and go on."""

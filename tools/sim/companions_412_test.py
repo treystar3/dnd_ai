@@ -84,7 +84,9 @@ for seed in range(120):
     if kind == "remembered":
         picked = text
         break
-check("days later, the one who fell comes up in what they talk about", picked and "Thavathiel Liaralor" in picked and "3 days ago" in picked, picked)
+import re as _re                                     # (f489) told from now in words ("three days back"), never a count
+check("days later, the one who fell comes up in what they talk about", picked and "Thavathiel Liaralor" in picked and "three days" in picked
+      and not _re.search(r"\d+ days", picked), picked)
 check("...and when it has, not again by her that day", not context.due(odly, f"mourn:{thav['id']}", ws.minutes))
 check("...and the talk is told to name him", ws.__dict__.get("_remembered") == "Thavathiel Liaralor")
 ws.store.meta.minutes += 2 * 1440

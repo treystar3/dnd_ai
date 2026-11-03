@@ -43,12 +43,11 @@ class BanterActions:
         self._last_claims = []
         system = ("You write short dialogue between people in a fantasy world.\nRULES:\n" + "\n".join(f"- {r}" for r in BN["rules"] + BN["banter"]["rules"]) +
                   "\n- " + " ".join(quirks.Q["answer_first"].split()) +
-                  (f"\n- {extra_rules}" if extra_rules else "") +
                   "\n\n" + quirks.style_block() +
                   "\n- Each line may carry a gesture, the body language of the speaker as they say it. " + quirks.GESTURE_RULE +
-                  ("\n- Whatever specific thing someone says about themselves becomes true of them for good; never contradict anything "
-                   "given as true of them." if members else "") +
                   '\n\nRespond only with JSON matching the schema: {"lines": [{"speaker": "name", "text": "what they say", "gesture": ""}]}.')
+        # (f489) the system is the same for every exchange; what this one adds (its own rule, the rule that what they said of themselves
+        # stands) comes at the end of the request, before the count of lines
         from engine.prompt import Prompt
         c = self.player.character
         P_ = Prompt()
@@ -56,7 +55,9 @@ class BanterActions:
         hows = {n: d[0] for n, d in people.items() if isinstance(d, tuple) and d[0]}
         if hows:
             P_.instruction("\n".join(f"  {n}: {h}" for n, h in hows.items()), "HOW EACH SPEAKS")
-        P_.fact(f"{c.name}, level {c.level}", "THE PLAYER'S CHARACTER, WHO IS PRESENT")
+        from engine import brief as _brief                    # (f489) the characters here, each with their pronoun, by id
+        P_.fact("\n".join(f"  {ch.name}, level {ch.level} ({_brief.pronoun(self, ch.id)})" for ch in self.characters()),
+                "THE CHARACTERS HERE (the players' own, present)")
         view = self.exchange_view(people)
         P_.fact(view.text())                                  # (f315) WHERE, WHO IS HERE, the town, what is happening: the truth layer's, like every speaker's
         P_.fact(situation, "WHAT IS HAPPENING")
@@ -96,6 +97,10 @@ class BanterActions:
         quiet = [n for n in people if n in silent_ok]
         if quiet:
             P_.instruction(f"{' and '.join(quiet)} may answer with no words: a line with empty text and only a gesture, or no line at all.", "WHO MAY SAY NOTHING")
+        for_this = [x for x in (extra_rules, "Whatever specific thing someone says about themselves becomes true of them for good; never "
+                                             "contradict anything given as true of them." if members else "") if x]
+        if for_this:
+            P_.instruction("\n".join(f"- {x}" for x in for_this), "FOR THIS EXCHANGE")
         P_.instruction(f"WRITE {lines[0]} TO {lines[1]} LINES, speakers from: {', '.join(people)}.")
         ctx = {"speakers": list(people), "lines": lines, "all_speak": all_speak, "silent_ok": tuple(silent_ok), "first_speaker": first_speaker, "material": material + [hook or ""], "recent": recent or {},
                "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(), "must_name": must_name,
@@ -334,7 +339,7 @@ class BanterActions:
                              BN["banter"]["remembered"]["by_days"][min(len(BN["banter"]["remembered"]["by_days"]) - 1, days // 7)])
                         if kind == "rest":
                             w *= BN["banter"]["remembered"]["at_rest"]
-                        when = "earlier today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+                        when = clock.ago(d.get("minute", now), now, m.get("id", ""))     # (f489) from now, in words
                         options.append((w, "remembered",                # not held to the heavy-topic table: grief is not a confidence
                                         H["remembered"].format(name=m["name"], dead=d["name"], when=when, how=d.get("how", "")), m, "heavy",
                                         d["name"]))

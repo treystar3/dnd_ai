@@ -28,9 +28,8 @@ def check(n, ok, x=""):
 # The residue: tasks still asked for inside an operation's transaction after this feature. It may only shrink (a family moved out drops
 # its tasks here); a task appearing that is not listed fails the suite. The understanding's tasks (interpret_action, audit_meaning,
 # audit_compare, clarify) are gone from it with this feature.
-RECORDED = frozenset({                                                  # (f485) the talk's five are asked outside (engine/asked.py)
-    "canon_check", "canon_extract",
-    "exchange", "overheard", "pair_dynamic", "persona_details",            # the party's own talk (f489); (f488) the hires' and Maren's out
+RECORDED = frozenset({                                                  # (f485) the talk's five are asked outside (engine/asked.py); (f488) the
+                                                                        # hires' and Maren's four; (f489) the party's own six: fifteen in all
     "road_event", "discovery", "ruling", "plausible_object", "classify_field", "camp_intent", "party_intent", "stranger_read",
     "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "event_judge", "moment",
     "arc_story", "loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank", "generate_lessons", "lesson_want",

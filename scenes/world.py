@@ -887,7 +887,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
     ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
               "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
-              "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done")
+              "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done",
+              "last_hits")                             # (f489) how a beat hit each of the party goes back with the banter that measured it
     # (f485) the conversation goes back whole: who is being spoken with and how they are this talk, with its lines (convo, last_spoken
     # above), so a first talk that did not stand opens a new conversation when it is tried again, with the stance it had; and the step's
     # own state, so an operation run again to be given its answer (engine/asked.py) starts where the first attempt did.
@@ -1092,7 +1093,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not world:
             self.halted = True
 
-    ASKED_MAX = 12                                   # (f485) the most model calls one operation may ask outside it
 
     def asked_operation(self, kind: str, text: str, body, world: bool = False, keep=None):
         """(f485, engine/asked.py) An operation that may need the model: run as a restartable attempt. When its body reaches a call asked
@@ -1105,7 +1105,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         plan0 = [copy.deepcopy(x) for x in keep] if keep is not None else None
         later0 = list(self.store._later)
         marks0 = (len(refusals.SESSION), len(pulselog.LOG))
-        for _ in range(self.ASKED_MAX):
+        cap = asked.most()                               # (f489) budget.yaml asked_max
+        for _ in range(cap):
             snap = streams.snapshot()
             held = {id(x): x for x in [*self.residents, *self.present, self.partner, self.player] if x is not None}
             states = {k: x.model_copy(deep=True) for k, x in held.items()}       # who is here and who acts, as found: put back in place,
@@ -1138,7 +1139,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 raise
             except Exception as e:                       # the model's failure, or the game's own in the call: the body is given it
                 serve.answers.append((need.key, None, e))
-        raise RuntimeError(f"{kind}: more than {self.ASKED_MAX} model calls asked for one operation")
+        raise RuntimeError(f"{kind}: more than {cap} model calls asked for one operation")
 
     def prepare_step(self, i: int, plan: list, text: str) -> bool:
         """(f485) Before a step's operation, its prepare if its kind has one (prepare_<kind>): what the step would do first that is its own
@@ -1419,10 +1420,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.collecting = False
                 from engine import budget
                 budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
-                with self.operation("tail", text, world=True):
+                def _tail(op):                             # (f489) restartable: the party's talk it asks for is asked outside it
                     if plan is not None:
                         self.store.meta.turn += 1              # (f466) the line counted, with its tail
                     self.turn_ticks(text, shown)
+                self.asked_operation("tail", text, _tail, world=True)
                 ledger.LAST = ledger.end()
                 return True if not self.line_failed else "part"
         except Interrupt:
