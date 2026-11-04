@@ -13,6 +13,7 @@ tasks:
   audit_meaning:         "the audit's reading of what the player meant, before acting"
   audit_compare:         "the audit comparing the plan to what the player meant"
   narrate:               "the narrator describing what just happened"
+  combat_opening:        "the narrator opening a fight"
   combat_narrate:        "the narrator describing a round of a fight"
   dialogue_frame:        "the narrator framing a spoken line with what the speaker does"
   npc_conversation:      "a person of the world answering the player"

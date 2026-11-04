@@ -275,6 +275,28 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.remember_narration(result.text)
         self._wrote_turn = True                                                                  # (f351) the narrator wrote this turn
 
+    def opening_telling(self, event: str, scene):
+        """(f498) The fight's opening as a telling of its own (scenes/combat_scene.py begin marks it a passage): the request is built now,
+        as narrate_with built it where the fight began (the hour, the place, who is here, the recent passages, the turn's rows as the
+        narrator is given them, ledger.told), so the operation that tells it, run once the fight's commit stands and again when it stands
+        down to ask (combat_opening is asked outside, data/rules/budget.yaml), asks in the same words. What is read of the opening is noted
+        on the fight as it stands when it is told (note_fight_shown finds the live scene). Returns what mark_passage runs."""
+        event = hygiene.undash(event)                                    # (f413) no dashes to copy (f403)
+        self.flush(self.last_text)
+        request = wp.narration_request(self.time_label(), self.place, self.people_view(), event, self.last_text,
+                                       self.recent_narration, self.gear_line(),
+                                       self.store.load_place(self.player.location).marks,
+                                       told=ledger.told())                       # (f416) what the turn did: a fight's opening, a sighting
+        recent = list(self.recent_narration)
+
+        def tell():
+            result = fresh("combat_opening", cp.START_SYSTEM, request, Narration, recent)
+            console.narrate(result.text)
+            self.remember_narration(result.text)
+            self._wrote_turn = True                                                              # (f351) the narrator wrote this turn
+            scene.note_fight_shown(result.text)                                                  # (f349) the opening passage is read
+        return tell
+
     def has(self, mechanic: str) -> float | None:
         return pools.mechanic(self.player.character, mechanic)
 
@@ -812,11 +834,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 try:
                     with console.scope(text), questions.fence():             # a pane button is a whole operation too: all of it, or none of it (f463)
                         self.new_input(text)                                # (f439) the dice of this input
-                        with self.operation(f"command:{name}", text, where="command") as op:
-                            self.command(text)
+                        self.collecting = True                              # (f498) a telling it asks for (a fight begun from the pack's button,
+                        op, _ = self.asked_operation(f"command:{name}", text, lambda op: self.command(text), where="command")   # a draught's
+                        self.run_passages()                                 # passage) is a passage operation after it, told once it stands
                 except Interrupt:
                     raise                                                   # (f449) stopped on purpose, never a rolled-back fault
                 finally:
+                    self.collecting = False
                     self.store.arm(False)
                     from engine import budget
                     self.last_budget = budget.close(stand_ins=[o.kind for o in self.line_untold])   # (f468)
@@ -1061,9 +1085,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             kind, fn, standin, after, owner = self.passages.pop(0)
             halted = self.halted
             told_before = {id(r) for r in ledger.ROWS if r.get("told")}
-            with self.operation(kind, self.last_text) as op:
-                fn()
-            self.halted = halted                                   # a telling that did not stand halts nothing: the facts stand
+            op, _ = self.asked_operation(kind, self.last_text, lambda op: fn())    # (f498) restartable: the telling's own call is asked
+            self.halted = halted                                   # outside it; a telling that did not stand halts nothing: the facts stand
             if op.state != "committed":
                 if op in self.line_failed:
                     self.line_failed.remove(op)
@@ -1108,11 +1131,13 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.halted = True
 
 
-    def asked_operation(self, kind: str, text: str, body, world: bool = False, keep=None):
+    def asked_operation(self, kind: str, text: str, body, world: bool = False, keep=None, where: str = "turn"):
         """(f485, engine/asked.py) An operation that may need the model: run as a restartable attempt. When its body reaches a call asked
         outside, the operation stands down (give_back), the call is made with no operation open, and the operation runs again from its
         start, the dice, the plan's steps and what reads had filled in put back as they were, the answer (or its failure) given at the same
-        point. Returns (op, what the body returned) for the attempt that ended, committed or not."""
+        point. Returns (op, what the body returned) for the attempt that ended, committed or not. (f498) `where`: the pane command's,
+        for logs/crash.log. The ledger rows an attempt took to tell (ledger.told) are untold again when it stands down: the attempt that
+        stands tells them, in the same words (the aftermath's request names them)."""
         import copy
         from engine import asked, pulselog, refusals
         serve = asked._Serving()
@@ -1126,10 +1151,11 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             states = {k: x.model_copy(deep=True) for k, x in held.items()}       # who is here and who acts, as found: put back in place,
             lists = (list(self.residents), list(self.present), self.partner, self.player)   # the same objects, so a holder sees the re-run
             meta = self.store.meta.model_copy()          # the clock and the input's count as they stand in memory (a give-back reloads the save's)
+            told0 = {id(r) for r in ledger.ROWS if r.get("told")}        # (f498) what was told before this attempt
             asked.begin(serve)
             result = None
             try:
-                with self.operation(kind, text, world=world) as op:
+                with self.operation(kind, text, where=where, world=world) as op:
                     result = body(op)
             finally:
                 asked.end()
@@ -1137,6 +1163,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             if need is None:
                 return op, result
             streams.restore(snap)                        # the attempt that stood down drew nothing that counts
+            self.untell(told0)                           # (f498) ...and told nothing: the rows it took to tell wait for the attempt that stands
             for k, x in held.items():
                 x.__dict__.update(states[k].__dict__)
             self.residents, self.present, self.partner, self.player = list(lists[0]), list(lists[1]), lists[2], lists[3]
@@ -1444,7 +1471,6 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     with self.operation("law", text, world=True):
                         self.law_check()
                     self.run_passages()
-                self.collecting = False
                 from engine import budget
                 budget.passage_shown()                         # (f468) a fight's round or an answer: told; the tail's calls keep no reserve
                 def _tail(op):                             # (f489) restartable: the party's talk it asks for is asked outside it
@@ -1452,6 +1478,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                         self.store.meta.turn += 1              # (f466) the line counted, with its tail
                     self.turn_ticks(text, shown)
                 self.asked_operation("tail", text, _tail, world=True)
+                self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
+                self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
                 ledger.LAST = ledger.end()
                 return True if not self.line_failed else "part"
         except Interrupt:
@@ -1479,7 +1507,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.stay_tick()                           # (f351) one change in the room since last turn, if the narrator did not write
         self.heard_flush()                         # the places first heard of this turn, in one quiet line
         from engine import operation as _op
-        held_now = len(_op.current().lines) if _op.current() is not None else 0     # (f463) what this operation holds, not yet released
+        held_now = (len(_op.current().lines) + sum(1 for h in _op.current().held if h[0] == "marker")
+                    if _op.current() is not None else 0)     # (f463) what this operation holds, not yet released; (f498) a passage it queued
         if turnlog.SHOWN + held_now == shown and not self.to_menu:
             self.said_nothing(text)
         self.store.save_player(self.player)

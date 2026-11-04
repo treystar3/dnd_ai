@@ -26,7 +26,8 @@ retention:
 asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, npc_parting,        # (f485) the townsfolk's talk
                 hire_chat, mentor_chat, mentor_speech, mentor_voice, canon_extract, canon_check,            # (f488) the hires' and Maren's
                 exchange, overheard, pair_dynamic, persona_details,                                          # (f489) the party among themselves
-                combat_interpret]                                                                            # (f497) the fight's reading of the line
+                combat_interpret,                                                                            # (f497) the fight's reading of the line
+                combat_opening, combat_narrate, combat_aftermath, goddess_line]                              # (f498) the fight's tellings
 asked_max: 48                 # (f489) the most calls one operation may ask outside it (each one runs the operation again from its start)
 tasks:
   # ---- understanding the line
@@ -59,6 +60,7 @@ tasks:
   goddess_line:             {need: required, answer_tokens: 150}
   # ---- the passage
   narrate:                  {need: required, answer_tokens: 260}
+  combat_opening:           {need: required, answer_tokens: 260}     # (f498) the fight's opening, a telling of its own (narrate's size)
   combat_narrate:           {need: required, answer_tokens: 220}
   combat_aftermath:         {need: required, answer_tokens: 260}
   # ---- optional: the line stands without them

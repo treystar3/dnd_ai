@@ -69,7 +69,7 @@ PRESENTED_KEEP = 400              # writes it per input and clears it (engine/re
 
 LEGACY: list[str] = []            # (f470) the tasks the model was asked for while an operation held the save's transaction open: the
                                   # residue prepare-then-commit moves out family by family; the test's ratchet (prepared_470_test RECORDED) only shrinks
-TELLING = {"passage", "round", "aftermath", "goddess"}   # (f470) operations that are the call itself (the telling): not counted
+TELLING = {"passage", "round", "aftermath", "goddess", "opening"}   # (f470) operations that are the call itself (the telling): not counted; (f498) the fight's opening
 
 
 def note_legacy(task: str) -> None:

@@ -155,9 +155,15 @@ class CombatScene:
 
     def note_fight_shown(self, text: str) -> None:
         """(f349) After a passage: the ground and the place are given; the light if it was described; the look of each foe it described;
-        the blade once it has gleamed. The next passage is told not to describe them again."""
+        the blade once it has gleamed. The next passage is told not to describe them again. (f498) Noted on the fight as it stands now:
+        a telling runs on the scene that marked it, and the fight may have been resumed from the row since (a telling that stood down
+        to ask is given back, scenes/world.py give_back), so the live scene of the same fight takes the note."""
         import re
         from engine import voice_rules
+        live = self.ws.combat
+        if live is not None and live is not self and live.fight.serial == self.fight.serial:
+            live.note_fight_shown(text)
+            return
         low = (text or "").lower()
         if not low.strip():
             return
@@ -290,8 +296,10 @@ class CombatScene:
             if start_habits:
                 from scenes import world_prompts as wp
                 event += f" {wp.HABITS_HEAD}: {' '.join(start_habits)}"
-            ws.narrate_with(cp.START_SYSTEM, event)
-            scene.note_fight_shown(ws.recent_narration[-1] if ws.recent_narration else "")      # (f349) the opening passage is read
+            facts = {"foe": creature.name.lower(), "count": failures.count_phrase(len(enemies))}
+            ws.mark_passage("opening", ws.opening_telling(event, scene), lambda rng: failures.fight_begun(facts, rng))   # (f498) a telling
+            # of its own, told once the fight's commit stands (Bundle C decision 1: a fight begun is never undone because its opening
+            # could not be written; fight_begun stands in): the notes and the pane below keep their place on the page behind it
         for line in prep + tether_notes:
             console.note(line)
         if pools.mechanic(c, "keen_judge") is not None:

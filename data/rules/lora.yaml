@@ -47,7 +47,7 @@ filters:
   max_tails: 1          # sentences ending on a trailing participle, in one answer (prose tasks)
   max_dots: 1           # trailing-offs ('...') in one answer (speech tasks)
   stock_opener: false   # a reply opening on 'Well,' 'Ah,' and the like is not learned from (speech tasks)
-prose_tasks: [narrate, combat_narrate, combat_aftermath, dialogue_frame, road_event, moment]
+prose_tasks: [narrate, combat_opening, combat_narrate, combat_aftermath, dialogue_frame, road_event, moment]
 speech_tasks: [npc_conversation, hire_chat, mentor_chat, npc_parting, exchange]
 
 # Training defaults (tools/lora_train.py). The base is the instruction-tuned model the game runs; the adapter sits on it.

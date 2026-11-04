@@ -212,3 +212,11 @@ goddess_silent:
   - "I reached for words and found only cold. Never mind them. You are not finished yet."
   - "Little one... I lose things, down here. The thing I would have said is one of them. The breath I give you is not."
   - "Not the words I wanted. They slipped. Take the warmth instead, and go."
+# (f498) A fight begun whose opening could not be written: the fight is on, told plainly, with who came ({foe}) and how many ({count}).
+fight_begun:
+  - "A fight is on: {foe}, {count}. The ground and the light will have to wait; the blows will not."
+  - "It comes to blows before there is time to say how. {foe}, {count}, closing fast."
+  - "No telling how it opened, only that it has: {foe}, {count}, and the first moves already made."
+  - "The quiet breaks. {foe}, {count}, and the fight is joined where you stand."
+  - "What began it is lost in the rush of it: {foe}, {count}, and your weapon already in hand."
+  - "They are on you: {foe}, {count}. Whatever was said is said; now it is steel."

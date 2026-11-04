@@ -10,7 +10,7 @@
 prose_fields: [text, speech, gesture, before, after, line, scene, detail, paragraphs, title, news, journey]
 
 # Tasks whose prose is the narrator's: second person, so "I" and "my" belong only inside someone's quoted speech.
-narrator_tasks: [narrate, combat_narrate, combat_aftermath, dialogue_frame, moment, road_event]
+narrator_tasks: [narrate, combat_opening, combat_narrate, combat_aftermath, dialogue_frame, moment, road_event]
 
 reasons:
   json: "write only the passage itself: no JSON, braces, code fences, field names or notes about your answer"

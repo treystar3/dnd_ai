@@ -33,8 +33,8 @@ RECORDED = frozenset({                                                  # (f485)
     "road_event", "discovery", "ruling", "plausible_object", "classify_field", "camp_intent", "party_intent", "stranger_read",
     "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "event_judge", "moment",
     "arc_story", "loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank", "generate_lessons", "lesson_want",
-    "narrate", "combat_narrate", "combat_aftermath", "goddess_line",                             # (f497) combat_interpret asked outside
-})
+    "narrate",                                                          # (f497) combat_interpret asked outside; (f498) the three tellings and the
+})                                                                      # opening (combat_opening) asked outside; narrate stays for its inline uses
 UNDERSTANDING = {"interpret_action", "audit_meaning", "audit_compare", "clarify"}
 
 NAME = "prepared_470"
@@ -123,7 +123,10 @@ ws.turn("I look around.")
 creature = ws.world.bestiary["wolf"]
 foe = combat.fighter_from_creature(creature, 1, "normal", "e1", name="wolf 1")
 foe.hp = foe.max_hp = 1
-ws.combat = cs.CombatScene.begin(ws, creature, [foe], "It is on you:")
+ws.wildlife = (creature, [foe])                                      # (f498) the fight begun through a line, so its opening is inside an operation
+stub.plan = [{"kind": "attack", "target": "wolf"}]
+ws.turn("I attack the wolf")
+stub.plan = None
 stub.a_CombatIntent = lambda u, k: {"kind": "attack", "target": "e1"}
 ws.turn("I attack the wolf")
 legacy = set(operation.LEGACY)
@@ -131,7 +134,7 @@ print("legacy tasks this session:", sorted(legacy))
 check("no task of the understanding is asked for inside an operation any more", not (legacy & UNDERSTANDING), sorted(legacy & UNDERSTANDING))
 check("the ratchet: every task still asked for inside an operation is named in RECORDED (a family moved out may only shrink it)", legacy <= RECORDED, sorted(legacy - RECORDED))
 check("...and the ratchet counts calls inside operations only: the telling operations are their one call and are left out",
-      all(c[2] not in ("passage", "round", "aftermath", "goddess") or c[1] in ("Narration", "GoddessLine") for c in LOG), [c for c in LOG if c[2] in ("passage", "round")][:4])
+      all(c[2] not in ("passage", "round", "aftermath", "goddess", "opening") or c[1] in ("Narration", "GoddessLine") for c in LOG), [c for c in LOG if c[2] in ("passage", "round")][:4])
 
 gateway._client = real
 g.close()

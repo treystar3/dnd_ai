@@ -50,9 +50,10 @@ def lines() -> list[str]:
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 DASH = re.compile(r"\u2014|\u2013|--| - ")
 FACTS = {"what": "a bundle of herbs", "who": "the smith", "amount": "12 copper", "done": "the herbs bought", "xp": "40", "coins": "9 copper",
-         "fallen": "the wolf", "found": "a worn knife"}                 # sample facts the startup check fills every template with
+         "fallen": "the wolf", "found": "a worn knife", "foe": "wolf", "count": "two of them"}   # sample facts the startup check fills every template with
 STAND_INS = {"stood_any": set(), "part_stood": {"done"}, "shown_later": set(), "round_stood": set(),
-             "victory_stood": {"xp", "coins", "fallen", "found"}, "goddess_silent": set()}      # the placeholders each list may use
+             "victory_stood": {"xp", "coins", "fallen", "found"}, "goddess_silent": set(),
+             "fight_begun": {"foe", "count"}}                            # the placeholders each list may use; (f498) a fight's opening untold
 STOOD_PLACEHOLDERS = {"what", "who", "amount"}
 
 
@@ -111,6 +112,21 @@ def victory_stood(facts: dict | None = None, rng: random.Random | None = None) -
 def goddess_silent(rng: random.Random | None = None) -> str:
     """The goddess at a death whose words could not be written: her own lines, in her voice."""
     return _fill("goddess_silent", F["goddess_silent"], {}, rng)
+
+
+COUNT_WORDS = ("one alone", "two of them", "three of them", "four of them", "five of them", "six of them", "seven of them", "eight of them",
+               "nine of them", "ten of them")
+
+
+def count_phrase(n: int) -> str:
+    """(f498) How many came: 'one alone', 'two of them', ... '14 of them'."""
+    return COUNT_WORDS[n - 1] if 1 <= n <= len(COUNT_WORDS) else f"{n} of them"
+
+
+def fight_begun(facts: dict | None = None, rng: random.Random | None = None) -> str:
+    """(f498) A fight begun whose opening could not be written: the fight is on (its row saved, its pane shown) and the player is told so
+    in the narrator's words, with who came ({foe}) and how many ({count}); the round's telling then carries the blows."""
+    return _fill("fight_begun", F["fight_begun"], facts or {}, rng)
 
 
 def problems(data: dict | None = None) -> list[str]:
