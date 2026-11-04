@@ -119,6 +119,28 @@ def wanted(task: str) -> bool:
     return _SERVING is not None
 
 
+def compute(key: str, fn):
+    """(f500) Work an operation computes once, kept across its restarts like an inside call: an estimate that simulates (the fight's
+    danger, eighty fights rolled), a pick that reads a helper model that may arrive between two attempts (the improv's effect). Inside a
+    restartable operation the value is kept on the serving in order, so the attempt that stands finds what the first attempt found, and
+    computes nothing twice; a key other than the one kept at this point is a Drift (what the operation read moved). Outside any serving
+    it runs plainly. The value is deep-copied out, so a caller cannot change what is kept."""
+    import copy
+    s = _SERVING
+    if s is None:
+        return fn()
+    if s.at < len(s.answers):
+        want, result, error = s.answers[s.at]
+        if want != key:
+            raise Drift(f"computed: the work at this point differs from the one kept ({want} -> {key}); what the operation read moved")
+        s.at += 1
+        return copy.deepcopy(result)
+    result = fn()
+    s.answers.append((key, result, None))
+    s.at += 1
+    return copy.deepcopy(result)
+
+
 def problems(known: set[str]) -> list[str]:
     """The startup check: every task named to be asked outside is a task the code asks for."""
     return [f"budget.yaml asked_outside: '{t}' is no task the code asks for" for t in sorted(tasks() - set(known))]

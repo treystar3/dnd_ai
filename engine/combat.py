@@ -561,8 +561,10 @@ def calibration(level: int, key: str = "calibration") -> tuple[float, float]:
 
 
 def fight_key(combat) -> str:
-    """(f439) This fight's own mark, made once from the ids stream and kept with the fight: what perks and heals remember about a fight is
-    filed under it, never under id(combat), which a later fight can be handed once this one is gone (and a reloaded fight is a new object)."""
+    """(f439) This fight's own mark, made once from the ids stream and kept with the fight: it tells its blows' records apart from another
+    fight's (never id(combat), which a later fight can be handed once this one is gone, and a reloaded fight is a new object). (f500)
+    Drawn as the fight is made (scenes/combat_scene.py begin), so no estimate's copy and no later read draws it: here only for a fight
+    built without the scene (a simulation of the camp's odds, a test's bare Combat), when a blow is first recorded."""
     if not combat.serial:
         combat.serial = streams.new_id(4)
     return combat.serial
@@ -3112,7 +3114,8 @@ def ensure_field(fight: Combat) -> None:
 
 def simulate(combat: Combat, rng: random.Random, max_rounds: int = 60) -> Combat:
     c = copy.deepcopy(combat)
-    ensure_field(c)
+    c.record = False                   # (f500) an estimate's copy keeps no breakdown of its blows: new_hit and new_heal return before any draw,
+    ensure_field(c)                    # and the copy's effects are its own (a deep copy): nothing of the estimate reaches the live fight
     if not c.opened:
         opening(c, rng)
     while not c.over and c.round <= max_rounds:

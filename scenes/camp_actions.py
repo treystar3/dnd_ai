@@ -387,8 +387,8 @@ class CampActions:
         near, later = CombatScene.allies(self, hold=self.player.party_mode == "hold")
         fighters = [combat.fighter_from_character(c)] + near
         cmb = combat.Combat(fighters=fighters + [e.model_copy(deep=True) for e in enemies], place=self.place.name,
-                            conditions=sorted(self.conditions()))
-        cmb.reserves = [r.model_copy(deep=True) for r in reserves]
+                            conditions=sorted(self.conditions()))               # (f500) record False and no serial: an estimate's fight
+        cmb.reserves = [r.model_copy(deep=True) for r in reserves]               # draws nothing from the ids stream
         cmb.ally_reserves, cmb.ally_arrive = later, party_rules.P["hold_arrival_round"]
         cmb.reinforce_every, cmb.reinforce_count = A["camp_waves"]["every"], A["camp_waves"]["count"]
         return cmb

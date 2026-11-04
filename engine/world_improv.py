@@ -144,9 +144,9 @@ def resolve(ws, words: str, text: str, ruled: dict | None = None) -> None:
     """The whole action: read it, roll it, make something true, and tell the narrator what happened as a decided fact. (f395) With the
     dungeon master's ruling (engine/ruling.py): a plain yes is done without a roll; a cost is rolled on the ruling's check and how hard
     it is; and what the world made for it is told as real."""
-    from engine import checks, pools
+    from engine import asked, checks, pools
     c = ws.player.character
-    effect = read_effect(words or text)
+    effect = asked.compute(f"improv_effect:{words or text}", lambda: read_effect(words or text))   # (f500) as the fight's improv: read once a line
     made = (ruled or {}).get("made") or []
     room = (" THE WORLD NOW HOLDS (made for this, and real from now on; show it): " + "; ".join(made) + ".") if made else ""
     if effect == "pose" and not made and not (ruled or {}).get("changes"):                       # (f386) shown, and nothing else: no roll, no mark, nothing barred

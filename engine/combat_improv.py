@@ -61,9 +61,9 @@ def odds_for(p, effect: str) -> float:
 
 def resolve(fight, p, target, words: str, rng: random.Random) -> None:
     """The player's whole action: read what they are after, roll it, and make something true either way."""
-    from engine import checks
-    effect = read_effect(words)
-    degree, rolled = checks.roll(odds_for(p, effect))
+    from engine import asked, checks
+    effect = asked.compute(f"improv_effect:{words}", lambda: read_effect(words))   # (f500) read once a line: a helper model that arrives
+    degree, rolled = checks.roll(odds_for(p, effect))                            # between two attempts would read it another way (Drift)
     good = degree in ("success", "strong success")
     partial = degree == "partial"
     fight.log.append(f"{p.name} improvises ({effect.replace('_', ' ')}): {degree}")

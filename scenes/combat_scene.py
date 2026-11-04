@@ -244,6 +244,8 @@ class CombatScene:
         tether_notes = ws.tether_for(near)
         fight = combat.Combat(fighters=fighters + enemies, place=ws.place.name, conditions=sorted(ws.conditions()))
         fight.record = True                 # keep a breakdown of every blow for the window's combat log
+        combat.fight_key(fight)             # (f500) the fight's serial, drawn once here from the ids stream: never by an estimate's copy, never
+        #                                     by a mark read before the first blow, so the dice after it are the same whatever is estimated
         from engine import battlefield, battlefield_builder
         fight.battlefield = battlefield_builder.for_scene(ws, duel=bool(duel),
                                                           big="" if duel else battlefield_builder.big_kind(enemies, reserves or [], big))
@@ -275,8 +277,9 @@ class CombatScene:
         combat.opening(fight, scene.rng)
         opening_events = [TAG.sub("", e) for e in fight.story]          # the opening blows are logged, not narrated with figures
         fight.log, fight.story = [], []
-        label, rate = combat.danger(fight)
-        console.debug(f"danger estimate: {rate:.0%} win rate")
+        from engine import asked
+        label, rate = asked.compute(f"danger:{fight.serial}", lambda: combat.danger(fight))   # (f500) eighty fights simulated once a line:
+        console.debug(f"danger estimate: {rate:.0%} win rate")                               # an operation run again finds the estimate kept
         if prepare:
             prepare(fight)                  # a scripted fight sets itself up after the estimate, so the estimate is of the fight as it looks
         manner = {"aggressive": "They mean to attack.",
