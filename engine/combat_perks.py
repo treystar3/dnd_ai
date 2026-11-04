@@ -344,8 +344,8 @@ def on_dot_death(combat: C.Combat, f: C.Fighter) -> None:
     combat.log.append(f"{f.name} succumbs")
     C.tell(combat, f"{C.who(f)} succumbs to what was done to {C.vb(f, 'you', 'it')} and falls")
     p = player_of(combat)
-    rng = random.Random(combat.round * 17 + len(combat.log))
-    from engine import behaviors
+    from engine import behaviors, streams
+    rng = streams.keyed("morale", f.id, combat.serial, combat.round)   # (f501) the death's own die, never seeded by what was logged
     behaviors.morale_on_death(combat, f, rng)
     if f.counters.get("reaped_by"):
         from engine import spellcraft

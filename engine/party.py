@@ -10,6 +10,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yaml.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))
@@ -39,7 +40,7 @@ class Shape:
 def roster(seed, hall: str, day: int, player_level: int, rank_coins: int, used: list[str]) -> list[dict]:
     """The adventurers free at a hall this week. Same list for the same week; hired ones drop off it."""
     week = day // P["roster_days"]
-    rng = random.Random(f"{seed}:party:{hall}:{week}")
+    rng = streams.fixed(seed, "party", hall, week)      # (f501) a fixed die, today's seed string exactly: no roster moves
     out = []
     roles = list(P["roles"])
     for i in range(P["roster_size"]):
@@ -206,7 +207,7 @@ def pronoun_of(member: dict, seed=None, used=()) -> str:
     if p in ("she", "he", "they"):
         return p
     p = "she" if member.get("sheet") == "maren" else (_drawn_with(member, seed, used)
-                                                       or random.Random(f"{member.get('id')}:{member.get('name')}").choice(["she", "he"]))
+                                                       or streams.fixed(member.get('id'), member.get('name')).choice(["she", "he"]))   # (f501) today's seed exactly
     member["pronoun"] = p
     return p
 
@@ -234,7 +235,7 @@ def companion_pronoun(comp) -> str:
     if comp.pronoun:
         return comp.pronoun
     comp.pronoun = ("it" if (comp.kind or "beast") in ("spirit", "elemental", "construct", "undead")
-                    else random.Random(f"{comp.id}:{comp.name}").choice(["she", "he"]))
+                    else streams.fixed(comp.id, comp.name).choice(["she", "he"]))     # (f501) today's seed exactly
     return comp.pronoun
 
 

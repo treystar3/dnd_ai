@@ -16,6 +16,13 @@ ROOT = Path(__file__).resolve().parent.parent
 PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py"]   # grows as Bundle D writes them
 FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "time", "datetime", "uuid")
 RANDOM_OK = {"keyed"}                         # streams.keyed(...) is the one die a pure module may roll
+# (f501) The DICE fence: the fight modules may roll only the streams (streams.get, keyed, fixed, new_id) and the two named constants, a
+# scratch estimate's own die (engine/combat.py danger, Random(seed)) and the mentor probe's steady roll (Random(0)); never a die seeded by
+# what was logged or by the clock (decision 5: nothing in play is seeded by what was logged). services/fight.py joins when f503 writes it.
+DICE = ["engine/combat.py", "engine/combat_perks.py", "engine/spellcraft.py", "engine/behaviors.py", "engine/healing.py",
+        "engine/afflictions.py", "engine/relics.py", "engine/bosses.py", "engine/summons.py", "engine/martial.py", "engine/movement.py",
+        "engine/parley.py", "engine/party.py", "scenes/combat_scene.py", "services/fight.py"]
+DICE_CONSTANTS = {("engine/combat.py", "random.Random(seed)"), ("engine/combat.py", "random.Random(0)")}
 
 
 def _imports(tree: ast.AST) -> list[tuple[int, str]]:
@@ -75,4 +82,35 @@ def check_all() -> list[str]:
     for rel in PURE:
         if (ROOT / rel).exists():
             out += problems(rel)
+    return out
+
+
+def dice_problems_in(source: str, name: str = "<source>") -> list[str]:
+    """(f501) Every die a fight module makes outside the streams: random.Random(...) and random.<roll>(...) calls, less the named constants."""
+    tree = ast.parse(source)
+    lines = source.splitlines()
+    bad = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        is_random = isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "random"
+        is_bare = isinstance(f, ast.Name) and f.id in ("Random", "SystemRandom")
+        if not (is_random or is_bare):
+            continue
+        text = lines[node.lineno - 1][node.col_offset:].split(",")[0].split(")")[0] + ")"
+        if (name, text) in DICE_CONSTANTS:
+            continue
+        what = "makes its own Random" if (is_bare or f.attr in ("Random", "SystemRandom")) else f"rolls random.{f.attr}"
+        bad.append(f"{name}:{node.lineno}: {what} (draw from the streams: get, keyed, fixed or new_id)")
+    return sorted(set(bad), key=lambda b: (int(b.split(":")[1]) if b.split(":")[1].isdigit() else 0, b))
+
+
+def check_dice() -> list[str]:
+    """(f501) Every fight module that exists, under the DICE rule."""
+    out = []
+    for rel in DICE:
+        p = ROOT / rel
+        if p.exists():
+            out += dice_problems_in(p.read_text(encoding="utf-8"), rel)
     return out

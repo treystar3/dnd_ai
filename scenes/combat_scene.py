@@ -6,7 +6,6 @@ and narrates the round from the engine's log.
 
 import json
 import math
-import random
 import re
 
 from core.models import Item
@@ -1456,7 +1455,7 @@ class CombatScene:
             return
         PR = R["prisoner"]
         chance = max(PR["min_chance"], min(PR["max_chance"], PR["chance"] + ws.player.outlaw_rep * PR["rep_chance_per_point"]))
-        if random.Random(f"{ws.store.meta.seed}:yield:{ws.minutes}").random() < chance:
+        if streams.keyed("yield", f.serial).random() < chance:                                       # (f501) the fight's own die
             who = max(fallen, key=lambda e: e.level)
             who.hp, who.surrendered = 1, True
 
@@ -1472,7 +1471,7 @@ class CombatScene:
         if not ppl:
             return [e for e in yielded if e.name == leader]
         self.ws.surrender_took = True
-        rng = random.Random(f"{self.ws.store.meta.seed}:surrender:{self.ws.minutes}")
+        rng = streams.keyed("surrender", self.fight.serial)                                           # (f501) the fight's own die
         taken = {n.split()[0].lower() for n in self.ws.store.npc_names() if n}            # (f422) no two captives, or a captive and a
         for e in ppl:                                                                       # townsman, share a name in one save
             free = [n for n in R["prisoner"]["names"] if n.split()[0].lower() not in taken] or R["prisoner"]["names"]
@@ -1495,7 +1494,7 @@ class CombatScene:
             item.description = f"Taken from {source}."
             return
         taken = {t.lower() for t in self.ws.store.legendary_names()}
-        rng = random.Random(f"{item.uid}:{len(taken)}")
+        rng = streams.keyed("item_name", item.uid, len(taken))                                        # (f501) the find's own die
         for _ in range(200):
             name = rng.choice(self.FALLBACK_FIRST) + rng.choice(self.FALLBACK_SECOND)
             if name.lower() not in taken:

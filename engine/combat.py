@@ -2480,7 +2480,7 @@ def act_move(combat: Combat, f: Fighter, how: str, target: Fighter | None) -> No
         combat.log.append(f"{f.name} takes the high ground")
         tell(combat, f"{who(f)} {vb(f, 'scramble', 'scrambles')} up to higher ground")
     elif how == "back":
-        story = retreat(combat, f, random.Random(combat.round * 7919 + len(combat.log)))
+        story = retreat(combat, f, streams.keyed("retreat", f.id, combat.serial, combat.round))   # (f501) its own die, never seeded by what was logged
         combat.log.append(f"{f.name} falls back")
         tell(combat, f"{who(f)} {story}")
     else:
@@ -2549,7 +2549,7 @@ def mentor_script(combat: Combat, rng: random.Random) -> None:
     troll = next(iter(combat.enemies()), None)
     if combat.mentor_phase == 0 and troll is not None:
         tell(combat, combat.mentor_hurt_line or f"the troll's blow lands on {m.name}, not on you")
-        probe = raw_damage(troll, 1.0, active_triggers(troll, combat, m), random.Random(0), steady=True)
+        probe = raw_damage(troll, 1.0, active_triggers(troll, combat, m), random.Random(0), steady=True)   # a constant, steady: no die (the DICE fence names it)
         one, _ = mitigate(m, probe, troll.damage_type, troll.level, combat, troll)
         held, troll.always_miss = troll.always_miss, False
         apply_damage(combat, troll, m, max(0.1, m.max_hp * 0.4 / max(1.0, one)), "smashes", rng, can_cleave=False, can_riposte=False, can_flurry=False, reliable=True)
@@ -3129,7 +3129,7 @@ def simulate(combat: Combat, rng: random.Random, max_rounds: int = 60) -> Combat
 
 def danger(combat: Combat, runs: int = 80, seed: int = 0) -> tuple[str, float]:
     """Estimate the fight by simulating it. Returns (label, win rate)."""
-    rng = random.Random(seed)
+    rng = random.Random(seed)                          # a scratch estimate's own die, never the fight's (the DICE fence names it)
     wins = sum(simulate(combat, rng).over == "victory" for _ in range(runs))
     rate = wins / runs
     if rate >= 0.97:
