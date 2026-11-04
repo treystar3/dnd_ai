@@ -617,6 +617,7 @@ def check() -> list[str]:
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
+    bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
     return bad
 
 
@@ -727,6 +728,194 @@ def trigger_problems(T: list | None = None) -> list[str]:
             out.append(f"triggers.yaml {tid}: says dormant, but the code evaluates it")
         if tid not in live and not dormant:
             out.append(f"triggers.yaml {tid}: no code evaluates it; mark it dormant: true, or evaluate it")
+    return out
+
+
+# ---------- (f509) the allow-lists: every table the fight reads, held to the code that runs it, both ways ----------
+
+def _literals(paths) -> set[str]:
+    """Every string constant in these modules' syntax trees."""
+    import ast
+    out: set[str] = set()
+    for rel in paths:
+        for n in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                out.add(n.value)
+    return out
+
+
+def _compared(rel: str, names: tuple[str, ...]) -> set[str]:
+    """Every string a module compares one of these names against (`kind == "smite"`, `eid in ("a", "b")`): what its dispatch handles."""
+    import ast
+    out: set[str] = set()
+    for c in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+        if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) and c.left.id in names:
+            for comp in c.comparators:
+                if isinstance(comp, ast.Constant) and isinstance(comp.value, str):
+                    out.add(comp.value)
+                elif isinstance(comp, (ast.Tuple, ast.List, ast.Set)):
+                    out |= {x.value for x in comp.elts if isinstance(x, ast.Constant) and isinstance(x.value, str)}
+    return out
+
+
+GAME_CODE = ("engine", "scenes", "services", "npc", "character", "llm")     # (f509) where a row's key or an id may be read by name
+_SCAN: dict = {}
+
+
+def scan_code(precise: bool = False) -> tuple[set[str], set[str]]:
+    """(f509) What the game's code names: (every string it holds, every row key it reads by name: x["key"], x.get("key")), over
+    GAME_CODE. By default read by pattern with the comments stripped (a tenth of a second, for the check at every startup); precise,
+    read from the syntax tree (two seconds, for the suite's test, which holds the two readings to one verdict). Cached: the code does
+    not change while a process runs."""
+    import ast
+    import re
+    if precise in _SCAN:
+        return _SCAN[precise]
+    lits, keys = set(), set()
+    for d in GAME_CODE:
+        for p in sorted((ROOT / d).glob("*.py")):
+            text = p.read_text(encoding="utf-8")
+            if precise:
+                for n in ast.walk(ast.parse(text)):
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                        lits.add(n.value)
+                    elif isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) and isinstance(n.slice.value, str):
+                        keys.add(n.slice.value)
+                    elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "get" and n.args \
+                            and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                        keys.add(n.args[0].value)
+            else:
+                code = "\n".join(line.split("#")[0] for line in text.split("\n"))
+                lits |= set(re.findall(r'["\']([A-Za-z_][\w ]*)["\']', code))
+                for a, b in re.findall(r'\[["\']([a-z_]+)["\']\]|\.get\(["\']([a-z_]+)["\']', code):
+                    keys.add(a or b)
+    _SCAN[precise] = (lits, keys)
+    return lits, keys
+
+
+def _read_keys(precise: bool = False) -> set[str]:
+    """Every key the game's code reads from a row by name."""
+    return scan_code(precise)[1]
+
+
+def code_named(precise: bool = False) -> set[str]:
+    """Every string the game's code names (what it can run by name)."""
+    return scan_code(precise)[0]
+
+
+def creature_categories() -> set[str]:
+    """Every creature category the engine knows: the keys of combat.yaml creatures.natural_armor (the bestiary's rows are held to them
+    elsewhere in this check)."""
+    from engine import combat
+    return set((combat.RULES.get("creatures") or {}).get("natural_armor") or {})
+
+
+ALLOW_TABLES = ("legendary", "expressions", "relics", "summons", "bosses", "martial", "movement", "healing", "mechanics")
+
+
+def allowlist_problems(tables: dict | None = None, handled: dict | None = None, precise: bool = False) -> list[str]:
+    """(f509) Every table the fight reads, held to the code that runs it, both ways: legendary effects (engine/legendary.py: by name,
+    category or world mechanic, else enabled: false), spellcraft expressions (each named by engine/spellcraft.py or engine/combat.py;
+    each the dispatch compares is in the table), relic powers (the kinds engine/relics.py use dispatches), summon forms (each row's
+    keys ones engine/summons.py reads; the forms the summon family of active_effects.yaml names), boss kits' options (the kinds
+    engine/bosses.py _do runs), martial maneuvers (each row's keys ones engine/martial.py reads, its status a combat.yaml status, each
+    maneuver the code names in the table), movement kinds (engine/movement.py), healing forms (engine/healing.py, mend the plain one),
+    passive mechanics (core/rules.py's engine sets: the refusal that lived at import, and a set entry that is neither a mechanic nor a
+    legendary effect). `tables` and `handled` override a table or the code's side, for the test's planted ids; `precise` reads the
+    code by its syntax tree (scan_code)."""
+    from core import rules
+    from engine import items, legendary, summons, martial, spellcraft, combat as _cb
+    T = tables or {}
+    H = handled or {}
+    out: list[str] = []
+
+    def need(ok, msg):
+        if not ok:
+            out.append(msg)
+    # legendary effects
+    effects = T.get("legendary") or items.LEGENDARY
+    out += legendary.problems(effects, H.get("legendary") or code_named(precise), creature_categories(), set(rules.ENGINE_WORLD_MECHANICS))
+    # spellcraft expressions
+    EXPR = T.get("expressions") or spellcraft.EXPR
+    named = H.get("expressions") or _literals(["engine/spellcraft.py", "engine/combat.py"])
+    compared = H.get("expressions_compared") or _compared("engine/spellcraft.py", ("eid",))
+    for eid in EXPR:
+        need(eid in named or eid in compared, f"spellcraft.yaml expressions.{eid}: nothing in engine/spellcraft.py or engine/combat.py runs it")
+    for eid in sorted(compared):
+        need(eid in EXPR, f"engine/spellcraft.py handles an expression '{eid}' that spellcraft.yaml does not name")
+    # relic powers
+    AC = T.get("relics") or _load("data/rules/accessories.yaml")
+    kinds_used: set[str] = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            if isinstance(o.get("kind"), str) and "text" in o:
+                kinds_used.add(o["kind"])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(AC)
+    relic_kinds = H.get("relics") or _compared("engine/relics.py", ("kind",))
+    for k in sorted(kinds_used):
+        need(k in relic_kinds, f"accessories.yaml: a power of kind '{k}' has no handler in engine/relics.py")
+    for k in sorted(relic_kinds):
+        need(k in kinds_used, f"engine/relics.py handles a power kind '{k}' that no power in accessories.yaml uses")
+    # summon forms
+    forms = T.get("summons") or summons.FORMS
+    form_keys = H.get("summons") or _read_keys(precise)              # read by name anywhere in the game's code
+    AE = _load("data/rules/active_effects.yaml")
+    summon_kinds = {k for k, v in (AE.get("kinds") or {}).items() if (v or {}).get("family") == "summon"}
+    for form, row in forms.items():
+        need(form in summon_kinds, f"summons.yaml forms.{form}: no summon kind of that name in active_effects.yaml")
+        for key in (row or {}):
+            need(key in form_keys, f"summons.yaml forms.{form}: the key '{key}' is one no game code reads")
+    for k in sorted(summon_kinds):
+        need(k in forms, f"active_effects.yaml kinds.{k}: a summon kind with no form in summons.yaml")
+    # boss options
+    BS = T.get("bosses") or _load("data/rules/bosses.yaml")
+    boss_kinds = H.get("bosses") or _compared("engine/bosses.py", ("kind",))
+    used = set()
+    for kit, spec in (BS.get("kits") or {}).items():
+        for opt in [spec.get("signature")] + list(spec.get("legendary") or []):
+            if opt:
+                used.add(opt.get("kind"))
+                need(opt.get("kind") in boss_kinds, f"bosses.yaml kits.{kit}: an option of kind '{opt.get('kind')}' has no handler in engine/bosses.py _do")
+    for k in sorted(boss_kinds):
+        need(k in used, f"engine/bosses.py _do handles an option kind '{k}' that no kit in bosses.yaml uses")
+    # martial maneuvers
+    MT = T.get("martial") or martial.MANEUVERS
+    man_keys = H.get("martial") or _read_keys(precise)
+    statuses = set((_cb.RULES.get("statuses") or {}))
+    for mid, row in MT.items():
+        for key in (row or {}):
+            need(key in man_keys, f"martial.yaml maneuvers.{mid}: the key '{key}' is one no game code reads")
+        if (row or {}).get("status"):
+            need(row["status"] in statuses, f"martial.yaml maneuvers.{mid}: status '{row['status']}' is no combat.yaml status")
+    for m in sorted(H.get("martial_named") or _compared("engine/martial.py", ("maneuver", "mid", "man"))):
+        need(m in MT, f"engine/martial.py names a maneuver '{m}' that martial.yaml does not have")
+    # movement kinds
+    MV = T.get("movement") or _load("data/rules/movement.yaml")
+    move_kinds = H.get("movement") or _compared("engine/movement.py", ("kind",))
+    for k in (MV.get("kinds") or {}):
+        need(k in move_kinds, f"movement.yaml kinds.{k}: no handler in engine/movement.py")
+    for k in sorted(move_kinds):
+        need(k in (MV.get("kinds") or {}), f"engine/movement.py handles a movement kind '{k}' that movement.yaml does not name")
+    # healing forms
+    HL = T.get("healing") or _load("data/rules/healing.yaml")
+    heal_forms = H.get("healing") or (_compared("engine/healing.py", ("form",)) | {"mend"})     # mend is the plain form, the else arm
+    for f in (HL.get("forms") or {}):
+        need(f in heal_forms, f"healing.yaml forms.{f}: no handler in engine/healing.py")
+    for f in sorted(heal_forms):
+        need(f in (HL.get("forms") or {}), f"engine/healing.py handles a healing form '{f}' that healing.yaml does not name")
+    # passive mechanics (the refusal that lived at core/rules.py import)
+    PM = T.get("mechanics") or rules.MECHANICS
+    combat_set, world_set = H.get("mechanics_combat") or rules.ENGINE_COMBAT_MECHANICS, H.get("mechanics_world") or rules.ENGINE_WORLD_MECHANICS
+    for m in PM.values():
+        need(m.id in (combat_set if m.kind == "combat" else world_set), f"passive_mechanics.yaml {m.id}: the engine doesn't know how to run it")
+    for mid in sorted((combat_set | world_set) - set(PM) - set(items.LEGENDARY)):
+        need(False, f"core/rules.py names a mechanic '{mid}' that is neither a passive mechanic nor a legendary effect")
     return out
 
 
