@@ -88,6 +88,14 @@ def _deadline(seconds):
             inner.timeout = before
 
 
+def timeout_words(limit) -> str:
+    """(f493) A timed-out try, by the limit it had: the turn's time left when the budget set one (llm/gateway.py _deadline), else the
+    client's own. The post-D night logged 'timed out after 120s' for tries cut at the budget's deadline some 44 seconds in."""
+    if limit is not None and getattr(getattr(_client, "_client", None), "timeout", None) is not None:
+        return f"timed out after {round(float(limit))}s (what was left of the turn's time)"
+    return f"timed out after {config.REQUEST_TIMEOUT}s"
+
+
 def _chars(system: str, user) -> int:
     """(f468) What a call reads, in characters: the budget's price is from text alone."""
     from engine.prompt import Prompt
@@ -215,8 +223,9 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     for attempt in range(retries + 1):
         start = time.perf_counter()
         chars = sum(len(str(m.get("content") or "")) for m in messages)           # (f468) what this attempt reads: a retry reads the draft too
+        limit = budget.deadline()                                               # (f493) the limit this try had, for its message
         try:
-            with _deadline(budget.deadline()):                                    # (f468) what is left of the turn's minute, on the client
+            with _deadline(limit):                                                # (f468) what is left of the turn's minute, on the client
                 response = _client.chat(
                     model=config.MODEL,
                     think=config.THINK,
@@ -239,7 +248,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             last_error = e
             transport = True
             timed_out = isinstance(e, httpx.TimeoutException)
-            what = (f"timed out after {config.REQUEST_TIMEOUT}s" if timed_out
+            what = (timeout_words(limit) if timed_out
                     else f"the model server failed: {str(e)[:200] or type(e).__name__}"
                     if isinstance(e, (httpx.HTTPError, ollama.ResponseError, ConnectionError))
                     else f"the call failed: {type(e).__name__}: {str(e)[:200]}")

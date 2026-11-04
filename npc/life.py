@@ -309,9 +309,10 @@ def _offered(store, npc, who: str) -> dict | None:
     return offer_open(store, npc, who)
 
 
-def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun):
+def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False):
     """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
-    sell, the request itself. Returns (prompt, facts, recent)."""
+    sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
+    facts, recent)."""
     from engine import banter, matters, voice_profile
     from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
     every = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
@@ -338,7 +339,7 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
             extra, land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text,   # (f486) when asked
             stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
             unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
-            work=_offered(store, npc, who), pronoun=pronoun,
+            work=_offered(store, npc, who), pronoun=pronoun, promised=promised,
         )
     return prompt, facts, recent
 
@@ -368,11 +369,15 @@ def converse(
     names the scene allows (f315) - the gateway sends back a reply that names anyone or anywhere else. stance (f347) is how they are for
     this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk. wares (f418): what they
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
-    prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun)
+    from engine import brief
+    promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
+    prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
+                                     promised)
     from engine import voices
+    from llm.contracts import NPCReplyPromised
     reply = generate(
         "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt,
-        NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
+        NPCReplyPromised if promised else NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
                             "given_also": list(given_also),        # (f486) the town's list, for the checks, given or not
                             "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
@@ -467,12 +472,14 @@ def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCa
     block = ("THE ONES YOU ARE TALKING WITH (give each one block in answers, by their id): "
              + "; ".join(f"{cid}: {label}, {prompts.trust_words(regard.of(npc, cid).trust)}"
                          + (f", speak of them as {(pronouns or {}).get(cid)}" if (pronouns or {}).get(cid) else "") for cid, label, _ in speakers))
+    promised = brief.promised(*words.values())               # (f493) the blocks' promise field only when a line may make one
     prompt, facts, recent = _request(npc, store, world, catalog, convo, said, list(extra) + [block], truth_text, stance, rng, worn, wares,
-                                     ids[0], (pronouns or {}).get(ids[0], ""))
+                                     ids[0], (pronouns or {}).get(ids[0], ""), promised)
     from engine import voices
     from llm import contracts
     reply = generate(
-        "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt, contracts.many_reply(ids), temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
+        "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt, contracts.many_reply(ids, promised), temperature=0.8,
+        max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "", "given_also": list(given_also),
                             "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "to": ids, "words": words},
         relaxed_context={"known": known, "to": ids, "words": words},

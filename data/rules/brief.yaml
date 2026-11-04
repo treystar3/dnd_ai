@@ -36,6 +36,20 @@ townsfolk:
   # character in order (flat_each). Set from the night's measure (f490): one_call stays only if its first-try acceptance on the card is
   # within 10 points of a single reply's.
   many_addressees: one_call
+  # (f493) A promise made to them in words is remembered as their claim (GOALS.md, 2026-11-03). The reply's they_promised is asked for
+  # only when what was said to them has one of `words` in it: with nothing promised there is no field to fill. On the post-D night (pod
+  # night 20261104_0012) the field was always there, and 698 of 707 replies filled it, most with "none" or with notes to the model
+  # itself, the longest to the token limit; 188 of 874 first tries timed out. What comes back is kept only as its first clause (cut at
+  # the first of `clause_ends`), in at most `max_words` words, with none of `not_one` and no character of `not_in` in it.
+  promise:
+    words: [promise, promised, swear, vow, my word, "i'll", i will, i shall, "we'll", we will, count on me, rely on me, leave it to me,
+            consider it done, "i'm going to", i am going to, on my honor, on my honour]
+    max_chars: 120         # the field's length in the reply's schema: the server's grammar ends it there
+    max_words: 16
+    clause_ends: ["\n", ". ", " (", ";", " - ", " – ", " — ", "\","]
+    not_one: [none, nothing, empty, no promise, not a promise, no promises, prompt, instruction, instructions, schema, json, placeholder,
+              "n/a", "note:", "wait,", user]
+    not_in: ["_", "{", "}", "*"]
 
 
 # (f488, part 2) A hire's brief (scenes/party_prompts.py talk_prompt): who they are, what presses on them, the moment as they know it,

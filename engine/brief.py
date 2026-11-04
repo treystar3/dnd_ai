@@ -66,6 +66,32 @@ def asked(facet: str, text: str, role: str = "", profile: str = "townsfolk") -> 
     return bool(words & set((R.get("asked") or {}).get(facet) or []))
 
 
+def _has(phrase: str, said: str) -> bool:
+    return bool(re.search(r"(?<![a-z])" + re.escape(phrase.lower()) + r"(?![a-z])", said))
+
+
+def promised(*lines: str) -> bool:
+    """(f493) Whether what was said to a townsperson may promise them something (brief.yaml promise.words): only then does their reply
+    ask what was promised (llm/contracts.py NPCReplyPromised)."""
+    said = " ".join(lines).lower().replace("’", "'")
+    return any(_has(str(w), said) for w in (rules().get("promise") or {}).get("words") or [])
+
+
+def promise_kept(text: str) -> str:
+    """(f493) What a reply says was promised, as it is kept: its first clause, in a few words, or nothing when it is the model's note to
+    itself ('none_given_this_turn', 'empty', 'Wait, let me re-read the rules')."""
+    P = rules().get("promise") or {}
+    text = str(text or "")
+    for end in P.get("clause_ends") or []:
+        text = text.split(str(end))[0]
+    text = text.strip().strip(".,;:!?\"'“” ").strip()
+    low = text.lower()
+    if (not text or any(c in text for c in P.get("not_in") or []) or any(_has(str(w), low) for w in P.get("not_one") or [])
+            or len(text.split()) > int(P.get("max_words") or 0)):
+        return ""
+    return text
+
+
 def pronoun(ws, char_id: str) -> str:
     """The character's pronoun, as the one in front of a speaker: theirs, by id."""
     from engine import truth
@@ -100,4 +126,13 @@ def problems() -> list[str]:
     for facet in ("land", "town", "board"):
         if not (R.get("asked") or {}).get(facet):
             bad.append(f"brief.yaml townsfolk.asked.{facet}: needs its words")
+    P = R.get("promise") or {}                                  # (f493)
+    for k in ("max_chars", "max_words"):
+        if not isinstance(P.get(k), int) or P.get(k) < 1:
+            bad.append(f"brief.yaml townsfolk.promise.{k}: a whole number above zero")
+    for k in ("words", "clause_ends", "not_one", "not_in"):
+        if not isinstance(P.get(k), list) or not P.get(k) or not all(isinstance(w, str) and w for w in P[k]):
+            bad.append(f"brief.yaml townsfolk.promise.{k}: a list of words")
+    if isinstance(P.get("words"), list) and any(w != w.lower() for w in P["words"] if isinstance(w, str)):
+        bad.append("brief.yaml townsfolk.promise.words: lower case (the line is read in lower case)")
     return bad

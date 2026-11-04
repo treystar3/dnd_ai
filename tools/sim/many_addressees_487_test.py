@@ -57,8 +57,8 @@ before = dict(stub.calls)
 stub.many_extra = [{"to": c1.id, "learned_name": "Arwen", "trust_change": 3, "remember": "Arwen asked after work."},
                    {"to": c2.id, "remember": "Their friend asked where to sleep.", "they_promised": "to pay for the room"}]
 reply, _ = life.converse_many(npc, store, ws.world, ws.catalog, [], [(c1.id, "the stranger", "I am Arwen. Is there work going?"),
-                                                                     (c2.id, "the stranger's friend", "And where might we sleep tonight?")],
-                              pronouns={c1.id: "she", c2.id: "they"})
+                                                                     (c2.id, "the stranger's friend", "And where might we sleep tonight? We'll pay for the room.")],
+                              pronouns={c1.id: "she", c2.id: "they"})            # (f493) the second's line promises: the blocks ask what
 stub.many_extra = None
 after = store.load_npc(npc.id)
 made = {t: stub.calls.get(t, 0) - before.get(t, 0) for t in ("NPCReplyMany", "NPCReply")}

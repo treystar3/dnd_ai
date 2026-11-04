@@ -103,8 +103,6 @@ Your reply:
   told_own_name: true if your speech tells them your name. learned_player_name: the name they told you in this message, else empty.
   remember: one short line worth keeping about them from this exchange, about "the stranger" or their name; empty for small talk.
     If you lied, say what you lied about.
-  they_promised: only if the one in front of you promised you something in this message ("I'll bring the herbs by nightfall"): what
-    they promised, in a few words. Otherwise empty. It is their word, not yet done.
   journal_note: empty unless JOURNAL NOTE DUE appears in your context; it says what to write.
   gives: only if your speech hands them an object right now, and only a token, document or key plausibly yours to give (a pendant,
     badge, seal, letter, map, ledger, key, note, ring of passage); never weapons, armor, potions, coins or anything of real worth.
@@ -143,17 +141,24 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                                work=work, pronoun=pronoun).render()
 
 
+PROMISE_ASK = ("they_promised: if what was just said to you promises you something (\"I'll bring the herbs by nightfall\"), what was "
+               "promised, in a few words (answering more than one, in the block of the one who promised it); if it promises you nothing, "
+               "leave it empty. It is their word, not yet done.")       # (f493) given only when the line may promise something (engine/brief.py promised)
+
+
 def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
                         player_text: str, nearby: list[str], here_with: list[str], people_known: list[str],
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = ""):
+                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "",
+                        promised: bool = False):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
     voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
     saying offered to be said as it is; unsaid: what they said lately, so they say something new. who (f480): the id of the character
-    in front of them, whose view of them (engine/regard.py) the request reads."""
+    in front of them, whose view of them (engine/regard.py) the request reads. promised (f493): what was said may promise them
+    something, and the reply's contract asks what (PROMISE_ASK)."""
     from engine.prompt import Prompt
     p = Prompt()
     p.fact(_identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land))
@@ -175,6 +180,8 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     p.history(so_far, "THIS CONVERSATION SO FAR")
     p.fact(f'THEY SAY: "{player_text}"')                     # (f375) no length: they say what they would say
+    if promised:
+        p.instruction(PROMISE_ASK, "A PROMISE?")
     return p
 
 

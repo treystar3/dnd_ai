@@ -7,9 +7,10 @@ validation context passed to llm.gateway.generate.
 """
 
 import re
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import ConfigDict, BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
+from pydantic.json_schema import SkipJsonSchema
 
 from core.models import (
     COMPANION_TARGETS,
@@ -412,6 +413,22 @@ def blank_placeholders(*fields: str):
                     data[f] = ""
         return data
     return model_validator(mode="before")(classmethod(clean))
+
+
+def promise_field():
+    """(f493) A before-validator for they_promised: a contract that does not ask for it keeps none (the field is out of its schema, so
+    only a stub or a hand-made answer can carry one); one that asks keeps what came back only as a promise in a few words
+    (engine/brief.py promise_kept), never the model's note to itself."""
+    def clean(cls, data):
+        if isinstance(data, dict) and "they_promised" in data:
+            data = dict(data)
+            asked = getattr(cls, "ASKS_PROMISE", False)
+            data["they_promised"] = __import__("engine.brief", fromlist=["promise_kept"]).promise_kept(data["they_promised"]) if asked else ""
+        return data
+    return model_validator(mode="before")(classmethod(clean))
+
+
+_PROMISE_CHARS = int(((__import__("engine.brief", fromlist=["rules"]).rules().get("promise") or {}).get("max_chars")) or 120)   # (f493) brief.yaml
 
 
 def as_lists(*fields: str):
@@ -1021,13 +1038,21 @@ class NPCAnswer(BaseModel):
     trust_change: int = 0
     learned_name: str = ""
     remember: str = ""
-    they_promised: str = ""
+    they_promised: SkipJsonSchema[str] = ""        # (f493) asked for only in NPCAnswerPromised: here no field the server lets the model fill
     journal_note: str = ""
     offers_work: WorkOffer | None = None
     offers_quest: QuestOffer | None = None
     gives: GiftProposal | None = None
 
     _blank = blank_placeholders("learned_name", "remember", "they_promised", "journal_note")
+    _promise = promise_field()
+
+
+class NPCAnswerPromised(NPCAnswer):
+    """(f493) A block that may say what was promised: asked for only when what was said may promise something (engine/brief.py promised)."""
+    model_config = ConfigDict(title="NPCAnswer")
+    ASKS_PROMISE: ClassVar[bool] = True
+    they_promised: str = Field("", json_schema_extra={"maxLength": _PROMISE_CHARS})
 
 
 class NPCReply(BaseModel):
@@ -1043,16 +1068,18 @@ class NPCReply(BaseModel):
     offers_work: WorkOffer | None = None
     offers_quest: QuestOffer | None = None
     journal_note: str = ""
-    they_promised: str = ""             # (f486, G4) a promise the one in front of you made you in this exchange, in a few words; else empty
+    they_promised: SkipJsonSchema[str] = ""     # (f486, G4) a promise the one in front of you made you; (f493) asked for only in NPCReplyPromised
 
     _blank = blank_placeholders("gesture", "remember", "learned_player_name", "journal_note", "they_promised")
+    _promise = promise_field()
 
     def spoken(self):
         return [("", self.speech)]
 
     def answers(self, to: str = "") -> list[NPCAnswer]:
         """(f487) The one block of a reply to one character, for the one commit path (npc/life.py apply_answer)."""
-        return [NPCAnswer(to=to, trust_change=self.trust_change, learned_name=self.learned_player_name, remember=self.remember,
+        made = NPCAnswerPromised if getattr(self, "ASKS_PROMISE", False) else NPCAnswer        # (f493) a promise asked for is carried
+        return [made(to=to, trust_change=self.trust_change, learned_name=self.learned_player_name, remember=self.remember,
                           they_promised=self.they_promised, journal_note=self.journal_note, offers_work=self.offers_work,
                           offers_quest=self.offers_quest, gives=self.gives)]
 
@@ -1919,6 +1946,15 @@ class PersonaDetails(BaseModel):
 
 
 
+class NPCReplyPromised(NPCReply):
+    """(f493) A townsperson's reply that may say what was promised them, asked for only when what was said may promise something
+    (engine/brief.py promised). The field is held to brief.yaml promise.max_chars by the server's grammar, and what comes back is kept
+    only as a promise in a few words (promise_field). The same title as NPCReply: the same contract to the stub and the recordings."""
+    model_config = ConfigDict(title="NPCReply")
+    ASKS_PROMISE: ClassVar[bool] = True
+    they_promised: str = Field("", json_schema_extra={"maxLength": _PROMISE_CHARS})
+
+
 class NPCReplyManyBase(BaseModel):
     """(f487) A townsperson answering two or more characters at once: what is said aloud comes once (the speech, the gesture, the intent,
     the facts it carries, whether it gives their name); then one block for each character spoken to, each with what it means for them.
@@ -1960,11 +1996,12 @@ class NPCReplyManyBase(BaseModel):
         return self
 
 
-def many_reply(ids: list[str]):
-    """(f487) The contract for one reply to these characters: as many blocks as there are of them, each `to` one of their ids."""
+def many_reply(ids: list[str], promised: bool = False):
+    """(f487) The contract for one reply to these characters: as many blocks as there are of them, each `to` one of their ids. (f493)
+    Each block may say what was promised only when what was said may promise something."""
     from typing import Literal as _L
     from pydantic import Field, create_model
     To = _L[tuple(ids)]
-    Answer = create_model("NPCAnswer", __base__=NPCAnswer, to=(To, ...))
+    Answer = create_model("NPCAnswer", __base__=NPCAnswerPromised if promised else NPCAnswer, to=(To, ...))
     return create_model("NPCReplyMany", __base__=NPCReplyManyBase,
                         answers=(list[Answer], Field(min_length=len(ids), max_length=len(ids))))
