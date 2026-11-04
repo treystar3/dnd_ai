@@ -29,7 +29,8 @@ LARGE = {"Large", "Huge", "Gargantuan"}
 
 
 def growth(level: int) -> float:
-    return 1 + items.RULES["item_level_growth"] * (max(1, level) - 1)
+    """How a fighter's numbers grow with level: the one formula (engine/items.py level_growth; f506: it was written twice)."""
+    return items.level_growth(level)
 
 
 class Bonus(BaseModel):
@@ -755,16 +756,15 @@ def companion_boost(combat: Combat, stat: str) -> float:
 
 def mechanics(f: Fighter, combat: Combat | None, other: Fighter | None = None) -> dict[str, float]:
     """Every mechanic active for this fighter right now: legendary gear, passives, and conditional passives."""
-    out = dict(f.legendary)
+    from engine import stacking
+    sources = [f.legendary]
     if f.buffs:
         from engine import relics
-        for k, v in relics.buff_mechanics(f).items():
-            out[k] = out.get(k, 0) + v
+        sources.append(relics.buff_mechanics(f))
     if f.conditional and combat is not None:
         active = active_triggers(f, combat, other)
-        for c in f.conditional:
-            if c["when"] in active:
-                out[c["mechanic"]] = out.get(c["mechanic"], 0) + (c["value"] or 1)
+        sources += [{c["mechanic"]: c["value"] or 1} for c in f.conditional if c["when"] in active]
+    out, _ = stacking.combine("mechanics", {"sources": sources})   # (f506) the recipe: additive
     return out
 
 
@@ -872,23 +872,31 @@ def crit_multiplier(att: Fighter) -> float:
     return RULES["crit"]["multiplier"] + bonus(att, "crit_damage", {"always"}) / 100
 
 
+def damage_parts(att: Fighter, multiplier: float, triggers: set[str], variance: float = 1.0) -> dict:
+    """(f506) The parts of a blow before armour, for the base_damage recipe (engine/stacking.py): the weapon, the attribute's share and
+    the flat gear (none of the last two for a spell: spell base + spell power x its casting attribute, no flat attribute bonus), the
+    move's multiplier, the percent from passives and gear, the variance rolled, and a spell's multiplier. The fight and the stat sheet
+    read the same parts."""
+    d = RULES["damage"]
+    spell = att.spell_kind == "spell"
+    return {"weapon": att.weapon_damage, "attr_bonus": 0.0 if spell else att.best_attr(att.weapon_attrs) * d["attribute_bonus"],
+            "flat": 0.0 if spell else flat_bonus(att, "damage", triggers), "multiplier": multiplier,
+            "percent": bonus(att, "damage", triggers), "variance": variance, "magic": att.spell_mult if spell else 1.0}
+
+
 def raw_damage(att: Fighter, multiplier: float, triggers: set[str], rng: random.Random, steady: bool = False,
                trace: dict | None = None) -> float:
+    from engine import stacking
     d = RULES["damage"]
-    spell = att.spell_kind == "spell"                    # a spell: (spell base + spell power) x its casting attribute, no flat attribute bonus
-    flat = 0.0 if spell else flat_bonus(att, "damage", triggers)
-    attr_bonus = 0.0 if spell else att.best_attr(att.weapon_attrs) * d["attribute_bonus"]
-    base = att.weapon_damage + attr_bonus + flat
-    variance = 1.0 if steady else rng.uniform(1 - d["variance"], 1 + d["variance"])
-    magic = att.spell_mult if spell else 1.0
-    pct = bonus(att, "damage", triggers)
+    parts = damage_parts(att, multiplier, triggers, 1.0 if steady else rng.uniform(1 - d["variance"], 1 + d["variance"]))
+    total, _ = stacking.combine("base_damage", parts)   # (f506) the recipe: weapon + attribute + flat, x multiplier x (1 + percent) x variance x magic
     if trace is not None:
         if att.spell_kind:
             trace.update(kind=att.spell_kind, parts=[[n, round(v, 1)] for n, v in att.spell_parts])
-        trace.update(weapon=round(att.weapon_damage, 1), attr=att.best_attr(att.weapon_attrs), attr_bonus=round(attr_bonus, 1), spell_mult=round(att.spell_mult, 3),
-                     flat=round(flat, 1), base=round(base, 1), pct=round(pct, 1), variance=round(variance, 3), magic=round(magic, 3),
-                     multiplier=round(multiplier, 3), total=round(base * multiplier * (1 + pct / 100) * variance * magic, 2))
-    return base * multiplier * (1 + pct / 100) * variance * magic
+        trace.update(weapon=round(att.weapon_damage, 1), attr=att.best_attr(att.weapon_attrs), attr_bonus=round(parts["attr_bonus"], 1), spell_mult=round(att.spell_mult, 3),
+                     flat=round(parts["flat"], 1), base=round(parts["weapon"] + parts["attr_bonus"] + parts["flat"], 1), pct=round(parts["percent"], 1),
+                     variance=round(parts["variance"], 3), magic=round(parts["magic"], 3), multiplier=round(multiplier, 3), total=round(total, 2))
+    return total
 
 
 def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int, combat: Combat,
@@ -930,17 +938,15 @@ def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int,
     if pierce and damage_type != "magical":
         prot_steps.append(["Piercing / Sundering", f"-{min(90, pierce):g}%"])
         protection *= 1 - min(90, pierce) / 100
-    reduction = min(m["cap"], 100 * protection / max(0.01, protection + m["armor_k"] * growth(attacker_level)))
+    reduction = armour_cut(protection, attacker_level)
     after = amount * (1 - reduction / 100)
     triggers = active_triggers(dfn, combat, incoming_magic=damage_type == "magical")
     before = after
     cuts = [["armour" if damage_type != "magical" else "ward", amount - after]]
     def_pct, def_flat = bonus(dfn, "defense", triggers), flat_bonus(dfn, "defense", triggers)
-    after *= max(0.05, 1 - def_pct / 100)
-    cuts.append(["gear defence", before - after])
-    step = after
-    after = max(before * 0.1, after - def_flat)
-    cuts.append(["flat defence", step - after])
+    from engine import stacking
+    after, applied = stacking.combine("mitigate", {"amount": before, "percent": def_pct, "flat": def_flat})   # (f506) the recipe: percent, then flat
+    cuts += applied
     step = after
     from engine import spellcraft as _scb
     guarded = not (attacker is not None and _scb.burning_through(attacker))      # Burn Through (f268): the guard counts for nothing
@@ -957,6 +963,13 @@ def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int,
                      defense_flat=round(def_flat, 1), defending=round(float(dfn.defending), 1), before=round(amount, 2), after=round(after, 2),
                      cuts=[[n, round(v, 1)] for n, v in cuts if v >= 0.05])
     return after, amount - after
+
+
+def armour_cut(protection: float, attacker_level: int) -> float:
+    """(f506) The share of a blow armour or ward turns away, in percent: protection against the attacker's growth, capped. The fight
+    (mitigate) and the stat sheet read the same line."""
+    m = RULES["mitigation"]
+    return min(m["cap"], 100 * protection / max(0.01, protection + m["armor_k"] * growth(attacker_level)))
 
 
 def is_open(f: Fighter, round_now: int) -> bool:
@@ -1034,12 +1047,13 @@ def element_factor(dfn: Fighter, element: str) -> float:
     all a burn or a poisoning has to get through (engine/afflictions.py)."""
     if not element:
         return 1.0
-    pct = sum(b.magnitude for b in dfn.bonuses if b.trigger == "always" and b.modifies in (f"{element}_resistance", "all_elemental_resistance"))
+    from engine import stacking
+    values = [b.magnitude for b in dfn.bonuses if b.trigger == "always" and b.modifies in (f"{element}_resistance", "all_elemental_resistance")]
     if dfn.element == element:
-        pct += elements.R.get("native_resist", 0)
-    pct += (elements.R.get("category_resist") or {}).get(dfn.category, {}).get(element, 0)
-    pct += warded(dfn, element)                             # Attunement (f246)
-    factor = 1 - max(-100, min(elements.CAP, pct)) / 100
+        values.append(elements.R.get("native_resist", 0))
+    values.append((elements.R.get("category_resist") or {}).get(dfn.category, {}).get(element, 0))
+    values.append(warded(dfn, element))                     # Attunement (f246)
+    factor, _ = stacking.combine("resistance", {"values": values, "cap": elements.CAP, "floor": -100})   # (f506) below zero is a weakness
     if element == "lightning" and "conductive" in dfn.statuses:
         from engine import spellcraft as _sc
         factor *= 1 + _sc.num(_sc.EXPR["conductor"], "light", "pct", 25) / 100      # Conductor (f268)
@@ -1070,9 +1084,11 @@ ATTUNE = {"fire": 1.5, "lightning": 1.5, "acid": 1.5, "drain": 1.5, "nature": 1.
 
 def resist_factor(dfn: Fighter, damage_type: str, element: str) -> float:
     """How much of an attack gets through the target's resistances: physical or magical, then the element it carries."""
+    from engine import stacking
     kind = "physical" if damage_type == "physical" else "magical"
-    pct = sum(b.magnitude for b in dfn.bonuses if b.modifies == f"{kind}_resistance" and b.trigger == "always")
-    return (1 - max(0, min(elements.CAP, pct)) / 100) * element_factor(dfn, element)
+    through, _ = stacking.combine("resistance", {"values": [b.magnitude for b in dfn.bonuses if b.modifies == f"{kind}_resistance" and b.trigger == "always"],
+                                                 "cap": elements.CAP, "floor": 0})          # (f506) the recipe: summed, clamped
+    return through * element_factor(dfn, element)
 
 
 def restore(combat: Combat | None, f: Fighter, amount: float, source: Fighter | None = None, rng: random.Random | None = None) -> float:
