@@ -387,7 +387,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.__dict__["_streets_cache"] = cache
         return cache[1]
 
-    def refresh_present(self) -> None:
+    def refresh_present(self, assign: bool = True) -> None:
+        """Who is here now, from the rows. (f497) assign=False reads and never writes: a give-back (give_back) reloads the present as the
+        operation found them and leaves their doings to the next operation, since assigning them saves the row (engine/doings.py), a write
+        outside any operation with the fence armed, and a doing changed between the attempt that stood down and its re-run is a drift."""
         from engine import court, routines
         seed = self.store.meta.seed
         street, cast = self.streets_now()                                                               # (f357)
@@ -435,6 +438,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             fresh_copy = next((n for n in self.present if n.id == self.partner.id), None)
             if fresh_copy:
                 self.partner = fresh_copy
+        if not assign:
+            return
         from engine import doings, moments                                                    # (f348) what each of them is doing now: the engine's
         self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes) or street,
                                             visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
@@ -883,7 +888,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import budget
         budget.open()                                               # (f468) the input's minute of model time begins; closed when the line is done
 
-    HELD = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "combat_numbers", "legendary_reveal")   # (f463) the story bindings an operation holds
+    HELD = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger", "combat_numbers", "legendary_reveal",   # (f463) the story bindings an operation holds
+            "combat_state", "combat_panel")     # (f497) the fight's pane and its text panel: pushed at the commit, not for an attempt that stood down
+    PANE = ("combat_state", "combat_panel")     # (f497) held, but no lines of the page: load re-shows the pane from the row (enter), so they are
+    #                                             kept off the record's presentation entry and the turn log's lines
     ROLLED = ("recent_narration", "convo", "last_spoken", "wildlife", "recently_fled", "resume_pending", "held_yield", "orenna_fight", "camp_fight",
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
               "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
@@ -1002,7 +1010,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
             def held(*a, _name=name, **k):
                 op.held.append((_name, a, k))
-                op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))
+                if _name in self.PANE:                             # (f497) the pane's data is no line of the page; and show() takes the
+                    return console.damage_tags if _name == "combat_state" else None     # same branch held as live (the window's binding
+                op.lines.append(turnlog._shown_text(_name, a, k) if _name in turnlog.SHOWN_KINDS else " ".join(str(x) for x in a))   # says True)
             setattr(console, name, held)
         return real
 
@@ -1257,7 +1267,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         here = self.store.load_place(self.player.location)
         if here.populated:
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
-        self.refresh_present()
+        self.refresh_present(assign=False)                # (f497) read, never written: their doings wait for an operation (the fence is armed)
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
         self.pending = list(pending0)                     # (f493) as the operation found it: what it added goes, and what it flushed of an
                                                           # earlier operation's comes back (a hand-in's passage, flushed by the talk

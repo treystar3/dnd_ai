@@ -79,6 +79,7 @@ foe.hp = foe.max_hp = 1
 sc = cs.CombatScene.begin(ws, creature, [foe], "It is on you:")
 ws.combat = sc
 key = combat.fight_key(sc.fight)
+store.save_combat(sc.to_json())          # (f497) the row carries the mark too: the round's line stands down at its reading, and the fight is resumed from the row
 combat_perks.QUARRY[key] = "e1"
 combat_perks.WITHER[(key, "e1")] = "p"
 healing.LAST[key] = ("p", 2.0)

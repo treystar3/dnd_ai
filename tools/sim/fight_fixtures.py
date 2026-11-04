@@ -112,12 +112,8 @@ def shard_of(case: dict) -> int:
 # ---------- running a case
 
 def _fighter(f) -> dict:
-    out = {}
-    for k in SNAP:
-        v = getattr(f, k, None)
-        if hasattr(v, "model_dump"):
-            v = v.model_dump()
-        out[k] = v
+    data = f.model_dump(mode="json")      # (f497) a snapshot by the fields' types: a dict held by reference showed every round the fight's
+    out = {k: data.get(k) for k in SNAP}  # end state (the live object went on changing it), and a float left as an int read 0 live, 0.0 resumed
     if getattr(f, "boss", None):
         out["boss"] = {k: f.boss.get(k) for k in ("phase", "la", "lr", "stand_used", "fell", "guards")}
     return out
@@ -189,23 +185,36 @@ def run_case(game, stub, case: dict, cover: dict) -> dict:
         return {"kind": "attack", "target": target}
 
     stub.a_CombatIntent = choose
-    for r in range(MAX_ROUNDS):
-        if ws.combat is None:
-            break
-        before = fight.round
-        streams.begin(seed, base + r + 1, f"round:{r + 1}")
-        ws.turn("I fight on")
-        turn["r"] += 1
-        turn["last"] = "stuck" if (ws.combat is not None and ws.combat.fight.round == before) else None
-        f = ws.combat.fight if ws.combat is not None else fight
-        for h in f.hits or []:                                         # what fired, by the name the window shows it under
-            for step in (h.get("steps") or []) + (h.get("extras") or []):
-                cover["labels"].add(str(step[0]))
-        for x in f.fighters:
-            if getattr(x, "boss", None):
-                cover["boss_phases"].add(f"{case['boss'][0] if case['boss'] else '?'}:{x.boss.get('phase')}")
-        record["rounds"].append({"round": f.round, "hits": f.hits or [], "log": list(f.log or []),
-                                 "fighters": {x.id: _fighter(x) for x in f.fighters}})
+    live = {"fight": fight}
+    real_resume = cs.CombatScene.resume
+
+    def resume(ws_, raw):                                              # (f497) the round's line stands down at its reading and the fight is
+        scene = real_resume(ws_, raw)                                  # resumed from the row: a new object, the one the round then runs on,
+        live["fight"] = scene.fight                                    # and the one the record reads (the numbers are the same either way)
+        return scene
+
+    cs.CombatScene.resume = resume
+    try:
+        for r in range(MAX_ROUNDS):
+            if ws.combat is None:
+                break
+            before = fight.round
+            streams.begin(seed, base + r + 1, f"round:{r + 1}")
+            ws.turn("I fight on")
+            fight = live["fight"]
+            turn["r"] += 1
+            turn["last"] = "stuck" if (ws.combat is not None and ws.combat.fight.round == before) else None
+            f = ws.combat.fight if ws.combat is not None else fight
+            for h in f.hits or []:                                     # what fired, by the name the window shows it under
+                for step in (h.get("steps") or []) + (h.get("extras") or []):
+                    cover["labels"].add(str(step[0]))
+            for x in f.fighters:
+                if getattr(x, "boss", None):
+                    cover["boss_phases"].add(f"{case['boss'][0] if case['boss'] else '?'}:{x.boss.get('phase')}")
+            record["rounds"].append({"round": f.round, "hits": json.loads(json.dumps(f.hits or [], default=str)), "log": list(f.log or []),
+                                     "fighters": {x.id: _fighter(x) for x in f.fighters}})
+    finally:
+        cs.CombatScene.resume = real_resume
     after = store.load_player().character
     place = ws.place
     record["end"] = {"over": getattr(fight, "over", None), "rounds": fight.round, "still_fighting": ws.combat is not None,

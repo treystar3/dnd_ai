@@ -950,11 +950,11 @@ def mitigate(dfn: Fighter, amount: float, damage_type: str, attacker_level: int,
     if stance and guarded:
         after *= 1 - min(60, stance) / 100
     cuts.append(["guarding", step - after])
-    if trace is not None:
+    if trace is not None:                   # (f497) defending by its type: an int left in the float field read 0 live, 0.0 resumed from the row
         trace.update(kind=damage_type, protection=round(protection, 1), base_protection=round(base_prot, 1), prot_steps=prot_steps,
                      k=round(m["armor_k"] * growth(attacker_level), 1), who=dfn.name, reduction=round(reduction, 1),
                      raw_reduction=round(100 * protection / max(0.01, protection + m["armor_k"] * growth(attacker_level)), 1), defense_pct=round(def_pct, 1),
-                     defense_flat=round(def_flat, 1), defending=round(dfn.defending, 1), before=round(amount, 2), after=round(after, 2),
+                     defense_flat=round(def_flat, 1), defending=round(float(dfn.defending), 1), before=round(amount, 2), after=round(after, 2),
                      cuts=[[n, round(v, 1)] for n, v in cuts if v >= 0.05])
     return after, amount - after
 

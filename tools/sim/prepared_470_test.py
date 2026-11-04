@@ -33,7 +33,7 @@ RECORDED = frozenset({                                                  # (f485)
     "road_event", "discovery", "ruling", "plausible_object", "classify_field", "camp_intent", "party_intent", "stranger_read",
     "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "event_judge", "moment",
     "arc_story", "loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank", "generate_lessons", "lesson_want",
-    "combat_interpret", "narrate", "combat_narrate", "combat_aftermath", "goddess_line",
+    "narrate", "combat_narrate", "combat_aftermath", "goddess_line",                             # (f497) combat_interpret asked outside
 })
 UNDERSTANDING = {"interpret_action", "audit_meaning", "audit_compare", "clarify"}
 

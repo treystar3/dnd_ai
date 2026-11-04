@@ -25,7 +25,8 @@ retention:
 # given the answer (or the failure) at the same point. A family moves out of the transactions by being named here.
 asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, npc_parting,        # (f485) the townsfolk's talk
                 hire_chat, mentor_chat, mentor_speech, mentor_voice, canon_extract, canon_check,            # (f488) the hires' and Maren's
-                exchange, overheard, pair_dynamic, persona_details]                                          # (f489) the party among themselves
+                exchange, overheard, pair_dynamic, persona_details,                                          # (f489) the party among themselves
+                combat_interpret]                                                                            # (f497) the fight's reading of the line
 asked_max: 48                 # (f489) the most calls one operation may ask outside it (each one runs the operation again from its start)
 tasks:
   # ---- understanding the line

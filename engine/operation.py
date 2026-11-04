@@ -50,6 +50,8 @@ class Operation:
         import json
         out = []
         for name, a, k in self.held:
+            if name in ("combat_state", "combat_panel"):           # (f497) the fight's pane: load re-shows it from the row (scenes/world.py enter)
+                continue
             if name == "marker":
                 out.append(["marker", [], {}])
             elif name == "legendary_reveal":

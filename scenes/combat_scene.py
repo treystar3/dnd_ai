@@ -306,7 +306,9 @@ class CombatScene:
         return scene
 
     def to_json(self) -> str:
-        return json.dumps({"creature": self.creature_name, "fight": self.fight.model_dump()})
+        return json.dumps({"creature": self.creature_name, "fight": self.fight.model_dump(mode="json")})     # (f497) by the fields' types:
+        # a fighter's float left as the int it was given (bleed 0, armor 0) is written 0.0 live as it is resumed, so a round run again from
+        # the resumed row saves the row its first attempt would have (the digests of a stood-down round and a straight one agree)
 
     @classmethod
     def resume(cls, ws, raw: str) -> "CombatScene":
