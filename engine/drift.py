@@ -209,7 +209,8 @@ def situations(store, world, state: dict, t: int) -> str:
             row["value"] += dp
         dd = round(D.get("danger", {}).get(kind, 0) * scale)
         if dd:
-            wilds = [pid for pid in towns.town_places(world, town) if world.places[pid].danger] or ([th["place"]] if known_danger(world, th["place"]) else [])
+            wilds = [pid for pid in sorted(towns.town_places(world, town)) if world.places[pid].danger] or ([th["place"]] if known_danger(world, th["place"]) else [])
+            # (f493) sorted: town_places is a set, and its order was the hash seed's in the world state's effects
             for pid in wilds:
                 row = lean.setdefault(("danger", pid), {"kind": "danger", "place": pid, "value": 0, "until": until, "cause": "drift", "thread": th["id"]})
                 row["value"] += dd

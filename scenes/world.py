@@ -921,7 +921,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         beside it (line_world_failed) for the turn log. `op_id`: an id drawn beforehand, when the caller looked for its record first."""
         from engine import asked as _asked, operation as _op
         index = len(self.line_ops) + len(self.line_failed) + len(self.line_world_failed)
-        pending_at = len(self.pending)
+        pending0 = list(self.pending)                # (f493) the line's held narration as this operation found it, to put back whole
         if world and where == "turn":
             where = "world"
         op = None
@@ -956,7 +956,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             else:
                 self.store.mark_shown(op.id)
         except _asked.NeedAnswer as e:
-            self.give_back(op, pending_at)                        # (f485) stood down to ask the model outside: nothing kept, nothing
+            self.give_back(op, pending0)                          # (f485) stood down to ask the model outside: nothing kept, nothing
             op.need = e                                           # counted as failed, nothing halted; asked_operation asks and runs it again
         except _Void:
             _op.end("void")                                       # (f470) ended without a record and not counted; what the scene changed in
@@ -965,7 +965,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         except Interrupt:
             raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
-            self.abandon(op, pending_at, world=world)
+            self.abandon(op, pending0, world=world)
             console.debug(f"operation {kind} rolled back: {e}")
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             if op is not None:
@@ -974,7 +974,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
             # the place, and the player reads a line in the narrator's words (run()). What stood before it stands. (f466) A world
             # operation's fault is written there as the world's, and the player reads nothing of it.
-            self.abandon(op, pending_at, world=world)
+            self.abandon(op, pending0, world=world)
             from engine import crashlog
             crashlog.record(e, where, text=text, place=self.player.location, turn=self.store.meta.turn, operation=kind)
             console.debug(f"operation {kind} crashed and rolled back: {type(e).__name__}: {e}")
@@ -984,7 +984,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 op.failure, op.crashed = self.last_failure, True
         finally:
             if op is not None and op.state == "open":              # an Interrupt passed through: the operation is rolled back all the same
-                self.abandon(op, pending_at, world=world)
+                self.abandon(op, pending0, world=world)
 
     def hold(self, op) -> dict:
         """(f463) The story bindings replaced by ones that keep each call on the operation, for release at its commit; what the console
@@ -1082,14 +1082,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows = [r for r in ledger.ROWS if r.get("facts") and not r.get("told")]
         return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
-    def abandon(self, op, pending_at: int, world: bool = False) -> None:
+    def abandon(self, op, pending0: list, world: bool = False) -> None:
         """(f463) An operation did not stand: its rows go (the rest of the line's stay), the session gives back what the database never
         held, the store is reloaded, the narration it queued for the passage is dropped, its held lines with it, and the line is halted:
         what came before it stands, nothing after it is done. (f466) A world operation's failure halts nothing: the world's operations
         after it run all the same, each apart."""
         if op is not None:
             (self.line_world_failed if world else self.line_failed).append(op)
-        self.give_back(op, pending_at)
+        self.give_back(op, pending0)
         if not world:
             self.halted = True
 
@@ -1224,7 +1224,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.partner, self.stance = who, rec.get("stance", "")
             self.convo = [tuple(x) for x in rec.get("lines") or []]
 
-    def give_back(self, op, pending_at: int) -> None:
+    def give_back(self, op, pending0: list) -> None:
         """(f463) What an operation that did not stand gives back: its record, the session's snapshot of what the database never held, the
         store reloaded, the narration it queued and its held lines. (f485) Alone, for an operation that stood down to ask the model
         outside its transaction: nothing of it is counted, nothing halted."""
@@ -1244,7 +1244,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
         self.refresh_present()
         self.partner = next((n for n in self.present if self.partner and n.id == self.partner.id), None)
-        del self.pending[pending_at:]
+        self.pending = list(pending0)                     # (f493) as the operation found it: what it added goes, and what it flushed of an
+                                                          # earlier operation's comes back (a hand-in's passage, flushed by the talk
+                                                          # that stood down, was missing from its re-run: the post-D night's Drift)
         self.step = None
 
     def defer(self, kind: str, data: dict) -> None:

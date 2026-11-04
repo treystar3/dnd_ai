@@ -431,11 +431,13 @@ class ArcActions:
                 n += 1
         return n
 
-    def escorted(self) -> set[str]:
-        """(f392) The captives walking bound at the player's side: wherever the player is, they are."""
+    def escorted(self) -> list[str]:
+        """(f392) The captives walking bound at the player's side: wherever the player is, they are. (f493) In the order they were taken
+        (the registry's), never a set's: walked to the next place in the hash seed's order, they reached its residents in an order a
+        replay of the night could not repeat."""
         from engine import entities
-        return {e.links.get("npc", "") for e in self.store.find_entities(kind="captive", state=tuple(entities.L["captive"]["present_with_player"]),
-                                                                          owner="player")}
+        return list(dict.fromkeys(e.links.get("npc", "") for e in self.store.find_entities(
+            kind="captive", state=tuple(entities.L["captive"]["present_with_player"]), owner="player")))
 
     def prisoner_here(self, intent=None) -> NPC | None:
         mine = [n for n in self.present if n.id in self.player.prisoners]

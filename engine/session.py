@@ -176,7 +176,11 @@ class CampaignSession:
     def begin_turn(self, scene) -> None:
         """The turn (or the pane command) begins, inside its transaction: the map's additions and the scene's private caches as they
         stand, so a rollback can put back what the database's rollback cannot. The truth scene (`_truth`) is left out: the next read
-        builds it again from the restored state."""
+        builds it again from the restored state. (f493) And it is dropped here, as every operation opens: each attempt of an operation
+        reads the scene of the state it starts from. Its key (engine/truth.py Scene.key) does not see the townsfolk a place's population
+        writes, so a scene built before a tail's populate_place was read by the first attempt of the next talk and rebuilt for its re-run,
+        with two more of the town's people in it: the post-D night's hire_chat Drift."""
+        scene.__dict__.pop("_truth", None)
         held = {}
         for k, v in scene.__dict__.items():
             if not k.startswith("_") or k == "_truth":
