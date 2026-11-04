@@ -189,16 +189,15 @@ shown_later:
   - "A moment from before, kept for your return."
   - "This was so when you left, and was never told. It is told now."
 # (f507) A fight saved mid-round that this game could not take up again (a row of an older shape, or one that could not be read): the
-# fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice. (f511) Rewritten in the
-# manner the owner holds the prose to (GOALS.md pillar 5, "like Tolkien"): plain old words, a long breath and a short one, no dash, and
-# nothing said of the player's health, company or ground, which the save holds and these lines do not.
+# fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice. (f512) The owner's own
+# six lines, 2026-11-04, word for word.
 fight_let_go:
-  - "The fight you left unfinished is over now, and how it ended no tale tells. It has passed out of the world, and you stand clear of it."
-  - "Of that battle nothing remains. It has faded as dreams fade at waking, and your foes with it, and you are free to go on your way."
-  - "Whoever stood against you is gone, and the strife with them, as the shadow of a cloud passes over the grass and is seen no more."
-  - "The din of that fight has fallen silent, and it will not be taken up again. So it is with some deeds: they are left half done, and the world goes on without them."
-  - "The fight did not wait for your return. It is ended, though by no hand that you know of, and there is nothing of it left to take up."
-  - "There was a fight here, but it is over, and no one could tell you how it went. It is blown away like smoke upon the wind, and the way lies open before you."
+  - "The fight is over. What became of your enemies, you cannot say. For now, the road is clear."
+  - "You return to find the place deserted. Of those who fought here, there is no sign."
+  - "Your foes have gone. You linger a moment, listening, but hear only the wind in the grass."
+  - "No clash of steel greets your return. Whatever happened here after you left, it is finished."
+  - "The fight ended in your absence. Whether your enemies fled or met some other fate, you do not know."
+  - "All is quiet where you fought. You look once more along the empty road, then turn to go."
 # A fight round whose telling could not be written: the numbers carry the blows.
 round_stood:
   - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."
