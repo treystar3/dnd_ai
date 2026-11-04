@@ -78,6 +78,7 @@ class FightSpec:
     stealth: str = ""                                # the degree of the stealth check, when the player crept up; "" when they did not
     initiated: bool = False
     prepare: Callable | None = None                  # a scripted fight sets itself up after the estimate
+    characters: list = field(default_factory=list)   # (f508) the characters who fight, one player fighter each; the service's own when empty
 
 
 @dataclass
@@ -158,6 +159,16 @@ class Rewards:
 
 
 @dataclass
+class Aftermath:
+    """(f508) What a fight left on the party's record, told by the service (end): the notes in order, who came through (member, health
+    fraction), whether any hire went down, whether the record changed."""
+    notes: list
+    seen: list
+    any_down: bool
+    changed: bool
+
+
+@dataclass
 class Captive:
     """A foe who yielded and is taken: the record make_prisoner takes (scenes/arc_actions.py), not the Fighter."""
     name: str
@@ -169,7 +180,7 @@ class Captive:
 
 
 class FightService:
-    def __init__(self, store, bus, party, dice, player, world, now: Callable[[], int]):
+    def __init__(self, store, bus, party, dice, player, world, now: Callable[[], int], characters: list | None = None):
         self.store = store
         self._bus = bus                      # the session's bus; the current one when none is given
         self.party = party                   # PartyService: a hire going down is its decision (decide_down)
@@ -177,6 +188,13 @@ class FightService:
         self.player = player
         self.world = world                   # read for the bestiary
         self.now = now                       # the game's minute
+        self.characters = list(characters) if characters else ([player.character] if player is not None else [])   # (f508) who fights as a player: one today, several in shape
+
+    def cast(self, fight: combat.Combat) -> list:
+        """(f508) Each player fighter with its character, in order: the first is the player's own, id "player"; the rest bear their
+        character's id."""
+        fighters = {f.id: f for f in fight.player_fighters()}
+        return [(c, f) for i, c in enumerate(self.characters) if (f := fighters.get("player" if i == 0 else c.id)) is not None]
 
     def _publish(self, event):
         return (self._bus or current()).publish(event)
@@ -211,14 +229,20 @@ class FightService:
         foes, the serial drawn once (f500), the ground, the bound summon, everyone placed; the buffs readied before the first blow and
         the surprise a stealthy approach earns; the opening events; the odds (combat.danger, kept across a restart by asked.compute);
         a script's setup; the row saved. Returns the fight and the Opening the telling may tell."""
-        c = self.player.character
-        me = combat.fighter_from_character(c)
+        if spec.characters:
+            self.characters = list(spec.characters)
+        c = self.characters[0]
         now = self.now()
-        for m in me.moves:                                # (f397) a named spell cast within its days is not ready this fight
-            a = next((x for x in c.actives if x.id == m.id), None)
-            if a is not None and spells.day_locked(c, a, now):
-                me.cooldowns[m.id] = 10 ** 6
-        fight = combat.Combat(fighters=[me] + list(spec.allies) + list(spec.enemies), place=spec.place, conditions=list(spec.conditions))
+        mes = []
+        for i, ch in enumerate(self.characters):          # (f508) a player fighter a character; the first is "player"
+            me = combat.fighter_from_character(ch, "player" if i == 0 else ch.id)
+            for m in me.moves:                            # (f397) a named spell cast within its days is not ready this fight
+                a = next((x for x in ch.actives if x.id == m.id), None)
+                if a is not None and spells.day_locked(ch, a, now):
+                    me.cooldowns[m.id] = 10 ** 6
+            mes.append(me)
+        fight = combat.Combat(fighters=mes + list(spec.allies) + list(spec.enemies), players=[m.id for m in mes], place=spec.place,
+                              conditions=list(spec.conditions))
         fight.record = True                 # keep a breakdown of every blow for the window's combat log
         combat.fight_key(fight)             # (f500) the fight's serial, drawn once here from the ids stream: never by an estimate's copy, never
         #                                     by a mark read before the first blow, so the dice after it are the same whatever is estimated
@@ -604,30 +628,31 @@ class FightService:
     def refresh(self, fight: combat.Combat) -> str:
         """Attribute points spent in the middle of a fight: bring the fighter's maximums, attributes and defences in line with the character,
         and add what each maximum gained to the current value (the same rule as outside a fight), so the bars and spell costs agree.
-        The one Character -> Fighter path. Returns sync's note."""
-        c, p = self.player.character, fight.player
-        fresh = combat.fighter_from_character(c)
-        for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
-            gained = getattr(fresh, top) - getattr(p, top)
-            setattr(p, top, getattr(fresh, top))
-            if gained > 0:
-                setattr(p, cur, min(getattr(p, top), getattr(p, cur) + gained))
-        p.attrs = fresh.attrs
-        p.ward, p.armor = fresh.ward, fresh.armor
+        The one Character -> Fighter path, for every player fighter (f508). Returns sync's note."""
+        for c, p in self.cast(fight):
+            fresh = combat.fighter_from_character(c, p.id)
+            for cur, top in (("hp", "max_hp"), ("stamina", "max_stamina"), ("mana", "max_mana")):
+                gained = getattr(fresh, top) - getattr(p, top)
+                setattr(p, top, getattr(fresh, top))
+                if gained > 0:
+                    setattr(p, cur, min(getattr(p, top), getattr(p, cur) + gained))
+            p.attrs = fresh.attrs
+            p.ward, p.armor = fresh.ward, fresh.armor
         return self.sync(fight)
 
     def sync(self, fight: combat.Combat) -> str:
-        """The one Fighter -> Character path, at a round's commit: the pools, a named spell's day (f397), the blessing spent. Returns the
-        note for the player ('' when there is none)."""
-        c, p = self.player.character, fight.player
-        c.health, c.stamina, c.mana = float(p.hp), float(p.stamina), float(p.mana)
-        for mid in p.counters.pop("day_cast", []):      # (f397) a named spell cast: the day is kept, for its cooldown in days
-            c.spell_days = {**c.spell_days, mid: self.now()}
-        if c.orenna_breath and not p.breath:
-            c.orenna_breath = False
-            from engine import orenna
-            return orenna.O["blessing"]["spent"]
-        return ""
+        """The one Fighter -> Character path, at a round's commit, for every player fighter (f508): the pools, a named spell's day (f397),
+        the blessing spent. Returns the note for the player ('' when there is none)."""
+        note = ""
+        for c, p in self.cast(fight):
+            c.health, c.stamina, c.mana = float(p.hp), float(p.stamina), float(p.mana)
+            for mid in p.counters.pop("day_cast", []):      # (f397) a named spell cast: the day is kept, for its cooldown in days
+                c.spell_days = {**c.spell_days, mid: self.now()}
+            if c.orenna_breath and not p.breath:
+                c.orenna_breath = False
+                from engine import orenna
+                note = note or orenna.O["blessing"]["spent"]
+        return note
 
     # ---------- the end
 
@@ -653,6 +678,55 @@ class FightService:
         self._publish(FightEnded(minute=self.now(), serial=f.serial, outcome=f.over, dead=tuple(combat.who(e) for e in dead),
                                  fallen=tuple(a.id for a in fallen)))
         return Ending(f.over, minutes, dead, fallen, [a.id for a in fallen])
+
+    def end(self, fight: combat.Combat, fallen: list, won: bool, hard: bool) -> "Aftermath":
+        """(f508) The one writer of what a fight leaves on the party's record: each hire who went down decided (carried out, buried or
+        killed) and mourned, each survivor's wounds and mana remembered on their row (engine/party.py after_fight, mana_frac), the
+        fights counted, the last fight kept for the talk after it; then the companions who fell and the bound summon
+        (companions_after). The notes for the player, in the order they were told, and who came through, for the scene's own work
+        (habits, banter, what the pair saw)."""
+        party = self.player.party
+        ids = {a.id for a in fallen}
+        by_id = {a.id: a for a in fight.fighters}
+        notes, seen, changed = [], [], False
+        now = self.now()
+        for m in list(party):
+            if m.get("npc") or m.get("tutorial"):
+                continue
+            fid = f"ally_{m['id']}"
+            if fid in ids:
+                if m.get("permanent"):                           # decided the moment they went down (combat), else now, after the fact
+                    fate = self.party.decide_down(m, self.dice, in_fight=False)
+                    if fate == "carried":
+                        m.pop("down_fate", None)
+                        seen.append((m, 0.05))
+                        notes.append(f"{m['name']} is carried out of the fight, badly hurt but alive.")
+                        continue
+                    party_rules.mourn(party, m, now, self.player.location, f" at {fight.place}" if fight.place else "")
+                    self.party.bury(m)
+                else:
+                    self.party.kill(m)                           # an old-style hireling who went down does not get back up
+                notes.append(f"{m['name']} has fallen.")
+                changed = True
+            elif m.get("permanent") and fid in by_id:
+                a = by_id[fid]
+                seen.append((m, a.hp / a.max_hp if a.max_hp else 1.0))
+                if getattr(a, "max_mana", 0):                    # (f400) a hire who casts carries what mana is left into the next fight
+                    m["mana_frac"], m["mana_at"] = max(0.0, a.mana / a.max_mana), now
+        notes += party_rules.after_fight(seen, won, hard, now)
+        for m, _ in seen:
+            m["fights_total"] = m.get("fights_total", 0) + 1
+        if seen or ids:
+            carried_ids = {f"ally_{m['id']}" for m, _ in seen}
+            self.player.party_last_fight = {"minute": now, "won": won, "hard": hard,
+                                            "hurt": [m["name"] for m, frac in seen if frac < 0.6], "carried": [m["name"] for m, frac in seen if frac <= 0.05],
+                                            "hurt_ids": [m["id"] for m, frac in seen if frac < 0.6], "carried_ids": [m["id"] for m, frac in seen if frac <= 0.05],
+                                            "fallen": [a.name for a in fallen if a.id.startswith("ally_") and a.id not in carried_ids],
+                                            "fallen_ids": [a.id[len("ally_"):] for a in fallen if a.id.startswith("ally_") and a.id not in carried_ids]}
+        if changed or seen:
+            self.store.save_player(self.player)
+        notes += self.companions_after(fight, {a.id for a in fallen if a.id.startswith("ally_")})
+        return Aftermath(notes, seen, bool(ids), changed)
 
     def companions_after(self, fight: combat.Combat, fallen_ids: set) -> list:
         """A companion who went down is out for a day, and may not survive. A Bound summon unmade in the fight stays unmade until

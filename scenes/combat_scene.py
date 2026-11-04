@@ -869,9 +869,8 @@ class CombatScene:
         ws.advance_quiet(ending.minutes)
         dead, fallen = ending.dead, ending.fallen
         events.fallen_allies(ws, set(ending.fallen_ids))
-        ws.party_after_fight(fallen, f.fighters, f.over == "victory", any(e.level >= ws.player.character.level for e in f.fighters if e.side == "enemy"))
-        for note in svc.companions_after(f, set(ending.fallen_ids)):
-            console.note(note)
+        ws.party_after_fight(fallen, f.fighters, f.over == "victory", any(e.level >= ws.player.character.level for e in f.fighters if e.side == "enemy"),
+                             fight=f)                        # (f508) the service's end writes the party's record (hires, companions, the bound summon); the scene tells
         if f.over == "victory" and not f.no_rewards:
             dead_ = [e for e in f.fighters if e.side == "enemy" and not e.alive]
             from engine.domain_events import LootedDead

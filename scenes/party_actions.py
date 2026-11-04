@@ -832,50 +832,21 @@ class PartyActions:
         how = (f" by {by}" if by and by != "you" else "") + (f" at {here}" if here else "")
         rules.mourn(self.player.party, dead, self.minutes, self.player.location, how)     # (f503) the rule in engine/party.py
 
-    def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False) -> None:
-        """Who went down, who limps on, whose trust moved. Old-style hirelings who went down do not get back up; a permanent hire may be carried out."""
-        import random
-        if not self.player.party:
-            return
-        svc = self.party_service
-        ids = {a.id for a in fallen}
-        by_id = {a.id: a for a in fighters}
-        seen, changed = [], False
-        for m in list(self.player.party):
-            if m.get("npc") or m.get("tutorial"):
-                continue
-            fid = f"ally_{m['id']}"
-            if fid in ids:
-                if m.get("permanent"):                           # decided the moment they went down (combat), else now, after the fact
-                    fate = svc.decide_down(m, self.rng, in_fight=False)
-                    if fate == "carried":
-                        m.pop("down_fate", None)
-                        seen.append((m, 0.05))
-                        console.note(f"{m['name']} is carried out of the fight, badly hurt but alive.")
-                        continue
-                    self.mourn(m)
-                    svc.bury(m)
-                else:
-                    svc.kill(m)                                  # an old-style hireling who went down does not get back up
-                console.note(f"{m['name']} has fallen.")
-                changed = True
-            elif m.get("permanent") and fid in by_id:
-                a = by_id[fid]
-                seen.append((m, a.hp / a.max_hp if a.max_hp else 1.0))
-                if getattr(a, "max_mana", 0):                    # (f400) a hire who casts carries what mana is left into the next fight
-                    m["mana_frac"], m["mana_at"] = max(0.0, a.mana / a.max_mana), self.minutes
-        for note in rules.after_fight(seen, won, hard, self.minutes):
+    def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False, fight=None) -> None:
+        """Who went down, who limps on, whose trust moved. (f508) The party's record is written by services/fight.py end alone (each
+        hire's fate, their wounds and mana, the fights counted, the companions who fell, the bound summon); its notes are told here, and
+        the scene keeps what is its own: the habits due, the banter, what each pair saw of the other."""
+        import types
+        from scenes.combat_scene import service_of
+        if fight is None:                                   # called without a fight (a test, an old caller): what the service reads of one
+            fight = types.SimpleNamespace(fighters=list(fighters), place=self.place.name if self.place else "", bound_fell=False)
+        after = service_of(self).end(fight, fallen, won, hard)
+        for note in after.notes:
             console.note(note)
-        for m, _ in seen:
-            m["fights_total"] = m.get("fights_total", 0) + 1
+        seen = after.seen
         if seen:
             self.habits("fight_end")
-        if seen or ids:
-            self.player.party_last_fight = {"minute": self.minutes, "won": won, "hard": hard,
-                                            "hurt": [m["name"] for m, frac in seen if frac < 0.6], "carried": [m["name"] for m, frac in seen if frac <= 0.05],
-                                            "hurt_ids": [m["id"] for m, frac in seen if frac < 0.6], "carried_ids": [m["id"] for m, frac in seen if frac <= 0.05],
-                                            "fallen": [a.name for a in fallen if a.id.startswith("ally_") and a.id not in {f"ally_{m['id']}" for m, _ in seen}],
-                                            "fallen_ids": [a.id[len("ally_"):] for a in fallen if a.id.startswith("ally_") and a.id not in {f"ally_{m['id']}" for m, _ in seen}]}
+        if seen or after.any_down:
             self._banter_due = "fight"
             if hard and won:
                 for m, _ in seen:
@@ -890,8 +861,7 @@ class PartyActions:
                         self.pair_event(a, b, "came through a hard fight side by side.")
                     elif not won:
                         self.pair_event(a, b, "came off worse in a fight together.", "personal")
-        if changed or seen:
-            self.store.save_player(self.player)
+            self.store.save_player(self.player)             # what the pairs saw and the trust that moved: the scene's own writes
 
     def tend_after_fight(self) -> bool:
         """(f396) After a fight: a hire who can heal and came through it on their feet sees to the player's wounds and the hurt hires'."""

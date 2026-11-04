@@ -113,7 +113,8 @@ def shard_of(case: dict) -> int:
 
 def _fighter(f) -> dict:
     data = f.model_dump(mode="json")      # (f497) a snapshot by the fields' types: a dict held by reference showed every round the fight's
-    out = {k: data[k] if k in data else _norm(getattr(f, k)) for k in SNAP}   # end state (the live object went on changing it), and a float
+    flat = {k: v for part in data.values() if isinstance(part, dict) for k, v in part.items()}   # (f508) the dump is nested by part
+    out = {k: flat[k] if k in flat else _norm(getattr(f, k)) for k in SNAP}   # end state (the live object went on changing it), and a float
     #                                     left as an int read 0 live, 0.0 resumed; (f507) statuses, strengths and buffs are views over the rows
     if getattr(f, "boss", None):
         out["boss"] = {k: f.boss.get(k) for k in ("phase", "la", "lr", "stand_used", "fell", "guards")}
@@ -289,7 +290,10 @@ def play(shard: int, only: set[str] | None = None) -> tuple[list[dict], dict]:
     real_danger = combat.danger
 
     def danger(fight):                                                # what the fight's start estimated, as the scene read it
+        import time
+        t0 = time.perf_counter()
         got = real_danger(fight)
+        TIMES.append(time.perf_counter() - t0)                        # (f508) its wall time, printed by --time when run by hand
         cover["_danger"] = got
         return got
 
@@ -382,13 +386,21 @@ def compare(shard: int, records: list[dict], only: set[str] | None = None) -> li
     return [l for l in out if not l.startswith("warning")] + [l for l in out if l.startswith("warning")]
 
 
+TIMES: list[float] = []     # (f508) danger's wall time per case of the shard last played, in order (--time prints them; no clock in tests)
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     record = "--record" in sys.argv
     shards = [int(a) for a in args] or list(range(SHARDS))
     moved = 0
     for s in shards:
+        TIMES.clear()
         records, cover = play(s)
+        if "--time" in sys.argv:                                      # (f508) by hand: how long the odds took, case by case
+            for r, t in zip(records, TIMES):
+                print(f"  danger {t:6.2f}s  {r['id']}")
+            print(f"  danger total {sum(TIMES):.1f}s over {len(TIMES)} cases")
         if record:
             _write(_path(s), {"header": header(), "cases": _norm(records), "coverage": cover})
             print(f"shard {s}: {len(records)} cases recorded")

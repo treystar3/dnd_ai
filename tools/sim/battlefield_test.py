@@ -112,7 +112,7 @@ check("saved and resumed, the ground and everyone's place on it survive",
 old = json.loads(raw)
 old["fight"].pop("battlefield")
 for x in old["fight"]["fighters"]:
-    x.pop("zone_id"), x.pop("row"), x.pop("position_tags")
+    x["position"].pop("zone_id"), x["position"].pop("row"), x["position"].pop("position_tags")   # (f508) the row nests by part
 legacy = CombatScene.resume(ws, json.dumps(old))
 check("an old save without a battlefield still loads, with nothing to check", legacy.fight.battlefield is None
       and bf.validate(legacy.fight) == [])

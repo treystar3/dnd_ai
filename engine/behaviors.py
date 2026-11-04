@@ -171,7 +171,7 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
 def _area(combat, e, rng, mult: float, label: str, intro: str) -> None:
     from engine import combat as C
     C.tell(combat, intro)
-    foes = [f for f in [combat.player] + combat.allies() if f.alive]
+    foes = [f for f in combat.player_side() if f.alive]
     for t in foes:
         C.apply_damage(combat, e, t, mult, f"{label}s over", rng, can_cleave=False, can_riposte=False, can_flurry=False)
 
@@ -214,7 +214,7 @@ def sweeps(combat, e, rng) -> bool:
     from engine import combat as C
     if not e.family or e.boss or not beh(e, "sweep"):
         return False
-    foes = [f for f in [combat.player] + combat.allies() if f.alive and C.in_reach(e, f)]
+    foes = [f for f in combat.player_side() if f.alive and C.in_reach(e, f)]
     if not foes:
         return False
     C.tell(combat, f"{C.who(e)} boils over everyone in reach at once")

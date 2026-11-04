@@ -56,7 +56,7 @@ def _text(f, template: str) -> str:
 
 
 def _targets(combat):
-    return [t for t in [combat.player] + combat.allies() if t.alive]
+    return [t for t in combat.player_side() if t.alive]
 
 
 def intro(combat, rng) -> None:

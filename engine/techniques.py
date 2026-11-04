@@ -187,7 +187,7 @@ def _bless(combat, a, t, rng, **_) -> bool:
     if combat.round > 2 or not combat.enemies():
         return False
     until, pct = combat.round + int(t.get("rounds", 3)), int(t.get("pct", 0))
-    for f in [combat.player] + combat.allies():
+    for f in combat.player_side():
         if f.alive:
             f.counters["blessed"] = [until, pct]
     combat.log.append(f"{a.name} uses {name_of(t, a.level)}: the party strikes {pct}% harder until round {until}")

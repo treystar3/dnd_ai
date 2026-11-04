@@ -158,7 +158,7 @@ def attention_target(combat: C.Combat, e: C.Fighter, rng: random.Random) -> C.Fi
         return None
     from engine import battlefield as bf
     A = H["attention"]
-    healers = [f for f in [combat.player] + combat.allies()
+    healers = [f for f in combat.player_side()
                if f.alive and f.counters.get("healed_round", -9) >= combat.round - A["rounds"]]
     reach = [h for h in healers if bf.attack_access(combat, e, h).ok or bf.attack_access(combat, e, h).can_approach]
     if reach and rng.random() < A["chance"]:

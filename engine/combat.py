@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.models import Character
 from core.rules import ATTRIBUTES
@@ -79,116 +79,207 @@ class Move(BaseModel):
     cooldown_days: int = 0         # ...and then not again for this many days (the scene keeps the day on the character)
 
 
-class Fighter(BaseModel):
-    model_config = ConfigDict(extra="forbid")     # (f507) a row of another shape is refused, never read in part
+class Part(BaseModel):
+    """(f508) One part of a fighter: its own fields and no other part's; a key it does not declare is refused, never read in part."""
+    model_config = ConfigDict(extra="forbid")
+
+class Identity(Part):
+    """Who this fighter is: their id and name, their side, their level and rank, what kind of creature or hire, the part they are."""
     id: str
     name: str
-    side: str                      # player | ally | enemy
+    side: str                            # player | ally | enemy
     level: int
-    flaw: str = ""                 # a hired ally's weakness that shows in a fight (engine/quirks.py)
+    flaw: str = ""                       # a hired ally's weakness that shows in a fight (engine/quirks.py)
     flaw_used: bool = False
     size: str = "Medium"
     category: str = ""
     creature: str = ""
-    spawn: str = ""                # the id of the big-event creature this fighter is (engine/events.py), if any
+    spawn: str = ""                      # the id of the big-event creature this fighter is (engine/events.py), if any
     rank: str = "normal"
+    family: str = ""                     # a creature's family (data/world/families.yaml): how it fights
+    story_id: str = ""                   # the party member this fighter is, when their wounds carry between fights
+    ally_role: str = ""                  # a hired party member's role (priests heal)
+    can_heal: bool = False               # a story companion who can tend wounds
+    always_miss: bool = False            # the first fight's troll: its blows go wide until the mentor steps in
+
+
+class Stats(Part):
+    """What they fight with and how they are made: attributes, the weapon, their element, armour and ward, the modifiers of their kind."""
     attrs: dict[str, int]
+    weapon_name: str = "fists"
+    weapon_damage: float = 2
+    weapon_attrs: list[str] = ["strength"]
+    reach: str = "melee"
+    damage_type: str = "physical"
+    element: str = ""                    # what this fighter's attacks are made of, if anything (a fire elemental, a red dragon)
+    armor: float = 0
+    ward: float = 0
+    evasion_penalty: int = 0
+    armor_pierce: float = 0
+    crit_resist: float = 0
+    offhand_spell: float = 0             # an off-hand focus's spell power
+    spell_share: float = 1.0             # (f400) a hire's spells: the share of a player's spell of the same rank they hit and heal for
+    adaptive: bool = False
+    weary: float = 0                     # hunger and fatigue: percent change to all damage dealt (negative)
+    armor_weight: str = ""               # the heaviest armor actually worn (fitted or not), for the perks that care what you carry
+    wears_metal: bool = False            # any metal armor worn (Curse of Rust)
+
+
+class Resources(Part):
+    """The bars: health, stamina and mana against their maximums, and the shield before them."""
     hp: float
     max_hp: int
     stamina: float = 0
     max_stamina: int = 0
     mana: float = 0
     max_mana: int = 0
-    weapon_name: str = "fists"
-    weapon_damage: float = 2
-    weapon_attrs: list[str] = ["strength"]
-    reach: str = "melee"
-    damage_type: str = "physical"
-    element: str = ""              # what this fighter's attacks are made of, if anything (a fire elemental, a red dragon)
-    hit_element: str = ""          # the element of the move being used right now
-    armor: float = 0
-    ward: float = 0
-    evasion_penalty: int = 0
-    zone_id: str = ""              # where they stand on the battlefield (engine/battlefield.py), the only range model since B2
-    row: str = "loose"             # their place in their side's local formation there: front, back or loose
-    position_tags: list[str] = []  # temporary personal facts of position: elevated, covered, concealed, exposed
-    engaged_with: list[str] = []   # who they are tied up with in close combat: explicit, symmetric, same zone (battlefield.engage)
-    hold: int = 0                  # how many enemies they contain while holding a front row (0: they hold nobody)
-    pace: str = "normal"           # slow, normal or fast (battlefield.pace_of): how fast they cover ground
-    winding: dict = {}             # a telegraphed blow being wound up: {"target": fid, "round": n}; lands on their next turn
-    covering: str = ""             # the ally this fighter has put themselves in front of, until their own next turn
-    starts_far: bool = False       # spotted at a distance: they begin loose in a side zone when the field has one
-    defending: float = 0
+    shield: float = 0                    # barrier that absorbs damage before health
+
+
+class Position(Part):
+    """Where they stand (engine/battlefield.py): the zone and row, the facts of position, who they are tied up with, their pace."""
+    zone_id: str = ""                    # where they stand on the battlefield (engine/battlefield.py), the only range model since B2
+    row: str = "loose"                   # their place in their side's local formation there: front, back or loose
+    position_tags: list[str] = []        # temporary personal facts of position: elevated, covered, concealed, exposed
+    engaged_with: list[str] = []         # who they are tied up with in close combat: explicit, symmetric, same zone (battlefield.engage)
+    hold: int = 0                        # how many enemies they contain while holding a front row (0: they hold nobody)
+    pace: str = "normal"                 # slow, normal or fast (battlefield.pace_of): how fast they cover ground
+    covering: str = ""                   # the ally this fighter has put themselves in front of, until their own next turn
+    starts_far: bool = False             # spotted at a distance: they begin loose in a side zone when the field has one
+    fled: bool = False                   # left the fight alive
+
+
+class Carried(Part):
+    """What they carry between rounds (engine/effects.py): every status, buff and curse as a row, and the cooldowns."""
     effects: list[ActiveEffect] = []     # (f507) every status, buff and curse on this fighter, a row each (engine/effects.py); statuses,
     #                                      status_from, ignite, poison, poison_fixed, bleed, buffs and curses below are views over them
     cooldowns: dict[str, int] = {}
+
+
+class Kit(Part):
+    """What they can do: their moves, their gear's and passives' bonuses, legendary effects, slays and wards, the conditional mechanics."""
     moves: list[Move] = []
     bonuses: list[Bonus] = []
+    legendary: dict[str, float] = {}     # legendary effect id -> value
+    slays: dict[str, float] = {}         # creature category -> bonus % (dragonslayer etc.)
+    wards: dict[str, float] = {}         # creature category -> damage reduction % (dragonward etc.)
+    mech_names: dict[str, str] = {}      # mechanic id -> what the passive or gear that gives it is called, for the damage breakdown
+    conditional: list[dict] = []         # passive mechanics active only when a trigger is true
+    tether: int = 0                      # Soul Tether: a killing blow is survived once, at this percent of max health
+
+
+class Turn(Part):
+    """The fight's own scratch on them: what the last rounds did, what they are casting or winding up, the tallies and the one-shots spent."""
+    defending: float = 0
     move_round: int = -9
     kill_round: int = -9
     attacked_since_turn: bool = False
-    temperament: str = "aggressive"
-    armor_pierce: float = 0
-    crit_resist: float = 0
-    offhand_spell: float = 0              # an off-hand focus's spell power
-    spell_mult: float = 1.0               # while a spell is cast: 1 + its casting attribute / spell_attribute
-    spell_share: float = 1.0              # (f400) a hire's spells: the share of a player's spell of the same rank they hit and heal for
-    adaptive: bool = False
-    legendary: dict[str, float] = {}     # legendary effect id -> value
-    slays: dict[str, float] = {}         # creature category -> bonus % (dragonslayer etc.)
-    ally_role: str = ""                   # a hired party member's role (priests heal)
-    mech_names: dict[str, str] = {}        # mechanic id -> what the passive or gear that gives it is called, for the damage breakdown
-    can_heal: bool = False                # a story companion who can tend wounds
-    order: str = ""                       # what the player told this ally to do: focus | guard | hold | heal ("" = fight on their own)
-    order_target: str = ""                # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id)
-    story_id: str = ""                    # the party member this fighter is, when their wounds carry between fights
-    always_miss: bool = False            # the first fight's troll: its blows go wide until the mentor steps in
-    spell_parts: list = []                # while a spell is cast: [[label, value]] making up its weapon_damage, for the hit breakdown
-    spell_kind: str = ""                  # "spell" or "channel" while one is cast
-    weary: float = 0                      # hunger and fatigue: percent change to all damage dealt (negative)
-    tether: int = 0                       # Soul Tether: a killing blow is survived once, at this percent of max health
-    summon_form: str = ""                 # a summon (engine/summons.py): its form - bound, sentinel, striker, swarm, totem, decoy, volatile
-    summon_owner: str = ""                # who made it
-    summon_of: str = ""                   # the summon ability that made it
-    summon_until: int = 0                 # the round it fades (0: it lasts - a Bound summon)
-    summon_tier: str = ""
-    summon_cast: int = 0                  # tells one casting's bodies from another's
-    wards: dict[str, float] = {}         # creature category -> damage reduction % (dragonward etc.)
-    hardening_stacks: int = 0
-    windwalker_ready: bool = False
-    deathward_used: bool = False
-    breath: bool = False                 # Orenna's Last Breath, unspent: one killing blow restores health and mana in full
-    yields_at: float = 0.0               # a foe that gives up the fight, unhurt past this, at this share of its health (never dies)
-    yield_text: str = ""
-    bound: bool = False                  # held to its master by a sworn seal (the Bound Executioner)
-    second_wind_used: bool = False
-    conditional: list[dict] = []         # passive mechanics active only when a trigger is true
-    shield: float = 0                    # barrier that absorbs damage before health
-    fled: bool = False                   # left the fight alive
-    first_blood_used: bool = False
-    relentless: int = 0
-    aegis_round: int = -1
-    archmage_used: bool = False
-    spells_cast: int = 0
+    hit_element: str = ""                # the element of the move being used right now
+    spell_mult: float = 1.0              # while a spell is cast: 1 + its casting attribute / spell_attribute
+    spell_parts: list = []               # while a spell is cast: [[label, value]] making up its weapon_damage, for the hit breakdown
+    spell_kind: str = ""                 # "spell" or "channel" while one is cast
     counters: dict[str, Any] = {}        # small per-fight tallies for gear and element effects: counts, ids, [who, how much, until round] lists
     relic_uses: dict[str, int] = {}      # how many times each relic power has been used this fight
-    boss: dict = {}                      # set-piece boss state: legendary actions and resistance, phases (engine/bosses.py)
-    family: str = ""                      # a creature's family (data/world/families.yaml): how it fights
-    behaviors: dict[str, float] = {}     # that family's behaviours (engine/behaviors.py)
-    surrendered: bool = False            # yielded rather than fled: it can be taken prisoner
-    talked: bool = False                 # spoken to once this fight, for good or ill (engine/parley.py)
     recent_casts: list[str] = []         # the last few spells cast, in order, for the perks that count them (engine/combat_perks.py)
     last_mobility: str = ""              # the mobility ability used last, for the perks that reset it
     shadow: dict = {}                    # Shadowmark: where the shadow waits {zone, row, until, move}; empty when none
     last_hurt_by: str = ""               # the last hostile fighter whose blow landed on this one (Vengeance Leap)
     charging: dict = {}                  # a charged spell this fighter is winding up, released at the start of its next turn
     casting: dict = {}                   # (f499) the element expressions of the ability being used, while it is (engine/spellcraft.py begin/end)
-    sundered: float = 0                  # the share of armor broken by Sunder this fight (engine/martial.py)
+    winding: dict = {}                   # a telegraphed blow being wound up: {"target": fid, "round": n}; lands on their next turn
     counter_move: dict = {}              # a readied counter (engine/martial.py), until this fighter's next turn
+    sundered: float = 0                  # the share of armor broken by Sunder this fight (engine/martial.py)
     corroded: float = 0                  # acid: the share of armor and ward eaten away this fight (engine/spellcraft.py)
-    armor_weight: str = ""               # the heaviest armor actually worn (fitted or not), for the perks that care what you carry
-    wears_metal: bool = False            # any metal armor worn (Curse of Rust)
     attuned: str = ""                    # the element of the last spell cast, carried on the weapon (Attuned Edge)
+    hardening_stacks: int = 0
+    windwalker_ready: bool = False
+    deathward_used: bool = False
+    breath: bool = False                 # Orenna's Last Breath, unspent: one killing blow restores health and mana in full
+    second_wind_used: bool = False
+    first_blood_used: bool = False
+    relentless: int = 0
+    aegis_round: int = -1
+    archmage_used: bool = False
+    spells_cast: int = 0
+
+
+class Behaviour(Part):
+    """How they fight and yield: temperament, a family's behaviours, a boss's state, orders given, whether they surrendered or spoke."""
+    temperament: str = "aggressive"
+    behaviors: dict[str, float] = {}     # that family's behaviours (engine/behaviors.py)
+    boss: dict = {}                      # set-piece boss state: legendary actions and resistance, phases (engine/bosses.py)
+    yields_at: float = 0.0               # a foe that gives up the fight, unhurt past this, at this share of its health (never dies)
+    yield_text: str = ""
+    surrendered: bool = False            # yielded rather than fled: it can be taken prisoner
+    talked: bool = False                 # spoken to once this fight, for good or ill (engine/parley.py)
+    order: str = ""                      # what the player told this ally to do: focus | guard | hold | heal ("" = fight on their own)
+    order_target: str = ""               # the enemy a focus order names; (f406) for a heal order, who to heal ("self", or an ally's id)
+
+
+class Summon(Part):
+    """A summon's form and maker (engine/summons.py), and a bound one's seal."""
+    summon_form: str = ""                # a summon (engine/summons.py): its form - bound, sentinel, striker, swarm, totem, decoy, volatile
+    summon_owner: str = ""               # who made it
+    summon_of: str = ""                  # the summon ability that made it
+    summon_until: int = 0                # the round it fades (0: it lasts - a Bound summon)
+    summon_tier: str = ""
+    summon_cast: int = 0                 # tells one casting's bodies from another's
+    bound: bool = False                  # held to its master by a sworn seal (the Bound Executioner)
+
+
+PARTS: dict[str, type] = {"identity": Identity, "stats": Stats, "resources": Resources, "position": Position, "carried": Carried,
+                          "kit": Kit, "turn": Turn, "behaviour": Behaviour, "summon": Summon}
+FLAT: dict[str, str] = {name: part for part, cls in PARTS.items() for name in cls.model_fields}   # every flat name -> the part that holds it
+
+
+def fold_flat(data: dict) -> dict:
+    """(f508) Flat fighter keys folded into their parts: a part given whole (a dict or a Part) is taken as it is, flat keys of the same
+    part laid over it; a key no part declares is left as it is, for extra="forbid" to name."""
+    out: dict = {}
+    for k, v in data.items():
+        if k in PARTS:
+            out[k] = v.model_dump() if isinstance(v, BaseModel) else dict(v)
+    for k, v in data.items():
+        if k in PARTS:
+            continue
+        part = FLAT.get(k)
+        if part is None:
+            out[k] = v
+        else:
+            out.setdefault(part, {})[k] = v
+    return out
+
+
+class Fighter(BaseModel):
+    """(f508) A fighter composed of parts, each holding its own fields (decision 9: the fighter is built of parts). It is built flat
+    (Fighter(id=..., hp=..., ...), as every builder and test does) or nested (the saved row); a flat key folds into its part before
+    validation, so a flat f507 row loads too. The dump is nested. Every flat name is a property over its part, read and written there,
+    so there is never a second copy of a figure. A key no part declares is refused, never read in part."""
+    model_config = ConfigDict(extra="forbid")
+    identity: Identity
+    stats: Stats
+    resources: Resources
+    position: Position = Field(default_factory=Position)
+    carried: Carried = Field(default_factory=Carried)
+    kit: Kit = Field(default_factory=Kit)
+    turn: Turn = Field(default_factory=Turn)
+    behaviour: Behaviour = Field(default_factory=Behaviour)
+    summon: Summon = Field(default_factory=Summon)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fold(cls, data):
+        """Flat keys go into their parts; a part given whole (a dict or a Part) is taken as it is, flat keys of the same part laid over it."""
+        return fold_flat(data) if isinstance(data, dict) else data
+
+    @classmethod
+    def model_construct(cls, _fields_set=None, **values):
+        """A fighter made without validation (a stand-in in a test): flat keys fold into their parts, each part made unvalidated too."""
+        folded = fold_flat(values)
+        parts = {k: (PARTS[k].model_construct(**v) if isinstance(v, dict) else v) for k, v in folded.items() if k in PARTS}
+        for k in PARTS:
+            parts.setdefault(k, PARTS[k].model_construct())
+        return super().model_construct(_fields_set, **parts)
 
     @property
     def alive(self) -> bool:
@@ -240,6 +331,16 @@ class Fighter(BaseModel):
         return max((self.attrs.get(a, 10) for a in names), default=10)
 
 
+def _delegate(name: str, part: str) -> property:
+    return property(lambda self: getattr(getattr(self, part), name),
+                    lambda self, value: setattr(getattr(self, part), name, value),
+                    doc=f"{name}: the fighter's {part} part holds it (f508)")
+
+
+for _name, _part in FLAT.items():                          # (f508) the flat names, read and written on their parts
+    setattr(Fighter, _name, _delegate(_name, _part))
+
+
 SHAPE = 1       # (f507) the saved fight's shape: a row of another is let go of with a line, never read in part (services/fight.py resume)
 
 
@@ -250,6 +351,7 @@ class Combat(BaseModel):
     battlefield: Battlefield | None = None   # the ground this fight is on (engine/battlefield.py); None in bare simulations and old saves
     gentle: bool = False           # Gentle Approach: timid animals don't flee
     fighters: list[Fighter]
+    players: list[str] = []        # (f508) the player fighters' ids, in order (several in shape, decision 9); empty: every fighter on the player side
     log: list[str] = []
     over: str = ""                 # "" | victory | defeat | fled
     place: str = ""
@@ -308,7 +410,18 @@ class Combat(BaseModel):
 
     @property
     def player(self) -> Fighter:
-        return next(f for f in self.fighters if f.side == "player")
+        """The first player fighter (the one the rules address as 'you' today); StopIteration when there is none."""
+        return next(iter(self.player_fighters()))
+
+    def player_fighters(self) -> list[Fighter]:
+        """(f508) Every player fighter, in order: those `players` names, else everyone on the player side."""
+        if self.players:
+            return [f for i in self.players if (f := self.get(i)) is not None]
+        return [f for f in self.fighters if f.side == "player"]
+
+    def player_side(self) -> list[Fighter]:
+        """(f508) The player's side as the foes and the rules see it: every player fighter, then the allies (alive, here, not turned)."""
+        return self.player_fighters() + self.allies()
 
     def enemies(self) -> list[Fighter]:
         return [f for f in self.fighters if f.side == "enemy" and f.alive and not f.fled and not f.counters.get("turned")]
@@ -458,7 +571,7 @@ def figure(rec: dict) -> str:
 
 # ---------- building fighters ----------
 
-def fighter_from_character(c: Character) -> Fighter:
+def fighter_from_character(c: Character, fid: str = "player") -> Fighter:
     from engine import loadout as _loadout
     weapon = c.equipment.get("main_hand")
     _gear = _stats.gear_attributes(c)
@@ -570,7 +683,7 @@ def fighter_from_character(c: Character) -> Fighter:
         wname, wdmg, wattrs, reach, dtype = "fists", RULES["damage"]["unarmed"], ["strength"], "melee", "physical"
     from engine import needs
     return Fighter(
-        id="player", name=c.name, side="player", level=c.level, attrs=attrs,
+        id=fid, name=c.name, side="player", level=c.level, attrs=attrs,
         hp=pools.current(c, "health"), max_hp=pools.maximum(c, "health"),
         stamina=pools.current(c, "stamina"), max_stamina=pools.maximum(c, "stamina"),
         mana=pools.current(c, "mana"), max_mana=pools.maximum(c, "mana"),
@@ -2572,7 +2685,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
     if e.winding:
         resolve_telegraph(combat, e, rng)
         return
-    targets = [combat.player] + combat.allies()
+    targets = combat.player_side()
     targets = [t for t in targets if t.alive]
     if not targets:
         return
@@ -2695,7 +2808,7 @@ def telegraphs(e: Fighter) -> bool:
 
 def coverer_for(combat: Combat, target: Fighter) -> Fighter | None:
     """Whoever has put themselves between this fighter and the blow (interpose), standing and in the same zone."""
-    return next((x for x in [combat.player] + combat.allies()
+    return next((x for x in combat.player_side()
                  if x.covering == target.id and x is not target and x.alive and x.zone_id == target.zone_id
                  and not ({"stunned", "prone"} & set(x.statuses))), None)
 
@@ -2823,7 +2936,7 @@ def ally_turn(combat: Combat, a: Fighter, rng: random.Random) -> None:
     if techniques.kit(a.ally_role) and a.order != "focus" and techniques.support(combat, a, rng):
         return                                                     # (f396) a heal, a blessing or a shield, on their own judgement
     if a.ally_role == "priest" and "heal" not in a.cooldowns and not techniques.healing(a.ally_role):
-        hurt = [f for f in [combat.player] + combat.allies() if f.alive and f.hp < f.max_hp * RULES["ally_heal"]["below"]]
+        hurt = [f for f in combat.player_side() if f.alive and f.hp < f.max_hp * RULES["ally_heal"]["below"]]
         if hurt:
             t = min(hurt, key=lambda f: f.hp / f.max_hp)
             amount = t.max_hp * RULES["ally_heal"]["pct"] / 100
