@@ -33,6 +33,39 @@ FIGHT_DEPENDS = ("store", "bus", "party", "streams")
 # it reads include services/.
 WRITE_SCAN_DIRS = ("engine", "scenes", "npc", "services")
 SPATIAL = ("zone_id", "row", "engaged_with", "position_tags", "band", "elevated")
+# (f505) The health write-path rule: the health bar is written by engine/damage.py (the declared paths) and engine/combat.py restore, and by
+# the sites HP_EXEMPT names, each (file, the line as written): construction and scaling, unmaking and execution, floors and clamps outside
+# a blow, heals outside restore, costs and drains, a trap's cut. The list may only shrink (tools/sim/hp_writes_505_test.py pins it).
+HP_ALLOWED_FILES = ("engine/damage.py",)
+HP_ALLOWED_FUNCTIONS = {("engine/combat.py", "restore")}
+HP_EXEMPT = {
+    # construction and scaling
+    ("engine/combat.py", 'f.max_hp = f.hp = round(f.max_hp * g["health"])'),
+    ("engine/combat.py", 'f.max_hp = f.hp = round(f.max_hp * (c["health"] + c["late_health"] * over))'),
+    ("engine/bosses.py", 'g.max_hp = g.hp = max(1, round(e.max_hp * B["guard_share"]))'),
+    ("engine/events.py", "f.max_hp = f.hp = max(1, round(f.max_hp * scale))"),
+    ("engine/party.py", "f.hp = max(1.0, f.max_hp * health_now(member, minutes))"),
+    # unmaking and execution
+    ("engine/summons.py", "f.hp = 0"),
+    ("engine/combat_perks.py", "f.hp = 0"),
+    ("scenes/arc_actions.py", "e.hp = 0"),
+    # floors and clamps outside a blow
+    ("services/fight.py", "x.hp = 1"),
+    ("engine/spellcraft.py", "dfn.hp = min(dfn.hp, dfn.max_hp)"),
+    ("engine/spellcraft.py", "dfn.hp = float(floor)"),
+    ("engine/bosses.py", 'f.hp = max(1, round(f.max_hp * cfg["hp_pct"] / 100))'),
+    # heals outside restore
+    ("engine/combat_perks.py", "target.hp = min(target.max_hp, target.hp + amount)"),
+    ("engine/healing.py", 't.hp = max(1.0, t.max_hp * spec["revive"] * wither_factor(t))'),
+    # costs and drains
+    ("engine/spellcraft.py", 'att.hp = max(1.0, att.hp - taken * N("pct", 10) / 100)'),
+    ("engine/combat.py", 'att.hp = max(1, att.hp - owed * am["overchannel"])'),
+    ("engine/relics.py", "f.hp = max(1, f.hp - loss)"),
+    ("engine/healing.py", "att.hp -= max(0.0, price)"),
+    ("engine/combat_perks.py", "att.hp -= price"),
+    # a trap's cut, laid before the fight
+    ("scenes/field_actions.py", "e.hp = max(1, round(e.hp * (1 - cut)))"),
+}
 
 
 def _imports(tree: ast.AST) -> list[tuple[int, str]]:
@@ -179,3 +212,47 @@ def spatial_writes() -> list[str]:
             rel = py.relative_to(ROOT).as_posix()
             out += spatial_writes_in(py.read_text(encoding="utf-8"), rel)
     return out
+
+
+def hp_writes_in(text: str, rel: str) -> list[str]:
+    """(f505) Every write of a health bar in one module's source outside the law: the declared paths (engine/damage.py), restore, and the
+    named exemptions. Returns 'file:line writes .hp' for each."""
+    import re
+    if rel in HP_ALLOWED_FILES:
+        return []
+    allowed_spans = []
+    for f_rel, fn_name in HP_ALLOWED_FUNCTIONS:
+        if f_rel == rel:
+            tree = ast.parse(text)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and node.name == fn_name:
+                    allowed_spans.append((node.lineno, node.end_lineno))
+    out = []
+    for i, line in enumerate(text.split("\n"), 1):
+        code = line.split("#")[0]
+        if not re.search(r"\.hp\s*(=|-=|\+=)(?!=)", code):
+            continue
+        if any(a <= i <= b for a, b in allowed_spans) or (rel, line.strip()) in HP_EXEMPT:
+            continue
+        out.append(f"{rel}:{i} writes .hp")
+    return out
+
+
+def hp_writes() -> list[str]:
+    """(f505) The health write-path rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += hp_writes_in(py.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def hp_exempt_missing() -> list[str]:
+    """(f505) Every exemption whose line no longer exists in its file: the list may only shrink, and a site that went must leave it."""
+    gone = []
+    for rel, text in sorted(HP_EXEMPT):
+        p = ROOT / rel
+        if not p.exists() or not any(l.strip() == text for l in p.read_text(encoding="utf-8").split("\n")):
+            gone.append(f"{rel}: {text}")
+    return gone

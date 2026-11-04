@@ -5,8 +5,10 @@ one Blow (the shared locals of engine/combat.py take_damage, so nothing is stale
 the record (step), and returns False to end the path (a floor that held, a petrified target, nothing left to land). The retribution
 and spellmirror rebound writes the striker's health directly, as take_damage does: that write is the loop guard.
 
-Not yet wired (f504): take_damage, the tick in start_turn and afflictions.tear still run their own lines; resolve("blow") is held equal
-to take_damage on a battery of random blows (tools/sim/tables_504_test.py). f505 makes them call resolve, the fixtures the proof."""
+(f505) take_damage is resolve("blow"), the tick in start_turn resolve("dot_tick") and afflictions.tear resolve("tear"): one calculation,
+its value and its explanation from the declared recipe; the fight fixtures (93 cases, none moved) are the proof that no number moved.
+The health bar is written here and in engine/combat.py restore, and in the named exemptions tools/purity.py HP_EXEMPT lists (construction,
+unmaking, floors outside a blow, heals outside restore, costs and drains); nowhere else (hp_writes, tools/sim/hp_writes_505_test.py)."""
 from __future__ import annotations
 
 import random

@@ -4,8 +4,9 @@ raw_damage, mitigate, pools.maximum, resist_factor and mechanics, and hit_steps 
 its hit_step calls, in order), so a hand reorder fails a test before it moves a fixture; every stage id has a function and every
 function is in the yaml (and the same for the recipes); a copy with an unknown id makes the check name it; EffectDef refuses
 assignment; every status row of combat.yaml, every ability buff, every command that lasts, every summon form and the three f499 marks
-have a kind; and the stage functions, not yet wired, give what take_damage gives on a battery of random blows (the record included),
-so f505 can switch the callers with the fixtures as the only remaining proof. Nothing stays in the process."""
+have a kind;
+and (f505) take_damage, the tick and the torn wound are the declared paths, the fixtures (93 cases, none moved) holding the
+numbers. Nothing stays in the process."""
 import ast
 import copy
 import pathlib
@@ -17,7 +18,7 @@ import simlib
 simlib.install(simlib.Stub("warrior", 4))
 import yaml
 from pydantic import ValidationError
-from engine import bosses, combat, damage, data_check, effects, stacking, streams
+from engine import combat, damage, data_check, effects, stacking
 
 bad = []
 def check(n, ok, x=""):
@@ -115,71 +116,27 @@ check("the f499 marks are kinds (the rows keep their own family words until f507
       and effects.KINDS["hexed"].family == "status" and not effects.KINDS["hexed"].deltas)
 check("the ground's effects and a curse are kinds", all(k in effects.KINDS for k in ("frozen_ground", "ball_lightning", "burning_ground", "snowdrift", "earthen_barricade", "curse")))
 
-# ---- the stage functions give what take_damage gives: a battery of random blows, the record included (not yet wired: f505)
-game = simlib.campaign("tables_504", cls="warrior", seed=4, location="south_fields")      # the bestiary, through the one helper (f450)
+# ---- (f505) take_damage is the declared path: its body is one call, and the fixtures (93 cases, none moved) hold the numbers
+tsrc = src[src.index("def take_damage("):]
+tsrc = tsrc[:tsrc.index("\ndef ")]
+check("take_damage runs the declared blow path and nothing of its own", 'damage.resolve("blow"' in tsrc and ".hp" not in tsrc and tsrc.count("\n") < 12, tsrc)
+check("...the tick and the torn wound run theirs", 'damage.resolve("dot_tick"' in src
+      and 'damage.resolve("tear"' in pathlib.Path("engine/afflictions.py").read_text(encoding="utf-8"))
+game = simlib.campaign("tables_504", cls="warrior", seed=4, location="south_fields")      # a fight's floors through the path (f450: the one helper)
 world = game.scene.world
 char, _ = simlib.make_character("warrior", random.Random(1))
-MECHS = ["blood_pact", "hardening", "aegis", "last_stand", "stoneskin", "plating", "spellward", "unbroken", "guardian", "mana_veil",
-         "mana_shield", "ward_conversion", "deathless", "deathward", "second_wind", "retribution", "spellmirror", "avenger", "stoneform",
-         "penetrating", "lifeline", "martyr", "unbreakable"]
-IDS = [cid for cid in ("wolf", "bandit", "skeleton", "goblin", "ogre", "awakened_shrub", "young_red_dragon") if cid in world.bestiary]
-
-
-def build(seed: int):
-    r = random.Random(seed)
-    p = combat.fighter_from_character(char)
-    ally = combat.companion_fighter(world.bestiary["wolf"], 3, "ally_c1", "Grey")
-    foes = [combat.fighter_from_creature(world.bestiary[cid], r.randint(1, 12), "normal", f"e{i + 1}", f"{cid} {i + 1}")
-            for i, cid in enumerate(r.sample(IDS, 2))]
-    if r.random() < 0.3:
-        foes[0].rank = "boss"
-        foes[0].boss = bosses.make(bosses.kit_for(foes[0].category), "leader", foes[0].name)
-    f = combat.Combat(fighters=[p, ally] + foes, place="the test ground", record=True, serial="t504", round=r.randint(1, 5))
-    combat.ensure_field(f)
-    f.duel = r.random() < 0.08
-    f.mentor = r.random() < 0.08
-    for x in f.fighters:
-        x.legendary = {m: r.choice([10, 25, 50]) for m in r.sample(MECHS, r.randint(0, 4))}
-        x.mech_names = {m: m.title() for m in x.legendary}
-        x.shield = r.choice([0.0, 0.0, 15.0, 40.0])
-        x.mana = r.uniform(0, x.max_mana) if x.max_mana else 0.0
-        x.hp = r.uniform(1, x.max_hp)
-        if r.random() < 0.08:
-            x.statuses["petrified"] = 2
-        x.tether = r.choice([0, 0, 0, 30])
-        x.breath = r.random() < 0.1
-        x.yields_at = r.choice([0.0, 0.0, 0.0, 0.3])
-        x.hardening_stacks = r.randint(0, 3)
-        x.counters = dict(x.counters)
-    dfn = r.choice(f.fighters)
-    src = r.choice(f.fighters + [None])
-    return f, dfn.id, (src.id if src is not None else None), r.uniform(0, 160), r.choice(["physical", "magical"]), r.random() < 0.7
-
-
-def run(path_fn, f, d, s, amount, dtype, seed, recorded):
-    g = f.model_copy(deep=True)
-    dfn, src = g.get(d), (g.get(s) if s else None)
-    rec = combat.new_hit(g, src or g.player, dfn, "hits") if recorded else None
-    snap = streams.snapshot()
-    try:
-        dealt = path_fn(g, dfn, amount, src, random.Random(seed), dtype, rec)
-    finally:
-        streams.restore(snap)
-    return dealt, g.model_dump(), rec
-
-
-streams.begin(4, 504, "the battery")
-parted, tried = None, 0
-for seed in range(300):
-    f, d, s, amount, dtype, recorded = build(seed)
-    a = run(lambda g, dfn, am, src, rng, dt, rec: combat.take_damage(g, dfn, am, src, rng, dt, rec=rec), f, d, s, amount, dtype, seed, recorded)
-    b = run(lambda g, dfn, am, src, rng, dt, rec: damage.resolve("blow", g, dfn, am, src, rng, dt, rec=rec), f, d, s, amount, dtype, seed, recorded)
-    tried += 1
-    if a != b:
-        diff = next((k for k in a[1] if a[1][k] != b[1][k]), None)
-        parted = (seed, a[0], b[0], diff, a[2], b[2])
-        break
-check(f"resolve('blow') gives what take_damage gives on {tried} random blows: the damage dealt, every fighter, the story, the record", parted is None, parted)
+me = combat.fighter_from_character(char)
+foe = combat.fighter_from_creature(world.bestiary["wolf"], 3, "normal", "e1", "wolf")
+f = combat.Combat(fighters=[me, foe], place="the test ground", record=True, serial="t504", duel=True)
+combat.ensure_field(f)
+rec = combat.new_hit(f, foe, me, "bites")
+dealt = combat.take_damage(f, me, 9999, foe, random.Random(1), "physical", rec=rec)
+check("a duel's killing blow is pulled short on the path: the duel decided, the health at one, the blow recorded", me.hp == 1 and f.over == "defeat"
+      and dealt >= 1 and rec["extras"] is not None, (me.hp, f.over, dealt))
+f.duel, f.over, me.hp, me.shield = False, "", 50.0, 20.0
+rec = combat.new_hit(f, foe, me, "bites")
+dealt = combat.take_damage(f, me, 30, foe, random.Random(1), "physical", rec=rec)
+check("a barrier soaks what it can and the record says so", me.shield == 0 and dealt == 10 and any(e[0] == "Barrier" for e in rec["extras"]), (me.shield, dealt, rec["extras"]))
 
 game.close()
 import shutil

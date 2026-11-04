@@ -116,16 +116,9 @@ def tear(combat, f, deep: float = 1.0, by: str = "") -> int:
     shields. Returns what it took."""
     if "bleeding" not in f.statuses or not f.alive:
         return 0
-    from engine import combat_perks
+    from engine import combat_perks, damage
     amount = combat_perks.dot_damage(f, "bleeding", tick(f, "bleeding")) * deep
-    floor = 1 if ((combat.mentor and f.side == "player") or combat.duel) else 0
-    before = f.hp
-    f.hp = max(floor, f.hp - amount)
-    lost = round(before - f.hp)
-    if lost:
-        combat.log.append(f"{f.name}'s wound tears: {lost}")
-        C.tell(combat, f"the blow tears {C.whose(f)} wound open again - {lost} more blood lost" + (f" {by}" if by else ""))
-    return lost
+    return damage.resolve("tear", combat, f, amount, None, None, deep=deep, by=by)   # (f505) the torn wound's path: the floor, the health
 
 
 def bind(combat, f, how: str = "") -> bool:
