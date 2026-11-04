@@ -36,7 +36,7 @@ SCRIPTS = ROOT / "data" / "replay" / "scripts"        # (f476) a kept recording 
 
 
 def golden(name: str = "stub_short") -> Path:
-    """(f476) A kept recording by name: stub_short (the night bot's), stub_party (a script's)."""
+    """(f476) A kept recording by name: stub_short (the night bot's), stub_party and stub_fight (f495) (each a script's)."""
     return ROOT / "data" / "replay" / "sessions" / name
 
 
@@ -404,7 +404,7 @@ def main() -> int:
     ap.add_argument("recording", nargs="?", help="a recording folder (recordings/<name>)")
     ap.add_argument("--loose", action="store_true", help="serve answers by order and kind even where a prompt's words changed")
     ap.add_argument("--golden", nargs="?", const="stub_short", default=None, metavar="NAME",
-                    help="replay a kept recording (stub_short when no name is given; stub_party, made from its script)")
+                    help="replay a kept recording (stub_short when no name is given; stub_party and stub_fight, made from their scripts)")
     ap.add_argument("--rebless", action="store_true", help="with --golden: record it again, and say what changed")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
     ap.add_argument("--inputs", type=int, default=40)

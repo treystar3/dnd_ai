@@ -10,7 +10,7 @@
 #   blind:        the blind reading's memory-and-time counts (tools/blind_review.md question 5), by hand once read
 #   estimates:    per input of each golden, the required path's seconds with every answer at its expected size (card_profile --expected);
 #                 (f490, tools/latency.py --estimates) stub_party's from its recording as first kept (f476, 26b5239), before any request
-#                 changed: it was kept after the baseline night
+#                 changed: it was kept after the baseline night; (f495) stub_fight's the same way, from its recording as first kept
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
   faults (fixed in f492), the warrior (440) and mage (504) on Runpod''s network outage at 07:32 UTC'
 speech_tasks:
@@ -272,3 +272,30 @@ estimates:
     12: 1.6
     13: 67.0
     14: 20.9
+  stub_fight:
+    0: 10.5
+    1: 18.3
+    2: 18.3
+    3: 18.4
+    4: 9.3
+    5: 13.2
+    6: 9.2
+    7: 13.3
+    8: 34.2
+    10: 13.3
+    11: 13.4
+    12: 13.3
+    13: 13.2
+    14: 13.2
+    15: 13.2
+    16: 13.4
+    17: 13.2
+    18: 13.3
+    19: 13.2
+    20: 34.4
+    21: 19.1
+    22: 18.2
+    23: 18.2
+    24: 12.9
+    25: 17.6
+    26: 19.0

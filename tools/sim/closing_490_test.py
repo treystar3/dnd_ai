@@ -81,9 +81,9 @@ check("an input priced above its pre-D price is dearer, one the baseline never p
 check("...to the tenth of a second the baseline keeps, and only for the inputs with a speech call",
       latency.dearer({1: 43.14, 2: 99.0}, {1: 43.1, 2: 18.5}, {1}) == [])
 held = latency.gate()
-check("the gate prices both goldens", set(held) == {"stub_short", "stub_party"}, sorted(held))
-check("...and both hold it: no input with a speech call dearer than before Bundle D (stub_party since f488's hire brief)",
-      held.get("stub_short") == [] and held.get("stub_party") == [], held)
+check("the gate prices the three goldens (stub_fight since f495)", set(held) == {"stub_short", "stub_party", "stub_fight"}, sorted(held))
+check("...and all hold it: no input with a speech call dearer than before Bundle D (stub_party since f488's hire brief, stub_fight since it was kept)",
+      all(held.get(g) == [] for g in ("stub_short", "stub_party", "stub_fight")), held)
 import yaml
 import card_profile
 now = dict(card_profile.estimate_inputs(latency.GOLDENS / "stub_short", expected=True))
