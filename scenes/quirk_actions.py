@@ -266,17 +266,19 @@ class QuirkActions:
         player = quirks.nickname(m) or self.player.character.name
         q = " ".join(now) + " " + heard
         from engine import voice_profile
-        how, core = self.companion_parts(m, q, "pressing", relation=voice_profile.relation_kind(bond_tier=rules.bond_tier(m)), toward="the player",
-                                         hit=hit, in_fight=in_fight)
+        how, core, recalled, held = self.companion_brief(m, q, "pressing", relation=voice_profile.relation_kind(bond_tier=rules.bond_tier(m)),
+                                                         toward="the player", hit=hit, in_fight=in_fight)                 # (f488) in its parts
         from engine import severity
         lately = [] if hit and severity.at_least(hit, severity.SV["repeat_free_from"]) else m.get("said", [])   # shaken or devastated: they may repeat themselves
         quiet = severity.may_be_silent(hit, weight) and not must        # hit hard enough, or a moment grave enough, that a word or nothing is an answer
         if quiet:
             how = (how + " " + " ".join(severity.SV["silent_rule"].split())).strip()
-        view = self.hire_view(m)
+        view = self.hire_view(m, q, brief_of=True)
+        from engine import brief
         ctx = {"recent": lately, "member": m, "player": self.player.character.name, "must": must or [], "retell": retell, "silent_ok": quiet,
                "others": self.fellow_names(m), "said": heard if isinstance(heard, str) else "",                       # (f385)
-               "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "known": view.scene.known_words()}
+               "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "known": view.scene.known_words(),
+               "given_also": view.town_lines}                                              # (f488) the town's list, for the checks, given or not
         from engine import canon, context
         fix = ""
         for attempt in range(2):                             # the same rule as talking to them: a line that contradicts canon is written again
@@ -284,8 +286,10 @@ class QuirkActions:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,
                              ppr.talk_prompt(how, core, self.hire_relation(m), now + self.hire_now(m, heard), rules.pick_memories(m, q, day=self.minutes // 1440),
                                              m.get("talk", [])[-4:], player, heard, unsaid=banter.unsaid_rule(lately, q),
-                                             notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place), leaned=quirks.leaned_on(m),
-                                             offers=self.material_for(m), fix=fix, truth_text=view.text(), others=self.fellow_names(m)),
+                                             notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place, where_given="here" in view.facets() and bool(view.lines("here"))),
+                                             leaned=quirks.leaned_on(m), offers=self.material_for(m), fix=fix, truth_text=view.text(),
+                                             others=self.fellow_names(m), recalled=recalled, open_=self.hire_open(m, held),
+                                             pronoun=brief.pronoun(self, self.acting)),
                              CompanionReply, temperature=0.85, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx, relaxed_context=dict(ctx, recent=lately[-1:]))
             except LLMError:
                 return ""

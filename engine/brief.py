@@ -59,7 +59,10 @@ def asked(facet: str, text: str, role: str = "", profile: str = "townsfolk") -> 
     R = rules(profile)
     if role and role in ((R.get("always") or {}).get(facet) or []):
         return True
-    words = set(re.findall(r"[a-z]+", (text or "").lower()))
+    said = (text or "").lower().replace("\u2019", "'")
+    for phrase in R.get("about_them") or []:                    # (f488) "where are you from?" asks about them, not the town
+        said = said.replace(str(phrase).lower(), " ")
+    words = set(re.findall(r"[a-z]+", said))
     return bool(words & set((R.get("asked") or {}).get(facet) or []))
 
 
@@ -72,8 +75,22 @@ def pronoun(ws, char_id: str) -> str:
     return truth.player_pronoun(ws.player.character)
 
 
+def page(log: list, profile: str = "hire") -> None:
+    """(f488) A talk window cut only when full: past `talk_window` lines it keeps its last `talk_turn`, a page turned. Between turns the
+    lines shown only grow, so a reply's talk is the last reply's and what was said since."""
+    R = rules(profile)
+    if len(log) > int(R.get("talk_window", 8)):
+        del log[:-int(R.get("talk_turn", 4))]
+
+
 def problems() -> list[str]:
     bad = []
+    H = rules("hire")
+    for k in ("voice_habits", "talk_window", "talk_turn"):
+        if not isinstance(H.get(k), int) or H.get(k) < 1:
+            bad.append(f"brief.yaml hire.{k}: a whole number above zero")
+    if isinstance(H.get("talk_turn"), int) and isinstance(H.get("talk_window"), int) and H["talk_turn"] >= H["talk_window"]:
+        bad.append("brief.yaml hire.talk_turn: fewer than talk_window, or the page never turns")
     R = rules()
     for k in ("lore", "prefilter", "recent_lines"):
         if not isinstance(R.get(k), int) or R.get(k) < 1:

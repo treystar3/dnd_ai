@@ -18,7 +18,7 @@ ceilings:
   npc_profile: {chars: 3000, from: the baseline night's p95 2774; stub_short's largest 2485}
   dialogue_frame: {chars: 11000, from: the baseline night's p95 10715; stub_party's largest 8330}
   work_offer_read: {chars: 1000, from: the baseline night's p95 780}
-  hire_chat: {chars: 16500, from: the baseline night's p95 16275; stub_party's largest 14433}
+  hire_chat: {chars: 16500, from: the baseline night's p95 16275; stub_party's largest 12239}
   canon_extract: {chars: 4000, from: the baseline night's p95 3998; stub_party's largest 3058}
   canon_check: {chars: 1000, from: the baseline night's p95 853}
   exchange: {chars: 15500, from: the baseline night's p95 15039; stub_party's largest 13250}

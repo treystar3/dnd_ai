@@ -524,8 +524,11 @@ def carried(member: dict | None) -> str:
     return CARRY.get(member.get("role", ""), "a weapon, a pack") + ", the clothes and armour they travel in"
 
 
-def scene_props(member: dict | None, place) -> str:
-    """What a gesture may use: the speaker's body, what they carry, and what the place is given as having. Nothing else exists for it."""
+def scene_props(member: dict | None, place, where_given: bool = False) -> str:
+    """What a gesture may use: the speaker's body, what they carry, and what the place is given as having. Nothing else exists for it.
+    (f488) where_given: the brief already gives the place (its WHERE), so the gesture is pointed there, not given its lines twice."""
+    if where_given:
+        return f"FOR A GESTURE ONLY - WHAT THEY CARRY: {carried(member)}. WHAT IS HERE: only what WHERE gives."
     here = list(getattr(place, "visible", []) or [])[:3]          # enough to lean on or look at; the whole place description is not for a gesture
     return (f"FOR A GESTURE ONLY - WHAT THEY CARRY: {carried(member)}. WHAT IS HERE: " + ("; ".join(here) if here else "nothing in particular") + ".")
 

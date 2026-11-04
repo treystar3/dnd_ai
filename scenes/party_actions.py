@@ -536,13 +536,28 @@ class PartyActions:
             out.append("you have told the player plainly that this might not be worth it")
         return out                                           # (f315) where they are, who is here and the board come with their truth view (hire_view)
 
-    def hire_view(self, m: dict, text: str = ""):
+    def hire_view(self, m: dict, text: str = "", brief_of: bool = False):
         """Their view of the moment from the truth layer (engine/truth.py): the same scene the narrator and the townsfolk read, as a hired
-        adventurer may know it - the party by name, the townsfolk as the player knows them, the board wherever the guild's people are."""
-        from engine import truth
+        adventurer may know it - the party by name, the townsfolk as the player knows them, the board wherever the guild's people are.
+        (f488) brief_of: for one reply, the town's list and the board only when the line is about them (engine/brief.py asked, by the
+        townsfolk's words); view.town_lines keeps the list for the checks, given or not."""
+        from engine import brief, truth
         view = truth.scene_of(self).view(truth.viewer_for_hire(f"hire:{m['id']}"), "hire").asking(text)     # (f375) the streets when asked
+        view.town_lines = view.lines("town")
+        if brief_of:
+            view.drop |= {f for f in ("town", "board") if not brief.asked(f, text)}
         console.debug(f"truth view for {m['name']}: " + ", ".join(f"{h.split(' (')[0].lower()} {len(l)}" for h, l in view.sections()))
         return view
+
+    def hire_open(self, m: dict, held: list[str]) -> list[str]:
+        """(f488) What is open between a hire and the one who hired them: the promises and debts the hire still holds (canon's, ended only
+        for a reason), and an errand they have asked and still wait to hear about."""
+        from engine import obligations
+        out = list(held)
+        e = obligations.current(self.store, "errand", f"hire:{m.get('id', '')}", self.acting)
+        if e is not None and e.data.get("title"):
+            out.append(f"you asked them a favour and wait for their answer: {e.data['title']}")
+        return out
 
     def hire_feeling(self, m: dict, text: str) -> str:
         """The situation that gives this moment real feeling for them, or ''."""
@@ -674,27 +689,30 @@ class PartyActions:
         fix = ""
         from engine import voice_profile
         feeling = self.hire_feeling(m, text)
-        how, core = self.companion_parts(m, text, emotion=voice_profile.emotion_for(feeling),
-                                         relation=voice_profile.relation_kind(bond_tier=rules.bond_tier(m)), toward="the player")
+        how, core, recalled, held = self.companion_brief(m, text, emotion=voice_profile.emotion_for(feeling),            # (f488) in its parts
+                                                         relation=voice_profile.relation_kind(bond_tier=rules.bond_tier(m)), toward="the player")
         answer_to = None
         if feeling in quirks.Q["answer_told"]["when"]:          # they told them something that matters: it is answered first, whatever is felt
             answer_to = {"said": text, "scene": list(now)}
             now = [quirks.Q["answer_told"]["rule"]] + now
-        view = self.hire_view(m, text)
+        view = self.hire_view(m, text, brief_of=True)
+        from engine import brief
         for attempt in range(2):
             heard = [t for who, t in recent[-6:] if who not in ("Player", m["name"].split()[0])]           # (f382) what the others just said
             ctx = {"recent": convo.others_lately(m.get("said", []), before), "member": m, "player": player, "heard": heard,
                    "others": self.fellow_names(m), "said": text,                                                   # (f385)
-                   "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words()}
+                   "gesture_state": quirks.gesture_state(m, self.gesturers(m)), "answer_to": answer_to, "known": view.scene.known_words(),
+                   "given_also": view.town_lines}                                          # (f488) the town's list, for the checks, given or not
             try:
                 r = generate("hire_chat", ppr.TALK_SYSTEM,
-                             ppr.talk_prompt(how, core, self.hire_relation(m), now, rules.pick_memories(m, text, day=self.minutes // 1440), recent[-8:], called, text,
+                             ppr.talk_prompt(how, core, self.hire_relation(m), now, rules.pick_memories(m, text, day=self.minutes // 1440), list(recent), called, text,
                                              unsaid=banter.unsaid_rule(m.get("said", []), text) if not before else "",
-                                             notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place), leaned=quirks.leaned_on(m),
-                                             subtext=self.hire_subtext(m, text), offers=self.material_for(m),
+                                             notes=quirks.voice_notes(m, solo=True), props=quirks.scene_props(m, self.place, where_given="here" in view.facets() and bool(view.lines("here"))),
+                                             leaned=quirks.leaned_on(m), subtext=self.hire_subtext(m, text), offers=self.material_for(m),
                                              again=convo.again_fact(before) if before else "",
                                              again_how=convo.again_rule(quirks.repeat_manner(m)) if before else "", fix=fix, truth_text=view.text(),
-                                             worn=self.worn_words("speech"), others=self.fellow_names(m)),
+                                             worn=self.worn_words("speech"), others=self.fellow_names(m), recalled=recalled,
+                                             open_=self.hire_open(m, held), pronoun=brief.pronoun(self, self.acting)),
                              CompanionReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS, retries=1, validation_context=ctx,
                              relaxed_context=dict(ctx, recent=[] if before else m.get("said", [])[-1:], answer_to=None, kit=False))
             except LLMError:
@@ -723,14 +741,14 @@ class PartyActions:
         quirks.note_line(m, gesture)
         said = [["Player", text[:250]]] + ([[m["name"].split()[0], reply[:300]]] if reply else ([[m["name"].split()[0], f"({gesture})"]] if gesture else []))
         recent += said
-        del recent[:-12]
+        brief.page(recent)                                  # (f488) cut only when full: a page turned, never slid each reply
         from engine import presence                         # (f290) the others here heard it: 'what about you?' has something to follow on from;
         for o in presence.hires(self):                      # (f485) those here and awake (engine/presence.py), never one downed, fallen or away
             if o is m or not o.get("permanent") or o.get("story"):
                 continue
             log = o.setdefault("talk", [])
             log += [[f"Player (to {m['name'].split()[0]})", text[:250]]] + said[1:]
-            del log[:-12]
+            brief.page(log)
         if reply and m.get("permanent"):                    # the others travelling along heard it: whether any joins in is theirs to have reason for
             self.chime_in(m, text, reply)
         day = self.minutes // 1440

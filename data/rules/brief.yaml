@@ -18,6 +18,16 @@ townsfolk:
     town: [where, smith, smithy, forge, inn, tavern, temple, shrine, shop, store, guild, healer, herbalist, buy, sell, market, trader,
            merchant, room, bed, stay, eat, drink, ale, priest, chapel, workshop, stable]
     board: [work, job, jobs, contract, contracts, board, bounty, bounties, posting, postings, guild, coin, pay, paid, hire, hiring, task, quest]
+  about_them:              # (f488) the facets' words asked of the speaker's own life, not the place: these never bring a facet in
+    - where are you from
+    - where you are from
+    - where you're from
+    - where do you come from
+    - where did you come from
+    - where did you grow up
+    - where did you learn
+    - where were you born
+    - where were you raised
   always:                  # the facets a role is given whatever the line: their work is it
     board: [guild_clerk, guild_master, quartermaster, guild_instructor]
     town: [innkeeper, guard, watch_captain]
@@ -27,3 +37,12 @@ townsfolk:
   # within 10 points of a single reply's.
   many_addressees: one_call
 
+
+# (f488, part 2) A hire's brief (scenes/party_prompts.py talk_prompt): who they are, what presses on them, the moment as they know it,
+# the one who hired them and what is open between them first; the talk so far; then what this line brings to mind, and how they speak
+# last. The town's list and the board come in full only when the line is about them, by the townsfolk's words above (no hire's role is
+# either); the checks read the list always.
+hire:
+  voice_habits: 6          # at most this many lines on how they speak besides their kit, in any one reply
+  talk_window: 8           # the talk shown with them: kept as it was said until it holds this many lines...
+  talk_turn: 4             # ...then cut to its last this many, a page turned, never slid by a line or two each reply
