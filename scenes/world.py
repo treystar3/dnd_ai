@@ -801,12 +801,18 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 held = [i.name for i in c.equipment.values()] + [f"{m.name} ({m.description})" for m in c.companions]
                 console.note(f"Checking your belongings, you find: {', '.join(held + [money.fmt(c.coins)])}.")
         self.show_exits()
+        let_go = self.store.take_notice("fight_let_go")                     # (f507) a migration let a saved fight go: told once, here
         saved_fight = self.store.load_combat()
         if saved_fight:
             self.combat = CombatScene.resume(self, saved_fight)     # (f503) None for a row that cannot be read: the fight is let go, not the game
             if self.combat is not None:
                 console.note("You are still in the middle of a fight!")
                 self.combat.show()
+            else:
+                self.store.save_combat(None)                        # (f507) the row goes with the fight, and the player hears of it once
+                let_go = True
+        if let_go:
+            console.narrate(failures.fight_let_go(self.rng))
         self.show_header()
         asked = self.store.load_question()
         if asked and asked.get("question"):                                 # (f460) the world was waiting on an answer when the save closed: ask again, once

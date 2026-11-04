@@ -10,6 +10,7 @@ import random
 import re
 
 from engine import arcs, checks, clock, combat, leveling
+from engine import effects
 from engine import party as party_rules
 from engine.arcs import A
 from llm.contracts import CampIntent
@@ -141,9 +142,9 @@ class CampActions:
         reserves = guards[A["camp_waves"]["first"]:]
         if surprise == "all":
             for f in first:
-                f.statuses["unaware"] = 1
+                effects.put_status(f, "unaware", 1)        # raw, on purpose: nothing a sleeper wears turns surprise aside
         if surprise in ("all", "leader"):
-            leader.statuses["unaware"] = 1
+            effects.put_status(leader, "unaware", 1)
         return [leader] + first, reserves
 
     def camp_roll(self, check: str, extra: list, label: str) -> str:

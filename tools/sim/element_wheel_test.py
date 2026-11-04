@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import ability_slots as AS, afflictions, battlefield as bf, combat, spellcraft as SC
+from engine import effects as fx
 from engine.battlefield import Battlefield, BattleZone, BattleEdge
 from engine.combat import Move
 bad = []
@@ -17,7 +18,7 @@ def player(hp=10**5, intel=16, **kw):
     attrs = {a: 10 for a in combat.ATTRIBUTES}
     attrs["intelligence"] = intel
     return combat.Fighter(id="player", name="you", side="player", level=5, attrs=attrs, hp=hp, max_hp=hp, stamina=10**4,
-                          max_stamina=10**4, mana=10**5, max_mana=10**5, weapon_damage=12, hold=3, accuracy=200, **kw)
+                          max_stamina=10**4, mana=10**5, max_mana=10**5, weapon_damage=12, hold=3, **kw)
 
 def foe(i=1, hp=10**6, zone="a", **kw):
     return combat.Fighter(id=f"e{i}", name=f"foe {i}", side="enemy", level=5, attrs={a: 10 for a in combat.ATTRIBUTES}, hp=hp,
@@ -121,7 +122,7 @@ check("smoke: attacks into it are harder", any(s[0] == "through smoke" for s in 
 
 # ---- cold
 slow, fresh = foe(1), foe(2)
-slow.statuses["slowed"] = 3
+fx.put_status(slow, "slowed", 3)
 r1 = {"steps": []}; r2 = {"steps": []}
 p.casting = {"exprs": ["shatter"], "tier": "moderate", "name": "Shatter", "once": []}
 check("shatter hits a slowed target harder", SC.hit_mult(f, p, slow, 1.0, r1) == 1.5 and SC.hit_mult(f, p, fresh, 1.0, r2) == 1.0)
@@ -139,7 +140,7 @@ check("thunderclap breaks wind-ups across the area", not e1.winding)
 # ---- poison
 e = foe(); f, p = cast(spell("Sicken", element="poison", expression="sickening"), e)
 check("sickening weakens", "weakened" in e.statuses)
-e = foe(); e.poison = [1, 1, 1]; e.statuses["poisoned"] = 3
+e = foe(); fx.set_strength(e, "poisoned", [1, 1, 1]); fx.put_status(e, "poisoned", 3)
 f, p = cast(spell("Paralyse", element="poison", expression="paralytic"), e)
 check("paralytic slows a well-poisoned target", "slowed" in e.statuses)
 

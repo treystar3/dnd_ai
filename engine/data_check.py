@@ -616,15 +616,17 @@ def check() -> list[str]:
     ek = _load("data/rules/combat.yaml").get("effects_keep")
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
+    bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     return bad
 
 
 def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | None = None) -> list[str]:
     """(f504) The fight's tables held to the code both ways: every kind in active_effects.yaml has a family, an expiry and a stacking rule
-    the table itself lists, a status kind's deltas name a combat.yaml statuses row and every statuses row has a kind (hexed alone may go
-    without a row until f507); every stage a damage path in stages.yaml names has a function in engine/damage.py and every function there
-    is named by a path; the hit steps and the status eligibility are lists of names; every stacking recipe has a function in
-    engine/stacking.py and every function a recipe, with parts the recipe knows. Data cannot promise what code cannot run."""
+    the table itself lists, a status kind's deltas name a combat.yaml statuses row and every statuses row has a kind; every stage a
+    damage path in stages.yaml names has a function in engine/damage.py and every function there is named by a path; the hit steps are
+    a list of names; (f507) every status eligibility stage named has a function in engine/effects.py and every function there is
+    named; every stacking recipe has a function in engine/stacking.py and every function a recipe, with parts the recipe knows. Data
+    cannot promise what code cannot run."""
     from engine import damage, stacking
     AE = _load("data/rules/active_effects.yaml") if AE is None else AE
     ST = _load("data/rules/stages.yaml") if ST is None else ST
@@ -651,7 +653,7 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
             need(deltas == f"statuses.{k}" and k in statuses, f"active_effects.yaml kinds.{k}: deltas '{deltas}' is not a combat.yaml statuses row of that name")
             status_kinds.add(k)
         elif spec.get("family") == "status":
-            need(k == "hexed", f"active_effects.yaml kinds.{k}: a status kind needs its deltas row in combat.yaml statuses (hexed alone waits on f507)")
+            need(False, f"active_effects.yaml kinds.{k}: a status kind needs its deltas row in combat.yaml statuses")
     for st in statuses:
         need(st in kinds and (kinds[st] or {}).get("family") == "status", f"combat.yaml statuses.{st}: no status kind of that name in active_effects.yaml")
     paths = ST.get("damage") or {}
@@ -666,6 +668,11 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
     for key in ("hit_steps", "status_eligibility"):
         v = ST.get(key)
         need(isinstance(v, list) and v and all(isinstance(i, str) and i for i in v), f"stages.yaml {key}: a list of names")
+    from engine import effects
+    for i in (ST.get("status_eligibility") or []):                        # (f507) each stage named has a function, each function is named
+        need(i in effects.STAGES, f"stages.yaml status_eligibility: '{i}' is no stage engine/effects.py can run")
+    for i in effects.STAGES:
+        need(i in (ST.get("status_eligibility") or []), f"stages.yaml status_eligibility: engine/effects.py has a stage '{i}' the table does not name")
     recipes = ST.get("stacking") or {}
     for r, parts in recipes.items():
         need(r in stacking.RECIPES, f"stages.yaml stacking.{r}: no recipe of that name in engine/stacking.py")
@@ -673,6 +680,53 @@ def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | N
             need(isinstance(parts, list) and parts and all(p in stacking.PARTS[r] for p in parts), f"stages.yaml stacking.{r}: parts {parts} are not the recipe's {list(stacking.PARTS[r])}")
     for r in stacking.RECIPES:
         need(r in recipes, f"stages.yaml stacking: engine/stacking.py has a recipe '{r}' the table does not name")
+    return out
+
+
+def evaluated_triggers() -> set[str]:
+    """(f507) Every trigger id the code can make true, read from the code: the string literals of engine/combat.py active_triggers,
+    scenes/world.py conditions and scenes/check_actions.py check_triggers, the creature-category triggers (engine/combat.py
+    CATEGORY_TRIGGERS), and in_<biome> for every biome the world data names (conditions builds it from the place's biome)."""
+    import ast
+    found: set[str] = set()
+    for rel, fn in (("engine/combat.py", "active_triggers"), ("scenes/world.py", "conditions"), ("scenes/check_actions.py", "check_triggers")):
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == fn:
+                found |= {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    from engine import combat
+    found |= set(combat.CATEGORY_TRIGGERS.values())
+    biomes: set[str] = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "biome" and isinstance(v, str):
+                    biomes.add(v)
+                if k == "biomes" and isinstance(v, list):
+                    biomes.update(b for b in v if isinstance(b, str))
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    for f in sorted((ROOT / "data" / "world").rglob("*.yaml")):
+        walk(_load(str(f.relative_to(ROOT))))
+    found |= {f"in_{b}" for b in biomes}
+    return found
+
+
+def trigger_problems(T: list | None = None) -> list[str]:
+    """(f507) triggers.yaml held to the code both ways: a trigger no code evaluates must say dormant: true (creation, gear and lessons
+    never offer it; an old character's passive still loads), and one the code evaluates must not."""
+    T = _load("data/rules/triggers.yaml") if T is None else T
+    live = evaluated_triggers()
+    out = []
+    for t in T or []:
+        tid, dormant = (t or {}).get("id"), bool((t or {}).get("dormant"))
+        if tid in live and dormant:
+            out.append(f"triggers.yaml {tid}: says dormant, but the code evaluates it")
+        if tid not in live and not dormant:
+            out.append(f"triggers.yaml {tid}: no code evaluates it; mark it dormant: true, or evaluate it")
     return out
 
 

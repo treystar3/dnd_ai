@@ -113,7 +113,8 @@ def shard_of(case: dict) -> int:
 
 def _fighter(f) -> dict:
     data = f.model_dump(mode="json")      # (f497) a snapshot by the fields' types: a dict held by reference showed every round the fight's
-    out = {k: data.get(k) for k in SNAP}  # end state (the live object went on changing it), and a float left as an int read 0 live, 0.0 resumed
+    out = {k: data[k] if k in data else _norm(getattr(f, k)) for k in SNAP}   # end state (the live object went on changing it), and a float
+    #                                     left as an int read 0 live, 0.0 resumed; (f507) statuses, strengths and buffs are views over the rows
     if getattr(f, "boss", None):
         out["boss"] = {k: f.boss.get(k) for k in ("phase", "la", "lr", "stand_used", "fell", "guards")}
     return out

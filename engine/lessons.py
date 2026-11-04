@@ -244,7 +244,7 @@ def _stat_triggers(stat_id: str, view_) -> list[str]:
     scores = fit.trigger_scores(view_)
     out = []
     for t in TRIGGERS.values():
-        if scores.get(t.id, 0) <= fit.EXCLUDED + 5:
+        if t.dormant or scores.get(t.id, 0) <= fit.EXCLUDED + 5:     # (f507) a dormant trigger is never taught
             continue
         if st.noncombat and t.context == "combat":
             continue

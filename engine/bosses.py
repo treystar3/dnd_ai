@@ -14,6 +14,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat as C
+from engine import effects as E
 
 B = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "bosses.yaml").read_text(encoding="utf-8"))
 
@@ -88,7 +89,7 @@ def last_stand(combat, f) -> bool:
     f.boss["stand_used"] = True
     f.boss["phase"] = 3
     f.hp = max(1, round(f.max_hp * cfg["hp_pct"] / 100))
-    f.statuses.clear()
+    E.clear(f)
     f.weapon_damage *= cfg["damage"]
     f.boss["la"] = f.boss["la_max"]
     f.boss["sig_ready"] = True
@@ -139,7 +140,8 @@ def _guards(combat, e, n: int) -> int:
         g.boss, g.spawn, g.rank = {}, "", "normal"
         g.max_hp = g.hp = max(1, round(e.max_hp * B["guard_share"]))
         g.weapon_damage = e.weapon_damage * 0.5
-        g.shield, g.statuses, g.cooldowns = 0, {}, {}
+        g.shield, g.cooldowns = 0, {}
+        E.clear(g)                                       # (f507) a guard rises without its master's statuses
         from engine.combat import enters
         enters(combat, g)
         made += 1

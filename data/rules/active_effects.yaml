@@ -37,7 +37,7 @@ kinds:
   humbled:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.humbled}
   scented:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.scented}
   unraveled:   {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.unraveled}
-  hexed:       {family: status, expiry: fight, stacking: refresh}                      # (f507 gives it its combat.yaml row)
+  hexed:       {family: status, expiry: fight, stacking: refresh, deltas: statuses.hexed}
   # ---- buffs (ability_traits.yaml buffs: one of each kind at a time, a new casting replaces the old; rounds from the table)
   envenom:     {family: triggered_reaction, expiry: rounds, stacking: replace}
   acidcoat:    {family: triggered_reaction, expiry: rounds, stacking: replace}

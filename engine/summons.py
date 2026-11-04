@@ -14,6 +14,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat as C
+from engine import effects as E
 
 ROOT = Path(__file__).resolve().parent.parent
 S = yaml.safe_load((ROOT / "data" / "rules" / "summons.yaml").read_text(encoding="utf-8"))
@@ -197,7 +198,7 @@ def turn(combat: C.Combat, a: C.Fighter, rng: random.Random) -> bool:
             pct = spec["empower"].get(a.summon_tier, 10)
             near = [f for f in [combat.player] + combat.allies() if f.alive and f is not a and (not combat.battlefield or f.zone_id == a.zone_id)]
             for f in near:
-                f.buffs["totem_urge"] = {"rounds": 2, "mech": {"empowered": pct}, "drain": 0, "collapse": "", "name": a.name, "kind": "bolster"}
+                E.put_buff(f, "totem_urge", {"rounds": 2, "mech": {"empowered": pct}, "drain": 0, "collapse": "", "name": a.name, "kind": "bolster"})
             combat.log.append(f"{a.name} urges its allies on: +{pct}%")
             C.tell(combat, f"{a.name} pulses, and the fighters around it strike harder (+{pct}%)")
         return True

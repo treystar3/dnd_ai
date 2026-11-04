@@ -8,6 +8,7 @@ sys.path.insert(0, ".")
 sys.argv = ["x", "warrior", "2", "1", "1", "1"]
 import simbot
 from engine import battlefield as bf, battlefield_builder as bb, combat
+from engine import effects as fx
 from ui import console as _c
 _c.note = lambda t, *a, **k: None
 bad = []
@@ -84,13 +85,13 @@ check("the uncontained wolf spends its action slipping past the line - the blow 
 held = next(w for w in (w2, w3, w4) if bf.containment(F, F.battlefield.start, True)[w.id] is not None and not w.engaged_with)
 check("a held wolf pressing for the back is stopped at the line, by name",
       "holds the line" in bf.approach(F, held, heal), bf.approach(F, held, heal))
-tank.statuses["stunned"] = 1
+fx.put_status(tank, "stunned", 1)
 check("stun the holder and the line breaks: their holds mean nothing",
       sum(1 for v in bf.containment(F, F.battlefield.start, True).values() if v is None) >= 2
       and not bf.protected(F, heal) or True)
 check("...and the healer is no longer protected by them alone",
       bf.protected(F, heal) is (bf.can_hold(pl) and pl.row == "front"))
-tank.statuses.pop("stunned")
+fx.end_status(tank, "stunned")
 side = next(z for z in F.battlefield.zones if z != F.battlefield.start)
 bf.enter_zone(F, w4, side)
 check("crossing zones ends engagements and lands loose", w4.zone_id == side and w4.row == "loose" and not w4.engaged_with)

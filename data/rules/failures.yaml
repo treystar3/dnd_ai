@@ -188,6 +188,15 @@ shown_later:
   - "Something settled before you went away, unspoken then. Here it is."
   - "A moment from before, kept for your return."
   - "This was so when you left, and was never told. It is told now."
+# (f507) A fight saved mid-round that this game could not take up again (a row of an older shape, or one that could not be read): the
+# fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice.
+fight_let_go:
+  - "The fight you left half-fought could not be picked up again. It is let go; you stand clear of it, unhurt by what did not finish."
+  - "What was mid-blow when you went away did not keep. That fight is over without an ending, and you are out of it."
+  - "The fight you were in the middle of is gone with the time away. Nothing of it stands; you are where you were, out of its reach."
+  - "That fight did not survive the wait. It is let go, and you with it: clear, and free to go on."
+  - "The blows that hung in the air when you left have fallen to nothing. The fight is over, unfinished, and you are out of it."
+  - "What you were fighting could not be found again. The fight is let go; you stand clear of it."
 # A fight round whose telling could not be written: the numbers carry the blows.
 round_stood:
   - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."

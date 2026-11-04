@@ -10,6 +10,7 @@ NOTES = []
 uc.note = lambda m, *a, **k: NOTES.append(str(m))
 from core.models import Companion
 from engine import needs
+from engine import effects as fx
 needs.N.update(hunger_per_hour=0, fatigue_per_hour=0, fight={'hunger': 0, 'fatigue': 0})     # this test jumps days at a time; hunger is tested in needs_test
 from engine import field, dungeons, inventory as inv, checks, combat, abilities
 from engine import ability_traits as AT
@@ -361,7 +362,7 @@ for i in range(60):
     combat.enemy_turn(cmb, foe, rng)
 hit_pet_free = pet.hp < pet.max_hp
 pet.hp = pet.max_hp
-p.buffs["d"] = {"rounds": 3, "mech": {"taunt": 1}, "drain": 0, "collapse": "", "name": "Distract", "kind": "distract"}
+fx.put_buff(p, "d", {"rounds": 3, "mech": {"taunt": 1}, "drain": 0, "collapse": "", "name": "Distract", "kind": "distract"})
 for i in range(60):
     combat.enemy_turn(cmb, foe, rng)
 check("without a taunt the companion is sometimes hit", hit_pet_free)

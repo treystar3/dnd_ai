@@ -156,6 +156,7 @@ statuses:
   humbled:    {}                   # cannot land critical hits (Humbled, f268)
   scented:    {}                   # companions and summons hit it harder (Pack Scent, f268)
   unraveled:  {}      # necrotic unravelling: any healing it gets deals that much damage instead (engine/combat.py restore, f263)
+  hexed:      {}      # (f507) a hex's mark: the next blows from the hexer land harder (perks.yaml hex); no delta of its own, it lasts the fight
 
 creatures:
   # Lift: a creature weaker than the benchmark build of its level (size, ability score and category below) is strengthened toward it, so

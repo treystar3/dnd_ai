@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat as C
+from engine import effects as E
 from engine import ability_traits as AT
 from engine import streams
 
@@ -319,8 +320,8 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     foes_here = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o.alive]
     # ---- fire
     if eid == "flashfire" and dfn.alive and "burning" in dfn.statuses:
-        left = dfn.statuses.pop("burning") * afflictions.tick(dfn, "burning")
-        afflictions.ended(dfn, "burning")
+        left = dfn.statuses["burning"] * afflictions.tick(dfn, "burning")
+        E.end_status(dfn, "burning")                         # (f507) the strength goes with the row, after the burst read it
         dealt = C.take_damage(combat, dfn, left, att, rng, "magical")
         C.tell(combat, f"the fire on {C.who(dfn)} goes up all at once for {dealt} ({e['label']})")
     elif eid == "pyre":
@@ -333,16 +334,16 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         C.tell(combat, f"the blast throws {C.who(dfn)} clear of the fight ({e['label']})")
     elif eid == "smolder" and dfn.alive:
         if C.add_status(combat, dfn, "burning", int(N("rounds", 4)), att):
-            dfn.statuses["burning"] = max(dfn.statuses.get("burning", 0), int(N("rounds", 4)))
-            dfn.ignite *= 0.5
+            E.put_status(dfn, "burning", max(dfn.statuses.get("burning", 0), int(N("rounds", 4))))
+            E.set_strength(dfn, "burning", dfn.ignite * 0.5)
     elif eid == "flare_up" and dfn.alive:
         if C.add_status(combat, dfn, "burning", 2, att) and crit:
-            dfn.ignite *= 2
+            E.set_strength(dfn, "burning", dfn.ignite * 2)
             C.tell(combat, f"the blow lands true and the fire flares twice as high ({e['label']})")
     elif eid == "stoke":
         att.counters["stoke"] = att.counters.get("stoke", 0) + 1
     elif eid == "last_ember" and dfn.alive and "burning" in dfn.statuses:
-        dfn.statuses["burning"] += 1
+        E.tick_status(dfn, "burning", 1)
         C.tell(combat, f"the embers on {C.who(dfn)} catch again ({e['label']})")
     elif eid == "phoenix_spark" and killed:
         att.counters["free_fire"] = 1
@@ -368,7 +369,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
             bf.enter_zone(combat, dfn, away[0])
             C.tell(combat, f"{C.who(dfn)} {C.vb(dfn, 'are', 'is')} swept away to {combat.battlefield.zones[away[0]].name} ({e['label']})")
     elif eid == "hypothermia" and dfn.alive and "slowed" in dfn.statuses:
-        dfn.statuses["slowed"] += 1
+        E.tick_status(dfn, "slowed", 1)
     elif eid == "superconductor" and dfn.alive:
         C.add_status(combat, dfn, "superconductive", int(N("rounds", 2)), att)
     elif eid == "numb_hands" and dfn.alive:
@@ -402,15 +403,15 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     elif eid == "jittered" and dfn.alive:
         C.add_status(combat, dfn, "jittered", int(N("rounds", 2)), att)
     elif eid == "ball_lightning" and combat.battlefield is not None and dfn.zone_id in combat.battlefield.zones:
-        combat.zone_effects.setdefault(dfn.zone_id, {})["ball_lightning"] = {
-            "until": combat.round + 1, "round": combat.round + 1, "by": att.id, "amount": taken * N("pct", 30) / 100, "name": name}
+        E.put_ground(combat, dfn.zone_id, "ball_lightning", {
+            "until": combat.round + 1, "round": combat.round + 1, "by": att.id, "amount": taken * N("pct", 30) / 100, "name": name})
         C.tell(combat, f"a ball of lightning hangs over {combat.battlefield.zones[dfn.zone_id].name} ({e['label']})")
     # ---- poison
     elif eid == "virulent" and dfn.alive:
         C.add_status(combat, dfn, "poisoned", 3, att)
         C.add_status(combat, dfn, "poisoned", 3, att)
     elif eid == "festering" and dfn.alive and "poisoned" in dfn.statuses:
-        dfn.statuses["poisoned"] += int(N("rounds", 2))
+        E.tick_status(dfn, "poisoned", int(N("rounds", 2)))
     elif eid == "nerve_toxin" and dfn.alive:
         C.add_status(combat, dfn, "shaky", int(N("rounds", 2)), att)
     elif eid == "contagion" and dfn.alive:
@@ -422,23 +423,24 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         C.add_status(combat, dfn, "wasting", int(N("rounds", 3)), att)
     elif eid == "persistent_toxin" and dfn.alive:
         if C.add_status(combat, dfn, "poisoned", 3, att):
-            dfn.poison_fixed = list(dfn.poison_fixed) + [dfn.poison.pop()]      # the stack just added: it will not fade
+            stacks = list(dfn.poison)
+            E.set_strength(dfn, "poisoned", stacks[:-1], fixed=list(dfn.poison_fixed) + [stacks[-1]])   # the stack just added: it will not fade
     elif eid == "anticoagulant" and dfn.alive and "bleeding" in dfn.statuses:
-        dfn.bleed *= 2
+        E.set_strength(dfn, "bleeding", dfn.bleed * 2)
         C.tell(combat, f"the blood runs thin and {C.whose(dfn)} wound gapes ({e['label']})")
     elif eid == "refined_venom" and dfn.alive:
         dfn.counters["refined_venom"] = 1
         C.add_status(combat, dfn, "poisoned", 3, att)
     # ---- acid
     elif eid == "lingering_acid" and dfn.alive and taken > 0:
-        dfn.curses = list(dfn.curses) + [{"by": att.id, "per": taken * N("pct", 30) / 100 / 2, "left": 2, "name": name,
-                                          "element": "acid", "exprs": [], "tier": tier}]
+        E.put_curse(dfn, {"by": att.id, "per": taken * N("pct", 30) / 100 / 2, "left": 2, "name": name,
+                          "element": "acid", "exprs": [], "tier": tier})
     elif eid == "strip" and dfn.alive:
         C.add_status(combat, dfn, "exposed", int(N("rounds", 2)), att)
     elif eid == "corrode_the_hold":
         if "grappled" in att.statuses or "frostwelded" in att.statuses:
-            att.statuses.pop("grappled", None)
-            att.statuses.pop("frostwelded", None)
+            E.end_status(att, "grappled")
+            E.end_status(att, "frostwelded")
             C.tell(combat, f"the acid eats through whatever held {C.who(att)}, and {C.vb(att, 'you are', 'it is')} free ({e['label']})")
     elif eid == "caustic_drip" and dfn.alive:
         dfn.counters["caustic_drip"] = [att.id, taken * N("pct", 10) / 100, combat.round + int(N("rounds", 2))]
@@ -468,7 +470,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         for k, b in list(dfn.buffs.items()):
             b["rounds"] = int(b.get("rounds", 1)) - 1
             if b["rounds"] <= 0:
-                dfn.buffs.pop(k)
+                E.end_buff(dfn, k)
         C.tell(combat, f"the magic on {C.who(dfn)} frays ({e['label']})")
     elif eid == "blood_price" and taken > 0:
         att.hp = max(1.0, att.hp - taken * N("pct", 10) / 100)
@@ -489,12 +491,12 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
     # ---- radiant
     elif eid == "purge" and dfn.alive and dfn.buffs:
         k, b = next(iter(dfn.buffs.items()))
-        dfn.buffs.pop(k)
+        E.end_buff(dfn, k)
         C.tell(combat, f"light burns {b.get('name') or 'a spell'} off {C.who(dfn)} ({e['label']})")
     elif eid == "cleanse":
         worst = next((s for s in combat_perks.AFFLICTIONS if s in att.statuses and not (s == "burning" and att.counters.get("holy_burn"))), None)
         if worst:
-            att.statuses.pop(worst)
+            E.end_status(att, worst)
             afflictions.ended(att, worst)
             C.tell(combat, f"light washes the {worst.replace('_', ' ')} out of {C.who(att)} ({e['label']})")
     elif eid == "shield_of_faith" and taken > 0:
@@ -507,7 +509,9 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         dfn.counters["guided"] = att.id
     elif eid == "daybreak":
         eff = combat.zone_effects.get(dfn.zone_id) or {}
-        gone = [k for k in ("smoke", "overgrowth") if eff.pop(k, None)]
+        gone = [k for k in ("smoke", "overgrowth") if eff.get(k)]
+        for k in gone:
+            E.drop_ground(combat, dfn.zone_id, k)
         if gone:
             C.tell(combat, f"light burns the {' and '.join(gone)} away ({e['label']})")
     elif eid == "rallying_light" and crit:
@@ -521,7 +525,7 @@ def _express_more(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> N
         if C.add_status(combat, dfn, "burning", 2, att):
             dfn.counters["holy_burn"] = 1
             if getattr(dfn, "category", "") in ("undead", "fiend"):
-                dfn.ignite *= 1.5
+                E.set_strength(dfn, "burning", dfn.ignite * 1.5)
     # ---- nature
     elif eid == "entangle" and dfn.alive:
         C.add_status(combat, dfn, "grappled", 2, att)
@@ -553,9 +557,9 @@ def _pyre(combat, dead, by) -> None:
     if bf is None or dead.zone_id not in bf.zones or by is None:
         return
     rounds = int(num(EXPR["pyre"], "light", "rounds", 2))
-    eff = combat.zone_effects.setdefault(dead.zone_id, {})
-    eff["burning_ground"] = {"until": combat.round + rounds, "by": by.id, "power": afflictions.offensive_power(by, "intelligence"),
-                             "pct": num(EXPR["burning_ground"], "light", "pct"), "name": "Pyre"}
+    E.put_ground(combat, dead.zone_id, "burning_ground", {"until": combat.round + rounds, "by": by.id,
+                                                            "power": afflictions.offensive_power(by, "intelligence"),
+                                                            "pct": num(EXPR["burning_ground"], "light", "pct"), "name": "Pyre"})
     C.tell(combat, f"{C.whose(dead)} body goes up in flames where it fell, and the ground burns with it (Pyre)")
 
 
@@ -563,14 +567,13 @@ def _snowdrift(combat, att, zone, rounds, name) -> None:
     bf = combat.battlefield
     if bf is None or zone not in bf.zones:
         return
-    eff = combat.zone_effects.setdefault(zone, {})
     buried = []
     for z in bf.adjacent(zone):
         e = bf.edge(zone, z)
         if e is not None and "difficult" not in e.tags:
             e.tags = list(e.tags) + ["difficult"]
             buried.append([zone, z])
-    eff["snowdrift"] = {"until": combat.round + rounds, "by": att.id, "edges": buried, "name": name}
+    E.put_ground(combat, zone, "snowdrift", {"until": combat.round + rounds, "by": att.id, "edges": buried, "name": name})
     C.tell(combat, f"snow piles waist-deep over {bf.zones[zone].name} (Snowdrift)")
 
 
@@ -677,9 +680,13 @@ def on_death(combat, dead, killer) -> None:
         others = [o for o in combat.fighters if o.alive and not o.fled and o is not dead and o.side == dead.side]
         if others:
             nxt = bf.closest(combat, dead, others) or others[0]
-            nxt.statuses["poisoned"] = max(nxt.statuses.get("poisoned", 0), dead.statuses.get("poisoned", 3))
-            nxt.poison = list(nxt.poison) + list(dead.poison) + list(dead.poison_fixed)
-            C.tell(combat, f"the poison does not die with {C.who(dead)}: it spreads to {C.who(nxt)} (Contagion)")
+            landed = E.eligible(combat, nxt, "poisoned", dead.statuses.get("poisoned", 3))   # (f507) the neighbour's own wards, resistance
+            if landed is not None:                                                            # and perks count; a boss spends a charge
+                status, rounds = landed
+                E.put_status(nxt, status, max(nxt.statuses.get(status, 0), rounds))           # the stacks are copied, not dealt again
+                if status == "poisoned":
+                    E.set_strength(nxt, "poisoned", list(nxt.poison) + list(dead.poison) + list(dead.poison_fixed))
+                C.tell(combat, f"the poison does not die with {C.who(dead)}: it spreads to {C.who(nxt)} (Contagion)")
 
 
 def blocked_attack(f, reach: str) -> str:
@@ -774,7 +781,7 @@ def _on_creature(combat, att, move, eid, t, rounds) -> None:
             lost.append("shield")
         for k, b in list(t.buffs.items()):
             if b.get("kind") in ("stance", "bulwark", "manashield", "guard", "thorns", "distract"):
-                t.buffs.pop(k)
+                E.end_buff(t, k)
                 lost.append(b.get("name") or b.get("kind"))
         if t.defending:
             t.defending = 0
@@ -806,7 +813,6 @@ def _ground(combat, att, move, eid, zone, t, rounds, n) -> None:
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'loose', 'looses')} {move.name}, but there is no ground here for it to take")
         return
     name = bf.zones[zone].name
-    eff = combat.zone_effects.setdefault(zone, {})
     until = combat.round + rounds
     if eid in ("thunderclap", "flare", "earthquake"):         # (f266) instant: everyone hostile there, now
         from engine import martial, battlefield as bfm
@@ -826,19 +832,19 @@ def _ground(combat, att, move, eid, zone, t, rounds, n) -> None:
     if eid == "earthen_barricade":
         zone = att.zone_id                                  # the walls go up around where you stand
         name = bf.zones[zone].name
-        eff = combat.zone_effects.setdefault(zone, {})
         walled = []
         for z in bf.adjacent(zone):
             e = bf.edge(zone, z)
             if e is not None and "climb" not in e.tags:
                 e.tags = list(e.tags) + ["climb"]
                 walled.append([zone, z])
-        eff["earthen_barricade"] = {"until": until, "by": att.id, "edges": walled, "name": move.name}
+        E.put_ground(combat, zone, "earthen_barricade", {"until": until, "by": att.id, "edges": walled, "name": move.name})
         combat.log.append(f"{att.name} raises {move.name} around {name} for {rounds} rounds")
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'raise', 'raises')} {move.name} - {EXPR[eid]['depict']}, all around {name}")
         return
     if eid == "freezing_surface":
-        eff["frozen_until"], eff["by"] = max(eff.get("frozen_until", -9), until), att.id
+        held = ((combat.zone_effects.get(zone) or {}).get("frozen_ground") or {}).get("frozen_until", -9)
+        E.put_ground(combat, zone, "frozen_ground", {"frozen_until": max(held, until), "by": att.id})
     elif eid == "seal_the_way":
         sealed = _seal(combat, att, zone, until)
         if not sealed:
@@ -850,7 +856,7 @@ def _ground(combat, att, move, eid, zone, t, rounds, n) -> None:
             from engine import afflictions
             power = afflictions.offensive_power(att, move.attribute or "intelligence") if move.resource == "mana" \
                 else afflictions.offensive_power(att)
-        eff[eid] = {"until": until, "by": att.id, "power": power, "pct": n.get("pct", 0), "name": move.name}
+        E.put_ground(combat, zone, eid, {"until": until, "by": att.id, "power": power, "pct": n.get("pct", 0), "name": move.name})
         if eid == "reveal":
             from engine import battlefield as bfm
             for f in combat.fighters:
@@ -875,8 +881,8 @@ def _seal(combat, att, zone, until) -> list:
         if e is not None and "blocked" not in e.tags:
             e.tags = list(e.tags) + ["blocked"]
             sealed.append([zone, z])
-    if sealed:
-        combat.zone_effects.setdefault(zone, {}).setdefault("sealed", []).extend({"until": until, "edge": s} for s in sealed)
+    for s in sealed:
+        E.put_ground(combat, zone, "sealed", {"until": until, "edge": s}, key=f"{s[0]}>{s[1]}")
     return sealed
 
 
@@ -915,36 +921,28 @@ def can_hide(combat, f) -> bool:
 
 
 def expire(combat) -> None:
-    """Ground effects run out: a seal's wall comes down, a fire, a charge, a cloud or a light ends."""
+    """Ground effects run out: a seal's wall comes down, a fire, a charge, a cloud or a light ends. (f507) Over the ground rows of the
+    fight's effects, one a zone and effect; a seal is a row an edge."""
     bf = combat.battlefield
-    for zone, eff in list(combat.zone_effects.items()):
-        for s in list(eff.get("sealed", [])):
-            if s["until"] < combat.round:
-                e = bf.edge(*s["edge"]) if bf is not None else None
+    for r in E.ground_rows(combat):
+        d = r.data
+        if r.kind == "sealed":
+            if d["until"] < combat.round:
+                e = bf.edge(*d["edge"]) if bf is not None else None
                 if e is not None and "blocked" in e.tags:
                     e.tags = [t for t in e.tags if t != "blocked"]
-                eff["sealed"].remove(s)
-        if "sealed" in eff and not eff["sealed"]:
-            eff.pop("sealed")
-        wall = eff.get("earthen_barricade")
-        if wall and wall["until"] < combat.round and bf is not None:
-            for a, b in wall.get("edges", []):
-                e = bf.edge(a, b)
-                if e is not None and "climb" in e.tags:
-                    e.tags = [t for t in e.tags if t != "climb"]
-        drift = eff.get("snowdrift")
-        if drift and drift["until"] < combat.round and bf is not None:
-            for a, b in drift.get("edges", []):
-                e = bf.edge(a, b)
-                if e is not None and "difficult" in e.tags:
-                    e.tags = [t for t in e.tags if t != "difficult"]
-        for k in [k for k, v in eff.items() if isinstance(v, dict) and v.get("until", 99) < combat.round]:
-            eff.pop(k)
-        if "frozen_until" in eff and eff["frozen_until"] < combat.round:
-            eff.pop("frozen_until")
-            eff.pop("by", None)
-        if not eff:
-            combat.zone_effects.pop(zone, None)
+                E.drop_ground(combat, r.target, row_id=r.id)
+        elif r.kind == "frozen_ground":
+            if d["frozen_until"] < combat.round:
+                E.drop_ground(combat, r.target, "frozen_ground")
+        elif d.get("until", 99) < combat.round:
+            if r.kind in ("earthen_barricade", "snowdrift") and bf is not None:
+                tag = "climb" if r.kind == "earthen_barricade" else "difficult"
+                for a, b in d.get("edges", []):
+                    e = bf.edge(a, b)
+                    if e is not None and tag in e.tags:
+                        e.tags = [t for t in e.tags if t != tag]
+            E.drop_ground(combat, r.target, r.kind)
 
 
 def zone_turn(combat, f, rng=None) -> None:
@@ -1024,8 +1022,8 @@ def lay_curse(combat, att, dfn, move, mult: float, rng) -> None:
     dmg = C.raw_damage(att, mult * total, trig, rng, steady=True)
     taken, _ = C.mitigate(dfn, dmg, att.damage_type, att.level, combat, att)
     per = taken / turns
-    dfn.curses = list(dfn.curses) + [{"by": att.id, "per": per, "left": turns, "name": move.name,
-                                      "element": move.element, "exprs": exprs_of(move), "tier": move.tier}]
+    E.put_curse(dfn, {"by": att.id, "per": per, "left": turns, "name": move.name,
+                      "element": move.element, "exprs": exprs_of(move), "tier": move.tier})
     combat.log.append(f"{att.name} lays {move.name} on {dfn.name}: {round(per)} a turn for {turns} turns")
     C.tell(combat, f"{C.who(att)} {C.vb(att, 'lay', 'lays')} {move.name} on {C.who(dfn)}, and it settles in to do its work")
 
@@ -1054,7 +1052,7 @@ def curse_turn(combat, f, rng=None) -> None:
         c["left"] -= 1
         if c["left"] > 0:
             keep.append(c)
-    f.curses = keep
+    E.keep_curses(f, keep)
 
 
 def cast_turns(move) -> int:

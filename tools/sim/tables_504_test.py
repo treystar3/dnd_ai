@@ -112,8 +112,8 @@ check("every command that lasts, the stance, the rousing rider and the relics' l
       all(k in effects.KINDS for k in ("guard", "press", "hold", "distract", "stance", "rouse", "relic_buff", "renew", "bolster")))
 check("every summon form is a kind of the summon family, the bound one lasting the fight",
       all(k in effects.KINDS and effects.KINDS[k].family == "summon" for k in S["forms"]) and effects.KINDS["bound"].expiry == "fight")
-check("the f499 marks are kinds (the rows keep their own family words until f507)", all(k in effects.KINDS for k in ("quarry", "withering", "last_heal"))
-      and effects.KINDS["hexed"].family == "status" and not effects.KINDS["hexed"].deltas)
+check("the f499 marks are kinds (the rows keep their own family words until f507); hexed is a status kind with its row (f507)", all(k in effects.KINDS for k in ("quarry", "withering", "last_heal"))
+      and effects.KINDS["hexed"].family == "status" and effects.KINDS["hexed"].deltas == "statuses.hexed" and "hexed" in CB["statuses"])
 check("the ground's effects and a curse are kinds", all(k in effects.KINDS for k in ("frozen_ground", "ball_lightning", "burning_ground", "snowdrift", "earthen_barricade", "curse")))
 
 # ---- (f505) take_damage is the declared path: its body is one call, and the fixtures (93 cases, none moved) hold the numbers

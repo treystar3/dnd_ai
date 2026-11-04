@@ -15,11 +15,11 @@ def check(n, ok, x=""):
 def player(**kw):
     attrs = {a: 10 for a in combat.ATTRIBUTES}; attrs["strength"] = 16
     return combat.Fighter(id="player", name="you", side="player", level=5, attrs=attrs, hp=10**5, max_hp=10**5, stamina=10**5,
-                          max_stamina=10**5, weapon_damage=12, weapon_attrs=["strength"], hold=3, accuracy=300, **kw)
+                          max_stamina=10**5, weapon_damage=12, weapon_attrs=["strength"], hold=3, **kw)
 
 def foe(i=1, hp=10**6, size="Medium", **kw):
     return combat.Fighter(id=f"e{i}", name=f"foe {i}", side="enemy", level=5, attrs={a: 8 for a in combat.ATTRIBUTES}, hp=hp, max_hp=hp,
-                          weapon_damage=8, behaviors={"fearless": 1}, zone_id="a", size=size, accuracy=300, **kw)
+                          weapon_damage=8, behaviors={"fearless": 1}, zone_id="a", size=size, **kw)
 
 def fight(*fs):
     f = combat.Combat(fighters=list(fs), record=False)

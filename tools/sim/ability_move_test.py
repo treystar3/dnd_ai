@@ -7,6 +7,7 @@ import types
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import ability_slots, battlefield as bf, combat, movement, summons
+from engine import effects as fx
 from engine.battlefield import Battlefield, BattleZone, BattleEdge
 from engine.combat import Move
 bad = []
@@ -99,13 +100,13 @@ for hold, want in ((2, 2), (1, 1), (0, 1)):
 p, e = F("player", "player", pace="slow"), F("e1", "enemy")
 f = fight(p, e)
 bf.enter_zone(f, e, "z2")
-p.statuses["slowed"] = 2
+fx.put_status(p, "slowed", 2)
 why = combat.act_ability(f, p, mv("relentless_advance"), e, rng)
 check("Relentless Advance carries a slowed, heavy-armored fighter up the climb and onto the enemy", why is None and bf.engaged_pair(p, e), why)
 p, e = F("player", "player"), F("e1", "enemy")
 f = fight(p, e)
 bf.enter_zone(f, e, "z2")
-p.statuses["grappled"] = 2
+fx.put_status(p, "grappled", 2)
 why = combat.act_ability(f, p, mv("relentless_advance"), e, rng)
 check("...but not out of a grapple", why and "grapple" in why and p.zone_id == "z1", why)
 

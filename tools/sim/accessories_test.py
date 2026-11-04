@@ -6,6 +6,7 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 from world.loader import load_world
 from engine import accessories, combat, items, loot, pools, bosses, relics
+from engine import effects as fx
 from core.models import Item
 
 bad = []
@@ -125,7 +126,7 @@ for pid in ["smite", "frenzy", "rend", "vanish", "dazzle", "sleight"]:
 for pid in ["barrier", "mend", "bastion"]:
     it = forced(pid, base="amulet")
     c, r = arena({"neck": it})
-    p = c.player; p.hp = p.max_hp * 0.4; p.statuses["bleeding"] = 3
+    p = c.player; p.hp = p.max_hp * 0.4; fx.put_status(p, "bleeding", 3)
     mv = next(m for m in p.moves if m.effect == "relic")
     combat.act_ability(c, p, mv, None, r)
     ok = {"barrier": p.shield > 0, "mend": p.hp > p.max_hp * 0.4 and "bleeding" not in p.statuses,

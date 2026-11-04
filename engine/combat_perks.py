@@ -198,13 +198,13 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
         if pair and pair[0] in dfn.statuses:
             burst = 0.0
             for s in pair:
-                left = dfn.statuses.pop(s, 0)
+                left = dfn.statuses.get(s, 0)
                 if s == "burning":
                     from engine import afflictions
                     burst += left * afflictions.tick(dfn, "burning")
-                    afflictions.ended(dfn, "burning")
                 else:
                     burst += left * taken * P["thermal_shock"]["per_round"]
+                E.end_status(dfn, s)                          # (f507) the strength goes with the row, after the burst read it
             if burst > 0:
                 dealt = C.take_damage(combat, dfn, burst, att, rng, "magical")
                 combat.log.append(f"{dfn.name} suffers a thermal shock: {dealt}")
@@ -222,9 +222,10 @@ def after_hit(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, ta
         dfn.counters["pinned"] = combat.round + 1
     if outcome == "crit" and "dormant_venom" in A and (dfn.counters.get("venom_store") or "poisoned" in dfn.statuses) and dfn.alive:
         from engine import afflictions
-        burst = dfn.counters.pop("venom_store", 0) + (dfn.statuses.pop("poisoned", 0) * afflictions.tick(dfn, "poisoned")
-                                                       if "poisoned" in dfn.statuses else 0)
-        afflictions.ended(dfn, "poisoned")
+        burst = dfn.counters.pop("venom_store", 0)
+        if "poisoned" in dfn.statuses:
+            burst += dfn.statuses["poisoned"] * afflictions.tick(dfn, "poisoned")
+            E.end_status(dfn, "poisoned")                     # (f507) the stacks go with the row, after the burst read them
         dfn.counters.pop("dormant", None)
         if burst > 0:
             dealt = C.take_damage(combat, dfn, burst, att, rng, "physical")
@@ -281,20 +282,20 @@ def on_kill(combat: C.Combat, att: C.Fighter | None, dfn: C.Fighter, rng: random
         if carried and others:
             nxt = bf.closest(combat, dfn, others) or others[0]
             for s, r in carried.items():
-                nxt.statuses[s] = max(nxt.statuses.get(s, 0), r)
+                E.put_status(nxt, s, max(nxt.statuses.get(s, 0), r))     # raw, as a carried status: it passed its checks once
             if "burning" in carried:
-                nxt.ignite = max(nxt.ignite, dfn.ignite)          # the burn walks on at its strength
+                E.set_strength(nxt, "burning", max(nxt.ignite, dfn.ignite))            # the burn walks on at its strength
             if "poisoned" in carried:
-                nxt.poison = list(nxt.poison) + list(dfn.poison)  # and every stack of the poison with it
+                E.set_strength(nxt, "poisoned", list(nxt.poison) + list(dfn.poison))   # and every stack of the poison with it
             if "bleeding" in carried:
-                nxt.bleed = max(nxt.bleed, dfn.bleed)
+                E.set_strength(nxt, "bleeding", max(nxt.bleed, dfn.bleed))
             combat.log.append(f"{', '.join(carried)} pass from {dfn.name} to {nxt.name} (Plaguebearer)")
             C.tell(combat, f"what was eating {C.who(dfn)} does not die with {C.vb(dfn, 'you', 'it')}: it crawls on to {C.who(nxt)} {tag(p, 'plaguebearer')}")
     if att is None:
         return
     if (att.hit_element or att.element) == "cold" and "frozen_ground" in C.mechanics(att, combat) and dfn.zone_id:
         rounds = int(C.mechanics(att, combat)["frozen_ground"] or 2)
-        combat.zone_effects[dfn.zone_id] = {"frozen_until": combat.round + rounds, "by": att.id}
+        E.put_ground(combat, dfn.zone_id, "frozen_ground", {"frozen_until": combat.round + rounds, "by": att.id})
         C.tell(combat, f"where {C.who(dfn)} fell the ground freezes hard - anyone standing there will feel it {tag(att, 'frozen_ground')}")
     if att is p:
         if "deathleap" in PM and p.last_mobility:
@@ -655,7 +656,7 @@ def mend(combat: C.Combat, healer: C.Fighter | None, target: C.Fighter, amount: 
         amount *= 2
         worst = next((s_ for s_ in AFFLICTIONS if s_ in target.statuses), None)
         if worst:
-            target.statuses.pop(worst)
+            E.end_status(target, worst)
         C.tell(combat, f"{C.who(healer)} {C.vb(healer, 'see', 'sees')} how close {C.who(target)} came, and the healing runs double"
                + (f", lifting the {worst} too" if worst else "") + f" {tag(healer, 'triage')}")
     if amount > 0 and "bleeding" in target.statuses:
@@ -844,15 +845,12 @@ def on_turn_start(combat: C.Combat, f: C.Fighter) -> None:
         was = f.counters.pop("pace_was", None)
         if was is not None:
             f.pace = ["slow", "normal", "fast"][was]
-    eff = combat.zone_effects.get(f.zone_id)
-    if eff and eff.get("frozen_until", -9) >= combat.round and f.alive:
-        by = combat.get(eff.get("by", "")) if eff.get("by") else None
+    frozen = (combat.zone_effects.get(f.zone_id) or {}).get("frozen_ground")
+    if frozen and frozen.get("frozen_until", -9) >= combat.round and f.alive:
+        by = combat.get(frozen.get("by", "")) if frozen.get("by") else None
         C.add_status(combat, f, "slowed", 2, by)         # 2: it is worn down at the end of this same turn-start, so it holds this turn
-    elif eff and "frozen_until" in eff and eff["frozen_until"] < combat.round:
-        eff.pop("frozen_until", None)
-        eff.pop("by", None)
-        if not eff:
-            combat.zone_effects.pop(f.zone_id, None)
+    elif frozen and frozen["frozen_until"] < combat.round:
+        E.drop_ground(combat, f.zone_id, "frozen_ground")
     if f.side == "player":
         q = quarry_of(combat)
         if q is not None and q.alive and "concealed" in q.position_tags:

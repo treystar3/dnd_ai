@@ -634,6 +634,17 @@ class CampaignStore:
     def load_combat(self) -> str | None:
         return self._kv_text("combat")
 
+    def leave_notice(self, key: str) -> None:
+        """(f507) Something the next load tells the player once (a migration let a saved fight go): a row until it is taken."""
+        self._put(f"notice:{key}", "1")
+
+    def take_notice(self, key: str) -> bool:
+        """(f507) Whether a notice of this kind was left; taking it drops it, so it is told once."""
+        if self._kv_text(f"notice:{key}") is None:
+            return False
+        self._drop(f"notice:{key}")
+        return True
+
     def save_story(self, recent: list[str], shown: dict) -> None:
         self._put("story", json.dumps({"recent": recent, "shown": shown}))
 

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from core.models import Character
 from core.rules import ATTRIBUTES
@@ -20,6 +20,7 @@ from engine import ability_traits as AT
 from engine import elements, items, pools, stats as _stats
 from engine.battlefield import Battlefield
 from engine import streams
+from engine import effects as _fx
 from engine.effects import ActiveEffect
 
 
@@ -79,6 +80,7 @@ class Move(BaseModel):
 
 
 class Fighter(BaseModel):
+    model_config = ConfigDict(extra="forbid")     # (f507) a row of another shape is refused, never read in part
     id: str
     name: str
     side: str                      # player | ally | enemy
@@ -117,7 +119,8 @@ class Fighter(BaseModel):
     covering: str = ""             # the ally this fighter has put themselves in front of, until their own next turn
     starts_far: bool = False       # spotted at a distance: they begin loose in a side zone when the field has one
     defending: float = 0
-    statuses: dict[str, int] = {}
+    effects: list[ActiveEffect] = []     # (f507) every status, buff and curse on this fighter, a row each (engine/effects.py); statuses,
+    #                                      status_from, ignite, poison, poison_fixed, bleed, buffs and curses below are views over them
     cooldowns: dict[str, int] = {}
     moves: list[Move] = []
     bonuses: list[Bonus] = []
@@ -168,7 +171,6 @@ class Fighter(BaseModel):
     archmage_used: bool = False
     spells_cast: int = 0
     counters: dict[str, Any] = {}        # small per-fight tallies for gear and element effects: counts, ids, [who, how much, until round] lists
-    buffs: dict[str, dict] = {}          # timed effects from relic powers: {id: {rounds, mech, drain, collapse}}
     relic_uses: dict[str, int] = {}      # how many times each relic power has been used this fight
     boss: dict = {}                      # set-piece boss state: legendary actions and resistance, phases (engine/bosses.py)
     family: str = ""                      # a creature's family (data/world/families.yaml): how it fights
@@ -178,13 +180,7 @@ class Fighter(BaseModel):
     recent_casts: list[str] = []         # the last few spells cast, in order, for the perks that count them (engine/combat_perks.py)
     last_mobility: str = ""              # the mobility ability used last, for the perks that reset it
     shadow: dict = {}                    # Shadowmark: where the shadow waits {zone, row, until, move}; empty when none
-    status_from: dict[str, str] = {}     # who put each status on this fighter (Malefic Step finds your curses by it)
     last_hurt_by: str = ""               # the last hostile fighter whose blow landed on this one (Vengeance Leap)
-    ignite: float = 0                    # burning: damage each round, from the strongest ignite on it (engine/afflictions.py)
-    poison: list[float] = []             # poisoned: each stack's damage each round (engine/afflictions.py)
-    poison_fixed: list[float] = []       # poison stacks that never fade while it lives (Persistent Toxin, f268)
-    bleed: float = 0                     # bleeding: the open wound's tick (engine/afflictions.py)
-    curses: list[dict] = []              # curses laid on this fighter, dealing their damage over its turns (engine/spellcraft.py)
     charging: dict = {}                  # a charged spell this fighter is winding up, released at the start of its next turn
     casting: dict = {}                   # (f499) the element expressions of the ability being used, while it is (engine/spellcraft.py begin/end)
     sundered: float = 0                  # the share of armor broken by Sunder this fight (engine/martial.py)
@@ -198,11 +194,58 @@ class Fighter(BaseModel):
     def alive(self) -> bool:
         return self.hp > 0
 
+    # (f507) views over the effects rows: read here, written in engine/effects.py alone
+    @property
+    def statuses(self) -> dict[str, int]:
+        """Each status on this fighter and its rounds left, in the order they landed."""
+        return _fx.statuses_of(self)
+
+    @property
+    def status_from(self) -> dict[str, str]:
+        """Who put each status on this fighter (Malefic Step finds your curses by it): only the statuses still on it."""
+        return _fx.sources_of(self)
+
+    @property
+    def ignite(self) -> float:
+        """Burning: damage each round, from the strongest ignite on it (engine/afflictions.py); 0.0 when not burning."""
+        return _fx.strength_of(self, "burning")
+
+    @property
+    def poison(self) -> list:
+        """Poisoned: each stack's damage each round (engine/afflictions.py); [] when not poisoned."""
+        return _fx.strength_of(self, "poisoned")
+
+    @property
+    def poison_fixed(self) -> list:
+        """Poison stacks that never fade while it lives (Persistent Toxin, f268)."""
+        return _fx.fixed_of(self)
+
+    @property
+    def bleed(self) -> float:
+        """Bleeding: the open wound's tick (engine/afflictions.py); 0.0 when not bleeding."""
+        return _fx.strength_of(self, "bleeding")
+
+    @property
+    def buffs(self) -> dict[str, dict]:
+        """Timed effects (stances, commands, relic powers, renews): {key: {rounds, mech, drain, collapse, name, kind...}}, the dicts
+        the rows hold (their readers tick rounds in place)."""
+        return _fx.buffs_of(self)
+
+    @property
+    def curses(self) -> list:
+        """Curses laid on this fighter, dealing their damage over its turns (engine/spellcraft.py), oldest first."""
+        return _fx.curses_of(self)
+
     def best_attr(self, names: list[str]) -> int:
         return max((self.attrs.get(a, 10) for a in names), default=10)
 
 
+SHAPE = 1       # (f507) the saved fight's shape: a row of another is let go of with a line, never read in part (services/fight.py resume)
+
+
 class Combat(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    version: int = SHAPE
     round: int = 1
     battlefield: Battlefield | None = None   # the ground this fight is on (engine/battlefield.py); None in bare simulations and old saves
     gentle: bool = False           # Gentle Approach: timid animals don't flee
@@ -211,7 +254,6 @@ class Combat(BaseModel):
     over: str = ""                 # "" | victory | defeat | fled
     place: str = ""
     conditions: list[str] = []     # triggers true for the whole fight: at_night, in_bad_weather, in_swamp...
-    zone_effects: dict[str, dict] = {}   # ground a perk has changed for a while: {zone_id: {"frozen_until": round, "by": fighter id}}
     story: list[str] = []          # this round's events in words, for the narrator
     opened: bool = False
     focus: str = ""                # the enemy the player last went after; companions follow it
@@ -256,6 +298,13 @@ class Combat(BaseModel):
 
     def get(self, fid: str) -> Fighter | None:
         return next((f for f in self.fighters if f.id == fid), None)
+
+    @property
+    def zone_effects(self) -> dict[str, dict]:
+        """(f507) Ground a spell or a perk has changed for a while, a view over the ground rows of `effects`: {zone_id: {effect: its
+        dict}} (frozen_ground {frozen_until, by}; burning_ground, static_field and the rest {until, by, ...}; sealed, a list of
+        {until, edge}). Written by engine/effects.py put_ground and drop_ground alone."""
+        return _fx.ground_of(self)
 
     @property
     def player(self) -> Fighter:
@@ -982,64 +1031,12 @@ def leave_open(combat: Combat, f: Fighter) -> None:
 
 
 def add_status(combat: Combat, f: Fighter, status: str, rounds: int, source: Fighter | None = None) -> bool:
-    """Apply a status unless a legendary effect prevents it. Returns True if it took hold. The source, when the caller knows it, is
-    whoever did it: the perks that change how an affliction lands (engine/combat_perks.py) belong to one side or the other."""
-    fm = mechanics(f, combat)
-    if "unyielding" in fm and status in ("stunned", "prone"):
-        combat.log.append(f"{f.name} stands firm (Unyielding)")
-        tell(combat, f"{who(f)} {vb(f, 'stand', 'stands')} firm, unshaken (Unyielding)")
-        return False
-    if "earthshaker" in fm and status == "prone":
-        return False
-    if "stoneform" in fm and status in ("stunned", "prone", "grappled"):
-        tell(combat, f"{who(f)} {vb(f, 'stand', 'stands')} like stone, unmoved (Stoneform)")
-        return False
-    if "iron_will" in fm and status in ("stunned", "prone", "slowed", "frightened", "blinded") \
-            and f.counters.get("shrugged", 0) < fm["iron_will"]:
-        f.counters["shrugged"] = f.counters.get("shrugged", 0) + 1
-        combat.log.append(f"{f.name} shrugs it off (Iron Will)")
-        tell(combat, f"{who(f)} {vb(f, 'shrug', 'shrugs')} it off as if it were nothing, and the effort sharpens {whose(f)} resolve (Iron Will)")
-        return False
-    element = ELEMENT_STATUS.get(status) or ((source.hit_element or source.element) if source is not None
-                                             and status in ("slowed", "blinded", "bleeding", "prone", "petrified") else "")
-    if element and warded(f, element):
-        tell(combat, f"{who(f)}, an archon of {element}, {vb(f, 'shrug', 'shrugs')} it off (Attunement)")
-        return False
-    if element and attuned(source, element) and status in ("slowed", "withered", "unraveled", "illuminated", "blinded"):
-        rounds += 1                                         # an archon's chills, witherings and lights last longer (f246)
-    if "sanctified" in fm and status in ("bleeding", "frightened"):
-        combat.log.append(f"{f.name} is untouched by it (Sanctified)")
-        tell(combat, f"a holy calm keeps {who(f)} untouched (Sanctified)")
-        return False
-    if f.boss:
-        from engine import bosses
-        if bosses.resisted(combat, f, status):
-            return False
-    from engine import combat_perks
-    landed = combat_perks.on_status(combat, f, status, rounds, source)
-    if landed is None:
-        return False
-    status, rounds = landed
-    if status == "bleeding":
-        from engine import afflictions
-        if afflictions.bloodless(f):
-            return False                                  # nothing to bleed
-    if status in ("burning", "poisoned", "bleeding"):
-        from engine import afflictions
-        rounds = afflictions.apply(combat, f, status, rounds, source)    # ignite, poison and bleeding: one law for every source
-    f.statuses[status] = rounds
-    if source is not None:
-        f.status_from[status] = source.id
-    if status == "bleeding" and source is not None and source.side != f.side and "crippling_wounds" in mechanics(source, combat) \
-            and f.alive and add_status(combat, f, "slowed", rounds, source):
-        f.counters["crippled"] = 1                          # Crippling Wounds (f312): slowed for as long as your wound stays open
-        tell(combat, f"the wound drags at {who(f)}, and {vb(f, 'you slow', 'it slows')} (Crippling Wounds)")
-    if status in ("stunned", "prone") and f.winding:
-        f.winding = {}
-        leave_open(combat, f)
-        combat.log.append(f"{f.name}'s wound-up blow is interrupted")
-        tell(combat, f"the blow {who(f)} was winding up never falls - {who(f)} {vb(f, 'are', 'is')} left open")
-    return True
+    """Apply a status unless something turns it aside: (f507) the eligibility stages data/rules/stages.yaml status_eligibility names,
+    in order (engine/effects.py land: Unyielding, Earthshaker, Stoneform, Iron Will, an archon's ward and its longer chill, Sanctified,
+    a boss's legendary resistance, the perks that change how an affliction lands, the bloodless, the affliction law, the record,
+    Crippling Wounds, a wound-up blow interrupted). Returns True if it took hold. The source, when the caller knows it, is whoever did
+    it: the perks that change how an affliction lands (engine/combat_perks.py) belong to one side or the other."""
+    return _fx.land(combat, f, status, rounds, source)
 
 
 def element_factor(dfn: Fighter, element: str) -> float:
@@ -1437,8 +1434,7 @@ def _apply_damage(combat: Combat, att: Fighter, dfn: Fighter, multiplier: float,
             if dfn.alive and rng.uniform(0, 100) < A["packbond"]:
                 apply_damage(combat, ally, dfn, 1.0, "strikes alongside", rng, can_cleave=False, can_riposte=False,
                              can_flurry=False, how="as the bond answers the blow (Packbond)")
-    if "hex" in A and dfn.alive and "hexed" not in dfn.statuses:
-        dfn.statuses["hexed"] = 99
+    if "hex" in A and dfn.alive and "hexed" not in dfn.statuses and add_status(combat, dfn, "hexed", 99, att):   # (f507) through the stages
         combat.log.append(f"{dfn.name} is hexed")
         tell(combat, f"a curse settles on {who(dfn)} like cold ash (Hex)")
     if dfn.alive:
@@ -1528,7 +1524,7 @@ def raise_thrall(combat: Combat, dead: Fighter, reason: str = "") -> None:
     strength = 0.6 if dead.boss else 1.0
     t.max_hp = max(1, round(dead.max_hp * strength))
     t.hp, t.shield, t.fled = float(t.max_hp), 0.0, False
-    t.statuses, t.cooldowns, t.buffs, t.boss = {}, {}, {}, {}
+    t.effects, t.cooldowns, t.boss = [], {}, {}                  # (f507) no status, buff or curse rises with it
     t.rank, t.temperament, t.spawn = "normal", "aggressive", ""
     enters(combat, t)
     combat.log.append(f"{dead.name} rises to fight for you")
@@ -1818,8 +1814,8 @@ def apply_rider(combat: Combat, att: Fighter, t: Fighter, move: Move, rng: rando
     if move.rider == "rouse":                          # companions, not the target
         pack = [a for a in combat.allies() if fights_for_you(a)]
         for a in pack:
-            a.buffs[move.id] = {"rounds": r["rounds"], "mech": {"press": AT.value(r["pct"], move.tier)}, "drain": 0,
-                                "collapse": "", "name": move.name, "kind": "rouse"}
+            _fx.put_buff(a, move.id, {"rounds": r["rounds"], "mech": {"press": AT.value(r["pct"], move.tier)}, "drain": 0,
+                                      "collapse": "", "name": move.name, "kind": "rouse"})
         if pack:
             tell(combat, f"{who(att)} {vb(att, 'rouse', 'rouses')} {', '.join(a.name for a in pack)} to fight harder ({r['label']})")
         return
@@ -2150,12 +2146,12 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
                 rounds += 2                           # Selfless: what you give away lasts longer
             for k, b in list(r.buffs.items()):
                 if b.get("kind") == move.buff:
-                    r.buffs.pop(k)                    # one of each kind: a new casting replaces the old
-            r.buffs[move.id] = {"rounds": rounds + (1 if r is not att else 0), "mech": dict(mech), "drain": 0, "collapse": "",
-                                "name": move.name, "kind": move.buff, "element": move.element or "fire", "from": att.id,
-                                "exprs": list(move.expressions) if move.buff == "imbue" else [], "etier": AT.imbue_strength()}
+                    _fx.end_buff(r, k)                # one of each kind: a new casting replaces the old
+            _fx.put_buff(r, move.id, {"rounds": rounds + (1 if r is not att else 0), "mech": dict(mech), "drain": 0, "collapse": "",
+                                      "name": move.name, "kind": move.buff, "element": move.element or "fire", "from": att.id,
+                                      "exprs": list(move.expressions) if move.buff == "imbue" else [], "etier": AT.imbue_strength()})
             if move.buff == "stoneform":
-                r.statuses["slowed"] = max(r.statuses.get("slowed", 0), rounds + (1 if r is not att else 0))   # the price of stone
+                _fx.put_status(r, "slowed", max(r.statuses.get("slowed", 0), rounds + (1 if r is not att else 0)))   # the price of stone
         text = AT.ability_buff_text(move)
         others = [r for r in (give or []) if r is not att]
         if not others:
@@ -2170,12 +2166,12 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
         S_ = RULES["stance"]
         for k, b in list(att.buffs.items()):
             if b.get("kind") == "stance":
-                att.buffs.pop(k)                           # one stance at a time
+                _fx.end_buff(att, k)                       # one stance at a time
         mech = {"stance": S_["percent"][move.tier]}
         if S_.get("counter", {}).get(move.tier):
             mech["riposte"] = S_["counter"][move.tier]
-        att.buffs[move.id] = {"rounds": S_["rounds"][move.tier], "mech": mech, "drain": 0, "collapse": "",
-                              "name": move.name, "kind": "stance"}
+        _fx.put_buff(att, move.id, {"rounds": S_["rounds"][move.tier], "mech": mech, "drain": 0, "collapse": "",
+                                    "name": move.name, "kind": "stance"})
         combat.log.append(f"{att.name} takes the {move.name} stance ({mech['stance']:.0f}% less damage, {S_['rounds'][move.tier]} rounds)")
         tell(combat, f"{who(att)} {vb(att, 'settle', 'settles')} into {move.name}: a guard {who(att)} {vb(att, 'can fight', 'can fight')} from"
              + (", answering any blow that misses" if "riposte" in mech else ""))
@@ -2207,20 +2203,20 @@ def _act_ability(combat: Combat, att: Fighter, move: Move, target: Fighter | Non
                     apply_damage(combat, a, tgt, AT.value(spec["strike"], move.tier), "strikes on command at", rng,
                                  how=f"at {whose(att)} command")
         elif kind == "distract":
-            att.buffs[move.id] = {"rounds": AT.value(spec["rounds"], move.tier), "mech": {"taunt": 1}, "drain": 0,
-                                  "collapse": "", "name": move.name, "kind": "distract"}
+            _fx.put_buff(att, move.id, {"rounds": AT.value(spec["rounds"], move.tier), "mech": {"taunt": 1}, "drain": 0,
+                                        "collapse": "", "name": move.name, "kind": "distract"})
             tell(combat, f"{who(att)} {vb(att, 'draw', 'draws')} every eye in the fight - {AT.command_text(kind, move.tier)}")
         elif not pack:
             tell(combat, f"{who(att)} {vb(att, 'give', 'gives')} the command, but no companion answers it")
         else:
             rounds = AT.value(spec["rounds"], move.tier)
             if kind == "guard":
-                att.buffs[move.id] = {"rounds": rounds, "mech": {"guarded": AT.value(spec["share"], move.tier)}, "drain": 0,
-                                      "collapse": "", "name": move.name, "kind": "guard"}
+                _fx.put_buff(att, move.id, {"rounds": rounds, "mech": {"guarded": AT.value(spec["share"], move.tier)}, "drain": 0,
+                                            "collapse": "", "name": move.name, "kind": "guard"})
             else:
                 mech = {"press": AT.value(spec["pct"], move.tier)} if kind == "press" else {"stoneskin": AT.value(spec["pct"], move.tier)}
                 for a in pack:
-                    a.buffs[move.id] = {"rounds": rounds, "mech": mech, "drain": 0, "collapse": "", "name": move.name, "kind": kind}
+                    _fx.put_buff(a, move.id, {"rounds": rounds, "mech": mech, "drain": 0, "collapse": "", "name": move.name, "kind": kind})
             tell(combat, f"{who(att)} {vb(att, 'give', 'gives')} the order - {AT.command_text(kind, move.tier)}")
         combat.log.append(f"{att.name} uses {move.name}: {spec['label'].lower()}")
     else:
@@ -2464,7 +2460,7 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
             pool = pools.reference_pool("stamina", f.level) if f.side == "player" else max(1, f.max_stamina)
             keep = pool * RULES["stance"]["upkeep_percent"] / 100
             if f.stamina < keep:
-                f.buffs.pop(bid)
+                _fx.end_buff(f, bid)
                 combat.log.append(f"{f.name}'s {b['name']} falters: no stamina left to hold it")
                 tell(combat, f"{whose(f)} {b['name']} falters - there is nothing left to hold it with")
             else:
@@ -2474,8 +2470,8 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
         _heal.on_turn_start(combat, f)
         relics.tick(combat, f)
     if "unyielding" in fm:
-        f.statuses.pop("stunned", None)
-        f.statuses.pop("prone", None)
+        _fx.end_status(f, "stunned")
+        _fx.end_status(f, "prone")
     if "regeneration" in fm and f.alive:                 # unraveled, it hurts instead (restore, f263)
         withered = 0.5 if "withered" in f.statuses else 1.0           # necrotic harm sours regeneration too (engine/healing.py)
         restore(combat, f, max(1, round(f.max_hp * fm["regeneration"] / 100 * withered)))
@@ -2504,17 +2500,17 @@ def start_turn(f: Fighter, combat: Combat | None = None, rng: random.Random | No
         return False
     skip = "stunned" in f.statuses or "petrified" in f.statuses or bool(f.counters.get("cast_turn"))
     if "prone" in f.statuses and not skip:
-        f.statuses.pop("prone")
+        _fx.end_status(f, "prone")
         skip = True
     for s in list(f.statuses):
         if combat is not None and combat_perks.withering_holds(combat, f, s):
             continue                                     # Withering: it does not wear off while its maker stands near
-        f.statuses[s] -= 1
-        if f.statuses[s] <= 0:
+        if _fx.tick_status(f, s) <= 0:
             if s == "poisoned" and f.poison_fixed:        # Persistent Toxin (f268): the timed stacks fade, the fixed ones stay
-                f.statuses[s], f.poison = 1, []
+                _fx.put_status(f, s, 1)
+                _fx.set_strength(f, s, [])
                 continue
-            f.statuses.pop(s)
+            _fx.end_status(f, s)
             combat_perks.on_status_end(f, s)
     for k in list(f.cooldowns):
         f.cooldowns[k] -= 1
@@ -2552,7 +2548,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
             combat_perks.turned_turn(combat, e, rng)
         return
     if "unaware" in e.statuses:                      # caught by surprise: the first round is the player's alone
-        e.statuses.pop("unaware")
+        _fx.end_status(e, "unaware")
         combat.log.append(f"{e.name} is caught unaware")
         tell(combat, f"{who(e)} has not yet understood what is happening")
         return
@@ -2607,7 +2603,7 @@ def enemy_turn(combat: Combat, e: Fighter, rng: random.Random) -> None:
         tell(combat, f"{who(cover)} {vb(cover, 'take', 'takes')} the blow meant for {who(target)}")
         target = cover
     if "befuddled" in e.statuses:                    # its attack goes wide: at a random fighter, friend or foe
-        e.statuses.pop("befuddled")
+        _fx.end_status(e, "befuddled")
         mix = [f for f in combat.fighters if f.alive and f is not e and not f.fled]
         if mix:
             target = rng.choice(mix)
@@ -2993,7 +2989,7 @@ def surprise(combat: Combat) -> list:
     """The player got close unseen: every enemy that can be surprised is caught unaware. Returns those caught."""
     caught = [e for e in combat.enemies() if can_surprise(e)]
     for e in caught:
-        e.statuses["unaware"] = 1
+        _fx.put_status(e, "unaware", 1)
     return caught
 
 
@@ -3003,7 +2999,7 @@ def opening(combat: Combat, rng: random.Random) -> None:
     p = combat.player
     for e in combat.enemies():
         if "unaware" in e.statuses and not can_surprise(e):      # a boss is never caught off its guard (f248)
-            e.statuses.pop("unaware")
+            _fx.end_status(e, "unaware")
             tell(combat, f"{who(e)} was never off its guard")
     pm = mechanics(p, combat)
     if "barrier" in pm:

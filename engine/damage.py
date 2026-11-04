@@ -19,6 +19,7 @@ from typing import Callable
 import yaml
 
 from engine import combat as C
+from engine import effects as E
 from engine import items
 
 PATHS: dict[str, list[str]] = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "stages.yaml")
@@ -208,7 +209,7 @@ def mana_veil(b: Blow) -> bool:
         if d.mana <= 0:
             for k, bf_ in list(d.buffs.items()):
                 if bf_.get("kind") == "manashield":
-                    d.buffs.pop(k)
+                    E.end_buff(d, k)
             C.tell(b.combat, f"{C.whose(d)} mana runs dry and the shield breaks")
     return True
 

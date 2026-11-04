@@ -72,7 +72,7 @@ def roll_properties(rarity: str, rng: random.Random, extra: int = 0, only: list[
                 continue
             sid = f"{rng.choice(options)}_{suffix}"
         if L.get("conditional_rolls", False):
-            fits = [t for t in FITS.get(sid, []) if t in TRIGGERS]
+            fits = [t for t in FITS.get(sid, []) if t in TRIGGERS and not TRIGGERS[t].dormant]   # (f507) never on gear either
             trigger = "always" if cat == "pool" or not fits or rng.random() < 0.5 else rng.choice(fits)
         else:
             trigger = "always"              # a rolled property is a plain, permanent bonus

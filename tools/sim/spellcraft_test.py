@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import ability_slots as AS, afflictions, battlefield as bf, combat, spellcraft as SC
+from engine import effects as fx
 from engine.battlefield import Battlefield, BattleZone, BattleEdge
 from engine.combat import Move
 bad = []
@@ -17,7 +18,7 @@ def player(hp=10**5, intel=16, **kw):
     attrs = {a: 10 for a in combat.ATTRIBUTES}
     attrs["intelligence"] = intel
     return combat.Fighter(id="player", name="you", side="player", level=5, attrs=attrs, hp=hp, max_hp=hp, stamina=10**4,
-                          max_stamina=10**4, mana=10**5, max_mana=10**5, weapon_damage=12, hold=3, accuracy=200, **kw)
+                          max_stamina=10**4, mana=10**5, max_mana=10**5, weapon_damage=12, hold=3, **kw)
 
 def foe(i=1, hp=10**6, zone="a", **kw):
     return combat.Fighter(id=f"e{i}", name=f"foe {i}", side="enemy", level=5, attrs={a: 10 for a in combat.ATTRIBUTES}, hp=hp,
@@ -166,18 +167,18 @@ f.round += 1; combat.start_turn(e, f)
 check("toxic cloud poisons whoever starts there", len(e.poison) >= 1)
 
 e = foe(); e.shield = 50; e.defending = 30
-e.buffs = {"x": {"rounds": 3, "mech": {"stance": 30}, "kind": "stance", "name": "Iron Guard"}}
+[fx.put_buff(e, k, v) for k, v in ({"x": {"rounds": 3, "mech": {"stance": 30}, "kind": "stance", "name": "Iron Guard"}}).items()]
 f, p = control("dissolve_barriers", "acid", e, intel=60)
 check("dissolve barriers strips shield, stance and guard", e.shield == 0 and not e.buffs and e.defending == 0, (e.shield, e.buffs))
 
-e = foe(); e.hp = 100; e.buffs = {"renew_x": {"rounds": 3, "mech": {}, "kind": "renew", "per": 10, "name": "Renew"}}
+e = foe(); e.hp = 100; [fx.put_buff(e, k, v) for k, v in ({"renew_x": {"rounds": 3, "mech": {}, "kind": "renew", "per": 10, "name": "Renew"}}).items()]
 f, p = control("unravel_recovery", "necrotic", e, intel=60)
 from engine import combat_perks
 healed, _ = combat_perks.mend(f, None, e, 50)
 check("unravel recovery turns a heal into that much damage (f263)", healed == 0 and 0 < e.hp < 100 and "unraveled" in e.statuses, (healed, e.hp))
 h0 = e.hp; combat.restore(f, e, 20)
 check("...any healing at all, not just heal spells", e.hp < h0, (h0, e.hp))
-e.statuses.pop("unraveled"); h0 = e.hp; combat.restore(f, e, 20)
+fx.end_status(e, "unraveled"); h0 = e.hp; combat.restore(f, e, 20)
 check("...and once it wears off, healing heals again", e.hp > h0, (h0, e.hp))
 
 e = foe(); e.position_tags = ["concealed"]; f, p = control("reveal", "radiant", e)
@@ -214,7 +215,7 @@ f.round += 1; acts = combat.start_turn(p, f, rng)
 check("...and is released next turn", e.hp < e.max_hp and not p.charging)
 check("...which takes that whole turn", acts is False and p.counters.get("cast_turn"))
 e = foe(); f, p = cast(spell("Meteor", form="charged"), e)
-p.statuses["stunned"] = 1
+fx.put_status(p, "stunned", 1)
 f.round += 1; combat.start_turn(p, f, rng)
 check("...a stun breaks it", e.hp == e.max_hp and not p.charging)
 
@@ -285,7 +286,7 @@ f.round += 1; combat.start_turn(p, f, rng)
 check("...and it goes off on the third", any("uses Meteor on" in l for l in f.log) and not p.charging, f.log[-3:])
 e = foe(); f, p = cast(spell("Meteor", reach="area", form="blast", cast_turns=3), e)
 f.round += 1; combat.start_turn(p, f, rng); p.counters.pop("cast_turn", None)
-p.statuses["prone"] = 1
+fx.put_status(p, "prone", 1)
 f.round += 1; combat.start_turn(p, f, rng)
 check("...a fall on the last turn still breaks it", e.hp == e.max_hp and not p.charging)
 e = foe(); f, p = cast(spell("Starfire", element="fire", expressions=["ignite", "dazzle"]), e)
@@ -339,7 +340,7 @@ check("...and closes after three rounds even untouched", "bleeding" not in e.sta
 
 e = foe(armor=10**4); e.shield = 10**4
 ally = combat.Fighter(id="ally_x", name="Tam", side="ally", level=5, attrs={a: 10 for a in combat.ATTRIBUTES}, hp=500, max_hp=500,
-                      weapon_damage=8, accuracy=300, hold=1)
+                      weapon_damage=8, hold=1)
 p = player(); f = fight(p, ally, e)
 p.counters["last_hit"] = 100
 combat.add_status(f, e, "bleeding", 3, p)
@@ -354,7 +355,7 @@ check("every physical hit from anyone makes it bleed its size, through armor and
 
 e = foe(); p = player(); f = fight(p, e)
 for i in range(10):
-    e.statuses.pop("bleeding", None); e.bleed = 0
+    fx.end_status(e, "bleeding")
     combat.apply_damage(f, p, e, 1.0, "hits", random.Random(i))
     combat.add_status(f, e, "bleeding", 3, p)
 check("the hit that opens a wound does not make it bleed", not any("wound tears" in l for l in f.log))

@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import battlefield as bf, battlefield_builder as bb, combat, combat_perks as perks, healing
+from engine import effects as fx
 from engine.combat import Move
 bad = []
 def check(n, ok, x=""):
@@ -85,7 +86,7 @@ for n in (1, 2):
 for n in (1, 2):
     p, t = player(), ally()
     f = fight(p, t, foe())
-    t.statuses.update(poisoned=3, frightened=2, slowed=2)
+    fx.put_status(t, "poisoned", 3); fx.put_status(t, "frightened", 2); fx.put_status(t, "slowed", 2)
     combat.act_ability(f, p, heal("cleanse", "light"), None, rng, give=[t])
     check(f"cleanse {n}: two afflictions lifted", sum(s in t.statuses for s in ("poisoned", "frightened", "slowed")) == 1, t.statuses)
 
@@ -133,7 +134,7 @@ f = fight(player(), troll)
 troll.hp = 500
 combat.start_turn(troll, f)
 plain = troll.hp - 500
-troll.hp, troll.statuses["withered"] = 500, 2
+troll.hp = 500; fx.put_status(troll, "withered", 2)
 combat.start_turn(troll, f)
 check("withered: regeneration halves too", troll.hp - 500 == round(plain / 2), (plain, troll.hp - 500))
 
@@ -168,7 +169,7 @@ priest = combat.Fighter(id="ally_p", name="Brother Odo", side="ally", level=5, a
                         weapon_damage=5, ally_role="priest", hold=0, reach="ranged")
 p = player()
 f = fight(p, priest, foe())
-p.hp, p.statuses["withered"] = 100, 2
+p.hp = 100; fx.put_status(p, "withered", 2)
 combat.ally_turn(f, priest, rng)
 gain = p.hp - 100
 priest2 = combat.Fighter(id="ally_p", name="Brother Odo", side="ally", level=5, attrs={a: 12 for a in combat.ATTRIBUTES}, hp=200, max_hp=200,

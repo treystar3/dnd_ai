@@ -26,6 +26,7 @@ from typing import Callable
 from core.models import Item
 from engine import accessories, bosses, clock, combat, death, entities, inventory, items, leveling, loot, needs, pools, spells, streams, summons, taming
 from engine import asked, battlefield, combat_improv, combat_perks, parley
+from engine import effects
 from engine import field as field_rules
 from engine import mentor as mentor_rules
 from engine import party as party_rules
@@ -269,6 +270,9 @@ class FightService:
         caller lets go of with its reason (the fight is lost, never the game)."""
         try:
             data = json.loads(raw)                         # (f499) what the fight remembers of itself (its marks, what was read, who was tamed) is in the row
+            shape = data["fight"].get("version")
+            if shape != combat.SHAPE:                      # (f507) an older or stranger shape is never read in part
+                return None, "", f"a fight of another shape ({shape}; this game's is {combat.SHAPE})"
             return combat.Combat(**data["fight"]), data["creature"], ""
         except Exception as e:                             # a damaged row: a half-written save, a shape an older game wrote
             return None, "", f"{type(e).__name__}: {e}"
@@ -584,7 +588,9 @@ class FightService:
                 [f"{pool} before and after", f"{round(before)} to {round(getattr(p, cur))}"]]
                 + ([["barrier (Overabundance)", f"+{shielded}"]] if shielded else []))
             figures.append(rec or {"id": "", "figure": f"(+{gained} {pool})"})
-        cured = [st for st in g.cures if p.statuses.pop(st, None) is not None]
+        cured = [st for st in g.cures if st in p.statuses]
+        for st in cured:
+            effects.end_status(p, st)
         if cured:
             rec = combat.new_heal(f, p, f"uses {g.name} on", "", 0, [[g.name, f"cures {', '.join(cured)}"]])
             if rec:

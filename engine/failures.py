@@ -53,7 +53,8 @@ FACTS = {"what": "a bundle of herbs", "who": "the smith", "amount": "12 copper",
          "fallen": "the wolf", "found": "a worn knife", "foe": "wolf", "count": "two of them"}   # sample facts the startup check fills every template with
 STAND_INS = {"stood_any": set(), "part_stood": {"done"}, "shown_later": set(), "round_stood": set(),
              "victory_stood": {"xp", "coins", "fallen", "found"}, "goddess_silent": set(),
-             "fight_begun": {"foe", "count"}}                            # the placeholders each list may use; (f498) a fight's opening untold
+             "fight_begun": {"foe", "count"}, "fight_let_go": set()}     # the placeholders each list may use; (f498) a fight's opening untold;
+#                                                                           (f507) a saved fight this game could not take up again
 STOOD_PLACEHOLDERS = {"what", "who", "amount"}
 
 
@@ -97,6 +98,11 @@ def part_stood(done: str, rng: random.Random | None = None) -> str:
 def shown_later(rng: random.Random | None = None) -> str:
     """Before an outcome shown on the next load, once: it happened before the game closed and was never told."""
     return _fill("shown_later", F["shown_later"], {}, rng)
+
+
+def fight_let_go(rng: random.Random | None = None) -> str:
+    """(f507) A fight saved mid-round that could not be taken up again (an older shape, an unreadable row): let go, told once at load."""
+    return _fill("fight_let_go", F["fight_let_go"], {}, rng)
 
 
 def round_stood(rng: random.Random | None = None) -> str:

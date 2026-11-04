@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat as C
+from engine import effects as _E
 
 ROOT = Path(__file__).resolve().parent.parent
 H = yaml.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))
@@ -97,9 +98,9 @@ def cast(combat: C.Combat, att: C.Fighter, move, target: C.Fighter | None, rng: 
         per = amount * spec["share"] / spec["rounds"]
         for k, b in list(t.buffs.items()):
             if b.get("kind") == "renew" and b.get("from") == att.id:
-                t.buffs.pop(k)
-        t.buffs[f"renew_{move.id}"] = {"rounds": spec["rounds"], "mech": {}, "drain": 0, "collapse": "",
-                                       "name": move.name, "kind": "renew", "per": per, "from": att.id}
+                _E.end_buff(t, k)
+        _E.put_buff(t, f"renew_{move.id}", {"rounds": spec["rounds"], "mech": {}, "drain": 0, "collapse": "",
+                                            "name": move.name, "kind": "renew", "per": per, "from": att.id})
         combat.log.append(f"{att.name} uses {move.name} on {t.name}: renewing {round(per)} a round for {spec['rounds']} rounds")
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'lay', 'lays')} {move.name} on {who_t}: a healing that will keep working")
     elif form == "ward":
@@ -111,7 +112,7 @@ def cast(combat: C.Combat, att: C.Fighter, move, target: C.Fighter | None, rng: 
     elif form == "cleanse":
         lifted = [s for s in perks.AFFLICTIONS if s in t.statuses][:spec["lifts"]]
         for s in lifted:
-            t.statuses.pop(s)
+            _E.end_status(t, s)
         healed, _ = perks.mend(combat, att, t, amount * spec["share"])
         combat.log.append(f"{att.name} uses {move.name} on {t.name}: lifts {', '.join(lifted) or 'nothing'}, heals {healed}")
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'cleanse', 'cleanses')} {who_t} with {move.name}"
@@ -126,7 +127,7 @@ def cast(combat: C.Combat, att: C.Fighter, move, target: C.Fighter | None, rng: 
         from engine import battlefield as bf
         t.hp = max(1.0, t.max_hp * spec["revive"] * wither_factor(t))
         t.counters["rescued"] = 1
-        t.statuses = {}
+        _E.clear(t)                                      # (f507) every status, its source and its strength with it
         if t.zone_id and combat.battlefield is not None and t.zone_id in combat.battlefield.zones:
             bf.to_row(combat, t, "back" if t.reach == "ranged" else "front")
         combat.log.append(f"{att.name} uses {move.name}: {t.name} rises ({round(t.hp)})")
@@ -136,7 +137,6 @@ def cast(combat: C.Combat, att: C.Fighter, move, target: C.Fighter | None, rng: 
         combat.log.append(f"{att.name} uses {move.name} on {t.name}: heals {healed}")
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'call', 'calls')} on {move.name}, and {'your' if t is att and att.side == 'player' else C.whose(t)} wounds begin to close")
     att.counters["healed_round"] = combat.round
-    from engine import effects as _E
     _E.put(combat, _E.ActiveEffect(id="last_heal", kind="last_heal", family="heal", source=att.id, target=t.id, value=float(amount)))   # (f499) on the row
     return amount
 

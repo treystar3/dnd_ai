@@ -8,6 +8,7 @@ there until they pick it up, a hazard waits for how they mean to get past it, an
 import re
 
 from engine import checks, clock, encounters, inventory as inv, loot, money, pools, pulse, roads, weather
+from engine import effects
 from engine.road_prompts import SYSTEM, user
 from engine.roads import R
 from llm.contracts import ActionIntent, RoadEvent
@@ -253,7 +254,7 @@ class RoadActions:
                 self.wildlife = None
                 if self.owns("scout_ahead"):
                     for e in enemies:
-                        e.statuses["unaware"] = 1         # Scout Ahead: you saw them first, and they have not seen you
+                        effects.put_status(e, "unaware", 1)     # Scout Ahead: you saw them first, and they have not seen you (raw, on purpose)
                 from scenes.combat_scene import CombatScene
                 self.combat = CombatScene.begin(self, creature, enemies, f"On the road,")
                 if self.owns("scout_ahead") and self.combat is not None:

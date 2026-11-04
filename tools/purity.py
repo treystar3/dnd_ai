@@ -10,6 +10,7 @@ tools/sim/fence_476_test.py runs it on every module in PURE that exists; Bundle 
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +37,9 @@ SPATIAL = ("zone_id", "row", "engaged_with", "position_tags", "band", "elevated"
 # (f505) The health write-path rule: the health bar is written by engine/damage.py (the declared paths) and engine/combat.py restore, and by
 # the sites HP_EXEMPT names, each (file, the line as written): construction and scaling, unmaking and execution, floors and clamps outside
 # a blow, heals outside restore, costs and drains, a trap's cut. The list may only shrink (tools/sim/hp_writes_505_test.py pins it).
+EFFECT_ALLOWED_FILES = ("engine/effects.py",)      # (f507) the one writer of statuses, strengths, buffs, curses and ground effects
+EFFECT_VIEWS = ("statuses", "status_from", "buffs", "curses", "zone_effects", "poison", "poison_fixed", "ignite", "bleed")
+EFFECT_MUTATORS = ("pop", "clear", "setdefault", "update", "append", "extend", "remove", "insert")
 HP_ALLOWED_FILES = ("engine/damage.py",)
 HP_ALLOWED_FUNCTIONS = {("engine/combat.py", "restore")}
 HP_EXEMPT = {
@@ -256,3 +260,47 @@ def hp_exempt_missing() -> list[str]:
         if not p.exists() or not any(l.strip() == text for l in p.read_text(encoding="utf-8").split("\n")):
             gone.append(f"{rel}: {text}")
     return gone
+
+
+def effect_writes_in(text: str, rel: str) -> list[str]:
+    """(f507) Every write through one of the fighter's or the fight's effect views (statuses, status_from, ignite, poison, poison_fixed,
+    bleed, buffs, curses, zone_effects) in one module's source outside engine/effects.py, read from the syntax tree: an assignment or an
+    augmented assignment to the view or to an item of it (alone or in a tuple), or a call of a mutating method on it. A view is
+    read-only, and such a write would change nothing or, worse, a dict the row holds behind the caller's back. Returns 'file:line
+    writes .name' for each."""
+    if rel in EFFECT_ALLOWED_FILES:
+        return []
+
+    def is_view(node) -> bool:
+        return isinstance(node, ast.Attribute) and node.attr in EFFECT_VIEWS
+
+    def targets(t):
+        if isinstance(t, (ast.Tuple, ast.List)):
+            for e in t.elts:
+                yield from targets(e)
+        else:
+            yield t
+    out = []
+    for node in ast.walk(ast.parse(text)):
+        ts = []
+        if isinstance(node, ast.Assign):
+            ts = [x for t in node.targets for x in targets(t)]
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            ts = list(targets(node.target))
+        for t in ts:
+            view = t if is_view(t) else (t.value if isinstance(t, ast.Subscript) and is_view(t.value) else None)
+            if view is not None:
+                out.append(f"{rel}:{node.lineno} writes .{view.attr}")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in EFFECT_MUTATORS and is_view(node.func.value):
+            out.append(f"{rel}:{node.lineno} writes .{node.func.value.attr}")
+    return sorted(set(out), key=lambda l: int(l.split(":")[1].split(" ")[0]))
+
+
+def effect_writes() -> list[str]:
+    """(f507) The effect write rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += effect_writes_in(py.read_text(encoding="utf-8"), rel)
+    return out

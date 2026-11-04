@@ -47,6 +47,8 @@ class TriggerDef(BaseModel):
     context: Literal["combat", "out_of_combat", "anywhere"]
     noncombat: bool = False
     suits: Suits = Suits()
+    dormant: bool = False       # (f507) true for a trigger no code evaluates: it loads (an old character's passive still validates), is
+    #                             never offered at creation, on gear or in a lesson, and engine/data_check.py holds the flag to the code
 
 
 class RulesError(Exception):

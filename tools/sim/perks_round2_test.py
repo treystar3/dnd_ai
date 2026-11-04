@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import battlefield as bf, battlefield_builder as bb, behaviors, combat, combat_perks as perks
+from engine import effects as fx
 from engine.combat import Move
 bad = []
 def check(n, ok, x=""):
@@ -95,7 +96,7 @@ for n in (1, 2):
 for n in (1, 2):
     p = player("blood_for_blood", attrs=1)
     f = fight(p, foe(1, level=30))
-    p.statuses["bleeding"] = 3
+    fx.put_status(p, "bleeding", 3)
     res = outcomes(f, p, f.get("e1"), seed=n * 1000, tier_now=3)
     check(f"blood for blood {n}: bleeding, a heavy never misses", res["miss"] == 0, res)
 p = player("blood_for_blood", attrs=1)
@@ -327,7 +328,7 @@ for n in (1, 2):
     f = fight(p, foe(1, hp=1), foe(2))
     e2 = f.get("e2")
     perks.on_kill(f, p, f.get("e1"), rng)
-    check(f"frozen ground {n}: the ground freezes", f.zone_effects.get(f.get("e1").zone_id, {}).get("frozen_until") == f.round + 2)
+    check(f"frozen ground {n}: the ground freezes", f.zone_effects.get(f.get("e1").zone_id, {}).get("frozen_ground", {}).get("frozen_until") == f.round + 2)
     perks.on_turn_start(f, e2)
     check(f"frozen ground {n}: whoever stands there is chilled", "slowed" in e2.statuses)
 
@@ -337,7 +338,7 @@ for n in (1, 2):
     t = ally(hp=200)
     f = fight(p, t, foe(1))
     t.hp = 20
-    t.statuses["bleeding"] = 2
+    fx.put_status(t, "bleeding", 2)
     healed, _ = perks.mend(f, p, t, 30)
     check(f"triage {n}: double the healing, and the bleeding stops", healed == 60 and "bleeding" not in t.statuses, (healed, t.statuses))
     t.hp = 150
@@ -376,7 +377,7 @@ for n in (1, 2):
     f = fight(p, t, foe(1))
     combat.act_ability(f, p, stance, None, rng)
     check(f"sanctuary circle {n}: a crit on Tam is only a hit", perks.on_outcome(f, f.get("e1"), t, "crit", None) == "hit")
-    p.buffs.clear()
+    [fx.end_buff(p, k) for k in list(p.buffs)]
     check(f"sanctuary circle {n}: out of the stance, it crits", perks.on_outcome(f, f.get("e1"), t, "crit", None) == "crit")
 
 # ---- Single-target blessings; Twin Benediction; Selfless; Shared Strength
