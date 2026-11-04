@@ -38,7 +38,8 @@ def _load(rel: str):
     return yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict)
 
 
-GAME_DIRS = ("engine", "scenes", "npc", "llm", "character")      # (f459) where the game asks the model; tools/*.py asks for its own ends
+GAME_DIRS = ("engine", "scenes", "npc", "llm", "character", "services")      # (f459) where the game asks the model; tools/*.py asks for its
+#                                                                                  own ends. (f503) services/ too: a service asks nothing
 
 
 def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list[str]]:

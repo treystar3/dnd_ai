@@ -94,7 +94,7 @@ def embed(**k):
 gateway._client = types.SimpleNamespace(chat=real.chat, embed=embed)
 _embed._state.update(ok=True, failed=False)
 reads, attempts2 = [], []
-real_read = combat_improv.read_effect
+real_read = cs.read_effect                                        # (f503) the read by meaning is the scene's
 
 
 def read_effect(words):
@@ -102,19 +102,19 @@ def read_effect(words):
     return real_read(words)
 
 
-combat_improv.read_effect = read_effect
+cs.read_effect = read_effect
 
 
 def body2(op):
     attempts2.append(1)
-    effect = asked.compute("improv_effect:I kick sand in its eyes", lambda: combat_improv.read_effect("I kick sand in its eyes"))
+    effect = asked.compute("improv_effect:I kick sand in its eyes", lambda: cs.read_effect("I kick sand in its eyes"))
     if len(attempts2) == 1:
         gateway.generate("dialogue_frame", "You frame a line.", "The line.", DialogueFrame)
     return effect
 
 
 op, effect = ws.asked_operation("test:improv", "I kick sand in its eyes", body2)
-combat_improv.read_effect = real_read
+cs.read_effect = real_read
 check("the improv's effect is read once across a restart (served to the re-run), the embedder asked once", len(attempts2) == 2 and len(reads) == 1
       and effect == "distract" and len(EMBEDS) == 1, (len(attempts2), len(reads), effect, len(EMBEDS)))
 gateway._client = real

@@ -779,10 +779,6 @@ class MentorActions:
             f.mentor_beats.append("steady")
             self.mentor_say(mentor.line(self.player, "steady", seed), beat="the fight is going on; you steady them")
 
-    def mentor_run_fails(self) -> str:
-        """What happens when the player tries to run from the troll: the attempt is made, and it fails."""
-        return mentor.line_from(self.player, M["troll_combat"]["run_fail"])
-
     def mentor_refuse(self, kind: str) -> None:
         """Running and taming are not on offer in the first hunt, and neither is talking to the wolves."""
         if self.combat and self.combat.fight.mentor_troll:

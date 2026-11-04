@@ -98,6 +98,19 @@ def level_cap(rank: str) -> int | None:
     return quests.G["ranks"][rank]["levels"][1] - 1
 
 
+def mourn(members: list[dict], dead: dict, minute: int, place: str, how: str) -> None:
+    """(f412) A companion has died: everyone who travelled with them keeps who it was, where, and by whose hand ('mourns', the last
+    six), so they can speak of them days later. (f503) The rule, used by the fight service and the after-fight pass alike."""
+    for m in members:
+        if m is dead or not m.get("permanent") or m.get("story") or m.get("id") == dead.get("id"):
+            continue
+        kept = m.setdefault("mourns", [])
+        if any(x.get("id") == dead.get("id") for x in kept):
+            continue
+        kept.append({"id": dead.get("id"), "name": dead.get("name", ""), "minute": minute, "place": place, "how": how})
+        del kept[:-6]
+
+
 def sync_levels(party: list[dict], player_level: int) -> list[str]:
     """Bring each hire's level up to where their time with you puts them, no higher than the top of their rank. Returns notes."""
     notes = []

@@ -803,9 +803,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.show_exits()
         saved_fight = self.store.load_combat()
         if saved_fight:
-            self.combat = CombatScene.resume(self, saved_fight)
-            console.note("You are still in the middle of a fight!")
-            self.combat.show()
+            self.combat = CombatScene.resume(self, saved_fight)     # (f503) None for a row that cannot be read: the fight is let go, not the game
+            if self.combat is not None:
+                console.note("You are still in the middle of a fight!")
+                self.combat.show()
         self.show_header()
         asked = self.store.load_question()
         if asked and asked.get("question"):                                 # (f460) the world was waiting on an answer when the save closed: ask again, once

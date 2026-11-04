@@ -830,14 +830,7 @@ class PartyActions:
         them days later (a night's run had three companions die and never be named again). Kept on each survivor ('mourns')."""
         here = self.place.name if self.place else ""
         how = (f" by {by}" if by and by != "you" else "") + (f" at {here}" if here else "")
-        for m in self.player.party:
-            if m is dead or not m.get("permanent") or m.get("story") or m.get("id") == dead.get("id"):
-                continue
-            kept = m.setdefault("mourns", [])
-            if any(x.get("id") == dead.get("id") for x in kept):
-                continue
-            kept.append({"id": dead.get("id"), "name": dead.get("name", ""), "minute": self.minutes, "place": self.player.location, "how": how})
-            del kept[:-6]
+        rules.mourn(self.player.party, dead, self.minutes, self.player.location, how)     # (f503) the rule in engine/party.py
 
     def party_after_fight(self, fallen: list, fighters=(), won: bool = False, hard: bool = False) -> None:
         """Who went down, who limps on, whose trust moved. Old-style hirelings who went down do not get back up; a permanent hire may be carried out."""

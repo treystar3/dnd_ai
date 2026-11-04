@@ -36,7 +36,7 @@ prose_prompts["road journey and scene"] = road_prose
 found = {k: COUNT.search(v).group(0) for k, v in prose_prompts.items() if COUNT.search(v)}
 check("no narrator's or speaker's prompt sets a length (f375)", not found and "journey:" in road_prose, found)
 asks = []
-for p in list(pathlib.Path("engine").rglob("*.py")) + list(pathlib.Path("scenes").rglob("*.py")):
+for p in list(pathlib.Path("engine").rglob("*.py")) + list(pathlib.Path("scenes").rglob("*.py")) + list(pathlib.Path("services").rglob("*.py")):   # (f503) services too
     for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Call) and getattr(node.func, "attr", getattr(node.func, "id", "")) in ("narrate", "narrate_with", "_narrate_now"):
             for sub in ast.walk(node):

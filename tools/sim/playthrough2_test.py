@@ -37,10 +37,10 @@ world = load_world()
 
 # ---- watching for an opening
 check("'I watch the troll and look for an opening' is watching for an opening",
-      combat_improv.read_effect("I watch the troll and look for an opening") == "read_opening"
-      and combat_improv.read_effect("The player watches the troll for an opening.") == "read_opening")
-check("...and the other improvisations still read as themselves", combat_improv.read_effect("I throw sand in its eyes") == "distract"
-      and combat_improv.read_effect("I jam my lance into its knee") == "disable")
+      cs.read_effect("I watch the troll and look for an opening") == "read_opening"                  # (f503) the scene's read
+      and cs.read_effect("The player watches the troll for an opening.") == "read_opening")
+check("...and the other improvisations still read as themselves", cs.read_effect("I throw sand in its eyes") == "distract"
+      and cs.read_effect("I jam my lance into its knee") == "disable")
 
 def fight_with_troll():
     char, _ = simlib.make_character("warrior", random.Random(2))

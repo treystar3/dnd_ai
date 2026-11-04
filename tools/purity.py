@@ -23,6 +23,15 @@ DICE = ["engine/combat.py", "engine/combat_perks.py", "engine/spellcraft.py", "e
         "engine/afflictions.py", "engine/relics.py", "engine/bosses.py", "engine/summons.py", "engine/martial.py", "engine/movement.py",
         "engine/parley.py", "engine/party.py", "scenes/combat_scene.py", "services/fight.py"]
 DICE_CONSTANTS = {("engine/combat.py", "random.Random(seed)"), ("engine/combat.py", "random.Random(0)")}
+# (f503) The fight service (services/fight.py) under the dependency rule: scenes coordinate services; services use rules and
+# repositories; a service writes nothing to the console, asks the model nothing, reads no clock, and names its dependencies once.
+FIGHT = "services/fight.py"
+FIGHT_FORBIDDEN = ("scenes", "ui", "llm.gateway", "llm.embed", "time", "datetime")
+FIGHT_DEPENDS = ("store", "bus", "party", "streams")
+# (f503) The write-path rule (tools/sim/battlefield_test.py): nothing outside the battlefield law writes spatial state. The directories
+# it reads include services/.
+WRITE_SCAN_DIRS = ("engine", "scenes", "npc", "services")
+SPATIAL = ("zone_id", "row", "engaged_with", "position_tags", "band", "elevated")
 
 
 def _imports(tree: ast.AST) -> list[tuple[int, str]]:
@@ -113,4 +122,59 @@ def check_dice() -> list[str]:
         p = ROOT / rel
         if p.exists():
             out += dice_problems_in(p.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def fight_problems_in(source: str, name: str = FIGHT) -> list[str]:
+    """(f503) What the fight service may not do: import scenes, ui, the model's gateway or embedder, or the clock; write to the console;
+    print; roll a die outside the streams; depend on anything but store, bus, party and streams (its DEPENDS tuple, read as written)."""
+    tree = ast.parse(source)
+    bad = []
+    for line, mod in _imports(tree):
+        if any(mod == f or mod.startswith(f + ".") for f in FIGHT_FORBIDDEN):
+            bad.append(f"{name}:{line}: imports {mod}")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "console":
+            bad.append(f"{name}:{node.lineno}: writes to the console (console.{node.attr})")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
+            bad.append(f"{name}:{node.lineno}: prints")
+    bad += dice_problems_in(source, name)
+    depends = [n for n in tree.body if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "DEPENDS" for t in n.targets)]
+    try:
+        names = tuple(ast.literal_eval(depends[0].value)) if depends else ()
+    except Exception:
+        names = ()
+    if names != FIGHT_DEPENDS:
+        bad.append(f"{name}: DEPENDS names {names or 'nothing'}; the service depends on {', '.join(FIGHT_DEPENDS)} and nothing else")
+    return sorted(set(bad), key=lambda b: (int(b.split(":")[1]) if b.split(":")[1].isdigit() else 0, b))
+
+
+def check_fight() -> list[str]:
+    """(f503) The fight service, fenced."""
+    p = ROOT / FIGHT
+    return fight_problems_in(p.read_text(encoding="utf-8"), FIGHT) if p.exists() else [f"{FIGHT} is missing"]
+
+
+def spatial_writes_in(text: str, rel: str) -> list[str]:
+    """(f503) The write-path rule on one module's source: every write of a fighter's zone, row, engagement or position tags outside the
+    battlefield law (engine/battlefield.py), less combat.enters, the one sanctioned writer (it places a mid-fight joiner)."""
+    import re
+    if rel == "engine/battlefield.py":
+        return []
+    out = []
+    for m in re.finditer(r"\.(" + "|".join(SPATIAL) + r")\s*=(?!=)", text):
+        line = text[:m.start()].count("\n") + 1
+        if rel == "engine/combat.py" and "def enters" in text[max(0, m.start() - 800):m.start()] and m.group(1) in ("zone_id", "row", "engaged_with"):
+            continue
+        out.append(f"{rel}:{line} writes .{m.group(1)}")
+    return out
+
+
+def spatial_writes() -> list[str]:
+    """(f503) The write-path rule over every game module (WRITE_SCAN_DIRS), services/ included."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += spatial_writes_in(py.read_text(encoding="utf-8"), rel)
     return out

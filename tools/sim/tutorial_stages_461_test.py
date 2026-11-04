@@ -173,7 +173,7 @@ check("the fence stands over every turn, every #command, the arrival after one (
 
 # ---- the ratchet: no console.ask() inside a turn anywhere under scenes/ or engine/
 left = {}
-for f in sorted(list(Path("scenes").glob("*.py")) + list(Path("engine").glob("*.py"))):
+for f in sorted(list(Path("scenes").glob("*.py")) + list(Path("engine").glob("*.py")) + list(Path("services").glob("*.py"))):   # (f503) services too
     if f.name == "home.py":                                  # the save menu: a menu, not a turn
         continue
     n = len(re.findall(r"console\.ask\(\s*\)", f.read_text(encoding="utf-8")))

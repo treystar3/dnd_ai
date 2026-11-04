@@ -171,13 +171,6 @@ class SpellActions:
         return True
 
     # ---- a codex: a named spell
-    def plain_codex(self, item) -> None:
-        """(f502) The engine's own name for the spell a codex holds, until the naming operation after the win gives it the model's."""
-        sp = item.spell
-        sp["name"] = f"The {sp['element'].capitalize()} {spells.FORMS[sp['form']]['label']}"
-        sp["description"] = ""
-        item.name = spells.codex_name(item)
-
     def name_codex(self, item, found_with: str = "") -> None:
         """The model names the spell a codex holds when it is found; a plain name when it cannot."""
         sp = item.spell
