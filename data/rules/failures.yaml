@@ -189,14 +189,16 @@ shown_later:
   - "A moment from before, kept for your return."
   - "This was so when you left, and was never told. It is told now."
 # (f507) A fight saved mid-round that this game could not take up again (a row of an older shape, or one that could not be read): the
-# fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice.
+# fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice. (f511) Rewritten in the
+# manner the owner holds the prose to (GOALS.md pillar 5, "like Tolkien"): plain old words, a long breath and a short one, no dash, and
+# nothing said of the player's health, company or ground, which the save holds and these lines do not.
 fight_let_go:
-  - "The fight you left half-fought could not be picked up again. It is let go; you stand clear of it, unhurt by what did not finish."
-  - "What was mid-blow when you went away did not keep. That fight is over without an ending, and you are out of it."
-  - "The fight you were in the middle of is gone with the time away. Nothing of it stands; you are where you were, out of its reach."
-  - "That fight did not survive the wait. It is let go, and you with it: clear, and free to go on."
-  - "The blows that hung in the air when you left have fallen to nothing. The fight is over, unfinished, and you are out of it."
-  - "What you were fighting could not be found again. The fight is let go; you stand clear of it."
+  - "The fight you left unfinished is over now, and how it ended no tale tells. It has passed out of the world, and you stand clear of it."
+  - "Of that battle nothing remains. It has faded as dreams fade at waking, and your foes with it, and you are free to go on your way."
+  - "Whoever stood against you is gone, and the strife with them, as the shadow of a cloud passes over the grass and is seen no more."
+  - "The din of that fight has fallen silent, and it will not be taken up again. So it is with some deeds: they are left half done, and the world goes on without them."
+  - "The fight did not wait for your return. It is ended, though by no hand that you know of, and there is nothing of it left to take up."
+  - "There was a fight here, but it is over, and no one could tell you how it went. It is blown away like smoke upon the wind, and the way lies open before you."
 # A fight round whose telling could not be written: the numbers carry the blows.
 round_stood:
   - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."

@@ -234,7 +234,8 @@ check("the prompt's trigger lines, gear and lessons skip a dormant one", "if not
       and "t.dormant or" in open("engine/lessons.py", encoding="utf-8").read())
 
 # ---- a saved fight of another shape is let go of at load, with one line; v15 lets a saved fight go and the next load tells it once
-check("failures.yaml fight_let_go: six or more lines in the world's words", len(failures.F["fight_let_go"]) >= 6 and not any(failures.MACHINERY.search(l) for l in failures.F["fight_let_go"])
+check("failures.yaml fight_let_go: six or more lines, each its own, in the world's words", len(failures.F["fight_let_go"]) >= 6
+      and len(set(failures.F["fight_let_go"])) == len(failures.F["fight_let_go"]) and not any(failures.MACHINERY.search(l) for l in failures.F["fight_let_go"])
       and failures.fight_let_go(random.Random(1)) in failures.F["fight_let_go"] and failures.problems() == [], failures.problems()[:3])
 NAME = "status_507"
 SHOWN = simlib.quiet_console()
