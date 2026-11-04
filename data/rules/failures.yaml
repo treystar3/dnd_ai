@@ -190,14 +190,15 @@ shown_later:
   - "This was so when you left, and was never told. It is told now."
 # (f507) A fight saved mid-round that this game could not take up again (a row of an older shape, or one that could not be read): the
 # fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice. (f512) The owner's own
-# six lines, 2026-11-04, word for word.
+# six lines, 2026-11-04; (f513) the words that named a kind of place (a road, grass, a deserted spot) or had the player walk off made
+# neutral at the owner's word, since the line is shown wherever the save left the player: a cave, a street, a hall, a field.
 fight_let_go:
-  - "The fight is over. What became of your enemies, you cannot say. For now, the road is clear."
-  - "You return to find the place deserted. Of those who fought here, there is no sign."
-  - "Your foes have gone. You linger a moment, listening, but hear only the wind in the grass."
+  - "The fight is over. What became of your enemies, you cannot say. For now, the way is clear."
+  - "You return to find the fighting done. Of those you fought here, there is no sign."
+  - "Your foes have gone. You linger a moment, listening, but hear nothing of them."
   - "No clash of steel greets your return. Whatever happened here after you left, it is finished."
   - "The fight ended in your absence. Whether your enemies fled or met some other fate, you do not know."
-  - "All is quiet where you fought. You look once more along the empty road, then turn to go."
+  - "All is quiet where you fought. You look once more around you, then put it behind you."
 # A fight round whose telling could not be written: the numbers carry the blows.
 round_stood:
   - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."
