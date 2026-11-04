@@ -888,7 +888,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
               "last_social", "weight_hint", "exits_due", "last_plan", "journey_event_factor", "haggle_factor", "craft_boost", "camp_bonus",
               "dungeon_fight", "rank_options", "learn_options", "step", "interpret_calls", "ran",
               "partner", "stance", "pending_check", "pending_beats", "buffering", "line_done",
-              "last_hits")                             # (f489) how a beat hit each of the party goes back with the banter that measured it
+              "last_hits",                            # (f489) how a beat hit each of the party goes back with the banter that measured it
+              "sneaking", "queued_buffs", "fight_text", "surrender_took")   # (f496) what a fight the player starts this turn opens with (f248:
+    # the creeping up, the buffs readied by name, the line's words), and whether a survivor was taken captive: set by one operation's
+    # attempt and consumed by it, they go back to what the attempt found, so an attempt run again for its answer creeps up again
     # (f485) the conversation goes back whole: who is being spoken with and how they are this talk, with its lines (convo, last_spoken
     # above), so a first talk that did not stand opens a new conversation when it is tried again, with the stance it had; and the step's
     # own state, so an operation run again to be given its answer (engine/asked.py) starts where the first attempt did.
@@ -922,6 +925,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         from engine import asked as _asked, operation as _op
         index = len(self.line_ops) + len(self.line_failed) + len(self.line_world_failed)
         pending0 = list(self.pending)                # (f493) the line's held narration as this operation found it, to put back whole
+        fight0 = self.fight_memory()                 # (f496) what the player has read of the fight, and who was tamed, as it found them
         if world and where == "turn":
             where = "world"
         op = None
@@ -956,7 +960,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             else:
                 self.store.mark_shown(op.id)
         except _asked.NeedAnswer as e:
-            self.give_back(op, pending0)                          # (f485) stood down to ask the model outside: nothing kept, nothing
+            self.give_back(op, pending0, fight0)                  # (f485) stood down to ask the model outside: nothing kept, nothing
             op.need = e                                           # counted as failed, nothing halted; asked_operation asks and runs it again
         except _Void:
             _op.end("void")                                       # (f470) ended without a record and not counted; what the scene changed in
@@ -965,7 +969,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         except Interrupt:
             raise                                                 # (f449) stopped on purpose (a replay parted): never a rolled-back fault
         except LLMError as e:
-            self.abandon(op, pending0, world=world)
+            self.abandon(op, pending0, world=world, fight0=fight0)
             console.debug(f"operation {kind} rolled back: {e}")
             self.last_failure = str(e) or type(e).__name__       # (f437) the turn log keeps why, as a model failure
             if op is not None:
@@ -974,7 +978,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             # (f449) The game's own fault, not the model's: the operation is rolled back, the fault goes to logs/crash.log with the line and
             # the place, and the player reads a line in the narrator's words (run()). What stood before it stands. (f466) A world
             # operation's fault is written there as the world's, and the player reads nothing of it.
-            self.abandon(op, pending0, world=world)
+            self.abandon(op, pending0, world=world, fight0=fight0)
             from engine import crashlog
             crashlog.record(e, where, text=text, place=self.player.location, turn=self.store.meta.turn, operation=kind)
             console.debug(f"operation {kind} crashed and rolled back: {type(e).__name__}: {e}")
@@ -984,7 +988,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 op.failure, op.crashed = self.last_failure, True
         finally:
             if op is not None and op.state == "open":              # an Interrupt passed through: the operation is rolled back all the same
-                self.abandon(op, pending0, world=world)
+                self.abandon(op, pending0, world=world, fight0=fight0)
 
     def hold(self, op) -> dict:
         """(f463) The story bindings replaced by ones that keep each call on the operation, for release at its commit; what the console
@@ -1082,14 +1086,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         rows = [r for r in ledger.ROWS if r.get("facts") and not r.get("told")]
         return failures.stood_lines(rows, rng) if rows else [failures.stood_any(rng)]
 
-    def abandon(self, op, pending0: list, world: bool = False) -> None:
+    def abandon(self, op, pending0: list, world: bool = False, fight0=None) -> None:
         """(f463) An operation did not stand: its rows go (the rest of the line's stay), the session gives back what the database never
         held, the store is reloaded, the narration it queued for the passage is dropped, its held lines with it, and the line is halted:
         what came before it stands, nothing after it is done. (f466) A world operation's failure halts nothing: the world's operations
         after it run all the same, each apart."""
         if op is not None:
             (self.line_world_failed if world else self.line_failed).append(op)
-        self.give_back(op, pending0)
+        self.give_back(op, pending0, fight0)
         if not world:
             self.halted = True
 
@@ -1224,7 +1228,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.partner, self.stance = who, rec.get("stance", "")
             self.convo = [tuple(x) for x in rec.get("lines") or []]
 
-    def give_back(self, op, pending0: list) -> None:
+    def fight_memory(self):
+        """(f496) What the fight's scene keeps outside the save (what the player has read of this fight, who was tamed) and which fight it is
+        (the serial, "" until its first blow): taken as an operation opens, put back on the resumed scene by give_back. None with no fight."""
+        if self.combat is None:
+            return None
+        return (list(self.combat.fight_shown), list(self.combat.tamed), self.combat.fight.serial)
+
+    def give_back(self, op, pending0: list, fight0=None) -> None:
         """(f463) What an operation that did not stand gives back: its record, the session's snapshot of what the database never held, the
         store reloaded, the narration it queued and its held lines. (f485) Alone, for an operation that stood down to ask the model
         outside its transaction: nothing of it is counted, nothing halted."""
@@ -1239,6 +1250,10 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         pools.fill_missing(self.player.character)
         saved_fight = self.store.load_combat()
         self.combat = CombatScene.resume(self, saved_fight) if saved_fight else None
+        if fight0 is not None and self.combat is not None and self.combat.fight.serial == fight0[2]:
+            self.combat.fight_shown, self.combat.tamed = list(fight0[0]), list(fight0[1])     # (f496) the resumed fight remembers what the
+            # player has read of it and who was tamed, as the operation found them: shown-memory, not state (Bundle C), kept on the scene
+            # and lost with it when the row was resumed, so a round run again for its answer told the ground and the light a second time
         here = self.store.load_place(self.player.location)
         if here.populated:
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
