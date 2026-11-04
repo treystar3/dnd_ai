@@ -21,7 +21,8 @@ RANDOM_OK = {"keyed"}                         # streams.keyed(...) is the one di
 # what was logged or by the clock (decision 5: nothing in play is seeded by what was logged). services/fight.py joins when f503 writes it.
 DICE = ["engine/combat.py", "engine/combat_perks.py", "engine/spellcraft.py", "engine/behaviors.py", "engine/healing.py",
         "engine/afflictions.py", "engine/relics.py", "engine/bosses.py", "engine/summons.py", "engine/martial.py", "engine/movement.py",
-        "engine/parley.py", "engine/party.py", "scenes/combat_scene.py", "services/fight.py"]
+        "engine/parley.py", "engine/party.py", "scenes/combat_scene.py", "services/fight.py",
+        "engine/damage.py", "engine/stacking.py"]                                             # (f504) the declared stages and recipes
 DICE_CONSTANTS = {("engine/combat.py", "random.Random(seed)"), ("engine/combat.py", "random.Random(0)")}
 # (f503) The fight service (services/fight.py) under the dependency rule: scenes coordinate services; services use rules and
 # repositories; a service writes nothing to the console, asks the model nothing, reads no clock, and names its dependencies once.

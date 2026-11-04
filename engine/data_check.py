@@ -615,7 +615,65 @@ def check() -> list[str]:
     # ---- (f499) what a fight keeps of itself between rounds: the cap on its rows
     ek = _load("data/rules/combat.yaml").get("effects_keep")
     need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
+    bad += tables_problems()                                           # (f504) the fight's tables, both ways
     return bad
+
+
+def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | None = None) -> list[str]:
+    """(f504) The fight's tables held to the code both ways: every kind in active_effects.yaml has a family, an expiry and a stacking rule
+    the table itself lists, a status kind's deltas name a combat.yaml statuses row and every statuses row has a kind (hexed alone may go
+    without a row until f507); every stage a damage path in stages.yaml names has a function in engine/damage.py and every function there
+    is named by a path; the hit steps and the status eligibility are lists of names; every stacking recipe has a function in
+    engine/stacking.py and every function a recipe, with parts the recipe knows. Data cannot promise what code cannot run."""
+    from engine import damage, stacking
+    AE = _load("data/rules/active_effects.yaml") if AE is None else AE
+    ST = _load("data/rules/stages.yaml") if ST is None else ST
+    CB = _load("data/rules/combat.yaml") if CB is None else CB
+    out: list[str] = []
+
+    def need(ok, msg):
+        if not ok:
+            out.append(msg)
+
+    fam, exp, stk = list(AE.get("families") or []), list(AE.get("expiry") or []), list(AE.get("stacking") or [])
+    need(len(fam) == 6, f"active_effects.yaml families: six families, not {len(fam)}")
+    statuses = CB.get("statuses") or {}
+    kinds = AE.get("kinds") or {}
+    status_kinds = set()
+    for k, spec in kinds.items():
+        spec = spec or {}
+        need(spec.get("family") in fam, f"active_effects.yaml kinds.{k}: family '{spec.get('family')}' is not one of {', '.join(fam)}")
+        need(spec.get("expiry") in exp, f"active_effects.yaml kinds.{k}: expiry '{spec.get('expiry')}' is not one of {', '.join(exp)}")
+        need(spec.get("stacking") in stk, f"active_effects.yaml kinds.{k}: stacking '{spec.get('stacking')}' is not one of {', '.join(stk)}")
+        need(set(spec) <= {"family", "expiry", "stacking", "deltas"}, f"active_effects.yaml kinds.{k}: unknown keys {sorted(set(spec) - {'family', 'expiry', 'stacking', 'deltas'})}")
+        deltas = spec.get("deltas")
+        if deltas:
+            need(deltas == f"statuses.{k}" and k in statuses, f"active_effects.yaml kinds.{k}: deltas '{deltas}' is not a combat.yaml statuses row of that name")
+            status_kinds.add(k)
+        elif spec.get("family") == "status":
+            need(k == "hexed", f"active_effects.yaml kinds.{k}: a status kind needs its deltas row in combat.yaml statuses (hexed alone waits on f507)")
+    for st in statuses:
+        need(st in kinds and (kinds[st] or {}).get("family") == "status", f"combat.yaml statuses.{st}: no status kind of that name in active_effects.yaml")
+    paths = ST.get("damage") or {}
+    declared = set()
+    for path, ids in paths.items():
+        need(isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids), f"stages.yaml damage.{path}: a list of stage names")
+        for i in (ids or []):
+            need(i in damage.STAGES, f"stages.yaml damage.{path}: '{i}' is no stage engine/damage.py can run")
+            declared.add(i)
+    for i in damage.STAGES:
+        need(i in declared, f"stages.yaml damage: engine/damage.py has a stage '{i}' that no path names")
+    for key in ("hit_steps", "status_eligibility"):
+        v = ST.get(key)
+        need(isinstance(v, list) and v and all(isinstance(i, str) and i for i in v), f"stages.yaml {key}: a list of names")
+    recipes = ST.get("stacking") or {}
+    for r, parts in recipes.items():
+        need(r in stacking.RECIPES, f"stages.yaml stacking.{r}: no recipe of that name in engine/stacking.py")
+        if r in stacking.RECIPES:
+            need(isinstance(parts, list) and parts and all(p in stacking.PARTS[r] for p in parts), f"stages.yaml stacking.{r}: parts {parts} are not the recipe's {list(stacking.PARTS[r])}")
+    for r in stacking.RECIPES:
+        need(r in recipes, f"stages.yaml stacking: engine/stacking.py has a recipe '{r}' the table does not name")
+    return out
 
 
 def assert_ok() -> None:

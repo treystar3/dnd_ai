@@ -1,0 +1,48 @@
+# (f504) The order of the fight's calculations, declared: data cannot promise a stage code cannot run, and code cannot run a stage data
+# does not name (engine/data_check.py, both ways). engine/damage.py STAGES names a function per damage stage and runs a path in this
+# order (resolve); engine/stacking.py RECIPES names a function per stacking recipe. The lists below are today's orders, read from
+# engine/combat.py and pinned by tools/sim/tables_504_test.py to the literals recorded there: a hand reorder fails a test before it moves
+# a fixture (Bundle E decision 10).
+damage:
+  # the blow (engine/combat.py take_damage): what a landed hit meets on its way to the health bar, then what its landing sets off
+  blow: [petrified, before_damage, resistance, blood_pact, category_ward, hardening, aegis, last_stand, stoneskin, plating, spellward,
+         unbroken, guardian, companion_durability, barrier, stoneform, mana_veil, mana_shield, nothing_through, ward_conversion,
+         rounded, duel_floor, lifeline, tether, boss_last_stand, breath, mentor_floor, deathless, deathward, yields_floor, health,
+         on_fall, after_damage, healing_after_damage, release, morale, avenger, yields_break, boss_after_damage, second_wind, rebound]
+  # the bypasses, kept as bypasses: a poison's or a burn's tick at the start of the turn (engine/combat.py start_turn), a wound torn by a
+  # blow (engine/afflictions.py tear). A relic's smite, a boss's option and No One Escapes are full blows (apply_damage); a relic's mend
+  # is a restore.
+  dot_tick: [tick_floor, tick_health, tick_on_tick, tick_duel_end]
+  tear: [tick_floor, tear_health]
+hit_steps:          # _apply_damage's hit-multiplier chain (engine/combat.py), code, declared and tested in order (owner question 11)
+  - Move power
+  - Glancing blow | Critical hit
+  - Weakened or strengthened
+  - Target marked
+  - Empowered
+  - Rallying Light
+  - Pack Scent
+  - Enlarged
+  - Executioner
+  - Relentless
+  - Last Stand
+  - Slayer
+  - Opportunist
+  - Press the Opening
+  - Hex
+  - Blood Pact
+  - Attunement
+  - Iron Will
+  - spellcraft.hit_mult        # Shatter, Blister, Smite, Fan the Flames, Lethal Dose, Crushing Roots, Judgement, Storm Charge, Sunlit Growth
+  - Unaware target
+  - Windwalker
+  - Flowing Step
+  - combat_perks.damage_mult   # Bulwark Engine, War Drum, Thick of It, Overchannel
+status_eligibility: [unyielding, earthshaker, stoneform, iron_will, element_ward, attune_extend, sanctified, boss_resisted, perk_transform,
+                     bloodless, affliction_law, record, crippling_chain, winding_cancel]       # add_status, in order
+stacking:            # the recipes (engine/stacking.py RECIPES), each part in the order it is applied
+  base_damage: [flat, percent]      # raw_damage: weapon + attribute + flat, then x (1 + percent/100) x variance x magic
+  mitigate: [percent, flat]         # x max(0.05, 1 - percent/100), then - flat, never below a tenth of what came in
+  pools: [percent, flat, needs]     # engine/pools.py maximum: raw x (1 + percent) + flat, then hunger and fatigue
+  resistance: [sum, clamp]          # the resistances summed, clamped to elements.yaml resist_cap (an element may go below zero: a weakness)
+  mechanics: [additive]             # legendary gear, relic buffs and conditional passives add

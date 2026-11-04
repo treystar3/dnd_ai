@@ -5,7 +5,29 @@ heals and read back by them, so a mark is in the row the save holds, goes back w
 row when the fight ends. The list is capped at combat.yaml effects_keep: the oldest expired rows go first, then the oldest."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pathlib import Path
+
+import yaml
+from pydantic import BaseModel, ConfigDict
+
+
+class EffectDef(BaseModel):
+    """(f504) A kind of effect a fight carries between rounds, as data/rules/active_effects.yaml declares it: its family (one of
+    FAMILIES), how it ends (EXPIRY), what a second landing does (STACKING), and for a status the combat.yaml row that holds its stat
+    deltas. Frozen: a kind is read, never changed in play."""
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    id: str
+    family: str
+    expiry: str
+    stacking: str
+    deltas: str = ""
+
+
+_T = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "active_effects.yaml").read_text(encoding="utf-8"))
+FAMILIES: tuple[str, ...] = tuple(_T["families"])
+EXPIRY: tuple[str, ...] = tuple(_T["expiry"])
+STACKING: tuple[str, ...] = tuple(_T["stacking"])
+KINDS: dict[str, EffectDef] = {k: EffectDef(id=k, **v) for k, v in _T["kinds"].items()}
 
 
 class ActiveEffect(BaseModel):

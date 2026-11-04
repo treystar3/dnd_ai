@@ -1,0 +1,84 @@
+# (f504) Every kind of effect a fight carries between rounds, declared: its family (one of six),
+# how it ends (expiry), what a second landing does (stacking), and for a status the stat deltas combat.yaml holds. Declared here first;
+# f507 makes the instances rows of the fight's effects (engine/effects.py ActiveEffect). The instances today: f.statuses (33 kinds,
+# combat.yaml statuses), f.buffs (the ability buffs, commands, stances, riders, relic powers, renew, totem_urge), the marks (quarry,
+# withering, last_heal, f499), combat.zone_effects (ground changed for a while), f.curses, and the summons (engine/summons.py forms).
+families: [stat_modifier, damage_redirect, triggered_reaction, status, movement, summon]
+expiry:   [fight, rounds, turns_of_target, turns_of_source, charges, while_status]
+stacking: [replace, refresh, stack, strongest, bigger]
+kinds:
+  # ---- statuses (combat.yaml statuses; placed by add_status, ticked down on the fighter's turn, engine/combat.py start_turn)
+  slowed:      {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.slowed}
+  prone:       {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.prone}       # ends when the turn is lost to it
+  frightened:  {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.frightened}
+  blinded:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.blinded}
+  bleeding:    {family: status, expiry: turns_of_target, stacking: bigger,  deltas: statuses.bleeding}    # one wound: the bigger cut replaces (afflictions.apply)
+  stunned:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.stunned}
+  poisoned:    {family: status, expiry: turns_of_target, stacking: stack,   deltas: statuses.poisoned}    # a stack a dose; a new one refreshes them all
+  burning:     {family: status, expiry: turns_of_target, stacking: strongest, deltas: statuses.burning}   # the strongest ignite burns
+  weakened:    {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.weakened}
+  exposed:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.exposed}
+  marked:      {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.marked}
+  befuddled:   {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.befuddled}
+  grappled:    {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.grappled}
+  unaware:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.unaware}
+  withered:    {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.withered}
+  illuminated: {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.illuminated}
+  petrified:   {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.petrified}
+  brittle:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.brittle}
+  shaky:       {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.shaky}
+  jittered:    {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.jittered}
+  wasting:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.wasting}
+  conductive:  {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.conductive}
+  superconductive: {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.superconductive}
+  frostwelded: {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.frostwelded}   # cannot leave its area (engine/movement.py reads it)
+  numb_hands:  {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.numb_hands}
+  tangled:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.tangled}
+  humbled:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.humbled}
+  scented:     {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.scented}
+  unraveled:   {family: status, expiry: turns_of_target, stacking: refresh, deltas: statuses.unraveled}
+  hexed:       {family: status, expiry: fight, stacking: refresh}                      # (f507 gives it its combat.yaml row)
+  # ---- buffs (ability_traits.yaml buffs: one of each kind at a time, a new casting replaces the old; rounds from the table)
+  envenom:     {family: triggered_reaction, expiry: rounds, stacking: replace}
+  acidcoat:    {family: triggered_reaction, expiry: rounds, stacking: replace}
+  imbue:       {family: triggered_reaction, expiry: rounds, stacking: replace}
+  precision:   {family: stat_modifier, expiry: rounds, stacking: replace}
+  blur:        {family: stat_modifier, expiry: rounds, stacking: replace}
+  enlarge:     {family: stat_modifier, expiry: rounds, stacking: replace}
+  frostarmor:  {family: triggered_reaction, expiry: rounds, stacking: replace}
+  stoneform:   {family: stat_modifier, expiry: rounds, stacking: replace}
+  thorns:      {family: triggered_reaction, expiry: rounds, stacking: replace}
+  arcaneward:  {family: stat_modifier, expiry: rounds, stacking: replace}
+  attunement:  {family: stat_modifier, expiry: rounds, stacking: replace}
+  bladeward:   {family: damage_redirect, expiry: rounds, stacking: replace}
+  manashield:  {family: damage_redirect, expiry: rounds, stacking: replace}
+  # ---- commands, stances, riders and the relics' powers (engine/combat.py _act_ability, engine/relics.py)
+  guard:       {family: damage_redirect, expiry: rounds, stacking: replace}            # a companion takes a share of the blows meant for you
+  press:       {family: stat_modifier, expiry: rounds, stacking: replace}
+  hold:        {family: stat_modifier, expiry: rounds, stacking: replace}
+  distract:    {family: stat_modifier, expiry: rounds, stacking: replace}              # every enemy turns on you (taunt)
+  rouse:       {family: stat_modifier, expiry: rounds, stacking: replace}
+  stance:      {family: stat_modifier, expiry: rounds, stacking: replace}
+  relic_buff:  {family: stat_modifier, expiry: rounds, stacking: replace}              # frenzy, vanish, bastion, veil (accessories.yaml powers of kind buff): a power's mech for its rounds; today's rows carry no kind
+  renew:       {family: triggered_reaction, expiry: rounds, stacking: replace}         # a heal that carries on (engine/healing.py)
+  bolster:     {family: stat_modifier, expiry: rounds, stacking: replace}              # a totem's urge (engine/summons.py totem_urge)
+  # ---- the marks (f499, engine/effects.py rows today)
+  quarry:      {family: stat_modifier, expiry: fight, stacking: replace}
+  withering:   {family: triggered_reaction, expiry: while_status, stacking: replace}   # who placed a withering: it holds the affliction while its maker stands near
+  last_heal:   {family: triggered_reaction, expiry: fight, stacking: replace}
+  # ---- the ground (combat.zone_effects)
+  frozen_ground:     {family: movement, expiry: rounds, stacking: refresh}
+  ball_lightning:    {family: triggered_reaction, expiry: rounds, stacking: replace}
+  burning_ground:    {family: triggered_reaction, expiry: rounds, stacking: refresh}
+  snowdrift:         {family: movement, expiry: rounds, stacking: refresh}
+  earthen_barricade: {family: movement, expiry: rounds, stacking: refresh}
+  # ---- curses (f.curses: damage over the cursed one's turns)
+  curse:       {family: triggered_reaction, expiry: turns_of_target, stacking: stack}
+  # ---- the summons (summons.yaml forms; a bound one lasts the fight and beyond)
+  bound:       {family: summon, expiry: fight, stacking: replace}
+  sentinel:    {family: summon, expiry: rounds, stacking: stack}
+  striker:     {family: summon, expiry: rounds, stacking: stack}
+  swarm:       {family: summon, expiry: rounds, stacking: stack}
+  totem:       {family: summon, expiry: rounds, stacking: stack}
+  decoy:       {family: summon, expiry: rounds, stacking: stack}
+  volatile:    {family: summon, expiry: rounds, stacking: stack}
