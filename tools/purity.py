@@ -14,7 +14,9 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py"]   # grows as Bundle D writes them
+PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py",   # grows as Bundle D writes them
+        "engine/damage.py", "engine/effects.py", "engine/stacking.py", "engine/afflictions.py",     # (f510) Bundle E's rule modules:
+        "engine/healing.py", "engine/relics.py", "engine/bosses.py", "engine/behaviors.py"]         # no store, scene, model or clock
 FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "time", "datetime", "uuid")
 RANDOM_OK = {"keyed"}                         # streams.keyed(...) is the one die a pure module may roll
 # (f501) The DICE fence: the fight modules may roll only the streams (streams.get, keyed, fixed, new_id) and the two named constants, a

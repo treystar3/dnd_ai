@@ -145,6 +145,37 @@ def baseline_problems(base: dict | None = None) -> list[str]:
     return bad
 
 
+def fights_problems(data: dict | None = None) -> list[str]:
+    """(f510) data/measured/bundle_e_fights.yaml, when it is there: its fight tasks and every task its rows count are tasks budget.yaml
+    knows, its goldens are kept recordings, its numbers are numbers (an estimate, operations, re-runs, simulations never below zero)."""
+    path = ROOT / "data" / "measured" / "bundle_e_fights.yaml"
+    if data is None:
+        if not path.exists():
+            return []
+        data = _load("data/measured/bundle_e_fights.yaml") or {}
+    bad: list[str] = []
+    known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    tasks = list(data.get("fight_tasks") or [])
+    if not tasks:
+        bad.append("bundle_e_fights.yaml fight_tasks: needs the tasks it measures")
+    for t in sorted(set(tasks) - known):
+        bad.append(f"bundle_e_fights.yaml fight_tasks: budget.yaml does not know {t}")
+    limit = data.get("limit_seconds")
+    if not isinstance(limit, (int, float)) or isinstance(limit, bool) or limit <= 0:
+        bad.append(f"bundle_e_fights.yaml limit_seconds: needs a number above zero, not {limit!r}")
+    for name, rows in (data.get("goldens") or {}).items():
+        if not (ROOT / "data" / "replay" / "sessions" / str(name) / "calls.jsonl.gz").exists():
+            bad.append(f"bundle_e_fights.yaml goldens.{name}: no such recording is kept")
+        for i, row in (rows or {}).items():
+            for k in ("estimate", "operations", "reruns", "simulations"):
+                v = (row or {}).get(k)
+                if not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0:
+                    bad.append(f"bundle_e_fights.yaml goldens.{name}.{i}.{k}: needs a number, not {v!r}")
+            for t in sorted(set((row or {}).get("calls") or {}) - set(tasks)):
+                bad.append(f"bundle_e_fights.yaml goldens.{name}.{i}: counts a call of '{t}', not one of its fight tasks")
+    return bad
+
+
 def ceilings_problems(ceil: dict | None = None) -> list[str]:
     """(f490) data/measured/prompt_ceilings.yaml, when it is there: every speech task the baseline names has a ceiling, each a whole number
     of characters, none for a task the baseline does not name; the closing's marks name speech tasks and are numbers."""
@@ -618,6 +649,7 @@ def check() -> list[str]:
     bad += tables_problems()                                           # (f504) the fight's tables, both ways
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
+    bad += fights_problems()                                           # (f510) the fight measures' shape
     return bad
 
 

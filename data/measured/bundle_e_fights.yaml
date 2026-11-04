@@ -1,0 +1,328 @@
+note: '(f510, tools/latency.py --fights) Bundle E''s fight measures on the goldens: per fight input of each recording, the required path''s seconds
+  at expected answers on the card''s profile, the fight calls by task, the operations it ran and the re-runs among them, and the odds'' simulations.
+  A measurement, outside the data hash. Do not hand-edit.'
+limit_seconds: 60.0
+fight_tasks:
+- combat_interpret
+- combat_opening
+- combat_narrate
+- combat_aftermath
+- goddess_line
+- loot_name
+- legendary_name
+- accessory_name
+- named_spell
+- spell_rank
+goldens:
+  stub_fight:
+    3:
+      estimate: 18.4
+      calls:
+        combat_opening: 1
+      operations: 6
+      reruns: 0
+      simulations: 80
+    4:
+      estimate: 9.3
+      calls:
+        combat_interpret: 1
+      operations: 2
+      reruns: 0
+      simulations: 0
+    5:
+      estimate: 13.3
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    6:
+      estimate: 9.2
+      calls:
+        combat_interpret: 3
+      operations: 3
+      reruns: 3
+      simulations: 0
+    7:
+      estimate: 13.3
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    8:
+      estimate: 34.2
+      calls:
+        combat_interpret: 1
+        combat_narrate: 3
+      operations: 2
+      reruns: 0
+      simulations: 0
+    10:
+      estimate: 13.4
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    11:
+      estimate: 13.4
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    12:
+      estimate: 13.3
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    13:
+      estimate: 13.2
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    14:
+      estimate: 13.2
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    15:
+      estimate: 13.2
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    16:
+      estimate: 13.4
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    17:
+      estimate: 13.2
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    18:
+      estimate: 13.3
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    19:
+      estimate: 13.2
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    20:
+      estimate: 34.5
+      calls:
+        accessory_name: 1
+        combat_aftermath: 1
+        combat_interpret: 1
+        combat_narrate: 1
+        legendary_name: 1
+        loot_name: 1
+      operations: 5
+      reruns: 0
+      simulations: 0
+    23:
+      estimate: 18.2
+      calls:
+        combat_opening: 1
+      operations: 6
+      reruns: 0
+      simulations: 80
+    24:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    25:
+      estimate: 17.6
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+  stub_party: {}
+  stub_short:
+    11:
+      estimate: 18.0
+      calls:
+        combat_opening: 1
+      operations: 6
+      reruns: 0
+      simulations: 80
+    12:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    13:
+      estimate: 12.8
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    14:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    15:
+      estimate: 12.8
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    17:
+      estimate: 18.0
+      calls:
+        combat_opening: 1
+      operations: 6
+      reruns: 0
+      simulations: 80
+    18:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    19:
+      estimate: 12.8
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    20:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    21:
+      estimate: 3.1
+      calls:
+        combat_interpret: 1
+      operations: 2
+      reruns: 0
+      simulations: 0
+    22:
+      estimate: 12.8
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    23:
+      estimate: 12.8
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    24:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    25:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    30:
+      estimate: 31.5
+      calls:
+        combat_opening: 1
+      operations: 6
+      reruns: 0
+      simulations: 80
+    31:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    32:
+      estimate: 13.0
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    33:
+      estimate: 12.9
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+      operations: 3
+      reruns: 0
+      simulations: 0
+    34:
+      estimate: 29.7
+      calls:
+        combat_interpret: 1
+        combat_narrate: 1
+        goddess_line: 1
+      operations: 5
+      reruns: 0
+      simulations: 0

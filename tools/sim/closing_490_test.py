@@ -89,8 +89,8 @@ import card_profile
 now = dict(card_profile.estimate_inputs(latency.GOLDENS / "stub_short", expected=True))
 cheaper = {"estimates": {"stub_short": {i: round(s - 0.5, 1) for i, s in now.items()}}}
 failed = latency.gate(cheaper).get("stub_short") or []
-check("a golden priced against a baseline half a second under today's fails at every priced input with a speech call, and only those",
-      failed and {i for i, _, _ in failed} == latency.speech_inputs(latency.GOLDENS / "stub_short") & set(now), failed[:4])
+check("a golden priced against a baseline half a second under today's fails at every priced input with a speech or a fight call (f510), and only those",
+      failed and {i for i, _, _ in failed} == (latency.speech_inputs(latency.GOLDENS / "stub_short") | latency.fight_inputs(latency.GOLDENS / "stub_short")) & set(now), failed[:4])
 
 # ---- the summary's rows against the baseline
 night = [{"task": "npc_conversation", "attempt": 0, "chars": 20000, "error": None},

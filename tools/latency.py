@@ -4,7 +4,9 @@
     python tools/latency.py --calls logs/llm_calls.jsonl   any call log on its own (a real session's, for instance)
     python tools/latency.py --baseline RUN_DIR...          (f475) a night's speech-task sizes, first tries and continuity counts, as YAML
     python tools/latency.py --against RUN_DIR...           (f490) a night's speech tasks beside Bundle D's baseline and their ceilings
-    python tools/latency.py --gate                         (f490) the goldens priced at expected answers against their pre-D prices
+    python tools/latency.py --gate                         (f490) the goldens priced at expected answers against their pre-D prices;
+                                                           (f510) fight inputs too, and every input under budget.yaml limit_seconds
+    python tools/latency.py --fights                       (f510) the goldens' fight measures, to data/measured/bundle_e_fights.yaml
     python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
     python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
 
@@ -205,6 +207,106 @@ def speech_inputs(folder: Path) -> set[int]:
             and (c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) in tasks}
 
 
+FIGHT_TASKS = ("combat_interpret", "combat_opening", "combat_narrate", "combat_aftermath", "goddess_line",      # (f510) the fight's own calls:
+               "loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank")                    # its reading, its tellings, its naming
+FIGHTS = Path(__file__).resolve().parent.parent / "data" / "measured" / "bundle_e_fights.yaml"
+
+
+def fight_inputs(folder: Path) -> set[int]:
+    """(f510) The inputs of a recording that made a fight call (FIGHT_TASKS)."""
+    import card_profile
+    return {int(c.get("input", 0)) for c in card_profile.calls_of(Path(folder)) if c.get("kind") != "embed"
+            and (c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) in FIGHT_TASKS}
+
+
+def over_limit(root: Path = GOLDENS, limit: float | None = None, base: dict | None = None) -> dict[str, list[tuple[int, float]]]:
+    """(f510) Per golden, the inputs whose required path, priced at expected answers on the card's profile, runs over budget.yaml
+    limit_seconds. With `base` (the pre-D baseline's estimates), an input the baseline already priced over the limit is Bundle D's own
+    debt and is left out, unless it is a fight input: those are Bundle E's, and every one must fit. Empty lists everywhere: the limit
+    holds."""
+    import card_profile
+    if limit is None:
+        limit = card_profile.budget_limit()
+    out = {}
+    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+        before = {int(k): float(v) for k, v in ((base or {}).get("estimates") or {}).get(folder.name, {}).items()} if base else {}
+        fights = fight_inputs(folder) if base else set()
+        out[folder.name] = [(i, round(s, 1)) for i, s in card_profile.estimate_inputs(folder, expected=True)
+                            if s > limit and not (before.get(i, 0.0) > limit and i not in fights)]
+    return out
+
+
+def fights_report(root: Path = GOLDENS) -> dict:
+    """(f510) Per golden, per fight input: the required path's estimate at expected answers, the fight calls by task, the operations
+    the input ran and how many of them were run again (an operation id seen at an earlier input: a restart after a rollback), and the
+    odds' simulations (engine/combat.py danger runs eighty fights once per fight begun: an input with a combat_opening call)."""
+    import card_profile
+    from engine import combat as _combat
+    import inspect
+    runs = inspect.signature(_combat.danger).parameters["runs"].default
+    out = {}
+    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+        calls = card_profile.calls_of(folder)
+        est = dict(card_profile.estimate_inputs(folder, expected=True))
+        turns = load(folder / "turns.jsonl")
+        seen: set[str] = set()
+        rows = {}
+        for i in sorted(fight_inputs(folder)):
+            mine = [c for c in calls if int(c.get("input", 0)) == i and c.get("kind") != "embed"]
+            by_task = collections.Counter(t for t in ((c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) for c in mine)
+                                          if t in FIGHT_TASKS)                             # the fight's own calls; the line's others are not its
+            ops = next((t.get("operations") or [] for t in turns if int(t.get("i", -1)) == i), [])
+            ids = [o.get("id") for o in ops if o.get("id")]
+            rows[i] = {"estimate": round(est.get(i, 0.0), 1), "calls": {k: v for k, v in sorted(by_task.items()) if k},
+                       "operations": len(ids), "reruns": sum(1 for x in ids if x in seen),
+                       "simulations": runs * by_task.get("combat_opening", 0)}
+            seen |= set(ids)
+        out[folder.name] = rows
+    return out
+
+
+def write_fights(root: Path = GOLDENS, note: str = "") -> str:
+    """(f510) tools/latency.py --fights: the fight measures of the goldens, written to data/measured/bundle_e_fights.yaml (outside the
+    data hash, engine/data_check.py fights_problems checks its shape). Returns the text written."""
+    import yaml
+    import card_profile
+    body = {"note": note or "(f510, tools/latency.py --fights) Bundle E's fight measures on the goldens: per fight input of each recording, "
+                           "the required path's seconds at expected answers on the card's profile, the fight calls by task, the operations "
+                           "it ran and the re-runs among them, and the odds' simulations. A measurement, outside the data hash. "
+                           "Do not hand-edit.",
+            "limit_seconds": card_profile.budget_limit(), "fight_tasks": list(FIGHT_TASKS), "goldens": fights_report(root)}
+    text = yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=140)
+    FIGHTS.write_text(text, encoding="utf-8")
+    return text
+
+
+def fight_table(calls: list[dict], turns: list[dict], crashes: list[dict] = ()) -> list[str]:
+    """(f510) The night's fights: calls per round (a round is a turn with a fight call), p95 seconds per fight task, fights let go at a
+    load (crash.log rows written where the fight row is read), re-runs per round (a round's operations rolled back)."""
+    fight_calls = [c for c in calls if c.get("task") in FIGHT_TASKS]
+    if not fight_calls:
+        return ["No fight calls."]
+    rounds = collections.defaultdict(list)
+    for c in fight_calls:
+        rounds[c.get("turn")].append(c)
+    by_turn = {r.get("turn"): r for r in turns}
+    rolled = [sum(1 for o in (by_turn.get(t) or {}).get("ops") or [] if o.get("state") == "rolled_back") for t in rounds]
+    lines = [f"{len(rounds)} rounds with a fight call; {fmt(len(fight_calls) / len(rounds), 1)} fight calls a round; "
+             f"{fmt(sum(rolled) / len(rounds), 2)} operations rolled back a round; "
+             f"{sum(1 for c in crashes if c.get('where') == 'fight row')} fights let go at a load.", "",
+             "| Fight task | Calls | Seconds p50 | p95 | Failed |", "| --- | ---: | ---: | ---: | ---: |"]
+    by_task = collections.defaultdict(list)
+    for c in fight_calls:
+        by_task[c["task"]].append(c)
+    for task in FIGHT_TASKS:
+        rs = by_task.get(task)
+        if not rs:
+            continue
+        secs = [float(r.get("seconds") or 0) for r in rs]
+        lines.append(f"| {task} | {len(rs)} | {fmt(pct(secs, .5))} | {fmt(pct(secs, .95))} | {sum(1 for r in rs if r.get('error'))} |")
+    return lines
+
+
 def dearer(now: dict, before: dict, inputs: set[int] | None = None) -> list[tuple[int, float | None, float]]:
     """(f490) The inputs priced above their pre-D price (to the tenth of a second the baseline keeps), of those with a speech call when
     they are named; an input the baseline never priced counts as dearer."""
@@ -220,14 +322,14 @@ def dearer(now: dict, before: dict, inputs: set[int] | None = None) -> list[tupl
 
 def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple[int, float | None, float]]]:
     """(f490) The goldens against their pre-D prices (the baseline's estimates), every answer at its expected size: per golden, the inputs
-    with a speech call priced dearer than before. Empty lists everywhere: the gate holds."""
+    with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds."""
     import card_profile
     base = _yaml(BASELINE) if base is None else base
     out = {}
     for name, before in (base.get("estimates") or {}).items():
         folder = Path(root) / name
         now = dict(card_profile.estimate_inputs(folder, expected=True))
-        out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder))
+        out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder) | fight_inputs(folder))
     return out
 
 
@@ -537,6 +639,8 @@ def summarise(run_dir: Path) -> str:
         lines += ["", "## Continuity (from the page)", ""] + page_measures.continuity_table(game_turns, turns, info)    # (f474)
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
+    if any(c.get("task") in FIGHT_TASKS for c in calls):             # (f510) the fights: calls a round, p95 a task, fights let go, re-runs
+        lines += ["", "## Fights", ""] + fight_table(calls, turns, load(run_dir / "crash.log"))
     if calls:                                                       # (f475) the speech tasks Bundle D changes, measured first
         lines += ["", "## Speech tasks (prompt size and first try)", ""] + speech_table(calls)
         if BASELINE.exists():                                       # (f490) beside the baseline's, with each task's ceiling
@@ -559,11 +663,18 @@ def main() -> None:
         print("\n".join(against([r for a in args[1:] for r in load(Path(a) / "llm_calls.jsonl")])))
         return
     if args[0] == "--gate":                                         # (f490) the goldens against their pre-D prices; exit 1 when dearer
-        got = gate()
+        got = gate()                                                # (f510) speech and fight calls alike, and every input under the limit
         for name, rows in got.items():
-            print(f"{name}: " + ("every input with a speech call at or below its pre-D price" if not rows else
+            print(f"{name}: " + ("every input with a speech or a fight call at or below its pre-D price" if not rows else
                                  "dearer than before: " + ", ".join(f"input {i} ({b} s before, {s} s now)" for i, b, s in rows)))
-        sys.exit(1 if any(got.values()) else 0)
+        over = over_limit(base=_yaml(BASELINE))                     # Bundle D's own over-limit inputs stand; a fight input never may
+        for name, rows in over.items():
+            print(f"{name}: " + ("every input under the limit, apart from those the baseline priced over it" if not rows else
+                                 "over the limit: " + ", ".join(f"input {i} ({s} s)" for i, s in rows)))
+        sys.exit(1 if any(got.values()) or any(over.values()) else 0)
+    if args[0] == "--fights":                                       # (f510) the goldens' fight measures, written to data/measured/bundle_e_fights.yaml
+        print(write_fights())
+        return
     if args[0] == "--ceilings":                                     # (f490) --ceilings [RUN_DIR...] : write data/measured/prompt_ceilings.yaml
         print(write_ceilings([Path(a) for a in args[1:]]))
         return
