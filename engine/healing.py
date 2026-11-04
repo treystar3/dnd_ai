@@ -16,7 +16,7 @@ from engine import combat as C
 ROOT = Path(__file__).resolve().parent.parent
 H = yaml.safe_load((ROOT / "data" / "rules" / "healing.yaml").read_text(encoding="utf-8"))
 FORMS = H["forms"]
-LAST: dict[int, tuple[str, float]] = {}     # fight -> (who was healed, how much the heal was), for the perks that follow a heal
+# (f499) Who was healed last and by how much, for the perks that follow a heal, is the fight's own row (engine/effects.py last_heal).
 
 
 def form_of(move) -> str:
@@ -136,8 +136,8 @@ def cast(combat: C.Combat, att: C.Fighter, move, target: C.Fighter | None, rng: 
         combat.log.append(f"{att.name} uses {move.name} on {t.name}: heals {healed}")
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'call', 'calls')} on {move.name}, and {'your' if t is att and att.side == 'player' else C.whose(t)} wounds begin to close")
     att.counters["healed_round"] = combat.round
-    from engine import combat as _C
-    _C.remember(LAST, _C.fight_key(combat), (t.id, amount))   # (f439) by the fight's own mark
+    from engine import effects as _E
+    _E.put(combat, _E.ActiveEffect(id="last_heal", kind="last_heal", family="heal", source=att.id, target=t.id, value=float(amount)))   # (f499) on the row
     return amount
 
 

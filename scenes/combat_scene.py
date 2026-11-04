@@ -150,8 +150,24 @@ class CombatScene:
         fight.record = True
         self.creature_name = creature_name
         self.rng = streams.get("combat")  # (f439) reseeded at every input
-        self.tamed: list[str] = []
-        self.fight_shown: list[str] = []            # (f349) what the player has read in this fight: the ground, the light, each foe's look
+
+    # (f499) What the player has read of the fight and who was tamed in it are the fight's own (engine/combat.py Combat shown, tamed):
+    # in the row the save holds, back with the row when a round rolls back, gone with it when the fight ends.
+    @property
+    def fight_shown(self) -> list[str]:
+        return self.fight.shown
+
+    @fight_shown.setter
+    def fight_shown(self, lines: list[str]) -> None:
+        self.fight.shown = list(lines)
+
+    @property
+    def tamed(self) -> list[str]:
+        return self.fight.tamed
+
+    @tamed.setter
+    def tamed(self, names: list[str]) -> None:
+        self.fight.tamed = list(names)
 
     def note_fight_shown(self, text: str) -> None:
         """(f349) After a passage: the ground and the place are given; the light if it was described; the look of each foe it described;
@@ -320,9 +336,7 @@ class CombatScene:
 
     @classmethod
     def resume(cls, ws, raw: str) -> "CombatScene":
-        from engine import spellcraft
-        spellcraft._CAST.clear()                           # (f455) the fighters are new objects: a casting context keyed by the old ones is dead
-        data = json.loads(raw)
+        data = json.loads(raw)                             # (f499) what the fight remembers of itself (its marks, what was read, who was tamed) is in the row
         return cls(ws, combat.Combat(**data["fight"]), data["creature"])
 
     # ---------- display ----------
@@ -1160,19 +1174,8 @@ class CombatScene:
         ws.trial_over(won, f)
         ws.store.save_player(ws.player)
 
-    def forget_marks(self) -> None:
-        """(f465) The fight is over: what the perks and the heals remembered about it goes (engine/combat_perks.py QUARRY, WITHER;
-        engine/healing.py LAST are keyed by the fight's own mark); nothing of a finished fight stays in the process."""
-        from engine import combat_perks, healing
-        key = combat.fight_key(self.fight)
-        combat_perks.QUARRY.pop(key, None)
-        for k in [k for k in combat_perks.WITHER if k[0] == key]:
-            del combat_perks.WITHER[k]
-        healing.LAST.pop(key, None)
-
     def finish(self) -> None:
-        f, ws = self.fight, self.ws
-        self.forget_marks()
+        f, ws = self.fight, self.ws                          # (f499) what the fight remembered of itself goes with its row (save_combat(None) below)
         if f.duel:
             self.finish_duel()
             return

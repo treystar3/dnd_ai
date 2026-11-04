@@ -20,6 +20,7 @@ from engine import ability_traits as AT
 from engine import elements, items, pools, stats as _stats
 from engine.battlefield import Battlefield
 from engine import streams
+from engine.effects import ActiveEffect
 
 
 RULES = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "combat.yaml").read_text(encoding="utf-8"))
@@ -184,6 +185,7 @@ class Fighter(BaseModel):
     bleed: float = 0                     # bleeding: the open wound's tick (engine/afflictions.py)
     curses: list[dict] = []              # curses laid on this fighter, dealing their damage over its turns (engine/spellcraft.py)
     charging: dict = {}                  # a charged spell this fighter is winding up, released at the start of its next turn
+    casting: dict = {}                   # (f499) the element expressions of the ability being used, while it is (engine/spellcraft.py begin/end)
     sundered: float = 0                  # the share of armor broken by Sunder this fight (engine/martial.py)
     counter_move: dict = {}              # a readied counter (engine/martial.py), until this fighter's next turn
     corroded: float = 0                  # acid: the share of armor and ward eaten away this fight (engine/spellcraft.py)
@@ -245,6 +247,9 @@ class Combat(BaseModel):
     mentor_saved: int = 0          # how many times the floor has held
     mentor_beats: list[str] = []   # lessons already given
     burn_told: bool = False        # (f349) the element on the player's blade has been told to the narrator once; after that it is a figure, not a sentence
+    effects: list[ActiveEffect] = []   # (f499) what the fight remembers between rounds (the quarry, a withering's placer, the last heal), on the row
+    shown: list[str] = []          # (f499) what the player has read of this fight (the ground, the light, each foe's look): the next telling is told not to describe them again
+    tamed: list[str] = []          # (f499) who was tamed in it, told at its end
     felled_by: dict[str, str] = {}  # (f412) who struck each fallen fighter down, as the story names them: a night's narration gave a
                                     # pirate's killing blow on a companion to the player's own blade
 
@@ -561,13 +566,6 @@ def fight_key(combat) -> str:
     if not combat.serial:
         combat.serial = streams.new_id(4)
     return combat.serial
-
-
-def remember(table: dict, key, value, keep: int = 512) -> None:
-    """(f439) A per-fight note, the oldest let go past `keep`, so the notes of fights long over never pile up."""
-    table[key] = value
-    while len(table) > keep:
-        table.pop(next(iter(table)))
 
 
 _LIFT_CACHE: dict = {}

@@ -107,7 +107,9 @@ def is_area(move) -> bool:
 
 # ---- the casting context: hits carry the expression of what is being used -----------------------------------------------------
 
-_CAST: dict[int, dict] = {}
+# (f499) The casting context lives on the fighter (engine/combat.py Fighter.casting): no module table keyed by id(), nothing to clear
+# when a fight is resumed, nothing a session owns. It is set as an ability is used and cleared as it ends (begin/end), so a saved row
+# never holds one mid-cast.
 
 
 def exprs_of(move) -> list[str]:
@@ -118,16 +120,16 @@ def exprs_of(move) -> list[str]:
 def begin(att, move) -> None:
     hits = [e for e in exprs_of(move) if not is_control(e)]
     if hits:
-        _CAST[id(att)] = {"exprs": hits, "tier": move.tier, "name": move.name, "once": set()}
+        att.casting = {"exprs": hits, "tier": move.tier, "name": move.name, "once": []}
 
 
 def end(att) -> None:
-    _CAST.pop(id(att), None)
+    att.casting = {}
 
 
 def casting(att) -> list[str]:
     """The damage expressions riding on what this fighter is striking with right now."""
-    return list((_CAST.get(id(att)) or {}).get("exprs", []))
+    return list((att.casting or {}).get("exprs", []))
 
 
 def scorching(att) -> bool:
@@ -137,7 +139,7 @@ def scorching(att) -> bool:
 
 def hit_mult(combat, att, dfn, mult: float, rec) -> float:
     """What an expression does to the size of the blow itself, before it lands (f266): Shatter, Blister, Smite."""
-    ctx = _CAST.get(id(att))
+    ctx = att.casting or None
     if not ctx:
         return mult
     for eid in ctx["exprs"]:
@@ -199,7 +201,7 @@ DEAD_OK = {"drain", "arc", "conduction", "spreading_flames", "barkskin_graft", "
 
 def on_hit(combat, att, dfn, taken: float, rng) -> None:
     """A blow from an expressing ability has landed (apply_damage): each thing its element does, does its work."""
-    ctx = _CAST.get(id(att))
+    ctx = att.casting or None
     if not ctx:
         return
     for eid in ctx["exprs"]:
@@ -213,7 +215,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
     if eid in ("ignite", "spreading_flames") and dfn.alive:
         C.add_status(combat, dfn, "burning", 2, att)
     if eid == "spreading_flames" and eid not in ctx["once"]:
-        ctx["once"].add(eid)
+        ctx["once"].append(eid)
         others = [o for o in in_area(combat, att, dfn.zone_id, combat.enemies() if att.side != "enemy" else _foes(combat, att))
                   if o is not dfn and o.alive]
         for o in others:
@@ -223,7 +225,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
     elif eid == "chill" and dfn.alive:
         C.add_status(combat, dfn, "slowed", int(n["rounds"]), att)
     elif eid in ("arc", "conduction") and eid not in ctx["once"] and taken > 0:
-        ctx["once"].add(eid)
+        ctx["once"].append(eid)
         pool = [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]
         if eid == "arc":
             pool = sorted(pool, key=lambda o: o.hp)[:1]
@@ -278,7 +280,7 @@ def _express(combat, att, dfn, taken: float, rng, ctx: dict, eid: str) -> None:
     elif eid == "sickening" and dfn.alive:
         C.add_status(combat, dfn, "weakened", int(n["rounds"]), att)
     elif eid == "splash" and eid not in ctx["once"] and taken > 0:
-        ctx["once"].add(eid)
+        ctx["once"].append(eid)
         for o in [o for o in in_area(combat, att, dfn.zone_id, _foes(combat, att)) if o is not dfn and o.alive]:
             dealt = C.take_damage(combat, o, taken * n["pct"] / 100, att, rng, "magical")
             C.tell(combat, f"acid splashes over {C.who(o)} for {dealt} ({e['label']})")
@@ -704,15 +706,12 @@ def carried(combat, att, dfn, exprs: list[str], tier, name: str, taken: float, r
     exprs = [e for e in exprs if e in EXPR and not is_control(e)]
     if not exprs:
         return
-    held = _CAST.get(id(att))
-    _CAST[id(att)] = {"exprs": exprs, "tier": tier, "name": name, "once": set()}
+    held = att.casting
+    att.casting = {"exprs": exprs, "tier": tier, "name": name, "once": []}
     try:
         on_hit(combat, att, dfn, taken, rng)
     finally:
-        if held is not None:
-            _CAST[id(att)] = held
-        else:
-            _CAST.pop(id(att), None)
+        att.casting = held
 
 
 def _foes(combat, att) -> list:
@@ -1047,7 +1046,7 @@ def curse_turn(combat, f, rng=None) -> None:
             hits = [e for e in c.get("exprs", []) if e in EXPR and not is_control(e)]
             if hits and maker.alive:
                 maker.counters["last_hit"] = int(dealt)
-                _CAST[id(maker)] = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": set()}
+                maker.casting = {"exprs": hits, "tier": c["tier"], "name": c["name"], "once": []}
                 on_hit(combat, maker, f, dealt, rng)
                 end(maker)
         combat.log.append(f"{c['name']} gnaws at {f.name}: {dealt} damage")

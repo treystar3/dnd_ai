@@ -610,6 +610,10 @@ def check() -> list[str]:
     for k in ("cap", "again_per_keep"):
         need(isinstance(U.get(k), int) and not isinstance(U.get(k), bool) and U.get(k) > 0,
              f"truth.yaml canon.unsettled.{k}: needs a whole number above 0")
+
+    # ---- (f499) what a fight keeps of itself between rounds: the cap on its rows
+    ek = _load("data/rules/combat.yaml").get("effects_keep")
+    need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
     return bad
 
 

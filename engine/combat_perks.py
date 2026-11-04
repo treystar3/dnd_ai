@@ -18,6 +18,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat as C
+from engine import effects as E
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yaml.safe_load((ROOT / "data" / "rules" / "perks.yaml").read_text(encoding="utf-8"))["combat"]
@@ -123,11 +124,11 @@ def on_outcome(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, outcome: str, r
             rec["note"] = f"{tag(att, 'judgement')[1:-1]}: it hurt an ally, and the blow cannot miss"
         C.tell(combat, f"{C.who(dfn)} hurt one of {C.whose(att)} own, and judgement finds it {tag(att, 'judgement')}")
     if "quarry" in A and att is p and dfn.side == "enemy":
-        q = combat.get(QUARRY.get(C.fight_key(combat), "")) if QUARRY.get(C.fight_key(combat)) else None
+        q = quarry_of(combat)
         if q is None or not q.alive or q.fled:
-            C.remember(QUARRY, C.fight_key(combat), dfn.id)
+            E.put(combat, E.ActiveEffect(id="quarry", kind="quarry", family="mark", source=att.id, target=dfn.id))   # (f499) on the fight's row
             C.tell(combat, f"{C.who(dfn)} is {C.whose(att)} quarry now {tag(att, 'quarry')}")
-        if QUARRY.get(C.fight_key(combat)) == dfn.id and outcome == "graze":
+        if (q := E.get(combat, "quarry")) is not None and q.target == dfn.id and outcome == "graze":
             outcome = "hit"
     if outcome == "miss" and "steady_aim" in A and _ranged_now(att) and _still(combat, att, "steady_round"):
         att.counters["steady_round"] = combat.round
@@ -450,7 +451,7 @@ def on_status(combat: C.Combat, f: C.Fighter, status: str, rounds: int, source: 
         f.counters["dormant"] = 1
     if status in AFFLICTIONS and "withering" in S:
         f.counters["withered"] = 1
-        C.remember(WITHER, (C.fight_key(combat), f.id), source.id)
+        E.put(combat, E.ActiveEffect(id=f"withering:{f.id}", kind="withering", family="affliction", source=source.id, target=f.id))   # (f499)
     if "deep_freeze" in S and status == "slowed" and "slowed" in f.statuses and not f.counters.get("freezing"):
         f.counters["freezing"] = 1
         try:
@@ -558,8 +559,8 @@ def after_cast(combat: C.Combat, att: C.Fighter, move: C.Move, target: C.Fighter
                 r.buffs[move.id]["rounds"] = P["lasting_word"]["rounds"]
         C.tell(combat, f"{move.name} will not fade while the fight lasts {tag(att, 'lasting_word')}")
     if move.effect == "healing":
-        from engine import healing as _heal
-        healed_id, amount = _heal.LAST.get(C.fight_key(combat), (att.id, 0.0))
+        last = E.get(combat, "last_heal")                                                      # (f499) the fight's own row
+        healed_id, amount = (last.target, last.value) if last is not None else (att.id, 0.0)
         healed = combat.get(healed_id) or att
         amount = round(amount)
         if "mending_rhythm" in A and not echo:
@@ -763,8 +764,10 @@ def conduct(combat: C.Combat, att: C.Fighter, dfn: C.Fighter, taken: float, rng:
 
 # ---------- round two (f217): movement, stillness, ground and the turncoat ----------
 
-QUARRY: dict[str, str] = {}           # fight -> the player's quarry (kept off the fighters so a save never carries a stale mark)
-WITHER: dict[tuple, str] = {}         # (fight, fighter) -> who placed the withering afflictions
+def quarry_of(combat: C.Combat):
+    """(f499) The player's quarry, from the fight's own row (engine/effects.py), or None."""
+    q = E.get(combat, "quarry")
+    return combat.get(q.target) if q is not None else None
 
 
 def _ranged_now(att: C.Fighter) -> bool:
@@ -795,7 +798,8 @@ def unmovable(combat: C.Combat | None, f: C.Fighter) -> bool:
 
 def held_fast(combat: C.Combat, e: C.Fighter) -> bool:
     """An enemy that cannot step away: engaged with a juggernaut, or the player's quarry."""
-    if QUARRY.get(C.fight_key(combat)) == e.id and any(o.side == "player" and has(o, "quarry", combat) for o in combat.fighters):
+    q = E.get(combat, "quarry")
+    if q is not None and q.target == e.id and any(o.side == "player" and has(o, "quarry", combat) for o in combat.fighters):
         return True
     if "frostwelded" in e.statuses:
         return True                                      # Frostweld (f268)
@@ -850,7 +854,7 @@ def on_turn_start(combat: C.Combat, f: C.Fighter) -> None:
         if not eff:
             combat.zone_effects.pop(f.zone_id, None)
     if f.side == "player":
-        q = combat.get(QUARRY.get(C.fight_key(combat), "")) if QUARRY.get(C.fight_key(combat)) else None
+        q = quarry_of(combat)
         if q is not None and q.alive and "concealed" in q.position_tags:
             from engine import battlefield as bf
             bf.lose(q, "concealed")
@@ -861,7 +865,8 @@ def withering_holds(combat: C.Combat, f: C.Fighter, status: str) -> bool:
     """Withering: an affliction does not wear off while whoever placed it shares ground with its bearer."""
     if status not in AFFLICTIONS or not f.counters.get("withered"):
         return False
-    w = combat.get(WITHER.get((C.fight_key(combat), f.id), ""))
+    row = E.get(combat, "withering", f.id)
+    w = combat.get(row.source) if row is not None else None
     return w is not None and w.alive and w.zone_id == f.zone_id
 
 

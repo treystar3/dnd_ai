@@ -123,9 +123,9 @@ check("smoke: attacks into it are harder", any(s[0] == "through smoke" for s in 
 slow, fresh = foe(1), foe(2)
 slow.statuses["slowed"] = 3
 r1 = {"steps": []}; r2 = {"steps": []}
-SC._CAST[id(p)] = {"exprs": ["shatter"], "tier": "moderate", "name": "Shatter", "once": set()}
+p.casting = {"exprs": ["shatter"], "tier": "moderate", "name": "Shatter", "once": []}
 check("shatter hits a slowed target harder", SC.hit_mult(f, p, slow, 1.0, r1) == 1.5 and SC.hit_mult(f, p, fresh, 1.0, r2) == 1.0)
-SC._CAST.pop(id(p))
+p.casting = {}
 
 # ---- lightning
 e = foe(); mv = spell("Overload", element="lightning", expression="overload")
@@ -147,17 +147,17 @@ check("paralytic slows a well-poisoned target", "slowed" in e.statuses)
 e1, e2 = foe(1), foe(2); f, p = cast(spell("Splash", element="acid", expression="splash"), e1, e2)
 check("splash hurts the others in the area", e2.hp < e2.max_hp)
 c = foe(1); c.corroded = 50
-SC._CAST[id(p)] = {"exprs": ["blister"], "tier": "moderate", "name": "Blister", "once": set()}
+p.casting = {"exprs": ["blister"], "tier": "moderate", "name": "Blister", "once": []}
 check("blister: more damage for armor already eaten", SC.hit_mult(f, p, c, 1.0, {"steps": []}) == 1.5)
-SC._CAST.pop(id(p))
+p.casting = {}
 e = foe(); f, p = control("caustic_pool", "acid", e)
 f.round += 1; combat.start_turn(e, f)
 check("caustic pool eats armor of whoever starts there", e.corroded > 0)
 
 # ---- radiant
-u = foe(category="undead"); SC._CAST[id(p)] = {"exprs": ["smite"], "tier": "moderate", "name": "Smite", "once": set()}
+u = foe(category="undead"); p.casting = {"exprs": ["smite"], "tier": "moderate", "name": "Smite", "once": []}
 check("smite hits the undead harder", SC.hit_mult(f, p, u, 1.0, {"steps": []}) == 1.5)
-SC._CAST.pop(id(p))
+p.casting = {}
 e1, e2 = foe(1), foe(2); f, p = control("flare", "radiant", e1, e2)
 check("flare blinds the area", "blinded" in e1.statuses and "blinded" in e2.statuses)
 

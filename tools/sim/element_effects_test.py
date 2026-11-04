@@ -53,7 +53,7 @@ def land(eid, element, *foes_, taken=100, crit=False, p=None, tier="moderate", f
     p.hit_element, p.element = element, element
     p.counters["last_outcome"] = "crit" if crit else "hit"
     p.counters["last_hit"] = taken
-    SC._CAST[id(p)] = {"exprs": [eid], "tier": tier, "name": eid, "once": set()}
+    p.casting = {"exprs": [eid], "tier": tier, "name": eid, "once": []}
     try:
         SC.on_hit(f, p, foes_[0], taken, rng)
     finally:
@@ -61,7 +61,7 @@ def land(eid, element, *foes_, taken=100, crit=False, p=None, tier="moderate", f
     return f, p
 
 def mult_for(eid, p, e, f, tier="moderate"):
-    SC._CAST[id(p)] = {"exprs": [eid], "tier": tier, "name": eid, "once": set()}
+    p.casting = {"exprs": [eid], "tier": tier, "name": eid, "once": []}
     try:
         return SC.hit_mult(f, p, e, 1.0, {"steps": []})
     finally:
@@ -225,7 +225,7 @@ check("refined venom: the undead's resistance to poison does not count", afflict
 
 # =============================================================== acid
 p = player(); e = foe(ward=30); f = fight(p, e)
-SC._CAST[id(p)] = {"exprs": ["etch"], "tier": "moderate", "name": "Etch", "once": set()}
+p.casting = {"exprs": ["etch"], "tier": "moderate", "name": "Etch", "once": []}
 etched, _ = combat.mitigate(e, 100, "magical", 5, f, p); SC.end(p)
 plain, _ = combat.mitigate(e, 100, "magical", 5, f, p)
 check("etch: half the ward eaten through", etched > plain, (etched, plain))
@@ -233,13 +233,13 @@ e = foe(); f, p = land("lingering_acid", "acid", e, taken=100)
 h = e.hp; combat.start_turn(e, f); combat.start_turn(e, f)
 check("lingering acid: 30% more over two turns", h - e.hp == 30 and not e.curses, (h - e.hp, e.curses))
 p = player(); e = foe(); e.shield = 500; f = fight(p, e)
-SC._CAST[id(p)] = {"exprs": ["seep"], "tier": "moderate", "name": "Seep", "once": set()}
+p.casting = {"exprs": ["seep"], "tier": "moderate", "name": "Seep", "once": []}
 dealt = combat.take_damage(f, e, 100, p, rng, "magical"); SC.end(p)
 check("seep: under the barrier to the health", dealt == 100 and e.shield == 500 and e.hp == e.max_hp - 100)
 e = foe(); land("strip", "acid", e)
 check("strip: exposed", e.statuses.get("exposed") == 2)
 p = player(); e = foe(); e.defending = 50; f = fight(p, e)
-SC._CAST[id(p)] = {"exprs": ["burn_through"], "tier": "moderate", "name": "Burn Through", "once": set()}
+p.casting = {"exprs": ["burn_through"], "tier": "moderate", "name": "Burn Through", "once": []}
 through, _ = combat.mitigate(e, 100, "magical", 5, f, p); SC.end(p)
 guarded, _ = combat.mitigate(e, 100, "magical", 5, f, p)
 check("burn through: a defending target still takes full damage", abs(through - 2 * guarded) < 0.5, (through, guarded))

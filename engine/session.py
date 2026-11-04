@@ -47,7 +47,7 @@ UNSEEDED = "unseeded"
 def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable[[], str]]]:
     """The module bindings a campaign writes while it plays: (name, put back, clean?, what it holds). Read at call time, since two of them
     (canon.IDS, ledger.LAST) are rebound rather than changed in place."""
-    from engine import budget, canon, combat_perks, enchanting, failures, healing, ledger, names, operation, pulse, questions, severity, spellcraft, streams, turnlog
+    from engine import budget, canon, enchanting, failures, ledger, names, operation, pulse, questions, severity, streams, turnlog
     from npc import life
     from llm import embed
     return [
@@ -64,9 +64,6 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
         ("operation.PRESENTED", lambda: operation.PRESENTED.clear(), lambda: not operation.PRESENTED, lambda: f"{len(operation.PRESENTED)} presented"),   # (f467)
         ("budget.CURRENT", budget.reset, lambda: budget.CURRENT is None and not budget.LAST, lambda: repr(budget.LAST or budget.CURRENT)),   # (f468)
         ("operation.LEGACY", lambda: operation.LEGACY.clear(), lambda: not operation.LEGACY, lambda: repr(operation.LEGACY)),   # (f470)
-        ("combat_perks.QUARRY", lambda: combat_perks.QUARRY.clear(), lambda: not combat_perks.QUARRY, lambda: repr(dict(combat_perks.QUARRY))),   # (f465)
-        ("combat_perks.WITHER", lambda: combat_perks.WITHER.clear(), lambda: not combat_perks.WITHER, lambda: repr(dict(combat_perks.WITHER))),
-        ("healing.LAST", lambda: healing.LAST.clear(), lambda: not healing.LAST, lambda: repr(dict(healing.LAST))),
         ("canon.EVENTS", lambda: canon.EVENTS.clear(), lambda: not canon.EVENTS, lambda: f"{len(canon.EVENTS)} events"),
         ("canon._SINK", lambda: canon._SINK.clear(), lambda: not canon._SINK, lambda: f"{len(canon._SINK)} drafts under review"),
         ("severity.REACTIONS", lambda: severity.REACTIONS.clear(), lambda: not severity.REACTIONS, lambda: f"{len(severity.REACTIONS)} reactions"),
@@ -74,7 +71,6 @@ def _owned() -> list[tuple[str, Callable[[], None], Callable[[], bool], Callable
          lambda: f"{len(ledger.ROWS)} rows, {len(ledger.LAST)} last, {sum(ledger.TOTALS.values())} counted"),
         ("streams", streams.reset, lambda: streams.key() == UNSEEDED, streams.key),
         ("turnlog._open", lambda: setattr(turnlog, "_open", None), lambda: turnlog._open is None, lambda: repr(turnlog._open)[:80]),
-        ("spellcraft._CAST", lambda: spellcraft._CAST.clear(), lambda: not spellcraft._CAST, lambda: f"{len(spellcraft._CAST)} casting"),
         ("life._ANCHOR_SLOTS", lambda: life._ANCHOR_SLOTS.clear(), lambda: not life._ANCHOR_SLOTS, lambda: repr(dict(life._ANCHOR_SLOTS))),
         # (f476) the embedding cache: a warm one changes what the budget charges and which embed calls a replay expects, so it is the
         # campaign's, cleared when one opens or closes
@@ -196,23 +192,20 @@ class CampaignSession:
                     rolled[k] = copy.deepcopy(scene.__dict__[k])
                 except Exception:
                     rolled[k] = scene.__dict__[k]
-        from engine import combat_perks, healing
-        marks = (dict(combat_perks.QUARRY), dict(combat_perks.WITHER), dict(healing.LAST))     # (f465) what the fight's perks remember, as it stands
-        self._turn = (self.world.snapshot(), held, rolled, marks)
+        self._turn = (self.world.snapshot(), held, rolled)        # (f499) the fight's marks are its row's: the transaction takes them back
 
     def rollback(self, scene, op_id: str = "") -> None:
         """The turn rolled back (scenes/world.py reload_after_rollback, first thing): the map's additions, the scene's private caches,
         the ledger's rows and totals and the casting cache go back to the turn's start. The store's reload follows. (f463) With op_id,
         one operation of the line rolled back: that operation's ledger rows alone go (engine/ledger.py rollback_op); the rest stand."""
-        from engine import ledger, spellcraft
+        from engine import ledger
         if op_id:
             ledger.rollback_op(op_id)
         else:
             ledger.rollback()
-        spellcraft._CAST.clear()
         if self._turn is None:
             return
-        snap, held, rolled, marks = self._turn
+        snap, held, rolled = self._turn
         self._turn = None
         self.world.restore(snap)
         for k in [k for k in scene.__dict__ if k.startswith("_")]:
@@ -223,10 +216,6 @@ class CampaignSession:
                 scene.__dict__[k] = rolled[k]
             else:
                 scene.__dict__.pop(k, None)
-        from engine import combat_perks, healing
-        for live, kept in ((combat_perks.QUARRY, marks[0]), (combat_perks.WITHER, marks[1]), (healing.LAST, marks[2])):
-            live.clear()
-            live.update(kept)                          # (f465) a rolled-back round's marks go; the committed rounds' stand
 
     def __repr__(self) -> str:
         return f"CampaignSession({self.store.meta.name!r}{', adopted' if self.adopted else ''}{', closed' if self.closed else ''})"

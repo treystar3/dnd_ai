@@ -1,6 +1,8 @@
 # COMBAT RULES - every number combat uses. Tune with: python tools/balance.py
 
 round_seconds: 6
+effects_keep: 64     # (f499) the most rows a fight keeps of what it remembers between rounds (engine/effects.py: the quarry, a withering's
+                     # placer, the last heal); the oldest expired go first, then the oldest. Today's kinds hold three rows at most.
 
 # (f412) Where the passage after a fight begins (scenes/combat_scene.py aftermath_opening): the engine picks one, never one of the last
 # not_again, so the passages do not all open on the silence coming back. An opening about a companion is only offered with a party along.

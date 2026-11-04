@@ -67,11 +67,6 @@ digest_before = statehash.digest(a.store)
 attrs_before = {k: copy.deepcopy(v) for k, v in ws.__dict__.items() if k.startswith("_") and k != "_truth"}
 check("the scene holds private caches a turn writes", len(attrs_before) >= 3, sorted(attrs_before))
 
-real_enter = ws.enter
-def enter(pid):
-    spellcraft._CAST[12345] = {"exprs": ["scorch"], "tier": "light", "name": "Ember", "once": set()}    # a cast begun this turn
-    return real_enter(pid)
-ws.enter = enter
 real = gateway._client
 def chat(**k):
     if k["format"].get("title") == "Narration":
@@ -81,7 +76,6 @@ gateway._client = types.SimpleNamespace(chat=chat)
 stub.plan = [{"kind": "explore", "seek": "a quiet hollow"}]
 stood = ws.turn("I search the woods for a quiet hollow.")
 gateway._client = real
-ws.enter = real_enter
 check("the turn found a place and its passage could not be written: the find stands (f464)", stood is True and len(made) == 1 and made[0] is not None, (stood, len(made)))
 pid = made[0]["place"]["id"]
 check("the place found is on the campaign's map, in its routes and in the save", pid in ws.world.places and pid in ws.world.neighbors(anchor)
@@ -90,7 +84,8 @@ check("...the map's additions grew, and its version moved", ws.world.added() != 
 check("...the save moved: a find is state, whatever became of its telling", statehash.digest(a.store) != digest_before)
 check("...the player stands at the place found", ws.player.location == pid, ws.player.location)
 check("...LAST is this turn's", ledger.LAST is not last_before)
-check("...the casting cache is empty", spellcraft._CAST == {}, spellcraft._CAST)
+check("...no casting context is left anywhere: it lives on the fighter and ends with the cast (f499), no table to clear", not hasattr(spellcraft, "_CAST")
+      and not any(getattr(f, "casting", None) for f in (ws.combat.fight.fighters if ws.combat else [])))
 check("...and the truth scene is built again on the next read", "_truth" not in ws.__dict__)
 check("the passage was an operation of its own, and the one that did not stand", [o.kind for o in ws.line_untold] == ["passage"] and not ws.line_failed,
       ([o.kind for o in ws.line_untold], [o.kind for o in ws.line_failed]))
@@ -102,7 +97,7 @@ check("the player reads that what they did stands, in the narrator's words, neve
 SHOWN.clear()
 stood2 = ws.turn("I search the woods for a quiet hollow.")
 check("the same line typed again is a new input, and stands", stood2 is True, (stood2, len(made)))
-check("...and the ledger and the casting cache are the standing turn's", ledger.LAST is not last_before and spellcraft._CAST == {})
+check("...and the ledger is the standing turn's", ledger.LAST is not last_before)
 a.close()
 
 # ---- the same shape recorded, then replayed in a child process: the rollback is deterministic as well as complete
@@ -147,7 +142,8 @@ check("...and it replays in a child process through the real turn, the rollback 
 src = pathlib.Path("engine/combat.py").read_text(encoding="utf-8")
 i, j = src.index("spellcraft.begin(att, move)"), src.index("spellcraft.end(att)")
 check("the casting context is ended whatever way the cast ends", "try:" in src[i:j] and "finally:" in src[j - 200:j], src[j - 200:j])
-check("a resumed fight starts with an empty casting cache", "spellcraft._CAST.clear()" in pathlib.Path("scenes/combat_scene.py").read_text(encoding="utf-8"))
+check("a resumed fight carries no casting context: it is the fighter's, ended with the cast, never in a saved row mid-cast (f499)",
+      "_CAST" not in pathlib.Path("scenes/combat_scene.py").read_text(encoding="utf-8") and "casting: dict" in src)
 ws_src = pathlib.Path("scenes/world.py").read_text(encoding="utf-8")
 check("every operation begins on the session, once, and the rollback goes through it first", ws_src.count("self.session.begin_turn(self)") == 1
       and "self.session.rollback(self, " in ws_src)                                              # (f463) one place: operation()
