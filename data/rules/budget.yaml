@@ -27,7 +27,8 @@ asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, 
                 hire_chat, mentor_chat, mentor_speech, mentor_voice, canon_extract, canon_check,            # (f488) the hires' and Maren's
                 exchange, overheard, pair_dynamic, persona_details,                                          # (f489) the party among themselves
                 combat_interpret,                                                                            # (f497) the fight's reading of the line
-                combat_opening, combat_narrate, combat_aftermath, goddess_line]                              # (f498) the fight's tellings
+                combat_opening, combat_narrate, combat_aftermath, goddess_line,                              # (f498) the fight's tellings
+                loot_name, legendary_name, accessory_name, named_spell, spell_rank]                           # (f502) the naming of finds and spells
 asked_max: 48                 # (f489) the most calls one operation may ask outside it (each one runs the operation again from its start)
 tasks:
   # ---- understanding the line

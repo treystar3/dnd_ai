@@ -620,6 +620,11 @@ class CampaignStore:
     def add_legendary_name(self, name: str) -> None:
         self._put("legendaries", json.dumps(self.legendary_names() + [name]))
 
+    def drop_legendary_name(self, name: str) -> None:
+        """(f502) The engine's own name for a find, let go once the naming operation gave it the model's: the taken list holds the name
+        the item bears, and that alone."""
+        self._put("legendaries", json.dumps([n for n in self.legendary_names() if n != name]))
+
     def save_combat(self, combat_json: str | None) -> None:
         if combat_json is None:
             self._drop("combat")

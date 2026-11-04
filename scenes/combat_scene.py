@@ -1287,7 +1287,7 @@ class CombatScene:
                              * (pack_xp if self.ws.world.bestiary[e.creature].group[0] >= 2 else 1)
                              * (deaths_ledger if e.category == "undead" else 1) for e in dead))
         total_xp += round(sum(leveling.kill_xp(c.level, e.level, e.rank) for e in yielded) * combat.RULES["talk"]["surrender_reward"])
-        coins, found = 0, []
+        coins, found, to_name = 0, [], []            # (f502) to_name: (item, source, story) for the naming operation after the win commits
         scavenger = pools.mechanic(c, "scavenger") or 0
         state = self.ws.store.load_place(self.ws.player.location)
         skinnable = 0
@@ -1299,12 +1299,14 @@ class CombatScene:
                 coins += gained
                 for prize in prizes:
                     if prize.rarity in ("rare", "epic", "legendary"):
-                        self.name_item(prize, e.name)
+                        self.fallback_name(prize, e.name)                      # (f502) the engine's name now; the model's after the commit
+                        to_name.append((prize, e.name, ""))
                     found.append(prize)
                 from engine import spells
                 codex = spells.codex_drop(e.level, self.rng, e.element)          # (f397) now and then, a codex: a named spell
                 if codex is not None:
-                    self.ws.name_codex(codex, e.name)
+                    self.ws.plain_codex(codex)                                     # (f502) likewise
+                    to_name.append((codex, e.name, "codex"))
                     found.append(codex)
                 if prizes:
                     bodies[e.id]["carried"] = inventory.label(prizes[0])
@@ -1312,7 +1314,8 @@ class CombatScene:
                 tier = (e.boss or {}).get("tier") or "dungeon"
                 if self.rng.random() < bosses.B["relic_chance"].get(tier, 0):
                     relic = accessories.boss_relic(kit, e.level, self.rng)
-                    self.name_item(relic, e.name, self.story_around(e.name, e.boss or {"kit": kit, "tier": tier}))
+                    self.fallback_name(relic, e.name)                              # (f502) the story as the win found it: the naming asks in these words
+                    to_name.append((relic, e.name, self.story_around(e.name, e.boss or {"kit": kit, "tier": tier})))
                     found.append(relic)
                 if loot.has_remains(e):
                     state.carcasses.append({"creature": e.creature, "level": e.level, "minute": self.ws.minutes})
@@ -1329,7 +1332,8 @@ class CombatScene:
                 item = loot.drops(e, self.rng, loot.keeps_companions(c))[1]
             if item:
                 if item.rarity in ("rare", "epic", "legendary"):
-                    self.name_item(item, e.name)
+                    self.fallback_name(item, e.name)                               # (f502)
+                    to_name.append((item, e.name, ""))
                 found.append(item)
                 bodies[e.id]["carried"] = inventory.label(item)
         from engine import spells
@@ -1341,31 +1345,28 @@ class CombatScene:
         self.ws.store.save_place(state)
         coins = self.ws.flaws_on_loot(coins)
         c.coins += coins
-        stowed = [self.ws.to_pack(item) for item in found]
+        stowed, copies = [], {}
+        for item in found:
+            n0 = len(self.ws.pack)
+            stowed.append(self.ws.to_pack(item))
+            copies[item.uid] = [p.uid for p in self.ws.pack[n0:]]           # (f502) the pack's own copies of the find (engine/inventory.py add)
         levels = leveling.gain_xp(c, total_xp)
-        name_of = lambda i: items.display_name(i) if i.rarity == "legendary" else inventory.label(i)
-        noticed = [name_of(st.kept) for st in stowed if st.kept is not None]
-        lying = [name_of(st.left) for st in stowed if st.left is not None]    # (f417) no room: left here, and told so, never pocketed
-        if coins:
-            noticed.append("a few coins")
-        noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
+        kept = [st.kept for st in stowed if st.kept is not None]           # (f502) the finds: the aftermath names them as the save holds them
+        lying = [st.left for st in stowed if st.left is not None]          # once the naming has run (f417: left here, never pocketed)
+        originals = {item.uid: item.model_dump() for item, _, _ in to_name}  # the engine's names: every attempt of the naming starts from them
         fallen = ", ".join(combat.who(e) for e in dead) or "no one - the rest yielded"
         if yielded:
             fallen += (f". THOSE WHO YIELDED (alive and beaten, waiting on the player's choice: tell nothing of what becomes of them): "
                        f"{', '.join(combat.who(e) for e in yielded)}")
         taken = self.take_prisoners(yielded)                               # (f464) the facts before the passage: they commit with the round
         self.ws.hold_yielded([e for e in yielded if e not in taken])         # (f385) the rest wait on the player's word
-        facts = {"xp": str(total_xp), "coins": money.fmt(coins) if coins else "", "fallen": ", ".join(combat.who(e) for e in dead),
-                 "found": ", ".join(name_of(i) for i in found)}
+        facts = {"xp": str(total_xp), "coins": money.fmt(coins) if coins else "", "fallen": ", ".join(combat.who(e) for e in dead)}
         place, when = self.ws.place.name, self.ws.time_label()        # as they were at the win: what follows a fight may move the player
-        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, noticed, lying, skinnable, fallen, place, when),
-                             lambda rng: failures.victory_stood(facts, rng))     # (f464) the passage after the win: an operation of its own
+        if found:                                                      # (f502) the finds' names and their lines: an operation of their own,
+            self.ws.mark_passage("naming", lambda: self.name_finds(to_name, found, copies, originals), None)   # after the win's commit, before the aftermath
+        self.ws.mark_passage("aftermath", lambda: self.aftermath_now(dead, kept, lying, skinnable, fallen, place, when, coins, copies),
+                             lambda rng: failures.victory_stood({**facts, "found": ", ".join(self.final_name(i, copies) for i in found)}, rng))   # (f464)
         console.ledger(f"Victory. +{total_xp} XP" + (f", {money.fmt(coins)}" if coins else ""))
-        for item in found:
-            if item.rarity == "legendary":
-                console.legendary_reveal(item)
-            else:
-                console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
         if levels:
             console.note(f"LEVEL UP! You are now level {c.level}. {c.unspent_points} points to spend - #allocate")
             self.ws.ranks_in_reach(c.level - levels)                          # (f397) a new rank of spells, when one comes within reach
@@ -1373,10 +1374,92 @@ class CombatScene:
             console.note(f"The fallen can be skinned or butchered for {'their' if skinnable > 1 else 'its'} hide and meat - "
                          "say so if you want to.")
 
-    def aftermath_now(self, dead: list, noticed: list, lying: list, skinnable: int, fallen: str, place: str = "", when: str = "") -> None:
+    @staticmethod
+    def name_of(i) -> str:
+        return items.display_name(i) if i.rarity == "legendary" else inventory.label(i)
+
+    def final_name(self, item, copies: dict):
+        """(f502) A find's name as the save holds it: the pack's copy (engine/inventory.py add gives the copy a uid of its own) once the
+        naming has committed, the engine's name when it rolled back; a find left lying here, from the ground."""
+        held = {p.uid: p for p in self.ws.pack}
+        for uid in copies.get(item.uid, []):
+            if uid in held:
+                return self.name_of(held[uid])
+        for g in self.ws.store.load_place(self.ws.player.location).ground:
+            if (g.get("item") or {}).get("uid") == item.uid:
+                return self.name_of(Item.model_validate(g["item"]))
+        return self.name_of(item)
+
+    def name_finds(self, to_name: list, found: list, copies: dict, originals: dict) -> None:
+        """(f502) The naming operation, after the win commits: every find was committed under the engine's own name (fallback_name,
+        plain_codex); here the model names the rare and better pieces and the codices (the five naming tasks are asked outside the
+        operation, data/rules/budget.yaml asked_outside, so it runs again with each answer served), the taken list and the turn's record
+        follow the name the item bears, and the Found lines are this operation's, shown at its commit, before the aftermath. A naming
+        that fails leaves the engine's name; one that crashes rolls back and leaves it too. Every attempt starts from the engine's names
+        (`originals`), whatever an earlier attempt left on the objects, so the attempts ask in the same words."""
+        ws, store = self.ws, self.ws.store
+        renamed = {}
+        for item, source, story in to_name:
+            fresh = Item.model_validate(originals[item.uid])
+            for k in Item.model_fields:
+                setattr(item, k, getattr(fresh, k))
+            if item.rarity == "legendary":
+                store.drop_legendary_name(item.name)                     # the engine's name let go while the model is asked: TAKEN NAMES
+        for item, source, story in to_name:                               # is the save's other legendaries, as it read before this feature
+            old = item.name
+            try:
+                if story == "codex":
+                    ws.name_codex(item, source)
+                elif accessories.is_accessory(item) and (item.trait or item.relic):
+                    self.ask_accessory_name(item, source, story)          # (adds the name it gives to the taken list)
+                else:
+                    self.ask_name(item, source)
+            except LLMError:
+                if item.rarity == "legendary":
+                    store.add_legendary_name(item.name)                   # the engine's name stands, and stays taken
+                continue
+            if item.name != old:
+                renamed[item.uid] = (old, item)
+                for held in ws.pack:                                      # the pack's own copies of the find take the name
+                    if held.uid in copies.get(item.uid, []):
+                        held.name, held.title, held.description, held.relic = item.name, item.title, item.description, item.relic
+                        if getattr(item, "spell", None):
+                            held.spell = item.spell
+        if renamed:
+            for r in ledger.ROWS:                                         # the turn's record follows the name
+                hit = renamed.get(r.get("item"))
+                if hit is not None and r.get("kind") == "gained":
+                    r["say"] = f"{inventory.label(hit[1])} is in the player's pack now."
+            state = store.load_place(ws.player.location)
+            changed = False
+            for g in state.ground:                                        # a find left lying here, named all the same
+                hit = renamed.get((g.get("item") or {}).get("uid"))
+                if hit is not None:
+                    g["item"] = hit[1].model_dump()
+                    changed = True
+            for body in state.bodies:                                     # the body it was carried off
+                for old, item in renamed.values():
+                    if body.get("carried") == inventory.label(item.model_copy(update={"name": old})):
+                        body["carried"] = inventory.label(item)
+                        changed = True
+            if changed:
+                store.save_place(state)
+        for item in found:
+            if item.rarity == "legendary":
+                console.legendary_reveal(item)
+            else:
+                console.ledger(f"Found: {item.name} ({item.rarity}) - {items.summary(item)}")
+
+    def aftermath_now(self, dead: list, kept: list, left: list, skinnable: int, fallen: str, place: str = "", when: str = "",
+                      coins: int = 0, copies: dict | None = None) -> None:
         """(f464) The passage after a fight won, written from the facts the round committed, as an operation of its own: the win stands
-        whatever becomes of its telling (victory_stood in its place). `place` and `when` are the win's, captured when it was marked."""
+        whatever becomes of its telling (victory_stood in its place). `place` and `when` are the win's, captured when it was marked.
+        (f502) `kept` and `left` are the finds, named here as the save holds them once the naming operation has run (final_name)."""
         from scenes import world_prompts as wp
+        copies = copies or {}
+        noticed = [self.final_name(i, copies) for i in kept] + (["a few coins"] if coins else [])
+        noticed = [f"{x} (now theirs: show them taking it up)" for x in noticed]      # (f384) taken, not left lying for a 'pick up' to miss
+        lying = [self.final_name(i, copies) for i in left]
         end_habits = self.ws.habits_due("fight_end")             # (f412) the companions' habits as it ends, folded into this passage
         aftermath = fresh(
             "combat_aftermath", cp.AFTERMATH_SYSTEM,
