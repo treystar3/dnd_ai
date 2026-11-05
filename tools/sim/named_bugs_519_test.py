@@ -91,6 +91,10 @@ except (TypeError, ValueError):
     old_raised = True
 check("...where dict() over them, what the summary did before, raises (and was swallowed)", old_raised)
 check("...and the live summary uses the reader", "model_calls(getattr(gateway, \"OUTCOMES\"" in (ROOT / "tools/event_eval.py").read_text(encoding="utf-8"))
+from llm import gateway
+real = event_eval.model_calls(gateway.OUTCOMES)
+check("...and reads the gateway's own outcomes as written: the canon checks of section 1, as the session's tally counts them",
+      real.get("canon_check") == gateway.TALLY.get("canon_check") and real["canon_check"]["calls"] >= 2, (real.get("canon_check"), gateway.TALLY.get("canon_check")))
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

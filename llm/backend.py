@@ -162,11 +162,14 @@ def title(req: ChatRequest) -> str:
 # ------------------------------------------------------------------ the Ollama-shaped source (until f528)
 
 def ollama_kwargs(req: ChatRequest) -> dict:
-    """Exactly the arguments the gateway sent the Ollama client before f515, in the same order (llm/gateway.py _generate)."""
+    """Exactly the arguments the gateway sent the Ollama client before f515, in the same order (llm/gateway.py _generate). (f533) A task
+    chosen to think (config.THINK_TASKS) asks for it, with THINK_ROOM more tokens to think in; every other call as THINK says."""
     from llm import gateway
     s = req.sampling
-    return dict(model=config.MODEL, think=config.THINK, messages=req.messages, format=req.schema.model_json_schema(),
-                options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens, **gateway.threads(),
+    think = config.THINK if getattr(s, "think", None) is None else bool(s.think)
+    room = getattr(config, "THINK_ROOM", 0) if getattr(s, "think", None) else 0
+    return dict(model=config.MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
+                options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **gateway.threads(),
                          **s.explicit},
                 keep_alive=config.KEEP_ALIVE)
 

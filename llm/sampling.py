@@ -34,9 +34,11 @@ def shifted(task: str, base: float, top: float, tuned: dict) -> tuple[float, flo
 
 @dataclass(frozen=True)
 class Sampling:
-    """One try's sampling: its temperature and the task's own explicit values (exactly today's options, apart from the machine's)."""
+    """One try's sampling: its temperature and the task's own explicit values (exactly today's options, apart from the machine's).
+    (f533) think: True when this task's calls think (config.THINK_TASKS); None, as config.THINK says."""
     temperature: float
     explicit: dict = field(default_factory=dict)
+    think: bool | None = None
 
     def resolved(self) -> dict:
         """Every sampler value, BASE under the task's own: what llama-server is sent (f521), so none of its own defaults apply."""
@@ -49,9 +51,11 @@ class Plan:
     base: float
     ceiling: float
     explicit: dict = field(default_factory=dict)
+    think: bool | None = None
 
     def at(self, attempt: int) -> Sampling:
-        return Sampling(temperature=min(self.ceiling, self.base + RETRY_TEMPERATURE_STEP * attempt), explicit=dict(self.explicit))
+        return Sampling(temperature=min(self.ceiling, self.base + RETRY_TEMPERATURE_STEP * attempt), explicit=dict(self.explicit),
+                        think=self.think)
 
 
 def resolve(task: str, temperature: float) -> Plan:
@@ -60,4 +64,5 @@ def resolve(task: str, temperature: float) -> Plan:
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in table else 1.2      # a retry warms a tuned task only a little
     base, top, tuned = shifted(task, base, top, tuned)
-    return Plan(task=task, base=base, ceiling=top, explicit=tuned)
+    think = True if task in getattr(config, "THINK_TASKS", ()) else None          # (f533) only the tasks chosen to think
+    return Plan(task=task, base=base, ceiling=top, explicit=tuned, think=think)

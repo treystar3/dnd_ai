@@ -7,7 +7,8 @@ was read from any thread, so that call was counted as waiting inside the turn's 
 turn's operation (the recorder's and the audit's op, the ledger's stamp). Now a call on another thread sees neither.
 
 The test runs one asked operation twice, in two fresh campaigns of the same seed: once alone, once with a background call made in the
-middle of it (and made again when the operation runs again, as the body does). Both must commit the same answers and the same state.
+middle of its first attempt (once, as a background job is made: the operation's run again does not repeat it, so before f520 the run
+again found the other thread's answer where its own call was, a Drift). Both must commit the same answers and the same state.
 
 Run: python tools/sim/thread_owned_520_test.py"""
 
@@ -45,7 +46,7 @@ def run(with_thread: bool) -> dict:
     g = simlib.campaign(f"thread_owned_520_{'with' if with_thread else 'alone'}", cls="warrior", seed=20, location="parth")
     ws = g.scene
     ws.enter("parth")
-    servings, seen = [], {"bg": [], "bg_errors": [], "bg_op": [], "bg_serving": [], "turn_serving": [], "bodies": 0}
+    servings, seen = [], {"bg": [], "bg_errors": [], "bg_op": [], "bg_serving": [], "turn_serving": [], "turn_op": [], "bodies": 0}
 
     def keep(sv):
         if sv is not None and sv not in servings:
@@ -62,8 +63,9 @@ def run(with_thread: bool) -> dict:
 
     def body(op):
         seen["bodies"] += 1
+        seen["turn_op"].append((operation.current() is op, recording._operation_id() == op.id))   # the turn's own, on its thread
         gateway.generate("interpret_action", "Read the line.", "I look around.", Read, retries=0)       # made inside, kept on the serving
-        if with_thread:
+        if with_thread and seen["bodies"] == 1:          # once, as a background job does: the operation's run again does not repeat it
             t = threading.Thread(target=background)
             t.start()
             t.join(10)
@@ -95,7 +97,7 @@ check("alone, the asked operation commits after running again for its call asked
       and alone["error"] is None and alone["bodies"] == 2, alone)
 check("with a call made on another thread in the middle of it, the operation still commits, with no Drift", with_bg["state"] == "committed"
       and with_bg["error"] is None and with_bg["bodies"] == alone["bodies"], {k: with_bg[k] for k in ("state", "error", "bodies")})
-check("...the other thread's call is made, and answered, apart from it", len(with_bg["bg"]) == with_bg["bodies"] and with_bg["bg_errors"] == [],
+check("...the other thread's call is made, and answered, apart from it", len(with_bg["bg"]) == 1 and with_bg["bg_errors"] == [],
       (len(with_bg["bg"]), with_bg["bg_errors"]))
 check("...it never enters the turn's serving: the same answers, in the same order, as the operation alone",
       with_bg["answers"] == alone["answers"] and all("populate_place" not in str(a) for a in with_bg["answers"]),
@@ -108,8 +110,10 @@ check("...and the other thread sees neither the serving nor the open operation (
 check("...nor is it counted as waiting inside the turn's transaction", with_bg["legacy_added"] == alone["legacy_added"]
       and "populate_place" not in with_bg["legacy_added"], (with_bg["legacy_added"], alone["legacy_added"]))
 check("...and the commit leaves the same state as the operation alone", with_bg["digest"] == alone["digest"], (with_bg["digest"], alone["digest"]))
-check("the open operation is still the turn's own on its thread (a body reads it as before)", alone["state"] == "committed"
-      and simlib.residue() == {}, simlib.residue())
+check("the open operation is still the turn's own on its thread: the body reads it, the recorder files under it, a call made inside "
+      "is counted", all(run_["turn_op"] and all(a and b for a, b in run_["turn_op"]) for run_ in (alone, with_bg))
+      and alone["legacy_added"] == ["interpret_action"], (alone["turn_op"], with_bg["turn_op"], alone["legacy_added"]))
+check("...and both sessions close clean", simlib.residue() == {}, simlib.residue())
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
