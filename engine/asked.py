@@ -14,6 +14,7 @@ thread), and the operation stops as a fault (Drift) with no second call: the lin
 from __future__ import annotations
 
 import hashlib
+import threading
 from pathlib import Path
 
 import yaml
@@ -59,16 +60,24 @@ class _Serving:
         self.at = 0
 
 
-_SERVING: _Serving | None = None
+_LOCAL = threading.local()      # (f520) the serving belongs to the thread that opened the operation: a call made on another thread at
+                                # the same moment (the people written behind the scenes, npc/backfill.py) neither enters it nor blanks it
+
+
+def _here() -> _Serving | None:
+    return getattr(_LOCAL, "serving", None)
+
+
+def _put(s: _Serving | None) -> None:
+    _LOCAL.serving = s
 
 
 def serving() -> _Serving | None:
-    return _SERVING
+    return _here()
 
 
 def begin(s: _Serving | None) -> None:
-    global _SERVING
-    _SERVING = s
+    _put(s)
     if s is not None:
         s.at = 0
 
@@ -85,8 +94,7 @@ def call(task: str, k: str, ask):
     """For the gateway, inside a restartable operation: the answer this point was given (or its failure, raised again). Reached for the
     first time, a task asked outside raises NeedAnswer (the executor makes `ask()` with no operation open); any other task is made here,
     inside, as it always was, and kept, so running the operation again never asks the model twice for one call."""
-    global _SERVING
-    s = _SERVING
+    s = _here()
     if s.at < len(s.answers):
         want, result, error = s.answers[s.at]
         if want != k:
@@ -98,13 +106,13 @@ def call(task: str, k: str, ask):
     if task in tasks():
         raise NeedAnswer(k, ask)
     from core.interrupts import Interrupt
-    _SERVING = None                                      # made inside, as before: the call itself is no attempt's to serve
+    _put(None)                                           # made inside, as before: the call itself is no attempt's to serve
     try:
         result, error = ask(), None
     except BaseException as e:
         result, error = None, e
     finally:
-        _SERVING = s
+        _put(s)
     if isinstance(error, (NeedAnswer, Drift, Interrupt)) or not isinstance(error, (Exception, type(None))):
         raise error                                      # an Interrupt and the executor's own signals pass straight through
     s.answers.append((k, result, error))
@@ -116,7 +124,7 @@ def call(task: str, k: str, ask):
 
 def wanted(task: str) -> bool:
     """Whether this call, now, goes through the operation's answers: any task, inside a restartable operation."""
-    return _SERVING is not None
+    return _here() is not None                       # (f520) on this thread: another thread's call is never this operation's
 
 
 def compute(key: str, fn):
@@ -126,7 +134,7 @@ def compute(key: str, fn):
     computes nothing twice; a key other than the one kept at this point is a Drift (what the operation read moved). Outside any serving
     it runs plainly. The value is deep-copied out, so a caller cannot change what is kept."""
     import copy
-    s = _SERVING
+    s = _here()
     if s is None:
         return fn()
     if s.at < len(s.answers):

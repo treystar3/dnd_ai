@@ -69,7 +69,8 @@ def commit() -> str:
 
 
 def _operation_id() -> str:
-    """(f471) The operation a call is made inside, if any: the one place it is read (f520 makes it the calling thread's)."""
+    """(f471) The operation a call is made inside, if any: the one place it is read. (f520) The calling thread's own (operation.current):
+    a call made on another thread while the turn's operation is open is filed under none."""
     from engine import operation
     op = operation.current()
     return op.id if op is not None else ""
