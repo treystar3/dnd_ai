@@ -244,26 +244,31 @@ class Bridge:
         """(f423) The waiting indicator's words for the wait that follows."""
         self.busy_label = message
 
-    def install(self) -> None:
-        from llm import gateway
-        self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
-                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "busy_text": console.busy_text, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH, "chat": gateway._client.chat}
-        real_chat = gateway._client.chat
-
-        def chat(*a, **kw):
+    def busy_layer(self, op, request, call):
+        """(f517) The waiting indicator as a layer of the model interface (llm/backend.py, rank BUSY): lit while a chat, or the model's
+        warm-up at the home page, is on its way in the foreground lane, as it was when it patched the client's chat. An embedding never
+        lit it and does not now; a call in the background lane (f523 names the lanes: the people written behind the scenes, creation's
+        passives) does not light it, so it never shows while the player is only reading."""
+        from llm import backend
+        if op == "embed" or backend.current_lane() != "foreground":
+            return call(request)
+        with self.lock:
+            self.depth += 1
+            if self.depth == 1:
+                self.busy(True)
+        try:
+            return call(request)
+        finally:
             with self.lock:
-                self.depth += 1
-                if self.depth == 1:
-                    self.busy(True)
-            try:
-                return real_chat(*a, **kw)
-            finally:
-                with self.lock:
-                    self.depth -= 1
-                    if self.depth == 0:
-                        self.busy(False)
+                self.depth -= 1
+                if self.depth == 0:
+                    self.busy(False)
 
-        gateway._client.chat = chat
+    def install(self) -> None:
+        from llm import backend
+        self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
+                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "busy_text": console.busy_text, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH,
+                      "unwrap": backend.wrap(self.busy_layer, rank=backend.BUSY)}         # (f517) a layer, no longer a patch on the client
         sys.stdout = _Out(self)
         console.ask, console.scope, console.status_block, console.kind = self.ask, self.scope, self.status_block, self.kind
         console.busy_text = self.busy_text
@@ -275,7 +280,6 @@ class Bridge:
         console.WIDTH = WRAP_WIDTH      # the page wraps text to its own width, so the game must not wrap it first
 
     def uninstall(self) -> None:
-        from llm import gateway
         s = self.saved
         if not s:
             return
@@ -289,5 +293,5 @@ class Bridge:
         console.creation, console.creation_done = s["creation"], s["creation_done"]
         console.combat_state, console.damage_tags = s["combat_state"], s["damage_tags"]
         console.WIDTH = s["width"]
-        gateway._client.chat = s["chat"]
+        s["unwrap"]()                   # (f517) the busy light's layer, and only it, off the interface
         self.saved = {}

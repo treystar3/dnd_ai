@@ -128,36 +128,35 @@ class Run:
         self.transcript.write(f"_{text.strip()}_\n\n")
 
     # ---- the model client: every call counted against the turn it served
-    def install_client(self) -> None:
-        from llm import gateway as gw
-        client = gw._client
-        real_chat, real_embed = client.chat, getattr(client, "embed", None)
+    def install_client(self):
+        """(f517) The night's counter, a layer of the model interface (llm/backend.py, rank COUNTER, inside the recorder as when both
+        patched the client): every chat and embed the game makes, counted against the turn it served. `main` is still the main thread,
+        where the harness plays the game (R2): the people written behind the scenes run on their own threads. The model's warm-up at
+        the home page is not the game's and is not counted. Returns the handle that takes it off."""
+        from llm import backend
         main = threading.main_thread()
 
-        def chat(**k):
+        def layer(op, request, call):
+            if op not in ("chat", "embed"):
+                return call(request)
             t0 = time.perf_counter()
             ok = True
             try:
-                return real_chat(**k)
+                return call(request)
             except Exception:
                 ok = False
                 raise
             finally:
-                msgs = k.get("messages") or []
-                self.calls.append({"kind": "chat", "schema": (k.get("format") or {}).get("title", "?"), "seconds": time.perf_counter() - t0,
-                                   "retry": len(msgs) > 2, "ok": ok, "main": threading.current_thread() is main})
+                if op == "chat":
+                    self.calls.append({"kind": "chat", "schema": request.schema.model_json_schema().get("title", "?"),
+                                       "seconds": time.perf_counter() - t0, "retry": len(request.messages or []) > 2, "ok": ok,
+                                       "main": threading.current_thread() is main})
+                else:
+                    self.calls.append({"kind": "embed", "schema": "", "seconds": time.perf_counter() - t0, "retry": False, "ok": True,
+                                       "main": threading.current_thread() is main, "texts": len(request or [])})
 
-        def embed(**k):
-            t0 = time.perf_counter()
-            try:
-                return real_embed(**k)
-            finally:
-                self.calls.append({"kind": "embed", "schema": "", "seconds": time.perf_counter() - t0, "retry": False, "ok": True,
-                                   "main": threading.current_thread() is main, "texts": len(k.get("input") or [])})
-
-        client.chat = chat
-        if real_embed is not None:
-            client.embed = embed
+        self.unwrap = backend.wrap(layer, rank=backend.COUNTER)
+        return self.unwrap
 
     # ---- the prompt: the bot answers; the harness times the turn around it
     def ask(self, main: bool = False, menu: bool = False) -> str:
@@ -617,7 +616,7 @@ def main() -> None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    if args.record:                                                  # (f442) after the run's own hooks, so they are recorded as installed
+    if args.record:                                                  # (f442) after the run's own setup; (f517) the layers nest by rank, the recorder outermost
         store.save_player(ws.player)                                 # what the run set up in memory (the party, Maren left out) opens the recording
         session.record(apart=True, folder=Path(out) / "recording")   # the bot's reads never change the save; closed first when the session closes
     print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, playing as {persona}, starting as {args.start} ({point.get('text', '')}; "

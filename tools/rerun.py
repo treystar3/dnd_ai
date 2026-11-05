@@ -47,12 +47,38 @@ class Parted(Interrupt):
     """The replay has parted from the recording."""
 
 
+class Unreplayable(ValueError):
+    """(f517, R5) A recording a replay cannot serve faithfully: two recorded calls were on their way at once (the replay serves them one
+    after another, so which answer went to which call is not known), or its calls are out of their order."""
+
+
+def refusal(meta: dict, calls: list) -> str:
+    """(f517, R5) Why a recording cannot be replayed, or '' when it can: a call marked as overlapping another, meta's overlapped count
+    above 0 (a recording made before f517 has none: 0), or the calls' numbers not rising in the file's order. A gap is allowed (a
+    cancelled call writes no row)."""
+    flagged = [c.get("i") for c in calls if c.get("overlap")]
+    if flagged:
+        return f"{len(flagged)} recorded call(s) overlapped another (calls {flagged[:5]}); a replay serves calls one after another"
+    if int(meta.get("overlapped") or 0) > 0:
+        return f"meta.json counts {meta['overlapped']} overlapping call(s); a replay serves calls one after another"
+    numbers = [c.get("i") for c in calls]
+    if all(isinstance(n, int) for n in numbers):
+        bad = next((j for j in range(1, len(numbers)) if numbers[j] <= numbers[j - 1]), None)
+        if bad is not None:
+            return f"the calls are out of their order at row {bad} (call {numbers[bad]} after call {numbers[bad - 1]})"
+    return ""
+
+
 def load(folder: Path) -> dict:
+    """A recording's four files, read. (f517) Refused (Unreplayable) when its calls cannot be served one after another as recorded."""
     rows = lambda name: [json.loads(l) for l in (folder / name).read_text(encoding="utf-8").splitlines() if l.strip()]
     with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
         calls = [json.loads(l) for l in f if l.strip()]
-    return {"meta": json.loads((folder / "meta.json").read_text(encoding="utf-8")), "inputs": rows("inputs.jsonl"), "calls": calls,
-            "turns": rows("turns.jsonl")}
+    meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
+    why = refusal(meta, calls)
+    if why:
+        raise Unreplayable(f"{folder}: {why}")
+    return {"meta": meta, "inputs": rows("inputs.jsonl"), "calls": calls, "turns": rows("turns.jsonl")}
 
 
 def report_rebless(old: dict, new: dict) -> None:
@@ -424,7 +450,12 @@ def main() -> int:
             make_scripted_recording(tmp, a.golden)                        # (f476) a script's recording
         else:
             make_stub_recording(tmp, a.inputs)
-        new = load(tmp)
+        try:
+            new = load(tmp)
+        except Unreplayable as e:                                      # (f517) a re-record that cannot be replayed is never kept
+            shutil.rmtree(tmp, ignore_errors=True)
+            print(f"refused: {e}")
+            return 2
         if old:
             report_rebless(old, new)
         else:
@@ -438,7 +469,11 @@ def main() -> int:
     folder = golden(a.golden) if a.golden else Path(a.recording or "")
     if not (folder / "meta.json").exists():
         ap.error(f"no recording at {folder}")
-    out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)
+    try:
+        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)
+    except Unreplayable as e:
+        print(f"refused: {e}")
+        return 2
     if out["parted"]:
         print(f"parted at input {out['parted']['input']} of {out['of']}: {out['parted']['why']}")
         return 1

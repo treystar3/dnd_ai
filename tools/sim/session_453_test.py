@@ -53,7 +53,10 @@ job_thread = backfill.threads(a.store)[0]
 made = {"calls": 0}
 def creation_like():
     GATE.wait(15)
-    gateway._client.chat(messages=[{"role": "user", "content": "slot 1: farmer"}], format={"title": "ResidentSet", "type": "object"}, model="x")
+    from llm import backend                                # (f517) through the interface, where the recorder's layer sees the call
+    from llm.sampling import Sampling
+    from pydantic import create_model
+    backend.chat([{"role": "user", "content": "slot 1: farmer"}], create_model("ResidentSet", x=(str, "")), Sampling(0.5), 50)
     made["calls"] += 1
 own_thread = threading.Thread(target=creation_like, daemon=True)
 own_thread.start()

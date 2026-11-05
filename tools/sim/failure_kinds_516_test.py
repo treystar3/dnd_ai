@@ -9,10 +9,10 @@
 - A cancel is an Interrupt, whether a source raises it or tells it as a reply's finish: no try counted, nothing charged, no fallback, no
   refusal, no tally. Raised at a turn's understanding, inside an operation (at a call made inside it or asked outside it), in a talk
   turn, or through the game's own loop, it leaves the save as it was, shows no "not taken" line, writes nothing to logs/crash.log, keeps
-  no answer for the call, and the session closes clean.
+  no answer for the call, and the session closes clean. main.guarded closes quietly on it, the night bot does not count it as the model
+  failing, and a cancelled embed leaves embeddings on.
 - A retry refused as too big for the draft it carried still gets the relaxed retry; a deadline from a source that keeps the limit itself
-  is worded from that limit, never by reading the old client.
-  main.guarded closes quietly on it, the night bot does not count it as the model failing, and a cancelled embed leaves embeddings on.
+  is worded from that limit (the seconds the source was given), never by reading the old client.
 
 Run: python tools/sim/failure_kinds_516_test.py"""
 
@@ -181,11 +181,34 @@ check("a cancel told as a reply's finish is the same: Cancelled, nothing charged
 
 # ---- a deadline from a source that keeps the limit itself is worded from that limit, never by reading the old client
 import os
-lazy, env0 = gateway._LazyClient(), os.environ.get("MERAVIA_NO_SERVER")
+import re
+
+
+class Watched(gateway._LazyClient):
+    """The lazy client, counting every read of what it does not hold itself (the inner client's timeout among them)."""
+    def __init__(self):
+        super().__init__()
+        self.reads = []
+
+    def __getattr__(self, name):
+        if not name.startswith("__") and name not in ("_real", "_lock", "reads"):
+            self.reads.append(name)
+        return super().__getattr__(name)
+
+
+class Given(Source):
+    """Fails with a deadline, keeping the limit the gateway handed it."""
+    def chat(self, req, deadline=None):
+        self.deadline = deadline
+        return super().chat(req, deadline)
+
+
+lazy, env0 = Watched(), os.environ.get("MERAVIA_NO_SERVER")
 saved_client, gateway._client = gateway._client, lazy
 os.environ["MERAVIA_NO_SERVER"] = "1"
+given = Given("deadline")
 try:
-    r = run(Source("deadline"))
+    r = run(given)
     row = last_logged()
 finally:
     gateway._client = saved_client
@@ -193,9 +216,11 @@ finally:
         os.environ.pop("MERAVIA_NO_SERVER", None)
     else:
         os.environ["MERAVIA_NO_SERVER"] = env0
-check("a new source's deadline is one try and the gateway's own failure, worded from the turn's time left, the old client never built",
-      isinstance(r.err, LLMError) and r.tries == 1 and str(row.get("error", "")).startswith("timed out after")
-      and "what was left of the turn's time" in str(row.get("error")) and not lazy.built(), (repr(r.err), row.get("error"), lazy.built()))
+said = re.match(r"timed out after (\d+)s \(what was left of the turn's time\)", str(row.get("error", "")))
+check("a new source's deadline is one try and the gateway's own failure, worded from the seconds the source was given",
+      isinstance(r.err, LLMError) and r.tries == 1 and said is not None and given.deadline is not None
+      and int(said.group(1)) == round(given.deadline), (repr(r.err), row.get("error"), getattr(given, "deadline", None)))
+check("...and the old client is never read (nothing built, nothing raised out of the gateway)", lazy.reads == [] and not lazy.built(), lazy.reads)
 
 # ---- 3. the old client's errors, on the kinds, read as they always were
 import httpx
@@ -368,6 +393,8 @@ finally:
 check("a cancel of the townsfolk's answer in a talk turn (asked outside the line's operation) leaves as Cancelled, the save as it was",
       isinstance(got, Cancelled) and src.cancelled == 1 and statehash.digest(g3.store)["all"] == before
       and len(crashlog.SESSION) == crashes3 and operation.current() is None and asked.serving() is None, (repr(got), src.cancelled))
+check("...the turn's budget closed and no thread of the session left running before it closes", budget.CURRENT is None
+      and g3.session.threads() == [], (budget.CURRENT, g3.session.threads()))
 g3.close()
 check("...and that session closes clean too", simlib.residue() == {}, simlib.residue())
 

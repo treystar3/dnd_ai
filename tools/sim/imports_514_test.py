@@ -116,7 +116,8 @@ check("without the switch the client is not built until it is used", "BEFORE Fal
 check("...then it is the real client, built once", "TYPE Client True" in out and "SAME True" in out, out[-600:])
 check("...and the server's extra fields (the cached-prompt count) are kept", "EXTRA allow" in out, out[-600:])
 
-# ---- 5. a method wrapped in place (the recorder, the busy light, the night harness) is called, and putting it back restores it
+# ---- 5. a method wrapped in place (a test's or a recording script's stand-in; the recorder, the busy light and the night counter are
+#      layers since f517) is called, and putting it back restores it
 rc, out = child("""
 from llm import gateway
 c = gateway._client

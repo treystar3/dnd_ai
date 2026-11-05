@@ -30,14 +30,16 @@ stub = simlib.Stub("warrior", 42)
 simlib.install(stub)
 import ui.console as uc
 from engine import recording
-from llm import gateway
+from llm import backend, gateway
+from llm.sampling import Sampling
+from pydantic import create_model
 from storage.campaign import CampaignStore
 shutil.rmtree("saves/night_record_442_unit", ignore_errors=True)
 store = CampaignStore.open_or_create("night_record_442_unit")
-fmt = lambda title: {"title": title, "type": "object", "properties": {}}
+call = lambda title, messages: backend.chat(messages, create_model(title, x=(str, "")), Sampling(0.9), 50)   # (f517) as the game makes it
 def ask(*a, **k):
-    gateway._client.chat(model="m", messages=[{"role": "user", "content": "the bot's own line"}], format=fmt("PlayerLine"))
-    t = threading.Thread(target=lambda: gateway._client.chat(model="m", messages=[], format=fmt("ResidentSet")))
+    call("PlayerLine", [{"role": "user", "content": "the bot's own line"}])
+    t = threading.Thread(target=lambda: call("ResidentSet", [{"role": "user", "content": "the people here"}]))
     t.start(); t.join()
     return "I look around."
 gateway._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}")))

@@ -39,8 +39,9 @@ def keep_extra_fields() -> None:
 class _LazyClient:
     """(f514) The model client, built on its first use rather than when the gateway is imported, so the import chain (engine/budget.py,
     engine/data_check.py through scenes.world, main.py) starts nothing and imports no server client. Reading a method, asking
-    hasattr, and assigning over a method (the recorder, the window's busy light, the night harness wrap chat in place) build nothing;
-    the client is built when a call is made, or when its inner parts are read (the turn's deadline sets the inner timeout).
+    hasattr, and assigning over a method (a test's or a recording script's stand-in; since f517 the recorder, the busy light and the
+    night's counter are layers of llm/backend.py instead) build nothing; the client is built when a call is made, or when its inner parts
+    are read (the turn's deadline sets the inner timeout).
     Under MERAVIA_NO_SERVER (tools/run_suite.py sets it) nothing is ever built: a call raises ConnectionError, what a missing server
     raises, so no test can reach a real model by accident."""
 
@@ -135,9 +136,12 @@ def warm() -> None:
     """Load the model now, on a background thread, so the first real call (the character's name, the first scene) does not pay for the load.
     Same context size as every other call, or Ollama would load it twice. Quiet if Ollama is not there; the real call reports that."""
     def run():
-        try:
-            _client.chat(model=config.MODEL, think=config.THINK, messages=[{"role": "user", "content": "Reply with one word: ready."}],
-                         options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()}, keep_alive=config.KEEP_ALIVE)
+        from llm import backend
+        try:                                        # (f517) through the layers as the model's load: the busy light shows while it warms
+            backend.loading(lambda: _client.chat(model=config.MODEL, think=config.THINK,
+                                                 messages=[{"role": "user", "content": "Reply with one word: ready."}],
+                                                 options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()},
+                                                 keep_alive=config.KEEP_ALIVE))
         except Exception:
             pass
     threading.Thread(target=run, daemon=True, name="model-warmup").start()

@@ -54,12 +54,14 @@ def ask(*a, main=False, **k):
     return text
 uc.ask = ask_before = ask
 ws = game.scene
+from llm import backend
 rec = recording.Recorder(store, folder=OUT).install()
-check("a recording session is strict while it records", streams.STRICT is True)
+check("a recording session is strict while it records, its layer on the model interface and the client untouched",
+      streams.STRICT is True and rec._layer in backend.layers() and client.chat is chat)
 ws.run()
 folder = rec.close()
-check("...and the model client and the console are put back when it closes", client.chat is chat and uc.ask is ask_before
-      and streams.STRICT is False)
+check("...and its layer taken off and the console put back when it closes", rec._layer not in backend.layers() and client.chat is chat
+      and uc.ask is ask_before and streams.STRICT is False)
 
 # ---- what was kept
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))

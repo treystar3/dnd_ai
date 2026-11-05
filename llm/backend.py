@@ -12,9 +12,16 @@ today's request to whatever llm.gateway._client holds (the real client, the suit
 recording or a night sees changes. ollama_kwargs() builds that request, and legacy_projection() is what the recorder's request_hash has
 always fingerprinted (the same request, the machine's thread count left out), so the hash covers exactly what is sent.
 
-use(source) swaps the source; wrap(layer, rank) adds a layer around every call (the recorder and the busy light become layers in f517).
-Both return an undo handle. lane(name) names the lane a thread's calls are made in (foreground unless a thread says otherwise; f523's
-worker reads it).
+use(source) swaps the source; wrap(layer, rank) adds a layer around every call. Both return an undo handle, and a handle removes exactly
+its own layer whatever order they are removed in. (f517) The recorder (engine/recording.py, rank RECORDER, outermost), the night's
+counter (tools/nightrun.py, COUNTER) and the window's busy light (ui/gui/bridge.py, BUSY) are layers: nothing patches the model client
+in place any more. A layer sees op 'chat' (a ChatRequest), 'embed' (a list of texts) or 'load' (the model's warm-up, loading(): no
+request, no answer to keep) and passes what it does not handle straight down. lane(name) names the lane a thread's calls are made in
+(foreground unless a thread says otherwise; the busy light counts the foreground's alone, and f523 declares the background lanes).
+
+(f517) What the recorder writes is rebuilt from the neutral request (ollama_kwargs, embed_kwargs) and, for the old client's own answer
+fields (its done_reason and raw token counts, which Reply.usage rounds), from Reply.legacy, which only OllamaShape fills: so a row
+recorded through the layer is byte for byte the row the client patch wrote.
 
 (f516) A source fails one try by raising llm.errors.Failure of a kind (loading, too_big, invalid, server, unreachable, deadline,
 cancelled); the gateway decides what each kind does. failure_of() is the one mapping from the old client's errors to those kinds, so
@@ -39,6 +46,16 @@ class Reply:
     text: str
     finish: str | None = "stop"
     usage: dict | None = None
+    legacy: dict | None = None          # (f517) the old client's own answer fields, as the recorder writes them: {done, tokens}
+
+
+TOKEN_FIELDS = ("prompt_eval_count", "eval_count", "prompt_eval_duration", "eval_duration", "load_duration", "total_duration")
+
+# (f517) The ranks of the three layers, lowest outermost: the recorder sees every call whole (its seconds include the layers inside it,
+# as when it patched the client last), then the night's counter, then the busy light. A worker, if f523 ever makes it a layer rather
+# than part of the source, goes below all three (R1: nothing below the recorder decides an answer), so a foreground call it queues
+# still lights the busy light.
+RECORDER, COUNTER, BUSY = 10, 20, 30
 
 
 @dataclass
@@ -85,6 +102,25 @@ def ollama_kwargs(req: ChatRequest) -> dict:
                 keep_alive=config.KEEP_ALIVE)
 
 
+def embed_kwargs(texts: list) -> dict:
+    """(f517) Exactly the arguments the embedder sent the Ollama client before f515, in the same order (llm/embed.py vectors): what
+    OllamaShape.embed sends and what the recorder writes and hashes."""
+    from llm.gateway import threads
+    return dict(model=config.EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE, **({"options": threads()} if threads() else {}))
+
+
+def legacy_answer(response) -> dict:
+    """(f517) The old client's own answer fields, exactly as engine/recording.py read them off the response before f517: its done_reason
+    ('stop' when the response has none at all) and every raw token count it has, durations in nanoseconds, with the server's cached
+    prompt tokens when it says (llm/gateway.py cached_count)."""
+    from llm import gateway
+    tokens = {t: getattr(response, t, None) for t in TOKEN_FIELDS if getattr(response, t, None) is not None}
+    cached = gateway.cached_count(response)
+    if cached is not None:
+        tokens["cached"] = cached
+    return {"done": getattr(response, "done_reason", "stop"), "tokens": tokens}
+
+
 def legacy_projection(req: ChatRequest) -> dict:
     """What engine/recording.py request_hash fingerprints of a chat: the request as sent, the machine's thread count left out."""
     k = ollama_kwargs(req)
@@ -110,14 +146,13 @@ class OllamaShape:
             if f is None:
                 raise
             raise f from e
-        return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response))
+        return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response),
+                     legacy=legacy_answer(response))
 
     def embed(self, texts: list[str]) -> Embedding:
         from llm import embed as _embed
-        from llm.gateway import threads
         try:
-            r = _embed._client().embed(model=config.EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE,
-                                       **({"options": threads()} if threads() else {}))
+            r = _embed._client().embed(**embed_kwargs(texts))
         except Interrupt:
             raise
         except Exception as e:
@@ -169,8 +204,10 @@ def use(src):
 
 
 def wrap(layer, rank: int = 50):
-    """Add a layer around every call: layer(op, request, call) with op 'chat' or 'embed' and call(request) the rest of the way down.
-    Returns a handle that removes exactly this layer, whatever order layers are removed in."""
+    """Add a layer around every call: layer(op, request, call) with op 'chat', 'embed' or 'load' and call(request) the rest of the way
+    down. A layer re-raises what the call raises as it is (a bare raise): the gateway reads the very exception (its kind, the old
+    client's error behind it). Returns a handle that removes exactly this layer, whatever order layers are removed in. A call already
+    on its way keeps the layers it started with."""
     global _added
     with _lock:
         _added += 1
@@ -241,6 +278,12 @@ def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, dead
 def embed(texts: list[str]) -> Embedding:
     src = _source
     return _cancelled(lambda: _through("embed", list(texts), lambda t: src.embed(t)))
+
+
+def loading(run):
+    """(f517) The model's warm-up (llm/gateway.py warm), run through the layers as op 'load': the busy light shows while it loads, as it did
+    when it patched the client; the recorder and the night's counter pass it by, as a warm-up was never theirs."""
+    return _through("load", None, lambda _: run())
 
 
 def load(progress=None) -> None:
