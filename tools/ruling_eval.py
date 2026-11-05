@@ -4,6 +4,7 @@
                                            what the character can do); the cases without one need the model and are counted, not run
     python tools/ruling_eval.py --live     the real model rules on every case (needs Ollama): its sense against what a good dungeon
                                            master would say, and what it says the world needs
+    python tools/ruling_eval.py --live --cases data/replay/ruling_cases_complex.yaml     (f534) the improvised actions of several steps
 
 GOAL.md: "Investigate further into the cave" is met with more cave. "I grow wings and fly away" is not."""
 from __future__ import annotations
@@ -91,8 +92,9 @@ class Bench:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true")
+    ap.add_argument("--cases", default=str(CASES), help="(f534) another case file, e.g. data/replay/ruling_cases_complex.yaml")
     a = ap.parse_args()
-    cases = load()
+    cases = load(a.cases)
     b = Bench(live=a.live)
     right = wrong = skipped = 0
     try:

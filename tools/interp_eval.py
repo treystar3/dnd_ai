@@ -111,6 +111,7 @@ class Bench:
         from engine import mentor
         from npc.models import NPC
         ws = self.ws
+        self.store.clear_question()          # (f534) a question the last case left open (the law's, after a bribe) is not this case's
         ws.player.location = sc.get("place", "trading_square")
         self.store.meta.minutes = int(sc.get("minutes", 120))
         ws.player.guild_rank = sc.get("rank", "")

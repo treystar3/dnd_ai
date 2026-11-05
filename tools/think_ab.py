@@ -17,6 +17,10 @@ kind the game may run on:
 
     python tools/think_ab.py --recordings post_e_full.zip --server ollama=http://127.0.0.1:11434 --server llama=http://127.0.0.1:8080
     python tools/think_ab.py --recordings nightrun/ --server ollama=http://127.0.0.1:11434 --per-task 60 --evals --out think_ab/
+    (f534) python tools/think_ab.py --recordings post_e.zip --server ollama=URL --tasks ruling,road_event,pulse_cataclysm,pulse_thread \
+               --room 8192 --num-ctx 32768 --evals ruling_complex,events --out think_ab_room8192/
+      a writing task (road_event) is replayed and timed with its text kept to be read; the evaluations are chosen by name (interp,
+      ruling, ruling_complex: the improvised actions of several steps, events: the model writing campaigns and cataclysms)
 
 It writes results.jsonl (one row a call, with the first response's raw fields from each server, to learn their names), summary.json and
 summary.md (a table per server, task and setting). It sends nothing anywhere but the servers named."""
@@ -43,6 +47,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 TASKS = ("interpret_action", "ruling", "audit_meaning", "audit_compare", "canon_check", "combat_interpret")
+WRITING = ("road_event",)                      # (f534) writing tasks: replayed and timed, their text kept to be read; nothing to agree with
+EVENT_TASKS = ("pulse_cataclysm", "pulse_thread", "event_judge", "thread_telling")   # what the events evaluation asks the model for
+KNOWN = TASKS + WRITING + EVENT_TASKS
 DECISION = {                                   # what each answer decides, compared with what the night decided (None: free text only)
     "ActionPlan": lambda d: [a.get("kind") for a in d.get("actions", [])],
     "Ruling": lambda d: d.get("sense"),
@@ -51,6 +58,7 @@ DECISION = {                                   # what each answer decides, compa
                               + [(d.get("buff_for") or "").replace("self", "")],          # '' and 'self' are both the player
     "CanonCheck": lambda d: d.get("verdict"),
     "AuditMeaning": None,
+    "RoadEvent": None,
 }
 SAMPLER_KEYS = ("temperature", "top_k", "top_p", "min_p", "typical_p", "repeat_penalty", "repeat_last_n", "presence_penalty",
                 "frequency_penalty")
@@ -138,16 +146,31 @@ def schema_of(title: str):
 
 # ---------- the two servers
 
+NUM_CTX: int | None = None          # (f534) --num-ctx: the context every replayed call is given, in place of the night's
+
+
+def room_for(row: dict, opts: dict, room: int) -> int:
+    """(f534) The room a thinking call gets: --room, but no more than its context holds beside its prompt (the server's own count of
+    it, as the night recorded it, else three characters a token) and its answer's ceiling, as the game's llm/backend.py think_room."""
+    toks = (row.get("tokens") or {}).get("prompt_eval_count")
+    if not toks:
+        toks = sum(len(str(m.get("content") or "")) for m in ((row.get("request") or {}).get("messages") or [])) // 3
+    fits = int(opts.get("num_ctx") or 16384) - int(toks) - int(opts.get("num_predict") or 0) - 256
+    return max(0, min(int(room), fits))
+
+
 def _options(row: dict, think: bool, room: int) -> dict:
     """The recorded options, with this machine's runner threads (DND_NUM_THREAD, as the game sends them: a pod's CPU quota needs them,
-    and the night's count was the night's machine's) and, thinking, the room."""
+    and the night's count was the night's machine's), the context asked for (--num-ctx) and, thinking, the room that fits."""
     import config
     opts = {k: v for k, v in ((row.get("request") or {}).get("options") or {}).items() if k != "num_thread"}
     n = int(getattr(config, "NUM_THREAD", 0) or 0)
     if n:
         opts["num_thread"] = n
+    if NUM_CTX:
+        opts["num_ctx"] = int(NUM_CTX)
     if think:
-        opts["num_predict"] = int(opts.get("num_predict") or 0) + room
+        opts["num_predict"] = int(opts.get("num_predict") or 0) + room_for(row, opts, room)
     return opts
 
 
@@ -364,6 +387,9 @@ def measure(chosen: dict[str, list[dict]], servers: list[tuple[str, str]], think
                            "finish": got.get("finish"), "cut": got.get("finish") == "length", "prompt_tokens": got.get("prompt_tokens"),
                            "answer_tokens": got.get("answer_tokens"), "server_seconds": got.get("server_seconds"),
                            "thinking_chars": len(got.get("thinking") or ""), "answer_chars": len(got.get("content") or ""),
+                           "room": room_for(row, _options(row, False, 0), room) if think else 0,          # (f534) what this call had
+                           "answer": (got.get("content") or "")[:6000],                                    # (f534) to be read
+                           "thinking_head": (got.get("thinking") or "")[:800], "thinking_tail": (got.get("thinking") or "")[-800:],
                            "card_seconds": card_seconds(got.get("prompt_tokens"), got.get("answer_tokens"), card),
                            "recorded_seconds": row.get("seconds")}
                     if n == 0:
@@ -418,7 +444,17 @@ def summarise(results: list[dict]) -> list[dict]:
 
 
 EVAL_PATTERNS = {"interp_eval": re.compile(r"(\d+)/(\d+) right"),
-                 "ruling_eval": re.compile(r"(\d+) of (\d+) right(?:; (\d+) with no ruling)?")}
+                 "ruling_eval": re.compile(r"(\d+) of (\d+) right(?:; (\d+) with no ruling)?"),
+                 "ruling_eval_complex": re.compile(r"(\d+) of (\d+) right(?:; (\d+) with no ruling)?"),
+                 "event_eval": re.compile(r"(\d+)/(\d+) right in")}
+INTERP_NO_READING = re.compile(r"the model gave no usable reading (\d+) time")
+COMPLEX = "data/replay/ruling_cases_complex.yaml"
+# (f534) The game's own evaluations, by the name --evals takes: (its name in the summary, its command after the interpreter, the tasks
+# whose thinking it measures). Each runs live against Ollama, with the rest of the game stubbed.
+EVALS = {"interp": ("interp_eval", ["tools/interp_eval.py", "--corpus", "{corpus}", "--live"], {"interpret_action"}),
+         "ruling": ("ruling_eval", ["tools/ruling_eval.py", "--live"], {"ruling"}),
+         "ruling_complex": ("ruling_eval_complex", ["tools/ruling_eval.py", "--live", "--cases", COMPLEX], {"ruling"}),
+         "events": ("event_eval", ["tools/event_eval.py", "--live"], set(EVENT_TASKS))}
 
 
 def eval_score(name: str, text: str) -> dict:
@@ -429,23 +465,30 @@ def eval_score(name: str, text: str) -> dict:
         return {"right": None, "of": None, "no_answer": None}
     last = m[-1]
     right, of = int(last[0]), int(last[1])
-    none = int(last[2]) if name == "ruling_eval" and last[2] else 0
-    return {"right": right, "of": of + none, "no_answer": none}
+    if name.startswith("ruling_eval"):
+        none = int(last[2]) if last[2] else 0
+        return {"right": right, "of": of + none, "no_answer": none}
+    if name == "interp_eval":                   # (f534) its cases with no usable reading are in its 'of' already; counted here too
+        n = INTERP_NO_READING.findall(text)
+        return {"right": right, "of": of, "no_answer": int(n[-1]) if n else 0}
+    return {"right": right, "of": of, "no_answer": None}
 
 
 def evals(ollama_url: str, tasks, thinks=(False, True), timeout: float = 7200.0, room: int | None = None,
-          corpus: str = "data/replay/interp_cases.yaml", folder: Path | None = None, done=None) -> list[dict]:
-    """The game's own evaluations, --live against Ollama, thinking off and then on for the chosen tasks (with the same room to think
-    in as the recorded calls had): how many cases each gets right. Each child's whole output is kept in folder; `done` is told after
-    each child, so the summary is rewritten as they finish."""
-    runs = [("interp_eval", [sys.executable, "tools/interp_eval.py", "--corpus", corpus, "--live"]),
-            ("ruling_eval", [sys.executable, "tools/ruling_eval.py", "--live"])]
+          corpus: str = "data/replay/interp_cases.yaml", folder: Path | None = None, done=None, which=("interp", "ruling"),
+          num_ctx: int | None = None) -> list[dict]:
+    """The game's own evaluations (`which`, names in EVALS), --live against Ollama, thinking off and then on for the chosen tasks (with
+    the same room to think in as the recorded calls had, and the context asked for): how many cases each gets right. Each child's whole
+    output is kept in folder; `done` is told after each child, so the summary is rewritten as they finish."""
+    runs = [(EVALS[w][0], [sys.executable] + [c.replace("{corpus}", corpus) for c in EVALS[w][1]]) for w in which]
     out = []
     for think in thinks:
         env = {k: v for k, v in os.environ.items() if k != "MERAVIA_NO_SERVER"}
         env.update(OLLAMA_HOST=ollama_url.rstrip("/"), DND_THINK_TASKS=",".join(tasks) if think else "")
         if room is not None:
             env["DND_THINK_ROOM"] = str(room)
+        if num_ctx:
+            env["DND_NUM_CTX"] = str(num_ctx)
         for name, cmd in runs:
             t0 = time.perf_counter()
             try:
@@ -486,8 +529,8 @@ def write_summary(folder: Path, rows: list[dict], eval_rows: list[dict], meta: d
                      f"{r['seconds_p90']} | {r['answer_tokens_mean']} | {r['thinking_chars_mean']} | {r['card_seconds_median']} | "
                      f"{r['card_seconds_p90']} |")
     if eval_rows:
-        lines += ["", f"Evaluations: interp_eval on {meta.get('corpus')}, ruling_eval on data/replay/ruling_cases.yaml; right out of "
-                  "every case (no answer counts as wrong).", "",
+        lines += ["", f"Evaluations: interp_eval on {meta.get('corpus')}, ruling_eval on data/replay/ruling_cases.yaml, ruling_eval_complex "
+                  f"on {COMPLEX}, event_eval on data/replay/event_cases.yaml; right out of every case (no answer counts as wrong).", "",
                   "| evaluation | thinking | right | of | no answer | rc | seconds |", "| --- | --- | --- | --- | --- | --- | --- |"]
         lines += [f"| {e['eval']} | {e['think']} | {e['right']} | {e['of']} | {e.get('no_answer')} | {e['rc']} | {e['seconds']} |"
                   for e in eval_rows]
@@ -511,14 +554,17 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--recordings", help="a night's zip, a recording folder, or a folder holding recordings")
     ap.add_argument("--server", action="append", default=[], metavar="KIND=URL", help="ollama=URL or llama=URL (each kind once)")
-    ap.add_argument("--tasks", default=",".join(TASKS))
+    ap.add_argument("--tasks", default=",".join(TASKS), help="from " + ", ".join(KNOWN))
     ap.add_argument("--per-task", type=int, default=40)
     ap.add_argument("--think", default="off,on", help="off, on, or off,on")
-    ap.add_argument("--room", type=int, default=1024, help="more tokens to think in, when thinking is on")
+    ap.add_argument("--room", type=int, default=8192, help="more tokens to think in, when thinking is on (no more than the context holds)")
+    ap.add_argument("--num-ctx", type=int, default=0, help="(f534) the context every call is given (default: as the night recorded it)")
     ap.add_argument("--model", default=None, help="the model's name on the servers (default: as recorded)")
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--ready-wait", type=float, default=600.0, help="seconds to wait for a server to be ready (a model loading)")
-    ap.add_argument("--evals", action="store_true", help="also run interp_eval and ruling_eval --live against the Ollama server")
+    ap.add_argument("--evals", nargs="?", const="interp,ruling", default="",
+                    help="also run the game's evaluations --live against the Ollama server: names from " + ", ".join(EVALS)
+                    + " (no value: interp,ruling)")
     ap.add_argument("--corpus", default="data/replay/interp_cases.yaml", help="interp_eval's case file for --evals")
     ap.add_argument("--eval-timeout", type=float, default=7200.0)
     ap.add_argument("--summarise", action="store_true", help="rebuild summary.json and summary.md from the results already in --out")
@@ -528,9 +574,15 @@ def main(argv=None) -> int:
     import config
     folder = Path(a.out)
     tasks = [t.strip() for t in a.tasks.split(",") if t.strip()]
-    unknown = [t for t in tasks if t not in TASKS]
+    unknown = [t for t in tasks if t not in KNOWN]
     if unknown:
-        ap.error(f"--tasks: {', '.join(unknown)} not among {', '.join(TASKS)}")
+        ap.error(f"--tasks: {', '.join(unknown)} not among {', '.join(KNOWN)}")
+    which = [w.strip() for w in a.evals.split(",") if w.strip()]
+    bad_evals = [w for w in which if w not in EVALS]
+    if bad_evals:
+        ap.error(f"--evals: {', '.join(bad_evals)} not among {', '.join(EVALS)}")
+    global NUM_CTX
+    NUM_CTX = a.num_ctx or None
     thinks = tuple(x.strip() == "on" for x in a.think.split(",") if x.strip())
     servers, kinds = [], set()
     for s in a.server:
@@ -544,7 +596,8 @@ def main(argv=None) -> int:
     from datetime import datetime, timezone
     meta = {"made": datetime.now(timezone.utc).isoformat(timespec="seconds"), "recordings": str(a.recordings), "tasks": tasks,
             "per_task": a.per_task, "room": a.room, "model": a.model or config.MODEL, "servers": [f"{k}={u}" for k, u in servers],
-            "card": profile().get("card"), "corpus": a.corpus if a.evals else None, "threads": int(getattr(config, "NUM_THREAD", 0) or 0)}
+            "card": profile().get("card"), "corpus": a.corpus if a.evals else None, "threads": int(getattr(config, "NUM_THREAD", 0) or 0),
+            "num_ctx": a.num_ctx or "as recorded", "evals": which}
     if a.summarise:
         results = [json.loads(l) for l in (folder / "results.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
         old = json.loads((folder / "summary.json").read_text(encoding="utf-8")) if (folder / "summary.json").exists() else {}
@@ -564,8 +617,9 @@ def main(argv=None) -> int:
         if not (ROOT / a.corpus).exists() and not Path(a.corpus).exists():
             ap.error(f"--corpus {a.corpus} does not exist (tools/interp_corpus.py builds one from a night's run folders)")
         a.corpus = str(Path(a.corpus).resolve()) if Path(a.corpus).exists() else str(ROOT / a.corpus)
-        if not {"interpret_action", "ruling"} <= set(tasks):
-            ap.error("--evals measures interpret_action (interp_eval) and ruling (ruling_eval): name both in --tasks")
+        for w in which:
+            if not EVALS[w][2] & set(tasks):
+                ap.error(f"--evals {w} measures {', '.join(sorted(EVALS[w][2]))}: name one in --tasks")
         if a.model and a.model != config.MODEL:
             ap.error(f"--evals plays the game, which asks for {config.MODEL}; it cannot measure --model {a.model}")
     if (folder / "results.jsonl").exists() and (folder / "results.jsonl").stat().st_size and not a.force:
@@ -574,7 +628,7 @@ def main(argv=None) -> int:
     print("chosen: " + ", ".join(f"{t} {len(rs)}" for t, rs in chosen.items()))
     for w in WARNINGS:
         print("warning: " + w)
-    if not any(chosen.values()):
+    if not any(chosen.values()) and not which:
         print(f"nothing to measure: no answered first try of {', '.join(tasks)} in {a.recordings}")
         return 2
     folder.mkdir(parents=True, exist_ok=True)
@@ -600,7 +654,7 @@ def main(argv=None) -> int:
             if st != 200:
                 print(f"--evals: the Ollama server does not answer ({st}: {str(v)[:120]}); skipped")
             else:
-                evals(ollama_url, tasks, thinks, a.eval_timeout, a.room, a.corpus, folder, done=save)
+                evals(ollama_url, tasks, thinks, a.eval_timeout, a.room, a.corpus, folder, done=save, which=which, num_ctx=a.num_ctx or None)
     except KeyboardInterrupt:
         if not results and (folder / "results.jsonl").exists():
             results = [json.loads(l) for l in (folder / "results.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]

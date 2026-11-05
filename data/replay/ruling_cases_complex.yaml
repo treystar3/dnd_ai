@@ -1,0 +1,40 @@
+# (f534) IMPROVISED ACTIONS OF SEVERAL STEPS: the ruling's second test set (tools/ruling_eval.py --live --cases <this file>), written to
+# measure thinking on the hard end of "try anything" (GOALS.md pillar 2), where the first set's lines are single steps. The same shape as
+# data/replay/ruling_cases.yaml: `expect` is what a good dungeon master would say (yes: it can simply be done; cost: it makes sense at a
+# cost, a check or a risk; no: not in this world, or not for this character), `needs` the kinds of thing the world must hold for it
+# (feature, person, thing, way; listed only where the line plainly depends on one), `means` the character's capabilities where they decide.
+# ruling_eval counts a yes or a cost as a yes; a no must be a no.
+
+# ---------- several steps, each ordinary: it makes sense, at a cost ----------
+- {line: "I tie my rope round the stalagmite, lower myself into the flooded shaft and feel along the walls for a way through.", at: tidepool_caves, expect: "cost", needs: [feature]}
+- {line: "I wedge my torch in a crack in the rock, then pile stones across the trickle so the pool drains and I can see the bottom.", at: tidepool_caves, expect: "cost", needs: []}
+- {line: "I scatter the dried fish from my pack along the tideline to draw the crabs out, then wait in the shadows to grab one.", at: tidepool_caves, expect: "cost", needs: []}
+- {line: "I climb onto the rocks above the cave mouth and watch the water as the tide turns, to see what comes in with it.", at: tidepool_caves, expect: "cost", needs: [feature]}
+- {line: "I chalk an arrow on the wall at every turn so I can find my way back, and keep going deeper.", at: tidepool_caves, expect: "yes", needs: [feature]}
+- {line: "I find the hermit, share my bread with him, and ask what he knows of the wreck beyond the reef.", at: tidepool_caves, expect: "yes", needs: [person]}
+- {line: "I rub mud on my clothes to hide my scent, then creep downwind towards the deer.", at: greywood, expect: "cost", needs: []}
+- {line: "I bend a sapling down, tie a noose to it and set it across the trail as a spring snare.", at: greywood, expect: "cost", needs: []}
+- {line: "I scrape resin off the pines, smear it on a stick and light it for a torch.", at: greywood, expect: "cost", needs: []}
+- {line: "I climb the oak by the stream, cut a long branch and lay it across the water to cross dry.", at: greywood, expect: "cost", needs: [feature]}
+- {line: "I follow the crows circling over the trees, and when I find what they are feeding on I look it over.", at: greywood, expect: "yes", needs: []}
+- {line: "I buy the dock workers a round and ask, as if idly, who has been moving crates at night.", at: trading_square, expect: "cost", needs: [person]}
+- {line: "I drop a coin near the merchant's stall on purpose and watch who goes for it.", at: trading_square, expect: "yes", needs: []}
+- {line: "I climb onto the fountain and give a speech about the guild's prices to stir up the crowd.", at: trading_square, expect: "cost", needs: []}
+- {line: "I wait for the watch to change, then slip into the alley behind the warehouse.", at: trading_square, expect: "cost", needs: [feature]}
+- {line: "I pay a street child to watch the inn door and come and find me if the stranger leaves.", at: trading_square, expect: "yes", needs: [person]}
+- {line: "I soak a rag in lamp oil, wrap it round my blade and light it to keep the dogs back.", at: trading_square, expect: "cost", needs: []}
+- {line: "I throw my cloak over the guard's head, grab his keys and run before he gets it off.", at: trading_square, expect: "cost", needs: [person]}
+
+# ---------- several steps, one of them past this world: no ----------
+- {line: "I stand on a crate, tell the whole market of a dragon's hoard in the caves, and lead them all down there to share it.", at: trading_square, expect: "no"}
+- {line: "I dig a tunnel under the guild hall tonight and come up inside the vault.", at: trading_square, expect: "no"}
+- {line: "I gather driftwood, build a ship on the beach and sail out past the reef before the tide turns.", at: tidepool_caves, expect: "no"}
+- {line: "I howl until the wolf pack accepts me as their leader, then send them to hunt the bandits.", at: greywood, expect: "no"}
+- {line: "I sing to the merchant so beautifully that he weeps, and then he signs his shop over to me.", at: trading_square, expect: "no"}
+- {line: "I fill my pockets with sea water, turn it into silver with a word, and pay off my debts.", at: tidepool_caves, expect: "no"}
+
+# ---------- what the character can do decides the whole of it ----------
+- {line: "I turn into a wolf, slip between the trees and track the poachers by their scent.", at: greywood, expect: "yes", means: [shape_change]}
+- {line: "I turn into a wolf, slip between the trees and track the poachers by their scent.", at: greywood, expect: "no", means: []}
+- {line: "I fly up over the rockfall, look at what lies beyond and come back down to tell the others.", at: tidepool_caves, expect: "yes", means: [flight]}
+- {line: "I fly up over the rockfall, look at what lies beyond and come back down to tell the others.", at: tidepool_caves, expect: "no", means: []}

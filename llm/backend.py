@@ -161,13 +161,21 @@ def title(req: ChatRequest) -> str:
 
 # ------------------------------------------------------------------ the Ollama-shaped source (until f528)
 
+def think_room(messages: list, max_tokens: int) -> int:
+    """(f534) The tokens a thinking call is given to think in: THINK_ROOM, but never more than the context holds beside the prompt
+    (counted at three characters a token, more than it takes, so the estimate errs towards less room) and the answer's own ceiling."""
+    chars = sum(len(str(m.get("content") or "")) for m in messages)
+    fits = int(config.NUM_CTX) - chars // 3 - int(max_tokens) - 256
+    return max(0, min(int(getattr(config, "THINK_ROOM", 0) or 0), fits))
+
+
 def ollama_kwargs(req: ChatRequest) -> dict:
     """Exactly the arguments the gateway sent the Ollama client before f515, in the same order (llm/gateway.py _generate). (f533) A task
     chosen to think (config.THINK_TASKS) asks for it, with THINK_ROOM more tokens to think in; every other call as THINK says."""
     from llm import gateway
     s = req.sampling
     think = config.THINK if getattr(s, "think", None) is None else bool(s.think)
-    room = getattr(config, "THINK_ROOM", 0) if getattr(s, "think", None) else 0
+    room = think_room(req.messages, req.max_tokens) if getattr(s, "think", None) else 0
     return dict(model=config.MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
                 options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **gateway.threads(),
                          **s.explicit},

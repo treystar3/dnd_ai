@@ -81,7 +81,7 @@ check("off (the default), every call goes as before: no thinking, the answer's o
       all(off[t]["think"] is False and off[t]["num_predict"] == 200 for t in ("ruling", "narrate", "interpret_action"))
       and off["problems"] == [], off)
 check("named in DND_THINK_TASKS, a task's calls think, with THINK_ROOM more tokens to think in", on["ruling"]["think"] is True
-      and on["ruling"]["num_predict"] == 200 + on["room"] and on["room"] == 1024 and on["interpret_action"]["think"] is True
+      and on["ruling"]["num_predict"] == 200 + on["room"] and on["room"] == 8192 and on["interpret_action"]["think"] is True
       and on["problems"] == [], on)
 check("...while every other task's calls are as before, the arguments in the same order", on["narrate"]["think"] is False
       and on["narrate"]["num_predict"] == 200 and on["narrate"]["keys"] == off["narrate"]["keys"], on["narrate"])
@@ -236,7 +236,10 @@ o = [b for b in SEEN["ollama"][1:]]                                       # the 
 check("Ollama is asked with its think switch, the schema, the call's own options (the night's threads not replayed), and more room to think",
       all("think" in b and "format" in b and "num_thread" not in b["options"] for b in o)
       and any(b["think"] for b in o) and any(not b["think"] for b in o)
-      and all(b["options"]["num_predict"] - 1024 == next(x for x in o if x["messages"] == b["messages"] and not x["think"])["options"]["num_predict"]
+      and all(b["options"]["num_predict"] - next(r["room"] for r in results if r["server"] == "ollama" and r["think"] and r["row"] is not None)
+              >= 0 for b in o if b["think"])
+      and all(r["room"] > 0 for r in results if r["think"]) and all(r["room"] == 0 for r in results if not r["think"])
+      and all(b["options"]["num_predict"] > next(x for x in o if x["messages"] == b["messages"] and not x["think"])["options"]["num_predict"]
               for b in o if b["think"]), o[:1])
 l_ = SEEN["llama"][1:]
 check("llama-server is asked with the template's switch, the schema as its JSON grammar, and every sampler (the game's table under the call's)",

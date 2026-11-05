@@ -6,7 +6,9 @@ THINK = False
 # a chosen task's request carries the larger num_predict, and a recording's meta names the tasks and the room (engine/recording.py),
 # so its replay asks as it did (tools/rerun.py); a name no task has is refused at startup (engine/data_check.py).
 THINK_TASKS = frozenset(t.strip() for t in __import__("os").environ.get("DND_THINK_TASKS", "").split(",") if t.strip())
-THINK_ROOM = int(__import__("os").environ.get("DND_THINK_ROOM", "").strip() or 1024)       # an explicit 0 is no room
+THINK_ROOM = int(__import__("os").environ.get("DND_THINK_ROOM", "").strip() or 8192)       # an explicit 0 is no room
+# (f534) 8,192 since the first 5090 session (5 Nov), where 1,024 ran out on most of the interpreter's calls; a call is never given more
+# than its context holds beside the prompt and the answer (llm/backend.py think_room).
 # (f425) The context the model is given for each call. DND_NUM_CTX in the environment sets it for one night: a night of six runs on one
 # card reserves this much for every run at once, and no call of the f395 night went past about 10,000 tokens.
 NUM_CTX = int(__import__("os").environ.get("DND_NUM_CTX", "0") or 0) or 32768
