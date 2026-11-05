@@ -51,7 +51,7 @@ def route_live():
         if (k.get("format") or {}).get("title") in LIVE_TITLES:
             return backend.PASS
         return stub_chat(**k)
-    unroute = simlib.stand_in(chat=chat, name="event_eval live")
+    unroute = simlib.stand_in(chat=chat, name="event_eval live", below=backend.Untimed())   # (f518) under the client's own timeout
 
     def undo() -> None:
         unroute()

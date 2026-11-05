@@ -165,11 +165,14 @@ while not seen and time.time() - t0 < 3:
 check("(f518) the Ollama source's load is the same warm-up", seen and seen[0]["options"]["num_predict"] <= 8 and seen[0]["keep_alive"] == config.KEEP_ALIVE, seen[:1])
 seen.clear()
 real = simlib.below()                             # (f518) the stub answering now, taken before the spy goes in over it
-h = simlib.stand_in(chat=lambda **k: (seen.append(k), real.chat(**k))[1], name="keep-alive spy")
+ollama_spy = backend.OllamaShape(client=types.SimpleNamespace(chat=lambda **k: (seen.append(k), real.chat(**k))[1]))
+undo_spy = backend.use(ollama_spy)                # (f518) the Ollama-shaped source real play sends through, on a spy client
 w.mentor_say(W, beat="test")
-check("every real call keeps the model loaded too", seen and h.src.calls.get("MentorLines", 0) >= 1 and sum(h.src.calls.values()) == len(seen) and all(k["keep_alive"] == config.KEEP_ALIVE for k in seen), (seen[:1], h.src.calls))
-h()
-check("(f518) the spy is taken away again, the stub answering", not h.live() and backend.source().name == "stub", backend.source())
+undo_spy()
+check("every real call keeps the model loaded too (what the Ollama-shaped source sends)", seen
+      and any(k["format"].get("title") == "MentorLines" for k in seen) and all(k["keep_alive"] == config.KEEP_ALIVE for k in seen), seen[:1])
+check("(f518) the spy is taken away again, the stub answering", backend.source() is not ollama_spy and backend.source().name == "stub",
+      backend.source())
 tried = []
 def broken(**k):
     tried.append(k)
@@ -196,5 +199,15 @@ config.UNLOAD_ON_EXIT = True
 tried.clear()
 gw.unload(types.SimpleNamespace(chat=broken))
 check("a missing Ollama does not break closing", tried)
+
+# (f518) as main.py calls them, with no client: the real one, which under the suite's switch is never built and raises at once
+r0 = gw.reached()
+gw.warm()
+t0 = time.time()
+while gw.reached() == r0 and time.time() - t0 < 3:
+    time.sleep(0.02)
+gw.unload()
+check("(f518) the warm-up and the unload as main.py calls them go to the real client, quietly when there is none",
+      gw.reached() == r0 + 2 and not gw.built(), (r0, gw.reached(), gw.built()))
 
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

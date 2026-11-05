@@ -62,7 +62,8 @@ class Table:
             if live and title in ("ActionPlan", "Ruling"):
                 return backend.PASS         # (f518) the real model's: the stand-in sends it on to Ollama
             return stub_chat(**k)
-        self.unstand = simlib.stand_in(chat=chat, name="scene")     # (f518) over the stub, taken away again at close
+        self.unstand = simlib.stand_in(chat=chat, name="scene",     # (f518) over the stub, taken away again at close; the live titles
+                                       below=backend.Untimed() if live else None)   # under the client's own timeout, as before
         import config
         import ui.console as uc
         self.notes: list[str] = []

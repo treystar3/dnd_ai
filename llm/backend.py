@@ -237,6 +237,17 @@ class OllamaShape:
                 "embedder": _embed.probe() if self._given is None else False}
 
 
+class Untimed(OllamaShape):
+    """(f518) The Ollama shape under the client's own timeout, never the turn's deadline: where a developer tool's live titles go (a
+    stand-in's PASS, below=Untimed()). They ran so before f518, through a client patch the deadline never reached, and the tools do not
+    warm the model first, so a cold model's first live call would otherwise be cut by the turn's limit and read as the scene failing."""
+
+    name = "ollama-untimed"
+
+    def chat(self, req: ChatRequest, deadline=None) -> Reply:
+        return super().chat(req, None)
+
+
 class StandIn:
     """(f518) A model source for the suite, the recording scripts and the developer tools: chat(**k) and embed(**k) are the functions it
     answers with, given the old client's arguments (ollama_kwargs, embed_kwargs) and returning what the old client returned (an object

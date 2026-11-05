@@ -175,16 +175,16 @@ class EmbedClient:
         return {"embeddings": [[1.0, 0.0] for _ in k["input"]]}
 
 
-held = simlib.stand_in(embed=EmbedClient().embed)     # (f518) a stand-in source with an embedder, over the Ollama-shaped default
+undo_embed = backend.use(backend.OllamaShape(client=EmbedClient()))   # (f518) real play's embedder path, on a fake client
 vec = backend.embed(["clustering: a", "clustering: b"])
-counted = dict(held.src.calls)
-held()
-check("an embedding goes through the interface and returns the vectors", vec.vectors == [[1.0, 0.0], [1.0, 0.0]] and counted == {"": 1},
-      (vec, counted))
-check("...and taking the stand-in away puts the Ollama-shaped source back", not held.live() and backend.source() is before)
-check("...asked with today's request (the embed model, the texts as given, keep-alive)",
+undo_embed()
+check("an embedding goes through the interface and the Ollama-shaped source, and returns the vectors", vec.vectors == [[1.0, 0.0], [1.0, 0.0]]
+      and len(asked) == 1, (vec, asked))
+check("...and taking it away puts the default Ollama-shaped source back", backend.source() is before)
+check("...asked with today's request (the embed model, the texts as given, keep-alive), exactly the embedder's arguments",
       asked and asked[0]["model"] == config.EMBED_MODEL and asked[0]["input"] == ["clustering: a", "clustering: b"]
-      and asked[0]["keep_alive"] == config.KEEP_ALIVE, asked)
+      and asked[0]["keep_alive"] == config.KEEP_ALIVE and asked[0] == backend.embed_kwargs(["clustering: a", "clustering: b"])
+      and list(asked[0]) == list(backend.embed_kwargs(["clustering: a", "clustering: b"])), asked)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

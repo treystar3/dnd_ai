@@ -10,6 +10,9 @@ touches the Ollama client or the embedder's state.
 - A timed-out try is worded from the turn's limit exactly when that limit cut it, and no client is read to say so.
 - The sources are a stack: each handle takes away exactly its own. A stand-in is handed the turn's deadline only when its function
   names it, sends a PASS on below it, and has an embedder exactly when given one; the embedder's answer is the source's (R4).
+- The Ollama-shaped source, on a fake client, hands it exactly the old request; a try the turn's deadline cut on the client's own
+  timeout is worded from that limit; a developer tool's live titles (Untimed) keep the client's own timeout.
+- A replay holds the no-server switch while it serves and puts it back, takes its source away, and a faulted turn fails the command.
 - The three kept recordings, made again through the stand-in, give byte-identical rows: tools/sim/layers_517_test.py checks it.
 
 Run: python tools/sim/stand_in_518_test.py"""
@@ -272,6 +275,88 @@ back = (embed.failed(), embed.available())
 undo()
 check("...a failed embed turns embeddings off for the session, and embed.reset() turns them back on (no write of its state)",
       lost is None and off == (True, False) and back == (False, True), (lost, off, back))
+
+# ---- 6. the Ollama-shaped source real play sends through, on a fake client: the request, the deadline, the words
+sent = []
+undo = backend.use(backend.OllamaShape(client=types.SimpleNamespace(chat=lambda **k: (sent.append(k), with_deadline())[1])))
+req = backend.ChatRequest(messages=MSG, schema=Read, sampling=Sampling(0.5), max_tokens=50)
+backend.chat(MSG, Read, Sampling(0.5), 50)
+undo()
+want = backend.ollama_kwargs(req)
+check("the Ollama-shaped source hands its client exactly the old request, key for key and in order", len(sent) == 1
+      and sent[0] == want and list(sent[0]) == list(want) and list(sent[0]["options"]) == list(want["options"]), (sent[:1], want))
+
+
+class Timed:
+    """A client shaped as the real one: an inner client with its own timeout, which the turn's deadline is set on."""
+    def __init__(self, timeout=True):
+        if timeout:
+            self._client = types.SimpleNamespace(timeout=httpx.Timeout(120.0))
+        self.during = None
+
+    def chat(self, **k):
+        self.during = getattr(getattr(self, "_client", None), "timeout", None)
+        raise httpx.ReadTimeout("stalled")
+
+
+def timed_out(client, deadline, src=None):
+    undo = backend.use(src or backend.OllamaShape(client=client))
+    try:
+        backend.chat(MSG, Read, Sampling(0.5), 50, deadline=deadline)
+        return None
+    except Failure as e:
+        return e
+    finally:
+        undo()
+
+
+cut = timed_out(Timed(), 44.2)
+check("a try cut at the turn's deadline on the client's own timeout says so, and is worded from that limit", cut is not None
+      and cut.kind == "deadline" and cut.client_limit is True and gateway.failed_try(cut, 44.2)[1] == "timed out after 44s (what was left of the turn's time)",
+      (cut, getattr(cut, "client_limit", None)))
+own = timed_out(Timed(timeout=False), 44.2)
+check("...while one on a client with no timeout of its own is worded from the client's limit", own is not None and own.client_limit is False
+      and gateway.failed_try(own, 44.2)[1] == f"timed out after {config.REQUEST_TIMEOUT}s", (own, getattr(own, "client_limit", None)))
+untimed_client = Timed()
+loose = timed_out(untimed_client, 44.2, src=backend.Untimed(client=untimed_client))
+check("...and a developer tool's live titles (Untimed) run under the client's own timeout, never the turn's deadline", loose is not None
+      and loose.client_limit is False and untimed_client.during == httpx.Timeout(120.0), (untimed_client.during, loose))
+
+# ---- 7. the replayer: the no-server switch held and put back, its source taken away, a faulted turn failing the command
+CHILD2 = "\n".join([
+    "import json, os, sys",
+    "sys.path.insert(0, '.'); sys.path.insert(0, 'tools')",
+    "import rerun",
+    "from llm import backend",
+    "during = set()",
+    "out = rerun.replay(rerun.golden('stub_short'), on_call=lambda row, k: during.add(os.environ.get('MERAVIA_NO_SERVER')))",
+    "print(json.dumps({'during': sorted(str(d) for d in during), 'after': os.environ.get('MERAVIA_NO_SERVER'),",
+    "                  'source': type(backend.source()).__name__, 'matched': out['matched'], 'of': out['of'], 'crashed': out['crashed']}))",
+])
+env = {k: v for k, v in os.environ.items() if k != "MERAVIA_NO_SERVER"}
+env.update(PYTHONPATH=str(ROOT), OLLAMA_HOST="127.0.0.1:9")
+run2 = subprocess.run([sys.executable, "-c", CHILD2], cwd=ROOT, env=env, capture_output=True, text=True, timeout=600)
+try:
+    got = json.loads(run2.stdout.strip().splitlines()[-1])
+except Exception:
+    got = {"error": (run2.stdout + run2.stderr)[-600:]}
+check("a replay holds the no-server switch while it serves (so nothing reaches a live model), puts the switch back as it found it, and "
+      "takes its source away", got.get("during") == ["1"] and got.get("after") is None and got.get("source") == "OllamaShape"
+      and got.get("matched") == got.get("of") and got.get("crashed") == 0, got)
+import contextlib
+import io
+real_replay = rerun.replay
+rerun.replay = lambda folder, **k: {"matched": 41, "of": 41, "parted": None, "calls": 89, "recorded_calls": 89, "crashed": 1, "logs": "x"}
+argv, sys.argv = sys.argv, ["rerun.py", "--golden", "stub_short"]
+said = io.StringIO()
+try:
+    with contextlib.redirect_stdout(said):
+        rc = rerun.main()
+finally:
+    sys.argv = argv
+    rerun.replay = real_replay
+check("...and a turn that faulted while it replayed fails the command, though the state matched", rc == 1 and "faulted" in said.getvalue()
+      and "all 41 inputs matched" not in said.getvalue(), (rc, said.getvalue()))
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
