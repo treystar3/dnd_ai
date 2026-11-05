@@ -19,7 +19,7 @@ import threading
 from pathlib import Path
 
 import yaml
-from llm.gateway import LLMError
+from llm.errors import LLMError                     # (f514) from the module that imports no model client
 
 ROOT = Path(__file__).resolve().parent.parent
 B: dict = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))

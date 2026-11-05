@@ -28,7 +28,8 @@ from scenes.goddess import ThresholdScene
 from storage.campaign import PlayerState, SaveTooNew
 from storage import saves
 from ui import console
-from llm.gateway import LLMError, unload, warm
+from llm.errors import LLMError                     # (f514) from the module that imports no model client
+from llm.gateway import unload, warm
 from world.loader import WorldError, authored
 
 

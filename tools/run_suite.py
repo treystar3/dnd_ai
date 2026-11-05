@@ -53,7 +53,7 @@ def affected(tests: list[Path], files: list[Path]) -> list[Path]:
 
 
 def run_one(test: Path, outdir: Path, timeout: int) -> tuple[str, int, float]:
-    env = dict(os.environ, PYTHONPATH=str(ROOT))
+    env = dict(os.environ, PYTHONPATH=str(ROOT), MERAVIA_NO_SERVER="1")   # (f514) no test reaches a real model by accident
     start = time.time()
     with open(outdir / f"{test.name}.out", "w", encoding="utf-8") as fh:
         try:

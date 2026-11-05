@@ -8,26 +8,74 @@ Callers get a validated proposal object or an LLMError, never raw text.
 
 import contextlib
 import json
+import os
+import sys
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypeVar
 
-import httpx
-import ollama
 from pydantic import BaseModel, ValidationError
 
 import config
 
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
+from llm.errors import LLMError          # (f514) the class lives where importing it starts nothing; this name stays for every caller
 
-_client = ollama.Client(timeout=config.REQUEST_TIMEOUT)
-try:                                   # (f475) keep what the server reports beyond the client's own fields (a cached-prompt count)
-    ollama.ChatResponse.model_config["extra"] = "allow"
-    ollama.ChatResponse.model_rebuild(force=True)
-except Exception:
-    pass
+
+def keep_extra_fields() -> None:
+    """(f475) Keep what the server reports beyond the client's own fields (a cached-prompt count). (f514) Done when the real client is
+    built, not at import, so importing the gateway no longer imports the client's package; a test that builds the client's replies
+    itself calls this first."""
+    try:
+        import ollama
+        ollama.ChatResponse.model_config["extra"] = "allow"
+        ollama.ChatResponse.model_rebuild(force=True)
+    except Exception:
+        pass
+
+
+class _LazyClient:
+    """(f514) The model client, built on its first use rather than when the gateway is imported, so the import chain (engine/budget.py,
+    engine/data_check.py through scenes.world, main.py) starts nothing and imports no server client. Reading a method, asking
+    hasattr, and assigning over a method (the recorder, the window's busy light, the night harness wrap chat in place) build nothing;
+    the client is built when a call is made, or when its inner parts are read (the turn's deadline sets the inner timeout).
+    Under MERAVIA_NO_SERVER (tools/run_suite.py sets it) nothing is ever built: a call raises ConnectionError, what a missing server
+    raises, so no test can reach a real model by accident."""
+
+    METHODS = ("chat", "embed", "embeddings", "generate", "pull", "push", "list", "show", "ps", "create", "delete", "copy")
+
+    def __init__(self):
+        self._real = None
+        self._lock = threading.Lock()
+
+    def built(self) -> bool:
+        return self._real is not None
+
+    def real(self):
+        if self._real is None:
+            if os.environ.get("MERAVIA_NO_SERVER"):
+                raise ConnectionError("no model server here (MERAVIA_NO_SERVER is set: the test suite never reaches a real model)")
+            with self._lock:
+                if self._real is None:
+                    import ollama
+                    keep_extra_fields()
+                    self._real = ollama.Client(timeout=config.REQUEST_TIMEOUT)
+        return self._real
+
+    def __getattr__(self, name):
+        if name.startswith("__") or name in ("_real", "_lock"):
+            raise AttributeError(name)
+        if name in _LazyClient.METHODS:
+            def call(*a, **k):
+                return getattr(self.real(), name)(*a, **k)
+            call.__name__ = name
+            return call
+        return getattr(self.real(), name)
+
+
+_client = _LazyClient()
 _writes = 0
 SYSTEM_PREVIEW = 300
 RETRY_TEMPERATURE_STEP = 0.15
@@ -35,8 +83,14 @@ RETRY_TEMPERATURE_STEP = 0.15
 T = TypeVar("T", bound=BaseModel)
 
 
-class LLMError(Exception):
-    pass
+def _transport(e: BaseException) -> tuple[bool, bool]:
+    """(f514) Whether a failed try timed out, and whether it was the server's failure (a dropped connection, a server error), read
+    without importing the client's packages: if httpx or ollama is not loaded, none of their errors can exist."""
+    hx, ol = sys.modules.get("httpx"), sys.modules.get("ollama")
+    timed_out = hx is not None and isinstance(e, hx.TimeoutException)
+    server = isinstance(e, ConnectionError) or (hx is not None and isinstance(e, hx.HTTPError)) \
+        or (ol is not None and isinstance(e, ol.ResponseError))
+    return timed_out, server
 
 
 def warm() -> None:
@@ -78,6 +132,7 @@ def _deadline(seconds):
     if seconds is None or inner is None or not hasattr(inner, "timeout"):
         yield
         return
+    import httpx                                    # (f514) only here, where the real client (and so httpx) already exists
     with _DEADLINE_LOCK:
         before = inner.timeout
         inner.timeout = httpx.Timeout(float(seconds))
@@ -247,10 +302,10 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             budget.charge(task, chars)                              # (f468) a try that failed cost what it would have written
             last_error = e
             transport = True
-            timed_out = isinstance(e, httpx.TimeoutException)
+            timed_out, server = _transport(e)               # (f514) the same test, with no import of the client's packages
             what = (timeout_words(limit) if timed_out
                     else f"the model server failed: {str(e)[:200] or type(e).__name__}"
-                    if isinstance(e, (httpx.HTTPError, ollama.ResponseError, ConnectionError))
+                    if server
                     else f"the call failed: {type(e).__name__}: {str(e)[:200]}")
             _log(task, attempt, time.perf_counter() - start, messages, "", what, shape=form)
             audit.record(task, attempt, time.perf_counter() - start, messages, "", what, typed, config.MODEL)

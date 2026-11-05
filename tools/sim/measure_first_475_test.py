@@ -19,6 +19,7 @@ from engine.prompt import Prompt
 from engine import data_check, recording
 from llm import gateway, setup_check
 import latency
+gateway.keep_extra_fields()      # (f514) the client's replies keep the server's extra fields once the real client is built; this test builds its own
 import card_profile
 import lora_dataset
 
