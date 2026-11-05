@@ -99,10 +99,8 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
     want = [t for t in dict.fromkeys(texts) if t not in _cache]
     if want:
         try:
-            from llm.gateway import threads
-            r = _client().embed(model=config.EMBED_MODEL, input=["clustering: " + t for t in want], keep_alive=config.KEEP_ALIVE,
-                                **({"options": threads()} if threads() else {}))
-            got = r["embeddings"] if isinstance(r, dict) else r.embeddings
+            from llm import backend
+            got = backend.embed(["clustering: " + t for t in want]).vectors      # (f515) the game's own interface; today's request
         except Exception:
             _state["failed"] = True
             return None

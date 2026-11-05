@@ -78,7 +78,7 @@ class _LazyClient:
 _client = _LazyClient()
 _writes = 0
 SYSTEM_PREVIEW = 300
-RETRY_TEMPERATURE_STEP = 0.15
+from llm.sampling import RETRY_TEMPERATURE_STEP, shifted   # (f515) one sampling, worked out in llm/sampling.py; these names stay here
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -196,19 +196,6 @@ def threads() -> dict:
     return {"num_thread": n} if n > 0 else {}
 
 
-def shifted(task: str, base: float, top: float, tuned: dict) -> tuple[float, float, dict]:
-    """(f387) config.TEMP_ADD and REPEAT_ADD applied: warm calls warmer (their retry ceiling with them), set penalties firmer. The cold
-    calls and the night bot's own lines are untouched."""
-    add, rep = float(getattr(config, "TEMP_ADD", 0) or 0), float(getattr(config, "REPEAT_ADD", 0) or 0)
-    if task in getattr(config, "BOT_TASKS", ()):
-        return base, top, tuned
-    if add and base >= getattr(config, "WARM_FROM", 0.5):
-        base, top = min(1.5, base + add), min(1.5, top + add)
-    if rep and "repeat_penalty" in tuned:
-        tuned = dict(tuned, repeat_penalty=round(tuned["repeat_penalty"] + rep, 3))
-    return base, top, tuned
-
-
 def generate(
     task: str,
     system: str,
@@ -267,10 +254,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     last_error: Exception | None = None
     _TASK.shape = form = shape(system, typed, messages[1]["content"])      # (f475) logged with every attempt; the recorder keeps it too
 
-    tuned = dict(getattr(config, "SAMPLING", {}).get(task, {}))
-    base = tuned.pop("temperature", temperature)
-    top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2      # a retry warms a tuned task only a little
-    base, top, tuned = shifted(task, base, top, tuned)
+    from llm import backend, sampling
+    plan = sampling.resolve(task, temperature)                  # (f515) the task's sampling, its ceiling and its shifts, once
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
     transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
     from engine import budget
@@ -279,17 +264,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         start = time.perf_counter()
         chars = sum(len(str(m.get("content") or "")) for m in messages)           # (f468) what this attempt reads: a retry reads the draft too
         limit = budget.deadline()                                               # (f493) the limit this try had, for its message
-        try:
-            with _deadline(limit):                                                # (f468) what is left of the turn's minute, on the client
-                response = _client.chat(
-                    model=config.MODEL,
-                    think=config.THINK,
-                    messages=messages,
-                    format=schema.model_json_schema(),
-                    options={"temperature": min(top, base + RETRY_TEMPERATURE_STEP * attempt),
-                             "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **threads(), **tuned},
-                    keep_alive=config.KEEP_ALIVE,
-                )
+        try:                                                                      # (f515) through the game's own interface; until f528
+            reply = backend.chat(messages, schema, plan.at(attempt), max_tokens, deadline=limit)   # its source sends today's request
         except Interrupt:
             raise                                                   # (f449) stopped on purpose (a replay parted): never a failed try
         except Exception as e:
@@ -313,12 +289,12 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             if timed_out:
                 break
             continue
-        raw = (response.message.content or "").replace("\ufffd", "-")      # a broken character from the model becomes a dash
+        raw = (reply.text or "").replace("\ufffd", "-")                    # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start
-        usage = _usage(response)
+        usage = reply.usage
         budget.charge(task, chars, len(raw))                        # (f468) every attempt is charged, a rejected draft too (decision 9)
 
-        if response.done_reason == "length":
+        if reply.finish == "length":
             last_error = LLMError("cut off at the length limit")
             reason = cut_off_reason(task, schema, max_tokens)
             _log(task, attempt, elapsed, messages, raw[:2000], reason, usage, shape=form)
