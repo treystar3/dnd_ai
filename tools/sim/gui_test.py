@@ -213,9 +213,13 @@ res = []
 tt = threading.Thread(target=lambda: res.append(b3.ask(main=True)), daemon=True); tt.start(); time.sleep(0.15); b3.close(); tt.join(2)
 check("window closing unblocks a waiting game", res == ["quit"], res)
 
-srv.shutdown(); b.uninstall()
+srv.shutdown()
+other = lambda op, r, call: call(r)                 # another layer on the interface while the window closes
+undo_other = backend.wrap(other)
+b.uninstall()
 check("uninstall restores", sys.stdout is sys.__stdout__ or True)
-check("...and takes the busy light's layer, and only it, off the model interface", backend.layers() == [], backend.layers())
+check("...and takes the busy light's layer, and only it, off the model interface", backend.layers() == [other], backend.layers())
+undo_other()
 undo_source()
 
 # ---- nothing in the game may print or read the terminal by itself, or the GUI would miss it ----

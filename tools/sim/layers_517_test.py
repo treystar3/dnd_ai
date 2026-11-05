@@ -89,7 +89,7 @@ import nightrun
 import rerun
 CONSOLE = {k: getattr(console, k) for k in dir(console) if not k.startswith("__")}
 client0 = gateway._client.chat
-orders_ok, nest_ok, combos = True, True, 0
+orders_ok, nest_ok, own_ok, combos = True, True, True, 0
 for on in itertools.permutations(("recorder", "counter", "busy")):
     for off in itertools.permutations(("recorder", "counter", "busy")):
         combos += 1
@@ -100,14 +100,18 @@ for on in itertools.permutations(("recorder", "counter", "busy")):
             put[name]()
         got = backend.layers()
         nest_ok &= got == [rec._layer, got[1], bridge.busy_layer] and len(got) == 3
+        left = {"recorder": rec._layer, "counter": got[1], "busy": bridge.busy_layer}
         for name in off:
             take[name]()
+            left.pop(name)
+            own_ok &= backend.layers() == [left[n] for n in ("recorder", "counter", "busy") if n in left]   # its own, and only it
         orders_ok &= backend.layers() == [] and gateway._client.chat is client0
         for k, v in CONSOLE.items():
             setattr(console, k, v)                       # the console's own bindings are still put back by setattr (not this test's)
         sys.stdout = sys.__stdout__
 check(f"the three layers put on in every order and taken off in every order leave none, the client untouched ({combos} orders)",
       orders_ok and combos == 36)
+check("...each taking off exactly its own layer, the others left in their order", own_ok)
 check("...and while all three are on they nest by rank: the recorder outermost, then the night's counter, then the busy light", nest_ok)
 
 # ---- 2. the row form: the three kept recordings, made again in their own processes
@@ -147,7 +151,8 @@ turns = lambda p: (p / "turns.jsonl").read_text(encoding="utf-8")
 om, nm = json.loads((kept / "meta.json").read_text()), json.loads((folder / "meta.json").read_text())
 print(json.dumps({"rows": [len(old), len(new)], "differ": differ[:10], "turns": turns(kept) == turns(folder),
                   "inputs": (kept / "inputs.jsonl").read_text(encoding="utf-8") == (folder / "inputs.jsonl").read_text(encoding="utf-8"),
-                  "meta_keys": list(nm) == list(om) + ["overlapped"], "overlapped": nm.get("overlapped"),
+                  "meta_keys": [k for k in nm if k != "overlapped"] == [k for k in om if k != "overlapped"] and list(nm)[-1:] == ["overlapped"],
+                  "overlapped": nm.get("overlapped"),
                   "meta_moved": [k for k in om if om[k] != nm.get(k) and k not in ("made", "commit", "save")]}))
 '''
 env = dict(os.environ, MERAVIA_NO_SERVER="1", PYTHONHASHSEED="1")
@@ -195,14 +200,16 @@ check("an answer's raw counts are kept as the client gave them: durations in nan
       len(rs) == 1 and rs[0]["done"] is None and rs[0]["tokens"] == {"prompt_eval_count": 812, "eval_count": 40,
                                                                      "prompt_eval_duration": 123456789, "eval_duration": 9876543,
                                                                      "cached": 300} and rs[0]["answer"] == '{"x": "ok"}', rs)
-rs, _ = one_row(lambda **k: Answer())
+received = []
+rs, _ = one_row(lambda **k: (received.append(k), Answer())[1])
 check("...and an answer with no done_reason at all recorded as 'stop', with no counts", len(rs) == 1 and rs[0]["done"] == "stop"
       and rs[0]["tokens"] == {}, rs)
 check("...its row in the order it always had", list(rs[0]) == ["i", "input", "kind", "title", "req", "task", "request", "op", "need",
                                                               "seconds", "answer", "done", "tokens"], list(rs[0]))
-k = backend.ollama_kwargs(backend.ChatRequest(messages=[{"role": "user", "content": "Read"}], schema=Read, sampling=Sampling(0.5), max_tokens=50))
-check("...its request the arguments the client was sent (the format aside) and its fingerprint theirs",
-      rs[0]["request"] == json.loads(json.dumps({x: v for x, v in k.items() if x != "format"})) and rs[0]["req"] == recording.request_hash(k))
+k = received[0]
+check("...its request the arguments the client received (the format aside) and its fingerprint theirs",
+      len(received) == 1 and rs[0]["request"] == json.loads(json.dumps({x: v for x, v in k.items() if x != "format"}))
+      and rs[0]["req"] == recording.request_hash(k) and rs[0]["title"] == k["format"]["title"], (rs[0]["request"], k))
 
 
 def down(**k):
@@ -351,6 +358,29 @@ try:
 except rerun.Unreplayable as e:
     refused = str(e)
 check("...and the replayer refuses the recording, saying why", "overlapped" in refused, refused)
+import contextlib
+import io
+rec_over = rec.dir
+timed = rec_over / "timed.jsonl"
+timed.write_text('{"i": 0, "kept": true}\n', encoding="utf-8")
+
+
+def cli(*args):
+    argv, sys.argv = sys.argv, ["rerun.py", *args]
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            rc = rerun.main()
+    finally:
+        sys.argv = argv
+    return rc, out.getvalue()
+
+
+rc, said = cli(str(rec_over))
+check("...from the command line too: it says why and exits 2", rc == 2 and said.startswith("refused:") and "overlapped" in said, (rc, said))
+rc, said = cli(str(rec_over), "--time", "http://127.0.0.1:9")
+check("...and with --time it refuses before it opens anything for writing: the recording's timings are kept",
+      rc == 2 and timed.read_text(encoding="utf-8") == '{"i": 0, "kept": true}\n', (rc, said, timed.read_text(encoding="utf-8")))
 check("...as it refuses one whose calls are out of their order", "out of their order" in rerun.refusal({}, [{"i": 0}, {"i": 2}, {"i": 1}]))
 check("...while a recording made before f517 (no overlapped key, as the kept ones) or by hand ({seed: 1}) is taken",
       rerun.refusal({"seed": 1}, [{"i": 0}]) == "" and rerun.refusal({}, [{"i": 0}, {"i": 1}]) == "")
@@ -358,14 +388,58 @@ check("...while a recording made before f517 (no overlapped key, as the kept one
 gate = Gate()
 undo = backend.use(gate)
 rec = recorder().install()
-t = background()
+late = {}
+
+
+def late_call():
+    try:
+        late["reply"] = chat("Slow")
+    except BaseException as e:
+        late["error"] = e
+
+
+t = threading.Thread(target=late_call)
+t.start()
 gate.started.wait(5)
 rec.close()
 gate.go.set()
 t.join(5)
 undo()
-check("a recorder closed while a call is on its way writes nothing after it: the call ends, the file stays whole and holds no row for it",
-      not t.is_alive() and rows(rec.dir) == [] and json.loads((rec.dir / "meta.json").read_text()).get("overlapped") == 0)
+check("a recorder closed while a call is on its way writes nothing after it: the call gets its answer, the file stays whole, no row",
+      not t.is_alive() and isinstance(late.get("reply"), backend.Reply) and "error" not in late and rows(rec.dir) == []
+      and json.loads((rec.dir / "meta.json").read_text()).get("overlapped") == 0, late)
+
+# ---- 4b. through all three layers, a failed call's exception reaches the caller as the very same object
+very = {"raised": RuntimeError("the source fell over"), "failure": Failure("server", "down", legacy=("ConnectionError", "down"))}
+
+
+class Raises:
+    name = "raises"
+
+    def __init__(self, e):
+        self.e = e
+
+    def chat(self, req, deadline=None):
+        raise self.e
+
+
+same = []
+for label, e in very.items():
+    rec, bridge, run = recorder(), Bridge(), nightrun.Run(night_dir("night3"), 1, 1, live=False)
+    rec.install(); run.install_client(); bridge.install()
+    undo = backend.use(Raises(e))
+    try:
+        chat()
+        caught = None
+    except BaseException as x:
+        caught = x
+    finally:
+        undo(); bridge.uninstall(); run.unwrap(); rec.close()
+        for k, v in CONSOLE.items():
+            setattr(console, k, v)
+        sys.stdout = sys.__stdout__
+    same.append(caught is e)
+check("through the recorder, the counter and the busy light, a failed call's exception is the very one the source raised", all(same) and len(same) == 2, same)
 
 # ---- 5. the busy light
 events = []

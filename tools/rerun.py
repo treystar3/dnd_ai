@@ -446,13 +446,13 @@ def main() -> int:
         old = load(target) if (target / "meta.json").exists() else None
         tmp = target.with_name(target.name + "_new")
         shutil.rmtree(tmp, ignore_errors=True)
-        if (SCRIPTS / f"{a.golden}.py").exists():
-            make_scripted_recording(tmp, a.golden)                        # (f476) a script's recording
-        else:
-            make_stub_recording(tmp, a.inputs)
-        try:
+        try:                                                           # (f517) a re-record that cannot be replayed is never kept,
+            if (SCRIPTS / f"{a.golden}.py").exists():                  # whichever way it was made (a script's census loads it too)
+                make_scripted_recording(tmp, a.golden)                    # (f476) a script's recording
+            else:
+                make_stub_recording(tmp, a.inputs)
             new = load(tmp)
-        except Unreplayable as e:                                      # (f517) a re-record that cannot be replayed is never kept
+        except Unreplayable as e:
             shutil.rmtree(tmp, ignore_errors=True)
             print(f"refused: {e}")
             return 2
@@ -470,7 +470,8 @@ def main() -> int:
     if not (folder / "meta.json").exists():
         ap.error(f"no recording at {folder}")
     try:
-        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)
+        load(folder)                                                   # (f517) refused before anything is opened for writing:
+        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)   # --time's timed.jsonl is kept
     except Unreplayable as e:
         print(f"refused: {e}")
         return 2
