@@ -1869,8 +1869,9 @@ class Extracted(BaseModel):
 
 class CanonCheck(BaseModel):
     """A new statement against what is already true of a person: the same fact again, a contradiction, or something new; which listed fact
-    (1-based) it repeats or contradicts, 0 if none."""
-    verdict: Literal["same", "contradicts", "new"] = "new"
+    (1-based) it repeats or contradicts, 0 if none. (f519) The verdict has no default: an empty answer is no verdict, so it is refused
+    and the check, failing every try, reads the claim as unverified (engine/canon.py judge), never as new: f435's canon fails closed."""
+    verdict: Literal["same", "contradicts", "new"]
     which: int = 0
 
 

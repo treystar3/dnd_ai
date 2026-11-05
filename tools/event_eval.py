@@ -38,6 +38,18 @@ def load_cases(path=CASES) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
 
 
+def model_calls(outcomes) -> dict:
+    """(f519) The model's calls, per task, from the gateway's OUTCOMES ((task, succeeded, attempts) per call): {task: {calls, failed,
+    attempts}}. Before f519 the summary called dict() over those 3-tuples, which raised, and the error was swallowed."""
+    out: dict[str, dict[str, int]] = {}
+    for task, ok, attempts in outcomes:
+        row = out.setdefault(task, {"calls": 0, "failed": 0, "attempts": 0})
+        row["calls"] += 1
+        row["failed"] += not ok
+        row["attempts"] += int(attempts)
+    return dict(sorted(out.items()))
+
+
 def route_live():
     """The stand-in answers everything but the event's own calls, which reach the real model (as tools/interp_eval.py does for the interpreter).
     (f518) The event's titles are passed on (backend.PASS: the stand-in sends them to Ollama); returns what takes both stand-ins away."""
@@ -131,7 +143,7 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict
     if live:
         try:
             from llm import gateway
-            summary["model_calls"] = dict(getattr(gateway, "OUTCOMES", {}) or {})
+            summary["model_calls"] = model_calls(getattr(gateway, "OUTCOMES", []) or [])
         except Exception:
             pass
     if not quiet:
