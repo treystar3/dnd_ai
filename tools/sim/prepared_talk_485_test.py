@@ -10,7 +10,6 @@ import hashlib
 import json
 import shutil
 import sys
-import types
 from pathlib import Path
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
@@ -20,7 +19,6 @@ simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import config
 from engine import asked, memory, operation, presence, regard
-from llm import gateway
 from storage import statehash
 
 bad = []
@@ -28,7 +26,7 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x, file=sys.__stdout__)
     if not ok: bad.append(n)
 
-real = gateway._client
+real = simlib.below()                   # (f518) the stub answering now, which the spy calls through to
 FAIL = {"titles": set()}
 LOG, REQ = [], []
 
@@ -72,7 +70,7 @@ def talk(ws, words, target=None):
         stub.plan = None
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)       # (f518) the spy as the model's source, over the stub
 NAME = "prepared_talk_485"
 g = open_game(NAME)
 ws, store = seat(g)
@@ -100,7 +98,7 @@ rec = store.load_talk() or {}
 check("a first talk tried again opens the conversation it would have, kept in the save with its stance",
       rec.get("speaker") == tid and len(rec.get("lines") or []) == 2 and rec.get("stance", None) == (getattr(ws, "stance", "") or ""), rec)
 check("the talk's calls were all made with no operation open (the reply, the profile, the frame)",
-      all(op is None for t, op in LOG if t in ("NPCReply", "NPCProfile", "DialogueFrame")), LOG)
+      held.live() and any(t == "NPCReply" for t, _ in LOG) and all(op is None for t, op in LOG if t in ("NPCReply", "NPCProfile", "DialogueFrame")), LOG)
 check("...and none of the five is in the ratchet's residue", not (set(operation.LEGACY) & {"npc_conversation", "npc_profile", "dialogue_frame",
       "work_offer_read", "npc_parting"}), operation.LEGACY)
 check("the night's partner is the open conversation's", (store.load_talk() or {}).get("speaker") == tid)
@@ -200,7 +198,10 @@ rows = simlib.remembered(store, bid, about="Arwen")
 check("a bystander keeps a name given aloud, as heard, from the character, hearsay to them",
       [(r["kind"], r["source"]) for r in rows] == [("heard", ws.acting)] and regard.of(store.load_npc(bid), ws.acting).heard_of.get("source") == ws.acting, rows)
 
-gateway._client = real
+check("the spy was the model's source throughout, and every call it saw it answered", held.live() and LOG and sum(held.src.calls.values()) >= len(LOG),
+      (held.live(), dict(held.src.calls), len(LOG)))
+held()
+check("...and taken away, the stub answers again", not held.live() and simlib.below().chat == stub.chat)
 g.close()
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)

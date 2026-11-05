@@ -184,18 +184,6 @@ import os
 import re
 
 
-class Watched(gateway._LazyClient):
-    """The lazy client, counting every read of what it does not hold itself (the inner client's timeout among them)."""
-    def __init__(self):
-        super().__init__()
-        self.reads = []
-
-    def __getattr__(self, name):
-        if not name.startswith("__") and name not in ("_real", "_lock", "reads"):
-            self.reads.append(name)
-        return super().__getattr__(name)
-
-
 class Given(Source):
     """Fails with a deadline, keeping the limit the gateway handed it."""
     def chat(self, req, deadline=None):
@@ -203,15 +191,15 @@ class Given(Source):
         return super().chat(req, deadline)
 
 
-lazy, env0 = Watched(), os.environ.get("MERAVIA_NO_SERVER")
-saved_client, gateway._client = gateway._client, lazy
+env0 = os.environ.get("MERAVIA_NO_SERVER")
 os.environ["MERAVIA_NO_SERVER"] = "1"
 given = Given("deadline")
+reached0 = gateway.reached()                    # (f518) every try to reach the real client (a call, a read of its inner timeout) counts
 try:
     r = run(given)
     row = last_logged()
+    reached = gateway.reached() - reached0
 finally:
-    gateway._client = saved_client
     if env0 is None:
         os.environ.pop("MERAVIA_NO_SERVER", None)
     else:
@@ -220,7 +208,8 @@ said = re.match(r"timed out after (\d+)s \(what was left of the turn's time\)", 
 check("a new source's deadline is one try and the gateway's own failure, worded from the seconds the source was given",
       isinstance(r.err, LLMError) and r.tries == 1 and said is not None and given.deadline is not None
       and int(said.group(1)) == round(given.deadline), (repr(r.err), row.get("error"), getattr(given, "deadline", None)))
-check("...and the old client is never read (nothing built, nothing raised out of the gateway)", lazy.reads == [] and not lazy.built(), lazy.reads)
+check("...and the old client is never read (never reached, nothing built, nothing raised out of the gateway)", reached == 0 and not gateway.built(),
+      (reached, gateway.built()))
 
 # ---- 3. the old client's errors, on the kinds, read as they always were
 import httpx
@@ -238,37 +227,41 @@ for label, (e, kind) in cases.items():
           and f.legacy == (type(e).__name__, str(e)) and f.__cause__ is e, (f and (f.kind, f.legacy)))
 check("...and anything else is no kind at all (the gateway's 'the call failed', as before)", backend.failure_of(RuntimeError("x")) is None)
 
-real = gateway._client
-
-
-def through(exc, retries=2):
+def through(exc, how, retries=2):
+    """(f518) The old client's error raised by the client the Ollama-shaped source is given (its own path: the deadline on the client's
+    timeout, then the call), or by a stand-in's chat (the suite's path); both send through the one function (llm/backend.py _send)."""
     calls = []
 
     def chat(**k):
         calls.append(k)
         raise exc
-    gateway._client = types.SimpleNamespace(chat=chat)
+    if how == "ollama":
+        undo = backend.use(backend.OllamaShape(client=types.SimpleNamespace(chat=chat)))
+    else:
+        undo = simlib.stand_in(chat=chat, embed=None)
     try:
         gateway.generate(TASK, "Read the offer.", "Morning.", Read, retries=retries, _quiet=True)
         got = None
     except BaseException as e:
         got = e
     finally:
-        gateway._client = real
+        undo()
     return got, len(calls), last_logged().get("error")
 
 
-got, n, said = through(ConnectionError("Failed to connect to Ollama"))
-check("through the Ollama-shaped source a ConnectionError is three failed tries, logged as the server's, the client's error kept as the cause",
-      isinstance(got, LLMError) and n == 3 and said == "the model server failed: Failed to connect to Ollama"
-      and isinstance(got.__cause__, ConnectionError), (repr(got), n, said, repr(getattr(got, "__cause__", None))))
-got, n, said = through(httpx.ReadTimeout("stalled"))
-check("...a timeout one try, logged as timed out", isinstance(got, LLMError) and n == 1 and said.startswith("timed out after"), (n, said))
-got, n, said = through(RuntimeError("the client fell over"))
-check("...and an error of no kind three tries, 'the call failed' as before", isinstance(got, LLMError) and n == 3
-      and said == "the call failed: RuntimeError: the client fell over", (n, said))
-got, n, said = through(Cancelled("closing"))
-check("...and a Cancelled from the client passes straight through on the first try", isinstance(got, Cancelled) and n == 1, (repr(got), n))
+for how, where in (("ollama", "through the Ollama-shaped source"), ("stand-in", "through a stand-in")):
+    got, n, said = through(ConnectionError("Failed to connect to Ollama"), how)
+    check(f"{where} a ConnectionError is three failed tries, logged as the server's, the client's error kept as the cause",
+          isinstance(got, LLMError) and n == 3 and said == "the model server failed: Failed to connect to Ollama"
+          and isinstance(got.__cause__, ConnectionError), (repr(got), n, said, repr(getattr(got, "__cause__", None))))
+    got, n, said = through(httpx.ReadTimeout("stalled"), how)
+    check("...a timeout one try, logged as timed out", isinstance(got, LLMError) and n == 1 and said.startswith("timed out after"), (n, said))
+    got, n, said = through(RuntimeError("the client fell over"), how)
+    check("...and an error of no kind three tries, 'the call failed' as before", isinstance(got, LLMError) and n == 3
+          and said == "the call failed: RuntimeError: the client fell over", (n, said))
+    got, n, said = through(Cancelled("closing"), how)
+    check("...and a Cancelled from the client passes straight through on the first try", isinstance(got, Cancelled) and n == 1, (repr(got), n))
+check("...and the stub answers again after", isinstance(backend.source(), backend.StandIn) and backend.source().name == "stub", backend.source())
 
 # ---- 4. a cancel at a turn's understanding
 crashlog_before = Path(config.CRASH_LOG_PATH).read_text(encoding="utf-8") if Path(config.CRASH_LOG_PATH).exists() else None
@@ -284,7 +277,7 @@ class CancelAt:
     name = "cancel-at"
 
     def __init__(self, task):
-        self.task, self.inner, self.cancelled = task, backend.OllamaShape(), 0
+        self.task, self.inner, self.cancelled = task, backend.source(), 0      # (f518) the stub answering now, taken before use()
 
     def chat(self, req, deadline=None):
         if getattr(gateway._TASK, "name", "") == self.task:
@@ -433,7 +426,7 @@ for kind, counted in (("cancelled", 0), ("server", 1)):
           line == "" and bot.stats["model_failed"] - before == counted, (line, bot.stats["model_failed"] - before))
 g2.close()
 
-state0, cache0 = dict(embed._state), dict(embed._cache)
+cache0 = dict(embed._cache)
 
 
 class EmbedSource:
@@ -445,12 +438,15 @@ class EmbedSource:
     def embed(self, texts):
         raise self.exc
 
+    def facts(self):
+        return {"source": self.name, "embedder": True}      # (f518) the source says it has an embedder: that is what turns embeddings on
+
 
 for label, exc, failed, raises in (("cancelled", Failure("cancelled", "closing"), False, True),
                                    ("Cancelled itself", Cancelled("closing"), False, True),
                                    ("too big", Failure("too_big", "over the batch"), False, False),
                                    ("the server's failure", Failure("server", "down"), True, False)):
-    embed._state.update(ok=True, failed=False)
+    embed.reset()
     embed._cache.clear()
     undo = backend.use(EmbedSource(exc))
     try:
@@ -461,13 +457,12 @@ for label, exc, failed, raises in (("cancelled", Failure("cancelled", "closing")
     finally:
         undo()
     if raises:
-        check(f"an embed {label} leaves as Cancelled, and embeddings stay on", isinstance(got, Cancelled) and embed._state["failed"] is False,
-              (repr(got), embed._state))
+        check(f"an embed {label} leaves as Cancelled, and embeddings stay on", isinstance(got, Cancelled) and embed.failed() is False,
+              (repr(got), embed.failed()))
     else:
         check(f"an embed {label} is that call's fallback (None), and embeddings {'go off' if failed else 'stay on'}",
-              got is None and embed._state["failed"] is failed, (repr(got), embed._state))
-embed._state.clear()
-embed._state.update(state0)
+              got is None and embed.failed() is failed, (repr(got), embed.failed()))
+embed.reset()
 embed._cache.clear()
 embed._cache.update(cache0)
 

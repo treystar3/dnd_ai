@@ -31,7 +31,7 @@ game = simlib.campaign("hire_brief_488b", minutes=600, location="guild_house")
 ws, store = game.scene, game.store
 ws.enter("guild_house")
 SEEN = []
-real = gateway._client
+real = simlib.below()                                   # (f518) the stub's stand-in, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -40,7 +40,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 h1 = {"id": "h1", "name": "Bram Hollin", "role": "fighter", "level": 3, "permanent": True, "temper": ["blunt"], "blurb": "a scarred sellsword",
       "active": True}
 ws.player.party, ws.player.party_mode = [h1], "with"
@@ -68,7 +68,7 @@ check("the one who hired them is spoken of in the character's own pronoun", "the
 
 # ---- the town's list and the board only when the line is about them
 check("a line about the speaker's own life brings in neither the town's list nor the board",
-      "WHAT THIS TOWN HAS" not in req and "ON THE GUILD BOARD" not in req)
+      req and "WHAT THIS TOWN HAS" not in req and "ON THE GUILD BOARD" not in req)
 check("...nor does \"where are you from?\", for a townsperson either", not brief.asked("town", "And where are you from, Bram?")
       and brief.asked("town", "Where can we sleep tonight?"))
 req = say("Where can we sleep tonight?")
@@ -81,7 +81,7 @@ req = say("What do you make of the rain?")
 del stub.a_CompanionReply
 rows = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines()[before:]] if log.exists() else []
 sent_back = [r.get("error") or "" for r in rows if r.get("task") == "hire_chat" and r.get("error")]
-check("with the town's list left out, a smithy the town does not have is still sent back", "WHAT THIS TOWN HAS" not in req
+check("with the town's list left out, a smithy the town does not have is still sent back", req and "WHAT THIS TOWN HAS" not in req
       and any("smithy" in e for e in sent_back), sent_back[:2])
 
 # ---- what is open: their promises and debts and an errand they wait on, always, never also brought to mind
@@ -98,7 +98,7 @@ canon.release_commitments(ws.player.party[0], "let_go", ws.minutes // 1440)
 obligations.close(store, e, "released", "no_answer", ws.minutes)
 store.save_player(ws.player)
 req = say("Nice weather for it, still.")
-check("a promise let go and an errand answered are no longer open", "five silver" not in req and "whetstone" not in req)
+check("a promise let go and an errand answered are no longer open", req and "five silver" not in req and "whetstone" not in req)
 
 # ---- the talk window only grows until it is full, then a page turns
 H = brief.rules("hire")
@@ -125,7 +125,9 @@ check("the gesture's props point at WHERE, never repeat its lines", "WHAT IS HER
       and not any(v in lots.split("FOR A GESTURE ONLY")[1] for v in (ws.place.visible or [])[:1]))
 check("brief.yaml's hire numbers pass the startup check", brief.problems() == [], brief.problems())
 
-gateway._client = real
+check("(f518) every brief above was asked of the spy answering then", spy.live() and spy.src.calls["CompanionReply"] > 0, (spy.live(), spy.src.calls))
+spy()
+check("...and the spy is taken away again, the stub answering", not spy.live() and simlib.below().chat == stub.chat)
 game.close()
 import shutil
 shutil.rmtree("saves/hire_brief_488b", ignore_errors=True)

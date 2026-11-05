@@ -4,7 +4,6 @@ only the hires here and awake (one fallen, or held behind elsewhere, has no view
 age, by the hires who travelled with them and not by one hired later (the narrator's as before); and Maren reads "shall we go?" from the
 words alone, never by a second whole call."""
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -12,7 +11,6 @@ stub = simlib.Stub("warrior", 6)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 from engine import operation, party as rules, truth
-from llm import gateway
 
 bad = []
 def check(n, ok, x=""):
@@ -23,7 +21,7 @@ game = simlib.campaign("party_488", minutes=600, location="guild_house")
 ws, store = game.scene, game.store
 ws.enter("guild_house")
 LOG = []
-real = gateway._client
+real = simlib.below()                   # (f518) the stub answering now, which the spy calls through to
 
 
 def chat(**k):
@@ -31,7 +29,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None)       # (f518) the spy as the model's source, over the stub
 h1 = {"id": "h1", "name": "Bram Hollin", "role": "fighter", "level": 3, "permanent": True, "temper": ["blunt"], "blurb": "a scarred sellsword",
       "active": True}
 h2 = {"id": "h2", "name": "Isel Varn", "role": "healer", "level": 3, "permanent": True, "temper": ["gentle"], "blurb": "a quiet healer", "active": True}
@@ -78,10 +76,13 @@ check("...and the narrator's sixty days are as they were", not any("Ula Brand" i
 # ---- Maren reads "shall we go?" from the words alone
 n0 = len(LOG)
 went = ws.mentor_talk_means_go("I think I understand most of it now, thank you kindly.")
-check("Maren never makes a second whole call to read whether they mean to go", not went and len(LOG) == n0, LOG[n0:])
+check("Maren never makes a second whole call to read whether they mean to go", spy.live() and not went and len(LOG) == n0, (spy.live(), LOG[n0:]))
 check("...plain going words still settle it", ws.mentor_talk_means_go("Let's go to the hall then."))
 
-gateway._client = real
+check("the spy was the model's source throughout, and every call it saw it answered", spy.live() and LOG and sum(spy.src.calls.values()) >= len(LOG),
+      (spy.live(), dict(spy.src.calls), len(LOG)))
+spy()
+check("...and taken away, the stub answers again", not spy.live() and simlib.below().chat == stub.chat)
 game.close()
 import shutil
 shutil.rmtree("saves/party_488", ignore_errors=True)

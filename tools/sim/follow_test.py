@@ -19,10 +19,8 @@ tmp = tempfile.mkdtemp(); os.chdir(tmp)
 from ui import console
 from ui.gui.bridge import Bridge
 from ui.gui import server
-from llm import gateway
 
-b = Bridge()
-gateway._client.chat = lambda *a, **k: "answer"
+b = Bridge()                                               # (f518) the scripted game below asks no model: no stand-in is put in
 b.install()
 srv = server.make_server(b); server.serve(srv)
 LONG = "\n".join(f"Line {i} of a long passage: the tide draws back over the stones and the cave breathes cold air." for i in range(90))

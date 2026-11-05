@@ -5,7 +5,6 @@ is an operation whose id repeats, so an open stopped in the middle of it runs it
 an arrival's moment stands with its stamps though its telling fails; and the pulse's cap counts a model call made, whatever came of it."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -13,7 +12,6 @@ simlib.install(stub)
 import config
 from core.interrupts import Interrupt
 from engine import crashlog, failures, pulse
-from llm import gateway
 from llm.gateway import LLMError
 from npc.models import NPC
 bad = []
@@ -30,7 +28,7 @@ ws, store = g.scene, g.store
 config.TURN_LOG_PATH = "saves/world_466/turns.jsonl"
 config.CRASH_LOG_PATH = "saves/world_466/crash.log"
 SHOWN = simlib.quiet_console()
-real = gateway._client
+real = simlib.below()                           # (f518) the stub answering now, taken before the wrapper goes in over it
 LOG = []                                        # ("call", title) and ("commit", kind), in order
 FAIL = {"titles": set(), "once": False}
 
@@ -45,7 +43,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+failing = simlib.stand_in(chat=chat, embed=None, name="world_466")
 real_commit = store.commit_operation
 real_catch_up = pulse.catch_up
 
@@ -242,7 +240,9 @@ ws.open_world()
 check("a third open finds it committed and runs nothing", RAN == [ws.minutes] and len([o for o in store.load_operations()["ops"] if o["kind"] == "world:open"]) == 1, RAN)
 pulse.catch_up = real_catch_up
 
-gateway._client = real
+check("the calls here were asked of the test's own stand-in, the failed tellings among them", failing.live() and failing.src.calls["Narration"] >= 3,
+      dict(failing.src.calls))
+failing()
 g.close()
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())
 shutil.rmtree("saves/world_466", ignore_errors=True)

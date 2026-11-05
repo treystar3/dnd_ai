@@ -45,12 +45,10 @@ class Table:
 
     def __init__(self, scene: dict, live: bool = False):
         import simlib
-        from llm import gateway as gw
-        real = gw._client
+        from llm import backend
         st = scene.get("start") or {}
         self.stub = simlib.Stub(st.get("class", "warrior"), int(st.get("seed", 4)))
-        simlib.install(self.stub)
-        import types
+        self.unstub = simlib.install(self.stub)
         stub_chat = self.stub.chat
         self.told: list[str] = []
 
@@ -62,9 +60,9 @@ class Table:
                 if m:
                     self.told.append(m.group(1))
             if live and title in ("ActionPlan", "Ruling"):
-                return real.chat(**k)
+                return backend.PASS         # (f518) the real model's: the stand-in sends it on to Ollama
             return stub_chat(**k)
-        gw._client = types.SimpleNamespace(chat=chat)
+        self.unstand = simlib.stand_in(chat=chat, name="scene")     # (f518) over the stub, taken away again at close
         import config
         import ui.console as uc
         self.notes: list[str] = []
@@ -203,6 +201,8 @@ class Table:
 
     def close(self) -> None:
         self.session.close()
+        self.unstand()                  # (f518) this table's stand-ins away: sources do not pile up across scenes
+        self.unstub()
         shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
 
 

@@ -9,7 +9,6 @@ taken. The ratchet of tasks still asked inside an operation holds no combat_inte
 never writes: the present are reloaded as the rows hold them, their doings left to the next operation (found by the fight fixtures)."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -17,7 +16,6 @@ stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 from engine import combat, failures, operation
-from llm import gateway
 from storage import statehash
 from ui import console
 
@@ -57,7 +55,7 @@ store.save_meta()
 ws.enter("south_fields")
 
 LOG, FAIL, BEGUN, PRESENTED, LINES = [], {"titles": set()}, [], [], []
-real = gateway._client
+real = simlib.below()                                           # (f518) the stub's own answer, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -68,7 +66,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None)
 real_begin = operation.begin
 
 
@@ -147,7 +145,8 @@ check("...the same line typed again is taken: a round passes and a blow is recor
 check("the ratchet holds no combat_interpret: nothing of the fight's reading is asked inside an operation",
       "combat_interpret" not in operation.LEGACY, operation.LEGACY)
 
-operation.begin, operation.Operation.presentation, gateway._client = real_begin, real_presentation, real
+operation.begin, operation.Operation.presentation = real_begin, real_presentation
+SPY()
 game.close()
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())

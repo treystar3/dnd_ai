@@ -10,7 +10,7 @@ past twenty words for a short-sentence speaker, a question from someone who neve
 The logged answers score too, as the row called 'logged', so a tuned model is read against both the base and what the game accepted.
 
 The task is the file's name (npc_conversation.sft.jsonl); its contract is data/rules/lora.yaml schemas. Writes a Markdown table, to
---out if given. Needs Ollama for any --model; the stub in tests stands in for it."""
+--out if given. Needs Ollama for any --model; in tests the stub's chat is given in its place (evaluate's chat=)."""
 from __future__ import annotations
 
 import argparse
@@ -45,13 +45,16 @@ def examples(path: Path, limit: int | None) -> list[dict]:
     return out[:limit] if limit else out
 
 
-def ask(model: str, prompt: list[dict], schema, max_tokens: int) -> tuple[str, float]:
-    """One answer from Ollama, shaped by the contract, timed. The gateway's own client, so a test's stub answers instead."""
+def ask(model: str, prompt: list[dict], schema, max_tokens: int, chat=None) -> tuple[str, float]:
+    """One answer from Ollama, shaped by the contract, timed. (f518) The request names its own model tag, so it goes straight to Ollama's
+    client (llm/backend.py OllamaShape), not through the game's interface; `chat` is a function of that client's shape to ask instead
+    (a test's stub)."""
     import config
-    from llm import gateway
+    from llm import backend
+    chat = chat if chat is not None else backend.OllamaShape().client.chat
     start = time.perf_counter()
-    r = gateway._client.chat(model=model, think=config.THINK, messages=prompt, format=schema.model_json_schema(),
-                             options={"temperature": 0.8, "num_ctx": config.NUM_CTX, "num_predict": max_tokens}, keep_alive=config.KEEP_ALIVE)
+    r = chat(model=model, think=config.THINK, messages=prompt, format=schema.model_json_schema(),
+             options={"temperature": 0.8, "num_ctx": config.NUM_CTX, "num_predict": max_tokens}, keep_alive=config.KEEP_ALIVE)
     return (r.message.content or ""), time.perf_counter() - start
 
 
@@ -120,7 +123,7 @@ def table(rows: dict[str, list[dict]], seconds: dict[str, list[float]]) -> str:
     return "\n".join(out)
 
 
-def evaluate(path: Path, models: list[str], limit: int | None = None, max_tokens: int = 600) -> tuple[dict, dict]:
+def evaluate(path: Path, models: list[str], limit: int | None = None, max_tokens: int = 600, chat=None) -> tuple[dict, dict]:
     task = path.name.split(".")[0]
     schema = schema_for(task)
     exs = examples(path, limit)
@@ -131,7 +134,7 @@ def evaluate(path: Path, models: list[str], limit: int | None = None, max_tokens
         user = msgs[1]["content"]
         rows["logged"].append(score(task, user, msgs[2]["content"], schema))
         for m in models:
-            raw, took = ask(m, msgs[:2], schema, max_tokens)
+            raw, took = ask(m, msgs[:2], schema, max_tokens, chat=chat)
             rows.setdefault(m, []).append(score(task, user, raw, schema))
             seconds.setdefault(m, []).append(took)
     return rows, seconds

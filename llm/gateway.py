@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 import config
 
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
-from llm.errors import Cancelled, Failure, LLMError   # (f514) the classes live where importing them starts nothing; LLMError stays here
+from llm.errors import Cancelled, Failure, LLMError, NoServer   # (f514) the classes live where importing them starts nothing; LLMError stays here
 
 
 def keep_extra_fields() -> None:
@@ -42,31 +42,44 @@ class _LazyClient:
     hasattr, and assigning over a method (a test's or a recording script's stand-in; since f517 the recorder, the busy light and the
     night's counter are layers of llm/backend.py instead) build nothing; the client is built when a call is made, or when its inner parts
     are read (the turn's deadline sets the inner timeout).
-    Under MERAVIA_NO_SERVER (tools/run_suite.py sets it) nothing is ever built: a call raises ConnectionError, what a missing server
-    raises, so no test can reach a real model by accident."""
+    Under MERAVIA_NO_SERVER (tools/run_suite.py sets it) nothing is ever built: a call raises NoServer (a ConnectionError, what a
+    missing server raises), so no test can reach a real model by accident. (f518) Nothing outside llm/ touches it: the suite answers
+    through a stand-in source (llm/backend.py StandIn), so assigning over one of its methods is refused, and reached() counts every
+    time something tried to reach the real client."""
 
     METHODS = ("chat", "embed", "embeddings", "generate", "pull", "push", "list", "show", "ps", "create", "delete", "copy")
 
     def __init__(self):
-        self._real = None
-        self._lock = threading.Lock()
+        object.__setattr__(self, "_real", None)
+        object.__setattr__(self, "_lock", threading.Lock())
+        object.__setattr__(self, "_reached", 0)
+
+    def __setattr__(self, name, value):
+        if name in _LazyClient.METHODS:              # (f518) a stand-in is a source (llm/backend.py StandIn), never a patch on the client
+            raise AttributeError(f"the model client's {name} is not assigned over: install a stand-in source (llm/backend.py use)")
+        object.__setattr__(self, name, value)
 
     def built(self) -> bool:
         return self._real is not None
 
+    def reached(self) -> int:
+        """(f518) How many times something tried to reach the real client (a call, or a read of its inner parts)."""
+        return self._reached
+
     def real(self):
+        object.__setattr__(self, "_reached", self._reached + 1)
         if self._real is None:
             if os.environ.get("MERAVIA_NO_SERVER"):
-                raise ConnectionError("no model server here (MERAVIA_NO_SERVER is set: the test suite never reaches a real model)")
+                raise NoServer("no model server here (MERAVIA_NO_SERVER is set: the test suite never reaches a real model)")
             with self._lock:
                 if self._real is None:
                     import ollama
                     keep_extra_fields()
-                    self._real = ollama.Client(timeout=config.REQUEST_TIMEOUT)
+                    object.__setattr__(self, "_real", ollama.Client(timeout=config.REQUEST_TIMEOUT))
         return self._real
 
     def __getattr__(self, name):
-        if name.startswith("__") or name in ("_real", "_lock"):
+        if name.startswith("__") or name in ("_real", "_lock", "_reached"):
             raise AttributeError(name)
         if name in _LazyClient.METHODS:
             def call(*a, **k):
@@ -78,6 +91,16 @@ class _LazyClient:
 
 _client = _LazyClient()
 _writes = 0
+
+
+def reached() -> int:
+    """(f518) How many times the process tried to reach the real model client (0 under the suite, where only stand-ins answer)."""
+    return _client.reached() if isinstance(_client, _LazyClient) else 0
+
+
+def built() -> bool:
+    """(f518) Whether the real model client was built in this process (never under the suite's switch)."""
+    return _client.built() if isinstance(_client, _LazyClient) else True
 SYSTEM_PREVIEW = 300
 from llm.sampling import RETRY_TEMPERATURE_STEP, shifted   # (f515) one sampling, worked out in llm/sampling.py; these names stay here
 
@@ -116,10 +139,9 @@ def failed_try(e: BaseException, limit) -> tuple[str, str]:
     text = (f.legacy or ("", f.detail))[1]
     if kind == "cancelled":
         return kind, f.detail or "cancelled"
-    if kind == "deadline":                          # the old client's timeout is worded as it always was; a source that keeps the
-        if f.legacy or limit is None:               # limit itself is worded from it, never by reading the old client (which would
-            return kind, timeout_words(limit)       # build it, or under the suite's switch raise out of the gateway)
-        return kind, f"timed out after {round(float(limit))}s (what was left of the turn's time)"
+    if kind == "deadline":                          # (f518) worded from the limit when the try had one: a source that keeps the limit
+        on_limit = limit is not None and (not f.legacy or getattr(f, "client_limit", False))   # itself, or the old client's timeout
+        return kind, timeout_words(limit, on_client=on_limit)                                   # the budget set; never by reading a client
     if kind == "server":
         return kind, f"the model server failed: {text[:200] or kind_name or 'no reason given'}"
     if kind in ("unreachable", "loading"):
@@ -132,13 +154,15 @@ def failed_try(e: BaseException, limit) -> tuple[str, str]:
     return kind, f"the call failed: {kind}: {f.detail[:200]}"
 
 
-def warm() -> None:
+def warm(client=None) -> None:
     """Load the model now, on a background thread, so the first real call (the character's name, the first scene) does not pay for the load.
     Same context size as every other call, or Ollama would load it twice. Quiet if Ollama is not there; the real call reports that."""
+    c = _client if client is None else client      # (f518) the client OllamaShape holds (a test's spy, or the real one)
+
     def run():
         from llm import backend
         try:                                        # (f517) through the layers as the model's load: the busy light shows while it warms
-            backend.loading(lambda: _client.chat(model=config.MODEL, think=config.THINK,
+            backend.loading(lambda: c.chat(model=config.MODEL, think=config.THINK,
                                                  messages=[{"role": "user", "content": "Reply with one word: ready."}],
                                                  options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()},
                                                  keep_alive=config.KEEP_ALIVE))
@@ -147,12 +171,12 @@ def warm() -> None:
     threading.Thread(target=run, daemon=True, name="model-warmup").start()
 
 
-def unload() -> None:
+def unload(client=None) -> None:
     """Tell Ollama to drop the model from memory now (the game is closing). Quiet if Ollama is not there."""
     if not getattr(config, "UNLOAD_ON_EXIT", True):
         return
     try:
-        _client.chat(model=config.MODEL, messages=[], keep_alive=0)
+        (_client if client is None else client).chat(model=config.MODEL, messages=[], keep_alive=0)
     except Exception:
         pass
 
@@ -165,30 +189,36 @@ _DEADLINE_LOCK = threading.Lock()               # (f468) around the client's tim
 
 
 @contextlib.contextmanager
-def _deadline(seconds):
+def _deadline(seconds, client=None):
     """(f468) The budget's deadline on the client's own timeout for one call (engine/budget.py deadline: what is left of the turn's
     minute, never under the floor), put back after. Only when the client has an inner httpx client with a timeout (the real
     ollama.Client; nothing under the suite's stub or the replayer). The lock is around the setting and the putting back, not the call:
-    another thread's call in that window reads the shorter timeout and may fail a try early (the plan's accepted risk)."""
-    inner = getattr(_client, "_client", None)
-    if seconds is None or inner is None or not hasattr(inner, "timeout"):
-        yield
+    another thread's call in that window reads the shorter timeout and may fail a try early (the plan's accepted risk).
+    (f518) For the client given (OllamaShape's), and nothing is read when the try has no deadline; yields whether it set the timeout,
+    so a timed-out try is worded from the limit only when the limit was what cut it (failed_try)."""
+    if seconds is None:
+        yield False
+        return
+    inner = getattr(_client if client is None else client, "_client", None)
+    if inner is None or not hasattr(inner, "timeout"):
+        yield False
         return
     import httpx                                    # (f514) only here, where the real client (and so httpx) already exists
     with _DEADLINE_LOCK:
         before = inner.timeout
         inner.timeout = httpx.Timeout(float(seconds))
     try:
-        yield
+        yield True
     finally:
         with _DEADLINE_LOCK:
             inner.timeout = before
 
 
-def timeout_words(limit) -> str:
-    """(f493) A timed-out try, by the limit it had: the turn's time left when the budget set one (llm/gateway.py _deadline), else the
-    client's own. The post-D night logged 'timed out after 120s' for tries cut at the budget's deadline some 44 seconds in."""
-    if limit is not None and getattr(getattr(_client, "_client", None), "timeout", None) is not None:
+def timeout_words(limit, on_client: bool = False) -> str:
+    """(f493) A timed-out try, by the limit it had: the turn's time left when the budget's limit cut it (llm/gateway.py _deadline set
+    it on the client, or the source kept it itself), else the client's own. The post-D night logged 'timed out after 120s' for tries
+    cut at the budget's deadline some 44 seconds in. (f518) Reads no client: failed_try says whether the limit was the one applied."""
+    if limit is not None and on_client:
         return f"timed out after {round(float(limit))}s (what was left of the turn's time)"
     return f"timed out after {config.REQUEST_TIMEOUT}s"
 

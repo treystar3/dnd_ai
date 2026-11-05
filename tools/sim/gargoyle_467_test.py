@@ -35,17 +35,18 @@ shutil.rmtree(f"saves/{NAME}", ignore_errors=True)
 config.TURN_LOG_PATH = f"saves/{NAME}/turns.jsonl"
 config.CRASH_LOG_PATH = f"saves/{NAME}/crash.log"
 SHOWN = simlib.quiet_console()
-real = gateway._client
-FAIL = {"titles": set()}
+real = simlib.below()                                   # (f518) the stub's stand-in, taken before the failing one goes in over it
+FAIL = {"titles": set(), "raised": 0}
 
 
 def chat(**k):
     if k["format"].get("title") in FAIL["titles"]:
+        FAIL["raised"] += 1
         raise ConnectionError("the model server cannot be reached")
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+failing = simlib.stand_in(chat=chat)
 
 
 def kills(store):
@@ -134,7 +135,10 @@ ws3.enter("parth")
 fight(ws3)
 FAIL["titles"] = {"Narration"}
 SHOWN.clear()
+raised0 = FAIL["raised"]
 stood = ws3.turn("I attack the wolf")
+check("(f518) the telling's failure was raised by the stand-in answering, a server's error tried three times",
+      failing.live() and FAIL["raised"] - raised0 >= 3 and (FAIL["raised"] - raised0) % 3 == 0, (failing.live(), FAIL["raised"] - raised0))
 lines = [t for k, t in SHOWN if k == "narrate"]
 check("the kill whose telling fails is told by the fight's stand-ins now", stood is True and ws3.combat is None and any(t in failures.F["round_stood"] for t in lines)
       and [o.kind for o in ws3.line_untold] == ["round", "aftermath"], (stood, [o.kind for o in ws3.line_untold], lines[:3]))
@@ -168,16 +172,19 @@ c.health = 1
 deaths0 = c.deaths
 fight(ws3, name="great wolf", level=40, rank="elite", hp=10 ** 6, damage=10 ** 4)
 FAIL["titles"] = {"GoddessLine"}
+raised0 = FAIL["raised"]
 for _ in range(6):
     stood = ws3.turn("I attack the great wolf")
     if ws3.combat is None or stood is not True:
         break
 FAIL["titles"] = set()
+check("(f518) the goddess line's failure was raised by the stand-in answering", FAIL["raised"] > raised0, FAIL["raised"] - raised0)
 c2 = store3.load_player().character
 check("a defeat whose goddess line fails is a death that stands, the player awake once, nothing waiting", stood is True and c2.deaths == deaths0 + 1 and ws3.combat is None
       and store3.unshown() == {} and "goddess" in [o.kind for o in ws3.line_untold], (stood, c2.deaths, deaths0, ws3.combat, [o.kind for o in ws3.line_untold]))
 
-gateway._client = real
+failing()
+check("(f518) the failing stand-in is taken away, the stub answering again", not failing.live() and simlib.below().chat == stub.chat)
 g3.close()
 check("nothing of it stays in the process at the end", simlib.residue() == {}, simlib.residue())
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)

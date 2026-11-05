@@ -6,7 +6,6 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 1))
 from engine import drift, motives, pulse
-import llm.gateway as gw
 from npc.life import populate_place
 from npc.traits import load_traits
 from storage.campaign import CampaignStore, PlayerState
@@ -31,18 +30,19 @@ npc.tier, npc.traits, npc.motive, simlib.view(npc).met = "known", ["ambitious", 
 npc.motive_since = start; npc.concern_from = ""
 store.save_npc(npc)
 calls = []
-real = gw._client
+real = simlib.below()                     # (f518) the stub answering now, taken before the spy goes in over it
 class Spy:
     def chat(self, *a, **k):
         calls.append(1); return real.chat(*a, **k)
-gw._client = Spy()
+held = simlib.stand_in(chat=Spy().chat, embed=None)
 old = copy.deepcopy(pulse.P)
 pulse.P["motives"]["step_days"] = 0
 ok = pulse.move_motive(store, world, catalog, state, start + 480, random.Random(1))
-gw._client = real
+spied = held.live()                       # the spy was the source while the step ran, so 'no call' means none was made
+held()
 n = store.load_npc(npc.id)
 check("a step moves without a model call: a first-person memory of it, their concern, a mood, gossip in the news, the step counted",
-      ok and not calls and n.memories and n.memories[-1].kind == "own_life" and n.concern == n.memories[-1].text      # (f478) by kind, no prefix
+      ok and spied and not calls and n.memories and n.memories[-1].kind == "own_life" and n.concern == n.memories[-1].text      # (f478) by kind, no prefix
       and n.mood and n.motive_step == 1 and state["news"] and n.name in state["news"][-1]["text"], (calls, n.concern, n.mood, n.motive_step, state["news"][-1:]))
 check("the step comes from the table for the trait the goal came from", n.memories[-1].text.endswith(motives.M["by_seed"]["ambitious"][0]["line"].format(name=n.name, role=n.role.replace("_", " "), town="Parth", motive="")))
 pulse.P["drift"]["motives"]["made_chance"] = 1.0
@@ -60,9 +60,9 @@ drift.people(store, world, state2, start + 2 * 1440, random.Random(3))
 n = store.load_npc(npc.id)
 check("a new goal from the drift starts its steps over", n.motive and n.motive_step == 0, (n.motive, n.motive_step))
 motives.M["engine"] = False
-calls.clear(); gw._client = Spy()
+calls.clear(); held = simlib.stand_in(chat=Spy().chat, embed=None)
 pulse.move_motive(store, world, catalog, state, start + 10 * 480, random.Random(9))
-gw._client = real
+held()
 check("with engine off in motives.yaml the step is the model's again", calls, calls)
 motives.M["engine"] = True
 pulse.P.clear(); pulse.P.update(old)

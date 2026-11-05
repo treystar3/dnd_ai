@@ -27,7 +27,6 @@ uc.dialogue = lambda before, speaker, speech, after="", *a, **k: SHOWN.append(f"
 uc.panel = lambda name, data: False
 from engine import streams
 streams.STRICT = True
-from llm import gateway
 from storage import statehash
 import nightbot
 
@@ -35,13 +34,14 @@ game = simlib.campaign(sys.argv[1], fresh=False)        # (f450) the suite's one
 store, ws = game.store, game.scene
 bot = nightbot.Bot(ws, ws.world, random.Random(39), stub=stub, persona="wanderer")
 stub.bot = bot
-FAIL = {"on": False}
-real = gateway._client
+FAIL = {"on": False, "raised": 0}
+real = simlib.below()                                   # (f518) the stub's stand-in, taken before the planted failure goes in over it
 def chat(**k):
     if FAIL["on"] and k["format"].get("title") == "ActionPlan":
+        FAIL["raised"] += 1
         raise ConnectionError("the model server cannot be reached")
     return real.chat(**k)
-gateway._client = types.SimpleNamespace(chat=chat)
+planted = simlib.stand_in(chat=chat)
 N, AFTER = int(sys.argv[2]), []
 state = {"n": 0}
 def ask(*a, main=False, **k):
@@ -64,7 +64,8 @@ LAST = {"text": "I look around."}
 uc.ask = ask
 ws.run()
 print("RESULT " + json.dumps({"all": statehash.digest(store)["all"], "after": AFTER, "steps": store.meta.steps, "turn": store.meta.turn,
-                              "shown": hashlib.sha256("\n".join(SHOWN).encode()).hexdigest(), "lines": len(SHOWN)}))
+                              "shown": hashlib.sha256("\n".join(SHOWN).encode()).hexdigest(), "lines": len(SHOWN),
+                              "raised": FAIL["raised"], "live": planted.live()}))
 '''
 
 # ---- one save, played twice in two processes
@@ -85,6 +86,8 @@ a, b = runs["det439_a"], runs["det439_b"]
 check("both sessions ran to the end", "all" in a and "all" in b, {k: v.get("error", "")[-600:] for k, v in runs.items() if "error" in v})
 if "all" in a and "all" in b:
     check("a session of 40 inputs took them all, a rolled-back one included", a["steps"] >= 38 and a["turn"] > 20, (a["steps"], a["turn"]))
+    check("...the sixth line's turn met the planted failure, in both, through the stand-in answering", a["raised"] > 0
+          and a["raised"] == b["raised"] and a["live"] and b["live"], (a["raised"], b["raised"], a["live"], b["live"]))
     first = next((i for i, (x, y) in enumerate(zip(a["after"], b["after"])) if x != y), None)
     check("the same save and the same lines end in the same state, in two processes", a["all"] == b["all"],
           f"they part after input {first + 1 if first is not None else '?'}")

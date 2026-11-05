@@ -5,14 +5,13 @@ sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 4)
 simlib.install(stub)
-import llm.gateway as gw
 TOLD = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                       # (f518) the stub's stand-in, taken before the narrator's spy goes in over it
 def chat(*a, **k):
     if (k.get("format") or {}).get("title") == "Narration":
         TOLD.append(k["messages"][-1]["content"])
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue"):
@@ -127,6 +126,8 @@ ws.narrate("The player looks around.", "I look around.")
 check("the narrator is told the parts of this place and where the player stands", TOLD and "THE PARTS OF THIS PLACE" in TOLD[-1]
       and "the dry chamber (where the player stands)" in TOLD[-1], TOLD[-1][-800:] if TOLD else "")
 check("the place data checks clean", features.problems(world) == [], features.problems(world))
+check("(f518) the narrator's prompts above were asked of the spy answering now, and answered by the stub", spy.live() and spy.src.calls["Narration"] > 0
+      and stub.calls.get("Narration", 0) == spy.src.calls["Narration"], (spy.live(), spy.src.calls, stub.calls.get("Narration")))
 
 store.close()
 shutil.rmtree("saves/features_test", ignore_errors=True)

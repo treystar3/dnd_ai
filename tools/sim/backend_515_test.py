@@ -23,7 +23,8 @@ from pydantic import BaseModel
 
 import config
 from engine import budget, recording
-from llm import backend, embed, gateway, sampling
+from llm import backend, gateway, sampling
+import simlib
 
 bad: list[str] = []
 
@@ -127,6 +128,7 @@ class Fake:
         return backend.Reply(text='{"x": "ok"}', finish="stop", usage=None)
 
 
+before = backend.source()
 undo = backend.use(Fake())
 required = next(t for t, v in (yaml.safe_load((ROOT / "data/rules/budget.yaml").read_text(encoding="utf-8")).get("tasks") or {}).items()
                 if (v or {}).get("need") == "required")
@@ -143,7 +145,8 @@ undo()
 check("a generate() goes through the interface and reads the reply", got.x == "ok" and out.get("r") is not None and out["r"].x == "ok")
 check("...with the turn's deadline when made on the turn's thread", isinstance(turn_deadline, float) and 0 < turn_deadline <= 60, turn_deadline)
 check("...and none when made on another thread", other_deadline is None, other_deadline)
-check("...and the source put back is the Ollama-shaped one", isinstance(backend.source(), backend.OllamaShape))
+check("...and the source put back is the Ollama-shaped one it replaced", backend.source() is before and isinstance(before, backend.OllamaShape),
+      (backend.source(), before))
 
 # ---- layers, lanes
 calls = []
@@ -172,11 +175,13 @@ class EmbedClient:
         return {"embeddings": [[1.0, 0.0] for _ in k["input"]]}
 
 
-real_client = embed._client
-embed._client = lambda: EmbedClient()
+held = simlib.stand_in(embed=EmbedClient().embed)     # (f518) a stand-in source with an embedder, over the Ollama-shaped default
 vec = backend.embed(["clustering: a", "clustering: b"])
-embed._client = real_client
-check("an embedding goes through the interface and returns the vectors", vec.vectors == [[1.0, 0.0], [1.0, 0.0]], vec)
+counted = dict(held.src.calls)
+held()
+check("an embedding goes through the interface and returns the vectors", vec.vectors == [[1.0, 0.0], [1.0, 0.0]] and counted == {"": 1},
+      (vec, counted))
+check("...and taking the stand-in away puts the Ollama-shaped source back", not held.live() and backend.source() is before)
 check("...asked with today's request (the embed model, the texts as given, keep-alive)",
       asked and asked[0]["model"] == config.EMBED_MODEL and asked[0]["input"] == ["clustering: a", "clustering: b"]
       and asked[0]["keep_alive"] == config.KEEP_ALIVE, asked)

@@ -38,21 +38,25 @@ def load_cases(path=CASES) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
 
 
-def route_live() -> None:
-    """The stand-in answers everything but the event's own calls, which reach the real model (as tools/interp_eval.py does for the interpreter)."""
-    import types
+def route_live():
+    """The stand-in answers everything but the event's own calls, which reach the real model (as tools/interp_eval.py does for the interpreter).
+    (f518) The event's titles are passed on (backend.PASS: the stand-in sends them to Ollama); returns what takes both stand-ins away."""
     import simlib
-    from llm import gateway as gw
-    real = gw._client
+    from llm import backend
     stub = simlib.Stub("warrior", 3)
-    simlib.install(stub)
+    unstub = simlib.install(stub)
     stub_chat = stub.chat
 
     def chat(**k):
         if (k.get("format") or {}).get("title") in LIVE_TITLES:
-            return real.chat(**k)
+            return backend.PASS
         return stub_chat(**k)
-    gw._client = types.SimpleNamespace(chat=chat)
+    unroute = simlib.stand_in(chat=chat, name="event_eval live")
+
+    def undo() -> None:
+        unroute()
+        unstub()
+    return undo
 
 
 def judge(got: dict, expect: dict) -> list[str]:
@@ -94,25 +98,28 @@ def group_of(case: dict) -> str:
 
 def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict:
     from tools import event_trial as et
-    if live:
-        route_live()
+    unroute = route_live() if live else None
     results, wrong = [], []
     start = time.time()
-    for case in cases:
-        out = et.run(case.get("tier", "campaign"), case.get("kind", ""), int(case.get("level", 60)), case.get("cls", "warrior"), int(case.get("seed", 5)),
-                     case.get("pressure", ""), int(case.get("days", 150)), bool(case.get("ignore")), case.get("path", ""), live,
-                     save="event_eval", quiet=True, act_from_stage=int(case.get("from_stage", 2)))
-        bad = judge(out, case.get("expect") or {})
-        results.append((case["name"], out, bad))
-        if bad:
-            wrong.append(case["name"])
-        if not quiet:
-            print(("ok   " if not bad else "FAIL ") + f"{case['name']:<34} " + et.verdict(out) + ("" if not bad else "\n     <- " + "; ".join(bad)))
-            if live:
-                print(f"     model wrote: {out['title']!r}; paths {[p for p, _ in out['paths']]}")
-            if not out["started"]:
-                for l in out["lines"][-3:]:
-                    print(f"     {l[:200]}")
+    try:
+        for case in cases:
+            out = et.run(case.get("tier", "campaign"), case.get("kind", ""), int(case.get("level", 60)), case.get("cls", "warrior"), int(case.get("seed", 5)),
+                         case.get("pressure", ""), int(case.get("days", 150)), bool(case.get("ignore")), case.get("path", ""), live,
+                         save="event_eval", quiet=True, act_from_stage=int(case.get("from_stage", 2)))
+            bad = judge(out, case.get("expect") or {})
+            results.append((case["name"], out, bad))
+            if bad:
+                wrong.append(case["name"])
+            if not quiet:
+                print(("ok   " if not bad else "FAIL ") + f"{case['name']:<34} " + et.verdict(out) + ("" if not bad else "\n     <- " + "; ".join(bad)))
+                if live:
+                    print(f"     model wrote: {out['title']!r}; paths {[p for p, _ in out['paths']]}")
+                if not out["started"]:
+                    for l in out["lines"][-3:]:
+                        print(f"     {l[:200]}")
+    finally:
+        if unroute is not None:
+            unroute()               # (f518) the live route's stand-ins away again
     n = len(cases)
     by: dict[str, list[int]] = {}
     for case, (_, _, bad) in zip(cases, results):

@@ -6,7 +6,6 @@ effects_keep; the casting context lives on the fighter and the purity fence find
 import json
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -15,7 +14,6 @@ simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import purity
 from engine import combat, combat_perks, effects, session
-from llm import gateway
 from llm.gateway import LLMError
 from scenes import combat_scene as cs
 from ui import console
@@ -32,7 +30,7 @@ ws.enter("south_fields")
 console.combat_state = lambda data: False
 console.combat_panel = lambda lines: None
 REQ = []
-real = gateway._client
+real = simlib.below()                                           # (f518) the stub's own answer, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -41,7 +39,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None)
 
 
 def row():
@@ -139,7 +137,7 @@ for i in range(70):
     effects.put(f, effects.ActiveEffect(id=f"y{i}", kind="test", until=1))
 check("...the oldest expired go first: a row that still holds stays", any(r.id == "live" for r in f.effects) and len(f.effects) == 64)
 
-gateway._client = real
+SPY()
 game.close()
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())

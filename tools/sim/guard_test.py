@@ -40,16 +40,18 @@ class Foul:
     def chat(self, **k):
         self.calls += 1
         return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=json.dumps({"speech": "Come to bed with me, stranger, and fuck.", "intent": "small_talk"})))
-_client = gateway._client
-gateway._client = foul = Foul()
+foul = Foul()
+fouled = simlib.stand_in(chat=foul.chat, name="foul")    # (f518) the foul answers as the model's source, over the stub
 refusals.SESSION.clear()
 try:
     gateway.generate("npc_conversation", "sys", "req", NPCReply, retries=1, _quiet=True)
     got = None
 except LLMError as e:
     got = e
-gateway._client = _client
-check("an answer outside the line is sent back on every try and the caller is left to its written fallback", isinstance(got, LLMError) and foul.calls == 2, (got, foul.calls))
+fouled()
+check("an answer outside the line is sent back on every try and the caller is left to its written fallback", isinstance(got, LLMError) and foul.calls == 2
+      and fouled.src.calls["NPCReply"] == 2, (got, foul.calls, fouled.src.calls))
+check("...and the foul source is taken away again, the stub answering", not fouled.live() and simlib.below().chat == stub.chat)
 check("...and each hit is a row in the refusals log, naming the category", any(r["kind"] == "guarded" and r["why"].startswith("sexual:") for r in refusals.SESSION), refusals.SESSION[-2:])
 clean = gateway.generate("narrate", "sys", "req", Narration, retries=0, _quiet=True)
 check("a clean answer passes as before", bool(clean.text))

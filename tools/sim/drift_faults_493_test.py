@@ -48,7 +48,7 @@ ws.pending = []
 
 # ---- the night's shape: a hand-in's passage told with the talk at the one who pays, the talk standing down twice
 CALLS = []
-real = gateway._client
+real = simlib.below()                                   # (f518) the stub's stand-in, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -56,7 +56,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 npc = sorted((n for n in ws.present if n.role not in ("guild_clerk", "guild_master")), key=lambda n: n.id)[0]
 ws.player.quests = ws.player.quests + [{"id": "q493", "title": "Find the lamb", "kind": "fetch", "issuer": npc.id, "letter": "F"}]
 store.save_player(ws.player)
@@ -76,7 +76,8 @@ stub.plan = [{"kind": "talk", "target": npc.id, "speech": "Your lamb is home. Pa
 ws.turn('I say, "Your lamb is home. Pay me."')
 stub.plan = None
 del ws.turn_in
-gateway._client = real
+spied = spy.live()
+spy()
 after = crash.read_text() if crash.exists() else ""
 kinds = {o["kind"]: o for o in store.load_operations()["ops"] if o["steps"] == store.meta.steps}
 told = [t for t, u in CALLS if "THE JOB IS DONE AND PAID" in u]
@@ -84,6 +85,8 @@ check("a talk after a hand-in, run again for its reply and its frame, raises no 
 check("...the hand-in and the talk both stand", "action:handin" in kinds and "action:talk" in kinds, sorted(kinds))
 check("...the hand-in's passage is told, asked of the narrator once", len(told) == 1, [t for t, _ in CALLS])
 check("...and the talk was framed (the frame its re-run asked for)", any(t == "DialogueFrame" for t, _ in CALLS), [t for t, _ in CALLS])
+check("...every call of the talk reached the spy, answering while it ran, and the stub answers again after",
+      spied and spy.src.calls["Narration"] >= 1 and sum(spy.src.calls.values()) == len(CALLS) and not spy.live(), (spied, spy.src.calls, len(CALLS)))
 
 # ---- the truth scene: built anew as each operation opens, the same within one
 outside = truth.scene_of(ws)

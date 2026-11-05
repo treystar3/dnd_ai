@@ -5,14 +5,12 @@ count. The ratchet: every model task still called inside an operation's transact
 families move out (the telling operations, whose one call is the operation, are not counted)."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
 from engine import combat, operation, refusals
-from llm import gateway
 from npc.models import NPC
 from scenes import combat_scene as cs
 from storage import statehash
@@ -43,7 +41,7 @@ ws, store = g.scene, g.store
 config.TURN_LOG_PATH = f"saves/{NAME}/turns.jsonl"
 config.CRASH_LOG_PATH = f"saves/{NAME}/crash.log"
 SHOWN = simlib.quiet_console()
-real = gateway._client
+real = simlib.below()                   # (f518) the stub answering now, which the spy calls through to
 FAIL = {"titles": set()}
 LOG = []
 
@@ -56,7 +54,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)       # (f518) the spy as the model's source, over the stub
 clerk = NPC(id="clerk470", name="Odo Marr", people="human", role="guild_clerk", location="guild_house", traits=[], trust=50)
 herb = NPC(id="herb470", name="Tam Reed", people="human", role="herbalist", location="guild_house", traits=[], trust=50)
 store.save_npc(clerk); store.save_npc(herb)
@@ -136,7 +134,10 @@ check("the ratchet: every task still asked for inside an operation is named in R
 check("...and the ratchet counts calls inside operations only: the telling operations are their one call and are left out",
       all(c[2] not in ("passage", "round", "aftermath", "goddess", "opening") or c[1] in ("Narration", "GoddessLine") for c in LOG), [c for c in LOG if c[2] in ("passage", "round")][:4])
 
-gateway._client = real
+check("the spy was the model's source throughout, and every call it saw it answered", held.live() and LOG and sum(held.src.calls.values()) >= len(LOG),
+      (held.live(), dict(held.src.calls), len(LOG)))
+held()
+check("...and taken away, the stub answers again", not held.live() and simlib.below().chat == stub.chat)
 g.close()
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)

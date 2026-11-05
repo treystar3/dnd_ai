@@ -30,7 +30,7 @@ stub = simlib.Stub("warrior", 42)
 simlib.install(stub)
 import ui.console as uc
 from engine import recording
-from llm import backend, gateway
+from llm import backend
 from llm.sampling import Sampling
 from pydantic import create_model
 from storage.campaign import CampaignStore
@@ -42,15 +42,16 @@ def ask(*a, **k):
     t = threading.Thread(target=lambda: call("ResidentSet", [{"role": "user", "content": "the people here"}]))
     t.start(); t.join()
     return "I look around."
-gateway._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}")))
+SRC = simlib.stand_in(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}")), embed=None)   # (f518)
 uc.ask = ask
 rec = recording.Recorder(store, folder=Path("saves/night_record_442_unit_rec")).install()
 uc.ask(main=True)
 rec.close()
 with gzip.open(Path("saves/night_record_442_unit_rec") / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
     titles = [json.loads(l)["title"] for l in f]
-check("the bot's own words are left out of the recording", "PlayerLine" not in titles, titles)
-check("...while a background call made in that time is kept", "ResidentSet" in titles, titles)
+check("the bot's own words are left out of the recording", SRC.src.calls["PlayerLine"] == 1 and "PlayerLine" not in titles, (titles, SRC.src.calls))
+check("...while a background call made in that time is kept", SRC.src.calls["ResidentSet"] == 1 and "ResidentSet" in titles, (titles, SRC.src.calls))
+SRC()
 store.close()
 shutil.rmtree("saves/night_record_442_unit", ignore_errors=True)
 shutil.rmtree("saves/night_record_442_unit_rec", ignore_errors=True)

@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py",   # grows as Bundle D writes them
         "engine/damage.py", "engine/effects.py", "engine/stacking.py", "engine/afflictions.py",     # (f510) Bundle E's rule modules:
         "engine/healing.py", "engine/relics.py", "engine/bosses.py", "engine/behaviors.py"]         # no store, scene, model or clock
-FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "time", "datetime", "uuid")
+FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "llm.backend", "time", "datetime", "uuid")   # (f518) nor the model's interface
 RANDOM_OK = {"keyed"}                         # streams.keyed(...) is the one die a pure module may roll
 # (f501) The DICE fence: the fight modules may roll only the streams (streams.get, keyed, fixed, new_id) and the two named constants, a
 # scratch estimate's own die (engine/combat.py danger, Random(seed)) and the mentor probe's steady roll (Random(0)); never a die seeded by
@@ -30,7 +30,7 @@ DICE_CONSTANTS = {("engine/combat.py", "random.Random(seed)"), ("engine/combat.p
 # (f503) The fight service (services/fight.py) under the dependency rule: scenes coordinate services; services use rules and
 # repositories; a service writes nothing to the console, asks the model nothing, reads no clock, and names its dependencies once.
 FIGHT = "services/fight.py"
-FIGHT_FORBIDDEN = ("scenes", "ui", "llm.gateway", "llm.embed", "time", "datetime")
+FIGHT_FORBIDDEN = ("scenes", "ui", "llm.gateway", "llm.embed", "llm.backend", "time", "datetime")       # (f518)
 FIGHT_DEPENDS = ("store", "bus", "party", "streams")
 # (f503) The write-path rule (tools/sim/battlefield_test.py): nothing outside the battlefield law writes spatial state. The directories
 # it reads include services/.

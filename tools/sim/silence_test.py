@@ -97,29 +97,38 @@ w.relation(isel, tam)["score"] = -10
 w.relation(bram, isel)["score"] = 10
 
 calls = []
-import llm.gateway as gw
 WHY = []
-_chat = gw._client.chat
+_below = simlib.below()                     # (f518) the stub answering now, taken before the spy goes in over it
 def _spy(**k):
     msgs = k.get("messages", [])
     if len(msgs) > 2 and "rejected" in msgs[-1].get("content", ""):
-        WHY.append(msgs[-1]["content"].split("\n")[0][:200])
-    return _chat(**k)
-gw._client.chat = _spy
+        WHY.append(((k.get("format") or {}).get("title", ""), msgs[-1]["content"].split("\n")[0][:200]))
+    return _below.chat(**k)
+_h = simlib.stand_in(chat=_spy, name="rejection spy")     # a source of its own: it cannot be lost under another patch
+
+
+def asked_once(before):
+    """(f518) The spy saw exactly one Exchange since `before` and none of them was sent back as rejected."""
+    return _h.live() and _h.src.calls["Exchange"] - before == 1 and not [w_ for w_ in WHY if w_[0] == "Exchange"]
+
+
 def one_word(names, first):
     calls.append(first)
     return [{"speaker": "Isel Quill", "text": "Bram, get down!"}, {"speaker": "Bram Voss", "text": "Tamsin!"}]
 stub.exchange = one_word
 SAID.clear(); severity.REACTIONS.clear()
+ex0 = _h.src.calls["Exchange"]
 w.party_moment("Tamsin Reed has just been killed in front of them.", "heavy", "s3", "Tamsin Reed's death", in_fight=True)
-check("killed mid-fight: one call, and Bram's single word is shown as it is", len(calls) == 1 and ("Bram Voss", "Tamsin!") in SAID, (len(calls), WHY, SAID))
+check("killed mid-fight: one call, and Bram's single word is shown as it is", len(calls) == 1 and asked_once(ex0) and ("Bram Voss", "Tamsin!") in SAID,
+      (len(calls), dict(_h.src.calls), WHY, SAID))
 
 calls.clear()
 stub.exchange = lambda names, first: (calls.append(first), [{"speaker": "Bram Voss", "text": "Tamsin."}])[1]
 SAID.clear()
+ex0 = _h.src.calls["Exchange"]
 w.party_moment("Tamsin Reed has just been killed in front of them.", "heavy", "s3", "Tamsin Reed's death (again)", in_fight=True)
 check("...and at a death anyone may stay out of it (severity.yaml all_may_be_silent_at: heavy): Bram's word alone is accepted",
-      len(calls) == 1, len(calls))
+      len(calls) == 1 and asked_once(ex0), (len(calls), dict(_h.src.calls), WHY))
 
 # both struck hard: a wholly silent moment is shown, and nothing is remembered as said
 w.relation(isel, tam)["score"] = 30
@@ -128,10 +137,11 @@ stub.exchange = lambda names, first: (calls.append(first), [{"speaker": "Bram Vo
                                                             {"speaker": "Isel Quill", "text": ""}])[1]
 SAID.clear(); severity.REACTIONS.clear()
 said_before = (list(bram["said"]), list(isel["said"]))
+ex0 = _h.src.calls["Exchange"]
 w.party_moment("Tamsin Reed has just been killed in front of them.", "heavy", "s3", "Tamsin Reed's death (III)", in_fight=True)
 shown = dict(SAID)
-check("both devastated: a wholly silent moment is accepted first time and shown", len(calls) == 1 and shown.get("Bram Voss") == "(Bram drops his sword.)"
-      and shown.get("Isel Quill") == "(Isel says nothing.)", (len(calls), SAID))
+check("both devastated: a wholly silent moment is accepted first time and shown", len(calls) == 1 and asked_once(ex0) and shown.get("Bram Voss") == "(Bram drops his sword.)"
+      and shown.get("Isel Quill") == "(Isel says nothing.)", (len(calls), WHY, SAID))
 check("...silence is not remembered as something they said", (bram["said"], isel["said"]) == said_before, (bram["said"][-1:], isel["said"][-1:]))
 check("...and the reactions are tallied as silent, at their level", sorted(severity.REACTIONS) == [("devastated", True), ("devastated", True)], severity.REACTIONS)
 check("...the moment still leaves its mark on them", "devastated" in (bram.get("mood") or "") and "devastated" in (isel.get("mood") or ""), (bram.get("mood"), isel.get("mood")))
@@ -142,6 +152,8 @@ stub.exchange = lambda names, first: (calls.append(first), [{"speaker": n, "text
 w.party_banter([bram, isel], "travel")
 check("idle talk never offers silence", calls and all("WHO MAY SAY NOTHING" not in c and "beyond words" not in c for c in calls), [c[-300:] for c in calls][:1])
 stub.exchange = None
+_h()
+check("(f518) the spy is taken away again, the stub answering", not _h.live() and simlib.below().chat is _below.chat)
 
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 sys.exit(1 if bad else 0)

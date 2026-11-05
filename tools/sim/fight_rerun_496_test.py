@@ -68,7 +68,7 @@ check("the opening passage left what the player has read of the fight on its sce
 nightrun.hire_party(ws, 1)                                     # hired now, so nothing of theirs asked outside during the opening above
 first = ws.player.party[0]["name"].split()[0]
 REQ = []
-real = gateway._client
+real = simlib.below()                                          # (f518) the stub's stand-in, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -77,7 +77,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 stub.a_CombatIntent = lambda u, k: {"kind": "talk"}
 calls0 = dict(stub.calls)
 ws.turn(f"{first}, are you hurt?")
@@ -91,7 +91,9 @@ ws.turn("I strike at the mastiff.")
 told = next((r for r in REQ if "ALREADY SHOWN IN THIS FIGHT" in r), "")
 check("the round's telling after the stood-down line is told not to describe the ground and the light again",
       told and all(line in told for line in opening), (REQ[-1][-600:] if REQ else REQ))
-gateway._client = real
+check("...the round's telling was asked of the spy answering then", spy.live() and spy.src.calls["Narration"] >= len(REQ) > 0, (spy.live(), spy.src.calls))
+spy()
+check("...and taken away again, the stub answers as before", not spy.live() and simlib.below().chat == stub.chat)
 
 # ---- the same fight, by its serial: a different fight's memory is not given
 fight0 = ws.fight_memory()

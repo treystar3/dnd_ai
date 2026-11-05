@@ -9,18 +9,17 @@
 - "Fenris, attack the troll", "Merris Oxwick, fire a bolt at the reef shark", "hold down the shark" were the player's own punches.
 - A rewrite printed every blow's figure after the passage; a passage put words in two woodcutters' mouths; a frame printed
   'ALREADY SHOWN THIS VISIT'; the interpreter did not know Fenris; two finished jobs took two passages, each told 'a sentence or two'."""
-import random, shutil, sys, types
+import random, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 CALLS = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                     # (f518) the stub answering now, which the spy calls through to
 def chat(*a, **k):
     CALLS.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None)    # (f518) the spy as the model's source, over the stub
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
@@ -90,7 +89,7 @@ NOTES.clear(); CALLS.clear()
 stub.plan = [{"kind": "pick_up", "item": "coins"}]
 ws.turn("pick up coins")
 check("'pick up coins' with none on the ground says they are in the purse, and no passage is written", NOTES and "already in your purse" in NOTES[-1]
-      and not any(t == "Narration" for t, _ in CALLS), (NOTES[-1:], [t for t, _ in CALLS]))
+      and spy.live() and not any(t == "Narration" for t, _ in CALLS), (NOTES[-1:], spy.live(), [t for t, _ in CALLS]))     # (f518) the spy answering, so a passage would be seen
 check("the narrator is told what a fight leaves is taken, not left lying", "never left lying" in cp.AFTERMATH_SYSTEM)
 
 # ---- fight orders reach the companion and the ways an order is said

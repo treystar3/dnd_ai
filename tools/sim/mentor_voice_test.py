@@ -145,35 +145,56 @@ check("fixed rules are never rewritten", "Rank F may hold 2 contracts." in SAID[
 config.FREE_MENTOR = False
 
 # warm-up: the model is loaded in the background, same context size, and every call asks to keep it loaded
+# (f518) the warm-up and the unload are handed the client they speak to (llm/gateway.py warm/unload: the real one when given none, as
+# main.py calls them), so a spy is given to them, never planted on the lazy client
+import types
+from llm import backend
 seen = []
-real_chat = gw._client.chat
-gw._client.chat = lambda **k: (seen.append(k), real_chat(**k))[1]
-gw.warm()
+spy = types.SimpleNamespace(chat=lambda **k: (seen.append(k), None)[1])
+gw.warm(spy)
 t0 = time.time()
 while not seen and time.time() - t0 < 3:
     time.sleep(0.02)
 check("the warm-up asks for a tiny reply with the game's context size", seen and seen[0]["options"]["num_predict"] <= 8 and seen[0]["options"]["num_ctx"] == config.NUM_CTX, seen[:1])
 check("...and keeps the model loaded", seen and seen[0]["keep_alive"] == config.KEEP_ALIVE)
 seen.clear()
+backend.OllamaShape(client=spy).load()           # (f518) the Ollama-shaped source's own load is that same warm-up, on its client
+t0 = time.time()
+while not seen and time.time() - t0 < 3:
+    time.sleep(0.02)
+check("(f518) the Ollama source's load is the same warm-up", seen and seen[0]["options"]["num_predict"] <= 8 and seen[0]["keep_alive"] == config.KEEP_ALIVE, seen[:1])
+seen.clear()
+real = simlib.below()                             # (f518) the stub answering now, taken before the spy goes in over it
+h = simlib.stand_in(chat=lambda **k: (seen.append(k), real.chat(**k))[1], name="keep-alive spy")
 w.mentor_say(W, beat="test")
-check("every real call keeps the model loaded too", seen and all(k["keep_alive"] == config.KEEP_ALIVE for k in seen), seen[:1])
-gw._client.chat = lambda **k: (_ for _ in ()).throw(ConnectionError("no ollama"))
-gw.warm(); time.sleep(0.1)
-check("a missing Ollama does not break the warm-up", True)
+check("every real call keeps the model loaded too", seen and h.src.calls.get("MentorLines", 0) >= 1 and sum(h.src.calls.values()) == len(seen) and all(k["keep_alive"] == config.KEEP_ALIVE for k in seen), (seen[:1], h.src.calls))
+h()
+check("(f518) the spy is taken away again, the stub answering", not h.live() and backend.source().name == "stub", backend.source())
+tried = []
+def broken(**k):
+    tried.append(k)
+    raise ConnectionError("no ollama")
+gw.warm(types.SimpleNamespace(chat=broken))
+t0 = time.time()
+while not tried and time.time() - t0 < 3:
+    time.sleep(0.02)
+time.sleep(0.05)
+check("a missing Ollama does not break the warm-up", tried)
 
 # closing the game unloads the model
 seen2 = []
-real2 = gw._client.chat
-gw._client.chat = lambda **k: (seen2.append(k), None)[1]
-gw.unload()
+spy2 = types.SimpleNamespace(chat=lambda **k: (seen2.append(k), None)[1])
+gw.unload(spy2)
 check("closing the game asks Ollama to unload the model", seen2 and seen2[0]["keep_alive"] == 0 and seen2[0]["messages"] == [], seen2)
+seen2.clear()
+backend.OllamaShape(client=spy2).close()         # (f518) the Ollama-shaped source's close is that same unload
+check("(f518) the Ollama source's close is the same unload", seen2 and seen2[0]["keep_alive"] == 0 and seen2[0]["messages"] == [], seen2)
 config.UNLOAD_ON_EXIT = False
-seen2.clear(); gw.unload()
+seen2.clear(); gw.unload(spy2)
 check("...unless switched off", not seen2)
 config.UNLOAD_ON_EXIT = True
-gw._client.chat = lambda **k: (_ for _ in ()).throw(ConnectionError("no ollama"))
-gw.unload()
-check("a missing Ollama does not break closing", True)
-gw._client.chat = real2
+tried.clear()
+gw.unload(types.SimpleNamespace(chat=broken))
+check("a missing Ollama does not break closing", tried)
 
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

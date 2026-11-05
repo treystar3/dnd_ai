@@ -196,14 +196,16 @@ class FakeEmbed:
         return {"embeddings": [[1.0, 0.0]]}
 
 
-real_client, real_state = embed._client, dict(embed._state)
-embed._client = lambda: FakeEmbed()
-embed._state.update(ok=True, fixed=True, failed=False)
+embed.reset()
+h = simlib.stand_in(embed=FakeEmbed().embed, name="warm-up embedder")    # (f518) the source's embedder is what the warm-up asks
 t = embed.warm(g.session)
-t.join(5)
-check("embed.warm() makes one embed call on a thread the session owns", t is not None and not t.is_alive() and len(CALLS) == 1 and t in g.session._threads, (len(CALLS), t))
-embed._client = real_client
-embed._state.clear(); embed._state.update(real_state)
+if t is not None:
+    t.join(5)
+check("embed.warm() makes one embed call on a thread the session owns", t is not None and not t.is_alive() and len(CALLS) == 1
+      and h.src.calls[""] == 1 and t in g.session._threads, (len(CALLS), h.src.calls, t))
+h()
+embed.reset()
+check("(f518) the embedder is taken away again: the stub answers, with none", not h.live() and not embed.available())
 g.close()
 check("nothing of it stays in the process once the campaign closes", simlib.residue() == {}, simlib.residue())
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)

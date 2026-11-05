@@ -9,7 +9,6 @@ begun inside the world operation commits before its opening is told (the opening
 of the four tellings. Nothing stays in the process."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -18,7 +17,6 @@ simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import ui.console as uc
 from engine import combat, events, failures, operation
-from llm import gateway
 from ui import console
 
 bad = []
@@ -32,7 +30,7 @@ ws, store = game.scene, game.store
 ws.enter("south_fields")
 
 LOG, FAIL, BEGUN, REQ = [], {"titles": set()}, [], []
-real = gateway._client
+real = simlib.below()                       # (f518) the stub answering now, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -46,7 +44,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None, name="tellings_498_spy")
 real_begin = operation.begin
 
 
@@ -226,7 +224,9 @@ check("a pane command in a fight (#useitem) is an operation of its own, restarta
 check("the ratchet holds none of the four tellings: nothing of them is asked inside an operation",
       not ({"combat_opening", "combat_narrate", "combat_aftermath", "goddess_line"} & set(operation.LEGACY)), operation.LEGACY)
 
-operation.begin, gateway._client, store.commit_operation = real_begin, real, real_commit
+check("every telling was asked of the test's own stand-in", spy.live() and spy.src.calls["Narration"] >= 4, dict(spy.src.calls))
+operation.begin, store.commit_operation = real_begin, real_commit
+spy()
 game.close()
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())

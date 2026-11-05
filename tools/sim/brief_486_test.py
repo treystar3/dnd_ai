@@ -6,7 +6,6 @@ promise made to them kept as heard; the voice's dice their own; and the reply's 
 import ast
 import re
 import sys
-import types
 from pathlib import Path
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
@@ -15,7 +14,6 @@ stub = simlib.Stub("warrior", 4)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 from engine import brief, memory, truth
-from llm import gateway
 from world.loader import Fact
 
 bad = []
@@ -53,7 +51,7 @@ game = simlib.campaign("brief_486", minutes=600, location="guild_house")
 ws, store = game.scene, game.store
 ws.enter(ws.player.location)
 REQ = []
-real = gateway._client
+real = simlib.below()     # (f518) the stub answering now, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -62,7 +60,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 npc = sorted((n for n in ws.present if n.role not in ("guild_clerk", "guild_master")), key=lambda n: n.id)[0]
 npc.mood, npc.mood_until, npc.mood_source = "glad of the rain", ws.minutes - 10, "the world"
 store.save_npc(npc)
@@ -88,7 +86,8 @@ ws.turn('I say, "Where do herbs grow around here?"')
 stub.plan = None
 check("...and asked about herbs, the land is given", REQ and ("THE LAND AROUND YOU" in REQ[-1] or not __import__("npc.land", fromlist=["land_lines"]).land_lines(ws.world, npc.location)),
       [l for l in (REQ[-1] if REQ else "").splitlines() if l.isupper()][:12])
-gateway._client = real
+check("...the spy was the source answering those turns (f518)", spy.live() and spy.src.calls["NPCReply"] >= 2, dict(spy.src.calls))
+spy()
 
 # ---- a closed secret writes nothing; the voice's dice are their own
 secret_src = Path("scenes/arc_actions.py").read_text()

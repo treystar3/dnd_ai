@@ -31,7 +31,7 @@ check("the engine's own structured call is told its JSON did not close", "JSON" 
 
 # ---- the retry a narration gets after a cut-off
 sent = []
-real = gateway._client
+real = simlib.below()     # (f518) the stub answering now, taken before the cut-off source goes in over it
 class CutOnce:
     n = 0
     def chat(self, **k):
@@ -40,9 +40,9 @@ class CutOnce:
         if CutOnce.n == 1:
             return types.SimpleNamespace(done_reason="length", message=types.SimpleNamespace(content='{"text": "The rain the rain the rain'))
         return real.chat(**k)
-gateway._client = CutOnce()
+cut = simlib.stand_in(chat=CutOnce().chat)
 out = gateway.generate("narrate", "You narrate.", "The player looks around.", Narration, max_tokens=config.PROSE_MAX_TOKENS)
-gateway._client = real
+cut()
 followup = sent[1][-1]["content"] if len(sent) > 1 else ""
 check("a narration cut off at the ceiling is tried again and stands", isinstance(out, Narration) and len(sent) == 2, len(sent))
 check("...and the retry carries no length", followup and not LENGTH.search(followup), followup)

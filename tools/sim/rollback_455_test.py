@@ -8,7 +8,7 @@ cache written mid-turn. The same line typed again meets the same dice and this t
 replays in a child process, so the rollback is deterministic as well as complete. (f464) The narrator's failure no longer rolls the
 find back: the passage is an operation after the action's commit, so the place found stands and the player reads that it stood; what
 is rolled back whole here is a turn whose action itself fails."""
-import copy, pathlib, re, shutil, subprocess, sys, types
+import copy, pathlib, re, shutil, subprocess, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 55)
@@ -16,7 +16,6 @@ simlib.install(stub)
 SHOWN = simlib.quiet_console()
 import ui.console as uc
 from engine import discovery, failures, ledger, spellcraft
-from llm import gateway
 from storage import statehash
 
 bad = []
@@ -67,15 +66,15 @@ digest_before = statehash.digest(a.store)
 attrs_before = {k: copy.deepcopy(v) for k, v in ws.__dict__.items() if k.startswith("_") and k != "_truth"}
 check("the scene holds private caches a turn writes", len(attrs_before) >= 3, sorted(attrs_before))
 
-real = gateway._client
+real = simlib.below()                     # (f518) the stub answering now, taken before the failing narrator goes in over it
 def chat(**k):
     if k["format"].get("title") == "Narration":
         raise ConnectionError("the model server cannot be reached")
     return real.chat(**k)
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)
 stub.plan = [{"kind": "explore", "seek": "a quiet hollow"}]
 stood = ws.turn("I search the woods for a quiet hollow.")
-gateway._client = real
+held()
 check("the turn found a place and its passage could not be written: the find stands (f464)", stood is True and len(made) == 1 and made[0] is not None, (stood, len(made)))
 pid = made[0]["place"]["id"]
 check("the place found is on the campaign's map, in its routes and in the save", pid in ws.world.places and pid in ws.world.neighbors(anchor)
@@ -109,7 +108,7 @@ def chat_r(**k):
     if fail["on"] and k["format"].get("title") == "Narration":
         raise ConnectionError("the model server cannot be reached")
     return real.chat(**k)
-gateway._client = types.SimpleNamespace(chat=chat_r)
+held = simlib.stand_in(chat=chat_r, embed=None)
 SCRIPT = [("I look around.", [{"kind": "look"}]), ("I search the woods for a quiet hollow.", [{"kind": "explore", "seek": "a quiet hollow"}]),
           ("I search the woods for a quiet hollow.", [{"kind": "explore", "seek": "a quiet hollow"}]), ("I look around.", [{"kind": "look"}])]
 state = {"n": 0}
@@ -128,7 +127,7 @@ OUT = pathlib.Path("saves/rollback_455_rec_out")
 r.session.record(folder=OUT)
 wr.run()
 r.close()
-gateway._client = real
+held()
 turns = [__import__("json").loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
 check("the recording holds the turn whose telling failed, its find standing, and the ones after it", len(turns) >= 4
       and turns[1]["state"]["all"] != turns[0]["state"]["all"] and turns[1].get("operations") and "passage" not in [o["kind"] for o in turns[1]["operations"]]

@@ -116,23 +116,38 @@ check("without the switch the client is not built until it is used", "BEFORE Fal
 check("...then it is the real client, built once", "TYPE Client True" in out and "SAME True" in out, out[-600:])
 check("...and the server's extra fields (the cached-prompt count) are kept", "EXTRA allow" in out, out[-600:])
 
-# ---- 5. a method wrapped in place (a test's or a recording script's stand-in; the recorder, the busy light and the night counter are
-#      layers since f517) is called, and putting it back restores it
+# ---- 5. (f518) a method is never assigned over the lazy client: a test's or a recording script's stand-in is a source
+#      (llm/backend.py StandIn), so the assignment is refused, nothing is stored or built, and the lazy call still fails as a
+#      missing server does
 rc, out = child("""
 from llm import gateway
+from llm.errors import NoServer
 c = gateway._client
-saved = c.chat
-c.chat = lambda **k: 'wrapped'
-print('WRAPPED', c.chat(model='m'))
-c.chat = saved
+refused = []
+for name in ('chat', 'embed', 'list'):
+    try:
+        setattr(c, name, lambda **k: 'wrapped')
+        refused.append(name + ':stored')
+    except AttributeError:
+        refused.append(name + ':refused')
+print('REFUSED', refused)
+print('STORED', sorted(n for n in ('chat', 'embed', 'list') if n in vars(c)))
+before = gateway.reached()
 try:
-    c.chat(model='m', messages=[])
+    out = c.chat(model='m', messages=[])
+    print('CALL returned', out)
+except NoServer:
+    print('CALL NoServer', isinstance(NoServer('x'), ConnectionError))
 except ConnectionError:
-    print('RESTORED ConnectionError')
+    print('CALL ConnectionError')
+print('REACHED', gateway.reached() - before)
 print('BUILT', c.built())
 """, MERAVIA_NO_SERVER="1")
-check("a method assigned over the lazy client is the one called", "WRAPPED wrapped" in out, out[-600:])
-check("...and putting the saved one back restores the lazy call", "RESTORED ConnectionError" in out and "BUILT False" in out, out[-600:])
+check("(f518) assigning over a method of the lazy client (chat, embed, list) raises AttributeError",
+      "REFUSED ['chat:refused', 'embed:refused', 'list:refused']" in out, out[-600:])
+check("...and nothing was stored on it", "STORED []" in out, out[-600:])
+check("...and the lazy call still fails as a missing server does (NoServer, a ConnectionError), counted as a reach, nothing built",
+      "CALL NoServer True" in out and "REACHED 1" in out and "BUILT False" in out, out[-600:])
 
 # ---- 6. a failed try's kind is read without the packages, and the same as before with them
 rc, out = child("""

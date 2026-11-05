@@ -5,6 +5,7 @@ sys.path.insert(0, ".")
 from pathlib import Path
 import config
 from llm import audit, gateway
+import simlib
 from engine.prompt import Prompt
 from pydantic import BaseModel, field_validator
 
@@ -48,7 +49,7 @@ class FakeClient:
         return FakeResponse(next(answers))
 
 
-gateway._client = FakeClient()
+fake = simlib.stand_in(chat=FakeClient().chat, embed=None, name="audit_fake")     # (f518) the canned answers, as a source
 audit.note_turn(7, "I look around")
 p = Prompt().instruction("be brief", "HOW TO SPEAK").fact("it is raining", "WEATHER")
 r = gateway.generate("narrate", "You are the narrator.", p, Reply, retries=2)
@@ -75,6 +76,8 @@ check("the complaint sent back is shown", "Sent back with:" in text and "no drag
 check("a retry does not repeat the prompt in full", "the same as #1" in text and text.count("[fact · WEATHER]") == 1)
 check("answers are shown as formatted JSON", '"speech": "a cart rolls by"' in text)
 check("#audit can say where it is", "calls recorded" in audit.summary())
+check("every attempt was answered by the test's own stand-in", fake.live() and fake.src.calls["Reply"] == 5, dict(fake.src.calls))
+fake()
 
 shutil.rmtree("logs/audit_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), bad if bad else "")

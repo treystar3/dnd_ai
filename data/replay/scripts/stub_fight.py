@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import random
 import shutil
-import types
 from pathlib import Path
 
 SEED = 18
@@ -44,10 +43,9 @@ def record(folder: Path, root: Path) -> Path:
     sys.path.insert(0, str(root / "tools"))
     import simlib
     stub = simlib.Stub("warrior", SEED)
-    simlib.install(stub)
+    held = simlib.install(stub)
     from engine import leveling, pulse, recording
     from engine.session import CampaignSession
-    from llm import gateway
     from npc.traits import load_traits
     from storage.campaign import PlayerState
     from ui import console
@@ -96,13 +94,12 @@ def record(folder: Path, root: Path) -> Path:
     standing = ws.player.party[1]["name"].split()[0]
 
     fail = {"title": ""}
-    real = gateway._client
 
     def chat(**k):
         if fail["title"] and k["format"].get("title") == fail["title"]:
             raise ConnectionError("the model server cannot be reached")    # every try of this input fails
-        return real.chat(**k)
-    gateway._client = types.SimpleNamespace(chat=chat)
+        return stub.chat(**k)
+    planted = simlib.stand_in(chat=chat)                           # (f518) the stub and its failures, as a source with no embedder
     mode = {"kind": "attack"}
 
     def choose(u, k):
@@ -174,7 +171,8 @@ def record(folder: Path, root: Path) -> Path:
         ws.run()
     finally:
         session.close()
-        gateway._client = real
+        planted()
+        held()
         shutil.rmtree(root / "saves" / SAVE, ignore_errors=True)
     return folder
 

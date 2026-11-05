@@ -2,7 +2,11 @@
 guess with word lists: has this person said this already, is the player asking the same thing again, which subject is a question about.
 
 The model is pulled in the background the first time the game runs without it. Until it is there, or if it fails, available() is False and
-every caller uses its simple fallback, so play never waits on it."""
+every caller uses its simple fallback, so play never waits on it.
+
+(f518) Whether there is an embedder is the source's to say (llm/backend.py facts, R4): a stand-in has one when it was given an embed
+function, a replay when its recording had one, Ollama when its server has the model (probe(): never under the suite's switch, and fixed
+for a strict session); a source that does not say has none. Nothing outside llm/ writes the state below: reset() puts it back."""
 from __future__ import annotations
 
 import math
@@ -18,23 +22,24 @@ _lock = threading.Lock()
 CACHE_SIZE = 2000
 
 
-def _client():
-    from llm import gateway
-    return gateway._client
-
-
 def available() -> bool:
-    """Is the embedding model here and answering? Checked once, then remembered; a failure turns it off for the session."""
+    """Is the embedding model here and answering? The source says (f518); a failure turns it off for the session."""
     if not getattr(config, "EMBED_ENABLED", True) or _state["failed"]:
+        return False
+    from llm import backend
+    return bool(backend.facts().get("embedder", False))
+
+
+def probe() -> bool:
+    """(f518) Does the Ollama server have the embedding model (OllamaShape's facts)? Checked once, then remembered. Never asked under the
+    suite's switch (no server there). (f439) A session that must replay exactly decides it once, never mid-session."""
+    import os
+    if os.environ.get("MERAVIA_NO_SERVER"):
         return False
     from engine import streams
     if streams.STRICT and "fixed" in _state:
-        return _state["fixed"]                           # (f439) a session that must replay exactly: decided once, never mid-session
+        return _state["fixed"]
     if _state["ok"] is None:
-        c = _client()
-        if not hasattr(c, "embed"):
-            _state["ok"] = False
-            return False
         try:
             from llm import setup_check
             _state["ok"] = setup_check.model_present(config.EMBED_MODEL)
@@ -43,6 +48,18 @@ def available() -> bool:
     if streams.STRICT:
         _state["fixed"] = bool(_state["ok"])
     return bool(_state["ok"])
+
+
+def reset() -> None:
+    """(f518) The embedder's state as a fresh process has it: not yet probed, not failed, no strict answer kept (the pull under way and
+    the session's vectors are left alone). A test or a replay starts from here instead of writing the state."""
+    _state.update(ok=None, failed=False)
+    _state.pop("fixed", None)
+
+
+def failed() -> bool:
+    """(f518) Did a call fail this session, turning embeddings off?"""
+    return bool(_state["failed"])
 
 
 def pull_in_background() -> None:
@@ -77,11 +94,12 @@ def warm(session=None):
     if not available():
         return None
 
+    from llm import backend
+    src = backend.source()                            # (f518) the source answering now, below the layers as before (no row, no count)
+
     def run():
         try:
-            from llm.gateway import threads
-            _client().embed(model=config.EMBED_MODEL, input=["clustering: ready"], keep_alive=config.KEEP_ALIVE,
-                            **({"options": threads()} if threads() else {}))
+            src.embed(["clustering: ready"])
         except Exception:
             pass
     t = threading.Thread(target=run, daemon=True, name="embed-warmup")

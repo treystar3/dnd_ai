@@ -44,15 +44,14 @@ th = {"id": "t1", "title": "Wolves out of the Greywood", "place": "parth", "tier
       "reveal": "", "door": "board", "made_by": "engine", "told": False, "words": {"town": "Parth", "wild": "the Greywood"}, "times": [start, start + 1440], "groups": ["everyone"]}
 state = store.load_world_state(); state["threads"].append(th)
 asked = []
-import llm.gateway as gw
-real = gw._client
+real = simlib.below()                   # (f518) the stub answering now, which the spy calls through to
 class Spy:
     def chat(self, *a, **k):
         asked.append(k.get("messages") or (a[1] if len(a) > 1 else None))
         return real.chat(*a, **k)
-gw._client = Spy()
+spy = simlib.stand_in(chat=Spy().chat, embed=None)       # (f518) the spy as the model's source, over the stub
 ok = threads.tell(store, world, state, th, start + 60)
-gw._client = real
+spy()
 req = next((m["content"] for m in (asked[-1] or []) if m.get("role") == "user"), "") if asked else ""
 check("the request ends with the exact shape to fill: one slot per stage and per clue", '"stages": ["<STAGE 1 re-told>"]' in req and '"clues": ["<CLUE 1 re-told>"]' in req, req[-400:])
 check("...and the stand-in re-tells it", ok and th["told"] and th["stages"][0]["description"].startswith("(retold)"))

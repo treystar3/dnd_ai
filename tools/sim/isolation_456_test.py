@@ -17,20 +17,19 @@ def check(n, ok, x=""):
     if not ok: bad.append(n)
 
 CHILD = r'''
-import json, pathlib, random, sys, types
+import json, pathlib, random, sys
 sys.path.insert(0, "."); sys.path.insert(0, "tools")
 import simlib
 import ui.console as uc
-from llm import gateway
 import nightbot
 
 def fresh_stub():
     """The stand-in model answers the same prompts the same way in every process: a new stub, its counters at zero."""
     stub = simlib.Stub("warrior", 39)
-    simlib.install(stub)
+    held = simlib.install(stub)                               # (f518) the stub as the source; play() takes it away again at its end
     simlib.NAME_COUNTER[0] = 0
     simlib.NARR_COUNTER[0] = 0
-    return stub
+    return stub, held
 
 for fn in ("narrate", "say", "note", "ledger"):
     setattr(uc, fn, lambda *a, **k: None)
@@ -38,18 +37,18 @@ uc.dialogue = lambda *a, **k: None
 uc.panel = lambda name, data: False
 
 def play(name, n, fail_at, record_to=None):
-    stub = fresh_stub()
+    stub, held = fresh_stub()
     game = simlib.campaign(name, fresh=False)                 # the save copied into place
     store, ws = game.store, game.scene
     bot = nightbot.Bot(ws, ws.world, random.Random(39), stub=stub, persona="wanderer")
     stub.bot = bot
     FAIL = {"on": False}
-    real = gateway._client
+    real = simlib.below()                                     # (f518) this play's stub, taken before the failing wrapper goes in over it
     def chat(**k):
         if FAIL["on"] and k["format"].get("title") == "ActionPlan":
             raise ConnectionError("the model server cannot be reached")
         return real.chat(**k)
-    gateway._client = types.SimpleNamespace(chat=chat)
+    spy = simlib.stand_in(chat=chat, embed=None)
     state, LAST = {"n": 0}, {"text": "I look around."}
     def ask(*a, main=False, **k):
         if not main:
@@ -68,15 +67,18 @@ def play(name, n, fail_at, record_to=None):
         game.session.record(folder=pathlib.Path(record_to))
     ws.run()
     game.close()
-    gateway._client = real
+    ANSWERED.append(spy.live() and spy.src.calls["ActionPlan"] > 0)    # the failing wrapper answered this play's turns, to the end
+    spy()
+    held()
     return simlib.residue()
 
-mode, out = sys.argv[1], {}
+mode, out, ANSWERED = sys.argv[1], {}, []
 if mode == "ab":
     out["residue_a"] = play("iso456_a", 8, 3)
     out["residue_b"] = play("iso456_b1", 12, 5, record_to="saves/iso456_rec1")
 else:
     out["residue_b"] = play("iso456_b2", 12, 5, record_to="saves/iso456_rec2")
+out["answered"] = ANSWERED
 print("RESULT " + json.dumps(out))
 '''
 
@@ -95,6 +97,8 @@ for mode, hseed in (("ab", "1"), ("b", "2")):
     line = next((l for l in out.stdout.splitlines() if l.startswith("RESULT ")), "")
     runs[mode] = json.loads(line[7:]) if line else {"error": (out.stderr or out.stdout)[-1500:]}
 check("both children ran to the end", "residue_b" in runs["ab"] and "residue_b" in runs["b"], {k: v.get("error", "")[-600:] for k, v in runs.items() if "error" in v})
+check("...each play answered through its failing wrapper to the end (f518: a stand-in over that play's stub)",
+      runs["ab"].get("answered") == [True, True] and runs["b"].get("answered") == [True], {k: v.get("answered") for k, v in runs.items()})
 if "residue_b" in runs["ab"] and "residue_b" in runs["b"]:
     check("after each close, nothing the session owned remains, in either process", runs["ab"]["residue_a"] == {} and runs["ab"]["residue_b"] == {}
           and runs["b"]["residue_b"] == {}, runs)

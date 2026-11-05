@@ -8,8 +8,6 @@ import re
 import types
 from pathlib import Path
 
-import llm.gateway as gw
-
 # ------------------------------------------------------------------ the stand-in model
 
 NAME_COUNTER = [0]
@@ -451,8 +449,68 @@ class Stub:
                               "tier": "light"} for i, (m_, t_) in enumerate(out)]}
 
 
-def install(stub: Stub):
-    gw._client = types.SimpleNamespace(chat=stub.chat)
+class Held:
+    """(f518) A stand-in put in as the model's source (llm/backend.py use): call it (or undo(), or leave its with-block) to take exactly
+    it away again; live() says whether it is the one answering now. .src is the StandIn, .src.calls what it answered."""
+
+    def __init__(self, src):
+        from llm import backend
+        self.src = src
+        self._undo = backend.use(src)
+
+    def __call__(self) -> None:
+        self._undo()
+
+    undo = __call__
+
+    def live(self) -> bool:
+        from llm import backend
+        return backend.source() is self.src
+
+    def __enter__(self) -> "Held":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._undo()
+
+
+KEEP = object()
+
+
+def _top_stand_in():
+    from llm import backend
+    src = backend.source()
+    return src if isinstance(src, backend.StandIn) else None
+
+
+def below():
+    """(f518) The stand-in answering now, in the old client's shape (.chat(**k), .embed(**k)): what a test's wrapper calls through to,
+    where it read gateway._client before. Raises when no stand-in is installed (a wrapper over nothing would reach no model at all)."""
+    top = _top_stand_in()
+    if top is None:
+        raise RuntimeError("no stand-in is installed: simlib.install(stub) first (simlib.below)")
+    return types.SimpleNamespace(chat=top.chat_fn, embed=top.embed_fn)
+
+
+def stand_in(chat=KEEP, embed=KEEP, facts: dict | None = None, name: str = "stand-in", below=None) -> Held:
+    """(f518) Put in a stand-in source answering with these functions (the old client's shape), where a test assigned gateway._client
+    before. KEEP (the default) takes the function of the stand-in answering now (its embedder survives a new chat, and a missing one
+    stays missing); None drops it; facts are added to its own. Returns the Held: call it to take it away again."""
+    from llm import backend
+    top = _top_stand_in()
+    if chat is KEEP:
+        chat = top.chat_fn if top is not None else None
+    if embed is KEEP:
+        embed = top.embed_fn if top is not None else None
+    return Held(backend.StandIn(chat=chat, embed=embed, facts={**(top._facts if top is not None else {}), **(facts or {})}, name=name,
+                                below=below))
+
+
+def install(stub: Stub) -> Held:
+    """The stub as the model's source (f518: a StandIn through llm/backend.py, no longer a patch on the client), with the suite's
+    settings. Returns the Held: call it to take the stub away again."""
+    from llm import backend
+    held = Held(backend.StandIn(chat=stub.chat, name="stub"))
     import config
     config.AUDIT_LOG = False         # a stubbed run is not a session anyone audits; keep logs/audit/ for real play
     config.REFUSALS_LOG = False
@@ -460,6 +518,7 @@ def install(stub: Stub):
     _c.ledger = lambda m: _c.note(m)     # (f325) under the stub, a ledger line is a note: the tests that watch notes see it
     from npc import life
     life.FIRST_BATCH = None          # tests see a place's whole population at once unless they turn the split on
+    return held
 
 
 # ------------------------------------------------------------------ the four characters

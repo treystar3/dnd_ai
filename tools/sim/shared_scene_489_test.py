@@ -3,7 +3,6 @@ said of themselves stands, which come at the end of the request, before the coun
 pronoun; the party's own talk is asked with no operation open, the tail it runs in standing down to ask; how a beat hit each of them goes
 back with a rolled-back operation; and a fallen companion is remembered from now in words."""
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -11,7 +10,6 @@ stub = simlib.Stub("warrior", 7)
 simlib.install(stub)
 SHOWN = simlib.quiet_console()
 from engine import operation
-from llm import gateway
 
 bad = []
 def check(n, ok, x=""):
@@ -22,7 +20,7 @@ game = simlib.campaign("shared_489", minutes=600, location="guild_house")
 ws, store = game.scene, game.store
 ws.enter("guild_house")
 SEEN = []
-real = gateway._client
+real = simlib.below()                       # (f518) the stub answering now, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -31,7 +29,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None, name="shared_489_spy")
 people = {"Bram": "a scarred sellsword", "Isel": "a quiet healer"}
 
 # ---- one system for every exchange; what this one adds at the end, before the count
@@ -82,7 +80,8 @@ check("a rolled-back operation takes back how a beat hit each of them", ws.last_
 src = open("scenes/banter_actions.py", encoding="utf-8").read()
 check("a fallen companion is remembered from now in words, never a count of days", 'f"{days} days ago"' not in src and "clock.ago(d.get(\"minute\"" in src)
 
-gateway._client = real
+check("every exchange was asked of the test's own stand-in", spy.live() and spy.src.calls["Exchange"] >= 4, dict(spy.src.calls))
+spy()
 game.close()
 import shutil
 shutil.rmtree("saves/shared_489", ignore_errors=True)

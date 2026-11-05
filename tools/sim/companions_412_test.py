@@ -109,12 +109,13 @@ n = Narration(text="Wind tugs at the reeds. Store the rope, Odly says.")
 names.mend_answer(n, "PLACE: the banks of the Wend. WITH THE PLAYER: Odly Garth, Deth Stone.")
 check("...an ordinary word one letter off a name is left alone ('Wind' and the Wend, 'Store' and Stone)", n.text == "Wind tugs at the reeds. Store the rope, Odly says.", n.text)
 from llm import gateway
-real_chat = gateway._client.chat
-gateway._client.chat = lambda **kw: types.SimpleNamespace(done_reason="stop", prompt_eval_count=0, eval_count=0,
-                                                         message=types.SimpleNamespace(content=json.dumps({"text": "Oddy grins at you."})))
+# (f518) a canned answer for the one call, from a stand-in put in over the stub (no longer a patch on the client's chat)
+held = simlib.stand_in(chat=lambda **kw: types.SimpleNamespace(done_reason="stop", prompt_eval_count=0, eval_count=0,
+                                                              message=types.SimpleNamespace(content=json.dumps({"text": "Oddy grins at you."}))))
 out = gateway.generate("narrate", "You narrate.", "WITH THE PLAYER: Odly Garth (she). THE PLAYER: you.", Narration)
-gateway._client.chat = real_chat
-check("...by the gateway, on every answer it passes", out.text == "Odly grins at you.", out.text)
+asked = held.src.calls["Narration"]
+held()
+check("...by the gateway, on every answer it passes", out.text == "Odly grins at you." and asked == 1, (out.text, asked))
 
 # ---- 3. pronouns: a gesture's 'their', and 'his blade' for a she
 check("a companion's gesture is said with her own pronoun", quirks.shown("Ready.", "grips their sword hilt", "Odly Garth", "she")

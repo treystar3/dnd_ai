@@ -28,14 +28,14 @@ def load(path=CASES) -> list[dict]:
 class Bench:
     def __init__(self, live: bool = False, save: str = "ruling_eval"):
         import simlib
-        from llm import gateway as gw
-        real = gw._client
+        from llm import backend
         self.stub = simlib.Stub("warrior", 4)
-        simlib.install(self.stub)
-        if live:
-            import types
+        self.unstub = simlib.install(self.stub)              # (f518) the stub as the model's source; its Held takes it away again
+        self.unlive = None
+        if live:                                             # (f518) the ruling is passed on to the real model (Ollama); the rest stays stubbed
             stub_chat = self.stub.chat
-            gw._client = types.SimpleNamespace(chat=lambda **k: real.chat(**k) if (k.get("format") or {}).get("title") == "Ruling" else stub_chat(**k))
+            self.unlive = simlib.stand_in(chat=lambda **k: backend.PASS if (k.get("format") or {}).get("title") == "Ruling" else stub_chat(**k),
+                                          name="ruling_eval live")
         import config
         import ui.console as uc
         for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "note"):
@@ -82,6 +82,9 @@ class Bench:
 
     def close(self) -> None:
         self.session.close()
+        if self.unlive is not None:
+            self.unlive()                   # (f518) this bench's stand-ins away again, the live route first
+        self.unstub()
         shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
 
 

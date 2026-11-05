@@ -168,17 +168,82 @@ def report_placement(old: dict, new: dict) -> None:
         print(f"  {t}: {x} -> {y}")
 
 
-def _failure(err: list):
-    import httpx
-    import ollama
-    kind, text = (err + ["", ""])[:2]
-    if "Timeout" in kind:
-        return httpx.ReadTimeout(text)
-    if kind == "ResponseError":
-        return ollama.ResponseError(text)
-    if kind in ("HTTPError", "ConnectError", "RemoteProtocolError"):
-        return httpx.HTTPError(text)
-    return ConnectionError(text)
+class Replay:
+    """(f518) A recording's calls as the model's source (llm/backend.py use; R1: it replaces everything below the recorder): each call
+    the game makes is served the next row, in the file's order, once its kind, its title and (unless loose) its request's fingerprint
+    are the row's; on_call(row, k) is told with the old client's arguments (--time sends them to a live card). A recorded answer is
+    served as the old client gave it (its done_reason and counts), a recorded error is raised as the Failure it was read as
+    (llm/backend.py legacy_failure: no import of the old client), and anything else the game asks for parts the replay. Its facts are
+    the recording's (R4): an embedder when the recording had one."""
+
+    name = "replay"
+
+    def __init__(self, calls: list, meta: dict, loose: bool = False, on_call=None):
+        import threading
+        self.rows, self.meta, self.loose, self.on_call = list(calls), dict(meta), loose, on_call
+        self.at = 0
+        self._lock = threading.Lock()
+
+    def _row(self, kind: str, k: dict) -> dict:
+        from engine import recording
+        from llm import backend
+        title = (k.get("format") or {}).get("title", "") if isinstance(k.get("format"), dict) else ""
+        with self._lock:
+            if self.at >= len(self.rows):
+                raise Parted(f"the game made a call the recording does not have (a {kind}, '{title}')")
+            row = self.rows[self.at]
+            self.at += 1
+        if row["kind"] != kind or row.get("title", "") != title:
+            raise Parted(f"call {row['i']} (input {row['input']}): the game asked for a {kind} '{title}', the recording has a "
+                         f"{row['kind']} '{row.get('title', '')}'")
+        if not self.loose and recording.request_hash(k) != row["req"]:
+            raise Parted(f"call {row['i']} (input {row['input']}, '{title}'): the game asked in other words than the recording")
+        if self.on_call:
+            self.on_call(row, k)
+        if row.get("error"):
+            raise backend.legacy_failure(row["error"])
+        return row
+
+    def chat(self, req, deadline=None):
+        from llm import backend
+        row = self._row("chat", backend.ollama_kwargs(req))
+        return backend.reply_of(types.SimpleNamespace(done_reason=row.get("done", "stop"),
+                                                      message=types.SimpleNamespace(content=row.get("answer", "")),
+                                                      **(row.get("tokens") or {})))
+
+    def embed(self, texts):
+        from llm import backend
+        row = self._row("embed", backend.embed_kwargs(texts))
+        return backend.embedding_of(types.SimpleNamespace(embeddings=(row.get("answer") or {}).get("embeddings")))
+
+    def load(self, progress=None) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def state(self) -> str:
+        return "ready"
+
+    def facts(self) -> dict:
+        import config
+        return {"source": self.name, "model": self.meta.get("model", config.MODEL), "embed_model": config.EMBED_MODEL,
+                "embedder": bool(self.meta.get("embed"))}
+
+
+class _NoServer:
+    """(f518) While a recording is made or replayed, the process has no model server (MERAVIA_NO_SERVER), so nothing it does can
+    reach a real model: a --rebless outside the suite never records a live answer."""
+
+    def __enter__(self):
+        self.before = os.environ.get("MERAVIA_NO_SERVER")
+        os.environ["MERAVIA_NO_SERVER"] = "1"
+
+    def __exit__(self, *exc):
+        if self.before is None:
+            os.environ.pop("MERAVIA_NO_SERVER", None)
+        else:
+            os.environ["MERAVIA_NO_SERVER"] = self.before
 
 
 def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) -> dict:
@@ -198,35 +263,21 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     import config, tempfile
     scratch = Path(tempfile.mkdtemp(prefix="rerun_logs_"))         # a replay's own logs never mix with real play's
     config.LOG_PATH, config.TURN_LOG_PATH, config.PULSE_LOG_PATH = (str(scratch / n) for n in ("llm_calls.jsonl", "turns.jsonl", "pulse.jsonl"))
+    config.CRASH_LOG_PATH, config.SESSION_STATS_PATH = str(scratch / "crash.log"), str(scratch / "sessions.jsonl")   # (f518) nor its faults
     config.AUDIT_LOG = config.REFUSALS_LOG = False
-    embed._state.update(ok=bool(rec["meta"].get("embed")), fixed=bool(rec["meta"].get("embed")), failed=False)
+    from engine import crashlog
+    from llm import backend
+    embed.reset()                                                  # (f518) the embedder is the recording's (Replay's facts), from a fresh state
     from npc import life
     life.FIRST_BATCH = rec["meta"].get("backfill", life.FIRST_BATCH)
 
     calls, inputs, turns = list(rec["calls"]), list(rec["inputs"]), list(rec["turns"])
     state = {"call": 0, "input": 0, "shown": [], "parted": None}
-
-    def serve(kind: str, k: dict):
-        if state["call"] >= len(calls):
-            raise Parted(f"the game made a call the recording does not have (a {kind}, '{(k.get('format') or {}).get('title', '')}')")
-        row = calls[state["call"]]
-        state["call"] += 1
-        title = (k.get("format") or {}).get("title", "") if isinstance(k.get("format"), dict) else ""
-        if row["kind"] != kind or row.get("title", "") != title:
-            raise Parted(f"call {row['i']} (input {row['input']}): the game asked for a {kind} '{title}', the recording has a "
-                         f"{row['kind']} '{row.get('title', '')}'")
-        if not loose and recording.request_hash(k) != row["req"]:
-            raise Parted(f"call {row['i']} (input {row['input']}, '{title}'): the game asked in other words than the recording")
-        if on_call:
-            on_call(row, k)
-        if row.get("error"):
-            raise _failure(row["error"])
-        if kind == "embed":
-            return types.SimpleNamespace(embeddings=(row.get("answer") or {}).get("embeddings"))
-        return types.SimpleNamespace(done_reason=row.get("done", "stop"), message=types.SimpleNamespace(content=row.get("answer", "")),
-                                     **(row.get("tokens") or {}))
-
-    gateway._client = types.SimpleNamespace(chat=lambda **k: serve("chat", k), embed=lambda **k: serve("embed", k))
+    source = Replay(calls, rec["meta"], loose=loose, on_call=on_call)
+    crashes0 = len(crashlog.SESSION)
+    no_server = _NoServer()
+    no_server.__enter__()
+    undo_source = backend.use(source)                              # (f518) a source, no longer a patch on the client
 
     from ui import console
     for name in recording.STORY:
@@ -306,12 +357,16 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         state["parted"] = {"input": state["input"], "why": str(e)}
     finally:
         session.close()
+        undo_source()
+        no_server.__exit__()
+        embed.reset()
         shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
         streams.STRICT = False
         budget.PROFILE.clear()
         budget.PROFILE.update(profile_before)
     matched = state["input"] - (1 if state["parted"] else 0)
-    return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": state["call"], "recorded_calls": len(calls)}
+    return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
+            "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch)}   # (f518) faults the replay hit (its own crash.log)
 
 
 def timer(folder: Path, url: str):
@@ -346,10 +401,9 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
     import random
     import simlib
     stub = simlib.Stub("warrior", seed)
-    simlib.install(stub)
+    held = simlib.install(stub)
     from engine import recording
     from engine.session import CampaignSession
-    from llm import gateway
     from npc.traits import load_traits
     from storage.campaign import PlayerState
     from ui import console
@@ -373,13 +427,12 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         if hasattr(console, name):
             setattr(console, name, lambda *a, **k: None)
     fail = {"on": False}
-    real = gateway._client
 
     def chat(**k):
         if fail["on"] and k["format"].get("title") == "ActionPlan":
-            raise ConnectionError("the model server cannot be reached")
-        return real.chat(**k)
-    gateway._client = types.SimpleNamespace(chat=chat)
+            raise ConnectionError("the model server cannot be reached")        # the server's failure (llm/backend.py failure_of)
+        return stub.chat(**k)
+    planted = simlib.stand_in(chat=chat)                    # (f518) the stub with its failure planted, a source above the stub's own
     ws = session.scene(load_traits(), store.load_player())
     bot = nightbot.Bot(ws, ws.world, random.Random(seed), stub=stub, persona=persona)
     stub.bot = bot
@@ -400,12 +453,15 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
         last["text"] = text
         return text
     console.ask = ask
-    session.record(folder=folder, rows=rows)                # (f476) a kept recording names the rows each input changed
-    try:
-        ws.run()
-    finally:
-        session.close()
-        shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
+    with _NoServer():                                       # (f518) nothing it does can reach a real model
+        session.record(folder=folder, rows=rows)            # (f476) a kept recording names the rows each input changed
+        try:
+            ws.run()
+        finally:
+            session.close()
+            planted()
+            held()
+            shutil.rmtree(ROOT / "saves" / save, ignore_errors=True)
     return folder
 
 
@@ -417,7 +473,8 @@ def make_scripted_recording(folder: Path, name: str) -> Path:
     spec = importlib.util.spec_from_file_location(f"script_{name}", SCRIPTS / f"{name}.py")
     script = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(script)
-    script.record(folder, ROOT)
+    with _NoServer():                                       # (f518) nothing a script records can reach a real model
+        script.record(folder, ROOT)
     rec = load(folder)
     missing = script.census(rec)
     if missing:
@@ -477,6 +534,9 @@ def main() -> int:
         return 2
     if out["parted"]:
         print(f"parted at input {out['parted']['input']} of {out['of']}: {out['parted']['why']}")
+        return 1
+    if out.get("crashed"):                                             # (f518) a turn that faulted is no match, whatever the state
+        print(f"{out['crashed']} turn(s) faulted while it replayed (see {out['logs']}/crash.log), though the state matched")
         return 1
     print(f"all {out['of']} inputs matched ({out['calls']} model calls served)")
     return 0

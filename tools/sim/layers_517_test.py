@@ -88,7 +88,7 @@ from ui.gui.bridge import Bridge
 import nightrun
 import rerun
 CONSOLE = {k: getattr(console, k) for k in dir(console) if not k.startswith("__")}
-client0 = gateway._client.chat
+src0, reached0 = backend.source(), gateway.reached()     # (f518) the source answering (the stub's stand-in), and the client never reached
 orders_ok, nest_ok, own_ok, combos = True, True, True, 0
 for on in itertools.permutations(("recorder", "counter", "busy")):
     for off in itertools.permutations(("recorder", "counter", "busy")):
@@ -105,12 +105,12 @@ for on in itertools.permutations(("recorder", "counter", "busy")):
             take[name]()
             left.pop(name)
             own_ok &= backend.layers() == [left[n] for n in ("recorder", "counter", "busy") if n in left]   # its own, and only it
-        orders_ok &= backend.layers() == [] and gateway._client.chat is client0
+        orders_ok &= backend.layers() == [] and backend.source() is src0 and gateway.reached() == reached0
         for k, v in CONSOLE.items():
             setattr(console, k, v)                       # the console's own bindings are still put back by setattr (not this test's)
         sys.stdout = sys.__stdout__
-check(f"the three layers put on in every order and taken off in every order leave none, the client untouched ({combos} orders)",
-      orders_ok and combos == 36)
+check(f"the three layers put on in every order and taken off in every order leave none, the source untouched and the client never reached "
+      f"({combos} orders)", orders_ok and combos == 36 and isinstance(src0, backend.StandIn) and src0.name == "stub", (src0, combos))
 check("...each taking off exactly its own layer, the others left in their order", own_ok)
 check("...and while all three are on they nest by rank: the recorder outermost, then the night's counter, then the busy light", nest_ok)
 
@@ -169,7 +169,6 @@ for name in ("stub_short", "stub_party", "stub_fight"):
           and got.get("meta_moved") == [], got)
 
 # ---- 3. the old client's own answer fields and errors, through the layer, as the client patch wrote them
-real_client = gateway._client
 gateway.keep_extra_fields()
 
 
@@ -179,8 +178,11 @@ class Answer:
         self.__dict__.update(extra)
 
 
+ANSWERED = []
+
+
 def one_row(chat_fn, title="Read"):
-    gateway._client = types.SimpleNamespace(chat=chat_fn)
+    held = simlib.stand_in(chat=chat_fn, embed=None)        # (f518) the old client's answer (or error), from a stand-in source
     rec = recorder().install()
     try:
         try:
@@ -189,7 +191,8 @@ def one_row(chat_fn, title="Read"):
             pass
     finally:
         rec.close()
-        gateway._client = real_client
+        held()
+    ANSWERED.append((title, dict(held.src.calls), held.live()))
     rs = rows(rec.dir)
     return rs, json.loads((rec.dir / "meta.json").read_text())
 
@@ -222,6 +225,8 @@ check("a failed call's row keeps the old client's error, not the neutral kind it
 import httpx
 rs, _ = one_row(lambda **k: (_ for _ in ()).throw(httpx.ReadTimeout("the deadline cut it")))
 check("...a timeout too", len(rs) == 1 and rs[0]["error"] == ["ReadTimeout", "the deadline cut it"], rs)
+check("...each of those four calls answered (or failed) by its stand-in, once, and each stand-in taken away after",
+      len(ANSWERED) == 4 and all(calls == {t: 1} and not live for t, calls, live in ANSWERED), ANSWERED)
 
 
 class Shape:
@@ -254,15 +259,13 @@ for how in ("failure", "raised", "finish"):
     check(f"a cancelled call ({how}) writes no row: the next call's row follows with its number, a gap the replayer accepts",
           [r["i"] for r in rs] == [1] and rerun.refusal(json.loads((rec.dir / "meta.json").read_text()), rs) == "", rs)
 
-from llm import embed as _embed
-real_embed_client = _embed._client
-_embed._client = lambda: types.SimpleNamespace(embed=lambda **k: {"embeddings": [[1.0, 0.0] for _ in k["input"]]})
+held = simlib.stand_in(embed=lambda **k: {"embeddings": [[1.0, 0.0] for _ in k["input"]]})    # (f518) the stub, with an embedder
 rec = recorder().install()
 try:
     backend.embed(["clustering: a gate", "clustering: a road"])
 finally:
     rec.close()
-    _embed._client = real_embed_client
+    held()
 rs = rows(rec.dir)
 check("an embedding's row: the arguments the embedder sent, its fingerprint, the vectors, in the order it always had",
       len(rs) == 1 and rs[0]["request"] == {"model": config.EMBED_MODEL, "input": ["clustering: a gate", "clustering: a road"],
@@ -450,9 +453,10 @@ undo = backend.use(Gate())
 chat("Foreground")
 lit_chat = list(events)
 events.clear()
-_embed._client = lambda: types.SimpleNamespace(embed=lambda **k: {"embeddings": [[1.0] for _ in k["input"]]})
 undo()
-backend.embed(["clustering: a gate"])
+held = simlib.stand_in(embed=lambda **k: {"embeddings": [[1.0] for _ in k["input"]]})
+vec_embed = backend.embed(["clustering: a gate"])
+held()
 lit_embed = list(events)
 undo = backend.use(Gate())
 events.clear()
@@ -464,12 +468,12 @@ backend.loading(lambda: None)
 lit_load = list(events)
 undo()
 bridge.uninstall()
-_embed._client = real_embed_client
 for k, v in CONSOLE.items():
     setattr(console, k, v)
 sys.stdout = sys.__stdout__
 check("the busy light lights for a foreground chat, on then off", lit_chat == [True, False], lit_chat)
-check("...never for an embedding", lit_embed == [], lit_embed)
+check("...never for an embedding (which was made, through the layer)", lit_embed == [] and vec_embed.vectors == [[1.0]] and held.src.calls == {"": 1},
+      (lit_embed, vec_embed, dict(held.src.calls)))
 check("...never for a call in the background lane (the lanes f523 names)", lit_background == [], lit_background)
 check("...and for the model's warm-up at the home page, as when it patched the client", lit_load == [True, False], lit_load)
 check("...and the warm-up goes through the layers: gateway.warm's call is the loading one", "backend.loading(" in
@@ -485,9 +489,9 @@ other.start()
 other.join(5)
 backend.loading(lambda: None)
 undo()
-_embed._client = lambda: types.SimpleNamespace(embed=lambda **k: {"embeddings": [[1.0] for _ in k["input"]]})
+held = simlib.stand_in(embed=lambda **k: {"embeddings": [[1.0] for _ in k["input"]]})
 backend.embed(["clustering: a", "clustering: b"])
-_embed._client = real_embed_client
+held()
 handle()
 calls = [(c["kind"], c["schema"], c["main"]) for c in run.calls]
 check("the night's counter counts the game's chats and embeds, `main` still the main thread, and never the warm-up",

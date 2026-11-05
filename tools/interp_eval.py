@@ -49,19 +49,18 @@ class Bench:
     def __init__(self, live: bool = False, save: str = SAVE):
         self.save = save                                       # (f365) its own save folder, so two benches may run at once (the suite runs tests in parallel)
         import simlib
-        from llm import gateway as gw
-        real = gw._client                                      # the real Ollama client, before the stand-in takes its place
+        from llm import backend
         self.stub = simlib.Stub("warrior", 5)
-        simlib.install(self.stub)
+        self.unstub = simlib.install(self.stub)                # (f518) the stub as the model's source; its Held takes it away again
+        self.unlive = None
         if live:                                               # --live: the interpreter's own calls reach the model; the rest of the scene stays stubbed
-            import types
             stub_chat = self.stub.chat
 
             def chat(**k):
                 if (k.get("format") or {}).get("title") == "ActionPlan":
-                    return real.chat(**k)
+                    return backend.PASS                        # (f518) sent on to the real model (Ollama) by the stand-in
                 return stub_chat(**k)
-            gw._client = types.SimpleNamespace(chat=chat)
+            self.unlive = simlib.stand_in(chat=chat, name="interp_eval live")
         import config
         from engine import actions
         from npc.traits import load_traits

@@ -240,19 +240,24 @@ from llm import embed as _em
 class _FakeClient:
     def embed(self, model, input, keep_alive=None):
         return {"embeddings": [[float(len(t)), 1.0] for t in input]}
-_saved = (_em.CACHE_SIZE, _em._client, _em.available, dict(_em._cache))
-_em.CACHE_SIZE, _em._client, _em.available = 3, (lambda: _FakeClient()), (lambda: True)
+_saved = (_em.CACHE_SIZE, dict(_em._cache))
+_em.reset()
+_h = simlib.stand_in(embed=_FakeClient().embed, name="cache embedder")   # (f518) an embedder on the source: embeddings on, the stub's chat kept
+_em.CACHE_SIZE = 3
 _em._cache.clear()
 ok_ = True
 try:
-    _em.vectors(["a", "bb", "ccc"])
+    first_ = _em.vectors(["a", "bb", "ccc"])
     got_ = _em.vectors(["a", "dddd", "eeeee"])                 # "a" is cached; two new ones push the cache past its size
-    ok_ = got_ is not None and len(got_) == 3
+    ok_ = first_ is not None and got_ is not None and len(got_) == 3
 except KeyError as e:
     ok_ = False
-check("a full cache keeps what the request still needs (the f179 KeyError)", ok_)
-_em.CACHE_SIZE, _em._client, _em.available = _saved[:3]
-_em._cache.clear(); _em._cache.update(_saved[3])
+check("a full cache keeps what the request still needs (the f179 KeyError)", ok_ and _h.src.calls[""] == 2, _h.src.calls)
+_h()
+_em.reset()
+_em.CACHE_SIZE = _saved[0]
+_em._cache.clear(); _em._cache.update(_saved[1])
+check("(f518) the embedder is taken away again: the stub answers, with none", not _h.live() and not _em.available())
 
 shutil.rmtree("saves/dir", ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

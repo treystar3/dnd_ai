@@ -32,3 +32,10 @@ class Failure(Exception):
 
 class Cancelled(Interrupt):
     """A call stopped on purpose, not a failure of the model's."""
+
+
+class NoServer(ConnectionError):
+    """(f518) There is no model server in this process at all (MERAVIA_NO_SERVER: the test suite, the recording makers, a replay): a
+    call with nothing installed fails at once as unreachable (llm/backend.py failure_of), never as the server's failure, and builds and
+    starts nothing. A ConnectionError, so whatever catches a missing server catches it; a ConnectionError raised on purpose (the
+    recording scripts' planted failures) is still the server's (design_plan.md:665)."""

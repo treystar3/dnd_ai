@@ -7,7 +7,6 @@ that name. The ratchet holds none of the five naming tasks. Nothing stays in the
 import json
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -17,7 +16,6 @@ SHOWN = simlib.quiet_console()
 from core.interrupts import Interrupt
 from engine import combat, ledger, loot, operation
 from scenes import combat_scene as cs
-from llm import gateway
 from ui import console
 
 bad = []
@@ -33,7 +31,7 @@ console.combat_state = lambda data: (SHOWN.append(("pane", "")), False)[1]
 console.combat_panel = lambda lines: None
 console.legendary_reveal = lambda item: SHOWN.append(("reveal", item.name))
 LOG, FAIL, REQ = [], {"titles": set()}, []
-real = gateway._client
+real = simlib.below()                                           # (f518) the stub's own answer, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -47,7 +45,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None)
 real_commit = store.commit_operation
 store.commit_operation = lambda op, *a, **k: (SHOWN.append(("commit", op.kind)), real_commit(op, *a, **k))[1]
 real_drops = loot.boss_drops
@@ -140,7 +138,7 @@ try:
 except Interrupt:
     stopped = True
 cs.CombatScene.victory = real_victory
-check("the game stopped right after the win's commit, before the naming ran", stopped and not any(t in ("LootName", "LegendaryName") for t, o in LOG), (stopped, LOG))
+check("the game stopped right after the win's commit, before the naming ran", stopped and SPY.live() and not any(t in ("LootName", "LegendaryName") for t, o in LOG), (stopped, LOG))
 game.close()
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields", fresh=False)
 ws, store = game.scene, game.store
@@ -170,7 +168,7 @@ check("a naming whose call fails every try leaves the engine's name, the item ke
 check("the ratchet holds none of the five naming tasks", not ({"loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank"} & set(operation.LEGACY)), operation.LEGACY)
 
 loot.boss_drops = real_drops
-gateway._client = real
+SPY()
 game.close()
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())

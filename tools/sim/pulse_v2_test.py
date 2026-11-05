@@ -13,7 +13,7 @@ from scenes.world import WorldScene
 from npc.traits import load_traits
 from engine import pulse, towns, matters, truth, deeds
 from llm.contracts import ThreadProposal, StageProposal
-from llm import gateway
+from llm import backend, gateway
 
 bad = []
 def check(n, ok, x=""):
@@ -71,12 +71,12 @@ class FakeResponse:
     def __init__(self, text): self.message = type("M", (), {"content": text})(); self.done_reason = "stop"
 class FakeClient:
     def chat(self, **kw): return FakeResponse(next(answers))
-_client = gateway._client
-gateway._client = FakeClient()
-r = gateway.generate("pulse_thread", "You are the hidden life of the world.", "TIER: normal\n" + given, ThreadProposal, retries=1,
-                     validation_context={"stages": 1, "known": truth.world_words(world)})
-gateway._client = _client
-check("the writer's draft naming someone the world does not have is sent back, and the redraft taken", r.news.startswith("A shepherd"), r.news)
+with simlib.stand_in(chat=FakeClient().chat, embed=None, name="writer") as fake:      # (f518) the canned writer, as a source
+    r = gateway.generate("pulse_thread", "You are the hidden life of the world.", "TIER: normal\n" + given, ThreadProposal, retries=1,
+                         validation_context={"stages": 1, "known": truth.world_words(world)})
+check("the writer's draft naming someone the world does not have is sent back, and the redraft taken",
+      r.news.startswith("A shepherd") and fake.src.calls["ThreadProposal"] == 2, (r.news, fake.src.calls))
+check("...and the stub answers again once the canned writer is taken away", not fake.live() and backend.source().name == "stub", backend.source())
 
 # ---- 3. the writer is told the town's state, what was settled and what the stranger did
 st = store.load_world_state()

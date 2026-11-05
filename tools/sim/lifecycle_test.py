@@ -3,18 +3,17 @@ where the player is ends when they leave; what is someone's in a save is nobody 
 Two nights: two companions died and were never spoken of again (the party row was deleted as they fell); a delve left set after walking
 out silenced every companion for half a run and refused 'move out' 46 times; a party held back at a camp never fell in again; two hires
 owed the same widow her revenge, word for word."""
-import random, shutil, sys, types
+import random, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 SENT = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                  # (f518) the stub's own answer, taken before the spy goes in over it
 def chat(*a, **k):
     SENT.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):

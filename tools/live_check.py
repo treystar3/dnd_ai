@@ -16,7 +16,7 @@ Writes saves/live_check_report.md: every exchange as said, whether it came from 
 model call's time, flags from a model judge (claims about the place nobody gave, archetype tics, objective-pushing, voices broken), and notes on
 the same thing said across independent runs.
 Nothing in a real save is touched."""
-import argparse, collections, random, re, shutil, sys, time
+import argparse, collections, os, random, re, shutil, sys, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 import config
 import llm.gateway as gw
 import ui.console as uc
+from llm import backend
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
@@ -57,12 +58,12 @@ def addressees(runs: int) -> None:
     ws.enter("guild_house")
     npc = sorted(ws.present, key=lambda n: n.id)[0]
     tries = {"NPCReplyMany": [], "NPCReply": []}
-    real = gw._client.chat
 
-    def chat(**k):
-        tries.setdefault(k["format"].get("title", ""), []).append(time.time())
-        return real(**k)
-    gw._client.chat = chat
+    def counting(op, req, call):            # (f518) a layer around every call (llm/backend.py wrap): each try counted by its schema's title
+        if op == "chat":
+            tries.setdefault(backend.title(req), []).append(time.time())
+        return call(req)
+    unwrap = backend.wrap(counting)
     first = {"NPCReplyMany": 0, "NPCReply": 0}
     for i in range(runs):
         for title, speakers in (("NPCReplyMany", [("player", "the stranger", "Good day. Is there work going?"),
@@ -74,7 +75,7 @@ def addressees(runs: int) -> None:
                 first[title] += len(tries[title]) - n0 == 1
             except Exception as e:
                 print(f"{title} run {i + 1}: failed: {e}")
-    gw._client.chat = real
+    unwrap()
     lines = [f"# Addressees ({config.MODEL})", "", f"runs: {runs}"] + [f"- {t}: first try taken {first[t]}/{runs}" for t in first]
     (ROOT / "saves" / args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
@@ -91,28 +92,32 @@ uc.say = lambda t, s="": SAID.append((s or "", t))
 uc.narrate = lambda t: SAID.append(("(narration)", t))
 uc.note = lambda m, *a, **k: SAID.append(("(game)", str(m)))          # what the game tells the player, shown so a scene with no talk is still readable
 
-real_chat = gw._client.chat
-def timed_chat(**k):
-    msgs = k.get("messages", [])
+def timed(op, req, call):
+    """(f518) A layer around every model call (llm/backend.py wrap), where it patched the client before: a refused draft sent back is kept,
+    and each try is timed by its schema's title, failed or not. A failure is re-raised as it is, for the gateway to read."""
+    if op != "chat":
+        return call(req)
+    msgs = req.messages or []
     if len(msgs) > 2 and "rejected" in msgs[-1].get("content", ""):
         why = msgs[-1]["content"].split("\n")[0][:200]
         raw = " ".join(str(msgs[-2].get("content", "")).split())[:400] if msgs[-2].get("role") == "assistant" else ""
         REFUSED.append(why + (f"\n    - the refused answer: {raw}" if raw else ""))
+    title = backend.title(req) or "?"
     t0 = time.time()
     try:
-        r = real_chat(**k)
-        CALLS.append((k.get("format", {}).get("title", "?"), time.time() - t0, True))
+        r = call(req)
+        CALLS.append((title, time.time() - t0, True))
         return r
     except Exception:
-        CALLS.append((k.get("format", {}).get("title", "?"), time.time() - t0, False))
+        CALLS.append((title, time.time() - t0, False))
         raise
-gw._client.chat = timed_chat
 
-try:
-    if hasattr(gw._client, "list"):
-        gw._client.list()
-except Exception as e:
-    sys.exit(f"Cannot reach Ollama ({e}). Start it, make sure the game's model '{config.MODEL}' is pulled, and run this again.")
+
+from llm import setup_check as _sc
+if os.environ.get("MERAVIA_NO_SERVER") or not _sc.server_up():      # (f518) the server's own answer, where it asked the client for its list
+    sys.exit(f"Cannot reach Ollama at {_sc.base_url()}" + (" (MERAVIA_NO_SERVER is set: this process has no model server)"
+                                                          if os.environ.get("MERAVIA_NO_SERVER") else "")
+             + f". Start it, make sure the game's model '{config.MODEL}' is pulled, and run this again.")
 
 import simlib
 from engine import banter, mentor, quirks
@@ -128,10 +133,10 @@ shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
 session = CampaignSession.open(NAME)                 # (f457) the campaign's session, as main.py opens it
 store = session.store
 store.meta.seed = 11; store.meta.turn = 1; store.meta.minutes = 1800; store.save_meta()
-_real_client = gw._client                          # the test character is built the same way every time, without the model under test
-simlib.install(simlib.Stub("warrior", 3))
+unstub = simlib.install(simlib.Stub("warrior", 3))     # the test character is built the same way every time, without the model under test
 ch, _ = simlib.make_character("warrior", random.Random(2))
-gw._client = _real_client
+unstub()                                              # (f518) the stub taken away again: everything after this is the real model's
+untime = backend.wrap(timed)                          # (f518) timed from here on, so the stub's calls while the character was made are not
 store.save_player(PlayerState(character=ch, location="parth"))
 w = session.scene(load_traits(), store.load_player())
 config.TURN_LOG_PATH = str(ROOT / "saves" / NAME / "turns.jsonl")
@@ -197,8 +202,7 @@ def judge(title: str, lines: list[tuple[str, str]], voices: dict[str, str], selv
 
 
 from llm import embed as _embed
-from llm import setup_check as _sc
-if getattr(config, "EMBED_ENABLED", True) and hasattr(gw._client, "embed") and not _sc.model_present(config.EMBED_MODEL):
+if getattr(config, "EMBED_ENABLED", True) and not _sc.model_present(config.EMBED_MODEL):
     print(f"Fetching the helper model {config.EMBED_MODEL} (about 270 MB) first...")
     try:
         _sc.pull_model(lambda f, t: None, name=config.EMBED_MODEL)
@@ -717,5 +721,6 @@ except OSError:
 print(f"Done in {_fmt(time.time() - PROG['t0'])}. {len(set(flags))} flag(s). Report: {path}")
 for f in sorted(set(flags)):
     print("  -", f)
+untime()                                              # (f518) the timing layer away again
 session.close()
 shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)

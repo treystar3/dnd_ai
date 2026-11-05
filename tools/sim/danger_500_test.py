@@ -6,7 +6,6 @@ helper model is there, is served to the re-run without calling embed again; a ke
 (camp_fight_sim) leave the ids stream where it was. Nothing stays in the process."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -82,7 +81,6 @@ check("...the same serial on both attempts' fight (the streams put back, the ser
 # ---- the improv's pick is read once a line: a re-run is served it without calling embed again
 from llm import embed as _embed
 EMBEDS = []
-real = gateway._client
 fake = simlib.FakeEmbedder()                                      # (f476) the stand-in helper model, here for this block alone
 
 
@@ -91,8 +89,9 @@ def embed(**k):
     return fake.embed(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=real.chat, embed=embed)
-_embed._state.update(ok=True, failed=False)
+_embed.reset()
+h = simlib.stand_in(embed=embed, name="improv embedder")         # (f518) the stub's chat kept; the embedder on the source turns it on
+check("(f518) with the stand-in embedder in, the helper model is there", _embed.available() and h.live())
 reads, attempts2 = [], []
 real_read = cs.read_effect                                        # (f503) the read by meaning is the scene's
 
@@ -116,9 +115,10 @@ def body2(op):
 op, effect = ws.asked_operation("test:improv", "I kick sand in its eyes", body2)
 cs.read_effect = real_read
 check("the improv's effect is read once across a restart (served to the re-run), the embedder asked once", len(attempts2) == 2 and len(reads) == 1
-      and effect == "distract" and len(EMBEDS) == 1, (len(attempts2), len(reads), effect, len(EMBEDS)))
-gateway._client = real
-_embed._state.update(ok=None, failed=False)
+      and effect == "distract" and len(EMBEDS) == 1 and h.src.calls[""] == 1, (len(attempts2), len(reads), effect, len(EMBEDS), h.src.calls))
+h()
+_embed.reset()
+check("(f518) the embedder is taken away again: the stub answers, with none", not h.live() and not _embed.available())
 
 # ---- compute: outside a serving it runs plainly; inside, a key other than the one kept is a Drift
 check("outside any operation compute runs the work plainly", asked.compute("k", lambda: 7) == 7)

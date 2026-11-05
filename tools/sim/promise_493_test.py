@@ -6,7 +6,6 @@ prompt no longer names the field; a promise asked for and made is kept as heard,
 budget's deadline says the limit it had, not the client's."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import simlib
@@ -73,7 +72,7 @@ game = simlib.campaign("promise_493", minutes=600, location="guild_house")
 ws, store = game.scene, game.store
 ws.enter(ws.player.location)
 CALLS = []
-real = gateway._client
+real = simlib.below()          # (f518) the stub answering now, taken before the spy goes in over it
 
 
 def chat(**k):
@@ -82,7 +81,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None)
 npc = sorted((n for n in ws.present if n.role not in ("guild_clerk", "guild_master")), key=lambda n: n.id)[0]
 stub.reply_extra = {"they_promised": "to pay you back"}
 stub.plan = [{"kind": "talk", "target": npc.id, "speech": "What is your name?"}]
@@ -115,17 +114,28 @@ life.converse_many(npc, store, ws.world, ws.catalog, [], [(c1.id, "the stranger"
 blocks = [((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties", {}) for k in CALLS[n0:]]
 check("two characters: the blocks ask what was promised only when one of them may promise", len(blocks) == 2 and "they_promised" not in blocks[0]
       and "they_promised" in blocks[1], [sorted(b) for b in blocks])
-gateway._client = real
+spied = spy.live()
+spy()
+check("...every call above went through the spy, which was then taken away", spied and not spy.live() and spy.src.calls.get("NPCReply", 0) >= 2
+      and spy.src.calls.get("NPCReplyMany", 0) == 2, dict(spy.src.calls))
 game.close()
 shutil.rmtree("saves/promise_493", ignore_errors=True)
 
 # ---- a try cut at the budget's deadline says the limit it had
-keep_client = gateway._client
-gateway._client = types.SimpleNamespace(_client=types.SimpleNamespace(timeout=120))
-words = gateway.timeout_words(44.2)
-gateway._client = keep_client
+from llm.errors import Failure
+words = gateway.timeout_words(44.2, on_client=True)      # (f518) the limit was set on the client: failed_try says so, reading no client
 check("a try cut at the turn's deadline says so, with the limit it had", words == "timed out after 44s (what was left of the turn's time)", words)
-check("...and with no deadline set, the client's own", gateway.timeout_words(None) == f"timed out after {gateway.config.REQUEST_TIMEOUT}s")
+check("...and with no deadline set, the client's own", gateway.timeout_words(None) == f"timed out after {gateway.config.REQUEST_TIMEOUT}s"
+      and gateway.timeout_words(None, on_client=True) == f"timed out after {gateway.config.REQUEST_TIMEOUT}s")
+cut = Failure("deadline", "timed out", legacy=("ReadTimeout", "timed out"))
+cut.client_limit = True
+own = Failure("deadline", "timed out", legacy=("ReadTimeout", "timed out"))
+kept = Failure("deadline", "the source kept the limit itself")
+check("...a failed try the turn's limit cut on the client is worded from that limit; the client's own timeout from the client's",
+      gateway.failed_try(cut, 44.2) == ("deadline", words)
+      and gateway.failed_try(own, 44.2) == ("deadline", f"timed out after {gateway.config.REQUEST_TIMEOUT}s"),
+      (gateway.failed_try(cut, 44.2), gateway.failed_try(own, 44.2)))
+check("...and a source that kept the limit itself says the limit", gateway.failed_try(kept, 44.2) == ("deadline", words), gateway.failed_try(kept, 44.2))
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)
 sys.exit(1 if bad else 0)

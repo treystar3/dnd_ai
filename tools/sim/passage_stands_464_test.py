@@ -8,7 +8,6 @@ import json
 import pathlib
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -16,7 +15,6 @@ simlib.install(stub)
 import config
 import ui.console as uc
 from engine import combat, failures, ledger
-from llm import gateway
 from scenes import combat_scene as cs
 bad = []
 
@@ -31,7 +29,7 @@ g = simlib.campaign("passage_464", cls="warrior", seed=3, location="parth")
 ws, store = g.scene, g.store
 config.TURN_LOG_PATH = "saves/passage_464/turns.jsonl"
 SHOWN = simlib.quiet_console()
-real = gateway._client
+real = simlib.below()                           # (f518) the stub answering now, which the spy calls through to
 LOG = []                                        # the order of things: ("call", title), ("commit", kind), ("pulse",)
 FAIL = {"titles": set()}
 
@@ -44,7 +42,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)     # (f518) the spy as the model's source, over the stub
 real_commit = store.commit_operation
 store.commit_operation = lambda op, *a, **k: (LOG.append(("commit", op.kind)), real_commit(op, *a, **k))[1]
 real_pulse = ws.run_pulse
@@ -174,7 +172,9 @@ check("...her words could not be written: her own silence in their place, and th
       and any(t in failures.F["goddess_silent"] for t in lines) and any(t.startswith("Lost:") for k, t in SHOWN), ([o.kind for o in ws.line_untold], lines[:3]))
 FAIL["titles"] = set()
 
-gateway._client = real
+check("the spy answered the model's calls while it was in", held.live() and held.src.calls["Narration"] > 0, dict(held.src.calls))
+held()
+check("...and taken away, the stub answers again", not held.live() and simlib.below().chat == stub.chat)
 g.close()
 shutil.rmtree("saves/passage_464", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

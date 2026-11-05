@@ -1,6 +1,6 @@
 """(f361) A night run's logs become training data: calls regrouped from their rows, accepted answers kept (minus the habits the game only
 nudges), rejected drafts paired with the answers that replaced them, the newest run held out; the trainer's dry run checks the files
-and writes the Modelfile; the evaluator scores logged and model answers the way the game judges them, through the gateway's client."""
+and writes the Modelfile; the evaluator scores logged and model answers the way the game judges them, from the client it is given."""
 import json, shutil, sys
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -88,8 +88,8 @@ check("a file of the wrong shape is refused", lora_train.check_shape([{"messages
       and lora_train.check_shape([{"prompt": [], "chosen": [{"content": "a"}], "rejected": [{"content": "a"}]}], "dpo"))
 check("...and a pairs file of the right shape is not", lora_train.check_shape([pair], "dpo") == [])
 
-# ---- the evaluator, through the gateway's client (the stub here)
-rows, secs = lora_eval.evaluate(out / "eval" / "narrate.sft.jsonl", ["stub-model"])
+# ---- the evaluator, asking the stub in Ollama's client's place (f518: its own model tag goes to a client, given here)
+rows, secs = lora_eval.evaluate(out / "eval" / "narrate.sft.jsonl", ["stub-model"], chat=stub.chat)
 check("the logged answers and each model's are scored the way the game judges them", set(rows) == {"logged", "stub-model"} and rows["logged"][0]["fits"] == 1
       and rows["logged"][0]["tails"] == 0 and stub.calls.get("Narration", 0) >= 1, (rows, dict(stub.calls)))
 sc = lora_eval.score("npc_conversation", U_TALK + "\nnever asks the stranger anything back", long.replace("miss it.", "miss it, do you see?"), contracts.NPCReply)

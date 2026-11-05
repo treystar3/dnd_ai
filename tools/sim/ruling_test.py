@@ -6,14 +6,13 @@ sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 4)
 simlib.install(stub)
-import llm.gateway as gw
 TOLD = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                 # (f518) the stub answering now, taken before the spy goes in over it
 def chat(*a, **k):
     if (k.get("format") or {}).get("title") == "Narration":
         TOLD.append(k["messages"][-1]["content"])
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None, name="ruling_spy")
 import config
 import ui.console as uc
 NOTES = []

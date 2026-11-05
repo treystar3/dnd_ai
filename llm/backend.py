@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 
 import config
 from core.interrupts import Interrupt
-from llm.errors import Cancelled, Failure
+from llm.errors import KINDS, Cancelled, Failure, NoServer
 from llm.sampling import Sampling
 
 FINISHES = ("stop", "length", "cancelled")
@@ -78,9 +78,15 @@ class ChatRequest:
 def failure_of(e: BaseException) -> Failure | None:
     """The Failure a try's error is, or None when it is none of the kinds (the gateway's "the call failed", one failed try, as before). The
     old client's errors are read as they always were (llm/gateway.py _transport): a timeout is a deadline; Ollama's own error, an HTTP
-    error and Python's ConnectionError (the client's while Ollama restarts) are the server's, one failed try. Each keeps its (type, text)."""
+    error and Python's ConnectionError (the client's while Ollama restarts) are the server's, one failed try. Each keeps its (type, text).
+    (f518) No model server in the process at all (NoServer, the suite's switch with nothing installed) is unreachable, with no legacy
+    pair: one try, nothing charged; a ConnectionError raised on purpose is still the server's."""
     if isinstance(e, Failure):
         return e
+    if isinstance(e, NoServer):
+        f = Failure("unreachable", str(e)[:200])
+        f.__cause__ = e
+        return f
     from llm import gateway
     timed_out, server = gateway._transport(e)
     if not (timed_out or server):
@@ -88,6 +94,69 @@ def failure_of(e: BaseException) -> Failure | None:
     f = Failure("deadline" if timed_out else "server", str(e)[:200], legacy=(type(e).__name__, str(e)))
     f.__cause__ = e
     return f
+
+
+LEGACY_ERRORS = {"Timeout": "deadline"}     # (f518) a recorded error's type name -> its kind; a name holding 'Timeout' is a deadline,
+                                            # every other name the server's (ConnectionError, ResponseError, HTTPError and the rest)
+
+
+def legacy_failure(err) -> Failure:
+    """(f518) A recorded error row's [type name, text] as the Failure a replay raises, with no import of the old client's packages: a
+    timeout's name is a deadline, any other the server's, each keeping the recorded pair as its legacy (so the gateway words it as it
+    was worded when it was recorded). A neutral Failure recorded without a pair (['Failure', '<kind>: <detail>']) keeps its kind."""
+    name, text = ((list(err or []) + ["", ""])[:2])
+    name, text = str(name), str(text)
+    if name == "Failure":
+        kind, _, detail = text.partition(": ")
+        return Failure(kind if kind in KINDS else "server", detail if kind in KINDS else text)
+    kind = next((k for part, k in LEGACY_ERRORS.items() if part in name), "server")
+    return Failure(kind, text[:200], legacy=(name, text))
+
+
+PASS = object()      # (f518) a stand-in's handler returns this to send the request on below it (a live tool's real titles)
+
+
+def _send(fn, kwargs: dict, deadline=None, client=None, hand_deadline: bool = False):
+    """(f518) The one way a request in the old client's shape is sent, by OllamaShape and by a stand-in alike: the old client's errors on
+    the neutral kinds (failure_of), anything else as it is, an Interrupt untouched. With a client (OllamaShape's), the turn's deadline is
+    set on its own timeout as before, and the Failure says whether that limit was the one applied (failed_try words it so); a stand-in
+    names no client, so nothing reads the real one, and is handed the deadline only when its function asks for it by name."""
+    from llm import gateway
+    applied = False
+    try:
+        if client is not None:
+            with gateway._deadline(deadline, client) as applied:
+                return fn(**kwargs)
+        return fn(**kwargs, deadline=deadline) if hand_deadline else fn(**kwargs)
+    except Interrupt:
+        raise                                           # stopped on purpose (a replay parted, a cancel): never a failure of the model's
+    except Exception as e:
+        f = failure_of(e)
+        if f is None or f is e:
+            raise
+        f.client_limit = applied
+        raise f from e
+
+
+def reply_of(response) -> "Reply":
+    """(f518) The old client's answer as the interface's Reply: its text, its finish, its counts rounded for the budget (usage), and its
+    own fields for the recorder (legacy). A Reply given back as it is."""
+    from llm import gateway
+    if isinstance(response, Reply):
+        return response
+    return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response),
+                 legacy=legacy_answer(response))
+
+
+def embedding_of(response) -> "Embedding":
+    if isinstance(response, Embedding):
+        return response
+    return Embedding(vectors=response["embeddings"] if isinstance(response, dict) else response.embeddings)
+
+
+def title(req: ChatRequest) -> str:
+    """(f518) A request's schema title, as the old client's format carried it (a stand-in's handlers and a live tool route by it)."""
+    return req.schema.model_json_schema().get("title", "") if req is not None else ""
 
 
 # ------------------------------------------------------------------ the Ollama-shaped source (until f528)
@@ -129,57 +198,111 @@ def legacy_projection(req: ChatRequest) -> dict:
 
 
 class OllamaShape:
-    """The source until the game plays on llama-server: today's call, to whatever llm.gateway._client holds, with the turn's deadline on
-    the client's own timeout as before (llm/gateway.py _deadline)."""
+    """The source until the game plays on llama-server: today's call, to the Ollama client (llm.gateway._client, or the client given: a
+    test's spy on what is sent), with the turn's deadline on the client's own timeout as before (llm/gateway.py _deadline)."""
 
     name = "ollama"
 
-    def chat(self, req: ChatRequest, deadline=None) -> Reply:
+    def __init__(self, client=None):
+        self._given = client
+
+    @property
+    def client(self):
         from llm import gateway
-        try:
-            with gateway._deadline(deadline):
-                response = gateway._client.chat(**ollama_kwargs(req))
-        except Interrupt:
-            raise                                       # stopped on purpose (a replay parted): never a failure of the model's
-        except Exception as e:
-            f = failure_of(e)                           # (f516) the old client's errors on the neutral kinds; anything else as it is
-            if f is None:
-                raise
-            raise f from e
-        return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response),
-                     legacy=legacy_answer(response))
+        return self._given if self._given is not None else gateway._client      # read late: the lazy client, built on its first call
+
+    def chat(self, req: ChatRequest, deadline=None) -> Reply:
+        c = self.client
+        return reply_of(_send(c.chat, ollama_kwargs(req), deadline, client=c))
 
     def embed(self, texts: list[str]) -> Embedding:
-        from llm import embed as _embed
-        try:
-            r = _embed._client().embed(**embed_kwargs(texts))
-        except Interrupt:
-            raise
-        except Exception as e:
-            f = failure_of(e)                           # (f516) as chat
-            if f is None:
-                raise
-            raise f from e
-        return Embedding(vectors=r["embeddings"] if isinstance(r, dict) else r.embeddings)
+        return embedding_of(_send(self.client.embed, embed_kwargs(texts)))
 
     def load(self, progress=None) -> None:
         from llm import gateway
-        gateway.warm()
+        gateway.warm(self.client)
 
     def close(self) -> None:
         from llm import gateway
-        gateway.unload()
+        gateway.unload(self.client)
 
     def state(self) -> str:
         return "ready"
 
     def facts(self) -> dict:
-        return {"source": self.name, "model": config.MODEL, "embed_model": config.EMBED_MODEL}
+        """(f518) The embedder is here when the Ollama server has its model (llm/embed.py probe: never under the suite's switch, and
+        fixed for a strict session); a client given is a test's, with no embedder."""
+        from llm import embed as _embed
+        return {"source": self.name, "model": config.MODEL, "embed_model": config.EMBED_MODEL,
+                "embedder": _embed.probe() if self._given is None else False}
+
+
+class StandIn:
+    """(f518) A model source for the suite, the recording scripts and the developer tools: chat(**k) and embed(**k) are the functions it
+    answers with, given the old client's arguments (ollama_kwargs, embed_kwargs) and returning what the old client returned (an object
+    with .message.content and perhaps .done_reason and raw counts; a dict with 'embeddings'), so simlib.Stub's handlers and every
+    test's function serve unchanged. Its errors go the one way OllamaShape's go (_send). It reads no real client: a function that
+    names a `deadline` parameter is handed the turn's deadline, any other is not; a function returning PASS sends the request on to
+    `below` (or to Ollama), as a live tool's real titles go. No chat function: every chat is unreachable; no embed function: there
+    is no embedder (facts), and an embed asked anyway is unreachable. `calls` counts the titles answered ('' for embeddings)."""
+
+    def __init__(self, chat=None, embed=None, facts: dict | None = None, name: str = "stand-in", below=None):
+        import collections
+        import inspect
+        self.chat_fn, self.embed_fn, self.name, self.below = chat, embed, name, below
+        self._facts = dict(facts or {})
+        self.calls = collections.Counter()
+        self._count = threading.Lock()
+
+        def names_deadline(fn) -> bool:
+            try:
+                p = inspect.signature(fn).parameters.get("deadline")
+            except (TypeError, ValueError):
+                return False
+            return p is not None and p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+        self._hand = names_deadline(chat) if chat is not None else False
+
+    def _down(self):
+        return self.below if self.below is not None else OllamaShape()
+
+    def chat(self, req: ChatRequest, deadline=None) -> Reply:
+        if self.chat_fn is None:
+            raise Failure("unreachable", "this stand-in answers no chat")
+        with self._count:
+            self.calls[title(req)] += 1
+        got = _send(self.chat_fn, ollama_kwargs(req), deadline, hand_deadline=self._hand)
+        if got is PASS:
+            return self._down().chat(req, deadline)
+        return reply_of(got)
+
+    def embed(self, texts: list[str]) -> Embedding:
+        if self.embed_fn is None:
+            raise Failure("unreachable", "this stand-in has no embedder")
+        with self._count:
+            self.calls[""] += 1
+        got = _send(self.embed_fn, embed_kwargs(texts))
+        if got is PASS:
+            return self._down().embed(texts)
+        return embedding_of(got)
+
+    def load(self, progress=None) -> None:
+        loading(lambda: None)
+
+    def close(self) -> None:
+        pass
+
+    def state(self) -> str:
+        return "ready"
+
+    def facts(self) -> dict:
+        return {"source": self.name, "model": config.MODEL, "embed_model": config.EMBED_MODEL, "embedder": self.embed_fn is not None,
+                **self._facts}
 
 
 # ------------------------------------------------------------------ the one source, its layers, the lanes
 
-_source = OllamaShape()
+_default = OllamaShape()
+_sources: list[tuple[int, object]] = []              # (f518) (order added, source): the newest answers; each handle removes its own
 _layers: list[tuple[int, int, object]] = []          # (rank, order added, layer), called lowest rank outermost
 _lock = threading.Lock()
 _added = 0
@@ -187,19 +310,24 @@ _lane = threading.local()
 
 
 def source():
-    return _source
+    """The source answering now: the newest one put in (use), else Ollama."""
+    with _lock:
+        return _sources[-1][1] if _sources else _default
 
 
 def use(src):
-    """Make src the source; returns a handle that puts the one before it back."""
-    global _source
+    """Make src the source; returns a handle that takes exactly it away again (f518: a stack, so handles undone in any order leave
+    the sources still put in, newest answering, never one already taken away)."""
+    global _added
     with _lock:
-        before, _source = _source, src
+        _added += 1
+        entry = (_added, src)
+        _sources.append(entry)
 
     def undo():
-        global _source
         with _lock:
-            _source = before
+            if entry in _sources:
+                _sources.remove(entry)
     return undo
 
 
@@ -268,7 +396,7 @@ def _cancelled(run):
 
 def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, deadline=None, voice: str | None = None) -> Reply:
     req = ChatRequest(messages=messages, schema=schema, sampling=sampling, max_tokens=max_tokens, voice=voice)
-    src = _source
+    src = source()
     reply = _cancelled(lambda: _through("chat", req, lambda r: src.chat(r, deadline=deadline)))
     if getattr(reply, "finish", None) == "cancelled":
         raise Cancelled("the reply was cancelled")   # (f516) a cancel told as a reply's finish is the same Interrupt: never an answer
@@ -276,7 +404,7 @@ def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, dead
 
 
 def embed(texts: list[str]) -> Embedding:
-    src = _source
+    src = source()
     return _cancelled(lambda: _through("embed", list(texts), lambda t: src.embed(t)))
 
 
@@ -287,22 +415,23 @@ def loading(run):
 
 
 def load(progress=None) -> None:
-    fn = getattr(_source, "load", None)
+    fn = getattr(source(), "load", None)
     if fn is not None:
         fn(progress)
 
 
 def close() -> None:
-    fn = getattr(_source, "close", None)
+    fn = getattr(source(), "close", None)
     if fn is not None:
         fn()
 
 
 def state() -> str:
-    fn = getattr(_source, "state", None)
+    fn = getattr(source(), "state", None)
     return fn() if fn is not None else "ready"
 
 
 def facts() -> dict:
-    fn = getattr(_source, "facts", None)
+    """What the runtime is (R4): the source's own facts. A source that declares no embedder has none (llm/embed.py available)."""
+    fn = getattr(source(), "facts", None)
     return dict(fn()) if fn is not None else {}
