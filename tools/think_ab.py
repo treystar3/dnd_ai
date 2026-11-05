@@ -112,8 +112,8 @@ def pick(rows, tasks, per_task: int, seed: int = 533) -> dict[str, list[dict]]:
         if t not in by or r.get("kind") != "chat":
             continue
         key = (r.get("_from"), t)
-        again = last.get(key) == msgs
-        last[key] = msgs
+        again = last.get(key) == msgs              # the same request again, straight after it failed: the retry of a server error
+        last[key] = msgs if r.get("error") else None
         if len(msgs) != 2 or r.get("error") or not r.get("answer"):
             continue
         if again:
@@ -563,9 +563,12 @@ def main(argv=None) -> int:
             ap.error("--evals needs an Ollama server (the game speaks to Ollama until f528)")
         if not (ROOT / a.corpus).exists() and not Path(a.corpus).exists():
             ap.error(f"--corpus {a.corpus} does not exist (tools/interp_corpus.py builds one from a night's run folders)")
+        a.corpus = str(Path(a.corpus).resolve()) if Path(a.corpus).exists() else str(ROOT / a.corpus)
+        if not {"interpret_action", "ruling"} <= set(tasks):
+            ap.error("--evals measures interpret_action (interp_eval) and ruling (ruling_eval): name both in --tasks")
         if a.model and a.model != config.MODEL:
             ap.error(f"--evals plays the game, which asks for {config.MODEL}; it cannot measure --model {a.model}")
-    if (folder / "results.jsonl").exists() and not a.force:
+    if (folder / "results.jsonl").exists() and (folder / "results.jsonl").stat().st_size and not a.force:
         ap.error(f"{folder / 'results.jsonl'} is there already: --force to measure again over it, or --summarise to read it")
     chosen = pick(recorded_rows(Path(a.recordings)), tasks, a.per_task)
     print("chosen: " + ", ".join(f"{t} {len(rs)}" for t, rs in chosen.items()))
@@ -610,4 +613,6 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
+    import signal
+    signal.signal(signal.SIGTERM, signal.default_int_handler)      # a kill keeps the summary, as a Ctrl-C does
     sys.exit(main())

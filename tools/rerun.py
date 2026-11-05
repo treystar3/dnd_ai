@@ -263,7 +263,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     import config, tempfile
     think_before = (config.THINK_TASKS, config.THINK_ROOM)         # (f533) the replay asks as the recording did: its tasks thought, or none
     config.THINK_TASKS = frozenset(rec["meta"].get("think_tasks") or ())
-    config.THINK_ROOM = int(rec["meta"].get("think_room") or config.THINK_ROOM)
+    config.THINK_ROOM = int(rec["meta"].get("think_room", config.THINK_ROOM))
     scratch = Path(tempfile.mkdtemp(prefix="rerun_logs_"))         # a replay's own logs never mix with real play's
     config.LOG_PATH, config.TURN_LOG_PATH, config.PULSE_LOG_PATH = (str(scratch / n) for n in ("llm_calls.jsonl", "turns.jsonl", "pulse.jsonl"))
     config.CRASH_LOG_PATH, config.SESSION_STATS_PATH = str(scratch / "crash.log"), str(scratch / "sessions.jsonl")   # (f518) nor its faults

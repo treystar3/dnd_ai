@@ -110,7 +110,8 @@ GATE = "\n".join([
     "src = backend.StandIn(chat=chat, name='thinker')",
     "undo = backend.use(src)",
     "try:",
-    "    gateway.generate('ruling', 'Rule.', 'I climb the wall.', Ruling, temperature=0.3, max_tokens=500)",
+    "    gateway.generate('ruling', 'Rule.', 'I climb the wall.', Ruling, temperature=0.3, max_tokens=500,",
+    "                     relaxed_context={} if MODE == 'overrun' else None)",
     "    err = ''",
     "except gateway.LLMError as e:",
     "    err = str(e) + ' <- ' + str(e.__cause__)",
@@ -133,7 +134,8 @@ def gate(mode: str, env_add: dict) -> dict:
 
 
 over = gate("overrun", env_g)
-check("a thinking try whose thinking used all its room ends the tries at once, the reason named (no 'keep every field short' retry)",
+check("a thinking try whose thinking used all its room ends the tries at once, the reason named (no 'keep every field short' retry, "
+      "nor the relaxed retry, which would think as long again)",
       over.get("tries") == 1 and "thinking used all the room" in over.get("err", ""), over)
 check("...and it is charged for what it wrote, thinking and all (the server's own count, as a replay has it recorded)",
       over.get("charged") and over["charged"][0][2] == int(1524 * float(over["cpt"])), over.get("charged"))
@@ -297,6 +299,13 @@ check("a task name the tool does not measure, a kind named twice, a missing case
       refused(base + ["--tasks", "interpret", "--out", str(OUT / "a")]) and refused(base + ["--server", f"ollama={url}", "--out", str(OUT / "b")])
       and refused(base + ["--evals", "--corpus", "data/replay/nothing.yaml", "--out", str(OUT / "c")])
       and refused(base + ["--evals", "--model", "another:1b", "--out", str(OUT / "d")]) and refused(base + ["--out", str(OUT)]))
+empty = OUT / "empty"
+empty.mkdir(parents=True, exist_ok=True)
+(empty / "results.jsonl").write_text("", encoding="utf-8")
+with contextlib.redirect_stdout(io.StringIO()):
+    rc_empty = think_ab.main(base + ["--tasks", "ruling", "--per-task", "1", "--out", str(empty)])
+check("...while a results file a run left empty (it measured nothing) is no reason to refuse", rc_empty == 0
+      and (empty / "results.jsonl").read_text(encoding="utf-8").strip() != "", rc_empty)
 (OUT / "summary.md").unlink()
 with contextlib.redirect_stdout(io.StringIO()):
     rc2 = think_ab.main(["--summarise", "--out", str(OUT)])
@@ -345,6 +354,15 @@ alone = think_ab.pick(rows_all, ["ruling"], 2)["ruling"]
 among = think_ab.pick(rows_all, list(think_ab.TASKS), 2)["ruling"]
 check("each task's sample is its own, the same whatever other tasks are chosen with it", [r["req"] for r in alone] == [r["req"] for r in among]
       and alone, ([r.get("i") for r in alone], [r.get("i") for r in among]))
+same = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], "options": {"temperature": 0.2}}
+synthetic = [dict(kind="chat", task="ruling", title="Ruling", request=same, answer='{"sense": "yes"}', i=1, _from="f"),
+             dict(kind="chat", task="ruling", title="Ruling", request=same, answer='{"sense": "yes"}', i=2, _from="f"),
+             dict(kind="chat", task="ruling", title="Ruling", request=same, error=["ResponseError", "500"], i=3, _from="f"),
+             dict(kind="chat", task="ruling", title="Ruling", request=same, answer='{"sense": "no"}', i=4, _from="f")]
+think_ab.SKIPPED.clear()
+kept_i = [r["i"] for r in think_ab.pick(synthetic, ["ruling"], 10)["ruling"]]
+check("the same request answered twice is two first tries; only the one straight after a failed try is its retry, and left out",
+      kept_i == [1, 2] and think_ab.SKIPPED == {"a retry after a server error": 1}, (kept_i, think_ab.SKIPPED))
 decide = think_ab.DECISION["CombatIntent"]
 check("a fight's reading agrees only when the whole move does: the way it moves, the item, the approach, whom it heals ('' and self alike)",
       decide({"kind": "move", "move": "back"}) != decide({"kind": "move", "move": "closer"})
@@ -385,6 +403,23 @@ check("the evaluations run live against the Ollama server named (its URL whole),
 check("...an evaluation that runs out of time is a row of its own (the others still run), its output kept, and the summary rewritten "
       "after each", ev[2]["rc"] == "timeout" and (OUT / "eval_interp_eval_on.log").read_text(encoding="utf-8").startswith("ok   a")
       and seen_done == [1, 2, 3, 4], (ev[2], seen_done))
+
+import latency
+night = OUT / "night_run"
+night.mkdir(parents=True, exist_ok=True)
+
+
+def head_of(sampling: dict) -> str:
+    (night / "run.json").write_text(json.dumps({"character": "A", "class": "warrior", "model": "m", "sampling": sampling}), encoding="utf-8")
+    return latency.summarise(night).splitlines()[2]
+
+
+base_night = head_of({"temp_add": 0, "repeat_add": 0, "think_tasks": [], "think_room": 1024})
+thinking_night = head_of({"temp_add": 0, "repeat_add": 0, "think_tasks": ["ruling"], "think_room": 1024})
+warm_night = head_of({"temp_add": 0.15, "repeat_add": 0.1, "think_tasks": [], "think_room": 1024})
+check("a night's summary says when it thought, and calls a base-voice night neither warm nor thinking",
+      "warm" not in base_night and "thinking" not in base_night and "thinking on for ruling (+1024 tokens)" in thinking_night
+      and "warm calls +0.15 temperature" in warm_night, (base_night, thinking_night, warm_night))
 
 import interp_eval
 from llm.errors import LLMError

@@ -296,7 +296,7 @@ def generate(
     try:
         return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:
-        again = getattr(e, "failure", "") in ("unreachable", "loading") or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True))
+        again = getattr(e, "failure", "") in ("unreachable", "loading", "thought_out") or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True))
         if relaxed_context is not None and not again:   # (f516) nothing there to read it, or the request as first made refused before it
             try:                                        # was read, is refused again; a retry refused for the draft it carried is not
                 return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
@@ -387,6 +387,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         if reply.finish == "length" and thinking and not raw.strip():
             # (f533) the thinking used all the room before the answer began. Telling it to shorten its fields would not reach the
             # thinking, and the next try would think as long again: the tries end here, with the reason named.
+            failure = "thought_out"                                     # read by generate(): no relaxed retry, which would think as long
             last_error = LLMError("the thinking used all the room before the answer began")
             what = "the thinking used all its room before the answer began"
             _log(task, attempt, elapsed, messages, "", what, usage, shape=form)

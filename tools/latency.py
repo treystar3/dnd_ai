@@ -622,7 +622,9 @@ def summarise(run_dir: Path) -> str:
                      + (f"starting as {info['start']}, playing as {info.get('persona', '?')}; " if info.get("start") else "") +
                      f"model {info.get('model', '?')}" + (" (stand-in)" if info.get("stub") else "")
                      + (f", warm calls {(info.get('sampling') or {}).get('temp_add', 0):+g} temperature and {(info.get('sampling') or {}).get('repeat_add', 0):+g} repeat penalty"
-                        if any((info.get("sampling") or {}).values()) else "") + ".")
+                        if (info.get("sampling") or {}).get("temp_add") or (info.get("sampling") or {}).get("repeat_add") else "")
+                     + (f", thinking on for {', '.join((info.get('sampling') or {})['think_tasks'])} (+{(info.get('sampling') or {}).get('think_room')} tokens)"
+                        if (info.get("sampling") or {}).get("think_tasks") else "") + ".")      # (f533)
         lines.append("")
     lines += ["## Turns", ""]
     lines += turns_table(turns) if turns else ["No turns recorded."]
