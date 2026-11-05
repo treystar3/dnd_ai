@@ -219,7 +219,8 @@ def current_lane() -> str:
 # ------------------------------------------------------------------ the interface
 
 def _cancelled(run):
-    """(f516, R3) A cancelled try leaves the interface as Cancelled, an Interrupt, whichever layer or source said so: never a failure."""
+    """(f516, R3) A cancelled try leaves the interface as Cancelled, an Interrupt, whichever layer or source said so (a Failure of kind
+    cancelled, Cancelled itself, or for chat a reply whose finish is 'cancelled'): never a failure."""
     try:
         return run()
     except Failure as f:
@@ -231,7 +232,10 @@ def _cancelled(run):
 def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, deadline=None, voice: str | None = None) -> Reply:
     req = ChatRequest(messages=messages, schema=schema, sampling=sampling, max_tokens=max_tokens, voice=voice)
     src = _source
-    return _cancelled(lambda: _through("chat", req, lambda r: src.chat(r, deadline=deadline)))
+    reply = _cancelled(lambda: _through("chat", req, lambda r: src.chat(r, deadline=deadline)))
+    if getattr(reply, "finish", None) == "cancelled":
+        raise Cancelled("the reply was cancelled")   # (f516) a cancel told as a reply's finish is the same Interrupt: never an answer
+    return reply
 
 
 def embed(texts: list[str]) -> Embedding:

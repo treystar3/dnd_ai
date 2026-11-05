@@ -115,8 +115,10 @@ def failed_try(e: BaseException, limit) -> tuple[str, str]:
     text = (f.legacy or ("", f.detail))[1]
     if kind == "cancelled":
         return kind, f.detail or "cancelled"
-    if kind == "deadline":
-        return kind, timeout_words(limit)
+    if kind == "deadline":                          # the old client's timeout is worded as it always was; a source that keeps the
+        if f.legacy or limit is None:               # limit itself is worded from it, never by reading the old client (which would
+            return kind, timeout_words(limit)       # build it, or under the suite's switch raise out of the gateway)
+        return kind, f"timed out after {round(float(limit))}s (what was left of the turn's time)"
     if kind == "server":
         return kind, f"the model server failed: {text[:200] or kind_name or 'no reason given'}"
     if kind in ("unreachable", "loading"):
@@ -260,8 +262,9 @@ def generate(
     try:
         return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:
-        if relaxed_context is not None and getattr(e, "failure", "") not in FREE:   # (f516) a request refused before it was read, or
-            try:                                                                   # nothing there to read it, is refused again
+        again = getattr(e, "failure", "") in ("unreachable", "loading") or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True))
+        if relaxed_context is not None and not again:   # (f516) nothing there to read it, or the request as first made refused before it
+            try:                                        # was read, is refused again; a retry refused for the draft it carried is not
                 return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
             except LLMError:
                 pass
@@ -423,6 +426,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     err = LLMError(f"{task}: no valid response after {attempt + 1} attempts")
     err.transport = transport                   # (f449) read by generate(): a server down is not the same refusal as every answer refused
     err.failure = failure                       # (f516) ...and a request refused before it was read is neither
+    err.whole = len(messages) == 2              # (f516) whether that last try was the request as first made, or a retry carrying its draft
     raise err from last_error
 
 

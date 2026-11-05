@@ -6,8 +6,12 @@
   filed as request_refused, apart from an outage. A full slot is too big: no cut-off retry, nobody told they went round in circles.
 - The old client's errors map onto the kinds in one place (llm/backend.py failure_of), so nothing recorded or logged moves: Python's
   ConnectionError, an HTTP error and Ollama's own are the server's, a timeout is a deadline, anything else is "the call failed".
-- A cancel is an Interrupt: no try counted, nothing charged, no fallback, no refusal, no tally. Raised at a turn's understanding it leaves
-  the save as it was, shows no "not taken" line, writes nothing to logs/crash.log, leaves no answers served, and the session closes clean.
+- A cancel is an Interrupt, whether a source raises it or tells it as a reply's finish: no try counted, nothing charged, no fallback, no
+  refusal, no tally. Raised at a turn's understanding, inside an operation (at a call made inside it or asked outside it), in a talk
+  turn, or through the game's own loop, it leaves the save as it was, shows no "not taken" line, writes nothing to logs/crash.log, keeps
+  no answer for the call, and the session closes clean.
+- A retry refused as too big for the draft it carried still gets the relaxed retry; a deadline from a source that keeps the limit itself
+  is worded from that limit, never by reading the old client.
   main.guarded closes quietly on it, the night bot does not count it as the model failing, and a cancelled embed leaves embeddings on.
 
 Run: python tools/sim/failure_kinds_516_test.py"""
@@ -75,26 +79,41 @@ class Source:
         return self.reply
 
 
+class Script:
+    """A model source that plays its steps in order: a Reply is answered, a kind's name is raised as that Failure."""
+    name = "script"
+
+    def __init__(self, *steps):
+        self.steps, self.asked = list(steps), []
+
+    def chat(self, req, deadline=None):
+        self.asked.append([m["content"] for m in req.messages])
+        step = self.steps.pop(0) if self.steps else backend.Reply(text='{"x": "ok"}')
+        if isinstance(step, str):
+            raise Failure(step, f"the {step} detail")
+        return step
+
+
 def last_logged() -> dict:
     rows = [json.loads(l) for l in Path(config.LOG_PATH).read_text(encoding="utf-8").splitlines() if l.strip()]
     return rows[-1] if rows else {}
 
 
-def run(src, relaxed=None, retries=2):
+def run(src, relaxed=None, retries=2, task=TASK, max_tokens=config.MAX_TOKENS):
     undo = backend.use(src)
     b = budget.open(limit=600)
     f0, r0, o0 = len(gateway.FALLBACKS), len(refusals.SESSION), len(gateway.OUTCOMES)
-    t0 = dict(gateway.TALLY.get(TASK, {"calls": 0, "failed": 0, "attempts": 0}))
+    t0 = dict(gateway.TALLY.get(task, {"calls": 0, "failed": 0, "attempts": 0}))
     try:
-        gateway.generate(TASK, "Read the offer.", "Morning.", Read, retries=retries, relaxed_context=relaxed)
-        got = None
+        got = gateway.generate(task, "Read the offer.", "Morning.", Read, retries=retries, relaxed_context=relaxed, max_tokens=max_tokens)
     except BaseException as e:
         got = e
     finally:
         budget.close()
         undo()
-    t1 = gateway.TALLY.get(TASK, {"calls": 0, "failed": 0, "attempts": 0})
-    return types.SimpleNamespace(err=got, tries=len(src.asked), charged=len([c for c in b.charges if c[0] == TASK]),
+    t1 = gateway.TALLY.get(task, {"calls": 0, "failed": 0, "attempts": 0})
+    return types.SimpleNamespace(err=got if isinstance(got, BaseException) else None, answer=None if isinstance(got, BaseException) else got,
+                                 tries=len(src.asked), charged=len([c for c in b.charges if c[0] == task]),
                                  fallbacks=gateway.FALLBACKS[f0:], refusals=[r["kind"] for r in refusals.SESSION[r0:]],
                                  outcomes=gateway.OUTCOMES[o0:], tally=tuple(t1[k] - t0[k] for k in ("calls", "failed", "attempts")))
 
@@ -122,12 +141,27 @@ for kind, said in (("too_big", "a request too big"), ("invalid", "an invalid req
     r = run(Source(kind), relaxed={})
     check(f"...while {said} gets none: it would only fail again", r.tries == 1, r.tries)
 
+src = Script(backend.Reply(text="not json at all"), "too_big", backend.Reply(text='{"x": "ok"}'))
+r = run(src, relaxed={})
+check("...but a retry refused as too big for the draft it carried still gets the relaxed retry, which sends the request as first made",
+      r.err is None and r.answer is not None and r.answer.x == "ok" and r.tries == 3 and len(src.asked[1]) == 4 and len(src.asked[2]) == 2,
+      (repr(r.err), r.tries, [len(a) for a in src.asked]))
+
 r = run(Source(reply=backend.Reply(text='{"x": "o', finish="length", usage={"full": True})))
 row = last_logged()
 check("a full slot (the request and its answer filled the context) is too big: one try, filed as request_refused",
       isinstance(r.err, LLMError) and r.tries == 1 and r.refusals == ["request_refused"] and r.err.failure == "too_big", vars(r))
 check("...charged, since it ran, and nobody is told they went round in circles", r.charged == 1 and "circles" not in str(row.get("error"))
       and "too big" in str(row.get("error")), (r.charged, row.get("error")))
+prose = config.PROSE_MAX_TOKENS
+r = run(Source(reply=backend.Reply(text='{"x": "o', finish="length", usage={"full": True})), task="narrate", max_tokens=prose)
+row = last_logged()
+check("...the narrator's too: one try, request_refused, never told it went round in circles",
+      r.tries == 1 and r.refusals == ["request_refused"] and "circles" not in str(row.get("error")), (r.tries, r.refusals, row.get("error")))
+said = Source(reply=backend.Reply(text='{"x": "o', finish="length", usage=None))
+run(said, task="narrate", max_tokens=prose)
+check("...where an answer of the narrator's cut off at its own ceiling is told that (so the check above could fail)",
+      len(said.asked) == 2 and "circles" in said.asked[1][-1], [a[-1][:80] for a in said.asked])
 cut = Source(reply=backend.Reply(text='{"x": "o', finish="length", usage=None))
 r = run(cut)
 check("...while an answer cut off at its own ceiling still gets the cut-off retry, told why",
@@ -140,6 +174,28 @@ for label, src in (("raised as a Failure of kind cancelled", Source("cancelled")
           isinstance(r.err, Cancelled) and isinstance(r.err, Interrupt) and not isinstance(r.err, LLMError), repr(r.err))
     check("...after one try, with nothing charged, no fallback, no refusal, nothing tallied",
           (r.tries, r.charged, r.fallbacks, r.refusals, r.outcomes, r.tally) == (1, 0, [], [], [], (0, 0, 0)), vars(r))
+
+r = run(Source(reply=backend.Reply(text="", finish="cancelled")))
+check("a cancel told as a reply's finish is the same: Cancelled, nothing charged, no fallback, no refusal, nothing tallied",
+      isinstance(r.err, Cancelled) and (r.tries, r.charged, r.fallbacks, r.refusals, r.outcomes, r.tally) == (1, 0, [], [], [], (0, 0, 0)), vars(r))
+
+# ---- a deadline from a source that keeps the limit itself is worded from that limit, never by reading the old client
+import os
+lazy, env0 = gateway._LazyClient(), os.environ.get("MERAVIA_NO_SERVER")
+saved_client, gateway._client = gateway._client, lazy
+os.environ["MERAVIA_NO_SERVER"] = "1"
+try:
+    r = run(Source("deadline"))
+    row = last_logged()
+finally:
+    gateway._client = saved_client
+    if env0 is None:
+        os.environ.pop("MERAVIA_NO_SERVER", None)
+    else:
+        os.environ["MERAVIA_NO_SERVER"] = env0
+check("a new source's deadline is one try and the gateway's own failure, worded from the turn's time left, the old client never built",
+      isinstance(r.err, LLMError) and r.tries == 1 and str(row.get("error", "")).startswith("timed out after")
+      and "what was left of the turn's time" in str(row.get("error")) and not lazy.built(), (repr(r.err), row.get("error"), lazy.built()))
 
 # ---- 3. the old client's errors, on the kinds, read as they always were
 import httpx
@@ -233,8 +289,87 @@ after = Path(config.CRASH_LOG_PATH).read_text(encoding="utf-8") if Path(config.C
 check("...nothing written to logs/crash.log", after == crashlog_before and len(crashlog.SESSION) == crashes0, crashlog.SESSION[crashes0:])
 s = asked.serving()
 check("...no answers left served", s is None or not s.answers, s and len(s.answers))
+
+
+class CancelAll:
+    name = "cancel-all"
+
+    def chat(self, req, deadline=None):
+        raise Failure("cancelled", "the session is closing")
+
+
+servings = []
+real_begin = asked.begin
+
+
+def keep_serving(sv):
+    if sv is not None and sv not in servings:
+        servings.append(sv)
+    real_begin(sv)
+
+
+asked.begin = keep_serving
+from engine import operation
+for task in ("interpret_action", "npc_conversation"):
+    servings.clear()
+    before = statehash.digest(g.store)["all"]
+    undo = backend.use(CancelAll())
+    try:
+        ws.asked_operation("probe:" + task, "x", lambda op, _t=task: gateway.generate(_t, "sys", "user", Read))
+        got = None
+    except BaseException as e:
+        got = e
+    finally:
+        undo()
+    where = "asked outside the operation" if task in asked.tasks() else "made inside it"
+    check(f"a cancel inside an operation, at a call {where} ({task}), leaves it as Cancelled with no answer kept for it",
+          isinstance(got, Cancelled) and servings and all(not sv.answers for sv in servings), (repr(got), [len(sv.answers) for sv in servings]))
+    check("...the operation closed, the save as it was, nothing written to logs/crash.log",
+          operation.current() is None and asked.serving() is None and statehash.digest(g.store)["all"] == before
+          and len(crashlog.SESSION) == crashes0, (operation.current(), len(crashlog.SESSION) - crashes0))
+asked.begin = real_begin
+
+from ui import console
+script = ["I look around the square for anyone who needs a hand.", "quit"]
+real_ask, console.ask = console.ask, lambda *a, **k: script.pop(0) if script else "quit"
+SHOWN.clear()
+undo = backend.use(CancelAt("interpret_action"))
+try:
+    ws.run()
+    got = None
+except BaseException as e:
+    got = e
+finally:
+    undo()
+    console.ask = real_ask
+check("through the game's own loop, a cancel at the understanding leaves the loop as Cancelled and shows no 'not taken' line",
+      isinstance(got, Cancelled) and not any(t in lines for _, t in SHOWN) and len(crashlog.SESSION) == crashes0,
+      (repr(got), [t for _, t in SHOWN if t in lines]))
 g.close()
 check("...and the session closes clean", simlib.residue() == {}, simlib.residue())
+
+g3 = simlib.campaign(SAVE + "_talk", cls="warrior", seed=5, location="tilted_plough")
+ws3 = g3.scene
+ws3.enter("tilted_plough")
+npc = ws3.present[0] if ws3.present else None
+check("the inn has someone to talk to", npc is not None)
+stub.plan = [{"kind": "talk", "target": npc.id, "speech": "Good day to you. Is there work about?"}]
+src = CancelAt("npc_conversation")
+before, crashes3 = statehash.digest(g3.store)["all"], len(crashlog.SESSION)
+undo = backend.use(src)
+try:
+    ws3.turn("I say good day and ask if there is work about.")
+    got = None
+except BaseException as e:
+    got = e
+finally:
+    undo()
+    stub.plan = [{"kind": "look"}]
+check("a cancel of the townsfolk's answer in a talk turn (asked outside the line's operation) leaves as Cancelled, the save as it was",
+      isinstance(got, Cancelled) and src.cancelled == 1 and statehash.digest(g3.store)["all"] == before
+      and len(crashlog.SESSION) == crashes3 and operation.current() is None and asked.serving() is None, (repr(got), src.cancelled))
+g3.close()
+check("...and that session closes clean too", simlib.residue() == {}, simlib.residue())
 
 # ---- 5. main.guarded, the night bot, the embedder
 import main as game_main
