@@ -28,7 +28,7 @@ from scenes.goddess import ThresholdScene
 from storage.campaign import PlayerState, SaveTooNew
 from storage import saves
 from ui import console
-from llm.errors import LLMError                     # (f514) from the module that imports no model client
+from llm.errors import Cancelled, LLMError                     # (f514) from the module that imports no model client
 from llm.gateway import unload, warm
 from world.loader import WorldError, authored
 
@@ -144,6 +144,8 @@ def guarded(run, bridge):
     """Run the game and turn the known failures into readable messages (in the terminal or the window)."""
     try:
         run()
+    except Cancelled:
+        pass                                           # (f516) the game closing took its call back: nothing failed, nothing to say
     except LLMError as e:
         from engine import crashlog
         crashlog.record(e, "outside a turn: the model gave no usable answer")             # (f449) written down, so the logs sent carry it

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 import config
 
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
-from llm.errors import LLMError          # (f514) the class lives where importing it starts nothing; this name stays for every caller
+from llm.errors import Cancelled, Failure, LLMError   # (f514) the classes live where importing them starts nothing; LLMError stays here
 
 
 def keep_extra_fields() -> None:
@@ -91,6 +91,42 @@ def _transport(e: BaseException) -> tuple[bool, bool]:
     server = isinstance(e, ConnectionError) or (hx is not None and isinstance(e, hx.HTTPError)) \
         or (ol is not None and isinstance(e, ol.ResponseError))
     return timed_out, server
+
+
+# (f516) What a failed try of each kind does: whether it ends the tries, whether the turn's budget is charged for it. A deadline ends the
+# tries as a timeout always did (a second request to a stalled server only queues behind the first); the server's failure is one failed
+# try, charged, and the next goes; a server that cannot be reached, or a model still loading, ends the tries and costs nothing (f522
+# restarts the child); a request refused before it was read (too big for the context, or one the server calls invalid) ends the tries,
+# costs nothing, and is filed apart from an outage (refusals: request_refused). Anything else the call raises is "the call failed", one
+# failed try, charged, as before (f449). A cancel never gets here: it is an Interrupt (llm/backend.py _cancelled).
+ENDS = frozenset({"deadline", "unreachable", "loading", "too_big", "invalid"})
+FREE = frozenset({"unreachable", "loading", "too_big", "invalid"})
+REFUSED = frozenset({"too_big", "invalid"})
+
+
+def failed_try(e: BaseException, limit) -> tuple[str, str]:
+    """(f516) A failed try's kind ('' for anything that is no Failure) and the words the logs give it. A Failure the old client's error
+    was read as (llm/backend.py failure_of) is worded from that error, exactly as before, so nothing logged or recorded moves."""
+    from llm import backend
+    f = backend.failure_of(e)
+    if f is None:
+        return "", f"the call failed: {type(e).__name__}: {str(e)[:200]}"
+    kind, kind_name = f.kind, (f.legacy or ("", ""))[0]
+    text = (f.legacy or ("", f.detail))[1]
+    if kind == "cancelled":
+        return kind, f.detail or "cancelled"
+    if kind == "deadline":
+        return kind, timeout_words(limit)
+    if kind == "server":
+        return kind, f"the model server failed: {text[:200] or kind_name or 'no reason given'}"
+    if kind in ("unreachable", "loading"):
+        return kind, f"the model server {'could not be reached' if kind == 'unreachable' else 'was still loading the model'}" \
+                     + (f": {f.detail[:200]}" if f.detail else "")
+    if kind in REFUSED:
+        return kind, ("the request was refused before it was read: "
+                      + ("too big for the model's context" if kind == "too_big" else "the server called it invalid")
+                      + (f" ({f.detail[:200]})" if f.detail else ""))
+    return kind, f"the call failed: {kind}: {f.detail[:200]}"
 
 
 def warm() -> None:
@@ -224,8 +260,8 @@ def generate(
     try:
         return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:
-        if relaxed_context is not None:
-            try:
+        if relaxed_context is not None and getattr(e, "failure", "") not in FREE:   # (f516) a request refused before it was read, or
+            try:                                                                   # nothing there to read it, is refused again
                 return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
             except LLMError:
                 pass
@@ -234,7 +270,9 @@ def generate(
             del FALLBACKS[:-200]
             try:
                 from engine import refusals
-                if getattr(e, "transport", True):               # (f449) two different troubles, two kinds: the owner's log filed a refused line as an outage
+                if getattr(e, "failure", "") in REFUSED:          # (f516) the request itself, not the model or the server
+                    refusals.note("request_refused", task, "the request was refused before it was read; a written fallback was used")
+                elif getattr(e, "transport", True):               # (f449) two different troubles, two kinds: the owner's log filed a refused line as an outage
                     refusals.note("model_down", task, "the model server failed or timed out; a written fallback was used")
                 else:
                     refusals.note("bad_answer", task, "every answer was refused; a written fallback was used")
@@ -258,6 +296,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     plan = sampling.resolve(task, temperature)                  # (f515) the task's sampling, its ceiling and its shifts, once
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
     transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
+    failure = ""                                # (f516) the last try's failure kind, '' when it was answered (and the answer refused)
     from engine import budget
     _TASK.name = task
     for attempt in range(retries + 1):
@@ -267,7 +306,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         try:                                                                      # (f515) through the game's own interface; until f528
             reply = backend.chat(messages, schema, plan.at(attempt), max_tokens, deadline=limit)   # its source sends today's request
         except Interrupt:
-            raise                                                   # (f449) stopped on purpose (a replay parted): never a failed try
+            raise                                                   # (f449) stopped on purpose (a replay parted), (f516) or cancelled: never a failed try
         except Exception as e:
             # A timeout, a dropped connection, a server error (Ollama answers 500 when the model hits its own repeat limit) or a server
             # that cannot be reached at all (the client raises Python's own ConnectionError while Ollama restarts) is one failed attempt,
@@ -275,25 +314,35 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             # anything else the call raises: on the owner's night of 2026-11-01 the third try failed in a way the list here did not name,
             # and the error climbed out of the turn and ended the game. And one timeout ends the tries: a second request to a stalled
             # server only queues behind the first (two tries cost four minutes of waiting), so the turn rolls back at the first.
-            budget.charge(task, chars)                              # (f468) a try that failed cost what it would have written
-            last_error = e
-            transport = True
-            timed_out, server = _transport(e)               # (f514) the same test, with no import of the client's packages
-            what = (timeout_words(limit) if timed_out
-                    else f"the model server failed: {str(e)[:200] or type(e).__name__}"
-                    if server
-                    else f"the call failed: {type(e).__name__}: {str(e)[:200]}")
+            # (f516) Each on its kind (ENDS, FREE above); the old client's errors read exactly as they did.
+            failure, what = failed_try(e, limit)
+            if failure == "cancelled":
+                raise Cancelled(what) from e
+            if failure not in FREE:
+                budget.charge(task, chars)                          # (f468) a try that failed cost what it would have written
+            last_error = e.__cause__ if isinstance(e, Failure) and e.legacy and e.__cause__ is not None else e   # the client's own error kept
+            transport = transport or failure not in REFUSED
             _log(task, attempt, time.perf_counter() - start, messages, "", what, shape=form)
             audit.record(task, attempt, time.perf_counter() - start, messages, "", what, typed, config.MODEL)
             _debug(f"{task} (attempt {attempt + 1}): {what}")
-            if timed_out:
+            if failure in ENDS:
                 break
             continue
+        failure = ""
         raw = (reply.text or "").replace("\ufffd", "-")                    # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start
         usage = reply.usage
         budget.charge(task, chars, len(raw))                        # (f468) every attempt is charged, a rejected draft too (decision 9)
 
+        if reply.finish == "length" and (usage or {}).get("full"):
+            # (f516) a full slot (the request and its answer filled the context, f521): the request was too big, not the answer long. No
+            # cut-off retry is sent, and nobody is told they went round in circles. The try is charged above: it ran.
+            failure = "too_big"
+            last_error = Failure("too_big", "the request and its answer filled the model's context")
+            what = "the request was too big: it and its answer filled the model's context"
+            _log(task, attempt, elapsed, messages, raw[:2000], what, usage, shape=form)
+            audit.record(task, attempt, elapsed, messages, raw, what, typed, config.MODEL)
+            break
         if reply.finish == "length":
             last_error = LLMError("cut off at the length limit")
             reason = cut_off_reason(task, schema, max_tokens)
@@ -373,6 +422,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     _tally(task, False, attempt + 1)
     err = LLMError(f"{task}: no valid response after {attempt + 1} attempts")
     err.transport = transport                   # (f449) read by generate(): a server down is not the same refusal as every answer refused
+    err.failure = failure                       # (f516) ...and a request refused before it was read is neither
     raise err from last_error
 
 

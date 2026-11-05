@@ -14,13 +14,21 @@ always fingerprinted (the same request, the machine's thread count left out), so
 
 use(source) swaps the source; wrap(layer, rank) adds a layer around every call (the recorder and the busy light become layers in f517).
 Both return an undo handle. lane(name) names the lane a thread's calls are made in (foreground unless a thread says otherwise; f523's
-worker reads it)."""
+worker reads it).
+
+(f516) A source fails one try by raising llm.errors.Failure of a kind (loading, too_big, invalid, server, unreachable, deadline,
+cancelled); the gateway decides what each kind does. failure_of() is the one mapping from the old client's errors to those kinds, so
+nothing recorded moves: a timeout is a deadline, Ollama's own error, an HTTP error and Python's ConnectionError are the server's, each
+with the old error's (type, text) kept as legacy; anything else is no Failure at all (the gateway's "the call failed", as before). A
+cancelled Failure leaves the interface as Cancelled, an Interrupt: never a failed try."""
 
 import contextlib
 import threading
 from dataclasses import dataclass, field
 
 import config
+from core.interrupts import Interrupt
+from llm.errors import Cancelled, Failure
 from llm.sampling import Sampling
 
 FINISHES = ("stop", "length", "cancelled")
@@ -46,6 +54,23 @@ class ChatRequest:
     sampling: Sampling
     max_tokens: int
     voice: str | None = None
+
+
+# ------------------------------------------------------------------ the old client's errors, on the neutral kinds (f516)
+
+def failure_of(e: BaseException) -> Failure | None:
+    """The Failure a try's error is, or None when it is none of the kinds (the gateway's "the call failed", one failed try, as before). The
+    old client's errors are read as they always were (llm/gateway.py _transport): a timeout is a deadline; Ollama's own error, an HTTP
+    error and Python's ConnectionError (the client's while Ollama restarts) are the server's, one failed try. Each keeps its (type, text)."""
+    if isinstance(e, Failure):
+        return e
+    from llm import gateway
+    timed_out, server = gateway._transport(e)
+    if not (timed_out or server):
+        return None
+    f = Failure("deadline" if timed_out else "server", str(e)[:200], legacy=(type(e).__name__, str(e)))
+    f.__cause__ = e
+    return f
 
 
 # ------------------------------------------------------------------ the Ollama-shaped source (until f528)
@@ -75,15 +100,31 @@ class OllamaShape:
 
     def chat(self, req: ChatRequest, deadline=None) -> Reply:
         from llm import gateway
-        with gateway._deadline(deadline):
-            response = gateway._client.chat(**ollama_kwargs(req))
+        try:
+            with gateway._deadline(deadline):
+                response = gateway._client.chat(**ollama_kwargs(req))
+        except Interrupt:
+            raise                                       # stopped on purpose (a replay parted): never a failure of the model's
+        except Exception as e:
+            f = failure_of(e)                           # (f516) the old client's errors on the neutral kinds; anything else as it is
+            if f is None:
+                raise
+            raise f from e
         return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response))
 
     def embed(self, texts: list[str]) -> Embedding:
         from llm import embed as _embed
         from llm.gateway import threads
-        r = _embed._client().embed(model=config.EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE,
-                                   **({"options": threads()} if threads() else {}))
+        try:
+            r = _embed._client().embed(model=config.EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE,
+                                       **({"options": threads()} if threads() else {}))
+        except Interrupt:
+            raise
+        except Exception as e:
+            f = failure_of(e)                           # (f516) as chat
+            if f is None:
+                raise
+            raise f from e
         return Embedding(vectors=r["embeddings"] if isinstance(r, dict) else r.embeddings)
 
     def load(self, progress=None) -> None:
@@ -177,15 +218,25 @@ def current_lane() -> str:
 
 # ------------------------------------------------------------------ the interface
 
+def _cancelled(run):
+    """(f516, R3) A cancelled try leaves the interface as Cancelled, an Interrupt, whichever layer or source said so: never a failure."""
+    try:
+        return run()
+    except Failure as f:
+        if f.kind == "cancelled":
+            raise Cancelled(f.detail or "cancelled") from f
+        raise
+
+
 def chat(messages: list, schema: type, sampling: Sampling, max_tokens: int, deadline=None, voice: str | None = None) -> Reply:
     req = ChatRequest(messages=messages, schema=schema, sampling=sampling, max_tokens=max_tokens, voice=voice)
     src = _source
-    return _through("chat", req, lambda r: src.chat(r, deadline=deadline))
+    return _cancelled(lambda: _through("chat", req, lambda r: src.chat(r, deadline=deadline)))
 
 
 def embed(texts: list[str]) -> Embedding:
     src = _source
-    return _through("embed", list(texts), lambda t: src.embed(t))
+    return _cancelled(lambda: _through("embed", list(texts), lambda t: src.embed(t)))
 
 
 def load(progress=None) -> None:

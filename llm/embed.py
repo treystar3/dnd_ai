@@ -98,9 +98,17 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
     texts = [" ".join(str(t).split()) for t in texts]
     want = [t for t in dict.fromkeys(texts) if t not in _cache]
     if want:
+        from core.interrupts import Interrupt
+        from llm.errors import Failure
         try:
             from llm import backend
             got = backend.embed(["clustering: " + t for t in want]).vectors      # (f515) the game's own interface; today's request
+        except Interrupt:
+            raise                                     # (f516) cancelled, or stopped on purpose: no failure of the embedder's
+        except Failure as f:
+            if f.kind != "too_big":
+                _state["failed"] = True               # (f516) a request too big is this call's own fallback; the embedder stays on
+            return None
         except Exception:
             _state["failed"] = True
             return None
