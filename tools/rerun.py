@@ -261,6 +261,9 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     if isinstance(rec["meta"].get("profile"), dict):                                   # (f468) the speeds the recording priced its calls at:
         budget.PROFILE.update({k: float(v) for k, v in rec["meta"]["profile"].items() if k in ("read_tps", "write_tps") and v})   # the replay defers where it did
     import config, tempfile
+    think_before = (config.THINK_TASKS, config.THINK_ROOM)         # (f533) the replay asks as the recording did: its tasks thought, or none
+    config.THINK_TASKS = frozenset(rec["meta"].get("think_tasks") or ())
+    config.THINK_ROOM = int(rec["meta"].get("think_room") or config.THINK_ROOM)
     scratch = Path(tempfile.mkdtemp(prefix="rerun_logs_"))         # a replay's own logs never mix with real play's
     config.LOG_PATH, config.TURN_LOG_PATH, config.PULSE_LOG_PATH = (str(scratch / n) for n in ("llm_calls.jsonl", "turns.jsonl", "pulse.jsonl"))
     config.CRASH_LOG_PATH, config.SESSION_STATS_PATH = str(scratch / "crash.log"), str(scratch / "sessions.jsonl")   # (f518) nor its faults
@@ -364,6 +367,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         streams.STRICT = False
         budget.PROFILE.clear()
         budget.PROFILE.update(profile_before)
+        config.THINK_TASKS, config.THINK_ROOM = think_before
     matched = state["input"] - (1 if state["parted"] else 0)
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
             "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch)}   # (f518) faults the replay hit (its own crash.log)
@@ -494,6 +498,10 @@ def main() -> int:
     ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the model at URL beside the replay, and keep "
                     "how long each took in the recording's timed.jsonl (tools/card_profile.py reads it)")
     a = ap.parse_args()
+    import config
+    if (a.make or a.rebless) and config.THINK_TASKS:              # (f533) a kept recording is made as the game ships: no task thinks
+        print(f"note: DND_THINK_TASKS ({', '.join(sorted(config.THINK_TASKS))}) is set; the recording is made with no task thinking")
+        config.THINK_TASKS = frozenset()
     if a.make:
         make_stub_recording(Path(a.make), a.inputs)
         print(f"recorded {a.make}")

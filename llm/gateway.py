@@ -369,7 +369,11 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         raw = (reply.text or "").replace("\ufffd", "-")                    # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start
         usage = reply.usage
-        budget.charge(task, chars, len(raw))                        # (f468) every attempt is charged, a rejected draft too (decision 9)
+        thinking = bool(getattr(plan.at(attempt), "think", None))  # (f533) a task chosen to think (config.THINK_TASKS)
+        written = len(raw)
+        if thinking and (usage or {}).get("out"):                   # (f533) its thinking is written too: priced from the tokens the server
+            written = max(written, int(usage["out"] * float(budget.B.get("chars_per_token") or 4)))   # counted (a replay has them recorded)
+        budget.charge(task, chars, written)                         # (f468) every attempt is charged, a rejected draft too (decision 9)
 
         if reply.finish == "length" and (usage or {}).get("full"):
             # (f516) a full slot (the request and its answer filled the context, f521): the request was too big, not the answer long. No
@@ -379,6 +383,14 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             what = "the request was too big: it and its answer filled the model's context"
             _log(task, attempt, elapsed, messages, raw[:2000], what, usage, shape=form)
             audit.record(task, attempt, elapsed, messages, raw, what, typed, config.MODEL)
+            break
+        if reply.finish == "length" and thinking and not raw.strip():
+            # (f533) the thinking used all the room before the answer began. Telling it to shorten its fields would not reach the
+            # thinking, and the next try would think as long again: the tries end here, with the reason named.
+            last_error = LLMError("the thinking used all the room before the answer began")
+            what = "the thinking used all its room before the answer began"
+            _log(task, attempt, elapsed, messages, "", what, usage, shape=form)
+            audit.record(task, attempt, elapsed, messages, "", what, typed, config.MODEL)
             break
         if reply.finish == "length":
             last_error = LLMError("cut off at the length limit")

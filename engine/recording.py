@@ -121,6 +121,8 @@ class Recorder:
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
             "save": store.meta.name,
             "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds")}     # (f468) the speeds the budget priced calls at
+        if getattr(config, "THINK_TASKS", None):            # (f533) the tasks that thought, and their room: a replay asks as they did
+            self.meta.update(think_tasks=sorted(config.THINK_TASKS), think_room=config.THINK_ROOM)
         (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8")
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")

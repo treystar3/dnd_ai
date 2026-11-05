@@ -108,6 +108,7 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
         "lora.yaml prose_tasks and speech_tasks": set((_load("data/rules/lora.yaml").get("prose_tasks") or []) + (_load("data/rules/lora.yaml").get("speech_tasks") or [])),
         "hygiene.yaml narrator_tasks": set(_load("data/rules/hygiene.yaml").get("narrator_tasks") or []),
         "config.SAMPLING": set(getattr(config, "SAMPLING", {})),
+        "DND_THINK_TASKS (config.THINK_TASKS)": set(getattr(config, "THINK_TASKS", ())),     # (f533) a misspelt name would think nowhere
     }
     for where, names in lists.items():
         stray = sorted(names - set(T))

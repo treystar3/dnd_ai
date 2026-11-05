@@ -256,11 +256,18 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: s
     bench = Bench(live=live, save=save)
     results, wrong = [], []
     taken_wrong = missed = 0
+    from llm.errors import LLMError
     for case in cases:
-        got = bench.run(case)
+        try:
+            got = bench.run(case)
+        except LLMError as e:
+            # (f533) live, the model gave no reading this case could use, every try (cut off, refused, the server down): the case is
+            # wrong and the run goes on, so a setting that fails more is counted for it rather than ending the measure at its first
+            got = {"handled_by": "model_failed", "kinds": [], "first": {}, "steps": [], "moves": [], "talked": [], "hire": [],
+                   "repairs": [], "read": None, "error": str(e)[:200]}
         bad = judge(got, case.get("expect") or {})
         want = (case.get("expect") or {}).get("handled_by")
-        if bad and want:
+        if bad and want and got["handled_by"] != "model_failed":      # (f533) not an intercept's doing
             if want == "interpret" and got["handled_by"] != "interpret":
                 taken_wrong += 1
             elif want != "interpret" and got["handled_by"] == "interpret":
@@ -281,11 +288,13 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: s
     for _, got, _ in results:
         for r in got.get("repairs") or []:
             fired[r] = fired.get(r, 0) + 1
-    summary = {"cases": n, "right": n - len(wrong), "wrong": wrong, "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
+    failed = sum(1 for _, got, _ in results if got["handled_by"] == "model_failed")
+    summary = {"cases": n, "right": n - len(wrong), "wrong": wrong, "model_failed": failed, "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
                "by_kind": {k: f"{r}/{t}" for k, (r, t) in sorted(by_kind.items())}, "repairs": dict(sorted(fired.items(), key=lambda x: -x[1]))}
     if not quiet:
         print(f"\n{summary['right']}/{n} right; intercepts took {taken_wrong} line(s) that were not theirs and missed {missed} that were"
-              + (" (live: the model's reading counted)" if live else " (offline: the model's reading is the case's own)"))
+              + (" (live: the model's reading counted)" if live else " (offline: the model's reading is the case's own)")
+              + (f"; the model gave no usable reading {failed} time(s)" if failed else ""))
         print("by kind: " + ", ".join(f"{k} {v}" for k, v in summary["by_kind"].items()))
         print("repairs fired: " + (", ".join(f"{k} {v}" for k, v in summary["repairs"].items()) or "none"))
         if wrong:
