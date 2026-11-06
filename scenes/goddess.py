@@ -369,7 +369,7 @@ class ThresholdScene:
             else:
                 console.narrate(text)
 
-    def speak(self, event: str) -> None:
+    def speak(self, event: str, note: str | None = None) -> None:
         """Her words for this step. (f525) When they cannot be written she says a line of her own for the step she is on and the page
         moves on (the game no longer ends on it), once the owner's lines are in; until then the failure goes on up as before."""
         try:
@@ -384,6 +384,8 @@ class ThresholdScene:
             if speech is None:
                 raise
             console.debug(str(e))
+            if note:
+                self.tell(note)                          # (f525's review) the engine's reason, which her own words would have carried
         console.say(speech, SPEAKER)
         self.transcript.append(("Goddess", speech))
         self.last_line = speech
@@ -497,7 +499,8 @@ class ThresholdScene:
         error = creation.check_active_picks(self.active_options, turn.picks,
                                             keeps_companions=bool(getattr(self.interp, "uses_companions", False)))
         if error:
-            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.")
+            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.",
+                       note=f"That can't be done: {error}")
             return
         job = getattr(self, "passives_job", None)
         if job is not None and not job.ready:
@@ -523,7 +526,8 @@ class ThresholdScene:
     def on_passives(self, turn: PlayerTurn) -> None:
         error = creation.check_passive_picks(self.passive_options, turn.picks)
         if error:
-            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.")
+            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.",
+                       note=f"That can't be done: {error}")
             return
         self.passives = [self.passive_options[n - 1] for n in turn.picks]
         self.step = Step.STATS

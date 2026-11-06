@@ -4,7 +4,9 @@ ones before f527 adds them; until then every path behaves as today).
 - Every kind of call creation makes, failing every try in turn, still ends in a finished character; no line the player was shown
   speaks of the machinery or carries a dash.
 - Every opening narration failing still reaches the first input, the same line for the same seed.
-- A place's people that could not be written at the first entry are asked for again on the next visit.
+- A place's people that could not be written at the first entry are asked for again at the next input's edge, the player still there.
+- (f525's review) A failed opening keeps what it was meant to tell; the goddess's stand-in keeps the engine's reason for a refused
+  pick; the night's character is the seed's through an outage; no line list for a step she never speaks on.
 - Without the lines laid over, behaviour is today's: the goddess's words failing ends creation, the opening failing ends the start,
   and creation's own notes are today's.
 
@@ -270,11 +272,97 @@ finally:
     undo()
 check("people that could not be written at an entry outside a line leave the game going", err is None, err)
 check("and the place is not counted as peopled", g4.session.store.load_place("parth").populated is False)
+check("it is marked to be asked again while the player is there", g4.scene.__dict__.get("_people_missing") == "parth")
+g4.scene.repopulate()
+check("the next input's edge asks again, the player still there", g4.session.store.load_place("parth").populated is True
+      and len(g4.scene.residents) > 0 and "_people_missing" not in g4.scene.__dict__)
+import inspect
+from scenes.world import WorldScene
+check("and the run loop asks at each input's edge", "self.repopulate()" in inspect.getsource(WorldScene.run))
+
+# ---- a failed opening keeps what it was meant to tell
+OPEN_FAIL = {"Narration"}
+
+
+def narration_down(**k):
+    if (k.get("format") or {}).get("title", "") in OPEN_FAIL:
+        raise ConnectionError("the server went away")
+    return stub.chat(**k)
+
+
+g4.scene._arrival_lines = ["the smith has moved on to the mill"]
+seen_before = set(g4.scene.__dict__.get("_happenings_seen", set()))
+before_f = dict(failures.F)
+failures.F.update(OVERLAY)
+undo = backend.use(backend.StandIn(chat=narration_down, name="narration down"))
+try:
+    g4.scene.opening_passage("The player is here, picking up where they left off.")
+finally:
+    undo()
+    failures.F.clear()
+    failures.F.update(before_f)
+check("a failed opening keeps what it was meant to tell", g4.scene.__dict__.get("_arrival_lines") == ["the smith has moved on to the mill"]
+      and set(g4.scene.__dict__.get("_happenings_seen", set())) == seen_before, g4.scene.__dict__.get("_arrival_lines"))
 g4.scene.enter("parth")
 check("the next visit asks for them again", g4.session.store.load_place("parth").populated is True
       and len(g4.session.store.load_place("parth").residents) > 0)
 g4.session.close()
 shutil.rmtree("saves/goes_on_525", ignore_errors=True)
+
+# ---- the goddess's stand-in keeps the engine's reason for a refused pick
+import types
+src = Failing("GoddessLine", times=10)
+CURRENT["src"] = src
+undo = backend.use(backend.StandIn(chat=src.chat, name="goddess down"))
+before_f = dict(failures.F)
+failures.F.update(OVERLAY)
+real_check = _creation.check_active_picks
+_creation.check_active_picks = lambda options, picks, keeps_companions=False: "a command ability needs something to command."
+SHOWN.clear()
+try:
+    s = ThresholdScene()
+    s.step = Step.ACTIVES
+    s.active_options = _actives(None)
+    s.on_actives(types.SimpleNamespace(picks=[1, 2, 3]))
+finally:
+    _creation.check_active_picks = real_check
+    failures.F.clear()
+    failures.F.update(before_f)
+    undo()
+check("the goddess's stand-in keeps the engine's reason for a refused pick",
+      any("That can't be done: a command ability needs something to command." in l for l in SHOWN)
+      and any(any(x in l for x in OVERLAY["creation_stand_in"]["actives"]) for l in SHOWN) and s.step == Step.ACTIVES, SHOWN[-4:])
+
+# ---- the night's character is the seed's through an outage
+sys.path.insert(0, str(ROOT / "tools"))
+import random as _r
+import nightrun
+tries = {"n": 0}
+
+
+def make(r):
+    tries["n"] += 1
+    v = (r.random(), r.random())
+    if tries["n"] == 1:
+        raise ConnectionError("the server went away")
+    return v
+
+
+r1, r2 = _r.Random("night:warrior"), _r.Random("night:warrior")
+got = nightrun.made_through_outage(make, r1, wait=lambda: True)
+want = (r2.random(), r2.random())
+check("the night's character is the seed's through an outage, the stream where it would be", got == want and r1.getstate() == r2.getstate()
+      and tries["n"] == 2)
+refused = None
+try:
+    nightrun.made_through_outage(lambda r: (_ for _ in ()).throw(ConnectionError("down")), _r.Random(1), wait=lambda: True, stub=True)
+except ConnectionError:
+    refused = "raised"
+check("and a stub night never waits", refused == "raised")
+
+# ---- no line list for a step she never speaks on
+check("no line list for a step she never speaks on", "farewell" not in failures.CREATION_STEPS
+      and any("farewell" in p for p in failures.problems({"creation_stand_in": {"farewell": ["One.", "Two.", "Three."]}})))
 
 held()
 print(f"\n{'ALL PASS' if not bad else f'{len(bad)} FAILED: ' + ', '.join(bad)}")

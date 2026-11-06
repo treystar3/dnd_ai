@@ -504,6 +504,24 @@ def batch(args) -> None:
     print(f"Logs: {base.resolve()}  (every folder above is a run; tools/lora_dataset.py --runs-dir {base} reads them all)")
 
 
+def made_through_outage(make, rng, tries: int = 3, wait=None, stub: bool = False):
+    """(f525, f525's review) The night's character, through an outage while it is made: each try starts the seed's stream where the first
+    did, so a night with an outage makes the same character as one without, and the stream goes on from the same place; the waiting is
+    said before it begins."""
+    start = rng.getstate()
+    for attempt in range(tries):
+        rng.setstate(start)
+        try:
+            return make(rng)
+        except Exception as e:
+            from llm.gateway import LLMError
+            if stub or not isinstance(e, (LLMError, ConnectionError)) or attempt == tries - 1:
+                raise
+            print(f"The character could not be made ({type(e).__name__}): waiting for the server and trying again.", flush=True)
+            if not (wait or wait_for_server)():
+                raise
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Play a campaign with the real model for hours and log what every turn cost.")
     ap.add_argument("--hours", type=float, default=6.0, help="stop after this many hours (default 6)")
@@ -589,15 +607,7 @@ def main() -> None:
     if persona not in PERSONAS:
         die(f"--persona must be one of: {', '.join(PERSONAS)}")
     level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
-    for attempt in range(3):                                            # (f525) an outage while the character is made waits, as the run does
-        try:
-            char, spec = simlib.make_character(args.cls, random.Random(f"{args.seed}:{args.cls}:{attempt}") if attempt else rng, perks=True)
-            break
-        except Exception as e:
-            from llm.gateway import LLMError
-            if args.stub or not isinstance(e, (LLMError, ConnectionError)) or attempt == 2 or not wait_for_server():
-                raise
-            print(f"The character could not be made ({type(e).__name__}): waiting for the server and trying again.", flush=True)
+    char, spec = made_through_outage(lambda r: simlib.make_character(args.cls, r, perks=True), rng, stub=args.stub)
     from engine import look                                             # (f388) a look of its own, seeded, as a player chooses one first
     seen = look.surprise(random.Random(f"{args.seed}:{args.cls}:look"))
     char.pronoun, char.people, char.look, char.look_text = seen["pronoun"], seen["people"], {k: seen[k] for k in ("look", "flags", "extra")}, look.describe(seen)

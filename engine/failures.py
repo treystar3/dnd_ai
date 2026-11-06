@@ -125,7 +125,8 @@ def goddess_silent(rng: random.Random | None = None) -> str:
 # line or the opening narration failing still ends the game.
 
 CREATION_FAILS = ("interpret", "concept", "gifts", "traits")      # the four places creation tells the player a call failed
-CREATION_STEPS = ("name", "concept", "confirm_class", "actives", "passives", "stats", "confirm_stats", "farewell")   # the goddess's steps
+CREATION_STEPS = ("name", "concept", "confirm_class", "actives", "passives", "stats", "confirm_stats")   # the steps she speaks on (the
+# farewell is the fixed send-off, data/send_off.json, never a written line)
 
 
 def creation_line(kind: str, rng: random.Random | None = None) -> str | None:

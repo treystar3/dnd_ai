@@ -605,8 +605,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             from engine import operation as _op
             if _op.current() is not None:
                 raise                                    # inside a line: the operation rolls back, as before
-            self.residents = self.store.load_npcs(list(self.store.load_place(place_id).residents or []))
-            console.debug(f"(f525) the people of {place_id} could not be written; the next visit asks again")
+            self.residents = [n for n in self.store.load_npcs(list(self.store.load_place(place_id).residents or [])) if not n.gone]
+            self._people_missing = place_id              # (f525's review) asked again at the next input's edge while the player is here
+            console.debug(f"(f525) the people of {place_id} could not be written; the next input asks again")
         self.refresh_present()
         if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
             from engine import doings
@@ -621,6 +622,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self.trial_notice(on_arrival=True)
         from engine import stay
         stay.reset(self)                                                                      # (f351) the stay starts here
+
+    def repopulate(self) -> None:
+        """(f525's review) A place whose people could not be written at an entry made outside a line is asked again at each input's edge
+        while the player is still there, never left empty for the whole visit; still failing, it is asked at the next edge."""
+        place_id = self.__dict__.pop("_people_missing", None)
+        if place_id is None or place_id != self.player.location:
+            return
+        try:
+            self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
+        except LLMError:
+            self._people_missing = place_id
+            return
+        self.refresh_present()
 
     def start_backfill(self) -> None:
         """The scene is on screen and the player is reading: make the rest of this place's people in the background."""
@@ -832,6 +846,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.start_backfill()
             text = console.ask(main=True)
             self.apply_backfill()
+            self.repopulate()                                               # (f525's review) people an entry could not write, asked again
             if not text:
                 continue
             if text.lower() in QUIT_WORDS:
@@ -2555,9 +2570,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f525) The game's opening passage (the first waking, or where a loaded game left off). When it cannot be written the narrator's
         plain line stands in, picked from the scene's stream so the seed decides it, and the game reaches its first line all the same;
         until the owner's lines are in, the failure goes on up as before."""
+        import copy
+        told = ("_arrival_lines", "_happenings_seen", "_news_seen", "_crowd_told")    # (f525's review) what the passage tells once
+        kept = {k: copy.deepcopy(self.__dict__[k]) for k in told if k in self.__dict__}
         try:
             self.narrate(event)
         except LLMError as e:
+            for k in told:                               # the passage was never written: what it would have told is still to tell
+                if k in kept:
+                    self.__dict__[k] = kept[k]
+                else:
+                    self.__dict__.pop(k, None)
             line = failures.opening_untold(self.rng)
             if line is None:
                 raise
