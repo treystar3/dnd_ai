@@ -4,7 +4,8 @@ llama.cpp's llama-server; "let's go with the neutral"). DND_BACKEND=llama with D
 points a session at a llama-server someone started by hand, for the measurements f527 waits on; f522 starts and stops the server itself.
 
 The body (llama_body) is pure: the request and the machine's facts in, the dict sent out, the same bytes for the same inputs (body_bytes).
-- messages as the gateway made them; the schema as llama-server's JSON grammar (response_format json_schema, strict);
+- messages as the gateway made them; the schema as its grammar, sent as `grammar` (llm/gbnf.py, llama.cpp's own converter written out;
+  f527, the owner's fence choice: never response_format, whose Gemma 4 chat parser writes a ```json fence into the answer);
 - every sampler, BASE under the task's own values (llm/sampling.py Sampling.resolved), so llama-server's own defaults (top_k 40,
   min_p 0.05, its repeat window) never apply: the table every night ran on, the owner's "keep them as they are";
 - n_predict, the answer's ceiling (with a thinking task's room, as Ollama's num_predict carried it, f534);
@@ -73,18 +74,37 @@ def thinks(req) -> bool:
 
 def neutral(req) -> dict:
     """What a request is, whatever machine it runs on: its messages, its schema's title and fingerprint, every sampler, its ceiling, its
-    voice, the model, and whether it thinks. Nothing of the machine (slot, adapter index, threads, context) and never the deadline."""
+    voice, the model, and whether it thinks. Nothing of the machine (slot, adapter index, threads, context) and never the deadline.
+    (f527) The interface's own form, backend.neutral_request: the recorder's row and fingerprint."""
     from llm import backend
-    schema = _schema(req)
-    room = backend.think_room(req.messages, req.max_tokens) if getattr(req.sampling, "think", None) else 0
-    return {"model": config.MODEL, "messages": req.messages, "schema": schema.get("title") or req.schema.__name__,
-            "schema_sha": hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16],
-            "sampling": req.sampling.resolved(), "max_tokens": int(req.max_tokens) + room, "think": thinks(req),
-            "voice": req.voice or None}
+    return backend.neutral_request(req)
 
 
 def neutral_hash(req) -> str:
-    return hashlib.sha256(json.dumps(neutral(req), sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+    from llm import backend
+    return backend.request_hash(neutral(req))[:16]
+
+
+_GRAMMARS: dict[str, str] = {}                      # schema fingerprint -> its grammar (a dynamic schema's ids vary; the cache is capped)
+_GRAMMARS_MAX = 256
+
+
+def grammar_of(schema: dict) -> str:
+    """(f527) The grammar llama-server is sent for this schema: llama.cpp's own conversion (llm/gbnf.py), headed by a comment naming the
+    contract and its fingerprint (the grammar parser skips comments; a fake server reads the name). A schema the converter does not take
+    is a refused request (invalid), never a server fault."""
+    from llm import gbnf
+    key = hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    text = _GRAMMARS.get(key)
+    if text is None:
+        try:
+            text = f"# Meravia {schema.get('title') or 'schema'} {key}\n" + gbnf.grammar(schema)
+        except gbnf.SchemaError as e:
+            raise Failure("invalid", f"the schema {schema.get('title') or '?'} has no grammar: {str(e)[:200]}")
+        if len(_GRAMMARS) >= _GRAMMARS_MAX:
+            _GRAMMARS.pop(next(iter(_GRAMMARS)))
+        _GRAMMARS[key] = text
+    return text
 
 
 def llama_body(req, machine: dict | None = None) -> dict:
@@ -94,9 +114,7 @@ def llama_body(req, machine: dict | None = None) -> dict:
     schema = _schema(req)
     room = backend.think_room(req.messages, req.max_tokens) if getattr(req.sampling, "think", None) else 0
     resolved = req.sampling.resolved()
-    body = {"model": config.MODEL, "messages": req.messages,
-            "response_format": {"type": "json_schema",
-                                "json_schema": {"name": schema.get("title") or req.schema.__name__, "schema": schema, "strict": True}}}
+    body = {"model": config.MODEL, "messages": req.messages, "grammar": grammar_of(schema)}    # (f527) the grammar itself, no fence
     body.update({k: resolved[k] for k in SAMPLER_KEYS})                 # every sampler, in one fixed order
     body.update({"n_predict": int(req.max_tokens) + room, "chat_template_kwargs": {"enable_thinking": thinks(req)},
                  "cache_prompt": True, "stream": False})
@@ -475,11 +493,11 @@ def sampler_problems(table: dict | None = None, base: dict | None = None) -> lis
         elif not lo <= value <= hi:
             bad.append(f"{where}: '{key}' is {value}, outside {lo} to {hi}")
     for k, v in base.items():
-        one("llm/sampling.py BASE", k, v)
+        one("sampling.yaml base", k, v)
     missing = [k for k in SAMPLER_KEYS if k != "temperature" and k not in base]
     if missing:
-        bad.append(f"llm/sampling.py BASE: no base value for {', '.join(missing)}")
+        bad.append(f"sampling.yaml base: no base value for {', '.join(missing)}")
     for task, values in sorted(table.items()):
         for k, v in (values or {}).items():
-            one(f"config.SAMPLING {task}", k, v)
+            one(f"sampling.yaml tasks.{task}", k, v)
     return bad

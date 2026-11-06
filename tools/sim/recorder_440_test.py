@@ -85,7 +85,7 @@ check("...each one answered by the test's own stand-in, under the recorder's lay
       h.src.calls["ActionPlan"] >= 4 and sum(h.src.calls.values()) == len(calls), (dict(h.src.calls), len(calls)))
 check("...with its answer", any(c.get("answer") and c["title"] == "ActionPlan" for c in calls))
 check("...and a failed one with the failure, so a replay can fail it the same way",
-      any(c.get("error", [""])[0] == "ConnectionError" and c["title"] == "ActionPlan" for c in calls))
+      any((c.get("error") or {}).get("kind") == "server" and c["title"] == "ActionPlan" for c in calls))
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
 check("after each input, the state's fingerprint and what was shown", len(turns) == len(mains)
       and all(t["state"]["all"] and t["shown"] for t in turns), len(turns))

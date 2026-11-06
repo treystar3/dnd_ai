@@ -1,0 +1,12 @@
+# (f526, llm/launch.py; the lines read and approved by the owner on 6 Nov, f527) What the load screen says while the game starts: lines
+# outside the story, plain, never the machinery (the startup check refuses model, server, error and the like, and any dash). The reason
+# a load failed goes to the logs, never into a line. {needed} is the only placeholder, on the memory line.
+loading: "The world is still waking. It will be ready in a moment."
+slow: "This computer will run the world slowly. It will still play in full, only with longer waits."
+damaged: "Some of the game's own files are missing or damaged. Reinstalling the game will restore them."
+could_not_wake: "The world could not wake this time. The details are kept in the logs folder."
+already_open: "Meravia is already open in another window."
+no_memory: "This computer does not have enough memory to hold the world. It needs at least {needed} GB."
+try_again: "Try again"
+quit: "Quit"
+slowly: "Play slowly on the processor"

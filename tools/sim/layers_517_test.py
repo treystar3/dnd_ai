@@ -199,20 +199,21 @@ def one_row(chat_fn, title="Read"):
 
 rs, _ = one_row(lambda **k: Answer(done_reason=None, prompt_eval_count=812, eval_count=40, prompt_eval_duration=123456789,
                                    eval_duration=9876543, model_extra={"prompt_cache_tokens": 300}))
-check("an answer's raw counts are kept as the client gave them: durations in nanoseconds, the cached prompt tokens, done_reason None",
-      len(rs) == 1 and rs[0]["done"] is None and rs[0]["tokens"] == {"prompt_eval_count": 812, "eval_count": 40,
-                                                                     "prompt_eval_duration": 123456789, "eval_duration": 9876543,
-                                                                     "cached": 300} and rs[0]["answer"] == '{"x": "ok"}', rs)
+check("(f527) an answer's counts are kept in the interface's form (usage: tokens and milliseconds, the cached prompt tokens), a done_reason "
+      "of None as 'stop'", len(rs) == 1 and rs[0]["finish"] == "stop" and rs[0]["usage"] == {"prompt": 812, "out": 40, "read_ms": 123,
+                                                                                             "write_ms": 10, "load_ms": 0, "total_ms": 0, "cached": 300}
+      and rs[0]["answer"] == '{"x": "ok"}', rs)
 received = []
 rs, _ = one_row(lambda **k: (received.append(k), Answer())[1])
-check("...and an answer with no done_reason at all recorded as 'stop', with no counts", len(rs) == 1 and rs[0]["done"] == "stop"
-      and rs[0]["tokens"] == {}, rs)
-check("...its row in the order it always had", list(rs[0]) == ["i", "input", "kind", "title", "req", "task", "request", "op", "need",
-                                                              "seconds", "answer", "done", "tokens"], list(rs[0]))
+check("...and an answer with no done_reason at all recorded as 'stop', with no counts", len(rs) == 1 and rs[0]["finish"] == "stop"
+      and rs[0]["usage"] == {}, rs)
+check("...its row in the neutral order", list(rs[0]) == ["i", "input", "kind", "title", "req", "task", "request", "op", "need",
+                                                       "seconds", "answer", "finish", "usage"], list(rs[0]))
 k = received[0]
-check("...its request the arguments the client received (the format aside) and its fingerprint theirs",
-      len(received) == 1 and rs[0]["request"] == json.loads(json.dumps({x: v for x, v in k.items() if x != "format"}))
-      and rs[0]["req"] == recording.request_hash(k) and rs[0]["title"] == k["format"]["title"], (rs[0]["request"], k))
+check("...its request the neutral form of what the stand-in was asked (the same messages, the schema's title) and its fingerprint that form's",
+      len(received) == 1 and rs[0]["request"]["messages"] == k["messages"] and rs[0]["request"]["schema"] == k["format"]["title"]
+      and rs[0]["title"] == k["format"]["title"] and set(rs[0]["request"]) == {"model", "messages", "schema", "schema_sha", "sampling", "max_tokens", "think", "voice"}
+      and rs[0]["req"] == recording.request_hash(rs[0]["request"]) and "num_thread" not in json.dumps(rs[0]["request"]), (rs[0]["request"], k))
 
 
 def down(**k):
@@ -220,11 +221,11 @@ def down(**k):
 
 
 rs, _ = one_row(down)
-check("a failed call's row keeps the old client's error, not the neutral kind it was read as",
-      len(rs) == 1 and rs[0]["error"] == ["ConnectionError", "the model server cannot be reached"] and list(rs[0])[-2:] == ["error", "seconds"], rs)
+check("(f527) a failed call's row holds the interface's own kind and the detail, not the old client's error",
+      len(rs) == 1 and rs[0]["error"] == {"kind": "server", "detail": "the model server cannot be reached"} and list(rs[0])[-2:] == ["error", "seconds"], rs)
 import httpx
 rs, _ = one_row(lambda **k: (_ for _ in ()).throw(httpx.ReadTimeout("the deadline cut it")))
-check("...a timeout too", len(rs) == 1 and rs[0]["error"] == ["ReadTimeout", "the deadline cut it"], rs)
+check("...a timeout as a deadline", len(rs) == 1 and rs[0]["error"] == {"kind": "deadline", "detail": "the deadline cut it"}, rs)
 check("...each of those four calls answered (or failed) by its stand-in, once, and each stand-in taken away after",
       len(ANSWERED) == 4 and all(calls == {t: 1} and not live for t, calls, live in ANSWERED), ANSWERED)
 
@@ -267,9 +268,9 @@ finally:
     rec.close()
     held()
 rs = rows(rec.dir)
-check("an embedding's row: the arguments the embedder sent, its fingerprint, the vectors, in the order it always had",
-      len(rs) == 1 and rs[0]["request"] == {"model": config.EMBED_MODEL, "input": ["clustering: a gate", "clustering: a road"],
-                                            "keep_alive": config.KEEP_ALIVE}
+check("an embedding's row: the neutral request (the embedding model's id and the texts), its fingerprint, the vectors, in order",
+      len(rs) == 1 and rs[0]["request"] == {"model": config.EMBED_MODEL, "input": ["clustering: a gate", "clustering: a road"]}
+      and rs[0]["req"] == recording.request_hash(rs[0]["request"])
       and rs[0]["answer"] == {"embeddings": [[1.0, 0.0], [1.0, 0.0]]} and rs[0]["need"] == "embed" and rs[0]["title"] == ""
       and list(rs[0]) == ["i", "input", "kind", "title", "req", "task", "request", "op", "need", "seconds", "answer"], rs)
 
@@ -352,7 +353,7 @@ rs = rows(rec.dir)
 meta = json.loads((rec.dir / "meta.json").read_text())
 marked = [r["title"] for r in rs if r.get("overlap")]
 check("two recorded calls on their way at once: the second is marked, and one that failed meanwhile too, keeping its error",
-      sorted(marked) == ["Boom", "Second"] and next(r for r in rs if r["title"] == "Boom")["error"] == ["RuntimeError", "the call fell over"], rs)
+      sorted(marked) == ["Boom", "Second"] and next(r for r in rs if r["title"] == "Boom")["error"] == {"kind": "server", "detail": "RuntimeError: the call fell over"}, rs)
 check("...meta.json counts them", meta.get("overlapped") == 2, meta.get("overlapped"))
 check("...once both are done the next call is not marked", next(r for r in rs if r["title"] == "Later").get("overlap") is None)
 try:

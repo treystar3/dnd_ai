@@ -27,6 +27,8 @@ import random
 import shutil
 from pathlib import Path
 
+from llm.errors import Failure                  # (f527) a planted failure is the interface's own, no longer the old client's
+
 SEED = 18
 SAVE = "rerun_make_stub_fight"
 PLACE = "south_fields"
@@ -97,7 +99,7 @@ def record(folder: Path, root: Path) -> Path:
 
     def chat(**k):
         if fail["title"] and k["format"].get("title") == fail["title"]:
-            raise ConnectionError("the model server cannot be reached")    # every try of this input fails
+            raise Failure("server", "the model server cannot be reached")    # every try of this input fails
         return stub.chat(**k)
     planted = simlib.stand_in(chat=chat)                           # (f518) the stub and its failures, as a source with no embedder
     mode = {"kind": "attack"}

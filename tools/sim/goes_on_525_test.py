@@ -55,6 +55,7 @@ OVERLAY = {
     "opening_untold": ["You wake on cold ground, breathing.", "Breath comes back to you, and with it the ground.",
                        "The world returns in a rush of air and earth."],
 }
+DORMANT = {"creation_fail": {}, "creation_stand_in": {}, "opening_untold": []}   # (f527) the lines are in the data now: "without the lines" lays this over
 
 
 class Failing:
@@ -137,8 +138,7 @@ def create(title: str | None, overlay: bool = True):
     CURRENT["src"] = src
     undo = backend.use(backend.StandIn(chat=src.chat, name="failing"))
     before = dict(failures.F)
-    if overlay:
-        failures.F.update(OVERLAY)
+    failures.F.update(OVERLAY if overlay else DORMANT)
     SHOWN.clear()
     s = ThresholdScene()
     said: dict = {}
@@ -191,8 +191,16 @@ read_title = next((t for t in kinds if t not in ("GoddessLine",) and "PlayerTurn
 if read_title:
     got, err, shown, _ = create(read_title, overlay=False)
     check("without the lines, creation's own note is today's", any("The model couldn't make sense of that" in l for l in shown), shown[-5:])
-check("creation_line and the rest are None with no lines", failures.creation_line("interpret") is None
-      and failures.creation_stand_in("name") is None and failures.opening_untold() is None)
+_before = dict(failures.F)
+failures.F.update(DORMANT)
+try:
+    check("creation_line and the rest are None with no lines", failures.creation_line("interpret") is None
+          and failures.creation_stand_in("name") is None and failures.opening_untold() is None)
+finally:
+    failures.F.clear()
+    failures.F.update(_before)
+check("(f527) with the owner's lines in the data, each gives a line", failures.creation_line("interpret") and failures.creation_stand_in("name")
+      and failures.opening_untold())
 
 # ---- the opening
 import random
@@ -214,8 +222,7 @@ def opening(seed: int, fail: set, overlay: bool = True):
         return stub.chat(**k)
     undo = backend.use(backend.StandIn(chat=chat, name="failing opening"))
     before = dict(failures.F)
-    if overlay:
-        failures.F.update(OVERLAY)
+    failures.F.update(OVERLAY if overlay else DORMANT)
     g = simlib.campaign("goes_on_525", seed=seed, turn=0)
     reached = {"n": 0}
 

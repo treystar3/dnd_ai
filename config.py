@@ -1,4 +1,5 @@
-MODEL = "gemma4:12b"
+MODEL = "gemma4-12b-bb722270"                 # (f527) the chat model's GGUF id: its file's stem, name and sha prefix, pinned in data/runtime/server.yaml
+OLLAMA_MODEL = "gemma4:12b"                   # (f527, until f532) the same weights under Ollama's tag, for the Ollama-shaped source and its pulls
 THINK = False
 # (f533) The model's thinking for chosen tasks only, to measure it before the owner decides (tools/think_ab.py): DND_THINK_TASKS in the
 # environment, task names split by commas, turns thinking on for those tasks' calls, each given THINK_ROOM more tokens to think in (so
@@ -69,7 +70,8 @@ UPDATE_CHECK = True                          # (f364) False for a build whose up
 VOICED_MENTOR = True        # Maren says her written lines in her own words (False: exactly as written)
 UNLOAD_ON_EXIT = True                        # free the model from memory when the game closes
 FREE_MENTOR = True                           # her speeches are written freely from facts (False: her written lines, one-to-one in her words)
-EMBED_MODEL = "nomic-embed-text"             # a small helper model (about 270 MB) that tells how alike two lines are in meaning; pulled in the background
+EMBED_MODEL = "nomic-embed-text-970aa74c"    # (f527) the embedding model's GGUF id (about 270 MB): tells how alike two lines are in meaning
+OLLAMA_EMBED_MODEL = "nomic-embed-text"      # (f527, until f532) the same under Ollama's tag
 EMBED_ENABLED = True                         # False: the game uses its simpler word checks instead
 SIM_REPEAT = 0.93                            # a sentence this close in meaning to one the speaker said lately is a repeat
 SIM_GESTURE = 0.90                           # the same for a gesture
@@ -80,28 +82,11 @@ SIM_RESTATE = 0.80                           # a claim this close to what they w
 SIM_STANDOUT = 0.06                          # a moment is close to one person's own life only when it is this much closer to their records than to anyone else's present
 SIM_ANSWER_MARGIN = 0.05                     # an opening is sent back as not answering only when something else in the scene is clearly closer
 SIM_CANON = 0.62                             # a new claim this close to something already true of them is checked for a contradiction
-PROFANITY = "strong"
-# How freely the model writes, by job. Characters talking use Google's suggested settings for Gemma (warm, varied); jobs that decide facts or
-# summarise what happened run colder. A task not listed uses the temperature its caller gives and the model's other defaults.
-DIALOGUE_SAMPLING = {"temperature": 1.0, "top_p": 0.95, "top_k": 64}
-# (f347) Ollama's own guard against worn words: a token already used within the last repeat_last_n tokens is made less likely by
-# repeat_penalty (Ollama's defaults: 1.1 over the last 64 tokens). An hour's transcript leaned on the same few words passage after passage
-# ("steady" 258 times, "rhythmic" 178), so prose gets a firmer penalty over a window that covers a whole passage, and speech a gentler one.
-# Measured by a night run (tools/nightrun.py) before any word list is added on top.
-PROSE_REPEAT = {"repeat_penalty": 1.15, "repeat_last_n": 256}
-SPEECH_REPEAT = {"repeat_penalty": 1.12, "repeat_last_n": 192}
-SAMPLING = {
-    "hire_chat": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},      # a companion answering the player
-    "mentor_chat": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},    # Maren answering the player
-    "exchange": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},       # banter, and Maren with the clerk
-    "npc_conversation": SPEECH_REPEAT,              # a townsperson answering the player (its temperature comes from the caller)
-    "narrate": PROSE_REPEAT, "dialogue_frame": PROSE_REPEAT, "combat_narrate": PROSE_REPEAT,   # the narrator, the frames, the fight
-    "combat_opening": PROSE_REPEAT,                # (f498) the fight's opening, a telling of its own: narrate's options
-    "moment": PROSE_REPEAT,                        # (f348) what is going on as the player walks in
-    "player_line": {**DIALOGUE_SAMPLING, **SPEECH_REPEAT},   # (f368) the night bot's own line, written the way a player types (tools/nightbot.py)
-    "mentor_speech": {"temperature": 0.85, "top_p": 0.95, "top_k": 64},   # Maren's lessons: warm, but they carry the guild's rules
-    "pair_dynamic": {"temperature": 0.5, "top_p": 0.9},                   # a summary of how two people are with each other
-    "persona_details": {"temperature": 0.8, "top_p": 0.95, "top_k": 64},  # a hire's small personal details, written once
-    "stranger_read": {"temperature": 0.1},
-    "live_judge": {"temperature": 0.1}, "canon_check": {"temperature": 0.1},
-}                           # how a companion who curses may curse: "off" (the world's own curses only), "mild" (damn, hell...), "strong"
+# (f527) How freely the model writes, by job, is data: data/rules/sampling.yaml (tasks, base, retry_temperature_step), in the data
+# hash like every other number the game plays by. SAMPLING is its task table (llm/sampling.py resolve lays SAMPLING_BASE under a
+# task's own values on a request to llama-server); DND_TEMP_ADD and DND_REPEAT_ADD above shift it for a night.
+_SAMPLING_FILE = __import__("yaml").safe_load((__import__("pathlib").Path(__file__).resolve().parent / "data" / "rules" / "sampling.yaml").read_text(encoding="utf-8"))
+SAMPLING = {t: dict(v or {}) for t, v in (_SAMPLING_FILE.get("tasks") or {}).items()}
+SAMPLING_BASE = dict(_SAMPLING_FILE.get("base") or {})
+RETRY_TEMPERATURE_STEP = float(_SAMPLING_FILE.get("retry_temperature_step") or 0.15)
+PROFANITY = "strong"        # how a companion who curses may curse: "off" (the world's own curses only), "mild" (damn, hell...), "strong"

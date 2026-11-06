@@ -11,11 +11,12 @@ compared input by input:
   recordings/<name>/turns.jsonl    after each input: the state's fingerprint, what the turn recorded, and what the player was shown
 
 (f517) It is a layer of the game's own interface to the model (llm/backend.py wrap, rank RECORDER, outermost) and wraps the console in
-place, so whatever is installed beneath it (the real client, the window, a test's stand-in, a night run) is recorded as it is. Each row
-is rebuilt from the neutral request (the Ollama-shaped arguments it has always held, backend.ollama_kwargs and embed_kwargs) and from
-the reply, with the old client's own answer fields from Reply.legacy, so it is byte for byte the row the client patch wrote before
-f517; an error row keeps the old client's error (a Failure's legacy pair). A cancelled call writes no row: it is no answer and no
-failure, and its number is skipped. (R5) A recorded call that starts while another recorded call is still on its way is an overlap:
+place, so whatever is installed beneath it (the real client, the window, a test's stand-in, a night run) is recorded as it is. (f527)
+Each row is the request in the interface's own, neutral form (backend.neutral_request: the messages, the schema's title and
+fingerprint, every sampler, the answer's ceiling, whether it thinks, the voice, the model id; an embed's model and texts) and its
+fingerprint `req` (request_hash: the whole of that, nothing of the machine, never the deadline), with the reply's `answer`, `finish`
+(stop, length or cancelled) and `usage` (the source's counts: prompt, out, read_ms, write_ms, cached, ...), or an `error` {kind, detail}
+on the interface's kinds (llm/errors.py). A cancelled call writes no row: it is no answer and no failure, and its number is skipped. (R5) A recorded call that starts while another recorded call is still on its way is an overlap:
 its row is marked, meta.json counts them (overlapped, written at close), and tools/rerun.py refuses such a recording, since a replay
 serves the calls one after another. (f442) What the player's own side asks of the model
 while it decides its line (the night bot writing its words) is the input, not the game: it is left out, since a replay feeds the line
@@ -36,6 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from llm.errors import Failure                  # (f527) the interface's own failure kinds, no model client
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
@@ -51,14 +53,10 @@ def orphan(threads) -> None:
 
 
 def request_hash(k: dict) -> str:
-    """What a call asked for, as one fingerprint: the conversation, the answer's shape and the sampling. The threads setting is the
-    machine's, not the game's, and is left out."""
-    opts = {o: v for o, v in (k.get("options") or {}).items() if o != "num_thread"}
-    fmt = k.get("format") or {}
-    body = {"model": k.get("model"), "messages": k.get("messages"), "format": fmt.get("title", "") if isinstance(fmt, dict) else str(fmt),
-            "schema": hashlib.sha256(json.dumps(fmt, sort_keys=True, default=str).encode()).hexdigest()[:16], "options": opts,
-            "input": k.get("input")}
-    return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+    """(f527) What a call asked for, as one fingerprint: the neutral request whole (backend.neutral_request or embed_request), which holds
+    nothing of the machine (threads, slots, context) and never the deadline."""
+    from llm import backend
+    return backend.request_hash(k)
 
 
 def commit() -> str:
@@ -76,13 +74,14 @@ def _operation_id() -> str:
     return op.id if op is not None else ""
 
 
-def _error_pair(e: BaseException) -> list:
-    """(f517) A failed call's error as the row has always held it: the old client's own error (a Failure's legacy pair) when there is
-    one, else the exception itself, its text cut to 500."""
-    from llm.errors import Failure
-    if isinstance(e, Failure) and e.legacy:
-        return [e.legacy[0], str(e.legacy[1])[:500]]
-    return [type(e).__name__, str(e)[:500]]
+def _error(e: BaseException) -> dict:
+    """(f527) A failed call's error as the row holds it: the interface's own kind and the detail (llm/errors.py); anything that is no
+    Failure of the interface's is the server's, one failed try, with its type and text as the detail."""
+    from llm import backend
+    f = e if isinstance(e, Failure) else backend.failure_of(e)
+    if f is not None:
+        return {"kind": f.kind, "detail": str(f.detail or (f.legacy[1] if f.legacy else ""))[:500]}
+    return {"kind": "server", "detail": f"{type(e).__name__}: {str(e)[:480]}"}
 
 
 def _cancelled(e: BaseException | None = None, out=None) -> bool:
@@ -219,12 +218,11 @@ class Recorder:
             self.in_flight += 1
             self.overlapped += overlap
         try:
-            k = backend.ollama_kwargs(request) if op == "chat" else backend.embed_kwargs(request)
-            fmt = k.get("format")
-            row = {"i": i, "input": self.n_input, "kind": op, "title": (fmt or {}).get("title", "") if isinstance(fmt, dict) else "",
+            k = backend.neutral_request(request) if op == "chat" else backend.embed_request(request)     # (f527) the neutral form
+            row = {"i": i, "input": self.n_input, "kind": op, "title": k.get("schema", "") if op == "chat" else "",
                    "req": request_hash(k),
                    "task": getattr(gateway._TASK, "name", "") if op == "chat" else "",          # (f468) the task, for the budget's estimate (outside the hash)
-                   "request": {key: v for key, v in k.items() if key != "format"}}
+                   "request": k}
             from engine import budget
             row["op"] = _operation_id()                                                         # (f471) the operation it was made inside, if any
             row["need"] = budget.need(row["task"]) if op == "chat" and row["task"] else ("embed" if op == "embed" else "")   # ...and whether the line needed it
@@ -236,7 +234,7 @@ class Recorder:
                 out = call(request)
             except Exception as e:
                 if not _cancelled(e):                    # a cancel is no failure: no row
-                    row.update(error=_error_pair(e), seconds=round(time.perf_counter() - t0, 3))
+                    row.update(error=_error(e), seconds=round(time.perf_counter() - t0, 3))
                     self._write_call(row)
                 raise
             if _cancelled(out=out):
@@ -245,10 +243,9 @@ class Recorder:
             if op == "embed":
                 row["answer"] = {"embeddings": getattr(out, "vectors", None)}
             else:
-                legacy = getattr(out, "legacy", None)
                 row["answer"] = (out.text or "")
-                row["done"] = legacy["done"] if legacy else (out.finish if out.finish is not None else "stop")
-                row["tokens"] = dict(legacy["tokens"]) if legacy else {}          # (f475) the raw counts, the cached prompt tokens among them
+                row["finish"] = out.finish if out.finish is not None else "stop"
+                row["usage"] = dict(out.usage) if isinstance(out.usage, dict) else {}     # (f475, f527) the source's counts, the cached prompt tokens among them
             self._write_call(row)
             return out
         finally:

@@ -17,6 +17,8 @@ import random
 import shutil
 from pathlib import Path
 
+from llm.errors import Failure                  # (f527) a planted failure is the interface's own, no longer the old client's
+
 SEED = 52
 SAVE = "rerun_make_stub_party"
 LIE = "Vosk Hallarin"
@@ -95,7 +97,7 @@ def record(folder: Path, root: Path) -> Path:
 
     def chat(**k):
         if fail["on"] and k["format"].get("title") == "NPCReply":
-            raise ConnectionError("the model server cannot be reached")    # every try of this input fails: the line is not taken
+            raise Failure("server", "the model server cannot be reached")    # every try of this input fails: the line is not taken
         return stub.chat(**k)
     planted = simlib.stand_in(chat=chat, embed=fake.embed)        # (f518) the stub, its failure and the embedder, as a source: the
     _embed.reset()                                                 # embedder is the stand-in's (its facts), fixed for the recording

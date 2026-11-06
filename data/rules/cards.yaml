@@ -8,3 +8,19 @@ cards:
   RTX 3080 Ti: {bandwidth_gbs: 912, tflops: 34.1, memory_gb: 12}
   RTX 4090: {bandwidth_gbs: 1008, tflops: 82.6, memory_gb: 24}
   RTX 5090: {bandwidth_gbs: 1792, tflops: 104.8, memory_gb: 32}
+  RX 7600 XT 16GB: {bandwidth_gbs: 288, tflops: 22.6, memory_gb: 16}       # (f527) the minimum AMD card (the owner, 5 Nov), through Vulkan
+
+# (f527) The minimum cards (GOALS.md, the owner's decisions of 5 Nov): the least the game is built for on each backend, each with the
+# whole model on the card. A machine at or above its backend's minimum plays the game at the minimum card's pace; f530 prices turns
+# by the profile of the player's backend's minimum card. pattern: how llama-server's --list-devices names the card (a regular
+# expression over the device's name), so the budget can tell which profile a machine is on.
+minimum:
+  cuda: RTX 3060 12GB
+  vulkan: RX 7600 XT 16GB
+patterns:
+  RTX 3060 12GB: 'RTX 3060\b'
+  RX 7600 XT 16GB: 'RX 7600 XT\b'
+  RTX A4000: 'RTX A4000\b'
+  RTX 3080 Ti: 'RTX 3080 Ti\b'
+  RTX 4090: 'RTX 4090\b'
+  RTX 5090: 'RTX 5090\b'

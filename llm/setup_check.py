@@ -66,7 +66,7 @@ def server_report(ps: dict | None = None, version: dict | None = None) -> dict:
 
 
 def model_present(name: str = "") -> bool:
-    name = name or config.MODEL
+    name = name or config.OLLAMA_MODEL
     data = _get("/api/tags") or {}
     have = {m.get("name", "") for m in data.get("models", [])}
     return name in have or (":" not in name and name + ":latest" in have)
@@ -196,7 +196,7 @@ def install_ollama(on_progress) -> bool:
 def pull_model(on_progress, name: str = "") -> None:
     """Pull the model. Ollama reports each file (layer) of it separately, so the bar adds them up instead of restarting for every file."""
     import ollama
-    name = name or config.MODEL
+    name = name or config.OLLAMA_MODEL
     last, started = 0.0, time.time()
     layers: dict[str, list[int]] = {}
     best = 0.0
@@ -276,14 +276,14 @@ def ensure_ready() -> bool:
                 return True
             hw = hardware()
             level, note = advice(hw)
-            lines = [f"The game needs one AI model, {config.MODEL}, downloaded once (roughly {MODEL_GB} GB).", note]
+            lines = [f"The game needs one AI model, {config.OLLAMA_MODEL}, downloaded once (roughly {MODEL_GB} GB).", note]
             if hw["disk_free_gb"] and hw["disk_free_gb"] < DISK_NEEDED_GB:
                 lines.append(f"Only {hw['disk_free_gb']:.0f} GB of disk space is free here; about {DISK_NEEDED_GB} GB is needed.")
             pick = _choice("Download the game's model", lines, [("Download", "download"), ("Quit", "quit")])
             if pick == "quit":
                 return False
             if pick == "download":
-                error = _progress_runner(f"Downloading {config.MODEL}", pull_model)
+                error = _progress_runner(f"Downloading {config.OLLAMA_MODEL}", pull_model)
                 if error:
                     pick = _choice("The download stopped", [error, "You can try again; it picks up where it left off."], [("Try again", "retry"), ("Quit", "quit")])
                     if pick == "quit":

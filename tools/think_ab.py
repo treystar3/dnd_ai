@@ -6,7 +6,7 @@ kind the game may run on:
 
   1. Recorded requests. The first try of each chosen task's calls in recordings (a night's run folders, a recording folder, or the
      night's zip as fetched) is sent again, once with thinking off and once on, to each server given: Ollama (/api/chat, its `think`)
-     and llama-server (/v1/chat/completions, the template's enable_thinking, the schema as its JSON grammar). Each answer is scored by
+     and llama-server (/v1/chat/completions, the template's enable_thinking, the schema as its grammar). Each answer is scored by
      the game's own contract (it parses, it validates), against the decision the night recorded (the plan's kinds, the ruling's sense,
      the audit's match, the move, the canon verdict), for leaked thinking (an answer that is not the JSON alone), for being cut off, and
      timed: wall seconds, the server's own counts, and what the call would take on the minimum card (data/measured/card_profile.yaml).
@@ -152,7 +152,7 @@ NUM_CTX: int | None = None          # (f534) --num-ctx: the context every replay
 def room_for(row: dict, opts: dict, room: int) -> int:
     """(f534) The room a thinking call gets: --room, but no more than its context holds beside its prompt (the server's own count of
     it, as the night recorded it, else three characters a token) and its answer's ceiling, as the game's llm/backend.py think_room."""
-    toks = (row.get("tokens") or {}).get("prompt_eval_count")
+    toks = (row.get("tokens") or {}).get("prompt_eval_count") or (row.get("usage") or {}).get("prompt")    # (f527) either row form
     if not toks:
         toks = sum(len(str(m.get("content") or "")) for m in ((row.get("request") or {}).get("messages") or [])) // 3
     fits = int(opts.get("num_ctx") or 16384) - int(toks) - int(opts.get("num_predict") or 0) - 256
@@ -163,7 +163,14 @@ def _options(row: dict, think: bool, room: int) -> dict:
     """The recorded options, with this machine's runner threads (DND_NUM_THREAD, as the game sends them: a pod's CPU quota needs them,
     and the night's count was the night's machine's), the context asked for (--num-ctx) and, thinking, the room that fits."""
     import config
-    opts = {k: v for k, v in ((row.get("request") or {}).get("options") or {}).items() if k != "num_thread"}
+    req = row.get("request") or {}
+    if "options" in req:                                             # a row from before f527: the Ollama-shaped request
+        opts = {k: v for k, v in (req.get("options") or {}).items() if k != "num_thread"}
+    else:                                                            # (f527) the neutral row: every sampler, and the answer's ceiling
+        opts = dict(req.get("sampling") or {})
+        if req.get("max_tokens") is not None:
+            opts["num_predict"] = int(req["max_tokens"])
+        opts.setdefault("num_ctx", int(getattr(config, "NUM_CTX", 16384) or 16384))
     n = int(getattr(config, "NUM_THREAD", 0) or 0)
     if n:
         opts["num_thread"] = n
@@ -177,21 +184,22 @@ def _options(row: dict, think: bool, room: int) -> dict:
 def ollama_body(row: dict, schema, think: bool, room: int, model: str | None = None) -> dict:
     req = row.get("request") or {}
     import config
-    return {"model": model or req.get("model") or config.MODEL, "messages": req.get("messages"), "format": schema.model_json_schema(),
+    return {"model": model or req.get("model") or config.OLLAMA_MODEL, "messages": req.get("messages"), "format": schema.model_json_schema(),
             "options": _options(row, think, room), "think": bool(think), "stream": False, "keep_alive": req.get("keep_alive", "30m")}
 
 
 def llama_body(row: dict, schema, think: bool, room: int, model: str | None = None) -> dict:
-    """The same request as llama-server takes it: the schema as its JSON grammar, every sampler sent (the game's measured table under
-    the call's own values, llm/sampling.py BASE, so none of the server's own defaults apply), thinking by the template's switch."""
+    """The same request as llama-server takes it: the schema as its grammar (f527: `grammar`, llama.cpp's own conversion in llm/gbnf.py,
+    never response_format, as the game sends it), every sampler sent (the game's measured table under the call's own values,
+    llm/sampling.py BASE, so none of the server's own defaults apply), thinking by the template's switch."""
+    from llm import llama as _llama
     from llm.sampling import BASE
     import config
     req = row.get("request") or {}
     opts = _options(row, think, room)
     samplers = {**BASE, **{k: v for k, v in opts.items() if k in SAMPLER_KEYS}}
-    body = {"model": model or req.get("model") or config.MODEL, "messages": req.get("messages"),
-            "response_format": {"type": "json_schema", "json_schema": {"name": row.get("title") or schema.__name__,
-                                                                         "schema": schema.model_json_schema(), "strict": True}},
+    body = {"model": model or config.MODEL, "messages": req.get("messages"),
+            "grammar": _llama.grammar_of(schema.model_json_schema()),
             "max_tokens": int(opts.get("num_predict") or 512), "chat_template_kwargs": {"enable_thinking": bool(think)}, "stream": False}
     body.update({k: v for k, v in samplers.items() if k in SAMPLER_KEYS})
     return body

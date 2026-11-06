@@ -56,7 +56,7 @@ def oracle(task, temperature, attempt, max_tokens, messages, schema):
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2
     base, top, tuned = _oracle_shifted(task, base, top, tuned)
-    return dict(model=config.MODEL, think=config.THINK, messages=messages, format=schema.model_json_schema(),
+    return dict(model=config.OLLAMA_MODEL, think=config.THINK, messages=messages, format=schema.model_json_schema(),     # (f527) Ollama's tag
                 options={"temperature": min(top, base + 0.15 * attempt), "num_ctx": config.NUM_CTX, "num_predict": max_tokens,
                          **gateway.threads(), **tuned},
                 keep_alive=config.KEEP_ALIVE)
@@ -87,11 +87,13 @@ check(f"the source's request equals the gateway's before f515, key for key and i
 # ---- the recorder's fingerprint covers exactly what is sent
 config.NUM_THREAD = 6
 req = backend.ChatRequest(messages=messages, schema=Read, sampling=sampling.resolve("narrate", 0.8).at(1), max_tokens=2048)
-sent, proj = backend.ollama_kwargs(req), backend.legacy_projection(req)
-check("the legacy projection is the request as sent with only the machine's thread count left out",
-      "num_thread" in sent["options"] and "num_thread" not in proj["options"]
-      and {k: v for k, v in sent.items() if k != "options"} == {k: v for k, v in proj.items() if k != "options"})
-check("...and the recorder's hash of either is the same", recording.request_hash(sent) == recording.request_hash(proj))
+sent, neutral = backend.ollama_kwargs(req), backend.neutral_request(req)
+h6 = recording.request_hash(neutral)
+config.NUM_THREAD = 0
+check("(f527) the neutral request holds nothing of the machine: the thread count and the context the Ollama request carries are not in it",
+      "num_thread" in sent["options"] and "num_ctx" in sent["options"] and "num_thread" not in json.dumps(neutral) and "num_ctx" not in json.dumps(neutral)
+      and set(neutral) == {"model", "messages", "schema", "schema_sha", "sampling", "max_tokens", "think", "voice"}, neutral.keys())
+check("...so the recorder's fingerprint is the same whatever the thread count", recording.request_hash(backend.neutral_request(req)) == h6)
 config.NUM_THREAD = saved[2]
 
 # ---- one sampling plan
@@ -109,10 +111,10 @@ recorded = {}
 for f in sorted((ROOT / "data/replay/sessions").glob("*/calls.jsonl.gz")):
     for line in gzip.open(f, "rt", encoding="utf-8"):
         row = json.loads(line)
-        rp = ((row.get("request") or {}).get("options") or {}).get("repeat_penalty")
+        rp = ((row.get("request") or {}).get("sampling") or {}).get("repeat_penalty")     # (f527) the neutral row: every sampler, the base under
         if row.get("kind") == "chat" and rp is not None:
             recorded.setdefault(row.get("task"), set()).add(rp)
-planned = {t: {sampling.resolve(t, 0.8).at(0).explicit.get("repeat_penalty")} for t in recorded}
+planned = {t: {sampling.resolve(t, 0.8).at(0).resolved()["repeat_penalty"]} for t in recorded}
 check(f"the tuned tasks' repeat penalties are what the kept recordings hold ({', '.join(f'{t} {sorted(v)}' for t, v in sorted(recorded.items()))})",
       recorded and planned == recorded, (planned, recorded))
 
@@ -182,7 +184,7 @@ check("an embedding goes through the interface and the Ollama-shaped source, and
       and len(asked) == 1, (vec, asked))
 check("...and taking it away puts the default Ollama-shaped source back", backend.source() is before)
 check("...asked with today's request (the embed model, the texts as given, keep-alive), exactly the embedder's arguments",
-      asked and asked[0]["model"] == config.EMBED_MODEL and asked[0]["input"] == ["clustering: a", "clustering: b"]
+      asked and asked[0]["model"] == config.OLLAMA_EMBED_MODEL and asked[0]["input"] == ["clustering: a", "clustering: b"]
       and asked[0]["keep_alive"] == config.KEEP_ALIVE and asked[0] == backend.embed_kwargs(["clustering: a", "clustering: b"])
       and list(asked[0]) == list(backend.embed_kwargs(["clustering: a", "clustering: b"])), asked)
 

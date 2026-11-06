@@ -136,7 +136,7 @@ for kind, (tries, charged, filed, transport) in TABLE.items():
           got == want, (got, want))
 
 r = run(Source("server"), relaxed={})
-check("the relaxed retry after the server's failure is today's (three tries, then two under the looser checks)", r.tries == 5, r.tries)
+check("(f527) no relaxed retry after the server's failure: three tries and no more (looser checks mend no outage)", r.tries == 3, r.tries)
 for kind, said in (("too_big", "a request too big"), ("invalid", "an invalid request"), ("unreachable", "a server out of reach")):
     r = run(Source(kind), relaxed={})
     check(f"...while {said} gets none: it would only fail again", r.tries == 1, r.tries)

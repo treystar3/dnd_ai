@@ -1,0 +1,104 @@
+{
+ "bounds": {
+  "schema": {
+   "type": "object",
+   "properties": {
+    "n": {
+     "type": "integer",
+     "minimum": 3,
+     "maximum": 1200
+    },
+    "m": {
+     "type": "integer",
+     "maximum": -3
+    }
+   },
+   "required": [
+    "n",
+    "m"
+   ]
+  },
+  "gbnf": "m ::= (\"-\" ([0-2] [0-9]{1,15} | [3-9] [0-9]{0,15}))\nm-kv ::= \"\\\"m\\\"\" space \":\" space m\nn ::= ([3-9] | ([1-8] [0-9] | [9] [0-9]) | ([1-8] [0-9]{2} | [9] ([0-8] [0-9] | [9] [0-9])) | \"1\" ([0-1] [0-9]{2} | [2] \"00\"))\nn-kv ::= \"\\\"n\\\"\" space \":\" space n\nroot ::= \"{\" space n-kv \",\" space m-kv space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\n"
+ },
+ "optional": {
+  "schema": {
+   "type": "object",
+   "properties": {
+    "a": {
+     "type": "string",
+     "maxLength": 9
+    },
+    "b": {
+     "enum": [
+      "x",
+      "y"
+     ]
+    },
+    "c": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "a"
+   ]
+  },
+  "gbnf": "a ::= \"\\\"\" char{0,9} \"\\\"\"\na-kv ::= \"\\\"a\\\"\" space \":\" space a\nb ::= (\"\\\"x\\\"\" | \"\\\"y\\\"\")\nb-kv ::= \"\\\"b\\\"\" space \":\" space b\nb-rest ::= ( \",\" space c-kv )?\nc ::= integer | null\nc-kv ::= \"\\\"c\\\"\" space \":\" space c\nchar ::= [^\"\\\\\\x7F\\x00-\\x1F] | [\\\\] ([\"\\\\bfnrt] | \"u\" [0-9a-fA-F]{4})\ninteger ::= (\"-\"? integral-part)\nintegral-part ::= [0] | [1-9] [0-9]{0,15}\nnull ::= \"null\"\nroot ::= \"{\" space a-kv ( \",\" space ( b-kv b-rest | c-kv ) )? space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\n"
+ },
+ "additional": {
+  "schema": {
+   "type": "object",
+   "properties": {
+    "and": {
+     "type": "string"
+    },
+    "also": {
+     "type": "boolean"
+    }
+   },
+   "additionalProperties": {
+    "type": "number"
+   }
+  },
+  "gbnf": "additional-k ::= [\"] ( [a] ([l] ([s] ([o] char+ | [^\"o] char*) | [^\"s] char*) | [n] ([d] char+ | [^\"d] char*) | [^\"ln] char*) | [^\"a] char* )? [\"]\nadditional-kv ::= additional-k \":\" space number\nalso-kv ::= \"\\\"also\\\"\" space \":\" space boolean\nalso-rest ::= ( \",\" space additional-kv )*\nand-kv ::= \"\\\"and\\\"\" space \":\" space string\nand-rest ::= ( \",\" space also-kv )? also-rest\nboolean ::= (\"true\" | \"false\")\nchar ::= [^\"\\\\\\x7F\\x00-\\x1F] | [\\\\] ([\"\\\\bfnrt] | \"u\" [0-9a-fA-F]{4})\ndecimal-part ::= [0-9]{1,16}\nintegral-part ::= [0] | [1-9] [0-9]{0,15}\nnumber ::= (\"-\"? integral-part) (\".\" decimal-part)? ([eE] [-+]? integral-part)?\nroot ::= \"{\" space  (and-kv and-rest | also-kv also-rest | additional-kv ( \",\" space additional-kv )* )? space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\nstring ::= \"\\\"\" char* \"\\\"\"\n"
+ },
+ "refs": {
+  "schema": {
+   "$defs": {
+    "Leaf": {
+     "type": "object",
+     "properties": {
+      "v": {
+       "type": "string",
+       "format": "date"
+      }
+     },
+     "required": [
+      "v"
+     ]
+    }
+   },
+   "type": "object",
+   "properties": {
+    "leaves": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/Leaf"
+     },
+     "minItems": 1,
+     "maxItems": 3
+    }
+   },
+   "required": [
+    "leaves"
+   ]
+  },
+  "gbnf": "date ::= [0-9]{4} \"-\" ( \"0\" [1-9] | \"1\" [0-2] ) \"-\" ( \"0\" [1-9] | [1-2] [0-9] | \"3\" [0-1] )\ndate-string ::= \"\\\"\" date \"\\\"\"\nleaves ::= \"[\" space leaves-item (\",\" space leaves-item){0,2} space \"]\"\nleaves-item ::= ref-defs-Leaf\nleaves-kv ::= \"\\\"leaves\\\"\" space \":\" space leaves\nref-defs-Leaf ::= \"{\" space ref-defs-Leaf-v-kv space \"}\"\nref-defs-Leaf-v ::= date-string\nref-defs-Leaf-v-kv ::= \"\\\"v\\\"\" space \":\" space ref-defs-Leaf-v\nroot ::= \"{\" space leaves-kv space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\n"
+ }
+}

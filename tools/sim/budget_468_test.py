@@ -242,10 +242,10 @@ import gzip
 calls = [json.loads(l) for l in gzip.open(OUT / "calls.jsonl.gz", "rt", encoding="utf-8") if l.strip()]
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))
-check("the recording's meta carries the speeds the budget priced its calls at, and each call its task", meta.get("profile") == {"read_tps": 1e9, "write_tps": 0.15}
+check("the recording's meta carries the speeds the budget priced its calls at, and each call its task", meta.get("profile") == {"read_tps": 1e9, "write_tps": 0.15, "embed_seconds_per_text": 0.15}
       and meta.get("limit_seconds") == B["limit_seconds"] and all(c.get("task") for c in calls if c["kind"] == "chat"), (meta.get("profile"), [c.get("task") for c in calls][:6]))
 cut = [c for c in calls if c.get("error")]
-check("the deadline's cut is recorded as that error, with its task", cut and cut[-1]["error"][0] == "ReadTimeout" and cut[-1]["task"] == "interpret_action", [c.get("error") for c in cut])
+check("the deadline's cut is recorded as that error, with its task", cut and cut[-1]["error"]["kind"] == "deadline" and cut[-1]["task"] == "interpret_action", [c.get("error") for c in cut])
 check("...the first line's passage was refused under the slow profile and stood in for; the cut line was not taken", "stand_in" in [p["how"] for p in turns[0].get("presented", [])]
       and not any(c.get("task") == "narrate" for c in calls if c.get("input")) and len(turns) >= 2 and not turns[1].get("presented"),   # input 0 is the open's own passage
       ([[p["how"] for p in t.get("presented", [])] for t in turns], [(c.get("input"), c.get("task")) for c in calls]))

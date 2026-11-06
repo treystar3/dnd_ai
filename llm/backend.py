@@ -9,8 +9,10 @@ gateway is unchanged: the 59 generate() call sites never see this module.
 
 Behind the interface sits one source at a time. Until the game moves to llama-server (f528) the source is OllamaShape: it sends exactly
 today's request to whatever llm.gateway._client holds (the real client, the suite's stand-in, the replayer), so nothing a test, a
-recording or a night sees changes. ollama_kwargs() builds that request, and legacy_projection() is what the recorder's request_hash has
-always fingerprinted (the same request, the machine's thread count left out), so the hash covers exactly what is sent.
+recording or a night sees changes. ollama_kwargs() builds that request. (f527) The recorder's row and its fingerprint are the
+interface's own, neutral form: neutral_request() (the messages, the schema's title and fingerprint, every sampler with the base under
+the task's own, the answer's ceiling, whether it thinks, the voice, the model id) and embed_request() (the model and the texts), hashed
+whole by request_hash(); nothing of the machine (threads, slots, context) and never the deadline is in either.
 
 use(source) swaps the source; wrap(layer, rank) adds a layer around every call. Both return an undo handle, and a handle removes exactly
 its own layer whatever order they are removed in. (f517) The recorder (engine/recording.py, rank RECORDER, outermost), the night's
@@ -19,9 +21,8 @@ in place any more. A layer sees op 'chat' (a ChatRequest), 'embed' (a list of te
 request, no answer to keep) and passes what it does not handle straight down. lane(name) names the lane a thread's calls are made in
 (foreground unless a thread says otherwise; the busy light counts the foreground's alone, and f523 declares the background lanes).
 
-(f517) What the recorder writes is rebuilt from the neutral request (ollama_kwargs, embed_kwargs) and, for the old client's own answer
-fields (its done_reason and raw token counts, which Reply.usage rounds), from Reply.legacy, which only OllamaShape fills: so a row
-recorded through the layer is byte for byte the row the client patch wrote.
+(f517, f527) What the recorder writes is the neutral request and the Reply as the interface gives it (text, finish, usage), whatever
+source answered: the old client's own fields (done_reason, raw counts) are read into the Reply by reply_of and kept nowhere else.
 
 (f516) A source fails one try by raising llm.errors.Failure of a kind (loading, too_big, invalid, server, unreachable, deadline,
 cancelled); the gateway decides what each kind does. failure_of() is the one mapping from the old client's errors to those kinds, so
@@ -30,6 +31,8 @@ with the old error's (type, text) kept as legacy; anything else is no Failure at
 cancelled Failure leaves the interface as Cancelled, an Interrupt: never a failed try."""
 
 import contextlib
+import hashlib
+import json
 import threading
 from dataclasses import dataclass, field
 
@@ -46,10 +49,6 @@ class Reply:
     text: str
     finish: str | None = "stop"
     usage: dict | None = None
-    legacy: dict | None = None          # (f517) the old client's own answer fields, as the recorder writes them: {done, tokens}
-
-
-TOKEN_FIELDS = ("prompt_eval_count", "eval_count", "prompt_eval_duration", "eval_duration", "load_duration", "total_duration")
 
 # (f517) The ranks of the three layers, lowest outermost: the recorder sees every call whole (its seconds include the layers inside it,
 # as when it patched the client last), then the night's counter, then the busy light. A worker, if f523 ever makes it a layer rather
@@ -144,8 +143,7 @@ def reply_of(response) -> "Reply":
     from llm import gateway
     if isinstance(response, Reply):
         return response
-    return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response),
-                 legacy=legacy_answer(response))
+    return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response))
 
 
 def embedding_of(response) -> "Embedding":
@@ -176,7 +174,7 @@ def ollama_kwargs(req: ChatRequest) -> dict:
     s = req.sampling
     think = config.THINK if getattr(s, "think", None) is None else bool(s.think)
     room = think_room(req.messages, req.max_tokens) if getattr(s, "think", None) else 0
-    return dict(model=config.MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
+    return dict(model=config.OLLAMA_MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
                 options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **gateway.threads(),
                          **s.explicit},
                 keep_alive=config.KEEP_ALIVE)
@@ -186,26 +184,31 @@ def embed_kwargs(texts: list) -> dict:
     """(f517) Exactly the arguments the embedder sent the Ollama client before f515, in the same order (llm/embed.py vectors): what
     OllamaShape.embed sends and what the recorder writes and hashes."""
     from llm.gateway import threads
-    return dict(model=config.EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE, **({"options": threads()} if threads() else {}))
+    return dict(model=config.OLLAMA_EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE, **({"options": threads()} if threads() else {}))
 
 
-def legacy_answer(response) -> dict:
-    """(f517) The old client's own answer fields, exactly as engine/recording.py read them off the response before f517: its done_reason
-    ('stop' when the response has none at all) and every raw token count it has, durations in nanoseconds, with the server's cached
-    prompt tokens when it says (llm/gateway.py cached_count)."""
-    from llm import gateway
-    tokens = {t: getattr(response, t, None) for t in TOKEN_FIELDS if getattr(response, t, None) is not None}
-    cached = gateway.cached_count(response)
-    if cached is not None:
-        tokens["cached"] = cached
-    return {"done": getattr(response, "done_reason", "stop"), "tokens": tokens}
+def neutral_request(req: ChatRequest) -> dict:
+    """(f527) What a chat request is, whatever machine runs it: its messages, its schema's title and fingerprint, every sampler (the base
+    under the task's own, Sampling.resolved), the answer's ceiling with the thinking room added, whether it thinks, its voice and the
+    model id. Nothing of the machine (slot, adapter index, threads, context) and never the deadline. The recorder's row, and what
+    request_hash fingerprints."""
+    schema = req.schema.model_json_schema()
+    s = req.sampling
+    thinks = bool(config.THINK) if getattr(s, "think", None) is None else bool(s.think)
+    room = think_room(req.messages, req.max_tokens) if getattr(s, "think", None) else 0
+    return {"model": config.MODEL, "messages": req.messages, "schema": schema.get("title") or req.schema.__name__,
+            "schema_sha": hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16],
+            "sampling": s.resolved(), "max_tokens": int(req.max_tokens) + room, "think": thinks, "voice": req.voice or None}
 
 
-def legacy_projection(req: ChatRequest) -> dict:
-    """What engine/recording.py request_hash fingerprints of a chat: the request as sent, the machine's thread count left out."""
-    k = ollama_kwargs(req)
-    k["options"] = {o: v for o, v in k["options"].items() if o != "num_thread"}
-    return k
+def embed_request(texts: list) -> dict:
+    """(f527) What an embed request is: the embedding model's id and the texts."""
+    return {"model": config.EMBED_MODEL, "input": list(texts)}
+
+
+def request_hash(request: dict) -> str:
+    """(f527) One fingerprint of a neutral request, whole (engine/recording.py request_hash is this)."""
+    return hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
 
 
 class OllamaShape:

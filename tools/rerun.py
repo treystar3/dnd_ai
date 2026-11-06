@@ -52,10 +52,13 @@ class Unreplayable(ValueError):
     after another, so which answer went to which call is not known), or its calls are out of their order."""
 
 
-def refusal(meta: dict, calls: list) -> str:
+def refusal(meta: dict, calls: list, replaying: bool = True) -> str:
     """(f517, R5) Why a recording cannot be replayed, or '' when it can: a call marked as overlapping another, meta's overlapped count
     above 0 (a recording made before f517 has none: 0), or the calls' numbers not rising in the file's order. A gap is allowed (a
-    cancelled call writes no row)."""
+    cancelled call writes no row). (f527) Rows in the old client's form (done, tokens) cannot be served either; a re-bless still reads
+    such a recording to compare against (replaying=False)."""
+    if replaying and any(isinstance(c, dict) and ("done" in c or "tokens" in c) and "finish" not in c and "usage" not in c for c in calls):
+        return "its rows hold the old client's fields (done, tokens: made before f527); the replay serves the interface's (finish, usage)"
     flagged = [c.get("i") for c in calls if c.get("overlap")]
     if flagged:
         return f"{len(flagged)} recorded call(s) overlapped another (calls {flagged[:5]}); a replay serves calls one after another"
@@ -69,13 +72,14 @@ def refusal(meta: dict, calls: list) -> str:
     return ""
 
 
-def load(folder: Path) -> dict:
-    """A recording's four files, read. (f517) Refused (Unreplayable) when its calls cannot be served one after another as recorded."""
+def load(folder: Path, replaying: bool = True) -> dict:
+    """A recording's four files, read. (f517) Refused (Unreplayable) when its calls cannot be served one after another as recorded;
+    (f527) replaying=False reads a recording only to compare against, whatever form its rows have."""
     rows = lambda name: [json.loads(l) for l in (folder / name).read_text(encoding="utf-8").splitlines() if l.strip()]
     with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
         calls = [json.loads(l) for l in f if l.strip()]
     meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
-    why = refusal(meta, calls)
+    why = refusal(meta, calls, replaying)
     if why:
         raise Unreplayable(f"{folder}: {why}")
     return {"meta": meta, "inputs": rows("inputs.jsonl"), "calls": calls, "turns": rows("turns.jsonl")}
@@ -116,6 +120,72 @@ def report_rebless(old: dict, new: dict) -> None:
             continue
         k = next((j for j, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
         print(f"  input {t['i']}: line {k + 1} moved: {a[k] if k < len(a) else '(none)'!r} -> {b[k] if k < len(b) else '(none)'!r}")
+
+
+def neutral_of(row: dict, schema_sha: str | None = None) -> dict:
+    """(f527) A recorded row's request in the neutral form: as it is when the row already holds one (made since f527), else rebuilt from
+    the Ollama-shaped request the recorder wrote before (model, messages, format's title, options, think): the base laid under the
+    options, num_predict as the ceiling, the schema's fingerprint from the contract of that title (or `schema_sha`, the new row's, for
+    a schema built at run time, which a title alone cannot rebuild)."""
+    import hashlib
+    import config
+    from llm import contracts, sampling
+    r = row.get("request") or {}
+    if row.get("kind") == "embed":
+        return {"model": config.EMBED_MODEL, "input": r.get("input")}
+    if "schema_sha" in r:
+        return r
+    title = row.get("title", "")
+    opts = {k: v for k, v in (r.get("options") or {}).items() if k not in ("num_thread", "num_ctx")}
+    n_predict, temperature = opts.pop("num_predict", None), opts.pop("temperature", None)
+    cls = getattr(contracts, title, None)
+    sha = (hashlib.sha256(json.dumps(cls.model_json_schema(), sort_keys=True).encode("utf-8")).hexdigest()[:16]
+           if isinstance(cls, type) and hasattr(cls, "model_json_schema") else schema_sha)
+    return {"model": config.MODEL, "messages": r.get("messages"), "schema": title, "schema_sha": sha,
+            "sampling": {**sampling.BASE, **opts, "temperature": temperature}, "max_tokens": n_predict, "think": bool(r.get("think")),
+            "voice": None}
+
+
+def translate(old: dict, new: dict) -> list[str]:
+    """(f527) The kept recording's rows against the new one's, request by request: each old row's request in the neutral form, hashed
+    (engine/recording.py request_hash), and the two sequences of fingerprints aligned (difflib: the longest common run, so a dropped or
+    an added row never throws the rest off). Returns one line per row that found no match: an old row the new recording no longer makes
+    (named with its number, input and title), a new row the kept one never had, or a pair of the same title whose words differ, named
+    with the fields that moved. Empty: every request is the same one, only written anew."""
+    import difflib
+    from engine import recording
+    o, n = old["calls"], new["calls"]
+    sha_by_title = {c.get("title"): (c.get("request") or {}).get("schema_sha") for c in n if c.get("kind") == "chat"}
+    neutral = [neutral_of(c, sha_by_title.get(c.get("title"))) for c in o]
+    oh = [recording.request_hash(k) for k in neutral]
+    nh = [c.get("req") for c in n]
+    FIELDS = ("messages", "schema", "schema_sha", "sampling", "max_tokens", "think", "voice", "input", "model")
+
+    def name(c):
+        return f"call {c.get('i')} (input {c.get('input')}, {c.get('kind')} {c.get('title', '')!r})"
+    out = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, oh, nh, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        if tag == "delete":
+            out += [f"old {name(o[i])} is not made any more" for i in range(i1, i2)]
+        elif tag == "insert":
+            out += [f"new {name(n[j])} is new" for j in range(j1, j2)]
+        else:                                                       # replace: pair them up as far as they go
+            for k in range(max(i2 - i1, j2 - j1)):
+                a = o[i1 + k] if i1 + k < i2 else None
+                b = n[j1 + k] if j1 + k < j2 else None
+                if a is None:
+                    out.append(f"new {name(b)} is new")
+                elif b is None:
+                    out.append(f"old {name(a)} is not made any more")
+                elif a.get("kind") == b.get("kind") and a.get("title", "") == b.get("title", ""):
+                    na, nb = neutral[i1 + k], b.get("request") or {}
+                    moved = [f for f in FIELDS if na.get(f) != nb.get(f)]
+                    out.append(f"old {name(a)} -> new call {b.get('i')}: the request's words differ in {moved or ['?']}")
+                else:
+                    out.append(f"old {name(a)} against new {name(b)}: no match")
+    return out
 
 
 def report_rows(old: dict, new: dict, changed: list) -> None:
@@ -184,10 +254,11 @@ class Replay:
         self.at = 0
         self._lock = threading.Lock()
 
-    def _row(self, kind: str, k: dict) -> dict:
+    def _row(self, kind: str, k: dict, request=None) -> dict:
         from engine import recording
         from llm import backend
-        title = (k.get("format") or {}).get("title", "") if isinstance(k.get("format"), dict) else ""
+        from llm.errors import Failure
+        title = k.get("schema", "") if kind == "chat" else ""                     # (f527) the neutral request's schema title
         with self._lock:
             if self.at >= len(self.rows):
                 raise Parted(f"the game made a call the recording does not have (a {kind}, '{title}')")
@@ -199,22 +270,23 @@ class Replay:
         if not self.loose and recording.request_hash(k) != row["req"]:
             raise Parted(f"call {row['i']} (input {row['input']}, '{title}'): the game asked in other words than the recording")
         if self.on_call:
-            self.on_call(row, k)
-        if row.get("error"):
-            raise backend.legacy_failure(row["error"])
+            self.on_call(row, k, request)
+        err = row.get("error")
+        if err:
+            if isinstance(err, dict):                                           # (f527) the interface's own kind and detail
+                raise Failure(err.get("kind") or "server", str(err.get("detail") or ""))
+            raise backend.legacy_failure(err)                                   # a row from before f527 (load() refuses those; --loose reads them)
         return row
 
     def chat(self, req, deadline=None):
         from llm import backend
-        row = self._row("chat", backend.ollama_kwargs(req))
-        return backend.reply_of(types.SimpleNamespace(done_reason=row.get("done", "stop"),
-                                                      message=types.SimpleNamespace(content=row.get("answer", "")),
-                                                      **(row.get("tokens") or {})))
+        row = self._row("chat", backend.neutral_request(req), req)
+        return backend.Reply(text=row.get("answer", ""), finish=row.get("finish") or "stop", usage=row.get("usage") or None)
 
     def embed(self, texts):
         from llm import backend
-        row = self._row("embed", backend.embed_kwargs(texts))
-        return backend.embedding_of(types.SimpleNamespace(embeddings=(row.get("answer") or {}).get("embeddings")))
+        row = self._row("embed", backend.embed_request(texts), texts)
+        return backend.Embedding(vectors=(row.get("answer") or {}).get("embeddings"))
 
     def load(self, progress=None) -> None:
         pass
@@ -261,7 +333,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     slow_before = budget.SLOW
     budget.SLOW = bool(rec["meta"].get("slow"))                                      # (f526) a recording made below the minimum card
     if isinstance(rec["meta"].get("profile"), dict):                                   # (f468) the speeds the recording priced its calls at:
-        budget.PROFILE.update({k: float(v) for k, v in rec["meta"]["profile"].items() if k in ("read_tps", "write_tps") and v})   # the replay defers where it did
+        budget.PROFILE.update({k: float(v) for k, v in rec["meta"]["profile"].items() if k in budget.DEFAULT_PROFILE and v})   # the replay defers where it did
     import config, tempfile
     think_before = (config.THINK_TASKS, config.THINK_ROOM)         # (f533) the replay asks as the recording did: its tasks thought, or none
     config.THINK_TASKS = frozenset(rec["meta"].get("think_tasks") or ())
@@ -385,11 +457,12 @@ def timer(folder: Path, url: str):
     out = (folder / "timed.jsonl").open("w", encoding="utf-8")
     COUNTS = ("prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration", "load_duration", "total_duration")
 
-    def on_call(row: dict, k: dict) -> None:
+    def on_call(row: dict, k: dict, request) -> None:
+        from llm import backend
         t0 = time.perf_counter()
         err, got = "", {}
-        try:
-            r = live.embed(**k) if row["kind"] == "embed" else live.chat(**k)
+        try:                                        # (f527) the Ollama-shaped arguments, built from the request the game made
+            r = live.embed(**backend.embed_kwargs(request)) if row["kind"] == "embed" else live.chat(**backend.ollama_kwargs(request))
             got = {c: getattr(r, c, None) for c in COUNTS}
         except Exception as e:                      # the card failing a call is a measure too
             err = f"{type(e).__name__}: {str(e)[:200]}"
@@ -437,7 +510,8 @@ def make_stub_recording(folder: Path, n: int = 40, seed: int = 39, persona: str 
 
     def chat(**k):
         if fail["on"] and k["format"].get("title") == "ActionPlan":
-            raise ConnectionError("the model server cannot be reached")        # the server's failure (llm/backend.py failure_of)
+            from llm.errors import Failure
+            raise Failure("server", "the model server cannot be reached")     # (f527) the server's failure, in the interface's own kind
         return stub.chat(**k)
     planted = simlib.stand_in(chat=chat)                    # (f518) the stub with its failure planted, a source above the stub's own
     ws = session.scene(load_traits(), store.load_player())
@@ -496,6 +570,7 @@ def main() -> int:
     ap.add_argument("--golden", nargs="?", const="stub_short", default=None, metavar="NAME",
                     help="replay a kept recording (stub_short when no name is given; stub_party and stub_fight, made from their scripts)")
     ap.add_argument("--rebless", action="store_true", help="with --golden: record it again, and say what changed")
+    ap.add_argument("--translate", action="store_true", help="(f527) with --rebless: every kept row's request in the neutral form against the new rows' fingerprints")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
     ap.add_argument("--inputs", type=int, default=40)
     ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the model at URL beside the replay, and keep "
@@ -511,7 +586,7 @@ def main() -> int:
         return 0
     if a.golden and a.rebless:
         target = golden(a.golden)
-        old = load(target) if (target / "meta.json").exists() else None
+        old = load(target, replaying=False) if (target / "meta.json").exists() else None     # (f527) compared, not replayed
         tmp = target.with_name(target.name + "_new")
         shutil.rmtree(tmp, ignore_errors=True)
         try:                                                           # (f517) a re-record that cannot be replayed is never kept,
@@ -526,6 +601,12 @@ def main() -> int:
             return 2
         if old:
             report_rebless(old, new)
+            if a.translate:
+                unmatched = translate(old, new)
+                print(f"translated: {len(old['calls'])} kept requests against {len(new['calls'])} new; "
+                      + ("every request the same, written anew" if not unmatched else f"{len(unmatched)} without a match:"))
+                for line in unmatched[:40]:
+                    print("  " + line)
         else:
             print(f"{a.golden}: kept for the first time ({len(new['inputs'])} inputs, {len(new['calls'])} calls)")
             for t, w in sorted(placement(new).items()):

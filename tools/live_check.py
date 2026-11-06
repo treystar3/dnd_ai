@@ -30,13 +30,13 @@ from llm import backend
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
 ap.add_argument("--mode", choices=["independent", "continuity", "both", "addressees"], default="independent")
-ap.add_argument("--model", default="", help="run the game's characters on this model instead of config.MODEL (config.py is not changed)")
+ap.add_argument("--model", default="", help="run the game's characters on this Ollama model instead of config.OLLAMA_MODEL (config.py is not changed)")
 ap.add_argument("--report", default="live_check_report.md", help="the report's file name, in saves/")
 ap.add_argument("--vary", action="store_true", help="a different personality pair for each run after the first (repeatable)")
 ap.add_argument("--judge-model", default="", help="judge with this model instead of the game's (keeps the judge the same while comparing game models)")
 args = ap.parse_args()
 if args.model:
-    config.MODEL = args.model
+    config.OLLAMA_MODEL = args.model              # (f527) the Ollama-shaped source sends this tag
 
 
 def addressees(runs: int) -> None:
@@ -190,13 +190,13 @@ def judge(title: str, lines: list[tuple[str, str]], voices: dict[str, str], selv
             if selves and any(selves.values()) else "") +
            "\nLINES:\n" + "\n".join(f"  {who}: {' '.join(t.split())}" for who, t in lines))
     try:
-        game_model = config.MODEL
+        game_model = config.OLLAMA_MODEL
         if args.judge_model:
-            config.MODEL = args.judge_model
+            config.OLLAMA_MODEL = args.judge_model
         try:
             return generate("live_judge", JUDGE_SYSTEM, req, Judgement, temperature=0.1, max_tokens=160, retries=1)
         finally:
-            config.MODEL = game_model
+            config.OLLAMA_MODEL = game_model
     except LLMError:
         return None
 

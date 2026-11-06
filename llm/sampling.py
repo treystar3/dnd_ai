@@ -2,8 +2,9 @@
 
 BASE is the table every night ran on (the owner's reading of "keep them as they are", Bundle F's survey answers, GOALS.md): what
 Ollama sent for every request of the post-E night, measured from its own log. It is laid under a task's own values only when a
-request is built for llama-server (f521); the Ollama-shaped source sends exactly today's options and never these keys (f527 moves the
-table into data/ with the one re-bless).
+request is built for llama-server (f521); the Ollama-shaped source sends exactly today's options and never these keys. (f527) The
+table, the base and the retry step are data: data/rules/sampling.yaml, read by config.py (SAMPLING, SAMPLING_BASE,
+RETRY_TEMPERATURE_STEP), in the data hash.
 
 resolve(task, temperature) gives a Plan: the task's tuned values from config.SAMPLING with config.TEMP_ADD and REPEAT_ADD applied
 (shifted), its base temperature and the ceiling a retry may warm it to. Plan.at(attempt) is one try's Sampling. The order is today's
@@ -14,9 +15,8 @@ from dataclasses import dataclass, field
 
 import config
 
-BASE = {"top_k": 64, "top_p": 0.95, "min_p": 0.0, "typical_p": 1.0, "repeat_penalty": 1.0, "repeat_last_n": 64,
-        "presence_penalty": 0.0, "frequency_penalty": 0.0, "dry_multiplier": 0.0, "xtc_probability": 0.0}
-RETRY_TEMPERATURE_STEP = 0.15
+BASE: dict = dict(getattr(config, "SAMPLING_BASE", {}))                         # (f527) data/rules/sampling.yaml base
+RETRY_TEMPERATURE_STEP = float(getattr(config, "RETRY_TEMPERATURE_STEP", 0.15))   # ...and its retry_temperature_step
 
 
 def shifted(task: str, base: float, top: float, tuned: dict) -> tuple[float, float, dict]:

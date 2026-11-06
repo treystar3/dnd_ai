@@ -1,0 +1,44 @@
+# (f527) How freely the model writes, by job: the sampling every call is made with (llm/sampling.py resolve), moved here from config.py
+# with the one re-bless so that it is data, in the data hash, like every other number the game plays by. The values are the ones every
+# night ran on (the owner's "keep them as they are", GOALS.md): characters talking use Google's suggested settings for Gemma (warm,
+# varied); jobs that decide facts or summarise what happened run colder; a task not listed uses the temperature its caller gives and the
+# base below for everything else. engine/data_check.py checks every key against the samplers llama-server reads, in range, and every
+# task against budget.yaml's table.
+#
+# base: laid under a task's own values on every request to llama-server (f521), so none of the server's own defaults apply: what Ollama
+# sent for every request of the post-E night, measured from its own log.
+base:
+  top_k: 64
+  top_p: 0.95
+  min_p: 0.0
+  typical_p: 1.0
+  repeat_penalty: 1.0
+  repeat_last_n: 64
+  presence_penalty: 0.0
+  frequency_penalty: 0.0
+  dry_multiplier: 0.0
+  xtc_probability: 0.0
+retry_temperature_step: 0.15      # each retry of a call goes out this much warmer, up to the task's ceiling (llm/sampling.py)
+
+# (f347) The guard against worn words: a token already used within the last repeat_last_n tokens is made less likely by repeat_penalty.
+# An hour's transcript leaned on the same few words passage after passage ("steady" 258 times, "rhythmic" 178), so prose gets a firmer
+# penalty over a window that covers a whole passage, and speech a gentler one. Measured by a night run before any word list is added.
+# Dialogue (temperature 1.0, top_p 0.95, top_k 64) is Google's suggested setting for Gemma. DND_TEMP_ADD and DND_REPEAT_ADD (config.py,
+# f387) shift these for a night; the shifts are not data.
+tasks:
+  hire_chat:        {temperature: 1.0, top_p: 0.95, top_k: 64, repeat_penalty: 1.12, repeat_last_n: 192}   # a companion answering the player
+  mentor_chat:      {temperature: 1.0, top_p: 0.95, top_k: 64, repeat_penalty: 1.12, repeat_last_n: 192}   # Maren answering the player
+  exchange:         {temperature: 1.0, top_p: 0.95, top_k: 64, repeat_penalty: 1.12, repeat_last_n: 192}   # banter, and Maren with the clerk
+  npc_conversation: {repeat_penalty: 1.12, repeat_last_n: 192}        # a townsperson answering the player (its temperature comes from the caller)
+  narrate:          {repeat_penalty: 1.15, repeat_last_n: 256}        # the narrator
+  dialogue_frame:   {repeat_penalty: 1.15, repeat_last_n: 256}        # the frames
+  combat_narrate:   {repeat_penalty: 1.15, repeat_last_n: 256}        # the fight
+  combat_opening:   {repeat_penalty: 1.15, repeat_last_n: 256}        # (f498) the fight's opening, a telling of its own: narrate's options
+  moment:           {repeat_penalty: 1.15, repeat_last_n: 256}        # (f348) what is going on as the player walks in
+  player_line:      {temperature: 1.0, top_p: 0.95, top_k: 64, repeat_penalty: 1.12, repeat_last_n: 192}   # (f368) the night bot's own line, as a player types
+  mentor_speech:    {temperature: 0.85, top_p: 0.95, top_k: 64}       # Maren's lessons: warm, but they carry the guild's rules
+  pair_dynamic:     {temperature: 0.5, top_p: 0.9}                    # a summary of how two people are with each other
+  persona_details:  {temperature: 0.8, top_p: 0.95, top_k: 64}        # a hire's small personal details, written once
+  stranger_read:    {temperature: 0.1}
+  live_judge:       {temperature: 0.1}
+  canon_check:      {temperature: 0.1}

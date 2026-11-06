@@ -13,8 +13,11 @@
 #                 changed: it was kept after the baseline night; (f495) stub_fight's the same way, from its recording as first kept;
 #                 (f496) stub_fight's set again from its re-blessed recording: the rounds told after a stood-down line gained the ALREADY
 #                 SHOWN lines they were owed (input 20, 34.4 -> 34.5 s), a telling corrected, not a prompt grown
+#   priced_at:    (f527) the speeds every estimate above was priced at, read tps, write tps and the embedder's seconds a text: the gate
+#                 (tools/latency.py gate, over_limit) prices today's goldens at these, whatever card_profile.yaml says now
 night: 'pod night 20261103_0520 at ed8fdf4, partial: four runs of 10 hours planned; the summoner (89 turns) and priest (204) stopped on two game
   faults (fixed in f492), the warrior (440) and mage (504) on Runpod''s network outage at 07:32 UTC'
+priced_at: {read_tps: 756.8, write_tps: 31.7, embed_seconds_per_text: 0.15}
 speech_tasks:
 - npc_conversation
 - npc_parting

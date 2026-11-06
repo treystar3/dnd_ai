@@ -157,8 +157,10 @@ def fail(*a, **k):
     raise LLMError("no")
 cc.interpret_concept = fail
 s2.read_class()
-check("when her reading fails, the page says so (a note behind the page is a note nobody reads)",
-      any(isinstance(p, dict) and "couldn't read that concept" in (p.get("note") or "") for p in PAGES), [p.get("note") for p in PAGES if isinstance(p, dict)])
+from engine import failures as _failures
+_her_lines = set((_failures.F.get("creation_fail") or {}).get("concept") or []) or {"The model couldn't read that concept this time. Nothing is lost - describe it again."}
+check("when her reading fails, the page says so in her own words (f527: the owner's line; a note behind the page is a note nobody reads)",
+      any(isinstance(p, dict) and (p.get("note") or "") in _her_lines and p.get("note") for p in PAGES), [p.get("note") for p in PAGES if isinstance(p, dict)])
 
 # ---- the terminal, and the menu
 uc.creation = lambda d: False

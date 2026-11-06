@@ -225,14 +225,16 @@ def over_limit(root: Path = GOLDENS, limit: float | None = None, base: dict | No
     debt and is left out, unless it is a fight input: those are Bundle E's, and every one must fit. Empty lists everywhere: the limit
     holds."""
     import card_profile
+    from engine import budget
     if limit is None:
         limit = card_profile.budget_limit()
     out = {}
-    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
-        before = {int(k): float(v) for k, v in ((base or {}).get("estimates") or {}).get(folder.name, {}).items()} if base else {}
-        fights = fight_inputs(folder) if base else set()
-        out[folder.name] = [(i, round(s, 1)) for i, s in card_profile.estimate_inputs(folder, expected=True)
-                            if s > limit and not (before.get(i, 0.0) > limit and i not in fights)]
+    with budget.priced(**((base or {}).get("priced_at") or {})):        # (f527) at the baseline's prices, whatever the card profile says now
+        for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+            before = {int(k): float(v) for k, v in ((base or {}).get("estimates") or {}).get(folder.name, {}).items()} if base else {}
+            fights = fight_inputs(folder) if base else set()
+            out[folder.name] = [(i, round(s, 1)) for i, s in card_profile.estimate_inputs(folder, expected=True)
+                                if s > limit and not (before.get(i, 0.0) > limit and i not in fights)]
     return out
 
 
@@ -324,12 +326,14 @@ def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple
     """(f490) The goldens against their pre-D prices (the baseline's estimates), every answer at its expected size: per golden, the inputs
     with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds."""
     import card_profile
+    from engine import budget
     base = _yaml(BASELINE) if base is None else base
     out = {}
-    for name, before in (base.get("estimates") or {}).items():
-        folder = Path(root) / name
-        now = dict(card_profile.estimate_inputs(folder, expected=True))
-        out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder) | fight_inputs(folder))
+    with budget.priced(**(base.get("priced_at") or {})):                # (f527) priced as the baseline was, whatever the card profile says now
+        for name, before in (base.get("estimates") or {}).items():
+            folder = Path(root) / name
+            now = dict(card_profile.estimate_inputs(folder, expected=True))
+            out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder) | fight_inputs(folder))
     return out
 
 

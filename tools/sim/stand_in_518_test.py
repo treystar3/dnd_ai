@@ -99,20 +99,20 @@ check("...a timeout is a deadline, the server's errors and a ConnectionError are
                 "RuntimeError": None}, kinds)
 
 from engine import recording
+ERROR_ROWS = 12                    # (f527) the error rows the three kept recordings hold after the one re-bless
 trip = []
 for err in OLD[:-1] + [Failure("too_big", "over"), Failure("server", "down"), Failure("deadline")]:
     f = backend.failure_of(err)
-    pair = recording._error_pair(f)
-    trip.append((type(err).__name__, f.kind, backend.legacy_failure(pair).kind))
+    written = recording._error(f)                                   # (f527) {kind, detail}, the interface's own
+    trip.append((type(err).__name__, f.kind, written["kind"]))
 check("an error written to a recording replays as the kind it was read as (written, then read back)", all(a == b for _, a, b in trip), trip)
 rows = []
 for name in ("stub_short", "stub_party", "stub_fight"):
     with gzip.open(ROOT / "data/replay/sessions" / name / "calls.jsonl.gz", "rt", encoding="utf-8") as fh:
         rows += [json.loads(l) for l in fh if l.strip() and '"error"' in l]
 errs = [r["error"] for r in rows if r.get("error")]
-mapped = [(e[0], backend.legacy_failure(e).kind, backend.legacy_failure(e).legacy == (e[0], e[1])) for e in errs]
-check(f"every error row in the three kept recordings ({len(errs)}) replays as the server's failure it was, its pair kept",
-      len(errs) == 14 and all(k == "server" and kept for _, k, kept in mapped), mapped[:4])
+check(f"(f527) every error row in the three kept recordings ({len(errs)}) is the server's failure, in the interface's own form",
+      len(errs) == ERROR_ROWS and all(isinstance(e, dict) and e.get("kind") == "server" and e.get("detail") for e in errs), errs[:4])
 import inspect
 import rerun
 replay_src = inspect.getsource(rerun.Replay)
@@ -329,7 +329,7 @@ CHILD2 = "\n".join([
     "import rerun",
     "from llm import backend",
     "during = set()",
-    "out = rerun.replay(rerun.golden('stub_short'), on_call=lambda row, k: during.add(os.environ.get('MERAVIA_NO_SERVER')))",
+    "out = rerun.replay(rerun.golden('stub_short'), on_call=lambda row, k, *a: during.add(os.environ.get('MERAVIA_NO_SERVER')))",
     "print(json.dumps({'during': sorted(str(d) for d in during), 'after': os.environ.get('MERAVIA_NO_SERVER'),",
     "                  'source': type(backend.source()).__name__, 'matched': out['matched'], 'of': out['of'], 'crashed': out['crashed']}))",
 ])

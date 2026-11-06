@@ -24,18 +24,38 @@ from llm.errors import LLMError                     # (f514) from the module tha
 ROOT = Path(__file__).resolve().parent.parent
 B: dict = yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8"))
 TASKS: dict = B.get("tasks") or {}
-DEFAULT_PROFILE = {"read_tps": 756.8, "write_tps": 31.7}      # the f443 measurement, when no profile file is there
+DEFAULT_PROFILE = {"read_tps": 756.8, "write_tps": 31.7, "embed_seconds_per_text": 0.15}   # the f443 measurement, when no profile file is there
 
 
 def load_profile() -> dict:
-    """The card's speeds, from data/measured/card_profile.yaml (tools/card_profile.py --write): prompt and answer tokens a second."""
+    """The card's speeds, from data/measured/card_profile.yaml (tools/card_profile.py --write): prompt and answer tokens a second, and
+    (f527) the embedder's seconds a text, moved there from budget.yaml because it measures the card."""
     p = ROOT / "data" / "measured" / "card_profile.yaml"
     try:
         m = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     except OSError:
         m = {}
-    read, write = m.get("prompt_tokens_per_second"), m.get("answer_tokens_per_second")
-    return {"read_tps": float(read) if read else DEFAULT_PROFILE["read_tps"], "write_tps": float(write) if write else DEFAULT_PROFILE["write_tps"]}
+    read, write, emb = m.get("prompt_tokens_per_second"), m.get("answer_tokens_per_second"), m.get("embed_seconds_per_text")
+    return {"read_tps": float(read) if read else DEFAULT_PROFILE["read_tps"], "write_tps": float(write) if write else DEFAULT_PROFILE["write_tps"],
+            "embed_seconds_per_text": float(emb) if emb else DEFAULT_PROFILE["embed_seconds_per_text"]}
+
+
+class priced:
+    """(f527) `with budget.priced(read_tps=..., write_tps=..., embed_seconds_per_text=...):` every estimate inside is made at these speeds,
+    PROFILE put back after: the gate (tools/latency.py) prices today's goldens at the baseline's own prices, whatever the card profile
+    says now."""
+
+    def __init__(self, **speeds):
+        self.speeds = {k: float(v) for k, v in speeds.items() if k in DEFAULT_PROFILE and v}
+
+    def __enter__(self):
+        self.before = dict(PROFILE)
+        PROFILE.update(self.speeds)
+        return PROFILE
+
+    def __exit__(self, *exc):
+        PROFILE.clear()
+        PROFILE.update(self.before)
 
 
 PROFILE: dict = load_profile()
@@ -144,7 +164,7 @@ class Budget:
         """One embedding call: its texts at the card's seconds a text; part of the required path (the checks the outcome needs)."""
         if not self.mine() or texts <= 0:
             return 0.0
-        cost = texts * float(B.get("embed_seconds_per_text") or 0.0)
+        cost = texts * float(PROFILE.get("embed_seconds_per_text") or 0.0)      # (f527) the card's measured price
         self.spent += cost
         self.required_seconds += cost
         self.charges.append(("embed", cost))

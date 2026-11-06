@@ -1,8 +1,10 @@
 # (f459) The turn budget's tunables and the one table of the model's tasks (engine/budget.py reads them from f468; engine/data_check.py
-# checks them at startup from here on). The owner's decision: the longest turn finishes within 60 seconds of model time on the RTX 3060
-# 12 GB, counting the typed line's required calls (understanding, the outcome, its passage, the embed calls those need), not one-time
-# loads, background work or the window's pane re-runs. The card's speeds are a measurement, kept apart in data/measured/card_profile.yaml
-# (outside the data hash, so a re-timing never re-blesses a recording); these are hand-kept numbers, in the hash.
+# checks them at startup from here on). The owner's decision: the longest turn finishes within 60 seconds of model time on the minimum
+# cards, the RTX 3060 12 GB through CUDA and (f527, the owner's decision of 5 Nov) the Radeon RX 7600 XT 16 GB through Vulkan,
+# counting the typed line's required calls (understanding, the outcome, its passage, the embed calls those need), not one-time
+# loads, background work or the window's pane re-runs. The card's speeds, the embedder's seconds a text among them (f527), are a
+# measurement, kept apart in data/measured/card_profile.yaml (outside the data hash, so a re-timing never re-blesses a recording);
+# these are hand-kept numbers, in the hash.
 #
 # The sizes below are first estimates from the call sites' ceilings and the f443 night's shape; tools/card_profile.py --estimate (f471)
 # reads a night recording's answer sizes per task and prints what to put here. Tune them from a recording, never by feel.
@@ -11,7 +13,6 @@ margin_seconds: 5             # kept back from the limit, for the engine's own t
 floor_seconds: 8              # the least a required call is still given before a stand-in takes its place
 reserve_seconds: 20           # what an optional call must leave for the required calls still ahead of it (the passage, mostly)
 chars_per_token: 4.0          # prompt characters per token, the estimate's one calibration (English prose on this model)
-embed_seconds_per_text: 0.15  # one text through the embedding model, on the card
 retention:
   operations: 200             # operations kept in a save's record (about a hundred typed lines)
   deferred_turns: 3           # how many turns a deferred optional call waits before it is dropped

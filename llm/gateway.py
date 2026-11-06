@@ -162,7 +162,7 @@ def warm(client=None) -> None:
     def run():
         from llm import backend
         try:                                        # (f517) through the layers as the model's load: the busy light shows while it warms
-            backend.loading(lambda: c.chat(model=config.MODEL, think=config.THINK,
+            backend.loading(lambda: c.chat(model=config.OLLAMA_MODEL, think=config.THINK,
                                                  messages=[{"role": "user", "content": "Reply with one word: ready."}],
                                                  options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()},
                                                  keep_alive=config.KEEP_ALIVE))
@@ -176,7 +176,7 @@ def unload(client=None) -> None:
     if not getattr(config, "UNLOAD_ON_EXIT", True):
         return
     try:
-        (_client if client is None else client).chat(model=config.MODEL, messages=[], keep_alive=0)
+        (_client if client is None else client).chat(model=config.OLLAMA_MODEL, messages=[], keep_alive=0)
     except Exception:
         pass
 
@@ -299,9 +299,12 @@ def generate(
     try:
         return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:
-        again = getattr(e, "failure", "") in ("unreachable", "loading", "thought_out") or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True))
+        again = (getattr(e, "failure", "") in ("unreachable", "loading", "thought_out") or getattr(e, "transport", False)
+                 or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True)))
         if relaxed_context is not None and not again:   # (f516) nothing there to read it, or the request as first made refused before it
-            try:                                        # was read, is refused again; a retry refused for the draft it carried is not
+            try:                                        # was read (too big, invalid), is refused again; a retry refused for the draft it
+                                                        # carried is not, so the request as first made goes once more; (f527) nor after a
+                                                        # transport failure on any try (the server, a timeout): looser checks mend no outage
                 return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
             except LLMError:
                 pass

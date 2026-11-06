@@ -198,7 +198,7 @@ def guarded(run, bridge):
             bridge.failed = True
         if "connect" in f"{type(e).__name__} {e}".lower():
             console.out("\nCan't reach Ollama. Install it from ollama.com, start it, and pull the model once:")
-            console.out(f"    ollama pull {config.MODEL}")
+            console.out(f"    ollama pull {config.OLLAMA_MODEL}")
         elif bridge:
             import traceback
             console.out("\nSomething went wrong and the game has to stop. What the world had settled before it stopped is saved, and is told when you come back.")

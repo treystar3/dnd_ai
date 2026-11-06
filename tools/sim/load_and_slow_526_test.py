@@ -10,7 +10,8 @@ data/rules/launch.yaml in the test alone (until f527 adds them, nothing here is 
   goes on at ready; a call made while it loads waits behind the same line; progress only rises and stops at ready; a failed load shows
   the could-not-wake page with Try again and Quit, and Play slowly on the processor when that build is here; a machine that cannot hold
   the model is told the memory it needs; another game open, or damaged files, end the start with their line.
-- Dormant: with no launch.yaml the screen is off and no line is shown; the startup check reads the lines once they are there.
+- Dormant: with no launch.yaml the screen is off and no line is shown; the startup check reads the lines once they are there
+  ((f527) the owner's lines are in, so the tree's own screen is on; the dormant case is a tree without the file).
 - (f526's review) An integrated card is never chosen nor at the minimum; New Game's first call after a failed load reaches the page;
   Try again keeps the build and the card, and the source is one object throughout; no line carries a reason that names the
   machinery; the slow warning waits for the main thread; progress shows only while a wait is on screen; --list-devices cut late
@@ -398,10 +399,11 @@ try:
         launch.lines = real_lines
 
     # ---- dormant, and the startup check of the lines
+    real_path = launch.LINES_PATH
+    check("(f527) the owner's lines are in data/rules/launch.yaml, so the screen is on", real_path.exists() and launch.screen_on() and launch.problems() == [])
+    launch.LINES_PATH = base / "launch.yaml"                                  # a tree with no launch.yaml: dormant
     check("with no launch.yaml the screen is off and no line is shown", not launch.LINES_PATH.exists() and not launch.screen_on()
           and launch.line("loading") is None and launch.problems() == [])
-    real_path = launch.LINES_PATH
-    launch.LINES_PATH = base / "launch.yaml"
     launch.LINES_PATH.write_text(json.dumps({**OVERLAY, "loading": "The model server is loading.", "slow": "It will be slow - sorry.",
                                              "quit": "Quit {why}", "extra": "x"}))
     probs = launch.problems()

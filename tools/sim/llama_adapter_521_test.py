@@ -81,13 +81,15 @@ check("a request field changes the fingerprint", llama.neutral_hash(req(attempt=
 body = llama.llama_body(r1)
 check("every sampler is sent", all(k in body for k in llama.SAMPLER_KEYS), [k for k in llama.SAMPLER_KEYS if k not in body])
 check("thinking is off on every request", body["chat_template_kwargs"] == {"enable_thinking": False})
-check("the answer's ceiling as n_predict, the schema as the grammar",
-      body["n_predict"] == 60 and body["response_format"]["json_schema"]["schema"] == Read.model_json_schema()
-      and body["response_format"]["type"] == "json_schema" and body["cache_prompt"] is True and body["stream"] is False)
+from llm import gbnf
+check("the answer's ceiling as n_predict, the schema as its grammar (f527: `grammar`, llama.cpp's own conversion, never response_format)",
+      body["n_predict"] == 60 and body["grammar"].splitlines()[0].startswith("# Meravia Read ")
+      and body["grammar"].split("\n", 1)[1] == gbnf.grammar(Read.model_json_schema()) and "response_format" not in body
+      and body["cache_prompt"] is True and body["stream"] is False, body.get("grammar", "")[:120])
 check("no slot named, none sent", "id_slot" not in body)
 
 hire = llama.llama_body(req("hire_chat", 1.0))
-want_rep = round(config.SPEECH_REPEAT["repeat_penalty"] + config.REPEAT_ADD, 3)
+want_rep = round(config.SAMPLING["hire_chat"]["repeat_penalty"] + config.REPEAT_ADD, 3)     # (f527) the table is data/rules/sampling.yaml
 check("hire_chat is sent its repeat with the base under it",
       hire["repeat_penalty"] == want_rep and hire["top_k"] == 64 and hire["min_p"] == 0.0 and hire["repeat_last_n"] == 192
       and hire["typical_p"] == 1.0 and hire["dry_multiplier"] == 0.0 and hire["xtc_probability"] == 0.0,

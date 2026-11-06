@@ -1,8 +1,9 @@
 """(f443) What a turn costs on the machine the game is built for, measured, never guessed.
 
 The owner set the budget: "a minimum of a gtx 3060 to play this game with a maximum of a 1 minute for the longest turn" (GOALS.md).
-Stage 3's turn budget needs the true speeds of that card. A recording (engine/recording.py) keeps every model call with Ollama's own
-counts (tokens read and written, and the time each took), so a session recorded on the card measures it directly:
+Stage 3's turn budget needs the true speeds of that card. A recording (engine/recording.py) keeps every model call with the server's own
+counts (tokens read and written, and the time each took; f527: usage, in the interface's form), so a session recorded on the card
+measures it directly:
 
     python3 tools/card_profile.py <recording> [--card "RTX 3060 12GB"] [--measured-on "RTX A4000"] [--vram-gb 11.2] [--write]
 
@@ -55,40 +56,68 @@ def cards() -> dict:
     return yaml.safe_load((ROOT / "data" / "rules" / "cards.yaml").read_text(encoding="utf-8"))["cards"]
 
 
+def usage_of(c: dict) -> dict:
+    """(f527) A call's counts in the interface's form, whichever shape the row has: `usage` (the recorder since f527: prompt, out,
+    read_ms, write_ms, load_ms, cached), or the old client's `tokens` (prompt_eval_count, eval_count, the durations in nanoseconds,
+    cached) from a recording or a timed.jsonl made before it."""
+    u = c.get("usage")
+    if isinstance(u, dict) and u:
+        return {k: u[k] for k in ("prompt", "out", "read_ms", "write_ms", "load_ms", "cached") if u.get(k) is not None}
+    t = c.get("tokens")
+    if not isinstance(t, dict) or not t:
+        return {}
+    out = {}
+    if t.get("prompt_eval_count") is not None:
+        out["prompt"] = t["prompt_eval_count"]
+    if t.get("eval_count") is not None:
+        out["out"] = t["eval_count"]
+    for src, dst in (("prompt_eval_duration", "read_ms"), ("eval_duration", "write_ms"), ("load_duration", "load_ms")):
+        if t.get(src) is not None:
+            out[dst] = t[src] / 1e6
+    if t.get("cached") is not None:
+        out["cached"] = t["cached"]
+    return out
+
+
 def scaled(c: dict, read: float, write: float) -> dict:
     """(f444) One call as the target card would take it: its reading time times `read` and its writing time times `write` (how many
     times faster the measuring card is at each), the rest (a load, the server's own time) as measured."""
-    t = dict(c.get("tokens") or {})
-    pd, ed = t.get("prompt_eval_duration") or 0, t.get("eval_duration") or 0
+    u = usage_of(c)
+    rd, wr = float(u.get("read_ms") or 0), float(u.get("write_ms") or 0)
     secs = float(c.get("seconds") or 0)
-    if not (pd or ed):
+    if not (rd or wr):
         return c
-    new_pd, new_ed = pd * read, ed * write
-    t.update(prompt_eval_duration=int(new_pd), eval_duration=int(new_ed))
-    return {**c, "tokens": t, "seconds": round(secs + (new_pd - pd + new_ed - ed) / 1e9, 3)}
+    new_rd, new_wr = rd * read, wr * write
+    return {**c, "usage": {**u, "read_ms": round(new_rd), "write_ms": round(new_wr)}, "seconds": round(secs + (new_rd - rd + new_wr - wr) / 1000, 3)}
 
 
 def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
     calls = [scaled(c, read, write) for c in calls_of(folder)] if (read, write) != (1.0, 1.0) else calls_of(folder)
     per_input: dict[int, float] = {}
-    read, wrote, loads = [], [], []
+    read, wrote, loads, embeds = [], [], [], []
     for c in calls:
         per_input[c.get("input", 0)] = per_input.get(c.get("input", 0), 0.0) + float(c.get("seconds") or 0)
-        t = c.get("tokens") or {}
-        pe, pd = t.get("prompt_eval_count"), t.get("prompt_eval_duration")
-        ec, ed = t.get("eval_count"), t.get("eval_duration")
+        if c.get("kind") == "embed":                                        # (f527) the embedder's seconds a text, measured too
+            texts = len((c.get("request") or {}).get("input") or [])
+            if texts and c.get("seconds"):
+                embeds.append(float(c["seconds"]) / texts)
+            continue
+        u = usage_of(c)
+        pe, pd = u.get("prompt"), u.get("read_ms")
+        ec, ed = u.get("out"), u.get("write_ms")
         if pe and pd:
-            read.append(pe / (pd / 1e9))
+            read.append(pe / (pd / 1000))
         if ec and ed:
-            wrote.append(ec / (ed / 1e9))
-        if t.get("load_duration"):
-            loads.append(t["load_duration"] / 1e9)
+            wrote.append(ec / (ed / 1000))
+        if u.get("load_ms"):
+            loads.append(u["load_ms"] / 1000)
     turns = sorted(per_input.items())
     secs = [s for _, s in turns]
     return {
         "calls": len(calls), "turns": len(turns),
         "read_tps": round(statistics.median(read), 1) if read else None,
         "write_tps": round(statistics.median(wrote), 1) if wrote else None,
+        "embed_s": round(statistics.median(embeds), 3) if embeds else None,
         "load_s": round(statistics.median(loads), 2) if loads else None,
         "median_turn_s": round(statistics.median(secs), 1) if secs else None,
         "p95_turn_s": round(sorted(secs)[int(0.95 * (len(secs) - 1))], 1) if secs else None,
@@ -117,7 +146,7 @@ def estimate_inputs(folder: Path, expected: bool = False) -> list[tuple[int, flo
         i = int(c.get("input", 0))
         if c.get("kind") == "embed":
             texts = len((c.get("request") or {}).get("input") or [])
-            per[i] = per.get(i, 0.0) + texts * float(budget.B.get("embed_seconds_per_text") or 0)
+            per[i] = per.get(i, 0.0) + texts * float(budget.PROFILE.get("embed_seconds_per_text") or 0)    # (f527) the card's measured price
             continue
         task = c.get("task") or REQUIRED_TITLES.get(c.get("title", ""), "")
         if not task or budget.need(task) != "required":
@@ -126,6 +155,11 @@ def estimate_inputs(folder: Path, expected: bool = False) -> list[tuple[int, flo
         ans = c.get("answer") if isinstance(c.get("answer"), str) else None
         per[i] = per.get(i, 0.0) + budget.estimate(task, chars, len(ans) if ans is not None and not expected else None)
     return sorted(per.items())
+
+
+def _embed_price() -> float:
+    from engine import budget
+    return float(budget.PROFILE.get("embed_seconds_per_text") or budget.DEFAULT_PROFILE["embed_seconds_per_text"])
 
 
 def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fits: str = "") -> None:
@@ -138,7 +172,10 @@ def write(m: dict, card: str, model: str, source: str, scaled_from: str = "", fi
         f"scaled_from: \"{scaled_from}\"            # (f444) empty when measured on the card itself; else an estimate from that card\n"
         f"fits: \"{fits}\"\n"
         f"calls: {m['calls']}\nturns: {m['turns']}\n"
-        f"prompt_tokens_per_second: {m['read_tps']}\nanswer_tokens_per_second: {m['write_tps']}\nload_seconds: {m['load_s']}\n"
+        f"prompt_tokens_per_second: {m['read_tps']}\nanswer_tokens_per_second: {m['write_tps']}\n"
+        f"embed_seconds_per_text: {m.get('embed_s') or _embed_price()}        # (f527) one text through the embedding model, on the card"
+        f"{'' if m.get('embed_s') else ' (no embed call in the recording: the price before it, kept)'}\n"
+        f"load_seconds: {m['load_s']}\n"
         f"median_turn_seconds: {m['median_turn_s']}\np95_turn_seconds: {m['p95_turn_s']}\nlongest_turn_seconds: {m['longest_turn_s']}\n"
         f"turns_over_budget: {len(m['over'])}\n", encoding="utf-8")
 

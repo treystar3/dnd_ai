@@ -77,7 +77,7 @@ check("the call log's row carries the shape and the server's cached count", got.
 with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
     crow = [json.loads(l) for l in f][-1]
 check("...and so does the recording's", (crow.get("shape") or {}).get("prompt_version") == row.get("prompt_version")
-      and (crow.get("tokens") or {}).get("cached") == 300, crow)
+      and (crow.get("usage") or {}).get("cached") == 300, crow)      # (f527) the row's counts are the interface's usage
 check("...beside the request, never in what its hash is made of", "shape" not in (crow.get("request") or {}) and "chars" not in (crow.get("request") or {})
       and [m["role"] for m in crow["request"]["messages"]] == ["system", "user"], sorted(crow.get("request") or {}))
 check("a reply with no cached count says nothing of one",

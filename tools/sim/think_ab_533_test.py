@@ -198,9 +198,11 @@ class Fake(BaseHTTPRequestHandler):
                     "total_duration": 2_500_000_000}
         elif self.path == "/v1/chat/completions":
             SEEN["llama"].append(body)
-            content = answer(body["response_format"]["json_schema"]["schema"], body["messages"])
+            name = body["grammar"].splitlines()[0].split()[2]           # (f527) "# Meravia <Title> <sha>": the grammar names its contract
+            from llm import contracts as _contracts
+            content = answer(getattr(_contracts, name).model_json_schema(), body["messages"])
             think = body["chat_template_kwargs"]["enable_thinking"]
-            if think and body["response_format"]["json_schema"]["name"] == "Ruling":
+            if think and name == "Ruling":
                 content = "<think>is it plausible?</think>" + content                # the risk: thinking inside the answer
             resp = {"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content,
                                                                                     **({"reasoning_content": "Hmm. " * 30} if think else {})}}],
@@ -242,8 +244,8 @@ check("Ollama is asked with its think switch, the schema, the call's own options
       and all(b["options"]["num_predict"] > next(x for x in o if x["messages"] == b["messages"] and not x["think"])["options"]["num_predict"]
               for b in o if b["think"]), o[:1])
 l_ = SEEN["llama"][1:]
-check("llama-server is asked with the template's switch, the schema as its JSON grammar, and every sampler (the game's table under the call's)",
-      all("chat_template_kwargs" in b and b["response_format"]["type"] == "json_schema" and b.get("top_k") == 64 and b.get("min_p") == 0.0
+check("llama-server is asked with the template's switch, the schema as its grammar (f527), and every sampler (the game's table under the call's)",
+      all("chat_template_kwargs" in b and b["grammar"].startswith("# Meravia ") and "response_format" not in b and b.get("top_k") == 64 and b.get("min_p") == 0.0
           and "temperature" in b for b in l_) and any(b["chat_template_kwargs"]["enable_thinking"] for b in l_), l_[:1])
 first_ollama = next(r for r in results if r["server"] == "ollama" and "raw_fields" in r)
 first_llama = next(r for r in results if r["server"] == "llama" and "raw_fields" in r)

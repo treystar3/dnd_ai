@@ -80,7 +80,7 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
     def need(ok, msg):
         if not ok:
             bad.append(msg)
-    for k in ("limit_seconds", "margin_seconds", "floor_seconds", "reserve_seconds", "chars_per_token", "embed_seconds_per_text"):
+    for k in ("limit_seconds", "margin_seconds", "floor_seconds", "reserve_seconds", "chars_per_token"):   # (f527) the embed price is the card's, measured
         need(isinstance(B.get(k), (int, float)) and not isinstance(B.get(k), bool) and B[k] > 0, f"budget.yaml {k}: needs a number above 0")
     if all(isinstance(B.get(k), (int, float)) for k in ("limit_seconds", "margin_seconds", "floor_seconds")):
         need(B["floor_seconds"] + B["margin_seconds"] < B["limit_seconds"], "budget.yaml: the floor and the margin must leave room under the limit")
@@ -129,6 +129,10 @@ def baseline_problems(base: dict | None = None) -> list[str]:
         base = _load("data/measured/bundle_d_baseline.yaml") or {}
     bad: list[str] = []
     known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    priced = base.get("priced_at")                                      # (f527) the speeds the gate prices at, whatever the card profile says now
+    if not isinstance(priced, dict) or any(not isinstance(priced.get(k), (int, float)) or isinstance(priced.get(k), bool) or priced[k] <= 0
+                                             for k in ("read_tps", "write_tps", "embed_seconds_per_text")):
+        bad.append("bundle_d_baseline.yaml priced_at: needs read_tps, write_tps and embed_seconds_per_text above 0")
     listed = list(base.get("speech_tasks") or [])
     if not listed:
         bad.append("bundle_d_baseline.yaml speech_tasks: needs the tasks it measures")
@@ -174,6 +178,84 @@ def fights_problems(data: dict | None = None) -> list[str]:
                     bad.append(f"bundle_e_fights.yaml goldens.{name}.{i}.{k}: needs a number, not {v!r}")
             for t in sorted(set((row or {}).get("calls") or {}) - set(tasks)):
                 bad.append(f"bundle_e_fights.yaml goldens.{name}.{i}: counts a call of '{t}', not one of its fight tasks")
+    return bad
+
+
+def model_problems(cfg=None, server: dict | None = None) -> list[str]:
+    """(f527) config.MODEL and EMBED_MODEL are GGUF ids, each a file's stem in data/runtime/server.yaml (name and sha prefix): the id in
+    the data hash names exactly the file the server is started on."""
+    import config as _config
+    cfg = cfg or _config
+    server = _load("data/runtime/server.yaml") if server is None else server
+    bad: list[str] = []
+    models = (server or {}).get("models") or {}
+    for role, ident in (("chat", getattr(cfg, "MODEL", "")), ("embed", getattr(cfg, "EMBED_MODEL", ""))):
+        m = next((v for v in models.values() if (v or {}).get("role") == role), None)
+        if m is None:
+            bad.append(f"server.yaml models: no file with the role {role}")
+            continue
+        stem = str(m.get("file", "")).rsplit(".", 1)[0]
+        prefix = str(ident).rsplit("-", 1)[-1]
+        if ident != stem:
+            bad.append(f"config.{'MODEL' if role == 'chat' else 'EMBED_MODEL'} is {ident!r}, not the {role} file's id {stem!r} (server.yaml)")
+        elif not str(m.get("sha256", "")).startswith(prefix):
+            bad.append(f"config.{'MODEL' if role == 'chat' else 'EMBED_MODEL'} {ident!r}: its sha prefix is not the {role} file's sha256")
+    return bad
+
+
+def sampling_problems(S: dict | None = None) -> list[str]:
+    """(f527) data/rules/sampling.yaml: a base table, a task table and a retry step above 0 (the keys and ranges are llm/llama.py
+    sampler_problems', the task names budget_problems')."""
+    S = _load("data/rules/sampling.yaml") if S is None else S
+    bad: list[str] = []
+    if not isinstance(S.get("base"), dict) or not S["base"]:
+        bad.append("sampling.yaml base: needs the table laid under every task's own values")
+    if not isinstance(S.get("tasks"), dict):
+        bad.append("sampling.yaml tasks: needs a table of tasks")
+    step = S.get("retry_temperature_step")
+    if isinstance(step, bool) or not isinstance(step, (int, float)) or not 0 < step <= 1:
+        bad.append("sampling.yaml retry_temperature_step: needs a number above 0 and at most 1")
+    return bad
+
+
+def cards_problems(C: dict | None = None) -> list[str]:
+    """(f527) data/rules/cards.yaml: the minimum cards named for each backend are cards the file knows, and every device pattern is a
+    regular expression for a known card."""
+    import re as _re
+    C = _load("data/rules/cards.yaml") if C is None else C
+    bad: list[str] = []
+    cards = set((C or {}).get("cards") or {})
+    minimum = (C or {}).get("minimum") or {}
+    if not isinstance(minimum, dict) or not {"cuda", "vulkan"} <= set(minimum):
+        bad.append("cards.yaml minimum: needs the minimum card for cuda and for vulkan")
+    for backend, card in (minimum.items() if isinstance(minimum, dict) else []):
+        if card not in cards:
+            bad.append(f"cards.yaml minimum.{backend}: '{card}' is not in cards")
+    for card, pat in ((C or {}).get("patterns") or {}).items():
+        if card not in cards:
+            bad.append(f"cards.yaml patterns: '{card}' is not in cards")
+        try:
+            _re.compile(str(pat))
+        except _re.error as e:
+            bad.append(f"cards.yaml patterns.{card}: not a regular expression ({e})")
+    return bad
+
+
+def grammar_problems() -> list[str]:
+    """(f527) Every contract's schema converts to the grammar llama-server is sent (llm/gbnf.py), the many-reply ones built at run time
+    included: a schema outside the converter's subset (a string pattern, say) is named here, before a call could be refused for it."""
+    from llm import contracts, gbnf
+    from pydantic import BaseModel
+    bad: list[str] = []
+    classes = [o for o in vars(contracts).values() if isinstance(o, type) and issubclass(o, BaseModel) and o is not BaseModel
+               and o.__module__ == contracts.__name__]
+    items = [(c.__name__, c) for c in classes] + [("NPCReplyMany(2)", contracts.many_reply(["a", "b"])),
+                                                  ("NPCReplyMany(3, promised)", contracts.many_reply(["a", "b", "c"], promised=True))]
+    for name, cls in items:
+        try:
+            gbnf.grammar(cls.model_json_schema())
+        except gbnf.SchemaError as e:
+            bad.append(f"contracts.{name}: its schema has no grammar ({str(e)[:160]})")
     return bad
 
 
@@ -604,8 +686,9 @@ def check() -> list[str]:
         cards_known = set(((_load("data/rules/cards.yaml") or {}).get("cards") or {}))
         need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
         need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
-        for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "median_turn_seconds", "longest_turn_seconds"):
-            need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")
+        for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "embed_seconds_per_text", "median_turn_seconds", "longest_turn_seconds"):
+            need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")   # (f527) the embed price among them
+    bad += cards_problems()                                              # (f527) the minimum cards and the device patterns
 
     # ---- (f475) Bundle D's baseline (data/measured, outside the hash): every task it measures is one the budget knows
     bad += baseline_problems()
@@ -652,7 +735,10 @@ def check() -> list[str]:
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
     bad += fights_problems()                                           # (f510) the fight measures' shape
     from llm import llama as _llama
+    bad += sampling_problems()                                         # (f527) data/rules/sampling.yaml's shape
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
+    bad += model_problems()                                            # (f527) the model ids name the server's files
+    bad += grammar_problems()                                          # (f527) every contract has its grammar
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     from llm import launch as _launch

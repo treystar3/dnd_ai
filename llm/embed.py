@@ -52,7 +52,7 @@ def probe() -> bool:
     if _state["ok"] is None:
         try:
             from llm import setup_check
-            _state["ok"] = setup_check.model_present(config.EMBED_MODEL)
+            _state["ok"] = setup_check.model_present(config.OLLAMA_EMBED_MODEL)
         except Exception:
             _state["ok"] = False
     if streams.STRICT:
@@ -78,7 +78,7 @@ def pull_in_background() -> None:
         return
     try:
         from llm import setup_check
-        if setup_check.model_present(config.EMBED_MODEL):
+        if setup_check.model_present(config.OLLAMA_EMBED_MODEL):
             _state["ok"] = True
             return
     except Exception:
@@ -88,7 +88,7 @@ def pull_in_background() -> None:
     def run():
         try:
             from llm import setup_check
-            setup_check.pull_model(lambda frac, text: None, name=config.EMBED_MODEL)
+            setup_check.pull_model(lambda frac, text: None, name=config.OLLAMA_EMBED_MODEL)
             _state["ok"] = None                       # check again next time it is asked for
         except Exception:
             _state["ok"] = False
