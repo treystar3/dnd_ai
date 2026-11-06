@@ -71,6 +71,9 @@ embed:                      # (f524) the embedder's own server
 machine:                    # (f526) the minimum card (GOALS.md, the owner's decision of 5 Nov): the whole model on the card, and an
   minimum_cuda_mib: 12000   # NVIDIA card of 12 GB through CUDA (a 12 GB card lists about 12,287 MiB) or any card of 16 GB through
   minimum_vulkan_mib: 16000 # Vulkan; below it the game plays slowly but whole (llm/launch.py classify)
+  integrated:               # (f526's review) cards built into the processor, or software ones: never chosen, never at the minimum
+    ['\bUHD\b', '\bIris\b', '\bHD Graphics\b', 'Radeon\(TM\) Graphics', '\bRadeon Graphics\b', '\bVega \d+ Graphics\b', '\b\d{3}M\b',
+     'llvmpipe', 'lavapipe', 'SwiftShader', 'Microsoft Basic']
 
 server:
   slots: 2                  # the turn's slot and the background's (owner's decision, 2026-11-05)

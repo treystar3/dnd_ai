@@ -74,7 +74,7 @@ def play(args):
         from llm import launch, runtime
         if launch.screen_on():                     # (f526) the owner's lines are in: the load runs behind the home page
             screen = launch.Screen(say=console.out, ask=console.ask,
-                                   progress=lambda f: console.setup_progress(f, launch.line("loading") or ""))
+                                   progress=lambda f: console.setup_progress(f, launch.line("loading") or ""))   # only while it waits
             if not screen.begin():
                 return
             launch.SCREEN["screen"] = screen
@@ -126,6 +126,8 @@ def play(args):
             choice = home.choose(written)          # (f345) the home page: continue, load, new, delete, or quit
         kind, name = choice
         choice = None
+        if screen is not None:
+            screen.flush()                             # (f526's review) what the load said, now, on this thread, at the page's edge
         if kind == "quit":
             return
         if kind == "new":

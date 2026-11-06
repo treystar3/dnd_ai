@@ -220,6 +220,9 @@ def timeout_words(limit, on_client: bool = False) -> str:
     cut at the budget's deadline some 44 seconds in. (f518) Reads no client: failed_try says whether the limit was the one applied."""
     if limit is not None and on_client:
         return f"timed out after {round(float(limit))}s (what was left of the turn's time)"
+    from engine import budget
+    if budget.SLOW:                                     # (f526) a slow machine's call is cut only at the hang guard
+        return "timed out at the slow machine's hang guard"
     return f"timed out after {config.REQUEST_TIMEOUT}s"
 
 

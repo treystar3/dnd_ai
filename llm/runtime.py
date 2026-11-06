@@ -212,7 +212,7 @@ def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: s
     return argv
 
 
-def embed_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, on_cpu: bool) -> list[str]:
+def embed_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, on_cpu: bool, device: str | None = None) -> list[str]:
     """(f524) The embedder's own server: the embedding model alone, mean pooling, one slot with its context, batch and micro-batch at the
     embed settings' size (a text longer than the batch is refused, never cut quietly, so texts are capped before they are sent), on the
     card unless the chat model would not otherwise sit wholly on it."""
@@ -223,6 +223,8 @@ def embed_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, on_cpu: 
             "--embeddings", "--pooling", "mean", "-np", "1", "-c", n, "-b", str(int(e.get("batch", 2048))), "-ub", str(int(e.get("ubatch", 2048)))]
     if on_cpu:
         argv += ["--device", "none"]
+    elif device:
+        argv += ["--device", device]                    # (f526's review) the chat's card, never llama.cpp's own choice of all
     return argv
 
 
@@ -613,6 +615,9 @@ class Runtime:
         self.device_id: str | None = None
         self.on_wait = None                             # called once as a call starts to wait for the load (the loading line)
         self.on_ready = None                            # called with the facts when a load is done (the slow warning)
+        self.on_failed = None                           # (f526's review) called when a foreground call finds the load failed: the page
+        self._listed: dict = {}                         # each build's --list-devices, read once a load
+        self.list_seconds = 30.0                        # how long --list-devices may take
 
     # -- files
     def exe(self) -> Path:
@@ -629,7 +634,8 @@ class Runtime:
         if not present:
             raise Failure("unreachable", f"no llama-server build in {self.runtime}")
         listed = {i: self.devices(self.runtime / i / exe_name()) for i in present if i in ("cuda", "vulkan")}
-        build, device_id = launch.choose_build(present, listed)
+        self._listed = listed
+        build, device_id = launch.choose_build(present, listed, self.cfg)
         self.build, self.device_id = build, device_id
         return self.runtime / str(build) / exe_name()
 
@@ -641,7 +647,7 @@ class Runtime:
                                  creationflags=_NO_WINDOW)
         except (OSError, ValueError):
             return []
-        end = time.monotonic() + 30
+        end = time.monotonic() + self.list_seconds
         while True:
             try:
                 out, _ = p.communicate(timeout=0.2)
@@ -649,8 +655,8 @@ class Runtime:
             except subprocess.TimeoutExpired:
                 if self._stopping.is_set() or time.monotonic() > end:
                     p.kill()
-                    p.communicate()
-                    return []
+                    out, _ = p.communicate()                # (f526's review) what it printed before it was cut still counts
+                    break
         lines = [l.strip() for l in (out or b"").decode("utf-8", errors="replace").splitlines()]
         return [l for l in lines if l and not l.lower().startswith("available devices")]
 
@@ -714,8 +720,8 @@ class Runtime:
         try:
             if self.embed is not None:
                 self._stop(self.embed)                  # (f524's review) never a second embedder beside an earlier one
-            spawn = lambda: self._spawn("embed", lambda exe, port, key: embed_argv(exe, self.cfg, port, key, self.models, on_cpu),
-                                        "llama-embed.log")
+            spawn = lambda: self._spawn("embed", lambda exe, port, key: embed_argv(exe, self.cfg, port, key, self.models, on_cpu,
+                                                                                    self.device_id), "llama-embed.log")
             self.embed = spawn()
             server = llama.Server(self.embed.port, self.embed.key)
             limit = float((self.cfg.get("server") or {}).get("start_seconds") or 300)
@@ -740,6 +746,8 @@ class Runtime:
             status, payload, _, _ = server.request("POST", "/v1/embeddings", llama.embed_body(["clustering: ready"]), 60.0)
             if status != 200:
                 raise Failure("server", f"the embedder's warm-up answered {status}")
+            if self.facts_.get("slow"):                     # (f526's review) a restarted embedder keeps the slow machine's hang guard
+                server.no_deadline = float((self.cfg.get("server") or {}).get("hang_seconds") or 1800)
             if self.source is not None:
                 self.source.embed_server = server
             self.embed_state = "ready"
@@ -827,7 +835,8 @@ class Runtime:
         try:
             stop_stale(self.run_dir, self.runtime, keep=[c.proc.pid for c in (self.chat, self.embed) if c is not None and c.alive()])
             exe = self.exe()
-            self.facts_["devices"] = self.devices(exe)
+            self.facts_["devices"] = self._listed.get(self.build) or self.devices(exe)     # read once a load
+            self._listed = {}
             from llm import launch
             found = [d for d in launch.parse_devices(self.facts_["devices"]) if d["api"] == self.build]
             self.device = next((d for d in found if d["id"] == self.device_id), None) or (max(found, key=lambda d: d["mib"]) if found else None)
@@ -926,11 +935,18 @@ class Runtime:
         """A chat through the server; a server found gone is restarted once (this call one failed try), a second death is 'failed'."""
         src = self.source
         if self.state != "ready" or src is None:
-            if self.state in ("loading", "restarting"):
-                self._wait_ready()
+            try:
+                if self.state in ("loading", "restarting"):
+                    self._wait_ready()
+                    src = self.source
+                else:
+                    raise Failure("unreachable", f"the model server is {self.state}")
+            except Failure:
+                from llm import backend
+                if (self.on_failed is None or self._closed or self._stopping.is_set() or backend.current_lane() != "foreground"
+                        or not self.on_failed()):
+                    raise                                   # (f526's review) else the page was shown and the server is ready again
                 src = self.source
-            else:
-                raise Failure("unreachable", f"the model server is {self.state}")
         chat = self.chat                                # (f522) read once: a restart or a close may change it meanwhile
         try:
             return src.chat(req, deadline=deadline)

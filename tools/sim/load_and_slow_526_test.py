@@ -11,6 +11,10 @@ data/rules/launch.yaml in the test alone (until f527 adds them, nothing here is 
   the could-not-wake page with Try again and Quit, and Play slowly on the processor when that build is here; a machine that cannot hold
   the model is told the memory it needs; another game open, or damaged files, end the start with their line.
 - Dormant: with no launch.yaml the screen is off and no line is shown; the startup check reads the lines once they are there.
+- (f526's review) An integrated card is never chosen nor at the minimum; New Game's first call after a failed load reaches the page;
+  Try again keeps the build and the card, and the source is one object throughout; no line carries a reason that names the
+  machinery; the slow warning waits for the main thread; progress shows only while a wait is on screen; --list-devices cut late
+  keeps what it printed; the embedder keeps the hang guard and the chat's card; the memory told from the memory and the card.
 
 Run: python tools/sim/load_and_slow_526_test.py"""
 
@@ -55,7 +59,7 @@ def req():
 
 CFG = runtime.settings()
 OVERLAY = {"loading": "The world is still gathering itself.", "slow": "This world will move slowly here, but it will move.",
-           "damaged": "Something the world needs is missing ({why}).", "could_not_wake": "The world would not wake ({why}).",
+           "damaged": "Something the world needs is missing.", "could_not_wake": "The world would not wake.",
            "already_open": "The world is already open in another window.", "no_memory": "The world needs {needed} GB to wake.",
            "try_again": "Try again", "quit": "Quit", "slowly": "Play slowly on the processor"}
 
@@ -74,6 +78,8 @@ table = [
     ("no card at all", ("cpu", None, None), "below"),
     ("an NVIDIA 12 GB card through Vulkan (an old driver)", ("vulkan", {"id": "Vulkan0", "api": "vulkan",
                                                                          "name": "NVIDIA GeForce RTX 3060", "mib": 12287}, "49/49"), "below"),
+    ("an integrated card that reports 24 GB of shared memory", ("vulkan", {"id": "Vulkan1", "api": "vulkan",
+                                                                           "name": "Intel(R) UHD Graphics 770", "mib": 24576}, "49/49"), "below"),
 ]
 for name, args, want in table:
     got = launch.classify(*args, CFG)
@@ -84,6 +90,14 @@ check("the ladder: CUDA when it lists an NVIDIA device", launch.choose_build(["c
 check("the ladder: else Vulkan, on its device with the most memory",
       launch.choose_build(["cuda", "vulkan", "cpu"], {"cuda": [], "vulkan": listed}) == ("vulkan", "Vulkan0"))
 check("the ladder: else the processor", launch.choose_build(["cuda", "vulkan", "cpu"], {"cuda": [], "vulkan": []}) == ("cpu", None))
+big_igpu = ["  Vulkan0: AMD Radeon RX 6600 (8176 MiB, 8000 MiB free)", "  Vulkan1: Intel(R) UHD Graphics 770 (24576 MiB, 24000 MiB free)"]
+check("the ladder never takes an integrated card, however much memory it reports",
+      launch.choose_build(["cuda", "vulkan", "cpu"], {"cuda": [], "vulkan": big_igpu}, CFG) == ("vulkan", "Vulkan0")
+      and launch.choose_build(["cuda", "vulkan", "cpu"], {"cuda": [], "vulkan": big_igpu[1:]}, CFG) == ("cpu", None))
+check("the memory told: a machine is short only when its memory and its card together are",
+      launch.cannot_hold(4.0, [], CFG) and not launch.cannot_hold(8.0, [{"name": "NVIDIA GeForce RTX 3060", "mib": 12287}], CFG))
+check("no line the screen shows may carry a reason (it names the machinery)", launch.KEYS["damaged"] == set()
+      and launch.KEYS["could_not_wake"] == set())
 check("the memory a machine is told it needs is the model files' and a quarter more",
       launch.memory_needed_gib(CFG) == -(-int(sum(int(m["size"]) for m in CFG["models"].values()) * 1.25) // 2 ** 30))
 
@@ -101,6 +115,10 @@ if "--list-devices" in args:
         print(l)
     sys.exit(0)
 port, key = int(args[args.index("--port") + 1]), args[args.index("--api-key") + 1]
+fail = os.environ.get("FAKE_FAIL_FILE", "")
+if fail and os.path.exists(fail) and "--embeddings" not in args:
+    os.remove(fail)
+    print("error: failed to load the model", flush=True); sys.exit(3)
 from fake_llama import FakeLlama
 try:
     fake = FakeLlama(key=key, slot_ctx=int(args[args.index("-c") + 1]) // int(args[args.index("-np") + 1]) if "-np" in args else 2048,
@@ -157,12 +175,16 @@ try:
     check("else the Vulkan build, its card with the most memory named to the server", rt.build == "vulkan" and a[0] == "vulkan"
           and a[a.index("--device") + 1] == "Vulkan0", a[:1] + a[-2:])
     check("an RX 7600 XT wholly on the card is at the minimum", rt.facts()["class"] == "minimum", rt.facts().get("class_why"))
+    ea = [json.loads(l) for l in argv_log.read_text().splitlines() if "--embeddings" in l][-1]
+    check("and the embedder goes on the same card", "--device" in ea and ea[ea.index("--device") + 1] == "Vulkan0", ea[-3:])
     rt.close()
     os.environ["FAKE_LIST_vulkan"] = "[]"
     rt = new_rt()
     rt.load()
     check("else the processor build, below the minimum: slow", rt.build == "cpu" and rt.facts()["slow"] is True and budget.SLOW is True
           and rt.source.chat_server.no_deadline == float(CFG["server"]["hang_seconds"]), (rt.build, rt.facts().get("class")))
+    check("and the embedder keeps the hang guard too", rt.source.embed_server is not None
+          and rt.source.embed_server.no_deadline == float(CFG["server"]["hang_seconds"]))
     rt.close()
     check("the slow machine's lifted limits go with its server", budget.SLOW is False)
 
@@ -204,6 +226,17 @@ try:
         check(f"{name} replayed in slow mode matches every input", out.returncode == 0 and last[0].startswith("all ")
               and "inputs matched" in last[0], (out.stdout + out.stderr)[-600:])
 
+    # ---- --list-devices cut late keeps what it printed
+    slow_list = base / "slowlist"
+    slow_list.mkdir()
+    sl = slow_list / runtime.exe_name()
+    sl.write_text("#!" + sys.executable + "\nimport sys, time\nprint('  CUDA0: NVIDIA GeForce RTX 3060 (12287 MiB, 11200 MiB free)', flush=True)\n"
+                  "time.sleep(30)\n")
+    sl.chmod(0o755)
+    r0 = new_rt()
+    r0.list_seconds = 1.0
+    check("--list-devices cut late keeps what it printed", any("RTX 3060" in d for d in r0.devices(sl)))
+
     # ---- the load screen, with the owner's lines laid over
     launch.lines = lambda: dict(OVERLAY)
     check("with every line in, the screen is on", launch.screen_on())
@@ -215,64 +248,107 @@ try:
     _paths.RUN, _paths.RUNTIME, _paths.MODELS, _paths.APP = base / "game_run", rt_dir, models_dir, base / "app"
     os.environ["FAKE_LIST_cuda"] = json.dumps([listed[1]])
     os.environ["FAKE_LOAD_SECONDS"] = "1.5"
+    fail_file = base / "fail_once"
+    os.environ["FAKE_FAIL_FILE"] = str(fail_file)
+
+    def screen():
+        return launch.Screen(say=said.append, ask=lambda: answers.pop(0) if answers else "quit", progress=seen.append)
     try:
-        sc = launch.Screen(say=said.append, ask=lambda: answers.pop(0) if answers else "quit", progress=seen.append)
+        # begin() at once; Continue before ready: one loading line, progress only while it waits, then the game
+        sc = screen()
         t0 = time.monotonic()
         began = sc.begin()
         took = time.monotonic() - t0
         check("begin() returns at once, so the home page is drawn while the model loads", began and took < 1.0 and not sc.ready(),
               (began, round(took, 2)))
-        rt = sc.rt
-        waits = []
-        rt.on_wait = lambda: (waits.append(1), sc.loading_line())
-        got = runtime.Managed(rt).chat(req())
-        check("a call made while it loads waits behind the loading line, once", json.loads(got.text)["x"] == "y" and waits == [1]
-              and said.count(OVERLAY["loading"]) == 1, (waits, said))
+        time.sleep(0.5)
+        check("no progress is drawn over another page", seen == [], seen)
+        ok = sc.wait()
+        check("Continue before ready shows exactly one loading line and goes on at ready", ok and said.count(OVERLAY["loading"]) == 1
+              and sc.ready(), said)
+        check("progress shows while it waits, only rises and ends at ready", seen and seen == sorted(seen) and seen[-1] == 1.0
+              and len(seen) == len(set(seen)), seen)
         said.clear()
         check("Continue after ready goes on at once with no loading line", sc.wait() and OVERLAY["loading"] not in said, said)
-        check("progress only rises and ends at ready", seen == sorted(seen) and seen and seen[-1] == 1.0
-              and len(seen) == len(set(seen)), seen)
         sc.close()
 
-        # a slow machine: the warning once this launch, never twice
+        # a call made while it loads waits behind the loading line
+        said.clear()
+        sc = screen()
+        sc.begin()
+        waits = []
+        real_line = sc.loading_line
+        sc.rt.on_wait = lambda: (waits.append(1), real_line())
+        got = runtime.Managed(sc.rt).chat(req())
+        check("a call made while it loads waits behind the loading line, once", json.loads(got.text)["x"] == "y" and waits == [1]
+              and said.count(OVERLAY["loading"]) == 1, (waits, said))
+        sc.close()
+
+        # a slow machine: the warning waits for the main thread, once a launch
         os.environ["FAKE_OFFLOAD"] = "43/49"
         said.clear()
-        sc = launch.Screen(say=said.append, ask=lambda: "quit")
+        sc = screen()
         sc.begin()
         sc.done.wait(20)
-        sc._ready(sc.rt.facts())                       # a second load in the same launch (Try again) says nothing more
-        check("the slow warning shows once a launch, at the load", said.count(OVERLAY["slow"]) == 1, said)
+        time.sleep(0.2)
+        check("the slow warning is never said from the load thread", OVERLAY["slow"] not in said, said)
+        sc.flush()
+        sc._ready(sc.rt.facts())                       # a second load in the same launch says nothing more
+        sc.flush()
+        check("it is said at the next page edge, once a launch", said.count(OVERLAY["slow"]) == 1, said)
         sc.close()
         os.environ.pop("FAKE_OFFLOAD", None)
         scenes_src = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "scenes").rglob("*.py"))
         check("and never from a scene", "launch." not in scenes_src)
 
-        # Continue before ready: exactly one loading line, then the game
+        # New Game's first call after a failed load reaches the page, and Play slowly loads the processor build
+        fail_file.write_text("1")
         said.clear()
-        sc = launch.Screen(say=said.append, ask=lambda: "quit")
-        sc.begin()
-        ok = sc.wait()
-        check("Continue before ready shows exactly one loading line and goes on at ready", ok and said.count(OVERLAY["loading"]) == 1
-              and sc.ready(), said)
+        answers[:] = ["2"]
+        sc = screen()
+        sc.begin(build="cuda")
+        sc.done.wait(20)
+        rep = backend.source().chat(req())
+        page = [l for l in said if l.startswith("  ")]
+        check("New Game's first call after a failed load reaches the could-not-wake page", OVERLAY["could_not_wake"] in said
+              and page == ["  1. Try again", "  2. Play slowly on the processor", "  3. Quit"], said)
+        check("and Play slowly loads the processor build, the call answered", json.loads(rep.text)["x"] == "y" and sc.rt.build == "cpu"
+              and sc.ready(), sc.rt.build)
+        check("no line shown carries the reason", not any("failed to load" in l or "llama" in l for l in said), said)
         sc.close()
 
-        # a failed load: the could-not-wake page, Try again, Play slowly, Quit
+        # Try again: the same build on the same card, the source one object throughout
+        os.environ["FAKE_LIST_cuda"] = "[]"
+        os.environ["FAKE_LIST_vulkan"] = json.dumps(listed[2:])
+        fail_file.write_text("1")
+        said.clear()
+        answers[:] = ["1"]
+        sc = screen()
+        sc.begin()
+        src0 = backend.source()
+        ok = sc.wait()
+        a2 = chat_argv()
+        check("Try again loads the same build on the same card", ok and sc.rt.build == "vulkan" and a2[0] == "vulkan"
+              and a2[a2.index("--device") + 1] == "Vulkan0" and said.count("  1. Try again") == 1, (ok, sc.rt.build, a2[-2:]))
+        check("and the source is one object throughout: no call can reach another", backend.source() is src0)
+        sc.rt.state = "failed"                         # a restart that failed after the load
+        said.clear()
+        answers[:] = ["quit"]
+        quit_ok = sc.wait() is False
+        relock = runtime.GameLock(_paths.RUN)
+        freed = relock.acquire()
+        relock.release()
+        check("Continue onto a server whose restart failed shows the page, and Quit ends the start", quit_ok
+              and OVERLAY["could_not_wake"] in said and freed, said)
+        os.environ["FAKE_LIST_cuda"] = json.dumps([listed[1]])
+        os.environ["FAKE_LIST_vulkan"] = "[]"
+
+        # Try again failing again, then Quit
         exe_cuda = rt_dir / "cuda" / runtime.exe_name()
         exe_cuda.chmod(0o644)
         said.clear()
-        answers[:] = ["2"]                             # Play slowly on the processor
-        sc = launch.Screen(say=said.append, ask=lambda: answers.pop(0) if answers else "quit")
-        sc.rt_build_first = None
-        sc.begin(build="cuda")
-        ok = sc.wait()
-        page = [l for l in said if l.startswith("  ")]
-        check("a failed load shows the could-not-wake page with Try again, Play slowly and Quit", any(l.startswith("The world would not wake")
-              for l in said) and page == ["  1. Try again", "  2. Play slowly on the processor", "  3. Quit"], said)
-        check("and Play slowly on the processor loads the processor build", ok and sc.rt.build == "cpu" and sc.ready(), sc.rt.build)
-        sc.close()
-        said.clear()
-        answers[:] = ["1", "3"]                        # Try again (fails again), then Quit
-        sc = launch.Screen(say=said.append, ask=lambda: answers.pop(0) if answers else "quit")
+        answers[:] = ["1", "3"]
+        sc = screen()
         sc.begin(build="cuda")
         ok = sc.wait()
         sc.close()
@@ -284,32 +360,34 @@ try:
         real_ram = setup_check.ram_gb
         setup_check.ram_gb = lambda: 4.0
         said.clear()
-        sc = launch.Screen(say=said.append, ask=lambda: "quit")
+        sc = screen()
         sc.begin(build="cuda")
         sc.wait()
         sc.close()
         setup_check.ram_gb = real_ram
-        check("a machine that cannot hold the model is told the memory it needs",
-              f"The world needs {launch.memory_needed_gib(CFG)} GB to wake." in said, said)
+        check("a machine that cannot hold the model is told the memory it needs, and offered no slow play",
+              f"The world needs {launch.memory_needed_gib(CFG)} GB to wake." in said and "  2. Play slowly on the processor" not in said,
+              said)
         exe_cuda.chmod(0o755)
 
         # another game open; damaged files
         held = runtime.GameLock(_paths.RUN)
         held.acquire()
         said.clear()
-        sc = launch.Screen(say=said.append, ask=lambda: "quit")
+        sc = screen()
         check("another game open ends the start with its line", sc.begin() is False and said == [OVERLAY["already_open"]], said)
         held.release()
         (models_dir / CFG["models"]["chat"]["file"]).rename(base / "moved.gguf")
         said.clear()
-        sc = launch.Screen(say=said.append, ask=lambda: "quit")
-        check("damaged files end the start with their line, the lock let go", sc.begin() is False and said
-              and said[0].startswith("Something the world needs is missing") and runtime.GameLock(_paths.RUN).acquire(), said)
+        sc = screen()
+        check("damaged files end the start with their line, the lock let go", sc.begin() is False and said == [OVERLAY["damaged"]]
+              and runtime.GameLock(_paths.RUN).acquire(), said)
         (base / "moved.gguf").rename(models_dir / CFG["models"]["chat"]["file"])
     finally:
         for k, v in saved.items():
             setattr(_paths, k, v)
         os.environ.pop("FAKE_LOAD_SECONDS", None)
+        os.environ.pop("FAKE_FAIL_FILE", None)
         launch.lines = real_lines
 
     # ---- dormant, and the startup check of the lines
