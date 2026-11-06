@@ -589,7 +589,15 @@ def main() -> None:
     if persona not in PERSONAS:
         die(f"--persona must be one of: {', '.join(PERSONAS)}")
     level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
-    char, spec = simlib.make_character(args.cls, rng, perks=True)
+    for attempt in range(3):                                            # (f525) an outage while the character is made waits, as the run does
+        try:
+            char, spec = simlib.make_character(args.cls, random.Random(f"{args.seed}:{args.cls}:{attempt}") if attempt else rng, perks=True)
+            break
+        except Exception as e:
+            from llm.gateway import LLMError
+            if args.stub or not isinstance(e, (LLMError, ConnectionError)) or attempt == 2 or not wait_for_server():
+                raise
+            print(f"The character could not be made ({type(e).__name__}): waiting for the server and trying again.", flush=True)
     from engine import look                                             # (f388) a look of its own, seeded, as a player chooses one first
     seen = look.surprise(random.Random(f"{args.seed}:{args.cls}:look"))
     char.pronoun, char.people, char.look, char.look_text = seen["pronoun"], seen["people"], {k: seen[k] for k in ("look", "flags", "extra")}, look.describe(seen)

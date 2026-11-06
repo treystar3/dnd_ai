@@ -117,7 +117,8 @@ class ThresholdScene:
                 turn = self.interpret(text)
             except LLMError as e:
                 console.debug(str(e))
-                self.tell("The model couldn't make sense of that. Try saying it another way.")
+                from engine import failures
+                self.tell(failures.creation_line("interpret") or "The model couldn't make sense of that. Try saying it another way.")
                 continue
             if turn.kind == "question":
                 self.answer_question(turn.question or text)
@@ -369,14 +370,23 @@ class ThresholdScene:
                 console.narrate(text)
 
     def speak(self, event: str) -> None:
-        line = generate(
-            "goddess_line", self.system,
-            gp.narration_request(EXPECTS.get(self.step, "farewell"), event, self.transcript),
-            GoddessLine, temperature=0.9,
-        )
-        console.say(line.speech, SPEAKER)
-        self.transcript.append(("Goddess", line.speech))
-        self.last_line = line.speech
+        """Her words for this step. (f525) When they cannot be written she says a line of her own for the step she is on and the page
+        moves on (the game no longer ends on it), once the owner's lines are in; until then the failure goes on up as before."""
+        try:
+            speech = generate(
+                "goddess_line", self.system,
+                gp.narration_request(EXPECTS.get(self.step, "farewell"), event, self.transcript),
+                GoddessLine, temperature=0.9,
+            ).speech
+        except LLMError as e:
+            from engine import failures
+            speech = failures.creation_stand_in(self.step.value)
+            if speech is None:
+                raise
+            console.debug(str(e))
+        console.say(speech, SPEAKER)
+        self.transcript.append(("Goddess", speech))
+        self.last_line = speech
         if self.step != Step.DONE:
             self.show()                                     # (f388) the page follows her: the step she has moved to, her words over it
 
@@ -440,7 +450,8 @@ class ThresholdScene:
             self.interp = creation.interpret_concept(self.concept, self.seen())
         except LLMError as e:
             console.debug(str(e))
-            self.tell("The model couldn't read that concept this time. Nothing is lost - describe it again.")
+            from engine import failures
+            self.tell(failures.creation_line("concept") or "The model couldn't read that concept this time. Nothing is lost - describe it again.")
             self.step = Step.CONCEPT
             return
         console.show_class(self.interp)
@@ -463,7 +474,8 @@ class ThresholdScene:
             except LLMError as e:
                 console.debug(str(e))
                 console.wait("The threads slip through her fingers and scatter.")
-                self.tell("The model couldn't shape your gifts this time. Nothing is lost - say yes again to retry.")
+                from engine import failures
+                self.tell(failures.creation_line("gifts") or "The model couldn't shape your gifts this time. Nothing is lost - say yes again to retry.")
                 return
             self.step = Step.ACTIVES
             console.show_actives(self.active_options)
@@ -494,7 +506,9 @@ class ThresholdScene:
             self.passive_options = job.result() if job is not None else creation.generate_passives(self.interp, self.active_options)
         except LLMError as e:
             console.debug(str(e))
-            self.tell("The model couldn't shape your innate traits this time. Nothing is lost - choose your three techniques again to retry.")
+            from engine import failures
+            self.tell(failures.creation_line("traits")
+                      or "The model couldn't shape your innate traits this time. Nothing is lost - choose your three techniques again to retry.")
             self.passives_job = None
             return
         self.passives_job = None

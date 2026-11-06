@@ -599,7 +599,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 self.weight_hint = "major" if p.type == "city" else "rich"
         elif self.revisit:
             self.weight_hint = "brief"                                   # (f347) seen before: what has changed
-        self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
+        try:
+            self.residents = populate_place(self.store, self.world, place_id, self.catalog, first_batch=life.FIRST_BATCH)
+        except LLMError:
+            from engine import operation as _op
+            if _op.current() is not None:
+                raise                                    # inside a line: the operation rolls back, as before
+            self.residents = self.store.load_npcs(list(self.store.load_place(place_id).residents or []))
+            console.debug(f"(f525) the people of {place_id} could not be written; the next visit asks again")
         self.refresh_present()
         if self.revisit:                                                                      # (f348) who has moved on to something else since: true change for the narrator
             from engine import doings
@@ -775,7 +782,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not self.present and self.residents:
             console.debug("residents are home at this hour")
         if first_time:
-            self.narrate(
+            self.opening_passage(
                 "The player has just woken here, lying on the ground, returned from death. "
                 f"They remember the Threshold only faintly. {kit_text} Their first breath tears in. "
                 "Open with that single breath, described once (mention the gasp only once in the whole passage), "
@@ -794,8 +801,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                 else:
                     console.narrate(shown.get("text", ""))
             elif not recovered:
-                self.narrate("The player is here, picking up where they left off. Describe the scene, mentioning at most two "
-                             "of the people present.")                    # (f413) no length (f375)
+                self.opening_passage("The player is here, picking up where they left off. Describe the scene, mentioning at most two "
+                                     "of the people present.")            # (f413) no length (f375)
             if kit_text:
                 c = self.player.character
                 held = [i.name for i in c.equipment.values()] + [f"{m.name} ({m.description})" for m in c.companions]
@@ -2543,6 +2550,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         low = (event or "").lower()
         return [m["name"] for m in self.player.party if m.get("permanent") and not m.get("story") and m.get("name")
                 and re.search(rf"\b{re.escape(m['name'].split()[0].lower())}\b", low)]
+
+    def opening_passage(self, event: str) -> None:
+        """(f525) The game's opening passage (the first waking, or where a loaded game left off). When it cannot be written the narrator's
+        plain line stands in, picked from the scene's stream so the seed decides it, and the game reaches its first line all the same;
+        until the owner's lines are in, the failure goes on up as before."""
+        try:
+            self.narrate(event)
+        except LLMError as e:
+            line = failures.opening_untold(self.rng)
+            if line is None:
+                raise
+            console.debug(str(e))
+            console.narrate(line)
 
     def narrate(self, event: str, player_text: str = "") -> None:
         """A passage the narrator is asked for. Several actions in one line: held back and told together at the end (flush, the passage
