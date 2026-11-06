@@ -76,6 +76,7 @@ table = [
     ("an RX 7600 XT 16 GB on Vulkan, wholly on it", ("vulkan", drx, "49/49"), "minimum"),
     ("an integrated card alone", ("vulkan", digpu, "49/49"), "below"),
     ("no card at all", ("cpu", None, None), "below"),
+    ("a 3060 whose server said nothing of its layers", ("cuda", d3060, None), "below"),
     ("an NVIDIA 12 GB card through Vulkan (an old driver)", ("vulkan", {"id": "Vulkan0", "api": "vulkan",
                                                                          "name": "NVIDIA GeForce RTX 3060", "mib": 12287}, "49/49"), "below"),
     ("an integrated card that reports 24 GB of shared memory", ("vulkan", {"id": "Vulkan1", "api": "vulkan",
@@ -84,6 +85,8 @@ table = [
 for name, args, want in table:
     got = launch.classify(*args, CFG)
     check(f"the class: {name}", got["class"] == want and got["slow"] == (want != "minimum"), got)
+check("a server silent on its layers is said so, never 'None layers'", "did not say" in launch.classify("cuda", d3060, None, CFG)["why"]
+      and "None" not in launch.classify("cuda", d3060, None, CFG)["why"], launch.classify("cuda", d3060, None, CFG))
 
 # ---- the ladder
 check("the ladder: CUDA when it lists an NVIDIA device", launch.choose_build(["cuda", "vulkan", "cpu"], {"cuda": listed[:2]}) == ("cuda", None))
@@ -127,7 +130,8 @@ try:
 except OSError:
     print("main: couldn't bind HTTP server socket", flush=True); sys.exit(1)
 time.sleep(float(os.environ.get("FAKE_LOAD_SECONDS", "0.2")))
-if "--embeddings" not in args:
+if "--embeddings" not in args and "-lv" in args and int(args[args.index("-lv") + 1]) >= 4:
+    # as the real server (build 11963): the library's load lines are "trace", silent at the default verbosity of 3
     print("load_tensors: offloaded " + os.environ.get("FAKE_OFFLOAD", "49/49") + " layers to GPU", flush=True)
 fake.loading = 0
 print("0.04.120 I srv  server_run_i: model loaded", flush=True)
@@ -164,6 +168,9 @@ try:
     rt.load()
     f = rt.facts()
     check("the runtime takes the CUDA build when it lists an NVIDIA card", rt.build == "cuda" and chat_argv()[0] == "cuda", rt.build)
+    a0 = chat_argv()
+    check("the chat server is asked for its load lines (-lv 4), so the layers on the card are read", "-lv" in a0
+          and a0[a0.index("-lv") + 1] == "4" and f["offloaded"] == "49/49", (a0[-4:], f.get("offloaded")))
     check("a 3060 wholly on the card is at the minimum: the time limits stand", f["class"] == "minimum" and f["slow"] is False
           and budget.SLOW is False and rt.source.chat_server.no_deadline is None, f)
     rt.close()

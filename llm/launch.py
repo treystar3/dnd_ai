@@ -158,6 +158,8 @@ def classify(build: str | None, device: dict | None, offloaded: str | None, cfg:
         cls, why = "minimum", ""
     elif not device:
         cls, why = "below", "no graphics card the model can use"
+    elif offloaded is None:
+        cls, why = "below", "the model server did not say how many layers went to the card"    # (f526, the real card) its log is read
     elif not whole:
         cls, why = "below", f"part of the model on the processor ({offloaded} layers on {name})"
     else:

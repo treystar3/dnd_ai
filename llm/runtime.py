@@ -12,7 +12,9 @@ Starting a child (spawn): every child is started from one long-lived thread (the
 when the thread that started a child ends, cannot fire when a short-lived loading thread ends. Each child gets a free loopback port, a
 fresh --api-key, --no-webui; two slots with the context at twice the slot's (-np 2 -c 32768), --fit-ctx at the full context so the
 fit step moves layers to the processor rather than shrinking the context (no -ngl: the fit decides it, every layer on the card when
-it fits); --cache-ram capped from the settings; its own process group (Linux: a new session plus the parent-death signal; Windows: a
+it fits); --cache-ram capped from the settings; -lv 4 so the server's log carries the library's load lines, which say how many
+layers went to the card (at the default verbosity it is silent on them, and the machine would always read as below the minimum);
+its own process group (Linux: a new session plus the parent-death signal; Windows: a
 new process group, no window and a kill-on-close Job Object, never DETACHED_PROCESS), so Ctrl+C at the game never reaches it. Its
 output is read by the game (LogPump) into logs/llama-server.log, each file capped at server.log_kib with the one before kept, and its
 tail goes to logs/crash.log, one entry in that file's own form, when it dies. A program that cannot be started is a Failure, never a
@@ -200,7 +202,9 @@ def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: s
     ctx = int(s["slots"]) * int(s["slot_ctx"])
     argv = [str(exe), "--model", str(models / chat["file"]), "--host", "127.0.0.1", "--port", str(port), "--api-key", key, "--no-webui",
             "--jinja", "-np", str(s["slots"]), "-c", str(ctx), "--fit", "on", "--fit-ctx", str(ctx),
-            "--cache-ram", str(s["cache_ram_mib"]), "--flash-attn", "auto", "-b", str(s["batch"]), "-ub", str(s["ubatch"])]
+            "--cache-ram", str(s["cache_ram_mib"]), "--flash-attn", "auto", "-b", str(s["batch"]), "-ub", str(s["ubatch"]),
+            "-lv", "4"]       # (f526, the real card) the library's load lines ("offloaded 49/49 layers to GPU", the fit's decisions) are
+                              # "trace", one above the default: without this the class is read as below the minimum on every machine
     if draft is not None:
         argv += ["--spec-type", "draft-mtp", "--spec-draft-n-max", str(s.get("draft_n_max", 3)), "--spec-draft-backend-sampling",
                  "--spec-draft-model", str(models / draft["file"])]
