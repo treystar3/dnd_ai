@@ -298,9 +298,10 @@ class LlamaServer:
 
     name = "llama-server"
 
-    def __init__(self, chat: Server, embed: Server | None = None, machine: dict | None = None):
+    def __init__(self, chat: Server, embed: Server | None = None, machine: dict | None = None, worker=None):
         self.chat_server, self.embed_server = chat, embed
         self.machine = dict(machine or {})
+        self.worker = worker                            # (f523) who may use the slots when (llm/worker.py); None sends at once
         self._props_read = self.machine.get("slot_ctx") is not None
         self._live: dict[int, threading.Event] = {}     # a thread's call in flight -> its cancel flag
         self._lock = threading.Lock()
@@ -333,6 +334,28 @@ class LlamaServer:
         return m
 
     def chat(self, req, deadline=None, cancel: threading.Event | None = None):
+        """(f523) Through the worker when there is one: a background call waits for the card and gives it back when the turn needs
+        it (sent again below the layers, unseen above); a foreground call is sent at once. Always on the caller's own thread."""
+        from llm import backend
+        if self.worker is None:
+            return self._send(req, deadline, cancel)
+        lane = backend.current_lane()
+        if lane == "background":
+            return self.worker.background(lambda flag: self._send(req, deadline, flag), backend.current_session())
+        return self.worker.foreground(lambda flag: self._send(req, deadline, cancel), lane)
+
+    def promote(self, thread_ident: int) -> None:
+        if self.worker is not None:
+            self.worker.promote(thread_ident)
+
+    def cancel_session(self, key: str) -> int:
+        return self.worker.cancel_session(key) if self.worker is not None else 0
+
+    def reopen_session(self, key: str) -> None:
+        if self.worker is not None:
+            self.worker.reopen_session(key)
+
+    def _send(self, req, deadline=None, cancel: threading.Event | None = None):
         from llm.backend import Reply
         body = llama_body(req, self._machine_for_lane())
         flag = self._flag(cancel)
@@ -397,6 +420,8 @@ class LlamaServer:
         backend.loading(self._wait_ready)
 
     def close(self) -> None:
+        if self.worker is not None:
+            self.worker.close()                         # (f523) nothing waits for the card any more
         self.cancel()
 
     def state(self) -> str:

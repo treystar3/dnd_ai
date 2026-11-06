@@ -98,6 +98,8 @@ class CampaignSession:
         self.adopted = adopted
         self.bus = Bus()                                   # (f454) this campaign's events, and who listens: current while it plays
         use(self.bus)
+        from llm import backend
+        backend.reopen_session(str(getattr(store, "root", "") or ""))   # (f523) a save opened again may run its background calls
         self.recorder = None
         self.closed = False
         self._threads: list[threading.Thread] = []
@@ -155,6 +157,8 @@ class CampaignSession:
         if self.recorder is not None:
             self.recorder.close()
             self.recorder = None
+        from llm import backend
+        backend.cancel_session(str(getattr(self.store, "root", "") or ""))   # (f523) its background calls end now, not after the wait
         deadline = time.monotonic() + float(getattr(config, "CLOSE_WAIT_SECONDS", 2))
         for t in self.threads():
             t.join(max(0.0, deadline - time.monotonic()))

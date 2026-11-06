@@ -49,6 +49,7 @@ import yaml
 import config
 from core import paths
 from llm import llama
+from llm import worker as worker_mod
 from llm.errors import Failure, NoServer
 
 STATES = ("not_started", "loading", "ready", "restarting", "failed")
@@ -85,10 +86,13 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
     if slot_ctx < need:
         bad.append(f"data/runtime/server.yaml server.slot_ctx: {slot_ctx} tokens cannot hold the largest prompt and twice the largest answer "
                    f"({need} tokens)")
-    for k in ("batch", "ubatch", "cache_ram_mib", "start_seconds", "hang_seconds", "restarts"):
+    for k in ("batch", "ubatch", "cache_ram_mib", "start_seconds", "hang_seconds", "restarts", "max_cancels"):
         v = s.get(k)
         if not isinstance(v, int) or isinstance(v, bool) or v < 0:
             bad.append(f"data/runtime/server.yaml server.{k}: a whole number, zero or more")
+    idle = s.get("resume_idle_seconds")
+    if isinstance(idle, bool) or not isinstance(idle, (int, float)) or idle < 0:
+        bad.append("data/runtime/server.yaml server.resume_idle_seconds: a number of seconds, zero or more")
     models_ = cfg.get("models") or {}
     embedders = [k for k, m in models_.items() if (m or {}).get("role") == "embed"]
     if len(embedders) != 1:
@@ -420,6 +424,7 @@ class Runtime:
         self.source: llama.LlamaServer | None = None
         self.restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self.facts_: dict = {}
+        self.worker = None
         self._lock = threading.RLock()
         self._closed = False
 
@@ -542,8 +547,12 @@ class Runtime:
                     tell(self._phase(self.chat, log_start))
                     time.sleep(0.1)
                 self._props(server)
+                s = self.cfg.get("server") or {}
                 self.source = llama.LlamaServer(server, None, machine={"slot_ctx": self.facts_["slot_ctx"],
-                                                                       "slots": {"foreground": 0, "background": 1, "input": 0}})
+                                                                       "slots": {"foreground": 0, "background": 1, "input": 0}},
+                                                worker=self.worker or worker_mod.Worker(int(s.get("max_cancels", 3)),
+                                                                                        float(s.get("resume_idle_seconds", 2))))
+                self.worker = self.source.worker               # (f523) one worker for the session, kept across a restart
                 self._write_run_files()
                 self.state = "ready"
                 tell(1.0)
@@ -684,6 +693,17 @@ class Managed:
 
     def cancel(self, thread_ident=None):
         return self.rt.source.cancel(thread_ident) if self.rt.source is not None else 0
+
+    def promote(self, thread_ident):
+        if self.rt.source is not None:
+            self.rt.source.promote(thread_ident)
+
+    def cancel_session(self, key):
+        return self.rt.source.cancel_session(key) if self.rt.source is not None else 0
+
+    def reopen_session(self, key):
+        if self.rt.source is not None:
+            self.rt.source.reopen_session(key)
 
 
 # ------------------------------------------------------------------ the game's own server (main.py, behind the switch until f528)

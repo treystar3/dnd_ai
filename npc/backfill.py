@@ -41,9 +41,13 @@ def start(store, world, catalog, place_id: str) -> bool:
     place = world.places[place_id]
     town = life.town_lines(store, world, place_id)          # read here, on the main thread; the call below only carries it
 
+    key = _save(store)
+
     def run():
+        from llm import backend
         try:
-            job["result"] = life._ask(place, world, slots, town)
+            with backend.lane("background", session=key):      # (f523) the worker holds it for the player's reading time
+                job["result"] = life._ask(place, world, slots, town)
         except Exception as err:
             job["error"] = err
         finally:
@@ -72,6 +76,8 @@ def collect(store, world, catalog, wait_for: str | None = None, wait_all: bool =
         if job is None:
             continue
         if pid == wait_for or wait_all:
+            from llm import backend
+            backend.promote(job.get("thread"))          # (f523) the turn waits on it: it keeps the card and starts at once
             job["done"].wait()
         if not job["done"].is_set():
             continue

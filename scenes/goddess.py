@@ -471,7 +471,8 @@ class ThresholdScene:
                 "The player accepted your reading. The game now shows them fifteen techniques "
                 "they might carry back: what is already in them, drawn out. Invite them, quickly, to choose three."
             )
-            self.passives_job = creation.PassivesInBackground(self.interp, self.active_options)   # written while they read
+            key = str(getattr(getattr(self.session, "store", None), "root", "") or "") or None
+            self.passives_job = creation.PassivesInBackground(self.interp, self.active_options, session_key=key)   # written while they read
             if self.session is not None:
                 self.session.own(self.passives_job.thread)                                     # (f453) closed with the save
         elif turn.kind in ("decline", "answer") and turn.text.strip():

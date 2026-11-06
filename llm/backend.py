@@ -408,18 +408,46 @@ def _through(op: str, request, last):
 
 
 @contextlib.contextmanager
-def lane(name: str):
-    """The calls this thread makes inside the block are in this lane ('foreground', 'background', 'input')."""
-    before = getattr(_lane, "name", None)
-    _lane.name = name
+def lane(name: str, session: str | None = None):
+    """The calls this thread makes inside the block are in this lane ('foreground', 'background', 'input'). (f523) A background lane
+    names the campaign it works for (the save's folder), so closing that campaign cancels its calls and nobody else's."""
+    before, before_session = getattr(_lane, "name", None), getattr(_lane, "session", None)
+    _lane.name, _lane.session = name, session
     try:
         yield
     finally:
-        _lane.name = before
+        _lane.name, _lane.session = before, before_session
 
 
 def current_lane() -> str:
     return getattr(_lane, "name", None) or "foreground"
+
+
+def current_session() -> str | None:
+    return getattr(_lane, "session", None)
+
+
+def promote(thread) -> None:
+    """(f523) The turn waits on this background thread's work (npc/backfill.py settle and collect, creation's result()): its call is
+    never taken back from it again and starts without waiting for the reading time. Nothing for a source with no worker."""
+    fn = getattr(source(), "promote", None)
+    ident = getattr(thread, "ident", thread)
+    if fn is not None and ident is not None:
+        fn(ident)
+
+
+def cancel_session(key: str) -> int:
+    """(f523) A campaign closing (engine/session.py close): its background calls end Cancelled, waiting or in flight; another
+    campaign's go on. Returns how many were in flight; nothing for a source with no worker."""
+    fn = getattr(source(), "cancel_session", None)
+    return int(fn(str(key)) or 0) if fn is not None else 0
+
+
+def reopen_session(key: str) -> None:
+    """(f523) The campaign is open again (the same save loaded after it was closed): its background calls may run."""
+    fn = getattr(source(), "reopen_session", None)
+    if fn is not None:
+        fn(str(key))
 
 
 # ------------------------------------------------------------------ the interface

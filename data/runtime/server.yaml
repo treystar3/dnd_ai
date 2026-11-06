@@ -72,3 +72,5 @@ server:
   start_seconds: 300        # the longest a load may take before it is 'failed' (the pod: 7.9 s cold on its own disk)
   hang_seconds: 1800        # the hang guard for one call on a machine below the minimum card (f526)
   restarts: 1               # a server that dies is started again this many times in a session; the next death is 'failed'
+  max_cancels: 3            # (f523) a background call gives the card back to the turn this many times, then runs beside it
+  resume_idle_seconds: 2    # (f523) a background call starts once no turn's call has run for this long (the player reading)
