@@ -6,7 +6,8 @@
     python main.py --gui      play in a window instead of the terminal (needs: pip install pywebview; falls back to your browser)
     Meravia.exe               the built game opens its window by itself (--terminal for the text version)
 
-On start the game checks for Ollama and its model and offers to install and download what is missing (MERAVIA_SKIP_SETUP=1 skips the check).
+On start the game starts its own model server from runtime/ and models/ (data/runtime/server.yaml, llm/runtime.py) and shows the home
+page while it loads; Continue waits for it behind one line, New Game's first pages open at once (f528).
 
 Type 'quit' to save and exit.
 """
@@ -45,7 +46,7 @@ def main():
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, "w"))
     import atexit
-    if config.BACKEND == "ollama":                 # (f522) the game's own server is stopped by runtime.stop_for_game, registered when it starts
+    if config.BACKEND == "ollama":                 # (until f532) the game's own server is stopped by main's finally and runtime.stop_for_game
         atexit.register(unload)                    # however the game ends, the model does not stay in memory
     from engine import turnlog
     atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl
@@ -56,12 +57,12 @@ def main():
         else:
             guarded(lambda: play(args), None)
     finally:
-        if config.BACKEND == "runtime":
+        if config.BACKEND == "ollama":
+            unload()
+        elif config.BACKEND != "llama":                # (f528) the game's own server stops with the game
             from llm import launch, runtime
             launch.stop()                              # (f526) the load screen's server, when it started one
-            runtime.stop_for_game()                    # (f522) the game's own server stops with the game
-        elif config.BACKEND == "ollama":
-            unload()
+            runtime.stop_for_game()                    # (f522) ...or the one started before the page (the dormant case)
 
 
 def play(args):
@@ -70,7 +71,21 @@ def play(args):
 
     from llm import embed
     screen = None
-    if config.BACKEND == "runtime":                # (f522) the game starts its own llama-server (behind the switch until f528)
+    if config.BACKEND == "llama":                  # (f521) a llama-server started by hand: wait for it, and start nothing
+        from llm import backend
+        try:
+            backend.load()
+        except Exception as e:
+            console.out(f"The llama-server at DND_LLAMA_URL could not be reached ({e}).")
+            return
+    elif config.BACKEND == "ollama":               # (until f532) the nights' server before Bundle F: its install and download screens
+        from llm import setup_check
+        if not setup_check.ensure_ready():
+            return
+        embed.pull_in_background()                 # the small helper model, fetched quietly the first time; the game does not wait for it
+        warm()                                     # load the model while the player is at the title and typing their name
+        embed.warm()                               # (f469) ...and the embedder, so neither first load is paid inside a turn
+    else:                                          # (f528) the game as it ships: its own llama-server (f522), loaded behind the home page
         from llm import launch, runtime
         if launch.screen_on():                     # (f526) the owner's lines are in: the load runs behind the home page
             screen = launch.Screen(say=console.out, ask=console.ask,
@@ -80,22 +95,8 @@ def play(args):
             launch.SCREEN["screen"] = screen
             import atexit
             atexit.register(launch.stop)
-        elif not runtime.start_for_game(say=console.out):
+        elif not runtime.start_for_game(say=console.out):   # a tree without the lines (the dormant case): the load before the page
             return
-    elif config.BACKEND == "llama":                # (f521) a llama-server started by hand: wait for it, and leave Ollama alone
-        from llm import backend
-        try:
-            backend.load()
-        except Exception as e:
-            console.out(f"The llama-server at DND_LLAMA_URL could not be reached ({e}).")
-            return
-    else:
-        from llm import setup_check
-        if not setup_check.ensure_ready():
-            return
-        embed.pull_in_background()                 # the small helper model, fetched quietly the first time; the game does not wait for it
-        warm()                                     # load the model while the player is at the title and typing their name
-        embed.warm()                               # (f469) ...and the embedder, so neither first load is paid inside a turn
 
     from engine import data_check                  # the character data, checked as one system before anything uses it
     problems = data_check.check()
@@ -196,7 +197,7 @@ def guarded(run, bridge):
         crashlog.record(e, "outside a turn")                   # (f449) a fault in a turn no longer reaches here (scenes/world.py turn); these are the rest
         if bridge:
             bridge.failed = True
-        if "connect" in f"{type(e).__name__} {e}".lower():
+        if config.BACKEND == "ollama" and "connect" in f"{type(e).__name__} {e}".lower():     # (until f532) the old server away
             console.out("\nCan't reach Ollama. Install it from ollama.com, start it, and pull the model once:")
             console.out(f"    ollama pull {config.OLLAMA_MODEL}")
         elif bridge:

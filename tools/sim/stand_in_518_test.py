@@ -341,8 +341,8 @@ try:
 except Exception:
     got = {"error": (run2.stdout + run2.stderr)[-600:]}
 check("a replay holds the no-server switch while it serves (so nothing reaches a live model), puts the switch back as it found it, and "
-      "takes its source away", got.get("during") == ["1"] and got.get("after") is None and got.get("source") == "OllamaShape"
-      and got.get("matched") == got.get("of") and got.get("crashed") == 0, got)
+      "takes its source away", got.get("during") == ["1"] and got.get("after") is None and got.get("source") == "Unstarted"   # (f528) the
+      and got.get("matched") == got.get("of") and got.get("crashed") == 0, got)                 # default the settings name: the game's own runtime, unstarted
 import contextlib
 import io
 real_replay = rerun.replay

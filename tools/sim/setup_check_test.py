@@ -1,4 +1,5 @@
-"""First-run checks: reading what is installed, judging the computer, and the screens that fix what is missing (all with fakes: nothing is downloaded)."""
+"""First-run checks: reading what is installed, judging the computer, and the screens that fix what is missing (all with fakes: nothing is downloaded).
+(f528) This is the Ollama path, reached only under DND_BACKEND=ollama until f532 removes it; the game's own start is tools/sim/plays_on_llama_528_test.py."""
 import sys, os
 sys.path.insert(0, ".")
 from llm import setup_check as sc

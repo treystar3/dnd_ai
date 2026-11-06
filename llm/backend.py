@@ -268,7 +268,8 @@ class StandIn:
     with .message.content and perhaps .done_reason and raw counts; a dict with 'embeddings'), so simlib.Stub's handlers and every
     test's function serve unchanged. Its errors go the one way OllamaShape's go (_send). It reads no real client: a function that
     names a `deadline` parameter is handed the turn's deadline, any other is not; a function returning PASS sends the request on to
-    `below` (or to Ollama), as a live tool's real titles go. No chat function: every chat is unreachable; no embed function: there
+    `below` (or (f528) to the source beneath this one in the stack), as a live tool's real titles go. No chat function: every chat is
+    unreachable; no embed function: there
     is no embedder (facts), and an embed asked anyway is unreachable. `calls` counts the titles answered ('' for embeddings)."""
 
     def __init__(self, chat=None, embed=None, facts: dict | None = None, name: str = "stand-in", below=None):
@@ -288,7 +289,9 @@ class StandIn:
         self._hand = names_deadline(chat) if chat is not None else False
 
     def _down(self):
-        return self.below if self.below is not None else OllamaShape()
+        """(f528) Where a PASS goes: the source given as `below`, else the source beneath this one in the stack (a live tool's titles reach
+        the runtime it loaded under its stub, tools/runtime_cli.py), else the default the settings name."""
+        return self.below if self.below is not None else under(self)
 
     def chat(self, req: ChatRequest, deadline=None) -> Reply:
         if self.chat_fn is None:
@@ -337,19 +340,68 @@ _lane = threading.local()
 _switched = None                                     # (f521) the llama-server source DND_BACKEND=llama names, built on first use
 
 
-def source():
-    """The source answering now: the newest one put in (use), else the default: Ollama, or (f521) a llama-server started by hand when
-    config.BACKEND is 'llama' (DND_BACKEND), built once on first use. The suite drops every DND_* setting, so it never switches."""
+class Unstarted:
+    """(f528) The default under config.BACKEND 'runtime' (the game as it ships) before anything has started the game's own server and put
+    it in (llm/launch.py Screen and llm/runtime.py start_for_game for the game, tools/runtime_cli.py for a developer tool): every call
+    is unreachable, saying so, there is no embedder, and nothing is started by accident."""
+
+    name = "runtime"
+    WHY = "the game's model server has not been started (the game starts it as it opens; a tool with tools/runtime_cli.py load)"
+
+    def chat(self, req: ChatRequest, deadline=None) -> Reply:
+        raise Failure("unreachable", self.WHY)
+
+    def embed(self, texts: list[str]) -> Embedding:
+        raise Failure("unreachable", self.WHY)
+
+    def load(self, progress=None) -> None:
+        raise Failure("unreachable", self.WHY)
+
+    def close(self) -> None:
+        pass
+
+    def state(self) -> str:
+        return "not_started"
+
+    def facts(self) -> dict:
+        return {"source": self.name, "model": config.MODEL, "embed_model": config.EMBED_MODEL, "embedder": False, "state": "not_started"}
+
+
+_unstarted = Unstarted()
+
+
+def _default_locked():
+    """The source the settings name when nothing is put in (the lock held): (f528) under 'runtime', the game's own server once started,
+    else Unstarted; (f521) under 'llama' a llama-server started by hand (DND_LLAMA_URL), built once; under 'ollama' (until f532) the
+    Ollama-shaped source. Under the suite's switch (MERAVIA_NO_SERVER) the Ollama shape, whose client raises NoServer: no default ever
+    reaches a live server there. The suite drops every DND_* setting, so it never switches."""
     global _switched
-    with _lock:
-        if _sources:
-            return _sources[-1][1]
-        if getattr(config, "BACKEND", "ollama") != "llama" or __import__("os").environ.get("MERAVIA_NO_SERVER"):
-            return _default                             # (f521) under the suite's switch no default ever reaches a live server
+    kind = str(getattr(config, "BACKEND", "runtime") or "runtime")
+    if kind == "ollama" or __import__("os").environ.get("MERAVIA_NO_SERVER"):
+        return _default
+    if kind == "llama":
         if _switched is None:
             from llm import llama
             _switched = llama.from_env()
         return _switched
+    return _unstarted
+
+
+def source():
+    """The source answering now: the newest one put in (use), else the default the settings name (_default_locked)."""
+    with _lock:
+        if _sources:
+            return _sources[-1][1]
+        return _default_locked()
+
+
+def under(src):
+    """(f528) The source beneath `src` in the stack: the one put in just before it, else the default. A stand-in's PASS goes there."""
+    with _lock:
+        for i, (_, s) in enumerate(_sources):
+            if s is src:
+                return _sources[i - 1][1] if i > 0 else _default_locked()
+        return _default_locked()
 
 
 def forget_switch() -> None:

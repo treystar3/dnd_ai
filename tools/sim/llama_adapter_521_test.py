@@ -13,7 +13,8 @@
   deadline; a 'length' answer that filled the slot is full, one that did not is not.
 - usage: prompt counts the cached tokens too, wait_ms is never negative, load_ms is gone.
 - No proxy setting is ever used; the key goes with every request; embeddings come back in the order asked.
-- The switch: DND_BACKEND=llama makes a llama-server at DND_LLAMA_URL the default source (only on this machine); otherwise Ollama.
+- The switch: DND_BACKEND=llama makes a llama-server at DND_LLAMA_URL the default source (only on this machine); otherwise (f528) the
+  game's own runtime, unstarted until the game or a tool starts it.
 - data_check refuses a misspelt sampler key, a value out of range, and a fraction where a whole number belongs.
 
 Run: python tools/sim/llama_adapter_521_test.py"""
@@ -296,7 +297,8 @@ try:
     check("under the suite's switch the default never reaches a live server", backend.source().name == "ollama")
     config.BACKEND = saved_backend
     os.environ.pop("MERAVIA_NO_SERVER", None)
-    check("the default is Ollama", config.BACKEND == "ollama" and backend.source().name == "ollama")
+    check("the default is the game's own runtime, unstarted until the game or a tool starts it (f528)",
+          config.BACKEND == "runtime" and backend.source().name == "runtime")
     config.BACKEND = "llama"
     os.environ["DND_LLAMA_URL"], os.environ["DND_LLAMA_KEY"] = fake.url, "k1"
     backend.forget_switch()

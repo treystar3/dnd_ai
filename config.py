@@ -36,10 +36,11 @@ MAX_TOKENS = 800
 # measured against it: no narrator or speaker is given a length any more.
 PROSE_MAX_TOKENS = 2048
 REQUEST_TIMEOUT = 120
-# (f521) Which model server a session talks to: "ollama" (today's, until f528); "llama", a llama-server started by hand at DND_LLAMA_URL
-# (llm/llama.py from_env), for the measurements the switch to llama-server waits on; or (f522) "runtime", the game starting its own
-# llama-server from runtime/ with the model files in models/ (llm/runtime.py), as it will ship. The suite drops every DND_* setting.
-BACKEND = (__import__("os").environ.get("DND_BACKEND", "") or "ollama").strip().lower()
+# (f528) Which model server a session talks to: "runtime" (the default: the game starts its own llama-server from runtime/ with the
+# model files in models/, llm/runtime.py, as it ships); "llama", a llama-server started by hand at DND_LLAMA_URL (llm/llama.py from_env),
+# for a measurement beside one; or "ollama" (until f532), the Ollama-shaped source of the nights before Bundle F. The suite drops every
+# DND_* setting and, under MERAVIA_NO_SERVER, no default ever reaches a live server.
+BACKEND = (__import__("os").environ.get("DND_BACKEND", "") or "runtime").strip().lower()
 CLOSE_WAIT_SECONDS = 2      # (f453) how long a closing campaign waits for its background work (a creation call, people being written) before leaving it behind
 KEEP_ALIVE = "30m"          # how long Ollama keeps the model loaded after a call (its default is 5 minutes, and a cold load costs 20-60 seconds)
 COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
