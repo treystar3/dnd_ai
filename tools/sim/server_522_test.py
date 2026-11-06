@@ -152,7 +152,7 @@ try:
     child = rt.chat
     check("load ends ready", rt.state == "ready" and child is not None and child.alive(), rt.state)
     check("progress only rises and ends at 1.0", seen == sorted(seen) and seen[-1] == 1.0 and len(seen) >= 3, seen)
-    args = [json.loads(l) for l in argv_log.read_text().splitlines() if "--port" in l][-1]
+    args = [json.loads(l) for l in argv_log.read_text().splitlines() if "--port" in l and "--embeddings" not in l][-1]
 
     def val(flag):
         return args[args.index(flag) + 1] if flag in args else None

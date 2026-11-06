@@ -93,6 +93,15 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
     idle = s.get("resume_idle_seconds")
     if isinstance(idle, bool) or not isinstance(idle, (int, float)) or idle < 0:
         bad.append("data/runtime/server.yaml server.resume_idle_seconds: a number of seconds, zero or more")
+    e = cfg.get("embed") or {}
+    for k in ("ctx", "batch", "ubatch", "max_chars"):
+        v = e.get(k)
+        if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
+            bad.append(f"data/runtime/server.yaml embed.{k}: a whole number above zero")
+    if isinstance(e.get("max_chars"), int) and e["max_chars"] < 601:
+        bad.append("data/runtime/server.yaml embed.max_chars: under the 601 characters a kept recording embeds, so a replay would move")
+    if e.get("device", "auto") not in ("auto", "card", "processor"):
+        bad.append("data/runtime/server.yaml embed.device: auto, card or processor")
     models_ = cfg.get("models") or {}
     embedders = [k for k, m in models_.items() if (m or {}).get("role") == "embed"]
     if len(embedders) != 1:
@@ -177,6 +186,20 @@ def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path) -> list[s
     threads = int(s.get("threads") or 0) or int(getattr(config, "NUM_THREAD", 0) or 0)
     if threads:
         argv += ["-t", str(threads)]
+    return argv
+
+
+def embed_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, on_cpu: bool) -> list[str]:
+    """(f524) The embedder's own server: the embedding model alone, mean pooling, one slot with its context, batch and micro-batch at the
+    embed settings' size (a text longer than the batch is refused, never cut quietly, so texts are capped before they are sent), on the
+    card unless the chat model would not otherwise sit wholly on it."""
+    e, m = cfg.get("embed") or {}, cfg["models"]
+    model = next(v for v in m.values() if v.get("role") == "embed")
+    n = str(int(e.get("ctx", 2048)))
+    argv = [str(exe), "--model", str(models / model["file"]), "--host", "127.0.0.1", "--port", str(port), "--api-key", key, "--no-webui",
+            "--embeddings", "--pooling", "mean", "-np", "1", "-c", n, "-b", str(int(e.get("batch", 2048))), "-ub", str(int(e.get("ubatch", 2048)))]
+    if on_cpu:
+        argv += ["--device", "none"]
     return argv
 
 
@@ -425,6 +448,10 @@ class Runtime:
         self.restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self.facts_: dict = {}
         self.worker = None
+        self.embed: Child | None = None                 # (f524) the embedder's own server, and whether it is on for this session
+        self.embed_state = "not_started"
+        self.embed_why = ""
+        self.embed_restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self._lock = threading.RLock()
         self._closed = False
 
@@ -451,10 +478,14 @@ class Runtime:
 
     def _write_run_files(self) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        c = self.chat
+        c, e = self.chat, self.embed
         info = {"port": c.port, "key": c.key, "pid": c.proc.pid, "slot_ctx": self.facts_.get("slot_ctx"), "build": self.build}
+        pids = [{"pid": c.proc.pid, "exe": c.argv[0]}]
+        if e is not None and e.alive():
+            info.update(embed_port=e.port, embed_key=e.key)
+            pids.append({"pid": e.proc.pid, "exe": e.argv[0]})
         (self.run_dir / "server.json").write_text(json.dumps(info), encoding="utf-8")
-        (self.run_dir / "server.pid").write_text(json.dumps([{"pid": c.proc.pid, "exe": c.argv[0]}]), encoding="utf-8")
+        (self.run_dir / "server.pid").write_text(json.dumps(pids), encoding="utf-8")
 
     def _remove_run_files(self) -> None:
         for name in ("server.json", "server.pid"):
@@ -465,16 +496,87 @@ class Runtime:
 
     # -- starting and waiting
     def _spawn_chat(self) -> Child:
+        return self._spawn("chat", lambda exe, port, key: chat_argv(exe, self.cfg, port, key, self.models), "llama-server.log")
+
+    def _spawn(self, name: str, argv_of, log_name: str) -> Child:
         exe = self.exe()
         self.logs.mkdir(parents=True, exist_ok=True)
-        log_path = self.logs / "llama-server.log"
+        log_path = self.logs / log_name
         port, key = free_port(), secrets.token_urlsafe(24)
-        argv = chat_argv(exe, self.cfg, port, key, self.models)
+        argv = argv_of(exe, port, key)
         with open(log_path, "ab") as log:
-            log.write(f"\n---- llama-server starting on port {port}\n".encode("utf-8"))
+            log.write(f"\n---- llama-server ({name}) starting on port {port}\n".encode("utf-8"))
             log.flush()
             proc = spawner().start(argv, log)
-        return Child("chat", argv, port, key, proc, log_path)
+        return Child(name, argv, port, key, proc, log_path)
+
+    def _start_embed(self) -> None:
+        """(f524) The embedder's server, started once the chat model's place on the card is known; its first embed is its warm-up. A
+        failure here turns embeddings off for this session (and says why) and never fails the load: every caller has its fallback."""
+        e = self.cfg.get("embed") or {}
+        device = str(e.get("device", "auto"))
+        off = str(self.facts_.get("offloaded") or "")
+        whole = True
+        if "/" in off:
+            done, total = off.split("/", 1)
+            whole = int(done) >= int(total)
+        on_cpu = device == "processor" or (device == "auto" and not whole)
+        self.embed_state, self.embed_why = "loading", ""
+        try:
+            self.embed = self._spawn("embed", lambda exe, port, key: embed_argv(exe, self.cfg, port, key, self.models, on_cpu),
+                                     "llama-embed.log")
+            server = llama.Server(self.embed.port, self.embed.key)
+            limit = float((self.cfg.get("server") or {}).get("start_seconds") or 300)
+            start = time.monotonic()
+            while True:
+                if not self.embed.alive():
+                    raise Failure("unreachable", "the embedder's server ended while it loaded")
+                h = server.health()
+                if h == "ready":
+                    break
+                if time.monotonic() - start > limit:
+                    raise Failure("loading", f"the embedder was still loading after {int(limit)} s")
+                time.sleep(0.1)
+            status, payload, _, _ = server.request("POST", "/v1/embeddings", llama.embed_body(["clustering: ready"]), 60.0)
+            if status != 200:
+                raise Failure("server", f"the embedder's warm-up answered {status}")
+            if self.source is not None:
+                self.source.embed_server = server
+            self.embed_state = "ready"
+            self.facts_["embed_device"] = "processor" if on_cpu else "card"
+        except Failure as f:
+            self.embed_state, self.embed_why = "failed", f.detail or f.kind
+            if self.embed is not None:
+                self._crash_note(self.embed)
+                self._stop(self.embed)
+            if self.source is not None:
+                self.source.embed_server = None
+        self._write_run_files()
+
+    def embed_call(self, texts: list[str]):
+        """(f524) Embeddings on the embedder's own server, each text capped first (the batch refuses a longer one). A server found gone
+        is started again once and the call made again; the next death turns embeddings off for this session, said once in crash.log."""
+        cap = int((self.cfg.get("embed") or {}).get("max_chars") or 5000)
+        texts = [str(t)[:cap] for t in texts]
+        if self.embed_state != "ready" or self.source is None:
+            raise Failure("unreachable", "the embedder is off for this session" + (f" ({self.embed_why})" if self.embed_why else ""))
+        try:
+            return self.source.embed(texts)
+        except Failure as f:
+            if f.kind != "unreachable" or self.embed is None or self.embed.alive():
+                raise
+            with self._lock:
+                self._crash_note(self.embed)
+                if self.embed_restarts_left > 0:
+                    self.embed_restarts_left -= 1
+                    self._start_embed()
+                else:
+                    self.embed_state, self.embed_why = "failed", "its server stopped again after its restart"
+                    self.source.embed_server = None
+                    self._note_line("the embedder's server stopped again after its restart: embeddings are off for this session")
+            if self.embed_state == "ready":
+                return self.source.embed(texts)
+            raise
 
     def _tail(self, child: Child, n: int = 4000) -> str:
         try:
@@ -554,6 +656,11 @@ class Runtime:
                                                                                         float(s.get("resume_idle_seconds", 2))))
                 self.worker = self.source.worker               # (f523) one worker for the session, kept across a restart
                 self._write_run_files()
+                tell(0.97)
+                if self.embed_state != "ready" or self.embed is None or not self.embed.alive():
+                    self._start_embed()                        # (f524) embeddings decided here, once, for the session
+                else:
+                    self.source.embed_server = llama.Server(self.embed.port, self.embed.key)
                 self.state = "ready"
                 tell(1.0)
             except BaseException:
@@ -575,6 +682,14 @@ class Runtime:
     def _offloaded(self) -> str | None:
         m = re.findall(r"offloaded (\d+)/(\d+) layers to GPU", self._tail(self.chat, 200000)) if self.chat else []
         return f"{m[-1][0]}/{m[-1][1]}" if m else None
+
+    def _note_line(self, text: str) -> None:
+        try:
+            self.logs.mkdir(parents=True, exist_ok=True)
+            with open(self.logs / "crash.log", "a", encoding="utf-8") as f:
+                f.write(f"\n---- {time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
+        except OSError:
+            pass
 
     def _crash_note(self, child: Child) -> None:
         try:
@@ -628,24 +743,28 @@ class Runtime:
                 self.state = "failed"
 
     # -- stopping
-    def _stop_children(self) -> None:
-        c = self.chat
-        if c is not None and c.alive():
+    def _stop(self, c: Child | None) -> None:
+        if c is None or not c.alive():
+            return
+        try:
+            if os.name == "nt":
+                c.proc.terminate()
+            else:
+                os.killpg(c.proc.pid, signal.SIGTERM)
+        except OSError:
+            pass
+        try:
+            c.proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
             try:
-                if os.name == "nt":
-                    c.proc.terminate()
-                else:
-                    os.killpg(c.proc.pid, signal.SIGTERM)
-            except OSError:
-                pass
-            try:
+                c.proc.kill()
                 c.proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                try:
-                    c.proc.kill()
-                    c.proc.wait(timeout=5)
-                except (OSError, subprocess.SubprocessError):
-                    pass
+            except (OSError, subprocess.SubprocessError):
+                pass
+
+    def _stop_children(self) -> None:
+        self._stop(self.chat)
+        self._stop(self.embed)
         self._remove_run_files()
 
     def close(self) -> None:
@@ -661,8 +780,13 @@ class Runtime:
                 self.state = "not_started"
 
     def facts(self) -> dict:
-        return {"source": "llama-server", "model": config.MODEL, "embed_model": config.EMBED_MODEL, "embedder": False,
-                "state": self.state, **self.facts_}
+        """What this machine runs, final once the load is: (f524) whether there is an embedder is decided at the load and holds for the
+        session; read before that decision, it would be a guess, so it is refused. A restart of the chat server keeps the decision (the
+        embedder's own server goes on), so the facts are answered through it."""
+        if self.state in ("loading", "restarting") and self.embed_state in ("not_started", "loading"):
+            raise RuntimeError("the model server's facts are read before its load is final")
+        return {"source": "llama-server", "model": config.MODEL, "embed_model": config.EMBED_MODEL,
+                "embedder": self.embed_state == "ready", "embed_failure": self.embed_why, "state": self.state, **self.facts_}
 
 
 class Managed:
@@ -677,7 +801,7 @@ class Managed:
         return self.rt.chat_call(req, deadline)
 
     def embed(self, texts):
-        raise Failure("unreachable", "no embedder until f524")
+        return self.rt.embed_call(texts)
 
     def load(self, progress=None):
         self.rt.load(progress)

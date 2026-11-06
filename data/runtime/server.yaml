@@ -61,6 +61,13 @@ models:
     size: 274290656
     source: https://registry.ollama.ai/v2/library/nomic-embed-text/blobs/sha256:970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6
 
+embed:                      # (f524) the embedder's own server
+  ctx: 2048                 # its context, batch and micro-batch: a text longer than the batch is refused, never cut quietly
+  batch: 2048
+  ubatch: 2048
+  max_chars: 5000           # so every text is cut to this before it is sent (above the 601 characters a kept recording embeds)
+  device: auto              # card, processor, or auto: on the card unless the chat model would not otherwise sit wholly on it
+
 server:
   slots: 2                  # the turn's slot and the background's (owner's decision, 2026-11-05)
   slot_ctx: 16384           # each slot's context; the server is started with twice it, and --fit may not shrink it

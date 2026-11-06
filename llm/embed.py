@@ -26,8 +26,17 @@ def available() -> bool:
     """Is the embedding model here and answering? The source says (f518); a failure turns it off for the session."""
     if not getattr(config, "EMBED_ENABLED", True) or _state["failed"]:
         return False
+    return bool(_facts().get("embedder", False))
+
+
+def _facts() -> dict:
+    """The source's facts. (f524) A runtime still deciding whether it has an embedder refuses them: here that is "not yet", never a
+    failure of the embedder's, so nothing is turned off for it."""
     from llm import backend
-    return bool(backend.facts().get("embedder", False))
+    try:
+        return backend.facts()
+    except RuntimeError:
+        return {}
 
 
 def probe() -> bool:
@@ -114,6 +123,12 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
     if not available():
         return None
     texts = [" ".join(str(t).split()) for t in texts]
+    who = _facts().get("embed_model")
+    if who is not None:
+        if _state.get("model", who) != who:             # (f524) another embedder: its vectors are not these
+            with _lock:
+                _cache.clear()
+        _state["model"] = who
     want = [t for t in dict.fromkeys(texts) if t not in _cache]
     if want:
         from core.interrupts import Interrupt
