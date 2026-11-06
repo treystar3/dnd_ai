@@ -83,7 +83,7 @@ check("with full prompts asked, a log that shortened them yields nothing, and sa
 code = lora_train.main(["--task", "narrate", "--data", str(out / "train"), "--out", str(base / "adapter"), "--dry-run"])
 mf = (base / "adapter" / "Modelfile").read_text(encoding="utf-8") if (base / "adapter" / "Modelfile").exists() else ""
 import config
-check("the dry run checks the data and writes Ollama's Modelfile on the game's own model tag", code == 0 and f"FROM {config.MODEL}" in mf and "ADAPTER ./adapter" in mf, mf)
+check("the dry run checks the data and writes Ollama's Modelfile on the game's own model tag", code == 0 and f"FROM {config.OLLAMA_MODEL}" in mf and "ADAPTER ./adapter" in mf, mf)
 check("a file of the wrong shape is refused", lora_train.check_shape([{"messages": [{"role": "user", "content": "x"}]}], "sft")
       and lora_train.check_shape([{"prompt": [], "chosen": [{"content": "a"}], "rejected": [{"content": "a"}]}], "dpo"))
 check("...and a pairs file of the right shape is not", lora_train.check_shape([pair], "dpo") == [])

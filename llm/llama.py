@@ -87,6 +87,7 @@ def neutral_hash(req) -> str:
 
 _GRAMMARS: dict[str, str] = {}                      # schema fingerprint -> its grammar (a dynamic schema's ids vary; the cache is capped)
 _GRAMMARS_MAX = 256
+_GRAMMARS_LOCK = threading.Lock()                   # (f527's review) two lanes build bodies at once
 
 
 def grammar_of(schema: dict) -> str:
@@ -95,15 +96,17 @@ def grammar_of(schema: dict) -> str:
     is a refused request (invalid), never a server fault."""
     from llm import gbnf
     key = hashlib.sha256(json.dumps(schema, sort_keys=True).encode("utf-8")).hexdigest()[:16]
-    text = _GRAMMARS.get(key)
+    with _GRAMMARS_LOCK:
+        text = _GRAMMARS.get(key)
     if text is None:
         try:
             text = f"# Meravia {schema.get('title') or 'schema'} {key}\n" + gbnf.grammar(schema)
         except gbnf.SchemaError as e:
             raise Failure("invalid", f"the schema {schema.get('title') or '?'} has no grammar: {str(e)[:200]}")
-        if len(_GRAMMARS) >= _GRAMMARS_MAX:
-            _GRAMMARS.pop(next(iter(_GRAMMARS)))
-        _GRAMMARS[key] = text
+        with _GRAMMARS_LOCK:
+            while len(_GRAMMARS) >= _GRAMMARS_MAX:
+                _GRAMMARS.pop(next(iter(_GRAMMARS)), None)
+            text = _GRAMMARS.setdefault(key, text)      # the first builder's text, so the cache gives one object for one schema
     return text
 
 

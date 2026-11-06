@@ -532,7 +532,7 @@ def main() -> None:
         if not setup_check.server_up():
             die("Ollama is not running. Start the Ollama app, wait a few seconds, and run this again.")
         if not setup_check.model_present():
-            die(f"The model {config.MODEL} is not downloaded: run  ollama pull {config.MODEL}  first.")
+            die(f"The model {config.OLLAMA_MODEL} is not downloaded: run  ollama pull {config.OLLAMA_MODEL}  first.")
         from llm import embed
         embed.pull_in_background()
         from llm.gateway import warm

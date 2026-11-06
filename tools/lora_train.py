@@ -71,7 +71,7 @@ def rough_tokens(rows: list[dict]) -> int:
 
 
 def modelfile(base_tag: str, adapter_dir: str) -> str:
-    return (f"# Built by tools/lora_train.py. `ollama create meravia-<task> -f Modelfile`, then set config.MODEL (or the task's model) to that tag.\n"
+    return (f"# Built by tools/lora_train.py. `ollama create meravia-<task> -f Modelfile`, then set config.OLLAMA_MODEL (or the task's model) to that tag.\n"
             f"FROM {base_tag}\nADAPTER {adapter_dir}\n")
 
 
@@ -83,7 +83,7 @@ def main(argv=None) -> int:
     ap.add_argument("--stage", choices=("sft", "dpo"), default="sft")
     ap.add_argument("--from", dest="start_from", help="an adapter to continue from (dpo after sft)")
     ap.add_argument("--base", default=T.get("base"), help="Hugging Face id of the base model")
-    ap.add_argument("--base-tag", default=None, help="the Ollama tag the adapter is applied to (default: config.MODEL)")
+    ap.add_argument("--base-tag", default=None, help="the Ollama tag the adapter is applied to (default: config.OLLAMA_MODEL)")
     ap.add_argument("--rank", type=int, default=int(T.get("rank", 16)))
     ap.add_argument("--alpha", type=int, default=int(T.get("alpha", 32)))
     ap.add_argument("--dropout", type=float, default=float(T.get("dropout", 0.05)))
@@ -109,7 +109,7 @@ def main(argv=None) -> int:
     share = float(T.get("general_mix", 0.15))
     take = min(len(mix), int(len(rows) * share / max(1e-9, 1 - share))) if mix else 0
     import config
-    base_tag = args.base_tag or config.MODEL
+    base_tag = args.base_tag or config.OLLAMA_MODEL           # (f527's review) Ollama's tag, not the GGUF id, until f532
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "Modelfile").write_text(modelfile(base_tag, "./adapter"), encoding="utf-8")

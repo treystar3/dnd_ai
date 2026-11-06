@@ -155,10 +155,19 @@ def translate(old: dict, new: dict) -> list[str]:
     import difflib
     from engine import recording
     o, n = old["calls"], new["calls"]
-    sha_by_title = {c.get("title"): (c.get("request") or {}).get("schema_sha") for c in n if c.get("kind") == "chat"}
-    neutral = [neutral_of(c, sha_by_title.get(c.get("title"))) for c in o]
-    oh = [recording.request_hash(k) for k in neutral]
     nh = [c.get("req") for c in n]
+    shas_by_title: dict = {}                               # (f527's review) a title built at run time may have several shapes in one recording
+    for c in n:
+        if c.get("kind") == "chat":
+            shas_by_title.setdefault(c.get("title"), []).append((c.get("request") or {}).get("schema_sha"))
+    neutral, oh = [], []
+    for c in o:
+        shas = list(dict.fromkeys(shas_by_title.get(c.get("title"), [None])))
+        tried = [(neutral_of(c, sha), None) for sha in shas]
+        tried = [(k, recording.request_hash(k)) for k, _ in tried]
+        k, h = next(((k, h) for k, h in tried if h in nh), tried[0])    # the shape that matches a new row, else the first seen
+        neutral.append(k)
+        oh.append(h)
     FIELDS = ("messages", "schema", "schema_sha", "sampling", "max_tokens", "think", "voice", "input", "model")
 
     def name(c):
@@ -275,7 +284,7 @@ class Replay:
         if err:
             if isinstance(err, dict):                                           # (f527) the interface's own kind and detail
                 raise Failure(err.get("kind") or "server", str(err.get("detail") or ""))
-            raise backend.legacy_failure(err)                                   # a row from before f527 (load() refuses those; --loose reads them)
+            raise backend.legacy_failure(err)                                   # a row from before f527 (load() refuses such a recording; kept for a row served by hand)
         return row
 
     def chat(self, req, deadline=None):
@@ -319,8 +328,9 @@ class _NoServer:
 
 
 def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) -> dict:
-    """Replay one recording. Returns {"matched": n inputs, "of": n, "parted": None | {...where and how}}. on_call(row, k) is told of
-    every call the game makes, with the recorded row it was served (the real-card timing, f443, sends the same request to a model)."""
+    """Replay one recording. Returns {"matched": n inputs, "of": n, "parted": None | {...where and how}}. on_call(row, k, request) is told
+    of every call the game makes, with the recorded row it was served, the neutral request and the request itself (the real-card timing,
+    f443, sends the same request to a model)."""
     rec = load(folder)
     from engine import recording, streams
     from llm import embed, gateway

@@ -117,7 +117,7 @@ from llm import setup_check as _sc
 if os.environ.get("MERAVIA_NO_SERVER") or not _sc.server_up():      # (f518) the server's own answer, where it asked the client for its list
     sys.exit(f"Cannot reach Ollama at {_sc.base_url()}" + (" (MERAVIA_NO_SERVER is set: this process has no model server)"
                                                           if os.environ.get("MERAVIA_NO_SERVER") else "")
-             + f". Start it, make sure the game's model '{config.MODEL}' is pulled, and run this again.")
+             + f". Start it, make sure the game's model '{config.OLLAMA_MODEL}' is pulled, and run this again.")
 
 import simlib
 from engine import banter, mentor, quirks
@@ -202,10 +202,10 @@ def judge(title: str, lines: list[tuple[str, str]], voices: dict[str, str], selv
 
 
 from llm import embed as _embed
-if getattr(config, "EMBED_ENABLED", True) and not _sc.model_present(config.EMBED_MODEL):
+if getattr(config, "EMBED_ENABLED", True) and not _sc.model_present(config.OLLAMA_EMBED_MODEL):
     print(f"Fetching the helper model {config.EMBED_MODEL} (about 270 MB) first...")
     try:
-        _sc.pull_model(lambda f, t: None, name=config.EMBED_MODEL)
+        _sc.pull_model(lambda f, t: None, name=config.OLLAMA_EMBED_MODEL)
     except Exception as e:
         print(f"  could not fetch it ({e}); the word checks will be used")
 out = ["# Live check against the real model", f"Helper model for meaning ({config.EMBED_MODEL}): {'in use' if _embed.available() else 'NOT available - the word checks were used'}", f"Model: {config.MODEL}  ·  runs per scenario: {args.runs}  ·  mode: {args.mode}" + ("  ·  personalities vary by run" if args.vary else ""), ""]

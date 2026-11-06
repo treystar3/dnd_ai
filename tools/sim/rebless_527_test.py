@@ -180,8 +180,10 @@ check("every contract's schema has a grammar", data_check.grammar_problems() == 
 
 # ---- 5. the grammar: llama.cpp's own, pinned from the C++ converter; the body carries it
 pinned = json.loads(Path("tools/sim/gbnf_pinned_527.json").read_text(encoding="utf-8"))
-check("llm/gbnf.py gives llama.cpp's grammar byte for byte on the pinned schemas (integer bounds, optional fields, additionalProperties, $ref with a format)",
-      all(gbnf.grammar(v["schema"]) == v["gbnf"] for v in pinned.values()),
+check("llm/gbnf.py gives llama.cpp's grammar byte for byte on the seven pinned schemas (ActionPlan, Narration, a two-speaker reply; integer bounds, optional fields, additionalProperties, $ref with a format)",
+      len(pinned) == 7 and all(gbnf.grammar(v["schema"]) == v["gbnf"] for v in pinned.values())
+      and pinned["contract_ActionPlan"]["schema"] == contracts.ActionPlan.model_json_schema()
+      and pinned["contract_NPCReplyMany2"]["schema"] == contracts.many_reply(["a", "b"]).model_json_schema(),
       [k for k, v in pinned.items() if gbnf.grammar(v["schema"]) != v["gbnf"]])
 req = backend.ChatRequest(messages=[{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], schema=contracts.Narration,
                           sampling=sampling.resolve("narrate", 0.8).at(0), max_tokens=100)

@@ -46,7 +46,7 @@ class priced:
     says now."""
 
     def __init__(self, **speeds):
-        self.speeds = {k: float(v) for k, v in speeds.items() if k in DEFAULT_PROFILE and v}
+        self.speeds = {k: float(v) for k, v in speeds.items() if k in DEFAULT_PROFILE and v is not None}
 
     def __enter__(self):
         self.before = dict(PROFILE)

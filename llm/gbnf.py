@@ -4,8 +4,9 @@ on the pod).
 
 This is llama.cpp's own converter (common/json-schema.cpp and common/json-schema-to-grammar.cpp at the shipped commit, 39febd2)
 written out in Python, rule for rule, so the grammar the game sends is byte for byte the one the server would have built from the
-schema itself: tools/sim/rebless_527_test.py compares every contract's grammar with the C++ converter's output kept from the pod.
-The subset is the server's: $ref into the same document, anyOf/oneOf (and a type list), allOf, const, enum, null, boolean, number,
+schema itself. Checked against the C++ converter built from that commit on all 88 contract schemas and 24 synthetic ones (6 Nov);
+tools/sim/rebless_527_test.py holds seven of those grammars as the C++ wrote them (three contracts, four synthetic schemas) and
+compares. The subset is the server's: $ref into the same document, anyOf/oneOf (and a type list), allOf, const, enum, null, boolean, number,
 integer with bounds, string with a length or a format (date, time, date-time, uuid), arrays with item bounds, tuples, objects with
 properties and additionalProperties. A string pattern is refused here (the C++ translates some patterns and accepts any string for
 the rest, which this port does not follow): no contract has one, and the startup check says so if one ever gains one, before a
@@ -43,8 +44,8 @@ def _bound(schema: dict, key: str, path: str, round_up: bool) -> int:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         raise SchemaError(f"JSON schema error at {path}: {key} must be a number")
     if isinstance(v, int):
-        return v
-    return int(math.ceil(v) if round_up else math.floor(v))
+        return max(INT64_MIN, min(INT64_MAX, v))
+    return max(INT64_MIN, min(INT64_MAX, int(math.ceil(v) if round_up else math.floor(v))))   # a bound past int64 is int64's (the C++'s cast is undefined there)
 
 
 def _format(schema: dict, path: str) -> str:

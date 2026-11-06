@@ -100,5 +100,409 @@
    ]
   },
   "gbnf": "date ::= [0-9]{4} \"-\" ( \"0\" [1-9] | \"1\" [0-2] ) \"-\" ( \"0\" [1-9] | [1-2] [0-9] | \"3\" [0-1] )\ndate-string ::= \"\\\"\" date \"\\\"\"\nleaves ::= \"[\" space leaves-item (\",\" space leaves-item){0,2} space \"]\"\nleaves-item ::= ref-defs-Leaf\nleaves-kv ::= \"\\\"leaves\\\"\" space \":\" space leaves\nref-defs-Leaf ::= \"{\" space ref-defs-Leaf-v-kv space \"}\"\nref-defs-Leaf-v ::= date-string\nref-defs-Leaf-v-kv ::= \"\\\"v\\\"\" space \":\" space ref-defs-Leaf-v\nroot ::= \"{\" space leaves-kv space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\n"
+ },
+ "contract_ActionPlan": {
+  "schema": {
+   "$defs": {
+    "ActionIntent": {
+     "description": "How the interpreter reads one free-form player input in the world.",
+     "properties": {
+      "kind": {
+       "enum": [
+        "move",
+        "explore",
+        "look",
+        "search",
+        "talk",
+        "leave_conversation",
+        "buy",
+        "sell",
+        "ability",
+        "use",
+        "drop",
+        "pick_up",
+        "give",
+        "show",
+        "discard",
+        "store",
+        "retrieve",
+        "equip",
+        "forage",
+        "craft",
+        "work",
+        "harvest",
+        "join_guild",
+        "board",
+        "accept_quest",
+        "abandon_quest",
+        "train",
+        "learn_ability",
+        "delve",
+        "leave_dungeon",
+        "commission",
+        "wait",
+        "attack",
+        "release",
+        "hand_over",
+        "steal",
+        "unlock",
+        "pray",
+        "gamble",
+        "haggle",
+        "other"
+       ],
+       "title": "Kind",
+       "type": "string"
+      },
+      "destination": {
+       "default": "",
+       "title": "Destination",
+       "type": "string"
+      },
+      "target": {
+       "default": "",
+       "title": "Target",
+       "type": "string"
+      },
+      "speech": {
+       "default": "",
+       "title": "Speech",
+       "type": "string"
+      },
+      "seek": {
+       "default": "",
+       "title": "Seek",
+       "type": "string"
+      },
+      "ware": {
+       "default": "",
+       "title": "Ware",
+       "type": "string"
+      },
+      "ability": {
+       "default": "",
+       "title": "Ability",
+       "type": "string"
+      },
+      "item": {
+       "default": "",
+       "title": "Item",
+       "type": "string"
+      },
+      "count": {
+       "default": 1,
+       "title": "Count",
+       "type": "integer"
+      },
+      "mark": {
+       "default": "",
+       "title": "Mark",
+       "type": "string"
+      },
+      "checks": {
+       "default": [],
+       "items": {
+        "type": "string"
+       },
+       "title": "Checks",
+       "type": "array"
+      },
+      "force": {
+       "default": false,
+       "title": "Force",
+       "type": "boolean"
+      },
+      "wait_minutes": {
+       "default": 0,
+       "title": "Wait Minutes",
+       "type": "integer"
+      },
+      "wait_until": {
+       "default": "",
+       "enum": [
+        "",
+        "before dawn",
+        "dawn",
+        "morning",
+        "midday",
+        "afternoon",
+        "evening",
+        "night",
+        "deep night"
+       ],
+       "title": "Wait Until",
+       "type": "string"
+      },
+      "summary": {
+       "default": "",
+       "title": "Summary",
+       "type": "string"
+      }
+     },
+     "required": [
+      "kind"
+     ],
+     "title": "ActionIntent",
+     "type": "object"
+    }
+   },
+   "description": "What the player does this message: one to three actions, in order. More than three are kept aside (f332: the scene tells the player\nwhat was not done) rather than refused, since the gateway would only retry the whole reading.",
+   "properties": {
+    "actions": {
+     "items": {
+      "$ref": "#/$defs/ActionIntent"
+     },
+     "title": "Actions",
+     "type": "array"
+    }
+   },
+   "required": [
+    "actions"
+   ],
+   "title": "ActionPlan",
+   "type": "object"
+  },
+  "gbnf": "actions ::= \"[\" space (actions-item (\",\" space actions-item)*)? space \"]\"\nactions-item ::= ref-defs-ActionIntent\nactions-kv ::= \"\\\"actions\\\"\" space \":\" space actions\nboolean ::= (\"true\" | \"false\")\nchar ::= [^\"\\\\\\x7F\\x00-\\x1F] | [\\\\] ([\"\\\\bfnrt] | \"u\" [0-9a-fA-F]{4})\ninteger ::= (\"-\"? integral-part)\nintegral-part ::= [0] | [1-9] [0-9]{0,15}\nref-defs-ActionIntent ::= \"{\" space ref-defs-ActionIntent-kind-kv ( \",\" space ( ref-defs-ActionIntent-destination-kv ref-defs-ActionIntent-destination-rest | ref-defs-ActionIntent-target-kv ref-defs-ActionIntent-target-rest | ref-defs-ActionIntent-speech-kv ref-defs-ActionIntent-speech-rest | ref-defs-ActionIntent-seek-kv ref-defs-ActionIntent-seek-rest | ref-defs-ActionIntent-ware-kv ref-defs-ActionIntent-ware-rest | ref-defs-ActionIntent-ability-kv ref-defs-ActionIntent-ability-rest | ref-defs-ActionIntent-item-kv ref-defs-ActionIntent-item-rest | ref-defs-ActionIntent-count-kv ref-defs-ActionIntent-count-rest | ref-defs-ActionIntent-mark-kv ref-defs-ActionIntent-mark-rest | ref-defs-ActionIntent-checks-kv ref-defs-ActionIntent-checks-rest | ref-defs-ActionIntent-force-kv ref-defs-ActionIntent-force-rest | ref-defs-ActionIntent-wait-minutes-kv ref-defs-ActionIntent-wait-minutes-rest | ref-defs-ActionIntent-wait-until-kv ref-defs-ActionIntent-wait-until-rest | ref-defs-ActionIntent-summary-kv ) )? space \"}\"\nref-defs-ActionIntent-ability-kv ::= \"\\\"ability\\\"\" space \":\" space string\nref-defs-ActionIntent-ability-rest ::= ( \",\" space ref-defs-ActionIntent-item-kv )? ref-defs-ActionIntent-item-rest\nref-defs-ActionIntent-checks ::= \"[\" space (string (\",\" space string)*)? space \"]\"\nref-defs-ActionIntent-checks-kv ::= \"\\\"checks\\\"\" space \":\" space ref-defs-ActionIntent-checks\nref-defs-ActionIntent-checks-rest ::= ( \",\" space ref-defs-ActionIntent-force-kv )? ref-defs-ActionIntent-force-rest\nref-defs-ActionIntent-count-kv ::= \"\\\"count\\\"\" space \":\" space integer\nref-defs-ActionIntent-count-rest ::= ( \",\" space ref-defs-ActionIntent-mark-kv )? ref-defs-ActionIntent-mark-rest\nref-defs-ActionIntent-destination-kv ::= \"\\\"destination\\\"\" space \":\" space string\nref-defs-ActionIntent-destination-rest ::= ( \",\" space ref-defs-ActionIntent-target-kv )? ref-defs-ActionIntent-target-rest\nref-defs-ActionIntent-force-kv ::= \"\\\"force\\\"\" space \":\" space boolean\nref-defs-ActionIntent-force-rest ::= ( \",\" space ref-defs-ActionIntent-wait-minutes-kv )? ref-defs-ActionIntent-wait-minutes-rest\nref-defs-ActionIntent-item-kv ::= \"\\\"item\\\"\" space \":\" space string\nref-defs-ActionIntent-item-rest ::= ( \",\" space ref-defs-ActionIntent-count-kv )? ref-defs-ActionIntent-count-rest\nref-defs-ActionIntent-kind ::= (\"\\\"move\\\"\" | \"\\\"explore\\\"\" | \"\\\"look\\\"\" | \"\\\"search\\\"\" | \"\\\"talk\\\"\" | \"\\\"leave_conversation\\\"\" | \"\\\"buy\\\"\" | \"\\\"sell\\\"\" | \"\\\"ability\\\"\" | \"\\\"use\\\"\" | \"\\\"drop\\\"\" | \"\\\"pick_up\\\"\" | \"\\\"give\\\"\" | \"\\\"show\\\"\" | \"\\\"discard\\\"\" | \"\\\"store\\\"\" | \"\\\"retrieve\\\"\" | \"\\\"equip\\\"\" | \"\\\"forage\\\"\" | \"\\\"craft\\\"\" | \"\\\"work\\\"\" | \"\\\"harvest\\\"\" | \"\\\"join_guild\\\"\" | \"\\\"board\\\"\" | \"\\\"accept_quest\\\"\" | \"\\\"abandon_quest\\\"\" | \"\\\"train\\\"\" | \"\\\"learn_ability\\\"\" | \"\\\"delve\\\"\" | \"\\\"leave_dungeon\\\"\" | \"\\\"commission\\\"\" | \"\\\"wait\\\"\" | \"\\\"attack\\\"\" | \"\\\"release\\\"\" | \"\\\"hand_over\\\"\" | \"\\\"steal\\\"\" | \"\\\"unlock\\\"\" | \"\\\"pray\\\"\" | \"\\\"gamble\\\"\" | \"\\\"haggle\\\"\" | \"\\\"other\\\"\")\nref-defs-ActionIntent-kind-kv ::= \"\\\"kind\\\"\" space \":\" space ref-defs-ActionIntent-kind\nref-defs-ActionIntent-mark-kv ::= \"\\\"mark\\\"\" space \":\" space string\nref-defs-ActionIntent-mark-rest ::= ( \",\" space ref-defs-ActionIntent-checks-kv )? ref-defs-ActionIntent-checks-rest\nref-defs-ActionIntent-seek-kv ::= \"\\\"seek\\\"\" space \":\" space string\nref-defs-ActionIntent-seek-rest ::= ( \",\" space ref-defs-ActionIntent-ware-kv )? ref-defs-ActionIntent-ware-rest\nref-defs-ActionIntent-speech-kv ::= \"\\\"speech\\\"\" space \":\" space string\nref-defs-ActionIntent-speech-rest ::= ( \",\" space ref-defs-ActionIntent-seek-kv )? ref-defs-ActionIntent-seek-rest\nref-defs-ActionIntent-summary-kv ::= \"\\\"summary\\\"\" space \":\" space string\nref-defs-ActionIntent-target-kv ::= \"\\\"target\\\"\" space \":\" space string\nref-defs-ActionIntent-target-rest ::= ( \",\" space ref-defs-ActionIntent-speech-kv )? ref-defs-ActionIntent-speech-rest\nref-defs-ActionIntent-wait-minutes-kv ::= \"\\\"wait_minutes\\\"\" space \":\" space integer\nref-defs-ActionIntent-wait-minutes-rest ::= ( \",\" space ref-defs-ActionIntent-wait-until-kv )? ref-defs-ActionIntent-wait-until-rest\nref-defs-ActionIntent-wait-until ::= (\"\\\"\\\"\" | \"\\\"before dawn\\\"\" | \"\\\"dawn\\\"\" | \"\\\"morning\\\"\" | \"\\\"midday\\\"\" | \"\\\"afternoon\\\"\" | \"\\\"evening\\\"\" | \"\\\"night\\\"\" | \"\\\"deep night\\\"\")\nref-defs-ActionIntent-wait-until-kv ::= \"\\\"wait_until\\\"\" space \":\" space ref-defs-ActionIntent-wait-until\nref-defs-ActionIntent-wait-until-rest ::= ( \",\" space ref-defs-ActionIntent-summary-kv )?\nref-defs-ActionIntent-ware-kv ::= \"\\\"ware\\\"\" space \":\" space string\nref-defs-ActionIntent-ware-rest ::= ( \",\" space ref-defs-ActionIntent-ability-kv )? ref-defs-ActionIntent-ability-rest\nroot ::= \"{\" space actions-kv space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\nstring ::= \"\\\"\" char* \"\\\"\"\n"
+ },
+ "contract_Narration": {
+  "schema": {
+   "properties": {
+    "text": {
+     "title": "Text",
+     "type": "string"
+    }
+   },
+   "required": [
+    "text"
+   ],
+   "title": "Narration",
+   "type": "object"
+  },
+  "gbnf": "char ::= [^\"\\\\\\x7F\\x00-\\x1F] | [\\\\] ([\"\\\\bfnrt] | \"u\" [0-9a-fA-F]{4})\nroot ::= \"{\" space text-kv space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\nstring ::= \"\\\"\" char* \"\\\"\"\ntext-kv ::= \"\\\"text\\\"\" space \":\" space string\n"
+ },
+ "contract_NPCReplyMany2": {
+  "schema": {
+   "$defs": {
+    "GiftProposal": {
+     "properties": {
+      "name": {
+       "title": "Name",
+       "type": "string"
+      },
+      "description": {
+       "default": "",
+       "title": "Description",
+       "type": "string"
+      },
+      "kind": {
+       "default": "key",
+       "enum": [
+        "key",
+        "quest"
+       ],
+       "title": "Kind",
+       "type": "string"
+      },
+      "for_whom": {
+       "default": "",
+       "title": "For Whom",
+       "type": "string"
+      }
+     },
+     "required": [
+      "name"
+     ],
+     "title": "GiftProposal",
+     "type": "object"
+    },
+    "NPCAnswer": {
+     "properties": {
+      "to": {
+       "enum": [
+        "a",
+        "b"
+       ],
+       "title": "To",
+       "type": "string"
+      },
+      "trust_change": {
+       "default": 0,
+       "title": "Trust Change",
+       "type": "integer"
+      },
+      "learned_name": {
+       "default": "",
+       "title": "Learned Name",
+       "type": "string"
+      },
+      "remember": {
+       "default": "",
+       "title": "Remember",
+       "type": "string"
+      },
+      "journal_note": {
+       "default": "",
+       "title": "Journal Note",
+       "type": "string"
+      },
+      "offers_work": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/WorkOffer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      },
+      "offers_quest": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/QuestOffer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      },
+      "gives": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/GiftProposal"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      }
+     },
+     "required": [
+      "to"
+     ],
+     "title": "NPCAnswer",
+     "type": "object"
+    },
+    "QuestOffer": {
+     "properties": {
+      "kind": {
+       "enum": [
+        "hunt",
+        "gather",
+        "deliver"
+       ],
+       "title": "Kind",
+       "type": "string"
+      },
+      "what": {
+       "title": "What",
+       "type": "string"
+      },
+      "count": {
+       "default": 1,
+       "title": "Count",
+       "type": "integer"
+      },
+      "to": {
+       "default": "",
+       "title": "To",
+       "type": "string"
+      },
+      "item": {
+       "default": "",
+       "title": "Item",
+       "type": "string"
+      }
+     },
+     "required": [
+      "kind",
+      "what"
+     ],
+     "title": "QuestOffer",
+     "type": "object"
+    },
+    "WorkOffer": {
+     "properties": {
+      "task": {
+       "title": "Task",
+       "type": "string"
+      },
+      "pay": {
+       "default": 0,
+       "title": "Pay",
+       "type": "integer"
+      },
+      "minutes": {
+       "default": 60,
+       "title": "Minutes",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "task"
+     ],
+     "title": "WorkOffer",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "speech": {
+     "title": "Speech",
+     "type": "string"
+    },
+    "gesture": {
+     "default": "",
+     "title": "Gesture",
+     "type": "string"
+    },
+    "intent": {
+     "enum": [
+      "small_talk",
+      "share",
+      "withhold",
+      "lie",
+      "bargain",
+      "help",
+      "refuse",
+      "threaten",
+      "leave"
+     ],
+     "title": "Intent",
+     "type": "string"
+    },
+    "reveals": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Reveals",
+     "type": "array"
+    },
+    "told_own_name": {
+     "default": false,
+     "title": "Told Own Name",
+     "type": "boolean"
+    },
+    "answers": {
+     "items": {
+      "$ref": "#/$defs/NPCAnswer"
+     },
+     "maxItems": 2,
+     "minItems": 2,
+     "title": "Answers",
+     "type": "array"
+    }
+   },
+   "required": [
+    "speech",
+    "intent",
+    "answers"
+   ],
+   "title": "NPCReplyMany",
+   "type": "object"
+  },
+  "gbnf": "answers ::= \"[\" space answers-item (\",\" space answers-item){1,1} space \"]\"\nanswers-item ::= ref-defs-NPCAnswer\nanswers-kv ::= \"\\\"answers\\\"\" space \":\" space answers\nboolean ::= (\"true\" | \"false\")\nchar ::= [^\"\\\\\\x7F\\x00-\\x1F] | [\\\\] ([\"\\\\bfnrt] | \"u\" [0-9a-fA-F]{4})\ngesture-kv ::= \"\\\"gesture\\\"\" space \":\" space string\ngesture-rest ::= ( \",\" space reveals-kv )? reveals-rest\ninteger ::= (\"-\"? integral-part)\nintegral-part ::= [0] | [1-9] [0-9]{0,15}\nintent ::= (\"\\\"small_talk\\\"\" | \"\\\"share\\\"\" | \"\\\"withhold\\\"\" | \"\\\"lie\\\"\" | \"\\\"bargain\\\"\" | \"\\\"help\\\"\" | \"\\\"refuse\\\"\" | \"\\\"threaten\\\"\" | \"\\\"leave\\\"\")\nintent-kv ::= \"\\\"intent\\\"\" space \":\" space intent\nnull ::= \"null\"\nref-defs-GiftProposal ::= \"{\" space ref-defs-GiftProposal-name-kv ( \",\" space ( ref-defs-GiftProposal-description-kv ref-defs-GiftProposal-description-rest | ref-defs-GiftProposal-kind-kv ref-defs-GiftProposal-kind-rest | ref-defs-GiftProposal-for-whom-kv ) )? space \"}\"\nref-defs-GiftProposal-description-kv ::= \"\\\"description\\\"\" space \":\" space string\nref-defs-GiftProposal-description-rest ::= ( \",\" space ref-defs-GiftProposal-kind-kv )? ref-defs-GiftProposal-kind-rest\nref-defs-GiftProposal-for-whom-kv ::= \"\\\"for_whom\\\"\" space \":\" space string\nref-defs-GiftProposal-kind ::= (\"\\\"key\\\"\" | \"\\\"quest\\\"\")\nref-defs-GiftProposal-kind-kv ::= \"\\\"kind\\\"\" space \":\" space ref-defs-GiftProposal-kind\nref-defs-GiftProposal-kind-rest ::= ( \",\" space ref-defs-GiftProposal-for-whom-kv )?\nref-defs-GiftProposal-name-kv ::= \"\\\"name\\\"\" space \":\" space string\nref-defs-NPCAnswer ::= \"{\" space ref-defs-NPCAnswer-to-kv ( \",\" space ( ref-defs-NPCAnswer-trust-change-kv ref-defs-NPCAnswer-trust-change-rest | ref-defs-NPCAnswer-learned-name-kv ref-defs-NPCAnswer-learned-name-rest | ref-defs-NPCAnswer-remember-kv ref-defs-NPCAnswer-remember-rest | ref-defs-NPCAnswer-journal-note-kv ref-defs-NPCAnswer-journal-note-rest | ref-defs-NPCAnswer-offers-work-kv ref-defs-NPCAnswer-offers-work-rest | ref-defs-NPCAnswer-offers-quest-kv ref-defs-NPCAnswer-offers-quest-rest | ref-defs-NPCAnswer-gives-kv ) )? space \"}\"\nref-defs-NPCAnswer-gives ::= ref-defs-NPCAnswer-gives-0 | null\nref-defs-NPCAnswer-gives-0 ::= ref-defs-GiftProposal\nref-defs-NPCAnswer-gives-kv ::= \"\\\"gives\\\"\" space \":\" space ref-defs-NPCAnswer-gives\nref-defs-NPCAnswer-journal-note-kv ::= \"\\\"journal_note\\\"\" space \":\" space string\nref-defs-NPCAnswer-journal-note-rest ::= ( \",\" space ref-defs-NPCAnswer-offers-work-kv )? ref-defs-NPCAnswer-offers-work-rest\nref-defs-NPCAnswer-learned-name-kv ::= \"\\\"learned_name\\\"\" space \":\" space string\nref-defs-NPCAnswer-learned-name-rest ::= ( \",\" space ref-defs-NPCAnswer-remember-kv )? ref-defs-NPCAnswer-remember-rest\nref-defs-NPCAnswer-offers-quest ::= ref-defs-NPCAnswer-offers-quest-0 | null\nref-defs-NPCAnswer-offers-quest-0 ::= ref-defs-QuestOffer\nref-defs-NPCAnswer-offers-quest-kv ::= \"\\\"offers_quest\\\"\" space \":\" space ref-defs-NPCAnswer-offers-quest\nref-defs-NPCAnswer-offers-quest-rest ::= ( \",\" space ref-defs-NPCAnswer-gives-kv )?\nref-defs-NPCAnswer-offers-work ::= ref-defs-NPCAnswer-offers-work-0 | null\nref-defs-NPCAnswer-offers-work-0 ::= ref-defs-WorkOffer\nref-defs-NPCAnswer-offers-work-kv ::= \"\\\"offers_work\\\"\" space \":\" space ref-defs-NPCAnswer-offers-work\nref-defs-NPCAnswer-offers-work-rest ::= ( \",\" space ref-defs-NPCAnswer-offers-quest-kv )? ref-defs-NPCAnswer-offers-quest-rest\nref-defs-NPCAnswer-remember-kv ::= \"\\\"remember\\\"\" space \":\" space string\nref-defs-NPCAnswer-remember-rest ::= ( \",\" space ref-defs-NPCAnswer-journal-note-kv )? ref-defs-NPCAnswer-journal-note-rest\nref-defs-NPCAnswer-to ::= (\"\\\"a\\\"\" | \"\\\"b\\\"\")\nref-defs-NPCAnswer-to-kv ::= \"\\\"to\\\"\" space \":\" space ref-defs-NPCAnswer-to\nref-defs-NPCAnswer-trust-change-kv ::= \"\\\"trust_change\\\"\" space \":\" space integer\nref-defs-NPCAnswer-trust-change-rest ::= ( \",\" space ref-defs-NPCAnswer-learned-name-kv )? ref-defs-NPCAnswer-learned-name-rest\nref-defs-QuestOffer ::= \"{\" space ref-defs-QuestOffer-kind-kv \",\" space ref-defs-QuestOffer-what-kv ( \",\" space ( ref-defs-QuestOffer-count-kv ref-defs-QuestOffer-count-rest | ref-defs-QuestOffer-to-kv ref-defs-QuestOffer-to-rest | ref-defs-QuestOffer-item-kv ) )? space \"}\"\nref-defs-QuestOffer-count-kv ::= \"\\\"count\\\"\" space \":\" space integer\nref-defs-QuestOffer-count-rest ::= ( \",\" space ref-defs-QuestOffer-to-kv )? ref-defs-QuestOffer-to-rest\nref-defs-QuestOffer-item-kv ::= \"\\\"item\\\"\" space \":\" space string\nref-defs-QuestOffer-kind ::= (\"\\\"hunt\\\"\" | \"\\\"gather\\\"\" | \"\\\"deliver\\\"\")\nref-defs-QuestOffer-kind-kv ::= \"\\\"kind\\\"\" space \":\" space ref-defs-QuestOffer-kind\nref-defs-QuestOffer-to-kv ::= \"\\\"to\\\"\" space \":\" space string\nref-defs-QuestOffer-to-rest ::= ( \",\" space ref-defs-QuestOffer-item-kv )?\nref-defs-QuestOffer-what-kv ::= \"\\\"what\\\"\" space \":\" space string\nref-defs-WorkOffer ::= \"{\" space ref-defs-WorkOffer-task-kv ( \",\" space ( ref-defs-WorkOffer-pay-kv ref-defs-WorkOffer-pay-rest | ref-defs-WorkOffer-minutes-kv ) )? space \"}\"\nref-defs-WorkOffer-minutes-kv ::= \"\\\"minutes\\\"\" space \":\" space integer\nref-defs-WorkOffer-pay-kv ::= \"\\\"pay\\\"\" space \":\" space integer\nref-defs-WorkOffer-pay-rest ::= ( \",\" space ref-defs-WorkOffer-minutes-kv )?\nref-defs-WorkOffer-task-kv ::= \"\\\"task\\\"\" space \":\" space string\nreveals ::= \"[\" space (string (\",\" space string)*)? space \"]\"\nreveals-kv ::= \"\\\"reveals\\\"\" space \":\" space reveals\nreveals-rest ::= ( \",\" space told-own-name-kv )?\nroot ::= \"{\" space speech-kv \",\" space intent-kv \",\" space answers-kv ( \",\" space ( gesture-kv gesture-rest | reveals-kv reveals-rest | told-own-name-kv ) )? space \"}\"\nspace ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\nspeech-kv ::= \"\\\"speech\\\"\" space \":\" space string\nstring ::= \"\\\"\" char* \"\\\"\"\ntold-own-name-kv ::= \"\\\"told_own_name\\\"\" space \":\" space boolean\n"
  }
 }
