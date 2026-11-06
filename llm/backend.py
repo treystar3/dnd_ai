@@ -427,25 +427,41 @@ def current_session() -> str | None:
     return getattr(_lane, "session", None)
 
 
+def _source_has(name: str):
+    """The source's own method, or None. (f523's review) A source that cannot be made (a malformed DND_LLAMA_URL) fails its model calls,
+    as it always did, never a save's opening or closing."""
+    try:
+        return getattr(source(), name, None)
+    except Exception:
+        return None
+
+
 def promote(thread) -> None:
-    """(f523) The turn waits on this background thread's work (npc/backfill.py settle and collect, creation's result()): its call is
-    never taken back from it again and starts without waiting for the reading time. Nothing for a source with no worker."""
-    fn = getattr(source(), "promote", None)
-    ident = getattr(thread, "ident", thread)
-    if fn is not None and ident is not None:
-        fn(ident)
+    """(f523) The turn waits on this background thread's work (npc/backfill.py settle and collect, creation's result()): its calls are
+    never taken back from it again and start without waiting for the reading time, while the thread lives. The Thread itself is
+    passed on, never only its ident. Nothing for a source with no worker."""
+    fn = _source_has("promote")
+    if fn is not None and thread is not None:
+        fn(thread)
+
+
+def waiting(run):
+    """(f523's review) The turn waiting on a background job (backfill's collect, creation's result), run through the layers as op
+    'wait': the busy light shows while the player waits on it, as it did when the job's call was the foreground's; the recorder and
+    the night's counter pass it by, as they pass the model's warm-up."""
+    return _through("wait", None, lambda _: run())
 
 
 def cancel_session(key: str) -> int:
     """(f523) A campaign closing (engine/session.py close): its background calls end Cancelled, waiting or in flight; another
     campaign's go on. Returns how many were in flight; nothing for a source with no worker."""
-    fn = getattr(source(), "cancel_session", None)
+    fn = _source_has("cancel_session")
     return int(fn(str(key)) or 0) if fn is not None else 0
 
 
 def reopen_session(key: str) -> None:
     """(f523) The campaign is open again (the same save loaded after it was closed): its background calls may run."""
-    fn = getattr(source(), "reopen_session", None)
+    fn = _source_has("reopen_session")
     if fn is not None:
         fn(str(key))
 

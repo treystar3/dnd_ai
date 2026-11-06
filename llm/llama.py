@@ -344,9 +344,9 @@ class LlamaServer:
             return self.worker.background(lambda flag: self._send(req, deadline, flag), backend.current_session())
         return self.worker.foreground(lambda flag: self._send(req, deadline, cancel), lane)
 
-    def promote(self, thread_ident: int) -> None:
+    def promote(self, thread) -> None:
         if self.worker is not None:
-            self.worker.promote(thread_ident)
+            self.worker.promote(thread)
 
     def cancel_session(self, key: str) -> int:
         return self.worker.cancel_session(key) if self.worker is not None else 0

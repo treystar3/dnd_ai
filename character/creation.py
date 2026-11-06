@@ -116,8 +116,9 @@ class PassivesInBackground:
 
     def result(self) -> list[Passive]:
         from llm import backend
-        backend.promote(self.thread)                   # (f523) the player is waiting on it now: it keeps the card and starts at once
-        self.done.wait()
+        if not self.done.is_set():
+            backend.promote(self.thread)               # (f523) the player is waiting on it now: it keeps the card and starts at once
+            backend.waiting(self.done.wait)            # (f523's review) through the layers: the busy light shows while the player waits
         if self.value is not None:
             return self.value
         return generate_passives(self.interp, self.actives)

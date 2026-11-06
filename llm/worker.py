@@ -13,9 +13,13 @@ character/creation.py's _run(); input, the night bot's line, which never takes t
   resume_idle_seconds, so a recording keeps one row for it and its caller never knows.
 - A background call waits while a foreground call runs, and for resume_idle_seconds after the last one ended, so it starts in the
   player's reading time, not between two calls of one turn.
-- promote(thread): the turn waits on that background job (npc/backfill.py settle and collect, creation's result()): its call is never
-  cancelled again and starts without the idle wait.
-- After max_cancels, a call runs beside a turn rather than starve (a fast typist and a 47-second populate_place).
+- promote(thread): the turn waits on that background job (npc/backfill.py settle and collect, creation's result()): its calls are never
+  cancelled again and start without the idle wait, every call the job makes until its thread ends. (f523's review) A promotion names
+  the Thread itself, never only its ident (Linux hands a finished thread's ident to the next one at once), and a finished thread is
+  never promoted.
+- After max_cancels, a call runs beside a turn rather than starve (a fast typist and a 47-second populate_place); and so does a call
+  that has waited max_wait seconds without being let in at all (turns less than resume_idle apart never leave it a reading time:
+  the owner's "after it has been put off twice", two turns of the 60-second budget).
 - cancel_session(key): a closing campaign's background calls end Cancelled (in flight or waiting); another campaign's go on.
 - close(): every call in flight ends Cancelled; nothing waits.
 - STRICT (a session that must replay exactly): nothing is ever preempted, so the recorded rows keep their order (its background
@@ -31,29 +35,38 @@ from llm.errors import Cancelled, Failure
 
 
 class _Call:
-    __slots__ = ("thread", "lane", "session", "cancels", "flag", "reason")
+    __slots__ = ("thread", "obj", "lane", "session", "cancels", "flag", "reason", "since")
 
     def __init__(self, thread: int, lane: str, session: str | None):
         self.thread, self.lane, self.session = thread, lane, session
+        self.obj = threading.current_thread()          # (f523's review) the Thread itself: an ident is reused once its thread ends
         self.cancels = 0
         self.flag: threading.Event | None = None
         self.reason = ""
+        self.since = time.monotonic()
 
 
 class Worker:
-    def __init__(self, max_cancels: int = 3, resume_idle: float = 2.0, step: float = 0.05):
+    def __init__(self, max_cancels: int = 3, resume_idle: float = 2.0, step: float = 0.05, max_wait: float = 120.0):
         self.max_cancels, self.resume_idle, self.step = int(max_cancels), float(resume_idle), float(step)
+        self.max_wait = float(max_wait)
         self._cv = threading.Condition()
         self._foreground = 0
         self._last_foreground = 0.0
         self._background: dict[int, _Call] = {}        # a background thread's call, waiting or in flight
-        self._promoted: set[int] = set()
+        self._promoted: dict[int, threading.Thread] = {}   # ident -> the Thread promoted (the ident alone may be another thread's)
         self._closed_sessions: set[str] = set()
         self._closed = False
         self.preempted = 0                             # how many times a background call gave the card back (the night counts it)
         self.waited_ms = 0.0                           # how long background calls waited for the card, in all
 
     # -- the turn's side
+    def _is_promoted(self, call: _Call) -> bool:
+        return self._promoted.get(call.thread) is call.obj
+
+    def _given_up_waiting(self, call: _Call) -> bool:
+        return time.monotonic() - call.since >= self.max_wait
+
     def _strict(self) -> bool:
         try:
             from engine import streams
@@ -70,7 +83,8 @@ class Worker:
                 self._foreground += 1
                 if not self._strict():
                     for c in self._background.values():
-                        if c.flag is not None and c.cancels < self.max_cancels and c.thread not in self._promoted:
+                        if (c.flag is not None and c.cancels < self.max_cancels and not self._is_promoted(c)
+                                and not self._given_up_waiting(c)):
                             c.reason = "preempted"
                             c.flag.set()
         try:
@@ -91,14 +105,13 @@ class Worker:
             self._background[me] = call
         try:
             while True:
-                self._admit(call)
-                flag = threading.Event()
-                with self._cv:
-                    call.flag, call.reason = flag, ""
+                flag = self._admit(call)                    # (f523's review) armed in the same hold of the lock that lets it in
                 try:
                     return send(flag)
                 except Failure as f:
-                    if f.kind != "cancelled" or call.reason != "preempted":
+                    with self._cv:
+                        preempted = call.reason == "preempted"
+                    if f.kind != "cancelled" or not preempted:
                         raise
                     with self._cv:
                         call.cancels += 1
@@ -110,30 +123,43 @@ class Worker:
                         call.flag = None
         finally:
             with self._cv:
-                self._background.pop(me, None)
-                self._promoted.discard(me)
-                self._cv.notify_all()
+                self._background.pop(me, None)              # a promotion lasts while its thread lives: the job's next call is
+                self._cv.notify_all()                       # the turn's wait too (the gateway's retry, a second generate)
 
-    def _admit(self, call: _Call) -> None:
+    def _admit(self, call: _Call) -> threading.Event:
+        """Wait until the call may be sent, then arm its cancel flag in the same hold of the lock (f523's review: a foreground call,
+        cancel_session or close landing between the two found no flag, and the call was sent anyway)."""
         t0 = time.monotonic()
         with self._cv:
             while True:
                 if self._closed or (call.session is not None and call.session in self._closed_sessions):
                     raise Cancelled("the campaign that asked is closing")
-                if call.thread in self._promoted or call.cancels >= self.max_cancels or self._strict():
-                    break
+                if (self._is_promoted(call) or (call.cancels and call.cancels >= self.max_cancels) or self._strict()
+                        or self._given_up_waiting(call)):
+                    break                               # (max_cancels 0 never takes the card back, and still waits for the reading time)
                 idle = time.monotonic() - self._last_foreground
                 if self._foreground == 0 and idle >= self.resume_idle:
                     break
-                self._cv.wait(self.step if self._foreground else max(self.step, self.resume_idle - idle))
-        self.waited_ms += (time.monotonic() - t0) * 1000.0
+                left = self.max_wait - (time.monotonic() - call.since)
+                self._cv.wait(max(0.0, min(left, self.step if self._foreground else max(self.step, self.resume_idle - idle))))
+            flag = threading.Event()
+            call.flag, call.reason = flag, ""
+            self.waited_ms += (time.monotonic() - t0) * 1000.0
+        return flag
 
     # -- promotion, cancels
-    def promote(self, thread_ident: int | None) -> None:
-        if thread_ident is None:
+    def promote(self, thread) -> None:
+        """The turn waits on this thread's job (a Thread, or a live thread's ident). (f523's review) A thread that has ended is never
+        promoted (its ident may already be another job's), and promotions of ended threads are let go here, so the table never grows."""
+        if thread is None:
+            return
+        t = thread if isinstance(thread, threading.Thread) else next((x for x in threading.enumerate() if x.ident == int(thread)), None)
+        if t is None or not t.is_alive() or t.ident is None:
             return
         with self._cv:
-            self._promoted.add(int(thread_ident))
+            for k in [k for k, v in self._promoted.items() if not v.is_alive()]:
+                del self._promoted[k]
+            self._promoted[t.ident] = t
             self._cv.notify_all()
 
     def cancel_session(self, session: str) -> int:
@@ -164,4 +190,6 @@ class Worker:
 
     def stats(self) -> dict:
         with self._cv:
-            return {"preempted": self.preempted, "background_wait_ms": round(self.waited_ms), "in_flight": len(self._background)}
+            flying = sum(1 for c in self._background.values() if c.flag is not None)
+            return {"preempted": self.preempted, "background_wait_ms": round(self.waited_ms), "in_flight": flying,
+                    "waiting": len(self._background) - flying}

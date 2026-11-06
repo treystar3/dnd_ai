@@ -104,6 +104,9 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
     idle = s.get("resume_idle_seconds")
     if isinstance(idle, bool) or not isinstance(idle, (int, float)) or idle < 0:
         bad.append("data/runtime/server.yaml server.resume_idle_seconds: a number of seconds, zero or more")
+    most = s.get("max_wait_seconds")
+    if isinstance(most, bool) or not isinstance(most, (int, float)) or most <= 0:
+        bad.append("data/runtime/server.yaml server.max_wait_seconds: a number of seconds above zero")
     e = cfg.get("embed") or {}
     for k in ("ctx", "batch", "ubatch", "max_chars"):
         v = e.get(k)
@@ -812,7 +815,8 @@ class Runtime:
             self.source = llama.LlamaServer(server, None, machine={"slot_ctx": self.facts_["slot_ctx"],
                                                                    "slots": {"foreground": 0, "background": 1, "input": 0}},
                                             worker=self.worker or worker_mod.Worker(int(s.get("max_cancels", 3)),
-                                                                                    float(s.get("resume_idle_seconds", 2))))
+                                                                                    float(s.get("resume_idle_seconds", 2)),
+                                                                                    max_wait=float(s.get("max_wait_seconds", 120))))
             self.worker = self.source.worker               # (f523) one worker for the session, kept across a restart
             self._write_run_files()
             tell(0.97)
@@ -986,9 +990,9 @@ class Managed:
     def cancel(self, thread_ident=None):
         return self.rt.source.cancel(thread_ident) if self.rt.source is not None else 0
 
-    def promote(self, thread_ident):
+    def promote(self, thread):
         if self.rt.source is not None:
-            self.rt.source.promote(thread_ident)
+            self.rt.source.promote(thread)
 
     def cancel_session(self, key):
         return self.rt.source.cancel_session(key) if self.rt.source is not None else 0

@@ -75,10 +75,10 @@ def collect(store, world, catalog, wait_for: str | None = None, wait_all: bool =
         job = _jobs.get(key)
         if job is None:
             continue
-        if pid == wait_for or wait_all:
+        if (pid == wait_for or wait_all) and not job["done"].is_set():
             from llm import backend
             backend.promote(job.get("thread"))          # (f523) the turn waits on it: it keeps the card and starts at once
-            job["done"].wait()
+            backend.waiting(job["done"].wait)           # (f523's review) through the layers: the busy light shows while the turn waits
         if not job["done"].is_set():
             continue
         with _lock:

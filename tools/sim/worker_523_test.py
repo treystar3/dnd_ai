@@ -9,6 +9,10 @@
 - close() mid-call ends it Cancelled with nothing counted; in a STRICT session nothing is ever preempted.
 - Closing campaign A cancels A's background call and not B's; a session's close cancels its backfill before joining it.
 - A background call never lights the busy light.
+- (f523's review, fixed) The turn waiting on a background job lights it, on any source; a finished thread is never promoted and a
+  promotion names the Thread, not its ident; a promotion lasts the job's every call; a call is armed in the same hold that lets it
+  in, so no foreground call, campaign close or close slips between; a call waiting max_wait runs beside the turn and is not taken
+  back; max_cancels 0 still waits for the reading time; a source that cannot be made never fails a save's opening.
 
 Run: python tools/sim/worker_523_test.py"""
 
@@ -291,6 +295,225 @@ finally:
     fake2.close()
     import shutil
     shutil.rmtree("saves/worker523", ignore_errors=True)
+
+# ---- (f523's review) the turn waiting on a background job lights the busy light, on any source (here the suite's stand-in)
+from character import creation as _creation
+from ui.gui import bridge as _gb
+
+
+def slow_reply(**k):
+    time.sleep(1.0)
+
+    class M:
+        content = '{"x": "people"}'
+
+    class R:
+        message = M()
+    return R()
+
+
+lit_w: list = []
+
+
+class _Win:
+    busy_label = ""
+
+    def __init__(self):
+        self.lock, self.depth = threading.Lock(), 0
+
+    def busy(self, on):
+        lit_w.append(on)
+
+
+win = _Win()
+undo_src = backend.use(backend.StandIn(chat=slow_reply))
+undo_busy = backend.wrap(lambda op, req, call: _gb.Bridge.busy_layer(win, op, req, call), rank=backend.BUSY)
+try:
+    class _Store:
+        root = "worker523-busy"
+    done_j = threading.Event()
+    job = {"slots": [], "result": None, "error": None, "done": done_j}
+
+    def job_body():
+        try:
+            with backend.lane("background", session=_Store.root):
+                chat("people")
+        finally:
+            done_j.set()
+    job["thread"] = threading.Thread(target=job_body, daemon=True)
+    with backfill._lock:
+        backfill._jobs[(_Store.root, "the-place")] = job
+    job["thread"].start()
+    time.sleep(0.1)
+    lit_w.clear()
+    backfill.collect(_Store(), None, None, wait_for="the-place")
+    check("the turn waiting on the people being written lights the busy light", done_j.is_set() and True in lit_w, lit_w)
+    real_gen = _creation.generate_passives
+    _creation.generate_passives = lambda interp, actives: (chat("passives"), [])[1]
+    try:
+        lit_w.clear()
+        pb = _creation.PassivesInBackground(None, [], session_key="S")
+        time.sleep(0.1)
+        got = pb.result()
+    finally:
+        _creation.generate_passives = real_gen
+    check("and so does the player waiting on creation's passives", got == [] and True in lit_w, lit_w)
+    lit_w.clear()
+    backfill.collect(_Store(), None, None, wait_for="the-place")
+    pb.result()
+    check("a job already done is not waited on, so nothing lights", lit_w == [], lit_w)
+finally:
+    undo_busy()
+    undo_src()
+
+# ---- promotions name the Thread, last the job, and never a finished thread
+wp = worker.Worker(max_cancels=3, resume_idle=5.0)
+ended = threading.Thread(target=lambda: None)
+ended.start()
+ended.join()
+wp.promote(ended)
+wp.promote(ended.ident)
+check("a finished thread is never promoted", wp._promoted == {}, wp._promoted)
+holder = {}
+
+
+def make_call():
+    holder["call"] = worker._Call(threading.get_ident(), "background", None)
+    holder["ident"] = threading.get_ident()
+    time.sleep(0.3)
+
+
+tc = threading.Thread(target=make_call)
+tc.start()
+wait_for(lambda: "call" in holder, 2)
+wp._promoted[holder["ident"]] = ended                 # another Thread under the same ident, as Linux hands an ident on
+check("a promotion of another thread under the same ident does not count", not wp._is_promoted(holder["call"]))
+wp.promote(tc)
+check("the thread's own promotion does", wp._is_promoted(holder["call"]))
+tc.join()
+
+src_p, w_p = source(resume_idle=5.0)
+undo_p = backend.use(src_p)
+try:
+    w_p._last_foreground = time.monotonic()           # a turn's call has just ended: an unpromoted call would wait 5 s
+    go, outp = threading.Event(), {}
+
+    def two_calls():
+        go.wait(5)
+        t0 = time.monotonic()
+        outp["a"] = chat("p-one").text
+        outp["b"] = chat("p-two").text
+        outp["took"] = time.monotonic() - t0
+    tp = in_lane("background", two_calls, session="P", out=outp, key="ret")
+    w_p.promote(tp)
+    go.set()
+    tp.join(10)
+    check("a promotion lasts the job's every call, not its first alone", outp.get("b") == '{"x": "p-two"}' and outp.get("took", 99) < 2.0,
+          outp)
+finally:
+    undo_p()
+
+# ---- the cancel flag is armed in the same hold that lets the call in
+real_switch = sys.getswitchinterval()
+sys.setswitchinterval(1e-6)
+escaped = {"fg": 0, "cancel": 0, "close": 0}
+try:
+    for _ in range(60):
+        for kind in escaped:
+            wr = worker.Worker(max_cancels=3, resume_idle=0.0, step=0.001)
+            res = {}
+
+            def send_bg(flag, wr=wr, res=res, kind=kind):
+                fg_now = wr._foreground > 0
+                if flag.wait(0.02):
+                    raise Failure("cancelled", "x")
+                res["escaped"] = fg_now if kind == "fg" else True
+                return "answer"
+
+            def bg_side(wr=wr, res=res):
+                try:
+                    wr.background(send_bg, session="S")
+                except BaseException as e:
+                    res["err"] = e
+
+            def other_side(wr=wr, kind=kind):
+                while not wr._background:
+                    pass
+                if kind == "fg":
+                    wr.foreground(lambda _: time.sleep(0.02))
+                elif kind == "cancel":
+                    wr.cancel_session("S")
+                else:
+                    wr.close()
+            b = threading.Thread(target=other_side)
+            b.start()
+            a = threading.Thread(target=bg_side)
+            a.start()
+            a.join(5)
+            b.join(5)
+            escaped[kind] += bool(res.get("escaped"))
+finally:
+    sys.setswitchinterval(real_switch)
+check("no foreground call, campaign close or close slips between letting a call in and arming it", escaped == {"fg": 0, "cancel": 0, "close": 0},
+      escaped)
+
+# ---- a call that has waited max_wait runs beside the turn, and is not taken back
+ws = worker.Worker(max_cancels=3, resume_idle=2.0, max_wait=1.0)
+t0s = time.monotonic()
+ress = {}
+
+
+def bg_starving():
+    def send(flag):
+        ress["at"] = time.monotonic() - t0s
+        ress["cancelled"] = flag.wait(1.0)
+        return "answer"
+    ress["r"] = ws.background(send, session="S")
+
+
+ws.foreground(lambda _: time.sleep(0.2))
+bs = threading.Thread(target=bg_starving, daemon=True)
+bs.start()
+end = time.monotonic() + 3.5
+while time.monotonic() < end:                          # turns 0.4 s apart: no reading time ever comes
+    ws.foreground(lambda _: time.sleep(0.3))
+    time.sleep(0.1)
+bs.join(3)
+check("a call that has waited max_wait runs beside the turn", ress.get("r") == "answer" and 0.9 <= ress.get("at", 99) < 2.0, ress)
+check("and is not taken back by the turn's next call", ress.get("cancelled") is False, ress)
+
+# ---- max_cancels 0 never takes the card back, and still waits for the reading time
+w0 = worker.Worker(max_cancels=0, resume_idle=0.6)
+w0.foreground(lambda _: None)
+t00, res0 = time.monotonic(), {}
+b0 = threading.Thread(target=lambda: res0.setdefault("at", (w0.background(lambda f: "ok"), time.monotonic() - t00)[1]), daemon=True)
+b0.start()
+time.sleep(0.2)
+waiting_now = w0.stats()
+b0.join(3)
+check("max_cancels 0 still waits for the reading time", res0.get("at", 0) >= 0.5, res0)
+check("and the worker tells a waiting call from one in flight", waiting_now.get("waiting") == 1 and waiting_now.get("in_flight") == 0,
+      waiting_now)
+
+# ---- a source that cannot be made never fails a save's opening or closing
+real_source = backend.source
+
+
+def broken():
+    raise ValueError("DND_LLAMA_URL must be 127.0.0.1 or localhost with a port")
+
+
+backend.source = broken
+try:
+    backend.reopen_session("S")
+    backend.cancel_session("S")
+    backend.promote(threading.current_thread())
+    ok_broken = True
+except Exception as e:
+    ok_broken = e
+finally:
+    backend.source = real_source
+check("a source that cannot be made never fails a save's opening or closing", ok_broken is True, ok_broken)
 
 fake.close()
 print(f"\n{'ALL PASS' if not bad else f'{len(bad)} FAILED: ' + ', '.join(bad)}")

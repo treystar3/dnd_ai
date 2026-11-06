@@ -82,3 +82,5 @@ server:
   log_kib: 4096             # (f522) each server log file's cap (logs/llama-server.log, llama-embed.log); the one before is kept as .1               # a server that dies is started again this many times in a session; the next death is 'failed'
   max_cancels: 3            # (f523) a background call gives the card back to the turn this many times, then runs beside it
   resume_idle_seconds: 2    # (f523) a background call starts once no turn's call has run for this long (the player reading)
+  max_wait_seconds: 120     # (f523's review) ...or once it has waited this long, beside the turn: the owner's "after it has been put off
+                            # twice", two turns of the 60-second budget (turns less than resume_idle apart leave no reading time)
