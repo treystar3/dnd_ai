@@ -73,7 +73,8 @@ b_a, b_b = llama.body_bytes(llama.llama_body(r1, {"slot": 0})), llama.body_bytes
 check("the same request and machine give the same bytes", b_a == b_b)
 b_slot1 = llama.llama_body(r1, {"slot": 1})
 check("a machine field changes the body", b_slot1["id_slot"] == 1 and llama.llama_body(r1, {"slot": 0})["id_slot"] == 0)
-check("a machine field never changes the request's fingerprint", llama.neutral_hash(r1) == llama.neutral_hash(req()))
+check("the fingerprint is the request's alone", set(llama.neutral(r1)) == {"model", "messages", "schema", "schema_sha", "sampling",
+      "max_tokens", "think", "voice"} and llama.neutral_hash(r1) == llama.neutral_hash(req()))
 check("a request field changes the fingerprint", llama.neutral_hash(req(attempt=1)) != llama.neutral_hash(r1)
       and llama.neutral_hash(req(text="other")) != llama.neutral_hash(r1)
       and llama.neutral_hash(req(max_tokens=61)) != llama.neutral_hash(r1))
@@ -109,6 +110,8 @@ finally:
 vb = llama.llama_body(req(voice="maren"), {"lora": {"maren": 1, "hire": 0}})
 check("a voice sends its adapter and no other", vb["lora"] == [{"id": 0, "scale": 0.0}, {"id": 1, "scale": 1.0}], vb.get("lora"))
 check("a voice with no adapter loaded is invalid", kind_of(lambda: llama.llama_body(req(voice="maren"), {})) == "invalid")
+nb = llama.llama_body(req(), {"lora": {"maren": 1, "hire": 0}})
+check("a call with no voice names every adapter at nothing", nb["lora"] == [{"id": 0, "scale": 0.0}, {"id": 1, "scale": 0.0}], nb.get("lora"))
 
 
 # ---- statuses, against the fake
@@ -210,6 +213,49 @@ fake.script = lambda p, b, n: {"content": '{"x": "y', "finish": "length", "timin
 rep = src.chat(r1)
 check("one that did not is not", rep.finish == "length" and rep.usage["full"] is False, rep.usage)
 
+# a server that stalls mid-answer: the deadline and a cancel still hold to the last byte
+fake.script = lambda p, b, n: {"content": '{"x": "slowly"}', "trickle": 0.25}
+t0 = time.monotonic()
+got = kind_of(lambda: src.chat(r1, deadline=1.0))
+check("a trickled answer is cut at its deadline", got == "deadline" and time.monotonic() - t0 < 1.8, (got, time.monotonic() - t0))
+timer = threading.Timer(0.3, src.cancel)
+timer.start()
+t0 = time.monotonic()
+got = kind_of(lambda: src.chat(r1, deadline=30))
+check("a cancel mid-answer is never lost", got == "cancelled" and time.monotonic() - t0 < 1.5, (got, time.monotonic() - t0))
+
+# one thread's call cancelled, another's left
+fake.script = lambda p, b, n: {"content": '{"x": "%s"}' % b["messages"][-1]["content"], "delay": 1.5}
+res = {}
+
+
+def call(key):
+    try:
+        res[key] = src.chat(req(text=key)).text
+    except Failure as f:
+        res[key] = f.kind
+ta, tb = threading.Thread(target=call, args=("a",)), threading.Thread(target=call, args=("b",))
+ta.start(); tb.start()
+time.sleep(0.4)
+src.cancel(ta.ident)
+ta.join(5); tb.join(5)
+check("cancel(thread) ends that thread's call and no other", res == {"a": "cancelled", "b": '{"x": "b"}'}, res)
+
+# each lane's slot
+lanes = llama.LlamaServer(llama.Server(fake.port, "k1", step=0.1), machine={"slot_ctx": 1000, "slots": {"foreground": 0, "background": 1}})
+fake.script = lambda p, b, n: {"content": '{"x": "y"}'}
+lanes.chat(r1)
+fg_slot = fake.chats()[-1]["body"].get("id_slot")
+with backend.lane("background"):
+    lanes.chat(r1)
+check("each lane is sent its own slot", fg_slot == 0 and fake.chats()[-1]["body"].get("id_slot") == 1, (fg_slot, fake.chats()[-1]["body"].get("id_slot")))
+
+# a slot's context read from /props when the machine does not say
+props = llama.LlamaServer(llama.Server(fake.port, "k1", step=0.1))
+fake.script = lambda p, b, n: {"content": '{"x": "y', "finish": "length", "timings": {"prompt_n": 900, "predicted_n": 100}}
+rep = props.chat(r1)
+check("with no context given it is read from the server", props.slot_ctx() == 1000 and rep.usage["full"] is True, (props.slot_ctx(), rep.usage))
+
 # no proxy setting is ever used
 saved = {k: os.environ.get(k) for k in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy", "NO_PROXY", "no_proxy")}
 for k in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
@@ -240,8 +286,14 @@ check("a source with no embedder says so", kind_of(lambda: keyless.embed(["a"]))
       and keyless.facts()["embedder"] is False and src.facts()["embedder"] is True)
 
 # ---- the switch
-saved_backend, saved_env = config.BACKEND, {k: os.environ.get(k) for k in ("DND_LLAMA_URL", "DND_LLAMA_KEY")}
+saved_backend, saved_env = config.BACKEND, {k: os.environ.get(k) for k in ("DND_LLAMA_URL", "DND_LLAMA_KEY", "MERAVIA_NO_SERVER")}
 try:
+    config.BACKEND = "llama"
+    os.environ["MERAVIA_NO_SERVER"] = "1"
+    backend.forget_switch()
+    check("under the suite's switch the default never reaches a live server", backend.source().name == "ollama")
+    config.BACKEND = saved_backend
+    os.environ.pop("MERAVIA_NO_SERVER", None)
     check("the default is Ollama", config.BACKEND == "ollama" and backend.source().name == "ollama")
     config.BACKEND = "llama"
     os.environ["DND_LLAMA_URL"], os.environ["DND_LLAMA_KEY"] = fake.url, "k1"
@@ -253,6 +305,9 @@ try:
     os.environ["DND_LLAMA_URL"] = "http://10.1.2.3:8080"
     backend.forget_switch()
     check("only on this machine", kind_of(lambda: backend.source()) == "ValueError")
+    os.environ["DND_LLAMA_URL"] = "http://127.0.0.1"
+    backend.forget_switch()
+    check("a URL with no port is refused in plain words", kind_of(lambda: backend.source()) == "ValueError")
 finally:
     config.BACKEND = saved_backend
     backend.forget_switch()
@@ -271,8 +326,15 @@ check("a misspelt key is refused", any("repet_penalty" in p for p in llama.sampl
 check("a value out of range is refused", any("top_p" in p for p in llama.sampler_problems({"narrate": {"top_p": 1.5}})))
 check("a fraction where a whole number belongs is refused", any("top_k" in p for p in llama.sampler_problems({"narrate": {"top_k": 6.5}})))
 check("a base with a key missing is refused", any("no base value" in p for p in llama.sampler_problems({}, {"top_k": 64})))
+check("a repeat window below 0, which this server refuses, is refused", any("repeat_last_n" in p for p in llama.sampler_problems({"narrate": {"repeat_last_n": -1}})))
 from engine import data_check
-check("data_check carries the sampler check", data_check.check() == [], data_check.check()[:3])
+check("the shipped data is clean", data_check.check() == [], data_check.check()[:3])
+saved_sampling = config.SAMPLING
+config.SAMPLING = {**saved_sampling, "narrate": {**saved_sampling.get("narrate", {}), "repet_penalty": 1.1}}
+try:
+    check("data_check carries the sampler check", any("repet_penalty" in p for p in data_check.check()))
+finally:
+    config.SAMPLING = saved_sampling
 
 print(f"\n{'ALL PASS' if not bad else f'{len(bad)} FAILED: ' + ', '.join(bad)}")
 sys.exit(1 if bad else 0)

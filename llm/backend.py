@@ -341,8 +341,8 @@ def source():
     with _lock:
         if _sources:
             return _sources[-1][1]
-        if getattr(config, "BACKEND", "ollama") != "llama":
-            return _default
+        if getattr(config, "BACKEND", "ollama") != "llama" or __import__("os").environ.get("MERAVIA_NO_SERVER"):
+            return _default                             # (f521) under the suite's switch no default ever reaches a live server
         if _switched is None:
             from llm import llama
             _switched = llama.from_env()

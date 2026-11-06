@@ -45,7 +45,7 @@ def main():
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, "w"))
     import atexit
-    if config.BACKEND != "runtime":                # (f522) the game's own server is stopped by runtime.stop_for_game, registered when it starts
+    if config.BACKEND == "ollama":                 # (f522) the game's own server is stopped by runtime.stop_for_game, registered when it starts
         atexit.register(unload)                    # however the game ends, the model does not stay in memory
     from engine import turnlog
     atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl
@@ -59,7 +59,7 @@ def main():
         if config.BACKEND == "runtime":
             from llm import runtime
             runtime.stop_for_game()                    # (f522) the game's own server stops with the game
-        else:
+        elif config.BACKEND == "ollama":
             unload()
 
 
@@ -71,6 +71,13 @@ def play(args):
     if config.BACKEND == "runtime":                # (f522) the game starts its own llama-server (behind the switch until f528)
         from llm import runtime
         if not runtime.start_for_game(say=console.out):
+            return
+    elif config.BACKEND == "llama":                # (f521) a llama-server started by hand: wait for it, and leave Ollama alone
+        from llm import backend
+        try:
+            backend.load()
+        except Exception as e:
+            console.out(f"The llama-server at DND_LLAMA_URL could not be reached ({e}).")
             return
     else:
         from llm import setup_check
@@ -144,7 +151,7 @@ def play(args):
                                                        # closing folds the write-ahead log in) and every binding this campaign set
         if getattr(scene, "to_menu", False):
             choice = None                              # the main menu: New game, Load and the rest are there
-            if config.BACKEND != "runtime":            # (f522) the game's own server stays loaded; there is nothing to warm
+            if config.BACKEND == "ollama":             # (f522) a llama-server stays loaded; there is nothing to warm
                 warm()                                 # (f469) back at the home page: both models warm again while the player reads it
                 embed.warm()
         else:

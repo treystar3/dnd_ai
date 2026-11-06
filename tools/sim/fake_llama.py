@@ -12,7 +12,8 @@ server as a child (f522).
 
 A script returns a dict, any of: status (200), content (the answer's text), finish ('stop'), timings (merged over the defaults),
 reasoning (the thinking text), delay (seconds before answering), payload (the whole body, sent as it is), vectors (for embeddings),
-message and type (an error's), drop (the connection closed with no answer, as a crashing server leaves it).
+message and type (an error's), drop (the connection closed with no answer, as a crashing server leaves it), trickle (seconds between
+four-byte pieces of the body, after the headers at once: a server that stalls mid-answer).
 loading = N answers the next N requests (any path) with 503 'Loading model'."""
 
 from __future__ import annotations
@@ -101,6 +102,28 @@ class _Handler(BaseHTTPRequestHandler):
                 self.connection.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+            return
+        if spec.get("trickle"):                         # headers at once, then the body a few bytes at a time (a stalling server)
+            data = json.dumps({"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": spec.get("content", "{}")}}],
+                               "timings": {"prompt_n": 1, "predicted_n": 1, "cache_n": 0}}).encode("utf-8")
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.flush()
+                for i in range(0, len(data), 4):
+                    if self._gone():
+                        with self.fake._lock:
+                            self.fake.disconnects += 1
+                        return
+                    self.wfile.write(data[i:i + 4])
+                    self.wfile.flush()
+                    time.sleep(float(spec["trickle"]))
+            except (BrokenPipeError, ConnectionResetError):
+                with self.fake._lock:
+                    self.fake.disconnects += 1
             return
         delay = float(spec.get("delay") or 0)
         end = time.monotonic() + delay
