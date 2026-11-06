@@ -57,7 +57,8 @@ def main():
             guarded(lambda: play(args), None)
     finally:
         if config.BACKEND == "runtime":
-            from llm import runtime
+            from llm import launch, runtime
+            launch.stop()                              # (f526) the load screen's server, when it started one
             runtime.stop_for_game()                    # (f522) the game's own server stops with the game
         elif config.BACKEND == "ollama":
             unload()
@@ -68,9 +69,18 @@ def play(args):
     trim_log()
 
     from llm import embed
+    screen = None
     if config.BACKEND == "runtime":                # (f522) the game starts its own llama-server (behind the switch until f528)
-        from llm import runtime
-        if not runtime.start_for_game(say=console.out):
+        from llm import launch, runtime
+        if launch.screen_on():                     # (f526) the owner's lines are in: the load runs behind the home page
+            screen = launch.Screen(say=console.out, ask=console.ask,
+                                   progress=lambda f: console.setup_progress(f, launch.line("loading") or ""))
+            if not screen.begin():
+                return
+            launch.SCREEN["screen"] = screen
+            import atexit
+            atexit.register(launch.stop)
+        elif not runtime.start_for_game(say=console.out):
             return
     elif config.BACKEND == "llama":                # (f521) a llama-server started by hand: wait for it, and leave Ollama alone
         from llm import backend
@@ -119,7 +129,9 @@ def play(args):
         if kind == "quit":
             return
         if kind == "new":
-            name = saves.new_name()
+            name = saves.new_name()                    # (f526) New Game's first pages open while the model loads; its first call waits
+        elif screen is not None and not screen.wait():  # Continue waits for the load behind the loading line (Try again, or Quit)
+            return
         try:
             session = CampaignSession.open(name)       # (f453) the campaign's session: its store, its map (f434: its own, never another
         except SaveTooNew as e:                        # save's), the work it starts in the background, and what it closes when it ends

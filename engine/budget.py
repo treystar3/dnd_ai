@@ -39,6 +39,9 @@ def load_profile() -> dict:
 
 
 PROFILE: dict = load_profile()
+# (f526) Below the minimum card (llm/launch.py): no wall-clock cut, so deadline() is None; the arithmetic stays (every call is still
+# priced at PROFILE, the minimum card's speeds), so a slow machine defers and drops exactly what the 3060 does, slowly but whole.
+SLOW = False
 
 
 def need(task: str) -> str:
@@ -197,7 +200,10 @@ def embed(texts: int) -> float:
 
 
 def deadline() -> float | None:
-    """The open budget's deadline for the calling thread's call; None with no budget open, or from another thread."""
+    """The open budget's deadline for the calling thread's call; None with no budget open, or from another thread, or (f526) on a
+    machine below the minimum card, where only the hang guard cuts a call."""
+    if SLOW:
+        return None
     return CURRENT.deadline() if CURRENT is not None and CURRENT.mine() else None
 
 

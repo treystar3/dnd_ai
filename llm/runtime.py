@@ -97,6 +97,11 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
     log_kib = s.get("log_kib")
     if not isinstance(log_kib, int) or isinstance(log_kib, bool) or log_kib < 64:
         bad.append("data/runtime/server.yaml server.log_kib: a whole number of KiB, 64 or more (each server log file's cap)")
+    mach = cfg.get("machine") or {}
+    for k in ("minimum_cuda_mib", "minimum_vulkan_mib"):
+        v = mach.get(k)
+        if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
+            bad.append(f"data/runtime/server.yaml machine.{k}: a whole number of MiB above zero (the minimum card's memory)")
     for k in ("batch", "ubatch", "cache_ram_mib", "start_seconds", "hang_seconds", "restarts", "max_cancels"):
         v = s.get(k)
         if not isinstance(v, int) or isinstance(v, bool) or v < 0:
@@ -188,7 +193,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path) -> list[str]:
+def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: str | None = None) -> list[str]:
     s, m = cfg["server"], cfg["models"]
     chat = next(v for v in m.values() if v.get("role") == "chat")
     draft = next((v for v in m.values() if v.get("role") == "draft"), None)
@@ -202,6 +207,8 @@ def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path) -> list[s
     threads = int(s.get("threads") or 0) or int(getattr(config, "NUM_THREAD", 0) or 0)
     if threads:
         argv += ["-t", str(threads)]
+    if device:
+        argv += ["--device", device]                    # (f526) the ladder's device: the Vulkan card with the most memory
     return argv
 
 
@@ -602,18 +609,29 @@ class Runtime:
         self._lock = threading.RLock()
         self._closed = False
         self._stopping = threading.Event()             # (f522) set by close(), first: every wait looks at it, and nothing starts after it
+        self.device: dict | None = None                 # (f526) the device the ladder chose, and the load screen's two hooks
+        self.device_id: str | None = None
+        self.on_wait = None                             # called once as a call starts to wait for the load (the loading line)
+        self.on_ready = None                            # called with the facts when a load is done (the slow warning)
 
     # -- files
     def exe(self) -> Path:
-        """This machine's llama-server: the build asked for, else the first of this platform's builds whose program is here."""
-        builds = [b for b in self.cfg.get("builds") or [] if b.get("platform") == platform()]
-        ids = [self.build] if self.build else [str(b.get("id")) for b in builds]
-        for i in ids:
-            p = self.runtime / str(i) / exe_name()
+        """This machine's llama-server: the build asked for, else (f526) the ladder's: the CUDA build when it lists an NVIDIA device,
+        else the Vulkan build on its device with the most memory, else the processor's."""
+        if self.build:
+            p = self.runtime / str(self.build) / exe_name()
             if p.is_file():
-                self.build = str(i)
                 return p
-        raise Failure("unreachable", f"no llama-server build in {self.runtime}")
+            raise Failure("unreachable", f"no llama-server build {self.build} in {self.runtime}")
+        from llm import launch
+        builds = [str(b.get("id")) for b in self.cfg.get("builds") or [] if b.get("platform") == platform()]
+        present = [i for i in builds if (self.runtime / i / exe_name()).is_file()]
+        if not present:
+            raise Failure("unreachable", f"no llama-server build in {self.runtime}")
+        listed = {i: self.devices(self.runtime / i / exe_name()) for i in present if i in ("cuda", "vulkan")}
+        build, device_id = launch.choose_build(present, listed)
+        self.build, self.device_id = build, device_id
+        return self.runtime / str(build) / exe_name()
 
     def devices(self, exe: Path) -> list[str]:
         """What the build can run on (--list-devices), one line a device: (f522) with no console window, and given up when the game
@@ -656,7 +674,8 @@ class Runtime:
 
     # -- starting and waiting
     def _spawn_chat(self) -> Child:
-        return self._spawn("chat", lambda exe, port, key: chat_argv(exe, self.cfg, port, key, self.models), "llama-server.log")
+        return self._spawn("chat", lambda exe, port, key: chat_argv(exe, self.cfg, port, key, self.models, self.device_id),
+                           "llama-server.log")
 
     def _spawn(self, name: str, argv_of, log_name: str) -> Child:
         if self._stopping.is_set():
@@ -809,6 +828,9 @@ class Runtime:
             stop_stale(self.run_dir, self.runtime, keep=[c.proc.pid for c in (self.chat, self.embed) if c is not None and c.alive()])
             exe = self.exe()
             self.facts_["devices"] = self.devices(exe)
+            from llm import launch
+            found = [d for d in launch.parse_devices(self.facts_["devices"]) if d["api"] == self.build]
+            self.device = next((d for d in found if d["id"] == self.device_id), None) or (max(found, key=lambda d: d["mib"]) if found else None)
             tell(0.02)
             self.chat = self._spawn_chat()
             self._write_run_files()
@@ -856,8 +878,17 @@ class Runtime:
                                                            # next embed (once), and an embedder that was off stays off
             if self._stopping.is_set():
                 raise Failure("unreachable", _CLOSING)
+            from llm import launch
+            c = launch.classify(self.build, self.device, self.facts_.get("offloaded"), self.cfg)    # (f526) the machine's class
+            self.facts_.update({"class": c["class"], "slow": c["slow"], "device": c["device"], "class_why": c["why"]})
+            launch.apply_slow(c["slow"], self.cfg, self.source)     # below the minimum: the time limits lifted, the pricing kept
             self.state = "ready"
             tell(1.0)
+            if self.on_ready is not None:
+                try:
+                    self.on_ready(dict(self.facts()))
+                except Exception:
+                    pass
         except BaseException:
             self.state = "failed"
             self._stop_children()
@@ -910,6 +941,11 @@ class Runtime:
 
     def _wait_ready(self, limit: float = 600.0) -> None:
         start = time.monotonic()
+        if self.on_wait is not None:                    # (f526) the loading line, once, as this call starts to wait
+            try:
+                self.on_wait()
+            except Exception:
+                pass
         while self.state in ("loading", "restarting") and not self._stopping.is_set() and time.monotonic() - start < limit:
             time.sleep(0.1)
         if self.state != "ready" or self._stopping.is_set():
@@ -977,6 +1013,8 @@ class Runtime:
             self._closed = True
             self._stop_children()
             self.chat = self.embed = None
+            from engine import budget
+            budget.SLOW = False                         # (f526) the slow machine's lifted limits go with its server
             self.worker = None                          # a load after a close starts with a worker of its own
             if self.source is not None:
                 self.source.embed_server = None

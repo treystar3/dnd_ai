@@ -68,6 +68,10 @@ embed:                      # (f524) the embedder's own server
   max_chars: 5000           # so every text is cut to this before it is sent (above the 601 characters a kept recording embeds)
   device: auto              # card, processor, or auto: on the card unless the chat model would not otherwise sit wholly on it
 
+machine:                    # (f526) the minimum card (GOALS.md, the owner's decision of 5 Nov): the whole model on the card, and an
+  minimum_cuda_mib: 12000   # NVIDIA card of 12 GB through CUDA (a 12 GB card lists about 12,287 MiB) or any card of 16 GB through
+  minimum_vulkan_mib: 16000 # Vulkan; below it the game plays slowly but whole (llm/launch.py classify)
+
 server:
   slots: 2                  # the turn's slot and the background's (owner's decision, 2026-11-05)
   slot_ctx: 16384           # each slot's context; the server is started with twice it, and --fit may not shrink it

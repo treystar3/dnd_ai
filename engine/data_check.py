@@ -655,6 +655,8 @@ def check() -> list[str]:
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
     from llm import runtime as _runtime
     bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
+    from llm import launch as _launch
+    bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
     return bad
 
 

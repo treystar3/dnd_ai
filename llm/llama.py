@@ -147,6 +147,8 @@ class Server:
         self.host, self.port, self.key = host, int(port), key or ""
         self.load_wait, self.step = float(load_wait), float(step)
         self.loading_seconds = 0.0          # the time calls spent waiting on a loading model (not on any deadline's clock)
+        self.no_deadline: float | None = None   # (f526) a call with no deadline's limit: config.REQUEST_TIMEOUT, or the hang guard below
+                                                # the minimum card (llm/launch.py apply_slow)
 
     def _once(self, method: str, path: str, data: bytes | None, until: float | None, cancel: threading.Event | None):
         """One request and its whole answer on the caller's own socket: (status, payload). The send, the wait and the read are one loop
@@ -211,7 +213,7 @@ class Server:
         """The answer's (status, payload, wall ms, loading ms). A 503 while the model loads is waited on, off the deadline's clock and not
         a try, up to load_wait; deadline is the seconds this call may take (None: config.REQUEST_TIMEOUT, the hang guard outside a turn)."""
         data = body_bytes(body) if body is not None else None
-        limit = float(config.REQUEST_TIMEOUT) if deadline is None else float(deadline)
+        limit = float(self.no_deadline or config.REQUEST_TIMEOUT) if deadline is None else float(deadline)
         start = time.monotonic()
         waited = 0.0
         while True:
