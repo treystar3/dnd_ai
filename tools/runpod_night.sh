@@ -53,15 +53,18 @@ if [ "${DND_NUM_THREAD:-0}" = "0" ]; then
 fi
 echo "Each of the $PARALLEL server(s) at once gets $DND_NUM_THREAD threads (DND_NUM_THREAD) of $CORES cores."
 
-# The CUDA build needs the compiler (the pod images carry the driver and the runtime, not nvcc); zstd for the release archives.
+# The CUDA build needs a compiler of 12.8 or newer: an older nvcc leaves the 50-series cards (sm_120) out of the build (tools/fetch_runtime.py
+# cuda_archs), and the pod images carry the driver and the runtime with an older compiler or none. So 12.8's is installed unless it is
+# already here, and the build is pointed at it (PATH and CUDACXX) ahead of whatever the image put first.
 if [ "$BUILD" = "cuda" ]; then
-    export PATH=/usr/local/cuda/bin:/usr/local/cuda-12.8/bin:$PATH
-    if ! command -v nvcc >/dev/null 2>&1; then
-        echo "Installing the CUDA compiler for the server's build..."
+    if ! /usr/local/cuda-12.8/bin/nvcc --version >/dev/null 2>&1; then
+        echo "Installing the CUDA 12.8 compiler for the server's build (the image's is $(nvcc --version 2>/dev/null | grep -o 'release [0-9.]*' || echo missing))..."
         (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 cuda-nvrtc-dev-12-8) \
             > logs/apt.log 2>&1 || { echo "apt failed (logs/apt.log):"; tail -5 logs/apt.log; }
-        export PATH=/usr/local/cuda-12.8/bin:$PATH
     fi
+    export PATH=/usr/local/cuda-12.8/bin:$PATH
+    export CUDACXX=/usr/local/cuda-12.8/bin/nvcc
+    echo "CUDA compiler: $(nvcc --version 2>/dev/null | grep -o 'release [0-9.]*' || echo 'none; the build will fail')"
     command -v cmake >/dev/null 2>&1 || python3 -m pip install -q cmake
 fi
 python3 -m pip install -q -r requirements.txt

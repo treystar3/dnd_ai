@@ -18,6 +18,9 @@ check("...checks the files are in place before the night begins", "runtime_probl
 check("...records one run a night (--record once, to tools/nightrun.py, which gives it to its first run alone)", src.count("--record") == 1)
 check("...splits the quota's cores among the runs at once, each server its share", "CORES / PARALLEL" in src and "DND_NUM_THREAD" in src)
 check("...and installs the CUDA compiler only for the build from source", "cuda-nvcc" in src and 'if [ "$BUILD" = "cuda" ]' in src)
+check("...the 12.8 compiler (the 50-series cards need it: an older nvcc leaves sm_120 out), pointed at ahead of the image's own",
+      "cuda-nvcc-12-8" in src and "export CUDACXX=/usr/local/cuda-12.8/bin/nvcc" in src
+      and src.index("/usr/local/cuda-12.8/bin/nvcc --version") < src.index("cuda-nvcc-12-8"))     # installed only when 12.8's is not here
 check("the night script still parses as shell", subprocess.run(["bash", "-n", "tools/runpod_night.sh"]).returncode == 0)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)
