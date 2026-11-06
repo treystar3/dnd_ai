@@ -34,6 +34,11 @@ class Cancelled(Interrupt):
     """A call stopped on purpose, not a failure of the model's."""
 
 
+class NotFinal(RuntimeError):
+    """(f524's review) The runtime's facts asked for before its load has decided them (whether there is an embedder): a guess would be
+    written into a recording's meta, so they are refused; llm/embed.py reads this as "not yet"."""
+
+
 class NoServer(ConnectionError):
     """(f518) There is no model server in this process at all (MERAVIA_NO_SERVER: the test suite, the recording makers, a replay): a
     call with nothing installed fails at once as unreachable (llm/backend.py failure_of), never as the server's failure, and builds and

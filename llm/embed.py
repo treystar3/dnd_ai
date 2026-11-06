@@ -33,9 +33,10 @@ def _facts() -> dict:
     """The source's facts. (f524) A runtime still deciding whether it has an embedder refuses them: here that is "not yet", never a
     failure of the embedder's, so nothing is turned off for it."""
     from llm import backend
+    from llm.errors import NotFinal
     try:
         return backend.facts()
-    except RuntimeError:
+    except NotFinal:                                    # (f524's review) only the refusal, never another RuntimeError
         return {}
 
 

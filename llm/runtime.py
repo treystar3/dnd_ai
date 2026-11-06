@@ -53,7 +53,7 @@ import config
 from core import paths
 from llm import llama
 from llm import worker as worker_mod
-from llm.errors import Failure, NoServer
+from llm.errors import Failure, NoServer, NotFinal
 
 STATES = ("not_started", "loading", "ready", "restarting", "failed")
 SETTINGS = Path(paths.BUNDLE) / "data" / "runtime" / "server.yaml"
@@ -370,9 +370,10 @@ def _kill(pid: int) -> None:
         pass
 
 
-def stop_stale(run_dir: Path, ours: Path) -> list[int]:
+def stop_stale(run_dir: Path, ours: Path, keep=()) -> list[int]:
     """Stop the children a crashed game left (run/server.pid), each only when its executable is the one recorded and lies under our
-    runtime folder; returns the pids stopped. The pid file goes either way."""
+    runtime folder; returns the pids stopped. The pid file goes either way. (f524's review) `keep`: this game's own live children,
+    never stopped (a chat server's restart found the live embedder in the file and killed it)."""
     p = run_dir / "server.pid"
     stopped = []
     try:
@@ -383,6 +384,8 @@ def stop_stale(run_dir: Path, ours: Path) -> list[int]:
     for r in rows if isinstance(rows, list) else []:
         pid, exe = int(r.get("pid") or 0), str(r.get("exe") or "")
         now = exe_of(pid) if pid else None
+        if pid in set(keep):
+            continue
         if now and os.path.realpath(exe) == os.path.realpath(now) and os.path.realpath(now).startswith(root + os.sep):
             _kill(pid)
             stopped.append(pid)
@@ -527,13 +530,13 @@ class LogPump:
             if self.f is None:
                 return
             try:
-                self.f.write(data)
-                self.f.flush()
-                if self.f.tell() > self.cap:
-                    self.f.close()
+                if self.f.tell() and self.f.tell() + len(data) > self.cap:
+                    self.f.close()                      # rotated before the write, so the newest output always ends the live file
                     self.f = None
                     os.replace(self.path, self.path.with_name(self.path.name + ".1"))
                     self.f = open(self.path, "ab")
+                self.f.write(data)
+                self.f.flush()
             except OSError:
                 if self.f is None:
                     try:
@@ -593,6 +596,8 @@ class Runtime:
         self.embed: Child | None = None                 # (f524) the embedder's own server, and whether it is on for this session
         self.embed_state = "not_started"
         self.embed_why = ""
+        self.embed_on: bool | None = None               # (f524's review) the session's decision, apart from the child's state: None
+                                                        # until the load makes it; a restart of the embedder keeps it
         self.embed_restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self._lock = threading.RLock()
         self._closed = False
@@ -683,17 +688,29 @@ class Runtime:
             done, total = off.split("/", 1)
             whole = int(done) >= int(total)
         on_cpu = device == "processor" or (device == "auto" and not whole)
+        if self._closed or self._stopping.is_set() or self.state == "failed":
+            self.embed_state, self.embed_why, self.embed_on = "failed", "the model server is not running", False
+            return
         self.embed_state, self.embed_why = "loading", ""
         try:
-            self.embed = self._spawn("embed", lambda exe, port, key: embed_argv(exe, self.cfg, port, key, self.models, on_cpu),
-                                     "llama-embed.log")
+            if self.embed is not None:
+                self._stop(self.embed)                  # (f524's review) never a second embedder beside an earlier one
+            spawn = lambda: self._spawn("embed", lambda exe, port, key: embed_argv(exe, self.cfg, port, key, self.models, on_cpu),
+                                        "llama-embed.log")
+            self.embed = spawn()
             server = llama.Server(self.embed.port, self.embed.key)
             limit = float((self.cfg.get("server") or {}).get("start_seconds") or 300)
             start = time.monotonic()
+            binds = 0
             while True:
                 if self._stopping.is_set():
                     raise Failure("unreachable", _CLOSING)
                 if not self.embed.alive():
+                    if "couldn't bind" in self._tail(self.embed) and binds < 3:
+                        binds += 1                      # (f524's review) the port was taken before the bind: another, as the chat's
+                        self.embed = spawn()
+                        server = llama.Server(self.embed.port, self.embed.key)
+                        continue
                     raise Failure("unreachable", "the embedder's server ended while it loaded")
                 h = server.health()
                 if h == "ready":
@@ -707,9 +724,11 @@ class Runtime:
             if self.source is not None:
                 self.source.embed_server = server
             self.embed_state = "ready"
+            if self.embed_on is None:
+                self.embed_on = True                    # decided at the load, once; a restart that answers keeps it
             self.facts_["embed_device"] = "processor" if on_cpu else "card"
         except Failure as f:
-            self.embed_state, self.embed_why = "failed", f.detail or f.kind
+            self.embed_state, self.embed_why, self.embed_on = "failed", f.detail or f.kind, False
             if self.embed is not None:
                 if not self._stopping.is_set():
                     self._crash_note(self.embed)
@@ -723,6 +742,9 @@ class Runtime:
         is started again once and the call made again; the next death turns embeddings off for this session, said once in crash.log."""
         cap = int((self.cfg.get("embed") or {}).get("max_chars") or 5000)
         texts = [str(t)[:cap] for t in texts]
+        if self.embed_state == "loading" and self.embed_on:
+            with self._lock:                            # (f524's review) the embedder is being started again: wait for it, never
+                pass                                    # tell this call embeddings are off (llm/embed.py would turn them off for good)
         if self.embed_state != "ready" or self.source is None:
             raise Failure("unreachable", "the embedder is off for this session" + (f" ({self.embed_why})" if self.embed_why else ""))
         emb = self.embed                                # (f522) read once: a restart or a close may change it meanwhile
@@ -741,8 +763,11 @@ class Runtime:
                         self._start_embed()
                     else:
                         self.embed_state, self.embed_why = "failed", "its server stopped again after its restart"
+                        self.embed_on = False
                         self.source.embed_server = None
                         self._note_line("the embedder's server stopped again after its restart: embeddings are off for this session")
+                        if self.chat is not None:
+                            self._write_run_files()     # the run files name the embedder no more
             if self.embed_state == "ready" and not self._stopping.is_set():
                 return self.source.embed(texts)
             raise
@@ -765,6 +790,8 @@ class Runtime:
         with self._lock:
             if self.state == "ready":
                 return
+            if self._closed:
+                self.embed_on, self.embed_state, self.embed_why = None, "not_started", ""   # a new session: decided again
             self._closed = False
             self._stopping.clear()
             self._load(progress)
@@ -779,7 +806,7 @@ class Runtime:
                 shown[0] = x
                 progress(x)
         try:
-            stop_stale(self.run_dir, self.runtime)
+            stop_stale(self.run_dir, self.runtime, keep=[c.proc.pid for c in (self.chat, self.embed) if c is not None and c.alive()])
             exe = self.exe()
             self.facts_["devices"] = self.devices(exe)
             tell(0.02)
@@ -812,7 +839,9 @@ class Runtime:
                 time.sleep(0.1)
             self._props(server)
             s = self.cfg.get("server") or {}
-            self.source = llama.LlamaServer(server, None, machine={"slot_ctx": self.facts_["slot_ctx"],
+            emb_srv = (llama.Server(self.embed.port, self.embed.key)
+                       if self.embed_on and self.embed is not None and self.embed.alive() and self.embed_state == "ready" else None)
+            self.source = llama.LlamaServer(server, emb_srv, machine={"slot_ctx": self.facts_["slot_ctx"],
                                                                    "slots": {"foreground": 0, "background": 1, "input": 0}},
                                             worker=self.worker or worker_mod.Worker(int(s.get("max_cancels", 3)),
                                                                                     float(s.get("resume_idle_seconds", 2)),
@@ -820,10 +849,11 @@ class Runtime:
             self.worker = self.source.worker               # (f523) one worker for the session, kept across a restart
             self._write_run_files()
             tell(0.97)
-            if self.embed_state != "ready" or self.embed is None or not self.embed.alive():
-                self._start_embed()                        # (f524) embeddings decided here, once, for the session
-            else:
-                self.source.embed_server = llama.Server(self.embed.port, self.embed.key)
+            if self.embed_on is None:
+                self._start_embed()                        # (f524) embeddings decided here, once, for the session; (f524's review)
+                                                           # a chat server's restart keeps the decision: the live embedder is the
+                                                           # new source's from its first moment, a dead one is started again by the
+                                                           # next embed (once), and an embedder that was off stays off
             if self._stopping.is_set():
                 raise Failure("unreachable", _CLOSING)
             self.state = "ready"
@@ -831,6 +861,8 @@ class Runtime:
         except BaseException:
             self.state = "failed"
             self._stop_children()
+            if self.embed_on or self.embed_state in ("ready", "loading"):
+                self.embed_state, self.embed_why, self.embed_on = "failed", "the model server stopped", False
             raise
 
     def _props(self, server: llama.Server) -> None:
@@ -846,7 +878,7 @@ class Runtime:
 
     def _offloaded(self) -> str | None:
         m = re.findall(r"offloaded (\d+)/(\d+) layers to GPU", self.chat.text()) if self.chat else []
-        return f"{m[-1][0]}/{m[-1][1]}" if m else None
+        return f"{m[0][0]}/{m[0][1]}" if m else None        # (f524's review) the chat model's, loaded first; the draft's comes after
 
     def _note_line(self, text: str) -> None:
         from engine import crashlog
@@ -955,10 +987,10 @@ class Runtime:
         """What this machine runs, final once the load is: (f524) whether there is an embedder is decided at the load and holds for the
         session; read before that decision, it would be a guess, so it is refused. A restart of the chat server keeps the decision (the
         embedder's own server goes on), so the facts are answered through it."""
-        if self.state in ("loading", "restarting") and self.embed_state in ("not_started", "loading"):
-            raise RuntimeError("the model server's facts are read before its load is final")
+        if self.state in ("loading", "restarting") and self.embed_on is None:
+            raise NotFinal("the model server's facts are read before its load is final")
         return {"source": "llama-server", "model": config.MODEL, "embed_model": config.EMBED_MODEL,
-                "embedder": self.embed_state == "ready", "embed_failure": self.embed_why, "state": self.state, **self.facts_}
+                "embedder": self.embed_on is True, "embed_failure": self.embed_why, "state": self.state, **self.facts_}
 
 
 class Managed:
