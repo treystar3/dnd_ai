@@ -95,7 +95,7 @@ check("the golden was made on this data: its hash is the tree's", golden["data"]
 
 # ---- GOALS.md carries the owner's definition and the Bundle C decisions
 goals = pathlib.Path("GOALS.md").read_text(encoding="utf-8")
-check("GOALS.md carries the 60 s definition and the Bundle C decisions as the owner's", "within 60 seconds of model time on the RTX 3060" in goals
+check("GOALS.md carries the 60 s definition and the Bundle C decisions as the owner's", "within 60 seconds of model time on the minimum cards, the RTX 3060" in goals   # (f527) both cards
       and "each action of a typed line is its own operation" in goals and goals.index("within 60 seconds of model time") < goals.index("A turn the game cannot take leaves nothing behind"))
 
 # ---- a replay's parting passes through work_offer_read
