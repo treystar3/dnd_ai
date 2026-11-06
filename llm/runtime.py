@@ -14,13 +14,16 @@ fresh --api-key, --no-webui; two slots with the context at twice the slot's (-np
 fit step moves layers to the processor rather than shrinking the context (no -ngl: the fit decides it, every layer on the card when
 it fits); --cache-ram capped from the settings; its own process group (Linux: a new session plus the parent-death signal; Windows: a
 new process group, no window and a kill-on-close Job Object, never DETACHED_PROCESS), so Ctrl+C at the game never reaches it. Its
-output goes to logs/llama-server.log and its tail to logs/crash.log when it dies. A child left by a crashed game is stopped before the
-load, and only when its pid file's executable path is ours.
+output is read by the game (LogPump) into logs/llama-server.log, each file capped at server.log_kib with the one before kept, and its
+tail goes to logs/crash.log, one entry in that file's own form, when it dies. A program that cannot be started is a Failure, never a
+bare OSError, and no helper the game runs opens a console window. A child left by a crashed game is stopped before the load, and only
+when its pid file's executable path is ours.
 
 States: not_started, loading, ready, restarting, failed. load(progress) starts the chat server, waits for /health while reading the log's phases
 (progress only ever rises), then reads /props, refusing a granted context below the settings' (the fit step may shrink it). A call
 that finds the server gone restarts it once (that call is one failed try); a second death is 'failed'. close() is idempotent: it
-cancels the calls in flight, stops every child and takes the run files away. main.py calls it from atexit and its finally; the
+cancels the calls in flight, stops every child and takes the run files away; it may come while a load or a restart runs, which then
+ends at once (the children are stopped first, and every wait looks at the close), and nothing is started after it. main.py calls it from atexit and its finally; the
 window's close and core/updates.py reach it through llm.backend.close().
 
 One game at a time: main.py holds an OS lock on run/game.lock (GameLock); a second launch is told so in one plain line and exits. The
@@ -56,6 +59,9 @@ STATES = ("not_started", "loading", "ready", "restarting", "failed")
 SETTINGS = Path(paths.BUNDLE) / "data" / "runtime" / "server.yaml"
 PHASES = [("load_model: loading model", 0.10), ("threadpool init", 0.45), ("loading draft model", 0.60),
           ("initializing, n_slots", 0.85), ("model loaded", 0.95)]       # the log's phases, and how far through the load each is
+ANSWERS = Path(paths.BUNDLE) / "data" / "measured" / "answers.yaml"
+_NO_WINDOW = 0x08000000 if os.name == "nt" else 0     # (f522) CREATE_NO_WINDOW: the shipped game has no console, so no helper opens one
+_CLOSING = "the game closed while the model server started"
 
 
 def settings(path: Path | str | None = None) -> dict:
@@ -82,10 +88,15 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
     slot_ctx, slots = s.get("slot_ctx"), s.get("slots")
     if not isinstance(slot_ctx, int) or slot_ctx <= 0 or not isinstance(slots, int) or slots < 1:
         return ["data/runtime/server.yaml server: slot_ctx and slots must be whole numbers above zero"]
+    if answers_file() is None:
+        bad.append("data/measured/answers.yaml: max_tokens, the largest answer any call asks for, a whole number above zero")
     need = needed_context()
     if slot_ctx < need:
         bad.append(f"data/runtime/server.yaml server.slot_ctx: {slot_ctx} tokens cannot hold the largest prompt and twice the largest answer "
                    f"({need} tokens)")
+    log_kib = s.get("log_kib")
+    if not isinstance(log_kib, int) or isinstance(log_kib, bool) or log_kib < 64:
+        bad.append("data/runtime/server.yaml server.log_kib: a whole number of KiB, 64 or more (each server log file's cap)")
     for k in ("batch", "ubatch", "cache_ram_mib", "start_seconds", "hang_seconds", "restarts", "max_cancels"):
         v = s.get(k)
         if not isinstance(v, int) or isinstance(v, bool) or v < 0:
@@ -144,20 +155,22 @@ def needed_context() -> int:
     return math.ceil(chars / cpt) + 2 * largest_answer()
 
 
+def answers_file() -> int | None:
+    """(f522) data/measured/answers.yaml's max_tokens: the largest answer any call asks for, kept equal to the source's own largest by
+    tools/sim/server_522_test.py. None when it is missing or not a whole number above zero."""
+    try:
+        got = (yaml.safe_load(ANSWERS.read_text(encoding="utf-8")) or {}).get("max_tokens")
+    except (OSError, yaml.YAMLError, AttributeError):
+        return None
+    return got if isinstance(got, int) and not isinstance(got, bool) and got > 0 else None
+
+
 def largest_answer() -> int:
-    import ast
+    """The largest answer any call asks for: config's own and data/measured/answers.yaml's (read as data, so the shipped game, which
+    carries no source, reads the number the source has; before f522 the source itself was parsed, at every launch). Unreadable, it is
+    taken as 4096, more than any call asks for, so a slot too small is still named."""
     most = max(int(getattr(config, "MAX_TOKENS", 0) or 0), int(getattr(config, "PROSE_MAX_TOKENS", 0) or 0))
-    root = Path(paths.BUNDLE)
-    for d in ("engine", "scenes", "npc", "character", "llm", "services"):
-        for p in sorted((root / d).rglob("*.py")):
-            try:
-                tree = ast.parse(p.read_text(encoding="utf-8"))
-            except (SyntaxError, OSError):
-                continue
-            for n in ast.walk(tree):
-                if isinstance(n, ast.keyword) and n.arg == "max_tokens" and isinstance(n.value, ast.Constant) and isinstance(n.value.value, int):
-                    most = max(most, n.value.value)
-    return most
+    return max(most, answers_file() or 4096)
 
 
 def platform() -> str:
@@ -253,11 +266,15 @@ class Spawner:
     def _run(self):
         while True:
             argv, log, env, box = self._q.get()
+            proc = None
             try:
-                box["proc"] = self._start(argv, log, env)
+                proc = self._start(argv, log, env)
             except BaseException as e:      # handed back to the caller
                 box["error"] = e
-            finally:
+            with box["lock"]:
+                if box.get("abandoned") and proc is not None:
+                    _end(proc)              # (f522) its caller stopped waiting (the game closing): never left running
+                box["proc"] = proc
                 box["done"].set()
 
     def _start(self, argv, log, env):
@@ -271,12 +288,25 @@ class Spawner:
             return proc
         return subprocess.Popen(argv, start_new_session=True, preexec_fn=_pdeathsig, **kw)
 
-    def start(self, argv, log, env=None) -> subprocess.Popen:
-        box = {"done": threading.Event()}
+    def start(self, argv, log, env=None, stop: threading.Event | None = None, limit: float = 60.0) -> subprocess.Popen:
+        """Start argv on the spawner's thread. (f522) A program that cannot be started (missing, refused by the system or an antivirus,
+        not a program at all) is Failure('unreachable'), never a bare OSError; the wait ends when `stop` is set or after `limit`
+        seconds, and a child started after that is ended at once."""
+        box = {"done": threading.Event(), "lock": threading.Lock()}
         self._q.put((argv, log, env, box))
-        box["done"].wait()
+        end = time.monotonic() + limit
+        while not box["done"].wait(0.1):
+            closing = stop is not None and stop.is_set()
+            if closing or time.monotonic() > end:
+                with box["lock"]:
+                    if not box["done"].is_set():
+                        box["abandoned"] = True
+                        raise Failure("unreachable", _CLOSING if closing else f"llama-server did not start within {int(limit)} s")
         if "error" in box:
-            raise box["error"]
+            e = box["error"]
+            if isinstance(e, OSError):
+                raise Failure("unreachable", f"llama-server could not be started ({type(e).__name__}: {e})") from e
+            raise e
         return box["proc"]
 
 
@@ -315,10 +345,22 @@ def exe_of(pid: int) -> str | None:
         return None
 
 
+def _end(proc: subprocess.Popen) -> None:
+    """End a child we started, its process group with it, now."""
+    try:
+        if os.name == "nt":
+            proc.kill()
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait(timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def _kill(pid: int) -> None:
     try:
         if os.name == "nt":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(int(pid))], capture_output=True, timeout=10)
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(int(pid))], capture_output=True, timeout=10, creationflags=_NO_WINDOW)
         else:
             os.kill(int(pid), signal.SIGKILL)
     except (OSError, subprocess.SubprocessError):
@@ -423,12 +465,109 @@ def refuse_unless_attached(argv: list[str], run_dir: Path | None = None) -> str 
 
 # ------------------------------------------------------------------ the runtime
 
+def _log_line(path: Path, text: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "ab") as f:
+            f.write(("\n" + text + "\n").encode("utf-8"))
+    except OSError:
+        pass
+
+
+class LogPump:
+    """(f522) A child's output, read on a thread of its own: written to its log, each file capped at `cap` bytes with the one before
+    kept as <name>.1 (logs/, which players send, never grows without bound: llama-server writes several lines a request), and its last
+    stretch kept in memory, where the load's phases, the layers on the card and the crash note are read. A log that cannot be written
+    costs the log, never the child: its output is still read, so it never blocks on a full pipe."""
+
+    KEEP = 1 << 20
+
+    def __init__(self, stream, path: Path, cap: int, header: str):
+        self.path, self.cap = Path(path), max(65536, int(cap))
+        self.buf = bytearray()
+        self.lock = threading.Lock()
+        self.f = None
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.f = open(self.path, "ab")
+        except OSError:
+            self.f = None
+        self.write(header.encode("utf-8"))
+        self.thread = threading.Thread(target=self._run, args=(stream,), name=f"log:{self.path.name}", daemon=True)
+        self.thread.start()
+
+    def _run(self, stream) -> None:
+        try:
+            read = getattr(stream, "read1", None) or stream.read
+            while True:
+                chunk = read(65536)
+                if not chunk:
+                    break
+                self.write(chunk)
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                stream.close()
+            except OSError:
+                pass
+            with self.lock:
+                if self.f is not None:
+                    self.f.close()
+                    self.f = None
+
+    def write(self, data: bytes) -> None:
+        with self.lock:
+            self.buf += data
+            if len(self.buf) > self.KEEP:
+                del self.buf[:len(self.buf) - self.KEEP]
+            if self.f is None:
+                return
+            try:
+                self.f.write(data)
+                self.f.flush()
+                if self.f.tell() > self.cap:
+                    self.f.close()
+                    self.f = None
+                    os.replace(self.path, self.path.with_name(self.path.name + ".1"))
+                    self.f = open(self.path, "ab")
+            except OSError:
+                if self.f is None:
+                    try:
+                        self.f = open(self.path, "ab")
+                    except OSError:
+                        self.f = None
+
+    def text(self, n: int | None = None) -> str:
+        with self.lock:
+            b = bytes(self.buf if n is None else self.buf[-n:])
+        return b.decode("utf-8", errors="replace")
+
+
 class Child:
-    def __init__(self, name: str, argv: list[str], port: int, key: str, proc: subprocess.Popen, log_path: Path):
+    def __init__(self, name: str, argv: list[str], port: int, key: str, proc: subprocess.Popen, log_path: Path,
+                 pump: LogPump | None = None):
         self.name, self.argv, self.port, self.key, self.proc, self.log_path = name, argv, port, key, proc, log_path
+        self.pump = pump
 
     def alive(self) -> bool:
         return self.proc.poll() is None
+
+    def gone(self, wait: float = 0.5) -> bool:
+        """(f522) Whether it has ended, given a moment to: a reset socket can reach the caller before the dying process is reaped."""
+        try:
+            self.proc.wait(timeout=wait)
+            return True
+        except subprocess.TimeoutExpired:
+            return False
+
+    def text(self, n: int | None = None, settle: bool = False) -> str:
+        """Its output so far (the last n bytes); settle waits a moment for the last of it, when it has ended."""
+        if self.pump is None:
+            return ""
+        if settle:
+            self.pump.thread.join(1.0)
+        return self.pump.text(n)
 
 
 class Runtime:
@@ -454,6 +593,7 @@ class Runtime:
         self.embed_restarts_left = int((self.cfg.get("server") or {}).get("restarts", 1))
         self._lock = threading.RLock()
         self._closed = False
+        self._stopping = threading.Event()             # (f522) set by close(), first: every wait looks at it, and nothing starts after it
 
     # -- files
     def exe(self) -> Path:
@@ -468,12 +608,24 @@ class Runtime:
         raise Failure("unreachable", f"no llama-server build in {self.runtime}")
 
     def devices(self, exe: Path) -> list[str]:
-        """What the build can run on (--list-devices), one line a device."""
+        """What the build can run on (--list-devices), one line a device: (f522) with no console window, and given up when the game
+        closes."""
         try:
-            out = subprocess.run([str(exe), "--list-devices"], capture_output=True, text=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
+            p = subprocess.Popen([str(exe), "--list-devices"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 creationflags=_NO_WINDOW)
+        except (OSError, ValueError):
             return []
-        lines = [l.strip() for l in (out.stdout or "").splitlines() + (out.stderr or "").splitlines()]
+        end = time.monotonic() + 30
+        while True:
+            try:
+                out, _ = p.communicate(timeout=0.2)
+                break
+            except subprocess.TimeoutExpired:
+                if self._stopping.is_set() or time.monotonic() > end:
+                    p.kill()
+                    p.communicate()
+                    return []
+        lines = [l.strip() for l in (out or b"").decode("utf-8", errors="replace").splitlines()]
         return [l for l in lines if l and not l.lower().startswith("available devices")]
 
     def _write_run_files(self) -> None:
@@ -499,16 +651,23 @@ class Runtime:
         return self._spawn("chat", lambda exe, port, key: chat_argv(exe, self.cfg, port, key, self.models), "llama-server.log")
 
     def _spawn(self, name: str, argv_of, log_name: str) -> Child:
+        if self._stopping.is_set():
+            raise Failure("unreachable", _CLOSING)
         exe = self.exe()
-        self.logs.mkdir(parents=True, exist_ok=True)
         log_path = self.logs / log_name
         port, key = free_port(), secrets.token_urlsafe(24)
         argv = argv_of(exe, port, key)
-        with open(log_path, "ab") as log:
-            log.write(f"\n---- llama-server ({name}) starting on port {port}\n".encode("utf-8"))
-            log.flush()
-            proc = spawner().start(argv, log)
-        return Child(name, argv, port, key, proc, log_path)
+        try:
+            proc = spawner().start(argv, subprocess.PIPE, stop=self._stopping)
+        except Failure as f:
+            if f.detail != _CLOSING:                   # the could-not-wake line points at this log, so the reason is written there
+                _log_line(log_path, f"---- llama-server ({name}) could not start: {f.detail}")
+            raise
+        pump = LogPump(proc.stdout, log_path, self._log_cap(), f"\n---- llama-server ({name}) starting on port {port}\n")
+        return Child(name, argv, port, key, proc, log_path, pump)
+
+    def _log_cap(self) -> int:
+        return int((self.cfg.get("server") or {}).get("log_kib") or 4096) * 1024
 
     def _start_embed(self) -> None:
         """(f524) The embedder's server, started once the chat model's place on the card is known; its first embed is its warm-up. A
@@ -529,6 +688,8 @@ class Runtime:
             limit = float((self.cfg.get("server") or {}).get("start_seconds") or 300)
             start = time.monotonic()
             while True:
+                if self._stopping.is_set():
+                    raise Failure("unreachable", _CLOSING)
                 if not self.embed.alive():
                     raise Failure("unreachable", "the embedder's server ended while it loaded")
                 h = server.health()
@@ -547,7 +708,8 @@ class Runtime:
         except Failure as f:
             self.embed_state, self.embed_why = "failed", f.detail or f.kind
             if self.embed is not None:
-                self._crash_note(self.embed)
+                if not self._stopping.is_set():
+                    self._crash_note(self.embed)
                 self._stop(self.embed)
             if self.source is not None:
                 self.source.embed_server = None
@@ -560,41 +722,33 @@ class Runtime:
         texts = [str(t)[:cap] for t in texts]
         if self.embed_state != "ready" or self.source is None:
             raise Failure("unreachable", "the embedder is off for this session" + (f" ({self.embed_why})" if self.embed_why else ""))
+        emb = self.embed                                # (f522) read once: a restart or a close may change it meanwhile
         try:
             return self.source.embed(texts)
         except Failure as f:
-            if f.kind != "unreachable" or self.embed is None or self.embed.alive():
+            if f.kind != "unreachable" or emb is None or self._stopping.is_set() or not emb.gone():
                 raise
             with self._lock:
-                self._crash_note(self.embed)
-                if self.embed_restarts_left > 0:
-                    self.embed_restarts_left -= 1
-                    self._start_embed()
-                else:
-                    self.embed_state, self.embed_why = "failed", "its server stopped again after its restart"
-                    self.source.embed_server = None
-                    self._note_line("the embedder's server stopped again after its restart: embeddings are off for this session")
-            if self.embed_state == "ready":
+                if self._closed or self._stopping.is_set():
+                    raise                               # the game is closing: its embedder's end is no death, and nothing restarts
+                if self.embed is emb:                   # another call may have restarted it already
+                    self._crash_note(emb)
+                    if self.embed_restarts_left > 0:
+                        self.embed_restarts_left -= 1
+                        self._start_embed()
+                    else:
+                        self.embed_state, self.embed_why = "failed", "its server stopped again after its restart"
+                        self.source.embed_server = None
+                        self._note_line("the embedder's server stopped again after its restart: embeddings are off for this session")
+            if self.embed_state == "ready" and not self._stopping.is_set():
                 return self.source.embed(texts)
             raise
 
     def _tail(self, child: Child, n: int = 4000) -> str:
-        try:
-            with open(child.log_path, "rb") as f:
-                f.seek(0, 2)
-                size = f.tell()
-                f.seek(max(0, size - n))
-                return f.read().decode("utf-8", errors="replace")
-        except OSError:
-            return ""
+        return child.text(n, settle=not child.alive())
 
-    def _phase(self, child: Child, start_at: int) -> float:
-        try:
-            with open(child.log_path, "rb") as f:
-                f.seek(start_at)
-                text = f.read().decode("utf-8", errors="replace")
-        except OSError:
-            return 0.0
+    def _phase(self, child: Child) -> float:
+        text = child.text()
         got = 0.0
         for marker, at in PHASES:
             if marker in text:
@@ -609,64 +763,71 @@ class Runtime:
             if self.state == "ready":
                 return
             self._closed = False
-            self.state = "loading"
-            shown = [0.0]
+            self._stopping.clear()
+            self._load(progress)
 
-            def tell(x):
-                if progress is not None and x > shown[0]:
-                    shown[0] = x
-                    progress(x)
-            try:
-                stop_stale(self.run_dir, self.runtime)
-                exe = self.exe()
-                self.facts_["devices"] = self.devices(exe)
-                tell(0.02)
-                try:
-                    log_start = os.path.getsize(self.logs / "llama-server.log")
-                except OSError:
-                    log_start = 0
-                self.chat = self._spawn_chat()
-                self._write_run_files()
-                limit = float((self.cfg.get("server") or {}).get("start_seconds") or 300)
-                server = llama.Server(self.chat.port, self.chat.key)
-                start = time.monotonic()
-                binds = 0
-                while True:
-                    if not self.chat.alive():
-                        if "couldn't bind" in self._tail(self.chat) and binds < 3:
-                            binds += 1                  # the port was taken between choosing it and binding it: another, never a failed load
-                            self.chat = self._spawn_chat()
-                            self._write_run_files()
-                            server = llama.Server(self.chat.port, self.chat.key)
-                            continue
-                        self._crash_note(self.chat)
-                        raise Failure("unreachable", "llama-server ended while it loaded")
-                    h = server.health()
-                    if h == "ready":
-                        break
-                    if time.monotonic() - start > limit:
-                        raise Failure("loading", f"the model was still loading after {int(limit)} s")
-                    tell(self._phase(self.chat, log_start))
-                    time.sleep(0.1)
-                self._props(server)
-                s = self.cfg.get("server") or {}
-                self.source = llama.LlamaServer(server, None, machine={"slot_ctx": self.facts_["slot_ctx"],
-                                                                       "slots": {"foreground": 0, "background": 1, "input": 0}},
-                                                worker=self.worker or worker_mod.Worker(int(s.get("max_cancels", 3)),
-                                                                                        float(s.get("resume_idle_seconds", 2))))
-                self.worker = self.source.worker               # (f523) one worker for the session, kept across a restart
-                self._write_run_files()
-                tell(0.97)
-                if self.embed_state != "ready" or self.embed is None or not self.embed.alive():
-                    self._start_embed()                        # (f524) embeddings decided here, once, for the session
-                else:
-                    self.source.embed_server = llama.Server(self.embed.port, self.embed.key)
-                self.state = "ready"
-                tell(1.0)
-            except BaseException:
-                self.state = "failed"
-                self._stop_children()
-                raise
+    def _load(self, progress=None) -> None:
+        """The load itself, the lock held: (f522) a restart calls this, never load(), so a close that came meanwhile is never undone."""
+        self.state = "loading"
+        shown = [0.0]
+
+        def tell(x):
+            if progress is not None and x > shown[0]:
+                shown[0] = x
+                progress(x)
+        try:
+            stop_stale(self.run_dir, self.runtime)
+            exe = self.exe()
+            self.facts_["devices"] = self.devices(exe)
+            tell(0.02)
+            self.chat = self._spawn_chat()
+            self._write_run_files()
+            limit = float((self.cfg.get("server") or {}).get("start_seconds") or 300)
+            server = llama.Server(self.chat.port, self.chat.key)
+            start = time.monotonic()
+            binds = 0
+            while True:
+                if self._stopping.is_set():
+                    raise Failure("unreachable", _CLOSING)
+                if not self.chat.alive():
+                    if self._stopping.is_set():
+                        raise Failure("unreachable", _CLOSING)
+                    if "couldn't bind" in self._tail(self.chat) and binds < 3:
+                        binds += 1                  # the port was taken between choosing it and binding it: another, never a failed load
+                        self.chat = self._spawn_chat()
+                        self._write_run_files()
+                        server = llama.Server(self.chat.port, self.chat.key)
+                        continue
+                    self._crash_note(self.chat)
+                    raise Failure("unreachable", "llama-server ended while it loaded")
+                h = server.health()
+                if h == "ready":
+                    break
+                if time.monotonic() - start > limit:
+                    raise Failure("loading", f"the model was still loading after {int(limit)} s")
+                tell(self._phase(self.chat))
+                time.sleep(0.1)
+            self._props(server)
+            s = self.cfg.get("server") or {}
+            self.source = llama.LlamaServer(server, None, machine={"slot_ctx": self.facts_["slot_ctx"],
+                                                                   "slots": {"foreground": 0, "background": 1, "input": 0}},
+                                            worker=self.worker or worker_mod.Worker(int(s.get("max_cancels", 3)),
+                                                                                    float(s.get("resume_idle_seconds", 2))))
+            self.worker = self.source.worker               # (f523) one worker for the session, kept across a restart
+            self._write_run_files()
+            tell(0.97)
+            if self.embed_state != "ready" or self.embed is None or not self.embed.alive():
+                self._start_embed()                        # (f524) embeddings decided here, once, for the session
+            else:
+                self.source.embed_server = llama.Server(self.embed.port, self.embed.key)
+            if self._stopping.is_set():
+                raise Failure("unreachable", _CLOSING)
+            self.state = "ready"
+            tell(1.0)
+        except BaseException:
+            self.state = "failed"
+            self._stop_children()
+            raise
 
     def _props(self, server: llama.Server) -> None:
         want = int((self.cfg.get("server") or {}).get("slot_ctx") or 0)
@@ -680,25 +841,18 @@ class Runtime:
                                      "the card's memory is too small for the context")
 
     def _offloaded(self) -> str | None:
-        m = re.findall(r"offloaded (\d+)/(\d+) layers to GPU", self._tail(self.chat, 200000)) if self.chat else []
+        m = re.findall(r"offloaded (\d+)/(\d+) layers to GPU", self.chat.text()) if self.chat else []
         return f"{m[-1][0]}/{m[-1][1]}" if m else None
 
     def _note_line(self, text: str) -> None:
-        try:
-            self.logs.mkdir(parents=True, exist_ok=True)
-            with open(self.logs / "crash.log", "a", encoding="utf-8") as f:
-                f.write(f"\n---- {time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
-        except OSError:
-            pass
+        from engine import crashlog
+        crashlog.note("llama-server", text, to=self.logs / "crash.log")
 
     def _crash_note(self, child: Child) -> None:
-        try:
-            self.logs.mkdir(parents=True, exist_ok=True)
-            with open(self.logs / "crash.log", "a", encoding="utf-8") as f:
-                f.write(f"\n---- llama-server ({child.name}) ended with code {child.proc.poll()} at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(self._tail(child, 3000) + "\n")
-        except OSError:
-            pass
+        """(f522) One crash.log entry in that file's own form (so it is counted and trimmed as one), with the tail of what it said."""
+        from engine import crashlog
+        crashlog.note("llama-server", f"llama-server ({child.name}) ended with code {child.proc.poll()}\n{self._tail(child, 3000)}",
+                      to=self.logs / "crash.log")
 
     # -- calls, restarts
     def chat_call(self, req, deadline=None):
@@ -710,23 +864,28 @@ class Runtime:
                 src = self.source
             else:
                 raise Failure("unreachable", f"the model server is {self.state}")
+        chat = self.chat                                # (f522) read once: a restart or a close may change it meanwhile
         try:
             return src.chat(req, deadline=deadline)
         except Failure as f:
-            if f.kind == "unreachable" and self.chat is not None and not self.chat.alive():
-                self._died()
+            if f.kind == "unreachable" and chat is not None and not self._stopping.is_set() and chat.gone():
+                self._died(chat)
             raise
 
     def _wait_ready(self, limit: float = 600.0) -> None:
         start = time.monotonic()
-        while self.state in ("loading", "restarting") and time.monotonic() - start < limit:
+        while self.state in ("loading", "restarting") and not self._stopping.is_set() and time.monotonic() - start < limit:
             time.sleep(0.1)
-        if self.state != "ready":
+        if self.state != "ready" or self._stopping.is_set():
             raise Failure("unreachable", f"the model server is {self.state}")
 
-    def _died(self) -> None:
+    def _died(self, chat: Child | None = None) -> None:
+        """A chat server found gone: started again once, the next death 'failed'. (f522) Never after a close (the game closing ends its
+        server; that is no death, and nothing is started after it), and once only for one death however many calls found it."""
         with self._lock:
-            if self.chat is None or self.chat.alive():
+            if self._closed or self._stopping.is_set():
+                return
+            if self.chat is None or (chat is not None and self.chat is not chat) or self.chat.alive():
                 return
             self._crash_note(self.chat)
             if self.restarts_left <= 0:
@@ -737,8 +896,7 @@ class Runtime:
             self.state = "restarting"          # a call made meanwhile waits for the new server (chat_call), as during a load
             self.chat = None
             try:
-                self._closed = False
-                self.load()
+                self._load()
             except Exception:
                 self.state = "failed"
 
@@ -768,14 +926,24 @@ class Runtime:
         self._remove_run_files()
 
     def close(self) -> None:
-        """Cancel the calls in flight, stop every child, take the run files away. Safe to call twice, and from any thread."""
+        """Cancel the calls in flight, stop every child, take the run files away. Safe to call twice, and from any thread. (f522) It may
+        come while a load or a restart runs: the close is marked and the children stopped before the lock is waited for, so the load
+        ends at once rather than holding the close (and the closed window's process) until it finishes, and nothing starts after it."""
+        self._stopping.set()
+        src = self.source
+        if src is not None:
+            src.close()                                 # the calls in flight cancelled, and (f523) none left waiting for the card
+        for c in (self.chat, self.embed):
+            self._stop(c)
         with self._lock:
             if self._closed:
                 return
             self._closed = True
-            if self.source is not None:
-                self.source.cancel()
             self._stop_children()
+            self.chat = self.embed = None
+            self.worker = None                          # a load after a close starts with a worker of its own
+            if self.source is not None:
+                self.source.embed_server = None
             if self.state != "failed":
                 self.state = "not_started"
 
@@ -845,7 +1013,12 @@ def start_for_game(progress=None, say=print) -> bool:
     when another game holds the lock or the server could not start; the game then ends."""
     from llm import backend
     lock = GameLock()
-    if not lock.acquire():
+    try:
+        held = lock.acquire()
+    except OSError as e:                               # (f522) the run folder cannot be written: the plain line, never the crash screen
+        say(COULD_NOT_WAKE.format(why=f"the folder run/ could not be written ({e})"))
+        return False
+    if not held:
         say(ALREADY_OPEN)
         return False
     problems = runtime_problems(check_files=True)
@@ -856,9 +1029,16 @@ def start_for_game(progress=None, say=print) -> bool:
     rt = Runtime()
     try:
         rt.load(progress)
-    except Failure as f:
+    except Exception as e:                             # (f522) any launch error is the plain line, the lock let go, the details kept
+        if isinstance(e, (Failure, NoServer)):
+            why = (e.detail or e.kind) if isinstance(e, Failure) else str(e)
+        else:
+            from engine import crashlog
+            crashlog.record(e, "starting the model server")
+            why = f"{type(e).__name__}: {e}"
+        rt.close()
         lock.release()
-        say(COULD_NOT_WAKE.format(why=f.detail or f.kind))
+        say(COULD_NOT_WAKE.format(why=why))
         return False
     _GAME.update(rt=rt, lock=lock, undo=backend.use(Managed(rt)))
     import atexit

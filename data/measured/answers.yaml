@@ -1,0 +1,6 @@
+# (f522) The largest answer any call asks for (max_tokens), in tokens. llm/runtime.py reads it to check that one slot holds the largest
+# prompt and twice the largest answer (the validation retry resends the draft); before f522 it parsed the source for it at every launch,
+# which the shipped game cannot (it carries no source) and which cost every launch a second. A measurement of the code, outside the
+# data hash like the rest of data/measured. tools/sim/server_522_test.py scans every max_tokens= in the source and fails when this
+# number is not the largest, so a call that asks for more is caught by the suite.
+max_tokens: 3600

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -103,8 +104,11 @@ def build_from_source(cfg: dict, into: Path) -> str | None:
         src = Path(tmp) / "llama.cpp"
         steps = [["git", "clone", "-q", "https://github.com/ggml-org/llama.cpp", str(src)],
                  ["git", "-C", str(src), "checkout", "-q", commit],
-                 ["cmake", "-S", str(src), "-B", str(src / "build"), "-DGGML_CUDA=ON", "-DCMAKE_CUDA_ARCHITECTURES=86;89;120",
-                  "-DLLAMA_CURL=OFF", "-DCMAKE_BUILD_TYPE=Release"],
+                 ["cmake", "-S", str(src), "-B", str(src / "build"), "-DGGML_CUDA=ON", f"-DCMAKE_CUDA_ARCHITECTURES={cuda_archs()}",
+                  "-DLLAMA_CURL=OFF", "-DCMAKE_BUILD_TYPE=Release",
+                  # (f522) the libraries found beside the program wherever it is copied, as llama.cpp's own release builds do; the
+                  # default build path points into the folder deleted below, and the program would not start
+                  "-DCMAKE_INSTALL_RPATH=$ORIGIN", "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"],
                  ["cmake", "--build", str(src / "build"), "--target", "llama-server", "-j", str(os.cpu_count() or 4)]]
         for step in steps:
             print("  $ " + " ".join(step))
@@ -114,7 +118,28 @@ def build_from_source(cfg: dict, into: Path) -> str | None:
         for p in (src / "build" / "bin").iterdir():
             if p.is_file():
                 shutil.copy2(p, into / p.name)
+    try:                                                # (f522) proven to start from where it now lives, its build folder gone
+        ran = subprocess.run([str(into / "llama-server"), "--version"], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"the built llama-server does not start: {e}"
+    if ran.returncode != 0:
+        last = ((ran.stderr or "") + (ran.stdout or "")).strip().splitlines()[-1:] or ["no output"]
+        return f"the built llama-server does not start: {last[0]}"
     return None
+
+
+def cuda_archs() -> str:
+    """The cards the source build is for: the 3060 (sm_86) and the 40-series (sm_89), and the 50-series (sm_120) when nvcc is 12.8 or
+    newer (an older one refuses sm_120 at the configure step)."""
+    try:
+        out = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=30).stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return "86;89;120"
+    m = re.search(r"release (\d+)\.(\d+)", out)
+    if m and (int(m.group(1)), int(m.group(2))) < (12, 8):
+        print("  nvcc is older than 12.8: the build leaves out the 50-series cards (sm_120)")
+        return "86;89"
+    return "86;89;120"
 
 
 def main(argv=None) -> int:

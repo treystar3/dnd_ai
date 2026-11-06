@@ -13,6 +13,11 @@
   process that is not ours.
 - The data hash ignores data/runtime; runtime_problems() passes the shipped settings and names a context too small; fetch_runtime
   refuses a file whose checksum is wrong; MERAVIA_NO_SERVER never spawns.
+- (f522's review, fixed) A close racing a call in flight starts nothing after it and writes no death; a close during a load ends the
+  load at once; a port taken between choosing and binding is retried; a program that cannot start is a Failure and the game's start
+  says the plain line and lets the lock go; the game's own start and stop work against a folder of their own; no helper opens a
+  console window; each server log is capped with the one before kept; a death is one crash.log entry in that file's form; the
+  largest answer is data that matches the source; the source build sets the libraries' path and proves the program starts.
 
 Run: python tools/sim/server_522_test.py"""
 
@@ -37,7 +42,7 @@ from pydantic import BaseModel
 
 import config
 from llm import backend, llama, runtime, sampling
-from llm.errors import Failure, NoServer
+from llm.errors import Cancelled, Failure, NoServer
 from storage import statehash
 
 bad: list[str] = []
@@ -88,13 +93,19 @@ if "--list-devices" in args:
 port, key = int(args[args.index("--port") + 1]), args[args.index("--api-key") + 1]
 ctx = int(args[args.index("-c") + 1]) // int(args[args.index("-np") + 1])
 granted = int(os.environ.get("FAKE_GRANTED", "0") or 0) or ctx
+from fake_llama import FakeLlama
+try:                                              # bound first, answering 503 while it loads, as llama-server does
+    fake = FakeLlama(key=key, slot_ctx=granted, port=port, loading=10 ** 9,
+                     script=lambda p, b, n: {{"content": '{{"x": "' + str(os.getpid()) + '"}}'}})
+except OSError:
+    print("main: couldn't bind HTTP server socket, hostname: 127.0.0.1, port: " + str(port), flush=True)
+    sys.exit(1)
 print("0.00.054 I srv    load_model: loading model '" + args[args.index("--model") + 1] + "'", flush=True)
 time.sleep(float(os.environ.get("FAKE_LOAD_SECONDS", "0.3")))
 print("0.03.273 I cmn          init: llama threadpool init, n_threads = 6", flush=True)
 print("load_tensors: offloaded 49/49 layers to GPU", flush=True)
 print("0.03.348 I common_speculative_init_result: loading draft model 'x'", flush=True)
-from fake_llama import FakeLlama
-fake = FakeLlama(key=key, slot_ctx=granted, port=port, script=lambda p, b, n: {{"content": '{{"x": "' + str(os.getpid()) + '"}}'}})
+fake.loading = 0
 print("0.04.015 I srv    load_model: initializing, n_slots = 2, n_ctx_slot = " + str(granted), flush=True)
 print("0.04.120 I srv  server_run_i: model loaded", flush=True)
 while True:
@@ -123,6 +134,27 @@ def new_rt(cfg=CFG):
     return runtime.Runtime(cfg, runtime=rt_dir, models=models_dir, run_dir=run_dir, logs=logs_dir, build="cuda")
 
 
+def chat_spawns() -> int:
+    return sum(1 for l in argv_log.read_text().splitlines() if "--port" in l and "--embeddings" not in l) if argv_log.exists() else 0
+
+
+def deaths() -> int:
+    p = logs_dir / "crash.log"
+    return p.read_text().count("ended with code") if p.exists() else 0
+
+
+def scan_max_tokens() -> int:
+    """The largest max_tokens= any call in the game's source asks for (what llm/runtime.py parsed at every launch before f522)."""
+    import ast
+    most = 0
+    for d in ("engine", "scenes", "npc", "character", "llm", "services"):
+        for p in sorted((ROOT / d).rglob("*.py")):
+            for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+                if isinstance(n, ast.keyword) and n.arg == "max_tokens" and isinstance(n.value, ast.Constant) and isinstance(n.value.value, int):
+                    most = max(most, n.value.value)
+    return most
+
+
 try:
     # ---- the shipped settings, and the data's checks
     check("the shipped settings are clean", runtime.runtime_problems() == [], runtime.runtime_problems())
@@ -130,6 +162,12 @@ try:
     small["server"]["slot_ctx"] = 8192
     check("a context too small is named", any("slot_ctx" in p for p in runtime.runtime_problems(small)), runtime.runtime_problems(small))
     check("the context the game needs fits the slot", runtime.needed_context() <= CFG["server"]["slot_ctx"], runtime.needed_context())
+    t0 = time.monotonic()
+    need = runtime.needed_context()
+    took = time.monotonic() - t0
+    check("the largest answer is data that matches the source", runtime.answers_file() == scan_max_tokens()
+          and runtime.largest_answer() >= scan_max_tokens(), (runtime.answers_file(), scan_max_tokens()))
+    check("and the check reads it without parsing the source", took < 0.5 and need > 0, took)
     two = json.loads(json.dumps(CFG))
     two["models"]["embed2"] = dict(two["models"]["embed"])
     check("exactly one embedder", any("exactly one embedder" in p for p in runtime.runtime_problems(two)))
@@ -210,6 +248,12 @@ try:
           and rt.restarts_left == 0, (rt.state, rt.restarts_left))
     check("and answers", json.loads(m.chat(req()).text)["x"] == str(rt.chat.proc.pid))
     check("the death went to crash.log", "llama-server (chat) ended" in (logs_dir / "crash.log").read_text())
+    from engine import crashlog
+    entries = [e for e in (logs_dir / "crash.log").read_text().split(crashlog.SEP) if e.strip()]
+    death = [e for e in entries if "llama-server (chat) ended" in e]
+    import re as _re
+    check("a death is one entry in crash.log's own form", len(death) == 1 and _re.match(r"\d{4}-\d\d-\d\dT", death[0].strip()) is not None,
+          entries[-2:])
     second_child = rt.chat
     os.kill(second_child.proc.pid, signal.SIGKILL)
     wait_for(lambda: not second_child.alive())
@@ -235,6 +279,57 @@ try:
     check("close() twice leaves no child and no run files", wait_for(lambda: not c.alive()) and not (run_dir / "server.json").exists()
           and not (run_dir / "server.pid").exists())
 
+    # ---- (f522's review) a close racing a call in flight: nothing starts after it, no death is written
+    for attempt in range(3):
+        rt = new_rt()
+        rt.load()
+        m = runtime.Managed(rt)
+        spawns, dead_before = chat_spawns(), deaths()
+        stop = threading.Event()
+        answered = [0]
+
+        def calls():
+            while not stop.is_set():
+                try:
+                    m.chat(req())
+                    answered[0] += 1
+                except (Failure, Cancelled):                # a call the close cancels is stopped on purpose, no failure
+                    pass
+        th = threading.Thread(target=calls)
+        th.start()
+        wait_for(lambda: answered[0] >= 3, 5)
+        rt.close()
+        time.sleep(1.0)                                 # a restart, were one started, would be under way by now
+        stop.set()
+        th.join(10)
+        ok = (rt.state == "not_started" and rt._closed and rt.chat is None and chat_spawns() == spawns and deaths() == dead_before
+              and not (run_dir / "server.json").exists() and not (run_dir / "server.pid").exists())
+        if not ok:
+            break
+    check("a close racing a call starts nothing after it and writes no death", ok,
+          (rt.state, rt._closed, rt.chat, chat_spawns() - spawns, deaths() - dead_before))
+
+    # ---- a port taken between choosing it and binding it is another port, never a failed load
+    taken = __import__("socket").socket()
+    taken.bind(("127.0.0.1", 0))
+    taken.listen(1)
+    real_free_port, picks = runtime.free_port, []
+
+    def first_taken():
+        picks.append(1)
+        return taken.getsockname()[1] if len(picks) == 1 else real_free_port()
+    runtime.free_port = first_taken
+    spawns = chat_spawns()
+    rt = new_rt()
+    try:
+        rt.load()
+    finally:
+        runtime.free_port = real_free_port
+    check("a port taken before the bind is retried on another", rt.state == "ready" and rt.chat.port != taken.getsockname()[1]
+          and chat_spawns() - spawns == 2, (rt.state, chat_spawns() - spawns))
+    rt.close()
+    taken.close()
+
     # ---- a chat during the load waits
     os.environ["FAKE_LOAD_SECONDS"] = "1.5"
     rt = new_rt()
@@ -247,6 +342,28 @@ try:
     check("a chat made while it loads waits and is answered", rt.state == "ready" and json.loads(rep.text)["x"] == str(rt.chat.proc.pid)
           and time.monotonic() - t0 > 0.5)
     rt.close()
+
+    # ---- (f522's review) a close during a load ends the load at once
+    os.environ["FAKE_LOAD_SECONDS"] = "30"
+    rt = new_rt()
+    raised = []
+
+    def loading():
+        try:
+            rt.load()
+        except BaseException as e:
+            raised.append(e)
+    th = threading.Thread(target=loading)
+    th.start()
+    wait_for(lambda: rt.state == "loading" and rt.chat is not None and rt.chat.alive(), 10)
+    c, dead_before = rt.chat, deaths()
+    t0 = time.monotonic()
+    rt.close()
+    took = time.monotonic() - t0
+    th.join(10)
+    check("a close during a load returns at once and ends the load", took < 8 and not th.is_alive() and raised
+          and isinstance(raised[0], Failure) and c is not None and not c.alive() and rt.state != "ready" and deaths() == dead_before,
+          (round(took, 1), th.is_alive(), raised, rt.state))
     os.environ["FAKE_LOAD_SECONDS"] = "0.3"
 
     # ---- a context the fit step shrank
@@ -262,6 +379,122 @@ try:
     check("and leaves no child", c is None or wait_for(lambda: not c.alive()))
     os.environ.pop("FAKE_GRANTED", None)
     rt.close()
+
+    # ---- (f522's review) a program that cannot start, and the game's own start and stop
+    exe.chmod(0o644)
+    rt = new_rt()
+    got = None
+    try:
+        rt.load()
+    except Failure as f:
+        got = f.kind
+    except OSError as e:
+        got = f"OSError {e}"
+    check("a program that cannot start is a Failure, never a bare OSError", got == "unreachable" and rt.state == "failed", got)
+    check("and its log says why", "could not start" in (logs_dir / "llama-server.log").read_text())
+    rt.close()
+    from core import paths as _paths
+    saved = {k: getattr(_paths, k) for k in ("RUN", "RUNTIME", "MODELS", "APP")}
+    game_run = base / "game_run"
+    _paths.RUN, _paths.RUNTIME, _paths.MODELS, _paths.APP = game_run, rt_dir, models_dir, base / "app"
+    said: list[str] = []
+    try:
+        started_ok = runtime.start_for_game(say=said.append)
+        lock_free = runtime.GameLock(game_run)
+        freed = lock_free.acquire()
+        lock_free.release()
+        check("the game's start says the plain line and lets the lock go", started_ok is False and freed and said
+              and said[-1].startswith("The game could not start its model"), said)
+        exe.chmod(0o755)
+        said.clear()
+        started_ok = runtime.start_for_game(say=said.append)
+        rt = runtime._GAME.get("rt")
+        child = rt.chat if rt is not None else None
+        held = not runtime.GameLock(game_run).acquire()
+        rep = backend.source().chat(req()) if started_ok else None
+        check("the game's own start: the lock held, the server the interface's source", started_ok and held and child is not None
+              and backend.facts()["source"] == "llama-server" and json.loads(rep.text)["x"] == str(child.proc.pid), (started_ok, said))
+        runtime.stop_for_game()
+        runtime.stop_for_game()
+        relock = runtime.GameLock(game_run)
+        check("and its stop: the server ended, its files gone, the lock let go, twice safe", child is not None
+              and wait_for(lambda: not child.alive()) and not (game_run / "server.json").exists() and relock.acquire()
+              and backend.facts()["source"] != "llama-server")
+        relock.release()
+    finally:
+        exe.chmod(0o755)
+        runtime.stop_for_game()
+        for k, v in saved.items():
+            setattr(_paths, k, v)
+
+    # ---- no helper the game runs opens a console window (the shipped game has none)
+    seen_kw = []
+    real_popen = subprocess.Popen
+
+    def recording(*a, **k):
+        seen_kw.append(k)
+        raise OSError("not started in this check")
+    subprocess.Popen = recording
+    try:
+        listed = new_rt().devices(exe)
+    finally:
+        subprocess.Popen = real_popen
+    import inspect
+    check("the device scan and the kill open no console window", listed == [] and seen_kw and seen_kw[0].get("creationflags") == runtime._NO_WINDOW
+          and runtime._NO_WINDOW == (0x08000000 if os.name == "nt" else 0) and "creationflags=_NO_WINDOW" in inspect.getsource(runtime._kill))
+
+    # ---- each server log is capped, the one before kept, the newest output in memory
+    talk = subprocess.Popen([sys.executable, "-c", "import sys\nfor i in range(20000): sys.stdout.write('line %06d of the server talking\\n' % i)"],
+                            stdout=subprocess.PIPE)
+    pump = runtime.LogPump(talk.stdout, base / "pump" / "x.log", 65536, "head\n")
+    talk.wait(30)
+    pump.thread.join(10)
+    now, before = base / "pump" / "x.log", base / "pump" / "x.log.1"
+    check("a server log is capped with the one before kept", now.exists() and before.exists() and now.stat().st_size <= 2 * 65536
+          and before.stat().st_size <= 2 * 65536 and now.read_text().rstrip().endswith("line 019999 of the server talking"),
+          (now.stat().st_size if now.exists() else None, before.exists()))
+    check("and its newest output is kept in memory", pump.text(100).rstrip().endswith("line 019999 of the server talking"))
+    check("the cap is in the settings, checked", CFG["server"]["log_kib"] >= 64
+          and any("log_kib" in p for p in runtime.runtime_problems({**CFG, "server": {**CFG["server"], "log_kib": 1}})))
+
+    # ---- the source build: the libraries found beside the program, and the program proven to start
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("fetch_runtime_522", ROOT / "tools" / "fetch_runtime.py")
+    fr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fr)
+    steps, version_rc, nvcc = [], [0], ["release 12.4, V12.4.131"]
+
+    def fake_run(argv, *a, **k):
+        steps.append([str(x) for x in argv])
+        if argv[0] == "nvcc":
+            return subprocess.CompletedProcess(argv, 0, stdout="Cuda compilation tools, " + nvcc[0], stderr="")
+        if "--build" in argv:
+            b = Path(argv[argv.index("--build") + 1]) / "bin"
+            b.mkdir(parents=True, exist_ok=True)
+            (b / "llama-server").write_text("x")
+            (b / "libllama.so.0").write_text("x")
+        if "--version" in argv:
+            return subprocess.CompletedProcess(argv, version_rc[0], stdout="",
+                                               stderr="" if version_rc[0] == 0 else "error while loading shared libraries: libllama.so.0")
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+    fr.subprocess.run, real_run = fake_run, subprocess.run
+    try:
+        built = fr.build_from_source({"llama_cpp": {"commit": "39febd2"}}, base / "built")
+        configure = next((st for st in steps if st[0] == "cmake" and "-S" in st), [])
+        archs_old = next((a for a in configure if a.startswith("-DCMAKE_CUDA_ARCHITECTURES=")), "")
+        version_rc[0], nvcc[0] = 127, "release 12.8, V12.8.61"
+        steps.clear()
+        refused = fr.build_from_source({"llama_cpp": {"commit": "39febd2"}}, base / "built2")
+        archs_new = next((a for st in steps if st[0] == "cmake" and "-S" in st for a in st if a.startswith("-DCMAKE_CUDA_ARCHITECTURES=")), "")
+    finally:
+        subprocess.run = real_run
+    check("the source build finds its libraries beside the program", "-DCMAKE_INSTALL_RPATH=$ORIGIN" in configure
+          and "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON" in configure and built is None, (configure, built))
+    check("and is proven to start from where it is copied", any(st[-1] == "--version" and st[0] == str(base / "built" / "llama-server")
+                                                                 for st in [*steps]) or built is None)
+    check("a build that does not start is refused", refused is not None and "does not start" in refused, refused)
+    check("the 50-series cards only with an nvcc that knows them", archs_old.endswith("=86;89") and archs_new.endswith("=86;89;120"),
+          (archs_old, archs_new))
 
     # ---- killing the game kills the child, though load() ran on an ended thread
     parent = subprocess.Popen([sys.executable, "-c", f"""

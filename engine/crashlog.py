@@ -35,15 +35,24 @@ def record(exc: BaseException, where: str, **context) -> dict:
     text = (f"{entry['time']}  {where}: {entry['error']}\n"
             + "".join(f"  {k}: {v}\n" for k, v in context.items() if v not in (None, ""))
             + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
+    _append(text, path())
+    return entry
+
+
+def note(where: str, text: str, to: Path | None = None) -> None:
+    """(f522) One entry with no exception (a model server that ended, and the tail of what it said), in record()'s form, so the file
+    is counted and trimmed entry by entry. `to` is the file (the runtime's logs folder); crash.log by default. Never raises."""
+    _append(f"{datetime.now(timezone.utc).isoformat(timespec='seconds')}  {where}: {text}", to or path())
+
+
+def _append(text: str, p: Path) -> None:
     try:
-        p = path()
         p.parent.mkdir(parents=True, exist_ok=True)
-        old = p.read_text(encoding="utf-8") if p.exists() else ""
+        old = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
         entries = [e for e in old.split(SEP) if e.strip()] + [text.rstrip("\n")]
         p.write_text(SEP.join(entries[-KEEP:]) + "\n", encoding="utf-8")
     except OSError:
         pass
-    return entry
 
 
 def last() -> dict | None:
