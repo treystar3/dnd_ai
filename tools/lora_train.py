@@ -8,13 +8,13 @@ Two stages. sft learns from the accepted answers (<task>.sft.jsonl); dpo then le
 answer that replaced it (<task>.pairs.jsonl), starting from the sft adapter (--from). The base model, rank, learning rate and the rest
 come from data/rules/lora.yaml train, and any of them can be given here.
 
---dry-run reads the files, checks their shape, counts examples and rough tokens, and writes the Modelfile Ollama needs next to where the
+--dry-run reads the files, checks their shape, counts examples and rough tokens, and names the next step, next to where the
 adapter would go, without importing torch: it runs anywhere, including the test suite. A real run needs a GPU and
     pip install torch transformers peft trl datasets accelerate bitsandbytes
 and the base model's weights from Hugging Face (the first run downloads them). --load-4bit holds the base in 4-bit (QLoRA) so a 12B
 model trains on a 24 GB card, slowly; on an 80 GB card leave it off.
 
-When it is done: `ollama create meravia-<task> -f <out>/Modelfile`, point config.MODEL at that tag for the task, and score it with
+When it is done: convert the adapter with llama.cpp's convert_lora_to_gguf.py (f529, tools/LORA.md), then score it as a voice with
 tools/lora_eval.py before trusting it."""
 from __future__ import annotations
 
@@ -70,9 +70,10 @@ def rough_tokens(rows: list[dict]) -> int:
     return chars // 4
 
 
-def modelfile(base_tag: str, adapter_dir: str) -> str:
-    return (f"# Built by tools/lora_train.py. `ollama create meravia-<task> -f Modelfile`, then set config.OLLAMA_MODEL (or the task's model) to that tag.\n"
-            f"FROM {base_tag}\nADAPTER {adapter_dir}\n")
+def next_step(task: str, out: Path) -> str:
+    """(f529) What to do with the adapter: a GGUF the game's own server loads as a voice (tools/LORA.md step 5)."""
+    return (f"next: python <llama.cpp>/convert_lora_to_gguf.py {out / 'adapter'} --base <the base model's HF folder> --outfile {out / (task + '.gguf')}, "
+            f"then python tools/lora_eval.py lora/data/eval/{task}.sft.jsonl --adapter {out / (task + '.gguf')}")
 
 
 def main(argv=None) -> int:
@@ -83,7 +84,6 @@ def main(argv=None) -> int:
     ap.add_argument("--stage", choices=("sft", "dpo"), default="sft")
     ap.add_argument("--from", dest="start_from", help="an adapter to continue from (dpo after sft)")
     ap.add_argument("--base", default=T.get("base"), help="Hugging Face id of the base model")
-    ap.add_argument("--base-tag", default=None, help="the Ollama tag the adapter is applied to (default: config.OLLAMA_MODEL)")
     ap.add_argument("--rank", type=int, default=int(T.get("rank", 16)))
     ap.add_argument("--alpha", type=int, default=int(T.get("alpha", 32)))
     ap.add_argument("--dropout", type=float, default=float(T.get("dropout", 0.05)))
@@ -108,14 +108,11 @@ def main(argv=None) -> int:
     mix = read_jsonl(Path(args.mix)) if args.mix else []
     share = float(T.get("general_mix", 0.15))
     take = min(len(mix), int(len(rows) * share / max(1e-9, 1 - share))) if mix else 0
-    import config
-    base_tag = args.base_tag or config.OLLAMA_MODEL           # (f527's review) Ollama's tag, not the GGUF id, until f532
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "Modelfile").write_text(modelfile(base_tag, "./adapter"), encoding="utf-8")
     print(f"{args.stage} on {path}: {len(rows)} examples, about {rough_tokens(rows):,} tokens" + (f", plus {take} general examples" if take else ""))
-    print(f"base {args.base} (Ollama tag {base_tag}), rank {args.rank}, alpha {args.alpha}, lr {args.lr}, epochs {args.epochs}, max length {args.max_length}")
-    print(f"Modelfile written to {out / 'Modelfile'}")
+    print(f"base {args.base}, rank {args.rank}, alpha {args.alpha}, lr {args.lr}, epochs {args.epochs}, max length {args.max_length}")
+    print(next_step(args.task, out))
     if args.dry_run:
         return 0
 
@@ -150,7 +147,7 @@ def main(argv=None) -> int:
     trainer.train()
     trainer.model.save_pretrained(str(out / "adapter"))
     tok.save_pretrained(str(out / "adapter"))
-    print(f"adapter saved under {out / 'adapter'}; next: ollama create meravia-{args.task} -f {out / 'Modelfile'}")
+    print(f"adapter saved under {out / 'adapter'}; " + next_step(args.task, out))
     return 0
 
 

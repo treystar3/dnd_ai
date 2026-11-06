@@ -137,8 +137,9 @@ shutil.rmtree(run, ignore_errors=True)
 
 # ---- the hosting notes: caches by slot, not by run; the training notes: the prompt version, pre-D speech nights written off
 hosted = Path("tools/HOSTED.md").read_text(encoding="utf-8")
-check("HOSTED.md counts a context cache per request served at once, not per run", "each run at once adds its own context cache" not in hosted
-      and "OLLAMA_NUM_PARALLEL" in hosted and "--mode addressees" in hosted)
+check("HOSTED.md: each run at once is a server of its own (f529), no Ollama, and the two-speaker count still runs on the box",
+      "each run at once adds its own context cache" not in hosted and "its own llama-server" in hosted and "ollama" not in hosted.lower()
+      and "--mode addressees" in hosted)
 lora = Path("tools/LORA.md").read_text(encoding="utf-8")
 check("LORA.md names the prompt version and writes off the speech nights before Bundle D", "prompt_version" in lora and "written off" in lora)
 

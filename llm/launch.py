@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 import re
 import threading
+import time
 from pathlib import Path
 
 import yaml
@@ -234,6 +235,9 @@ class Screen:
             lock = runtime.GameLock()
             try:
                 held = lock.acquire()
+                if not held:                                # (f529's review) a tool's probe (runtime.game_open) holds the lock for an
+                    time.sleep(0.3)                         # instant: ask once more before saying a second game is open
+                    held = lock.acquire()
             except OSError as e:
                 self._log(f"the run folder could not be written: {e}")
                 self.say(line("damaged") or runtime.COULD_NOT_WAKE.format(why=e))

@@ -10,7 +10,7 @@ carries an event to its end. With --live the real model writes them while everyt
 whether what the model writes can be played to its end: the paths it names, the creatures it picks, the telling the engine checks.
 
   python tools/event_eval.py                     every case, offline
-  python tools/event_eval.py --live              the model writes the events (needs Ollama)
+  python tools/event_eval.py --live              the model writes the events (the game's own server, tools/runtime_cli.py; --attach the open game's)
   python tools/event_eval.py --only war,plague   cases whose names contain either
   python tools/event_eval.py --quiet             the summary only
 
@@ -50,9 +50,10 @@ def model_calls(outcomes) -> dict:
     return dict(sorted(out.items()))
 
 
-def route_live():
+def route_live(source=None):
     """The stand-in answers everything but the event's own calls, which reach the real model (as tools/interp_eval.py does for the interpreter).
-    (f518) The event's titles are passed on (backend.PASS: the stand-in sends them to Ollama); returns what takes both stand-ins away."""
+    (f518) The event's titles are passed on (backend.PASS: the stand-in sends them to `source`, (f529) the server main loaded); returns what
+    takes both stand-ins away."""
     import simlib
     from llm import backend
     stub = simlib.Stub("warrior", 3)
@@ -63,7 +64,7 @@ def route_live():
         if (k.get("format") or {}).get("title") in LIVE_TITLES:
             return backend.PASS
         return stub_chat(**k)
-    unroute = simlib.stand_in(chat=chat, name="event_eval live", below=backend.Untimed())   # (f518) under the client's own timeout
+    unroute = simlib.stand_in(chat=chat, name="event_eval live", below=source)
 
     def undo() -> None:
         unroute()
@@ -108,9 +109,9 @@ def group_of(case: dict) -> str:
     return case.get("tier", "campaign") + (f":{case['kind']}" if case.get("kind") else "")
 
 
-def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict:
+def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, source=None) -> dict:
     from tools import event_trial as et
-    unroute = route_live() if live else None
+    unroute = route_live(source) if live else None
     results, wrong = [], []
     start = time.time()
     try:
@@ -162,12 +163,19 @@ def main() -> int:
     ap.add_argument("--only", default="", help="comma-separated words; a case runs when its name contains one")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--cases", default=str(CASES))
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     cases = load_cases(a.cases)
     if a.only:
         keys = [k.strip() for k in a.only.split(",") if k.strip()]
         cases = [c for c in cases if any(k in c["name"] for k in keys)]
-    out = evaluate(cases, live=a.live, quiet=a.quiet)
+    server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
+    try:
+        out = evaluate(cases, live=a.live, quiet=a.quiet, source=server.source if server is not None else None)
+    finally:
+        if server is not None:
+            server.close()
     return 1 if out["wrong"] else 0
 
 

@@ -9,7 +9,7 @@ the world, the towns hit and what became of them, the people lost, the ending an
   python tools/event_trial.py campaign --pressure ironvein_deeps       the campaign of one marked pressure
   python tools/event_trial.py cataclysm --kind war --level 100         a war; settled by treaty or by the sword (--path)
   python tools/event_trial.py cataclysm --kind awakening --ignore      nobody acts: watch it run its course
-  python tools/event_trial.py campaign --live                          the real model writes it (Ollama)
+  python tools/event_trial.py campaign --live                          the real model writes it (the game's own server, tools/runtime_cli.py)
   python tools/event_trial.py cataclysm --play --days 200              simbot plays the character instead of the ledger
   python tools/event_trial.py --list                                   the marked pressures and the cataclysm kinds
 
@@ -417,8 +417,10 @@ def main() -> int:
     ap.add_argument("--ignore", action="store_true", help="never act: watch it run its course")
     ap.add_argument("--from-stage", type=int, default=2, help="act from this stage on (default 2: the event is seen to unfold first)")
     ap.add_argument("--play", action="store_true", help="simbot plays the character")
-    ap.add_argument("--live", action="store_true", help="the real model (Ollama) instead of the stub")
+    ap.add_argument("--live", action="store_true", help="the real model (the game's own server, tools/runtime_cli.py) instead of the stub")
     ap.add_argument("--list", action="store_true")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     if a.list:
         from world.loader import authored
@@ -428,6 +430,7 @@ def main() -> int:
         print("cataclysm kinds: " + ", ".join(events.C["kinds"]))
         return 0
     tiers = ["campaign", "cataclysm"] if a.tier == "both" else [a.tier]
+    server = runtime_cli.load(a) if a.live else None             # (f529) the game's own server, as the game starts it
     rc = 0
     for tier in tiers:
         level = a.level or (60 if tier == "campaign" else 100)
@@ -442,6 +445,8 @@ def main() -> int:
         print(f"  report: {path.relative_to(ROOT)}")
         if not out["started"] or out["problems"]:
             rc = 1
+    if server is not None:
+        server.close()
     return rc
 
 

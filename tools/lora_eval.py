@@ -1,16 +1,18 @@
-"""(f361) Score a model on a held-out run's prompts, against the model it would replace.
+"""(f361) Score a tuned voice on a held-out run's prompts, against the model it would replace.
 
-    python tools/lora_eval.py lora/data/eval/npc_conversation.sft.jsonl --model gemma4:12b --model meravia-npc --limit 60
+    python tools/lora_eval.py lora/data/eval/npc_conversation.sft.jsonl --adapter lora/adapters/npc_conversation.gguf --limit 60
 
-Each example's prompt (system and user) goes to every model named, through Ollama with the task's contract as the JSON shape, the way
-the gateway sends it. The answers are scored the way the game would judge them, without a model: does the answer fit the contract
+(f529) The game's own server is started with every adapter named (llm/runtime.py chat_argv --lora; a GGUF adapter from llama.cpp's
+convert_lora_to_gguf.py, tools/LORA.md), and each example's prompt (system and user) goes to the base model and then to each adapter as
+a voice, through the game's own interface with the task's contract as the grammar, the way the gateway sends it. The answers are scored
+the way the game would judge them, without a model: does the answer fit the contract
 (llm/contracts.py, validated without a scene's context), how many sentences end on a trailing participle, how many replies open on a
 stock word or trail off, how long they run, and whether they break the measurable parts of the kit the prompt gave them (a sentence
 past twenty words for a short-sentence speaker, a question from someone who never asks, two of the words the prompt said were worn out).
 The logged answers score too, as the row called 'logged', so a tuned model is read against both the base and what the game accepted.
 
 The task is the file's name (npc_conversation.sft.jsonl); its contract is data/rules/lora.yaml schemas. Writes a Markdown table, to
---out if given. Needs Ollama for any --model; in tests the stub's chat is given in its place (evaluate's chat=)."""
+--out if given. The test runs it on the stand-in (simlib.install) with no adapter: the base row alone beside the logged one."""
 from __future__ import annotations
 
 import argparse
@@ -45,17 +47,13 @@ def examples(path: Path, limit: int | None) -> list[dict]:
     return out[:limit] if limit else out
 
 
-def ask(model: str, prompt: list[dict], schema, max_tokens: int, chat=None) -> tuple[str, float]:
-    """One answer from Ollama, shaped by the contract, timed. (f518) The request names its own model tag, so it goes straight to Ollama's
-    client (llm/backend.py OllamaShape), not through the game's interface; `chat` is a function of that client's shape to ask instead
-    (a test's stub)."""
-    import config
-    from llm import backend
-    chat = chat if chat is not None else backend.OllamaShape().client.chat
+def ask(voice: str | None, prompt: list[dict], schema, max_tokens: int, task: str = "") -> tuple[str, float]:
+    """One answer through the game's own interface (llm/backend.py chat), shaped by the contract, timed: the base model when `voice` is
+    None, else the adapter loaded under that name (llm/llama.py llama_body lora). The task's own sampling, as the game sends it."""
+    from llm import backend, sampling
     start = time.perf_counter()
-    r = chat(model=model, think=config.THINK, messages=prompt, format=schema.model_json_schema(),
-             options={"temperature": 0.8, "num_ctx": config.NUM_CTX, "num_predict": max_tokens}, keep_alive=config.KEEP_ALIVE)
-    return (r.message.content or ""), time.perf_counter() - start
+    r = backend.chat(prompt, schema, sampling.resolve(task or "narrate", 0.8).at(0), max_tokens, voice=voice)
+    return (r.text or ""), time.perf_counter() - start
 
 
 # ---------------------------------------------------------------- scoring
@@ -110,7 +108,7 @@ def score(task: str, user: str, raw: str, schema) -> dict:
 
 
 def table(rows: dict[str, list[dict]], seconds: dict[str, list[float]]) -> str:
-    head = "| Model | n | Fits | Tails/sentence | 2+ tails | Opener | Trails off | Stale | Kit breaks | Words | Seconds p50 |"
+    head = "| Voice | n | Fits | Tails/sentence | 2+ tails | Opener | Trails off | Stale | Kit breaks | Words | Seconds p50 |"
     out = [head, "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for name, ss in rows.items():
         n = len(ss) or 1
@@ -123,7 +121,8 @@ def table(rows: dict[str, list[dict]], seconds: dict[str, list[float]]) -> str:
     return "\n".join(out)
 
 
-def evaluate(path: Path, models: list[str], limit: int | None = None, max_tokens: int = 600, chat=None) -> tuple[dict, dict]:
+def evaluate(path: Path, voices: list[str], limit: int | None = None, max_tokens: int = 600) -> tuple[dict, dict]:
+    """The rows: the logged answers, the base model's, and each voice's (an adapter by its stem)."""
     task = path.name.split(".")[0]
     schema = schema_for(task)
     exs = examples(path, limit)
@@ -133,22 +132,33 @@ def evaluate(path: Path, models: list[str], limit: int | None = None, max_tokens
         msgs = ex["messages"]
         user = msgs[1]["content"]
         rows["logged"].append(score(task, user, msgs[2]["content"], schema))
-        for m in models:
-            raw, took = ask(m, msgs[:2], schema, max_tokens, chat=chat)
-            rows.setdefault(m, []).append(score(task, user, raw, schema))
-            seconds.setdefault(m, []).append(took)
+        for name in ["base"] + list(voices):
+            raw, took = ask(None if name == "base" else name, msgs[:2], schema, max_tokens, task)
+            rows.setdefault(name, []).append(score(task, user, raw, schema))
+            seconds.setdefault(name, []).append(took)
     return rows, seconds
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("file", help="an eval file from tools/lora_dataset.py, e.g. lora/data/eval/narrate.sft.jsonl")
-    ap.add_argument("--model", action="append", default=[], help="an Ollama model to score; repeat for several (the logged answers always score)")
+    ap.add_argument("--adapter", action="append", default=[], help="a LoRA adapter (GGUF) to score as a voice, by its file's stem; repeat for "
+                                                                   "several (the base model and the logged answers always score)")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--max-tokens", type=int, default=600)
     ap.add_argument("--out", help="write the table here as Markdown")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     args = ap.parse_args(argv)
-    rows, seconds = evaluate(Path(args.file), args.model, args.limit, args.max_tokens)
+    adapters = [Path(a) for a in args.adapter]
+    missing = [str(a) for a in adapters if not a.is_file()]
+    if missing:
+        raise SystemExit("no such adapter: " + ", ".join(missing))
+    server = runtime_cli.load(args, adapters=adapters)      # (f529) the game's own server, every adapter loaded as a voice
+    try:
+        rows, seconds = evaluate(Path(args.file), [a.stem for a in adapters], args.limit, args.max_tokens)
+    finally:
+        server.close()
     text = f"# {Path(args.file).name}\n\n" + table(rows, seconds) + "\n"
     print(text)
     if args.out:

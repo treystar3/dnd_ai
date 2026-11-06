@@ -1,6 +1,7 @@
 """Replay cases through the intent audit gate.
     python tools/replay.py                       recorded model replies, instant, no model needed (this is what the test suite runs)
-    python tools/replay.py --live                the real model reads every case from scratch; reports how often the final plan is right
+    python tools/replay.py --live                the real model reads every case from scratch (the game's own server, tools/runtime_cli.py;
+                                                 --attach uses the open game's); reports how often the final plan is right
     python tools/replay.py --promote logs/turns.jsonl -1     print a case stub from a logged turn (edit 'expect' and add it to data/replay/cases.yaml)
 Cases live in data/replay/cases.yaml."""
 import argparse
@@ -152,10 +153,16 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--promote", nargs=2, metavar=("LOG", "INDEX"))
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     if a.promote:
         promote(a.promote[0], int(a.promote[1]))
     elif a.live:
-        live()
+        server = runtime_cli.load(a)                  # (f529) the game's own server, as the game starts it
+        try:
+            live()
+        finally:
+            server.close()
     else:
         sys.exit(1 if deterministic() else 0)

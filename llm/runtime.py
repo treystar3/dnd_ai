@@ -195,7 +195,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: str | None = None) -> list[str]:
+def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: str | None = None, adapters=()) -> list[str]:
     s, m = cfg["server"], cfg["models"]
     chat = next(v for v in m.values() if v.get("role") == "chat")
     draft = next((v for v in m.values() if v.get("role") == "draft"), None)
@@ -213,6 +213,8 @@ def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: s
         argv += ["-t", str(threads)]
     if device:
         argv += ["--device", device]                    # (f526) the ladder's device: the Vulkan card with the most memory
+    for a in adapters or ():                            # (f529) a voice's adapter (tools/lora_eval.py), numbered in this order; a request
+        argv += ["--lora", str(a)]                      # names the one it wants (llm/llama.py llama_body), none by default
     return argv
 
 
@@ -593,8 +595,9 @@ class Runtime:
     """The game's model servers: the chat server (and, with f524, the embedder), their states, their files."""
 
     def __init__(self, cfg: dict | None = None, runtime: Path | None = None, models: Path | None = None, run_dir: Path | None = None,
-                 logs: Path | None = None, build: str | None = None):
+                 logs: Path | None = None, build: str | None = None, adapters=None):
         self.cfg = settings() if cfg is None else cfg
+        self.adapters = [Path(a) for a in (adapters or [])]      # (f529) LoRA adapters (GGUF) the chat server loads, each a voice by its stem
         self.runtime = Path(runtime or paths.RUNTIME)
         self.models = Path(models or paths.MODELS)
         self.run_dir = Path(run_dir or paths.RUN)
@@ -684,7 +687,7 @@ class Runtime:
 
     # -- starting and waiting
     def _spawn_chat(self) -> Child:
-        return self._spawn("chat", lambda exe, port, key: chat_argv(exe, self.cfg, port, key, self.models, self.device_id),
+        return self._spawn("chat", lambda exe, port, key: chat_argv(exe, self.cfg, port, key, self.models, self.device_id, self.adapters),
                            "llama-server.log")
 
     def _spawn(self, name: str, argv_of, log_name: str) -> Child:
@@ -876,8 +879,10 @@ class Runtime:
             s = self.cfg.get("server") or {}
             emb_srv = (llama.Server(self.embed.port, self.embed.key)
                        if self.embed_on and self.embed is not None and self.embed.alive() and self.embed_state == "ready" else None)
-            self.source = llama.LlamaServer(server, emb_srv, machine={"slot_ctx": self.facts_["slot_ctx"],
-                                                                   "slots": {"foreground": 0, "background": 1, "input": 0}},
+            machine = {"slot_ctx": self.facts_["slot_ctx"], "slots": {"foreground": 0, "background": 1, "input": 0}}
+            if self.adapters:
+                machine["lora"] = {a.stem: i for i, a in enumerate(self.adapters)}    # (f529) each voice's adapter, by the server's numbering
+            self.source = llama.LlamaServer(server, emb_srv, machine=machine,
                                             worker=self.worker or worker_mod.Worker(int(s.get("max_cancels", 3)),
                                                                                     float(s.get("resume_idle_seconds", 2)),
                                                                                     max_wait=float(s.get("max_wait_seconds", 120))))
@@ -1092,10 +1097,10 @@ class Managed:
             self.rt.source.reopen_session(key)
 
 
-# ------------------------------------------------------------------ the game's own server (main.py, behind the switch until f528)
+# ------------------------------------------------------------------ the game's own server (main.py: the default start since f528)
 
-# The two lines a player could see from here, until f526 and f527 move them into data/rules/launch.yaml once the owner has read them.
-# Only DND_BACKEND=runtime reaches them before f528.
+# The two lines a player could see from here, kept for a tree without data/rules/launch.yaml (the owner's lines, f527); with the file
+# there, llm/launch.py says its lines instead (line("already_open"), line("could_not_wake")).
 ALREADY_OPEN = "Meravia is already open in another window."
 COULD_NOT_WAKE = "The game could not start its model ({why}). The details are in logs/llama-server.log."
 

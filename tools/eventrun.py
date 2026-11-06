@@ -504,6 +504,8 @@ def main() -> None:
     ap.add_argument("--out", default="", help="where the logs go (default logs/eventrun/<when>)")
     ap.add_argument("--save", default="", help="the save folder's name (default eventrun_<when>; never listed on the home page)")
     ap.add_argument("--stub", action="store_true", help="the stand-in model (the test suite): the mechanics, not the writing")
+    import runtime_cli
+    runtime_cli.add_args(ap)                                                                    # (f529) --attach: the open game's server
     args = ap.parse_args()
     level = args.level or (60 if args.tier == "campaign" else 100)
 
@@ -523,20 +525,13 @@ def main() -> None:
     if args.cls not in simlib.CLASSES:
         die(f"--class must be one of: {', '.join(simlib.CLASSES)}")
     stub = None
+    server = None
     if args.stub:
         stub = simlib.Stub(args.cls, args.seed)
         stub.verdict = "no"
         simlib.install(stub)
     else:
-        from llm import setup_check
-        if not setup_check.server_up():
-            die("Ollama is not running. Start the Ollama app, wait a few seconds, and run this again.")
-        if not setup_check.model_present():
-            die(f"The model {config.OLLAMA_MODEL} is not downloaded: run  ollama pull {config.OLLAMA_MODEL}  first.")
-        from llm import embed
-        embed.pull_in_background()
-        from llm.gateway import warm
-        warm()
+        server = runtime_cli.load(args, out=out, say=lambda m: print(m, flush=True))   # (f529) the game's own server, as the game starts it
 
     from engine import data_check, leveling, pulse
     problems = data_check.check()
@@ -648,10 +643,10 @@ def main() -> None:
                     "started": True, "status": (final_th or {}).get("status", ""), "result": (final_th or {}).get("result", ""),
                     "ending": (final_th or {}).get("ending", ""), "days": bot.day(), "deaths": ws.player.character.deaths, "character": char.name,
                     "class": spec["name"], "seed": args.seed, "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
-                    "party": party, "party_left": [{"name": m["name"], "role": m["role"]} for m in ws.player.party]})
-        if not args.stub:
-            from llm.gateway import unload
-            unload()
+                    "party": party, "party_left": [{"name": m["name"], "role": m["role"]} for m in ws.player.party],
+                    "server": server.report() if server is not None else {}})      # (f529) what the model ran on
+        if server is not None:
+            server.close()                                               # (f529) this run's own server
     import latency
     latency.summarise(out)
     info = json.loads((out / "run.json").read_text(encoding="utf-8"))

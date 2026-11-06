@@ -3,7 +3,8 @@ through the real intercepts and plan rewrites (scenes/world.py handle()) on a re
 
     python tools/interp_eval.py                       offline: the model's reading is the case's own `plan`; what is measured is everything
                                                       around the model - which intercept takes the line, what the rewrites make of the plan
-    python tools/interp_eval.py --live                the real model reads every line (needs Ollama); its reading is measured too
+    python tools/interp_eval.py --live                the real model reads every line (the game's own server, tools/runtime_cli.py;
+                                                      --attach uses the open game's); its reading is measured too
     python tools/interp_eval.py --only road,bram      only the cases whose name contains one of these
     python tools/interp_eval.py --promote logs/turns.jsonl -1     a case stub from a logged turn (engine/turnlog.py rows; edit `expect`)
     python tools/interp_eval.py --corpus data/replay/interp_corpus.yaml --live    the corpus built from night runs (tools/interp_corpus.py)
@@ -46,7 +47,7 @@ def load_cases(path=CASES) -> list[dict]:
 class Bench:
     """One scene, re-dressed for each case: who is here, who travels with the player, where they stand, what the mentor is up to."""
 
-    def __init__(self, live: bool = False, save: str = SAVE):
+    def __init__(self, live: bool = False, save: str = SAVE, source=None):
         self.save = save                                       # (f365) its own save folder, so two benches may run at once (the suite runs tests in parallel)
         import simlib
         from llm import backend
@@ -58,9 +59,9 @@ class Bench:
 
             def chat(**k):
                 if (k.get("format") or {}).get("title") == "ActionPlan":
-                    return backend.PASS                        # (f518) sent on to the real model (Ollama) by the stand-in
+                    return backend.PASS                        # (f518) sent on to the real model by the stand-in: (f529) the server `source`
                 return stub_chat(**k)
-            self.unlive = simlib.stand_in(chat=chat, name="interp_eval live")
+            self.unlive = simlib.stand_in(chat=chat, name="interp_eval live", below=source)
         import config
         from engine import actions
         from npc.traits import load_traits
@@ -253,8 +254,8 @@ def group_of(case: dict) -> str:
     return kinds[0] if kinds else ("move" if e.get("moves") else "other")
 
 
-def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE) -> dict:
-    bench = Bench(live=live, save=save)
+def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE, source=None) -> dict:
+    bench = Bench(live=live, save=save, source=source)
     results, wrong = [], []
     taken_wrong = missed = 0
     from llm.errors import LLMError
@@ -319,6 +320,8 @@ if __name__ == "__main__":
     ap.add_argument("--only", default="")
     ap.add_argument("--promote", nargs=2, metavar=("LOG", "INDEX"))
     ap.add_argument("--corpus", default="", help="(f365) another case file, e.g. data/replay/interp_corpus.yaml from tools/interp_corpus.py")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     if a.promote:
         lines = [l for l in Path(a.promote[0]).read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -328,5 +331,10 @@ if __name__ == "__main__":
     if a.only:
         frags = [f.strip() for f in a.only.split(",") if f.strip()]
         cases = [c for c in cases if any(f in c["name"] for f in frags)]
-    out = evaluate(cases, live=a.live)
+    server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
+    try:
+        out = evaluate(cases, live=a.live, source=server.source if server is not None else None)
+    finally:
+        if server is not None:
+            server.close()
     sys.exit(1 if out["wrong"] else 0)

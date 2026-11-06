@@ -11,9 +11,9 @@ kind the game may run on:
      the audit's match, the move, the canon verdict), for leaked thinking (an answer that is not the JSON alone), for being cut off, and
      timed: wall seconds, the server's own counts, and what the call would take on the minimum card (data/measured/card_profile.yaml).
      Thinking off and on go in turn for each request, the order alternating, so neither always finds the prompt already cached.
-  2. The game's own evaluations (--evals, against Ollama, which the game speaks to until f528): tools/interp_eval.py on the night
-     corpus and tools/ruling_eval.py, both --live, once with thinking off and once with it on for the chosen tasks (DND_THINK_TASKS):
-     how many of their cases each gets right.
+  2. The game's own evaluations (--evals, on the llama-server named: (f529) the game speaks to llama-server alone, so the children run
+     with DND_BACKEND=llama at that URL): tools/interp_eval.py on the night corpus and tools/ruling_eval.py, both --live, once with
+     thinking off and once with it on for the chosen tasks (DND_THINK_TASKS): how many of their cases each gets right.
 
     python tools/think_ab.py --recordings post_e_full.zip --server ollama=http://127.0.0.1:11434 --server llama=http://127.0.0.1:8080
     python tools/think_ab.py --recordings nightrun/ --server ollama=http://127.0.0.1:11434 --per-task 60 --evals --out think_ab/
@@ -482,17 +482,20 @@ def eval_score(name: str, text: str) -> dict:
     return {"right": right, "of": of, "no_answer": None}
 
 
-def evals(ollama_url: str, tasks, thinks=(False, True), timeout: float = 7200.0, room: int | None = None,
+def evals(llama_url: str, tasks, thinks=(False, True), timeout: float = 7200.0, room: int | None = None,
           corpus: str = "data/replay/interp_cases.yaml", folder: Path | None = None, done=None, which=("interp", "ruling"),
-          num_ctx: int | None = None) -> list[dict]:
-    """The game's own evaluations (`which`, names in EVALS), --live against Ollama, thinking off and then on for the chosen tasks (with
-    the same room to think in as the recorded calls had, and the context asked for): how many cases each gets right. Each child's whole
-    output is kept in folder; `done` is told after each child, so the summary is rewritten as they finish."""
+          num_ctx: int | None = None, embed_url: str | None = None) -> list[dict]:
+    """The game's own evaluations (`which`, names in EVALS), --live on the llama-server at llama_url (f529: DND_BACKEND=llama, the server
+    started by hand), thinking off and then on for the chosen tasks (with the same room to think in as the recorded calls had, and the
+    context asked for): how many cases each gets right. Each child's whole output is kept in folder; `done` is told after each child,
+    so the summary is rewritten as they finish."""
     runs = [(EVALS[w][0], [sys.executable] + [c.replace("{corpus}", corpus) for c in EVALS[w][1]]) for w in which]
     out = []
     for think in thinks:
         env = {k: v for k, v in os.environ.items() if k != "MERAVIA_NO_SERVER"}
-        env.update(OLLAMA_HOST=ollama_url.rstrip("/"), DND_THINK_TASKS=",".join(tasks) if think else "")
+        env.update(DND_BACKEND="llama", DND_LLAMA_URL=llama_url.rstrip("/"), DND_THINK_TASKS=",".join(tasks) if think else "")
+        if embed_url:                                       # (f529's review) the game's embedder beside the chat server, when one is named
+            env["DND_LLAMA_EMBED_URL"] = embed_url.rstrip("/")
         if room is not None:
             env["DND_THINK_ROOM"] = str(room)
         if num_ctx:
@@ -571,9 +574,11 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--ready-wait", type=float, default=600.0, help="seconds to wait for a server to be ready (a model loading)")
     ap.add_argument("--evals", nargs="?", const="interp,ruling", default="",
-                    help="also run the game's evaluations --live against the Ollama server: names from " + ", ".join(EVALS)
+                    help="also run the game's evaluations --live on the llama-server named: names from " + ", ".join(EVALS)
                     + " (no value: interp,ruling)")
     ap.add_argument("--corpus", default="data/replay/interp_cases.yaml", help="interp_eval's case file for --evals")
+    ap.add_argument("--embed-url", default="", help="--evals: an embedding llama-server started by hand (DND_LLAMA_EMBED_URL for the children); "
+                                                   "without one the evaluations run with no embedder, their word checks in its place")
     ap.add_argument("--eval-timeout", type=float, default=7200.0)
     ap.add_argument("--summarise", action="store_true", help="rebuild summary.json and summary.md from the results already in --out")
     ap.add_argument("--force", action="store_true", help="measure again over results already in --out")
@@ -618,10 +623,10 @@ def main(argv=None) -> int:
         ap.error("--recordings is needed (or --summarise)")
     if not servers:
         ap.error("name at least one server (--server ollama=URL or llama=URL)")
-    ollama_url = next((u for k, u in servers if k == "ollama"), None)
+    llama_url = next((u for k, u in servers if k == "llama"), None)
     if a.evals:
-        if ollama_url is None:
-            ap.error("--evals needs an Ollama server (the game speaks to Ollama until f528)")
+        if llama_url is None:
+            ap.error("--evals needs a llama-server (--server llama=URL): since f528 the game speaks to no other")
         if not (ROOT / a.corpus).exists() and not Path(a.corpus).exists():
             ap.error(f"--corpus {a.corpus} does not exist (tools/interp_corpus.py builds one from a night's run folders)")
         a.corpus = str(Path(a.corpus).resolve()) if Path(a.corpus).exists() else str(ROOT / a.corpus)
@@ -658,11 +663,12 @@ def main(argv=None) -> int:
             results = measure(chosen, servers, thinks, a.room, a.timeout, a.model, out, ready_wait=a.ready_wait, about=about)
         save()
         if a.evals:
-            st, v = get(ollama_url.rstrip("/") + "/api/version")
+            st, v = get(llama_url.rstrip("/") + "/health")
             if st != 200:
-                print(f"--evals: the Ollama server does not answer ({st}: {str(v)[:120]}); skipped")
+                print(f"--evals: the llama-server does not answer ({st}: {str(v)[:120]}); skipped")
             else:
-                evals(ollama_url, tasks, thinks, a.eval_timeout, a.room, a.corpus, folder, done=save, which=which, num_ctx=a.num_ctx or None)
+                evals(llama_url, tasks, thinks, a.eval_timeout, a.room, a.corpus, folder, done=save, which=which, num_ctx=a.num_ctx or None,
+                      embed_url=a.embed_url or None)
     except KeyboardInterrupt:
         if not results and (folder / "results.jsonl").exists():
             results = [json.loads(l) for l in (folder / "results.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]

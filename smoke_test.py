@@ -27,7 +27,9 @@ def timed(label, fn):
 
 
 def main():
-    concept = " ".join(sys.argv[1:]) or DEFAULT_CONCEPT
+    concept = " ".join(a for a in sys.argv[1:] if a != "--attach") or DEFAULT_CONCEPT
+    from tools import runtime_cli
+    server = runtime_cli.load(attach="--attach" in sys.argv)       # (f529) the game's own server, as the game starts it; --attach the open game's
     print(f"Model: {config.MODEL}\nConcept: {concept}\n")
 
     interp = timed("classify", lambda: interpret_concept(concept))
@@ -41,6 +43,7 @@ def main():
 
     passives = timed("passives", lambda: generate_passives(interp, actives))
     show_passives(passives)
+    server.close()
 
 
 if __name__ == "__main__":

@@ -1217,8 +1217,10 @@ class Bot:
         t0 = time.perf_counter()
         cancelled = False
         try:
-            out = generate("player_line", system, p, PlayerLine, temperature=0.9, retries=1, validation_context={"must_name": must},
-                           max_tokens=90, _quiet=True)
+            from llm import backend
+            with backend.lane("input"):            # (f529) the player's line: never takes the card from the game's background work (f523)
+                out = generate("player_line", system, p, PlayerLine, temperature=0.9, retries=1, validation_context={"must_name": must},
+                               max_tokens=90, _quiet=True)
             line = out.line.strip()
         except Cancelled:
             line, cancelled = "", True                 # (f516) the night closing took the call back: no failure of the model's

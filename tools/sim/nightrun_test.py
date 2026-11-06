@@ -1,6 +1,7 @@
 """tools/nightrun.py plays turns on its own and leaves a run that tools/latency.py can read: with the stand-in model, a short run makes
 its turn rows, its call log, a transcript and a summary, and stops at the turn limit. Also: the gateway keeps Ollama's own counts when
-an answer carries them, and leaves them out when it does not."""
+an answer carries them, and leaves them out when it does not. (f529) A run waits for the game's own server to restart, and gives up on
+one that failed for good."""
 import json, shutil, subprocess, sys, types
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -16,15 +17,14 @@ u = gateway._usage(full)
 check("an answer's counts are kept: tokens and milliseconds", u == {"prompt": 1234, "out": 56, "read_ms": 2500, "write_ms": 3000, "load_ms": 0, "total_ms": 5600}, u)
 check("a stand-in's answer, which has none, gives none", gateway._usage(types.SimpleNamespace(done_reason="stop")) is None)
 
-# (f370) a server that is away is waited for, up to the limit, before a night gives up on it
+# (f370, f529) a server restarting is waited for, up to the limit, before a night gives up on it; one failed for good is not
 sys.path.insert(0, "tools")
 import nightrun
-calls = []
-def up():
-    calls.append(1)
-    return len(calls) >= 3
-check("the night waits for Ollama to come back, polling until it answers", nightrun.wait_for_server(seconds=60, every=10, up=up, sleep=lambda s: None) and len(calls) == 3, calls)
-check("...and gives up once the limit is spent", not nightrun.wait_for_server(seconds=20, every=10, up=lambda: False, sleep=lambda s: None))
+states = iter(["restarting", "loading", "ready"])
+check("the night waits for the game's own server to come back, polling its state until it is ready",
+      nightrun.server_back(seconds=60, every=10, state=lambda: next(states), sleep=lambda s: None))
+check("...and gives up once the limit is spent", not nightrun.server_back(seconds=20, every=10, state=lambda: "loading", sleep=lambda s: None))
+check("...or at once on a server that failed for good", not nightrun.server_back(seconds=600, every=10, state=lambda: "failed", sleep=lambda s: None))
 
 # a short run with the stand-in model
 out = Path("saves/nightrun_test/out")

@@ -382,8 +382,8 @@ real_run = think_ab.subprocess.run
 
 
 def fake_run(cmd, cwd=None, env=None, capture_output=None, text=None, timeout=None):
-    ran.append({"cmd": cmd, "think": env.get("DND_THINK_TASKS"), "host": env.get("OLLAMA_HOST"), "switch": env.get("MERAVIA_NO_SERVER"),
-                "room": env.get("DND_THINK_ROOM")})
+    ran.append({"cmd": cmd, "think": env.get("DND_THINK_TASKS"), "host": env.get("DND_LLAMA_URL"), "switch": env.get("MERAVIA_NO_SERVER"),
+                "room": env.get("DND_THINK_ROOM"), "backend": env.get("DND_BACKEND")})
     if "interp_eval.py" in " ".join(cmd):
         if env.get("DND_THINK_TASKS"):
             raise subprocess.TimeoutExpired(cmd, timeout, output=b"ok   a\nok   b\n")
@@ -398,12 +398,13 @@ try:
                         folder=OUT, done=lambda rows: seen_done.append(len(rows)))
 finally:
     think_ab.subprocess.run = real_run
-check("the evaluations run live against the Ollama server named (its URL whole), thinking off and then on with the same room, and "
-      "their scores are read out of every case: a ruling not given is a wrong one",
+check("the evaluations run live on the llama-server named (DND_BACKEND=llama at its URL, f529), thinking off and then on with the same "
+      "room, and their scores are read out of every case: a ruling not given is a wrong one",
       [(e["eval"], e["think"], e["right"], e["of"], e["no_answer"]) for e in ev] == [
           ("interp_eval", "off", 41, 50, 0), ("ruling_eval", "off", 17, 19, 0), ("interp_eval", "on", None, None, None), ("ruling_eval", "on", 17, 22, 3)]
       and [r["think"] for r in ran] == ["", "", "ruling,interpret_action", "ruling,interpret_action"]
-      and all(r["host"] == "http://127.0.0.1:11434" and r["switch"] is None and "--live" in r["cmd"] and r["room"] == "1536" for r in ran)
+      and all(r["host"] == "http://127.0.0.1:11434" and r["backend"] == "llama" and r["switch"] is None and "--live" in r["cmd"]
+              and r["room"] == "1536" for r in ran)
       and "data/replay/interp_cases.yaml" in ran[0]["cmd"], (ev, ran))
 check("...an evaluation that runs out of time is a row of its own (the others still run), its output kept, and the summary rewritten "
       "after each", ev[2]["rc"] == "timeout" and (OUT / "eval_interp_eval_on.log").read_text(encoding="utf-8").startswith("ok   a")
@@ -431,7 +432,7 @@ from llm.errors import LLMError
 
 
 class FailingBench:
-    def __init__(self, live=False, save=None):
+    def __init__(self, live=False, save=None, source=None):     # (f529) the server's source a live bench is given
         self.n = 0
 
     def run(self, case):

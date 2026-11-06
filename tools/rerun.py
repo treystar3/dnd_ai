@@ -377,8 +377,8 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
                 setattr(console, name, lambda *a, **k: None)
 
     # the save as the session opened, under a scratch name
-    name = "rerun_" + folder.name
-    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    name = f"rerun_{folder.name}_{os.getpid()}"             # (f529) this process's own: two replays of one recording at once (the suite
+    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)   # runs tests in parallel) never share a save
     (ROOT / "saves" / name).mkdir(parents=True)
     shutil.copy(folder / "start.db", ROOT / "saves" / name / "campaign.db")
     from npc.traits import load_traits

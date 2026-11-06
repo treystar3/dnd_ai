@@ -1,4 +1,5 @@
-"""Live check against the real model (Ollama must be running with the game's model). Not part of the suite: it needs the model.
+"""Live check against the real model (the game's own server, started as the game starts it, tools/runtime_cli.py; --attach uses the open
+game's). Not part of the suite: it needs the model.
 
   python tools/live_check.py                    every scenario, independent runs (default --runs 3)
   python tools/live_check.py --runs 5
@@ -30,13 +31,22 @@ from llm import backend
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
 ap.add_argument("--mode", choices=["independent", "continuity", "both", "addressees"], default="independent")
-ap.add_argument("--model", default="", help="run the game's characters on this Ollama model instead of config.OLLAMA_MODEL (config.py is not changed)")
 ap.add_argument("--report", default="live_check_report.md", help="the report's file name, in saves/")
 ap.add_argument("--vary", action="store_true", help="a different personality pair for each run after the first (repeatable)")
-ap.add_argument("--judge-model", default="", help="judge with this model instead of the game's (keeps the judge the same while comparing game models)")
+ap.add_argument("--judge-url", default="", help="(f529) judge on a second llama-server started by hand at this loopback URL (another model, so "
+                                                "the judge stays the same while the game's model changes); default: the game's own server judges")
+ap.add_argument("--judge-key", default="", help="the second server's API key, if it has one")
+from tools import runtime_cli
+runtime_cli.add_args(ap)
 args = ap.parse_args()
-if args.model:
-    config.OLLAMA_MODEL = args.model              # (f527) the Ollama-shaped source sends this tag
+if os.environ.get("MERAVIA_NO_SERVER"):
+    sys.exit("MERAVIA_NO_SERVER is set: this process has no model server, and the live check needs one.")
+SERVER = runtime_cli.load(args)                       # (f529) first, before any mode asks the model: the game's own server, as the game starts it (or the open game's, --attach)
+JUDGE = None
+if args.judge_url:
+    from llm import llama
+    JUDGE = llama.LlamaServer(llama.Server(llama._port_of(args.judge_url, "--judge-url"), args.judge_key))
+    JUDGE.load()                                      # waits for it to be ready; only the loopback address, as every server the game speaks to
 
 
 def addressees(runs: int) -> None:
@@ -85,6 +95,7 @@ def addressees(runs: int) -> None:
 
 if args.mode == "addressees":
     addressees(args.runs)
+    SERVER.close()
     sys.exit(0)
 
 SAID, CALLS, REFUSED = [], [], []
@@ -113,11 +124,6 @@ def timed(op, req, call):
         raise
 
 
-from llm import setup_check as _sc
-if os.environ.get("MERAVIA_NO_SERVER") or not _sc.server_up():      # (f518) the server's own answer, where it asked the client for its list
-    sys.exit(f"Cannot reach Ollama at {_sc.base_url()}" + (" (MERAVIA_NO_SERVER is set: this process has no model server)"
-                                                          if os.environ.get("MERAVIA_NO_SERVER") else "")
-             + f". Start it, make sure the game's model '{config.OLLAMA_MODEL}' is pulled, and run this again.")
 
 import simlib
 from engine import banter, mentor, quirks
@@ -190,24 +196,17 @@ def judge(title: str, lines: list[tuple[str, str]], voices: dict[str, str], selv
             if selves and any(selves.values()) else "") +
            "\nLINES:\n" + "\n".join(f"  {who}: {' '.join(t.split())}" for who, t in lines))
     try:
-        game_model = config.OLLAMA_MODEL
-        if args.judge_model:
-            config.OLLAMA_MODEL = args.judge_model
+        undo = backend.use(JUDGE) if JUDGE is not None else None     # (f529) the judge's own server, when one is named; else the game's
         try:
             return generate("live_judge", JUDGE_SYSTEM, req, Judgement, temperature=0.1, max_tokens=160, retries=1)
         finally:
-            config.OLLAMA_MODEL = game_model
+            if undo is not None:
+                undo()
     except LLMError:
         return None
 
 
 from llm import embed as _embed
-if getattr(config, "EMBED_ENABLED", True) and not _sc.model_present(config.OLLAMA_EMBED_MODEL):
-    print(f"Fetching the helper model {config.EMBED_MODEL} (about 270 MB) first...")
-    try:
-        _sc.pull_model(lambda f, t: None, name=config.OLLAMA_EMBED_MODEL)
-    except Exception as e:
-        print(f"  could not fetch it ({e}); the word checks will be used")
 out = ["# Live check against the real model", f"Helper model for meaning ({config.EMBED_MODEL}): {'in use' if _embed.available() else 'NOT available - the word checks were used'}", f"Model: {config.MODEL}  ·  runs per scenario: {args.runs}  ·  mode: {args.mode}" + ("  ·  personalities vary by run" if args.vary else ""), ""]
 flags = []
 notes = []
@@ -723,4 +722,7 @@ for f in sorted(set(flags)):
     print("  -", f)
 untime()                                              # (f518) the timing layer away again
 session.close()
+SERVER.close()                                        # (f529) this tool's own server (never the game's, under --attach)
+if JUDGE is not None:
+    JUDGE.close()
 shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)

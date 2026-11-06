@@ -2,7 +2,7 @@
 
     python tools/ruling_eval.py            offline: for every case with a `model` ruling, what the engine makes of it (its own grounds:
                                            what the character can do); the cases without one need the model and are counted, not run
-    python tools/ruling_eval.py --live     the real model rules on every case (needs Ollama): its sense against what a good dungeon
+    python tools/ruling_eval.py --live     the real model rules on every case (the game's own server, tools/runtime_cli.py): its sense against what a good dungeon
                                            master would say, and what it says the world needs
     python tools/ruling_eval.py --live --cases data/replay/ruling_cases_complex.yaml     (f534) the improvised actions of several steps
 
@@ -27,16 +27,16 @@ def load(path=CASES) -> list[dict]:
 
 
 class Bench:
-    def __init__(self, live: bool = False, save: str = "ruling_eval"):
+    def __init__(self, live: bool = False, save: str = "ruling_eval", source=None):
         import simlib
         from llm import backend
         self.stub = simlib.Stub("warrior", 4)
         self.unstub = simlib.install(self.stub)              # (f518) the stub as the model's source; its Held takes it away again
         self.unlive = None
-        if live:                                             # (f518) the ruling is passed on to the real model (Ollama); the rest stays stubbed
+        if live:                                             # (f518) the ruling is passed on to the real model (f529: the server `source`); the rest stays stubbed
             stub_chat = self.stub.chat
             self.unlive = simlib.stand_in(chat=lambda **k: backend.PASS if (k.get("format") or {}).get("title") == "Ruling" else stub_chat(**k),
-                                          name="ruling_eval live")
+                                          name="ruling_eval live", below=source)
         import config
         import ui.console as uc
         for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "note"):
@@ -93,9 +93,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--cases", default=str(CASES), help="(f534) another case file, e.g. data/replay/ruling_cases_complex.yaml")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     cases = load(a.cases)
-    b = Bench(live=a.live)
+    server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
+    b = Bench(live=a.live, source=server.source if server is not None else None)
     right = wrong = skipped = 0
     try:
         for c in cases:
@@ -121,6 +124,8 @@ def main() -> int:
             wrong += not ok
     finally:
         b.close()
+        if server is not None:
+            server.close()
     print(f"\n{right} of {right + wrong} right" + (f"; {skipped} need the model (--live)" if skipped and not a.live else "")
           + (f"; {skipped} with no ruling" if skipped and a.live else ""))
     return 0 if not wrong or a.live else 1

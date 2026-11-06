@@ -6,7 +6,7 @@
 Why: two Runpod pods in a row sat on a path that passed 1,300-byte packets and dropped 1,400-byte ones with no word back (a path MTU
 black hole), so every TLS handshake and every download stalled, while nothing inside the container may change the interface MTU or the
 kernel's MSS. A socket may still cap its own segment size (TCP_MAXSEG): the peer then never sends a segment that the path drops.
-Ollama, pip, curl and the game's own client all honour HTTPS_PROXY, so one small proxy with that cap carries the whole night's setup.
+pip, curl, git and tools/fetch_runtime.py all honour HTTPS_PROXY, so one small proxy with that cap carries the whole night's setup.
 Plain HTTP (the Ubuntu archive) is proxied too. No logging, no filtering, loopback only."""
 from __future__ import annotations
 

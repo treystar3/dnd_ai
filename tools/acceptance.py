@@ -2,7 +2,8 @@
 
     python tools/acceptance.py                 every scene, with the stand-in model: what the engine does around the model's answers
     python tools/acceptance.py --only tidepool the scenes whose name holds one of these words
-    python tools/acceptance.py --live          the interpreter and the ruling are the real model's (needs Ollama); the rest stays stubbed
+    python tools/acceptance.py --live          the interpreter and the ruling are the real model's (the game's own server, started as the
+                                               game starts it, tools/runtime_cli.py; --attach uses the open game's); the rest stays stubbed
 
 A scene: where it starts, then steps. Each step types a line (`say`) and, with the stand-in model, says what the model reads from it
 (`reads`: the interpreter's plan; `ruling`: the dungeon master's ruling, slice 2). `wait` lets minutes pass first; `reopen` saves and
@@ -43,7 +44,7 @@ def load(path=SCENES) -> list[dict]:
 class Table:
     """One scene's game: a fresh save, a character, the stand-in model, and what the game noted and told."""
 
-    def __init__(self, scene: dict, live: bool = False):
+    def __init__(self, scene: dict, live: bool = False, source=None):
         import simlib
         from llm import backend
         st = scene.get("start") or {}
@@ -60,10 +61,9 @@ class Table:
                 if m:
                     self.told.append(m.group(1))
             if live and title in ("ActionPlan", "Ruling"):
-                return backend.PASS         # (f518) the real model's: the stand-in sends it on to Ollama
+                return backend.PASS         # (f518) the real model's: the stand-in sends it on to the server (f529: `source`, loaded by main)
             return stub_chat(**k)
-        self.unstand = simlib.stand_in(chat=chat, name="scene",     # (f518) over the stub, taken away again at close; the live titles
-                                       below=backend.Untimed() if live else None)   # under the client's own timeout, as before
+        self.unstand = simlib.stand_in(chat=chat, name="scene", below=source)   # (f518) over the stub, taken away again at close
         import config
         import ui.console as uc
         self.notes: list[str] = []
@@ -207,8 +207,8 @@ class Table:
         shutil.rmtree(ROOT / "saves" / self.save, ignore_errors=True)
 
 
-def play(scene: dict, live: bool = False) -> list[str]:
-    t = Table(scene, live)
+def play(scene: dict, live: bool = False, source=None) -> list[str]:
+    t = Table(scene, live, source)
     try:
         out = []
         for s in scene.get("steps") or []:
@@ -225,13 +225,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
     ap.add_argument("--live", action="store_true")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     words = [w for w in a.only.split(",") if w]
+    server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it; closed at the end
     bad, ahead = 0, 0
     for sc in load():
         if words and not any(w in sc["name"] for w in words):
             continue
-        short = play(sc, a.live)
+        short = play(sc, a.live, server.source if server is not None else None)
         due = sc.get("slice", 0) <= BUILT
         tag = "ok  " if not short else ("FAIL" if due else "todo")
         print(f"{tag} [{sc.get('slice', 0)}] {sc['name']}: {sc.get('about', '')}")
@@ -239,6 +242,8 @@ def main() -> int:
             print(f"       {line}")
         bad += bool(short) and due
         ahead += bool(short) and not due
+    if server is not None:
+        server.close()
     print(f"\n{'ALL PASS' if not bad else f'FAILED: {bad}'}" + (f" ({ahead} scene(s) for slices not built yet still fall short)" if ahead else ""))
     return 1 if bad else 0
 
