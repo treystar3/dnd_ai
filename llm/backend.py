@@ -331,10 +331,29 @@ _added = 0
 _lane = threading.local()
 
 
+_switched = None                                     # (f521) the llama-server source DND_BACKEND=llama names, built on first use
+
+
 def source():
-    """The source answering now: the newest one put in (use), else Ollama."""
+    """The source answering now: the newest one put in (use), else the default: Ollama, or (f521) a llama-server started by hand when
+    config.BACKEND is 'llama' (DND_BACKEND), built once on first use. The suite drops every DND_* setting, so it never switches."""
+    global _switched
     with _lock:
-        return _sources[-1][1] if _sources else _default
+        if _sources:
+            return _sources[-1][1]
+        if getattr(config, "BACKEND", "ollama") != "llama":
+            return _default
+        if _switched is None:
+            from llm import llama
+            _switched = llama.from_env()
+        return _switched
+
+
+def forget_switch() -> None:
+    """(f521) The llama-server source the switch built is dropped, so the next default is built afresh from the settings as they are now."""
+    global _switched
+    with _lock:
+        _switched = None
 
 
 def use(src):

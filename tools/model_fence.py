@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PRIVATE = {"llm.gateway": {"_client", "_deadline", "_DEADLINE_LOCK"},
            "llm.embed": {"_client", "_state", "available"},
-           "llm.backend": {"_sources", "_layers", "_default"}}
+           "llm.backend": {"_sources", "_layers", "_default", "_switched"}}
 READ_OK = {("llm.embed", "available")}          # calling embed.available() is the embedder's public question; assigning over it is not
 ALLOWED = {"tools/sim/imports_514_test.py"}     # the lazy client's own test (f514): it builds its own clients in child processes
 SKIP = ("llm/", ".git/", "saves/", "recordings/", "logs/", "node_modules/", "dist/", "build/")

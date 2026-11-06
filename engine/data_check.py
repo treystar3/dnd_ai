@@ -651,6 +651,8 @@ def check() -> list[str]:
     bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
     bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
     bad += fights_problems()                                           # (f510) the fight measures' shape
+    from llm import llama as _llama
+    bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
     return bad
 
 
