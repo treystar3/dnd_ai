@@ -1329,21 +1329,9 @@ function paintSide() {
   applyShopState(); renderButtons();
 }
 
-// ---------- start-up screen: install Ollama, download the model (its buttons answer the question the game is asking) ----------
-function showSetup(d) {
-  $("setup").hidden = false;
-  $("setuptitle").textContent = d.title;
-  const lines = $("setuplines"); lines.textContent = "";
-  for (const t of d.lines) lines.appendChild(el("p", "", t));
-  const btns = $("setupbtns"); btns.textContent = "";
-  for (const [label, key] of d.buttons) {
-    const b = el("button", key === "quit" ? "" : "primary", label);
-    b.onclick = () => { btns.querySelectorAll("button").forEach((x) => (x.disabled = true)); api("/input", { text: key }); };
-    btns.appendChild(b);
-  }
-  $("setupbar").hidden = !d.progress; $("setuptext").textContent = "";
-  if (d.progress) setupProgress(d.progress.frac, d.progress.text);
-}
+// ---------- (f526, f532) the model load's progress bar, while Continue waits on it (main.py setup_progress). The installer's start-up
+// screen that drew the card around it is gone (f532): the bar's card is shown by nothing today, so the wait is read in the text; a
+// visible bar in the window is a later change. ----------
 function setupProgress(frac, text) {
   $("setupbar").hidden = false;
   $("setupfill").style.width = Math.round(frac * 100) + "%";
@@ -1521,9 +1509,7 @@ function handle(ev) {
     case "fatal": addBlock("sys", ev.text); if (!$("homepage").hidden) homeFatal(ev.text); break;
     case "update": showUpdateButton(ev.data); break;
     case "update_progress": updateProgress(ev); break;
-    case "setup": showSetup(ev.data); break;
     case "setup_progress": setupProgress(ev.frac, ev.text); break;
-    case "setup_end": $("setup").hidden = true; break;
     case "home": showHome(ev.data); break;
     case "home_end": hideHome(); break;
     case "creation": showCreation(ev.data); break;          // (f388) a step of character creation, as a page

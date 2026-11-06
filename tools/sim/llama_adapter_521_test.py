@@ -294,7 +294,7 @@ try:
     config.BACKEND = "llama"
     os.environ["MERAVIA_NO_SERVER"] = "1"
     backend.forget_switch()
-    check("under the suite's switch the default never reaches a live server", backend.source().name == "ollama")
+    check("under the suite's switch the default never reaches a live server", backend.source().name == "no-server")
     config.BACKEND = saved_backend
     os.environ.pop("MERAVIA_NO_SERVER", None)
     check("the default is the game's own runtime, unstarted until the game or a tool starts it (f528)",
@@ -320,7 +320,7 @@ finally:
             os.environ.pop(k, None)
         else:
             os.environ[k] = v
-check("the switch put back", backend.source().name == "ollama")
+check("the switch put back", backend.source().name == "no-server")
 
 fake.close()
 

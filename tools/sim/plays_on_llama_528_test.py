@@ -7,7 +7,7 @@ llama-server that answers every contract with the stand-in model, by the title t
   of the turn carries the whole sampler table, thinking off, the grammar (and no response_format), the model's GGUF id; quitting leaves
   no child, the lock let go, the default source back.
 - A granted context below the settings' is refused in plain words: the could-not-wake page, no machinery in any line, Quit ends the start.
-- The Ollama wording ("Can't reach Ollama") is only its backend's; under the game's own, a connection fault is the generic page.
+- (f532) A connection fault outside a turn is the generic page in the window and the error itself in the terminal: no old wording.
 
 Run: python tools/sim/plays_on_llama_528_test.py"""
 
@@ -57,7 +57,7 @@ def kind_of(fn):
 
 # ---- the default source
 check("the settings' default is the game's own runtime", config.BACKEND == "runtime")
-check("under the suite's switch the default never reaches a live server", os.environ.get("MERAVIA_NO_SERVER") and backend.source().name == "ollama")
+check("under the suite's switch the default never reaches a live server", os.environ.get("MERAVIA_NO_SERVER") and backend.source().name == "no-server")
 no_server_before = os.environ.pop("MERAVIA_NO_SERVER", None)
 src = backend.source()
 got = kind_of(lambda: src.chat(req()))
@@ -184,7 +184,7 @@ try:
     launch.SCREEN.clear()
     os.environ.pop("FAKE_GRANTED", None)
 
-    # ---- the Ollama wording is only its backend's
+    # ---- (f532) a connection fault outside a turn: no old server's wording
     said.clear()
 
     def dies():
@@ -196,8 +196,9 @@ try:
         raised = e
     bridge = types.SimpleNamespace(failed=False)
     game_main.guarded(dies, bridge)
-    check("under the game's own server a connection fault is never told as Ollama's: raised to the terminal, the generic page to the window",
-          raised is not None and bridge.failed is True and not any("Ollama" in s for s in said) and any("Something went wrong" in s for s in said), said)
+    check("a connection fault outside a turn is raised to the terminal and the generic page to the window, never the old server's words",
+          raised is not None and bridge.failed is True and not any("install" in s.lower() or "pull" in s.lower() for s in said)
+          and any("Something went wrong" in s for s in said), said)
 finally:
     loud_console()
     launch.stop()

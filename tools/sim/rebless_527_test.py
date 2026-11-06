@@ -13,7 +13,7 @@ recordings are re-blessed once and hashed data is frozen until the bundle ends.
 - llm/gbnf.py gives llama.cpp's own grammar, byte for byte, on the schemas pinned from the C++ converter; the request body carries it as
   `grammar` and no response_format; a schema outside the subset is a refused request.
 - The owner's lines (6 Nov) are in: creation, the opening, the load screen; a chat-template token in prose is caught.
-- The replayer serves neutral rows; the Ollama-shaped source still sends Ollama's tag.
+- The replayer serves neutral rows.
 golden_replay_test replays the re-blessed recordings; this test reads them."""
 import copy
 import json
@@ -106,7 +106,7 @@ old_row = {**new_row, "request": {"model": "gemma4:12b", "think": False, "messag
                                                "num_predict": new_row["request"]["max_tokens"], "num_thread": 6, **explicit}, "keep_alive": "30m"},
            "done": "stop", "tokens": {}}
 del old_row["finish"], old_row["usage"]
-check("an old-form row (the Ollama-shaped request the recorder wrote before) translates to the new fingerprint",
+check("an old-form row (the request in the old client's shape the recorder wrote before) translates to the new fingerprint",
       recording.request_hash(rerun.neutral_of(old_row)) == new_row["req"], (rerun.neutral_of(old_row), new_row["request"]))
 check("the replayer refuses a recording in the old form, and a re-bless still reads it to compare",
       "old client" in rerun.refusal({}, [old_row]) and rerun.refusal({}, [old_row], replaying=False) == "" and rerun.refusal({}, [new_row]) == "")
@@ -165,10 +165,6 @@ config.MODEL = "gemma4:12b"
 h2 = statehash.data_hash()
 config.MODEL = saved
 check("the data hash folds the GGUF id in: another id, another hash", h1 != h2 and statehash.data_hash() == h1)
-check("the Ollama-shaped source still sends Ollama's tag while the game's id is the GGUF's (until f532)",
-      backend.ollama_kwargs(backend.ChatRequest(messages=[{"role": "user", "content": "x"}], schema=contracts.Narration,
-                                                sampling=sampling.resolve("narrate", 0.8).at(0), max_tokens=10))["model"] == config.OLLAMA_MODEL == "gemma4:12b"
-      and backend.embed_kwargs(["a"])["model"] == config.OLLAMA_EMBED_MODEL == "nomic-embed-text")
 C = yaml.safe_load(Path("data/rules/cards.yaml").read_text(encoding="utf-8"))
 check("cards.yaml names the minimum cards, the RX 7600 XT among them, with a pattern for each card",
       C["minimum"] == {"cuda": "RTX 3060 12GB", "vulkan": "RX 7600 XT 16GB"} and "RX 7600 XT 16GB" in C["cards"] and set(C["patterns"]) == set(C["cards"])

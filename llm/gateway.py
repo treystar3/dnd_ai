@@ -1,4 +1,4 @@
-"""The only place the game talks to Ollama.
+"""The one way the game asks the model (through llm/backend.py, whatever source answers there).
 
 Every call is schema-constrained, validated, retried on failure, and logged.
 On a failed validation the model is shown its answer and the reason it was
@@ -8,8 +8,6 @@ Callers get a validated proposal object or an LLMError, never raw text.
 
 import contextlib
 import json
-import os
-import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -21,116 +19,30 @@ from pydantic import BaseModel, ValidationError
 import config
 
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
-from llm.errors import Cancelled, Failure, LLMError, NoServer   # (f514) the classes live where importing them starts nothing; LLMError stays here
+from llm.errors import Cancelled, Failure, LLMError   # (f514) the classes live where importing them starts nothing; LLMError stays here
 
 
-def keep_extra_fields() -> None:
-    """(f475) Keep what the server reports beyond the client's own fields (a cached-prompt count). (f514) Done when the real client is
-    built, not at import, so importing the gateway no longer imports the client's package; a test that builds the client's replies
-    itself calls this first."""
-    try:
-        import ollama
-        ollama.ChatResponse.model_config["extra"] = "allow"
-        ollama.ChatResponse.model_rebuild(force=True)
-    except Exception:
-        pass
-
-
-class _LazyClient:
-    """(f514) The model client, built on its first use rather than when the gateway is imported, so the import chain (engine/budget.py,
-    engine/data_check.py through scenes.world, main.py) starts nothing and imports no server client. Reading a method, asking
-    hasattr, and assigning over a method (a test's or a recording script's stand-in; since f517 the recorder, the busy light and the
-    night's counter are layers of llm/backend.py instead) build nothing; the client is built when a call is made, or when its inner parts
-    are read (the turn's deadline sets the inner timeout).
-    Under MERAVIA_NO_SERVER (tools/run_suite.py sets it) nothing is ever built: a call raises NoServer (a ConnectionError, what a
-    missing server raises), so no test can reach a real model by accident. (f518) Nothing outside llm/ touches it: the suite answers
-    through a stand-in source (llm/backend.py StandIn), so assigning over one of its methods is refused, and reached() counts every
-    time something tried to reach the real client."""
-
-    METHODS = ("chat", "embed", "embeddings", "generate", "pull", "push", "list", "show", "ps", "create", "delete", "copy")
-
-    def __init__(self):
-        object.__setattr__(self, "_real", None)
-        object.__setattr__(self, "_lock", threading.Lock())
-        object.__setattr__(self, "_reached", 0)
-
-    def __setattr__(self, name, value):
-        if name in _LazyClient.METHODS:              # (f518) a stand-in is a source (llm/backend.py StandIn), never a patch on the client
-            raise AttributeError(f"the model client's {name} is not assigned over: install a stand-in source (llm/backend.py use)")
-        object.__setattr__(self, name, value)
-
-    def built(self) -> bool:
-        return self._real is not None
-
-    def reached(self) -> int:
-        """(f518) How many times something tried to reach the real client (a call, or a read of its inner parts)."""
-        return self._reached
-
-    def real(self):
-        object.__setattr__(self, "_reached", self._reached + 1)
-        if self._real is None:
-            if os.environ.get("MERAVIA_NO_SERVER"):
-                raise NoServer("no model server here (MERAVIA_NO_SERVER is set: the test suite never reaches a real model)")
-            with self._lock:
-                if self._real is None:
-                    import ollama
-                    keep_extra_fields()
-                    object.__setattr__(self, "_real", ollama.Client(timeout=config.REQUEST_TIMEOUT))
-        return self._real
-
-    def __getattr__(self, name):
-        if name.startswith("__") or name in ("_real", "_lock", "_reached"):
-            raise AttributeError(name)
-        if name in _LazyClient.METHODS:
-            def call(*a, **k):
-                return getattr(self.real(), name)(*a, **k)
-            call.__name__ = name
-            return call
-        return getattr(self.real(), name)
-
-
-_client = _LazyClient()
-_writes = 0
-
-
-def reached() -> int:
-    """(f518) How many times the process tried to reach the real model client (0 under the suite, where only stand-ins answer)."""
-    return _client.reached() if isinstance(_client, _LazyClient) else 0
-
-
-def built() -> bool:
-    """(f518) Whether the real model client was built in this process (never under the suite's switch)."""
-    return _client.built() if isinstance(_client, _LazyClient) else True
+_writes = 0                                     # rows written to the call log this session (trim_log counts them)
 SYSTEM_PREVIEW = 300
 from llm.sampling import RETRY_TEMPERATURE_STEP, shifted   # (f515) one sampling, worked out in llm/sampling.py; these names stay here
 
 T = TypeVar("T", bound=BaseModel)
 
 
-def _transport(e: BaseException) -> tuple[bool, bool]:
-    """(f514) Whether a failed try timed out, and whether it was the server's failure (a dropped connection, a server error), read
-    without importing the client's packages: if httpx or ollama is not loaded, none of their errors can exist."""
-    hx, ol = sys.modules.get("httpx"), sys.modules.get("ollama")
-    timed_out = hx is not None and isinstance(e, hx.TimeoutException)
-    server = isinstance(e, ConnectionError) or (hx is not None and isinstance(e, hx.HTTPError)) \
-        or (ol is not None and isinstance(e, ol.ResponseError))
-    return timed_out, server
-
-
 # (f516) What a failed try of each kind does: whether it ends the tries, whether the turn's budget is charged for it. A deadline ends the
-# tries as a timeout always did (a second request to a stalled server only queues behind the first); the server's failure is one failed
-# try, charged, and the next goes; a server that cannot be reached, or a model still loading, ends the tries and costs nothing (f522
-# restarts the child); a request refused before it was read (too big for the context, or one the server calls invalid) ends the tries,
-# costs nothing, and is filed apart from an outage (refusals: request_refused). Anything else the call raises is "the call failed", one
-# failed try, charged, as before (f449). A cancel never gets here: it is an Interrupt (llm/backend.py _cancelled).
+# tries (a second request to a stalled server only queues behind the first); the server's failure is one failed try, charged, and the
+# next goes; a server that cannot be reached, or a model still loading, ends the tries and costs nothing (f522 restarts the child); a
+# request refused before it was read (too big for the context, or one the server calls invalid) ends the tries, costs nothing, and is
+# filed apart from an outage (refusals: request_refused). Anything else the call raises is "the call failed", one failed try, charged,
+# as before (f449). A cancel never gets here: it is an Interrupt (llm/backend.py _cancelled).
 ENDS = frozenset({"deadline", "unreachable", "loading", "too_big", "invalid"})
 FREE = frozenset({"unreachable", "loading", "too_big", "invalid"})
 REFUSED = frozenset({"too_big", "invalid"})
 
 
 def failed_try(e: BaseException, limit) -> tuple[str, str]:
-    """(f516) A failed try's kind ('' for anything that is no Failure) and the words the logs give it. A Failure the old client's error
-    was read as (llm/backend.py failure_of) is worded from that error, exactly as before, so nothing logged or recorded moves."""
+    """(f516) A failed try's kind ('' for anything that is no Failure) and the words the logs give it. A Failure read from a plain error
+    (llm/backend.py failure_of: a ConnectionError raised on purpose) is worded from that error, as it always was."""
     from llm import backend
     f = backend.failure_of(e)
     if f is None:
@@ -139,9 +51,9 @@ def failed_try(e: BaseException, limit) -> tuple[str, str]:
     text = (f.legacy or ("", f.detail))[1]
     if kind == "cancelled":
         return kind, f.detail or "cancelled"
-    if kind == "deadline":                          # (f518) worded from the limit when the try had one: a source that keeps the limit
-        on_limit = limit is not None and (not f.legacy or getattr(f, "client_limit", False))   # itself, or the old client's timeout
-        return kind, timeout_words(limit, on_client=on_limit)                                   # the budget set; never by reading a client
+    if kind == "deadline":                          # (f518, f532) worded from the turn's limit when the try had one: a source keeps the
+        on_limit = limit is not None and not f.legacy    # limit itself; a replayed pair of the old client's is worded as the client's own
+        return kind, timeout_words(limit, on_client=on_limit)
     if kind == "server":
         return kind, f"the model server failed: {text[:200] or kind_name or 'no reason given'}"
     if kind in ("unreachable", "loading"):
@@ -154,70 +66,16 @@ def failed_try(e: BaseException, limit) -> tuple[str, str]:
     return kind, f"the call failed: {kind}: {f.detail[:200]}"
 
 
-def warm(client=None) -> None:
-    """Load the model now, on a background thread, so the first real call (the character's name, the first scene) does not pay for the load.
-    Same context size as every other call, or Ollama would load it twice. Quiet if Ollama is not there; the real call reports that."""
-    c = _client if client is None else client      # (f518) the client OllamaShape holds (a test's spy, or the real one)
-
-    def run():
-        from llm import backend
-        try:                                        # (f517) through the layers as the model's load: the busy light shows while it warms
-            backend.loading(lambda: c.chat(model=config.OLLAMA_MODEL, think=config.THINK,
-                                                 messages=[{"role": "user", "content": "Reply with one word: ready."}],
-                                                 options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()},
-                                                 keep_alive=config.KEEP_ALIVE))
-        except Exception:
-            pass
-    threading.Thread(target=run, daemon=True, name="model-warmup").start()
-
-
-def unload(client=None) -> None:
-    """Tell Ollama to drop the model from memory now (the game is closing). Quiet if Ollama is not there."""
-    if not getattr(config, "UNLOAD_ON_EXIT", True):
-        return
-    try:
-        (_client if client is None else client).chat(model=config.OLLAMA_MODEL, messages=[], keep_alive=0)
-    except Exception:
-        pass
-
-
 FALLBACKS: list[str] = []          # every task that gave up and left its caller to written lines, in order (the live check reads this)
 OUTCOMES: list[tuple[str, bool, int]] = []      # (task, succeeded, attempts used), the most recent few hundred, for anyone measuring
 TALLY: dict[str, dict[str, int]] = {}           # task -> {calls, failed, attempts} for the whole session (engine/turnlog.py writes it out)
 _TASK = threading.local()                       # (f468) the task the calling thread is making a call for (the recorder files it with the call)
-_DEADLINE_LOCK = threading.Lock()               # (f468) around the client's timeout being set and put back
-
-
-@contextlib.contextmanager
-def _deadline(seconds, client=None):
-    """(f468) The budget's deadline on the client's own timeout for one call (engine/budget.py deadline: what is left of the turn's
-    minute, never under the floor), put back after. Only when the client has an inner httpx client with a timeout (the real
-    ollama.Client; nothing under the suite's stub or the replayer). The lock is around the setting and the putting back, not the call:
-    another thread's call in that window reads the shorter timeout and may fail a try early (the plan's accepted risk).
-    (f518) For the client given (OllamaShape's), and nothing is read when the try has no deadline; yields whether it set the timeout,
-    so a timed-out try is worded from the limit only when the limit was what cut it (failed_try)."""
-    if seconds is None:
-        yield False
-        return
-    inner = getattr(_client if client is None else client, "_client", None)
-    if inner is None or not hasattr(inner, "timeout"):
-        yield False
-        return
-    import httpx                                    # (f514) only here, where the real client (and so httpx) already exists
-    with _DEADLINE_LOCK:
-        before = inner.timeout
-        inner.timeout = httpx.Timeout(float(seconds))
-    try:
-        yield True
-    finally:
-        with _DEADLINE_LOCK:
-            inner.timeout = before
 
 
 def timeout_words(limit, on_client: bool = False) -> str:
-    """(f493) A timed-out try, by the limit it had: the turn's time left when the budget's limit cut it (llm/gateway.py _deadline set
-    it on the client, or the source kept it itself), else the client's own. The post-D night logged 'timed out after 120s' for tries
-    cut at the budget's deadline some 44 seconds in. (f518) Reads no client: failed_try says whether the limit was the one applied."""
+    """(f493) A timed-out try, by the limit it had: the turn's time left when the budget's limit cut it (the source keeps the limit,
+    llm/llama.py Server.request), else the source's own (config.REQUEST_TIMEOUT, or a slow machine's hang guard). The post-D night
+    logged 'timed out after 120s' for tries cut at the budget's deadline some 44 seconds in."""
     if limit is not None and on_client:
         return f"timed out after {round(float(limit))}s (what was left of the turn's time)"
     from engine import budget
@@ -247,15 +105,6 @@ def shape(system: str, typed, user_text) -> dict:
             "tail_chars": tail, "prompt_version": version}
 
 
-def cached_count(response) -> int | None:
-    """(f475) The prompt tokens the server read from its cache, when it says (a field the client does not name); None when it does not."""
-    extra = getattr(response, "model_extra", None) or {}
-    for k, v in sorted(extra.items()):
-        if "cache" in k and isinstance(v, int) and not isinstance(v, bool):
-            return v
-    return None
-
-
 def _tally(task: str, ok: bool, attempts: int) -> None:
     OUTCOMES.append((task, ok, attempts))
     del OUTCOMES[:-500]
@@ -263,12 +112,6 @@ def _tally(task: str, ok: bool, attempts: int) -> None:
     t["calls"] += 1
     t["failed"] += not ok
     t["attempts"] += attempts
-
-
-def threads() -> dict:
-    """(f370) The runner's CPU threads, when config.NUM_THREAD sets them; nothing otherwise, so Ollama keeps its own default."""
-    n = int(getattr(config, "NUM_THREAD", 0) or 0)
-    return {"num_thread": n} if n > 0 else {}
 
 
 def generate(
@@ -351,8 +194,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         except Interrupt:
             raise                                                   # (f449) stopped on purpose (a replay parted), (f516) or cancelled: never a failed try
         except Exception as e:
-            # A timeout, a dropped connection, a server error (Ollama answers 500 when the model hits its own repeat limit) or a server
-            # that cannot be reached at all (the client raises Python's own ConnectionError while Ollama restarts) is one failed attempt,
+            # A timeout, a dropped connection, a server error (a 500 when the model hits its own repeat limit) or a server that
+            # cannot be reached at all (llama-server restarting, llm/runtime.py) is one failed attempt,
             # not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails (f370). (f449) So is
             # anything else the call raises: on the owner's night of 2026-11-01 the third try failed in a way the list here did not name,
             # and the error climbed out of the turn and ended the game. And one timeout ends the tries: a second request to a stalled
@@ -545,21 +388,6 @@ def cut_off_reason(task: str, schema, max_tokens: int) -> str:
     if max_tokens >= config.PROSE_MAX_TOKENS or task in hygiene.NARRATOR or hasattr(schema, "spoken"):
         return "the answer ran on until it was cut off, which means it went round in circles. Say what the moment holds once, then stop."
     return "the answer was cut off before the JSON was finished. Keep every field short."
-
-
-def _usage(response) -> dict | None:
-    """Ollama's own counts for one answer: tokens read and written, and the milliseconds each took (plus a model load, if one happened).
-    None under a stand-in model, which reports none."""
-    count = getattr(response, "prompt_eval_count", None)
-    if count is None:
-        return None
-    ms = lambda name: round((getattr(response, name, 0) or 0) / 1e6)
-    out = {"prompt": count, "out": getattr(response, "eval_count", 0) or 0, "read_ms": ms("prompt_eval_duration"),
-           "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
-    cached = cached_count(response)
-    if cached is not None:
-        out["cached"] = cached                          # (f475) of the prompt's tokens, how many the server had cached
-    return out
 
 
 _tag = threading.local()

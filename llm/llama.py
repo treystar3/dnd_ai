@@ -1,14 +1,14 @@
-"""(f521) The llama-server adapter: the request as llama-server takes it, sent and read back on the neutral kinds. Behind a switch, not yet
-used: the game's default source stays the Ollama-shaped one until f528 (GOALS.md, owner's decisions of 2026-11-05: the game ships
-llama.cpp's llama-server; "let's go with the neutral"). DND_BACKEND=llama with DND_LLAMA_URL (and DND_LLAMA_KEY, DND_LLAMA_EMBED_URL)
-points a session at a llama-server someone started by hand, for the measurements f527 waits on; f522 starts and stops the server itself.
+"""(f521) The llama-server adapter: the request as llama-server takes it, sent and read back on the neutral kinds. (f528) The game's own
+server (llm/runtime.py) answers through it (GOALS.md, owner's decisions of 2026-11-05: the game ships llama.cpp's llama-server; "let's
+go with the neutral"). DND_BACKEND=llama with DND_LLAMA_URL (and DND_LLAMA_KEY, DND_LLAMA_EMBED_URL) points a session at a llama-server
+someone started by hand instead, for a measurement beside one.
 
 The body (llama_body) is pure: the request and the machine's facts in, the dict sent out, the same bytes for the same inputs (body_bytes).
 - messages as the gateway made them; the schema as its grammar, sent as `grammar` (llm/gbnf.py, llama.cpp's own converter written out;
   f527, the owner's fence choice: never response_format, whose Gemma 4 chat parser writes a ```json fence into the answer);
 - every sampler, BASE under the task's own values (llm/sampling.py Sampling.resolved), so llama-server's own defaults (top_k 40,
   min_p 0.05, its repeat window) never apply: the table every night ran on, the owner's "keep them as they are";
-- n_predict, the answer's ceiling (with a thinking task's room, as Ollama's num_predict carried it, f534);
+- n_predict, the answer's ceiling (with a thinking task's room, f534);
 - thinking off on every request unless the task was chosen to think (config.THINK_TASKS): chat_template_kwargs enable_thinking,
   which the pod confirmed on 407 of 407 calls, and without which the model thinks (scratchpad pod533 report);
 - cache_prompt; id_slot from the machine (the lane's slot, f523); a voice's adapter as lora, from the machine.

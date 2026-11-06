@@ -1,12 +1,13 @@
-"""How alike two lines are in meaning, from a small embedding model run by Ollama (config.EMBED_MODEL). Used where the game would otherwise
-guess with word lists: has this person said this already, is the player asking the same thing again, which subject is a question about.
+"""How alike two lines are in meaning, from a small embedding model (config.EMBED_MODEL) on the game's own server (f524: the embedder's
+own llama-server, decided at the load). Used where the game would otherwise guess with word lists: has this person said this already,
+is the player asking the same thing again, which subject is a question about.
 
-The model is pulled in the background the first time the game runs without it. Until it is there, or if it fails, available() is False and
-every caller uses its simple fallback, so play never waits on it.
+When there is no embedder this session, or it fails, available() is False and every caller uses its simple fallback, so play never
+waits on it.
 
 (f518) Whether there is an embedder is the source's to say (llm/backend.py facts, R4): a stand-in has one when it was given an embed
-function, a replay when its recording had one, Ollama when its server has the model (probe(): never under the suite's switch, and fixed
-for a strict session); a source that does not say has none. Nothing outside llm/ writes the state below: reset() puts it back."""
+function, a replay when its recording had one, the runtime when its embedder loaded; a source that does not say has none. Nothing
+outside llm/ writes the state below: reset() puts it back."""
 from __future__ import annotations
 
 import math
@@ -17,7 +18,7 @@ from collections import OrderedDict
 import config
 
 _cache: OrderedDict = OrderedDict()
-_state = {"ok": None, "pulling": False, "failed": False}
+_state = {"failed": False}
 _lock = threading.Lock()
 CACHE_SIZE = 2000
 
@@ -40,83 +41,15 @@ def _facts() -> dict:
         return {}
 
 
-def probe() -> bool:
-    """(f518) Does the Ollama server have the embedding model (OllamaShape's facts)? Checked once, then remembered. Never asked under the
-    suite's switch (no server there). (f439) A session that must replay exactly decides it once, never mid-session."""
-    import os
-    if os.environ.get("MERAVIA_NO_SERVER"):
-        return False
-    from engine import streams
-    if streams.STRICT and "fixed" in _state:
-        return _state["fixed"]
-    if _state["ok"] is None:
-        try:
-            from llm import setup_check
-            _state["ok"] = setup_check.model_present(config.OLLAMA_EMBED_MODEL)
-        except Exception:
-            _state["ok"] = False
-    if streams.STRICT:
-        _state["fixed"] = bool(_state["ok"])
-    return bool(_state["ok"])
-
-
 def reset() -> None:
-    """(f518) The embedder's state as a fresh process has it: not yet probed, not failed, no strict answer kept (the pull under way and
-    the session's vectors are left alone). A test or a replay starts from here instead of writing the state."""
-    _state.update(ok=None, failed=False)
-    _state.pop("fixed", None)
+    """(f518) The embedder's state as a fresh process has it: not failed (the session's vectors are left alone). A test or a replay
+    starts from here instead of writing the state."""
+    _state["failed"] = False
 
 
 def failed() -> bool:
     """(f518) Did a call fail this session, turning embeddings off?"""
     return bool(_state["failed"])
-
-
-def pull_in_background() -> None:
-    """If the model is missing, fetch it quietly; the game carries on with its simple checks until it arrives."""
-    if not getattr(config, "EMBED_ENABLED", True) or _state["pulling"]:
-        return
-    try:
-        from llm import setup_check
-        if setup_check.model_present(config.OLLAMA_EMBED_MODEL):
-            _state["ok"] = True
-            return
-    except Exception:
-        return
-    _state["pulling"] = True
-
-    def run():
-        try:
-            from llm import setup_check
-            setup_check.pull_model(lambda frac, text: None, name=config.OLLAMA_EMBED_MODEL)
-            _state["ok"] = None                       # check again next time it is asked for
-        except Exception:
-            _state["ok"] = False
-        finally:
-            _state["pulling"] = False
-    threading.Thread(target=run, daemon=True).start()
-
-
-def warm(session=None):
-    """(f469) One small embed on a daemon thread, so the embedder's first load is paid at the home page and not inside the first turn's
-    checks; the session owns the thread when there is one (engine/session.py own: a close waits for it). Nothing when the model is not
-    there or embedding is off. Returns the thread, or None."""
-    if not available():
-        return None
-
-    from llm import backend
-    src = backend.source()                            # (f518) the source answering now, below the layers as before (no row, no count)
-
-    def run():
-        try:
-            src.embed(["clustering: ready"])
-        except Exception:
-            pass
-    t = threading.Thread(target=run, daemon=True, name="embed-warmup")
-    t.start()
-    if session is not None:
-        session.own(t)
-    return t
 
 
 def vectors(texts: list[str]) -> list[list[float]] | None:

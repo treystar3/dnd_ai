@@ -1,7 +1,7 @@
 """tools/nightrun.py plays turns on its own and leaves a run that tools/latency.py can read: with the stand-in model, a short run makes
-its turn rows, its call log, a transcript and a summary, and stops at the turn limit. Also: the gateway keeps Ollama's own counts when
-an answer carries them, and leaves them out when it does not. (f529) A run waits for the game's own server to restart, and gives up on
-one that failed for good."""
+its turn rows, its call log, a transcript and a summary, and stops at the turn limit. Also: a stand-in's answer carrying counts (a
+`usage` dict in the interface's form) reaches the reply, and one without gives none. (f529) A run waits for the game's own server to
+restart, and gives up on one that failed for good."""
 import json, shutil, subprocess, sys, types
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -10,12 +10,13 @@ def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
     if not ok: bad.append(n)
 
-# the gateway's counts
-from llm import gateway
-full = types.SimpleNamespace(prompt_eval_count=1234, eval_count=56, prompt_eval_duration=2.5e9, eval_duration=3.0e9, load_duration=0, total_duration=5.6e9)
-u = gateway._usage(full)
+# a stand-in's counts (f532: in the interface's form, or none)
+from llm import backend
+full = types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}"),
+                             usage={"prompt": 1234, "out": 56, "read_ms": 2500, "write_ms": 3000, "load_ms": 0, "total_ms": 5600})
+u = backend.reply_of(full).usage
 check("an answer's counts are kept: tokens and milliseconds", u == {"prompt": 1234, "out": 56, "read_ms": 2500, "write_ms": 3000, "load_ms": 0, "total_ms": 5600}, u)
-check("a stand-in's answer, which has none, gives none", gateway._usage(types.SimpleNamespace(done_reason="stop")) is None)
+check("a stand-in's answer, which has none, gives none", backend.reply_of(types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}"))).usage is None)
 
 # (f370, f529) a server restarting is waited for, up to the limit, before a night gives up on it; one failed for good is not
 sys.path.insert(0, "tools")

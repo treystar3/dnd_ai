@@ -37,7 +37,7 @@ from pydantic import create_model
 
 import config
 from engine import recording
-from llm import backend, gateway
+from llm import backend
 from llm.errors import Cancelled, Failure
 from llm.sampling import Sampling
 from storage.campaign import CampaignStore
@@ -88,7 +88,7 @@ from ui.gui.bridge import Bridge
 import nightrun
 import rerun
 CONSOLE = {k: getattr(console, k) for k in dir(console) if not k.startswith("__")}
-src0, reached0 = backend.source(), gateway.reached()     # (f518) the source answering (the stub's stand-in), and the client never reached
+src0 = backend.source()                                  # (f518) the source answering (the stub's stand-in)
 orders_ok, nest_ok, own_ok, combos = True, True, True, 0
 for on in itertools.permutations(("recorder", "counter", "busy")):
     for off in itertools.permutations(("recorder", "counter", "busy")):
@@ -105,7 +105,7 @@ for on in itertools.permutations(("recorder", "counter", "busy")):
             take[name]()
             left.pop(name)
             own_ok &= backend.layers() == [left[n] for n in ("recorder", "counter", "busy") if n in left]   # its own, and only it
-        orders_ok &= backend.layers() == [] and backend.source() is src0 and gateway.reached() == reached0
+        orders_ok &= backend.layers() == [] and backend.source() is src0
         for k, v in CONSOLE.items():
             setattr(console, k, v)                       # the console's own bindings are still put back by setattr (not this test's)
         sys.stdout = sys.__stdout__
@@ -168,8 +168,7 @@ for name in ("stub_short", "stub_party", "stub_fight"):
     check(f"...its meta the same keys and values, with overlapped 0 at the end", got.get("meta_keys") and got.get("overlapped") == 0
           and got.get("meta_moved") == [], got)
 
-# ---- 3. the old client's own answer fields and errors, through the layer, as the client patch wrote them
-gateway.keep_extra_fields()
+# ---- 3. a stand-in's answer fields and errors, through the layer, as the client patch wrote them
 
 
 class Answer:
@@ -197,8 +196,8 @@ def one_row(chat_fn, title="Read"):
     return rs, json.loads((rec.dir / "meta.json").read_text())
 
 
-rs, _ = one_row(lambda **k: Answer(done_reason=None, prompt_eval_count=812, eval_count=40, prompt_eval_duration=123456789,
-                                   eval_duration=9876543, model_extra={"prompt_cache_tokens": 300}))
+rs, _ = one_row(lambda **k: Answer(done_reason=None, usage={"prompt": 812, "out": 40, "read_ms": 123, "write_ms": 10, "load_ms": 0,
+                                                           "total_ms": 0, "cached": 300}))
 check("(f527) an answer's counts are kept in the interface's form (usage: tokens and milliseconds, the cached prompt tokens), a done_reason "
       "of None as 'stop'", len(rs) == 1 and rs[0]["finish"] == "stop" and rs[0]["usage"] == {"prompt": 812, "out": 40, "read_ms": 123,
                                                                                              "write_ms": 10, "load_ms": 0, "total_ms": 0, "cached": 300}
@@ -223,8 +222,7 @@ def down(**k):
 rs, _ = one_row(down)
 check("(f527) a failed call's row holds the interface's own kind and the detail, not the old client's error",
       len(rs) == 1 and rs[0]["error"] == {"kind": "server", "detail": "the model server cannot be reached"} and list(rs[0])[-2:] == ["error", "seconds"], rs)
-import httpx
-rs, _ = one_row(lambda **k: (_ for _ in ()).throw(httpx.ReadTimeout("the deadline cut it")))
+rs, _ = one_row(lambda **k: (_ for _ in ()).throw(Failure("deadline", "the deadline cut it")))     # (f532) a source's own deadline
 check("...a timeout as a deadline", len(rs) == 1 and rs[0]["error"] == {"kind": "deadline", "detail": "the deadline cut it"}, rs)
 check("...each of those four calls answered (or failed) by its stand-in, once, and each stand-in taken away after",
       len(ANSWERED) == 4 and all(calls == {t: 1} and not live for t, calls, live in ANSWERED), ANSWERED)
@@ -477,8 +475,8 @@ check("...never for an embedding (which was made, through the layer)", lit_embed
       (lit_embed, vec_embed, dict(held.src.calls)))
 check("...never for a call in the background lane (the lanes f523 names)", lit_background == [], lit_background)
 check("...and for the model's warm-up at the home page, as when it patched the client", lit_load == [True, False], lit_load)
-check("...and the warm-up goes through the layers: gateway.warm's call is the loading one", "backend.loading(" in
-      (ROOT / "llm/gateway.py").read_text(encoding="utf-8"))
+check("...and the server's load goes through the layers (llm/llama.py LlamaServer.load is the loading one)", "backend.loading(" in
+      (ROOT / "llm/llama.py").read_text(encoding="utf-8"))
 
 # ---- 6. the night's counter
 run = nightrun.Run(night_dir("night2"), 1, 1, live=False)

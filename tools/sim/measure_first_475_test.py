@@ -4,6 +4,7 @@ the server's cached-prompt count when it gives one, outside the request's hash; 
 characters and first-try acceptance); card_profile --expected prices answers at their expected sizes; the training data keeps one prompt
 version per task; the server report warns of a model off the card; and the baseline's task names are checked at startup."""
 import gzip
+import types
 import json
 import shutil
 import sys
@@ -13,13 +14,11 @@ sys.path.insert(0, "tools")
 import simlib
 simlib.install(simlib.Stub("warrior", 2))
 import config
-import ollama
 from pydantic import BaseModel
 from engine.prompt import Prompt
 from engine import data_check, recording
-from llm import gateway, setup_check
+from llm import backend, gateway
 import latency
-gateway.keep_extra_fields()      # (f514) the client's replies keep the server's extra fields once the real client is built; this test builds its own
 import card_profile
 import lora_dataset
 
@@ -51,10 +50,9 @@ class Read(BaseModel):
     x: str
 
 
-def answer(**k):
-    return ollama.ChatResponse(model="m", done=True, done_reason="stop", message={"role": "assistant", "content": '{"x": "fine"}'},
-                               prompt_eval_count=400, eval_count=5, prompt_eval_duration=10**8, eval_duration=10**7,
-                               prompt_eval_cached_count=300)
+def answer(**k):                     # (f532) a stand-in's counts, in the interface's form: the cached prompt tokens among them
+    return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content='{"x": "fine"}'),
+                                 usage={"prompt": 400, "out": 5, "read_ms": 100, "write_ms": 10, "cached": 300})
 
 
 log = Path("saves/measure_first_475_calls.jsonl")
@@ -80,8 +78,8 @@ check("...and so does the recording's", (crow.get("shape") or {}).get("prompt_ve
       and (crow.get("usage") or {}).get("cached") == 300, crow)      # (f527) the row's counts are the interface's usage
 check("...beside the request, never in what its hash is made of", "shape" not in (crow.get("request") or {}) and "chars" not in (crow.get("request") or {})
       and [m["role"] for m in crow["request"]["messages"]] == ["system", "user"], sorted(crow.get("request") or {}))
-check("a reply with no cached count says nothing of one",
-      gateway.cached_count(ollama.ChatResponse(model="m", done=True, message={"role": "assistant", "content": ""})) is None)
+check("a reply with no counts says nothing of one",
+      backend.reply_of(types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=""))).usage is None)
 
 # ---- the speech tasks, measured from a night's call log
 night = [{"task": "npc_conversation", "attempt": 0, "chars": 20000, "error": None, "tail_chars": 900},
@@ -119,13 +117,7 @@ nc = counts["train"]["npc_conversation"]
 check("the training data keeps one prompt version per task, the newest", nc.get("calls") == 1 and nc.get("dropped: an older prompt version") == 1, dict(nc))
 shutil.rmtree(runs, ignore_errors=True)
 
-# ---- the server, and the baseline's task names
-rep = setup_check.server_report(ps={"models": [{"name": "gemma4:12b", "size": 10_000_000_000, "size_vram": 7_000_000_000, "context_length": 4096}]},
-                                version={"version": "0.12.0"})
-check("the server report warns of a model not wholly on the card, and of another context", rep["version"] == "0.12.0" and len(rep["warnings"]) == 2
-      and rep["loaded"][0]["vram_gb"] == 7.0, rep)
-ok = setup_check.server_report(ps={"models": [{"name": "gemma4:12b", "size": 10, "size_vram": 10, "context_length": config.NUM_CTX}]}, version={})
-check("...and of nothing when it is all there", not ok["warnings"], ok)
+# ---- the baseline's task names ((f532) what the server ran on is tools/runtime_cli.py's report, tested in nights_529)
 check("the baseline file passes the startup check", data_check.baseline_problems() == [], data_check.baseline_problems())
 check("...and an unknown task in it is refused", any("made_up" in b for b in data_check.baseline_problems({"speech_tasks": ["npc_conversation", "made_up"]})))
 

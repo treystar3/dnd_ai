@@ -485,7 +485,7 @@ def _top_stand_in():
 
 def below():
     """(f518) The stand-in answering now, in the old client's shape (.chat(**k), .embed(**k)): what a test's wrapper calls through to,
-    where it read gateway._client before. Raises when no stand-in is installed (a wrapper over nothing would reach no model at all)."""
+    where it read the old client before. Raises when no stand-in is installed (a wrapper over nothing would reach no model at all)."""
     top = _top_stand_in()
     if top is None:
         raise RuntimeError("no stand-in is installed: simlib.install(stub) first (simlib.below)")
@@ -493,7 +493,7 @@ def below():
 
 
 def stand_in(chat=KEEP, embed=KEEP, facts: dict | None = None, name: str = "stand-in", below=None) -> Held:
-    """(f518) Put in a stand-in source answering with these functions (the old client's shape), where a test assigned gateway._client
+    """(f518) Put in a stand-in source answering with these functions (the old client's shape), where a test assigned the old client's
     before. KEEP (the default) takes the function of the stand-in answering now (its embedder survives a new chat, and a missing one
     stays missing); None drops it; facts are added to its own. Returns the Held: call it to take it away again."""
     from llm import backend
@@ -856,7 +856,7 @@ class FakeEmbedder:
                 v[int(hashlib.md5(w.encode()).hexdigest(), 16) % 64] += 1
         return v
 
-    def embed(self, model=None, input=None, keep_alive=None, **k):
+    def embed(self, model=None, input=None, **k):
         texts = list(input or [])
         self.calls.append(len(texts))
         return {"embeddings": [self.vec(t) for t in texts]}

@@ -10,7 +10,7 @@ measures it directly:
 prints what each turn cost, every turn over the minute, and the card's speeds (tokens a second read and written, a model load), and
 with --write keeps those speeds in data/measured/card_profile.yaml for the budget to read (f459: a measurement, outside the data hash;
 the budget's tunables, the 60 s among them, are data/rules/budget.yaml). A recording made elsewhere (a faster card, the
-owner's own play) is re-timed on the card with tools/rerun.py --time <the card's Ollama URL>, which sends every recorded request to
+owner's own play) is re-timed on the card with tools/rerun.py --time <a llama-server on this machine>, which sends every recorded request to
 it beside the replay and writes the same measures into the recording (timed.jsonl) for this tool to read.
 
 (f444) When the card itself cannot be had (Runpod rents no RTX 3060), --measured-on names the card the recording was made on, and every

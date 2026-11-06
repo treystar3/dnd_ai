@@ -1,7 +1,9 @@
-"""(f515) The game's own interface to the model, with an Ollama-shaped source behind it that sends exactly today's request.
+"""(f515) The game's own interface to the model, and the request in the old client's shape the stand-ins are given (f532: legacy_kwargs,
+kept as the suite's contract after the client itself left).
 
-- The request the source builds equals, key for key and in order, what the gateway sent before f515 (an oracle copied from it), for
-  every task the budget knows, three tries, the night's temperature and repeat shifts on and off, and several answer lengths.
+- The request a stand-in is given equals, key for key and in order, an oracle of the gateway's request before f515 (minus the client's
+  own keep-alive and thread count, gone with it), for every task the budget knows, three tries, the night's temperature and repeat
+  shifts on and off, and several answer lengths.
 - One sampling plan: an untuned task keeps a 1.2 ceiling and sends no repeat penalty of its own (the base table's 1.0 is for
   llama-server, never in today's request); the tuned tasks send what the kept recordings hold.
 - The turn's deadline reaches the source from the turn's own thread, and none from another.
@@ -56,10 +58,8 @@ def oracle(task, temperature, attempt, max_tokens, messages, schema):
     base = tuned.pop("temperature", temperature)
     top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2
     base, top, tuned = _oracle_shifted(task, base, top, tuned)
-    return dict(model=config.OLLAMA_MODEL, think=config.THINK, messages=messages, format=schema.model_json_schema(),     # (f527) Ollama's tag
-                options={"temperature": min(top, base + 0.15 * attempt), "num_ctx": config.NUM_CTX, "num_predict": max_tokens,
-                         **gateway.threads(), **tuned},
-                keep_alive=config.KEEP_ALIVE)
+    return dict(model=config.MODEL, think=config.THINK, messages=messages, format=schema.model_json_schema(),
+                options={"temperature": min(top, base + 0.15 * attempt), "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **tuned})
 
 
 tasks = sorted(set((yaml.safe_load((ROOT / "data/rules/budget.yaml").read_text(encoding="utf-8")).get("tasks") or {}))
@@ -76,22 +76,22 @@ for temp_add, rep_add in ((0.15, 0.1), (0.0, 0.0), (0.3, 0.0)):
                 for attempt in range(3):
                     for max_tokens in (800, 2048, 3000):
                         req = backend.ChatRequest(messages=messages, schema=Read, sampling=plan.at(attempt), max_tokens=max_tokens)
-                        got, want = backend.ollama_kwargs(req), oracle(task, temperature, attempt, max_tokens, messages, Read)
+                        got, want = backend.legacy_kwargs(req), oracle(task, temperature, attempt, max_tokens, messages, Read)
                         compared += 1
                         if got != want or list(got) != list(want) or list(got["options"]) != list(want["options"]):
                             mismatch.append((task, temp_add, rep_add, threads_n, temperature, attempt, max_tokens))
 config.TEMP_ADD, config.REPEAT_ADD, config.NUM_THREAD = saved
-check(f"the source's request equals the gateway's before f515, key for key and in order ({compared} compared, {len(tasks)} tasks)",
+check(f"a stand-in's request equals the gateway's before f515 (minus the client's own keys), key for key and in order ({compared} compared, {len(tasks)} tasks)",
       not mismatch and compared > 1000, mismatch[:5])
 
 # ---- the recorder's fingerprint covers exactly what is sent
 config.NUM_THREAD = 6
 req = backend.ChatRequest(messages=messages, schema=Read, sampling=sampling.resolve("narrate", 0.8).at(1), max_tokens=2048)
-sent, neutral = backend.ollama_kwargs(req), backend.neutral_request(req)
+sent, neutral = backend.legacy_kwargs(req), backend.neutral_request(req)
 h6 = recording.request_hash(neutral)
 config.NUM_THREAD = 0
-check("(f527) the neutral request holds nothing of the machine: the thread count and the context the Ollama request carries are not in it",
-      "num_thread" in sent["options"] and "num_ctx" in sent["options"] and "num_thread" not in json.dumps(neutral) and "num_ctx" not in json.dumps(neutral)
+check("(f527) the neutral request holds nothing of the machine: the context the old shape carries, and the thread count (the server's own since f532), are not in it",
+      "num_thread" not in sent["options"] and "num_ctx" in sent["options"] and "num_thread" not in json.dumps(neutral) and "num_ctx" not in json.dumps(neutral)
       and set(neutral) == {"model", "messages", "schema", "schema_sha", "sampling", "max_tokens", "think", "voice"}, neutral.keys())
 check("...so the recorder's fingerprint is the same whatever the thread count", recording.request_hash(backend.neutral_request(req)) == h6)
 config.NUM_THREAD = saved[2]
@@ -102,8 +102,8 @@ p = sampling.resolve(untuned, 0.8)
 check(f"an untuned task ({untuned}) keeps a 1.2 ceiling (before the night's warm shift) and sends no sampler value of its own",
       p.ceiling == min(1.5, 1.2 + (config.TEMP_ADD if 0.8 >= config.WARM_FROM else 0)) and p.explicit == {}, p)
 req = backend.ChatRequest(messages=messages, schema=Read, sampling=p.at(0), max_tokens=800)
-check("...so today's request carries none of the base table's keys", set(backend.ollama_kwargs(req)["options"]) <= {"temperature", "num_ctx", "num_predict", "num_thread"},
-      backend.ollama_kwargs(req)["options"])
+check("...so the old shape's request carries none of the base table's keys", set(backend.legacy_kwargs(req)["options"]) <= {"temperature", "num_ctx", "num_predict"},
+      backend.legacy_kwargs(req)["options"])
 check("...while the table for llama-server gives it repeat 1.0 over 64, top_k 64, top_p 0.95, min_p 0",
       {k: p.at(0).resolved()[k] for k in ("repeat_penalty", "repeat_last_n", "top_k", "top_p", "min_p")}
       == {"repeat_penalty": 1.0, "repeat_last_n": 64, "top_k": 64, "top_p": 0.95, "min_p": 0.0})
@@ -147,7 +147,7 @@ undo()
 check("a generate() goes through the interface and reads the reply", got.x == "ok" and out.get("r") is not None and out["r"].x == "ok")
 check("...with the turn's deadline when made on the turn's thread", isinstance(turn_deadline, float) and 0 < turn_deadline <= 60, turn_deadline)
 check("...and none when made on another thread", other_deadline is None, other_deadline)
-check("...and the source put back is the Ollama-shaped one it replaced", backend.source() is before and isinstance(before, backend.OllamaShape),
+check("...and the source put back is the default it replaced (the suite's no-server source)", backend.source() is before and before.name == "no-server",
       (backend.source(), before))
 
 # ---- layers, lanes
@@ -177,15 +177,15 @@ class EmbedClient:
         return {"embeddings": [[1.0, 0.0] for _ in k["input"]]}
 
 
-undo_embed = backend.use(backend.OllamaShape(client=EmbedClient()))   # (f518) real play's embedder path, on a fake client
+undo_embed = backend.use(backend.StandIn(chat=lambda **k: None, embed=EmbedClient().embed))   # (f518) the embedder's path, on a stand-in
 vec = backend.embed(["clustering: a", "clustering: b"])
 undo_embed()
-check("an embedding goes through the interface and the Ollama-shaped source, and returns the vectors", vec.vectors == [[1.0, 0.0], [1.0, 0.0]]
+check("an embedding goes through the interface and the stand-in, and returns the vectors", vec.vectors == [[1.0, 0.0], [1.0, 0.0]]
       and len(asked) == 1, (vec, asked))
-check("...and taking it away puts the default Ollama-shaped source back", backend.source() is before)
-check("...asked with today's request (the embed model, the texts as given, keep-alive), exactly the embedder's arguments",
-      asked and asked[0]["model"] == config.OLLAMA_EMBED_MODEL and asked[0]["input"] == ["clustering: a", "clustering: b"]
-      and asked[0]["keep_alive"] == config.KEEP_ALIVE and asked[0] == backend.embed_kwargs(["clustering: a", "clustering: b"])
+check("...and taking it away puts the default source back", backend.source() is before)
+check("...asked in the old shape (the embed model's id, the texts as given), exactly the embedder's arguments",
+      asked and asked[0]["model"] == config.EMBED_MODEL and asked[0]["input"] == ["clustering: a", "clustering: b"]
+      and asked[0] == backend.embed_kwargs(["clustering: a", "clustering: b"])
       and list(asked[0]) == list(backend.embed_kwargs(["clustering: a", "clustering: b"])), asked)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

@@ -5,14 +5,14 @@
   refused at startup (engine/data_check.py); a thinking try is charged for its thinking, and one whose thinking used all the room ends
   the tries with that reason (the cut-off retry would only think as long again). A replay asks as its recording did, whatever the
   shell says, and the suite never takes the game's settings from the shell that ran it.
-- The tool, run against a local stand-in of both servers (an Ollama /api/chat and a llama-server /v1/chat/completions on 127.0.0.1):
-  the first tries of the chosen tasks in the kept recordings are sent with thinking off and on, in turn, the order alternating; Ollama
+- The tool, run against a local stand-in of llama-server (/v1/chat/completions on 127.0.0.1): the first tries of the chosen tasks in
+  the kept recordings are sent with thinking off and on, in turn, the order alternating; the server
   is asked with its `think`, the call's own options and more room to think; llama-server with the template's switch, the schema as its
   JSON grammar and every sampler (the game's table under the call's own values). Each answer is scored: valid by the game's contract
   (the ruling's own context too), its decision against the night's, leaked thinking caught, timed, with what it would take on the
   minimum card; every rate is over all the calls, so a setting that fails more is not flattered. A server still loading is waited for,
   one that keeps failing is left, and the summary is written as the run goes, so a stop keeps what was measured.
-- The game's own evaluations are run with the switch off and then on, against the Ollama server named, with the same room, and their
+- The game's own evaluations are run with the switch off and then on, on the llama-server named, with the same room, and their
   scores read out of every case (a ruling not given counts as wrong; interp_eval goes on past a case the model failed).
 
 Run: python tools/sim/think_ab_533_test.py"""
@@ -54,7 +54,7 @@ CHILD = "\n".join([
     "R = create_model('R', x=(str, ''))",
     "out = {}",
     "for task in ('ruling', 'narrate', 'interpret_action'):",
-    "    k = backend.ollama_kwargs(backend.ChatRequest(messages=[{'role': 'user', 'content': 'x'}], schema=R, sampling=sampling.resolve(task, 0.3).at(0), max_tokens=200))",
+    "    k = backend.legacy_kwargs(backend.ChatRequest(messages=[{'role': 'user', 'content': 'x'}], schema=R, sampling=sampling.resolve(task, 0.3).at(0), max_tokens=200))",
     "    out[task] = {'think': k['think'], 'num_predict': k['options']['num_predict'], 'keys': list(k)}",
     "out['room'] = config.THINK_ROOM",
     "from engine import data_check",
@@ -104,9 +104,9 @@ GATE = "\n".join([
     "def chat(**k):",
     "    if MODE == 'overrun':",
     "        msg = types.SimpleNamespace(content='', thinking='I weigh it. ' * 400)",
-    "        return types.SimpleNamespace(message=msg, done_reason='length', prompt_eval_count=900, eval_count=1524)",
+    "        return types.SimpleNamespace(message=msg, done_reason='length', usage={'prompt': 900, 'out': 1524})",
     "    msg = types.SimpleNamespace(content='{\"sense\": \"yes\", \"why\": \"it can be done\"}', thinking='Hmm. ' * 100)",
-    "    return types.SimpleNamespace(message=msg, done_reason='stop', prompt_eval_count=900, eval_count=300)",
+    "    return types.SimpleNamespace(message=msg, done_reason='stop', usage={'prompt': 900, 'out': 300})",
     "src = backend.StandIn(chat=chat, name='thinker')",
     "undo = backend.use(src)",
     "try:",
@@ -150,8 +150,8 @@ check("a replay asks as its recording did: the kept recording still replays whol
 suite_src = (ROOT / "tools/run_suite.py").read_text(encoding="utf-8")
 check("...and the suite takes none of the game's DND_ settings from the shell that ran it", 'k.startswith("DND_")' in suite_src)
 
-# ---- 2. the tool, against a stand-in of both servers
-SEEN = {"ollama": [], "llama": []}
+# ---- 2. the tool, against a stand-in of llama-server
+SEEN = {"llama": []}
 STUB = simlib.Stub("warrior", 33)            # the suite's stand-in model writes each answer, as it would for the game
 MODE = {"loading": 0}
 
@@ -176,10 +176,6 @@ class Fake(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        if self.path == "/api/version":
-            return self.reply(200, {"version": "0.40.14"})
-        if self.path == "/api/ps":
-            return self.reply(200, {"models": [{"name": "gemma4:12b", "size": 100, "size_vram": 100, "context_length": 32768}]})
         if self.path == "/props":
             return self.reply(200, {"build_info": "b-test", "total_slots": 1, "default_generation_settings": {"n_ctx": 32768}})
         return self.reply(404, {"error": "no"})
@@ -189,14 +185,7 @@ class Fake(BaseHTTPRequestHandler):
         if MODE["loading"] > 0:
             MODE["loading"] -= 1
             return self.reply(503, {"error": {"message": "Loading model", "code": 503}})
-        if self.path == "/api/chat":
-            SEEN["ollama"].append(body)
-            content = answer(body["format"], body["messages"])
-            think = body.get("think")
-            resp = {"model": body["model"], "message": {"role": "assistant", "content": content, **({"thinking": "I weigh it. " * 20} if think else {})},
-                    "done": True, "done_reason": "stop", "prompt_eval_count": 1000, "eval_count": 40 + (120 if think else 0),
-                    "total_duration": 2_500_000_000}
-        elif self.path == "/v1/chat/completions":
+        if self.path == "/v1/chat/completions":
             SEEN["llama"].append(body)
             name = body["grammar"].splitlines()[0].split()[2]           # (f527) "# Meravia <Title> <sha>": the grammar names its contract
             from llm import contracts as _contracts
@@ -224,34 +213,27 @@ think_ab.READY_POLL = 0.05
 MODE["loading"] = 3                           # the server is still loading the model: three answers of 503 before the first 200
 said = io.StringIO()
 with contextlib.redirect_stdout(said):
-    rc = think_ab.main(["--recordings", "data/replay/sessions", "--server", f"ollama={url}", "--server", f"llama={url}", "--per-task", "3",
-                        "--out", str(OUT)])
+    rc = think_ab.main(["--recordings", "data/replay/sessions", "--server", f"llama={url}", "--per-task", "3", "--out", str(OUT)])
 results = [json.loads(l) for l in (OUT / "results.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
 chosen = think_ab.pick(think_ab.recorded_rows(Path("data/replay/sessions")), think_ab.TASKS, 3)
 n_rows = sum(len(rs) for rs in chosen.values())
-check("a server still loading is waited for (its 503s are not answers), then every chosen first try goes to each server, off and on",
-      rc == 0 and MODE["loading"] == 0 and len(results) == 2 * 2 * n_rows and n_rows >= 8 and all(r["status"] == 200 for r in results),
+check("a server still loading is waited for (its 503s are not answers), then every chosen first try goes to the server, off and on",
+      rc == 0 and MODE["loading"] == 0 and len(results) == 2 * n_rows and n_rows >= 8 and all(r["status"] == 200 for r in results),
       (rc, len(results), n_rows, said.getvalue()[-400:]))
 check("...each request once off and once on, the order alternating so neither always finds the prompt cached",
-      [r["think"] for r in results if r["server"] == "ollama"][:4] == [False, True, True, False], [r["think"] for r in results][:4])
-o = [b for b in SEEN["ollama"][1:]]                                       # the first is the warm-up
-check("Ollama is asked with its think switch, the schema, the call's own options (the night's threads not replayed), and more room to think",
-      all("think" in b and "format" in b and "num_thread" not in b["options"] for b in o)
-      and any(b["think"] for b in o) and any(not b["think"] for b in o)
-      and all(b["options"]["num_predict"] - next(r["room"] for r in results if r["server"] == "ollama" and r["think"] and r["row"] is not None)
-              >= 0 for b in o if b["think"])
-      and all(r["room"] > 0 for r in results if r["think"]) and all(r["room"] == 0 for r in results if not r["think"])
-      and all(b["options"]["num_predict"] > next(x for x in o if x["messages"] == b["messages"] and not x["think"])["options"]["num_predict"]
-              for b in o if b["think"]), o[:1])
-l_ = SEEN["llama"][1:]
+      [r["think"] for r in results if r["server"] == "llama"][:4] == [False, True, True, False], [r["think"] for r in results][:4])
+l_ = SEEN["llama"][1:]                                                    # the first is the warm-up
+check("a thinking call is given more room than the same call unthinking, and only then",
+      all(r["room"] > 0 for r in results if r["think"]) and all(r["room"] == 0 for r in results if not r["think"])
+      and all(b["max_tokens"] > next(x for x in l_ if x["messages"] == b["messages"] and not x["chat_template_kwargs"]["enable_thinking"])["max_tokens"]
+              for b in l_ if b["chat_template_kwargs"]["enable_thinking"]), l_[:1])
 check("llama-server is asked with the template's switch, the schema as its grammar (f527), and every sampler (the game's table under the call's)",
       all("chat_template_kwargs" in b and b["grammar"].startswith("# Meravia ") and "response_format" not in b and b.get("top_k") == 64 and b.get("min_p") == 0.0
           and "temperature" in b for b in l_) and any(b["chat_template_kwargs"]["enable_thinking"] for b in l_), l_[:1])
-first_ollama = next(r for r in results if r["server"] == "ollama" and "raw_fields" in r)
 first_llama = next(r for r in results if r["server"] == "llama" and "raw_fields" in r)
-check("...and the servers' raw field names are kept, to learn them on the pod (the timings among them)",
+check("...and the server's raw field names are kept, to learn them on the pod (the timings among them)",
       "timing_fields" in first_llama["raw_fields"] and "prompt_ms" in first_llama["raw_fields"]["timing_fields"]
-      and "message_fields" in first_ollama["raw_fields"], (first_ollama["raw_fields"], first_llama["raw_fields"]))
+      and "message_fields" in first_llama["raw_fields"], first_llama["raw_fields"])
 valid_off = [r for r in results if not r["think"]]
 check("each answer is scored by the game's contract: an answer of the schema's shape is valid", all(r["valid"] for r in valid_off),
       [r for r in valid_off if not r["valid"]][:2])
@@ -265,16 +247,15 @@ check("...its decision is set against the night's where it has one and the answe
 card = think_ab.profile()
 want = round(1000 / card["prompt_tokens_per_second"] + 160 / card["answer_tokens_per_second"], 2)
 check("...with what the call would take on the minimum card, the thinking written at the answer's speed",
-      any(r["card_seconds"] == want and r["think"] for r in results if r["server"] == "ollama")
+      any(r["card_seconds"] == want and r["think"] for r in results if r["server"] == "llama")
       and think_ab.card_seconds(None, 40, card) is None, (want, [r["card_seconds"] for r in results][:4]))
 check("...and the thinking measured", all(r["thinking_chars"] > 0 for r in results if r["think"])
       and all(r["thinking_chars"] == 0 for r in results if not r["think"]))
 summary = json.loads((OUT / "summary.json").read_text(encoding="utf-8"))
 keys = {(c["server"], c["task"], c["think"]) for c in summary["calls"]}
 md = (OUT / "summary.md").read_text(encoding="utf-8")
-check("the summary is a row per server, task and setting, in summary.json and as a table in summary.md, with each server's own facts",
-      len(keys) == 2 * 2 * sum(1 for rs in chosen.values() if rs) and "| server | task | thinking |" in md
-      and summary["meta"]["servers_about"]["ollama"]["version"] == "0.40.14" and summary["meta"]["servers_about"]["ollama"]["all_on_card"] is True
+check("the summary is a row per server, task and setting, in summary.json and as a table in summary.md, with the server's own facts",
+      len(keys) == 2 * sum(1 for rs in chosen.values() if rs) and "| server | task | thinking |" in md
       and summary["meta"]["servers_about"]["llama"]["build_info"] == "b-test", (sorted(keys)[:4], summary["meta"].get("servers_about")))
 ruling_on = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "ruling" and c["think"] == "on")
 ruling_off = next(c for c in summary["calls"] if c["server"] == "llama" and c["task"] == "ruling" and c["think"] == "off")
@@ -298,10 +279,10 @@ def refused(argv) -> bool:
         return e.code == 2
 
 
-base = ["--recordings", "data/replay/sessions", "--server", f"ollama={url}"]
+base = ["--recordings", "data/replay/sessions", "--server", f"llama={url}"]
 check("a task name the tool does not measure, a kind named twice, a missing case file, a --model the evaluations cannot play, and a run over "
       "results already there are each refused before anything is sent",
-      refused(base + ["--tasks", "interpret", "--out", str(OUT / "a")]) and refused(base + ["--server", f"ollama={url}", "--out", str(OUT / "b")])
+      refused(base + ["--tasks", "interpret", "--out", str(OUT / "a")]) and refused(base + ["--server", f"llama={url}", "--out", str(OUT / "b")])
       and refused(base + ["--evals", "--corpus", "data/replay/nothing.yaml", "--out", str(OUT / "c")])
       and refused(base + ["--evals", "--model", "another:1b", "--out", str(OUT / "d")]) and refused(base + ["--out", str(OUT)]))
 empty = OUT / "empty"
@@ -316,7 +297,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     rc2 = think_ab.main(["--summarise", "--out", str(OUT)])
 check("...and --summarise rebuilds the summary from the results already measured", rc2 == 0 and (OUT / "summary.md").exists())
 
-SEEN["ollama"].clear()
+SEEN["llama"].clear()
 about: dict = {}
 with contextlib.redirect_stdout(io.StringIO()):
     # the warm-up is answered, then the runner falls over: the server is left after give_up failures, its rows not burnt
@@ -331,11 +312,11 @@ with contextlib.redirect_stdout(io.StringIO()):
 
     think_ab.post = flaky
     try:
-        failing = think_ab.measure(chosen, [("ollama", url)], ready_wait=1, give_up=5, about=about)
+        failing = think_ab.measure(chosen, [("llama", url)], ready_wait=1, give_up=5, about=about)
     finally:
         think_ab.post = real_post
 check("a server that keeps failing is left after five failures in a row, and the summary says so, rather than burning every row",
-      len(failing) == 5 and "stopped" in about.get("ollama", {}), (len(failing), about))
+      len(failing) == 5 and "stopped" in about.get("llama", {}), (len(failing), about))
 with contextlib.redirect_stdout(io.StringIO()):
     MODE["loading"] = 10 ** 6
     never: dict = {}

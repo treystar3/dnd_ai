@@ -1,11 +1,12 @@
-"""(f443) What a turn costs on the card the game is built for, measured: tools/card_profile.py reads a recording's calls (Ollama's own
+"""(f443) What a turn costs on the card the game is built for, measured: tools/card_profile.py reads a recording's calls (the server's own
 counts: tokens read and written and the time each took) and says each turn's cost, every turn over the minute, and the card's speeds,
 kept for Stage 3's turn budget in data/rules/card_profile.yaml. A recording made elsewhere is re-timed on the card by tools/rerun.py
 --time, which sends every recorded request to the card's model beside the replay and keeps the measures in timed.jsonl."""
-import gzip, json, os, shutil, subprocess, sys, types
+import gzip, json, os, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
+sys.path.insert(0, "tools/sim")
 import card_profile
 
 bad = []
@@ -45,26 +46,19 @@ shutil.rmtree(REC2, ignore_errors=True)
 made = subprocess.run([sys.executable, "tools/rerun.py", "--make", str(REC2), "--inputs", "8"], capture_output=True, text=True, timeout=600,
                       env={**os.environ, "PYTHONHASHSEED": "1"})
 check("a short stub session is recorded to re-time", made.returncode == 0, (made.stdout + made.stderr)[-400:])
-asked = []
-class Card:
-    def __init__(self, host=None, timeout=None):
-        self.host = host
-    def chat(self, **k):
-        asked.append(k)
-        return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="{}"), **tok(1200, 90, 5.0))
-    def embed(self, **k):
-        asked.append(k)
-        return types.SimpleNamespace(embeddings=[[0.0]])
-import ollama
-ollama.Client = Card
+from fake_llama import FakeLlama                       # (f532) the card's server is a llama-server: a fake of it here
+card = FakeLlama(script=lambda p, b, n: {"content": "{}", "timings": {"cache_n": 0, "prompt_n": 1200, "prompt_ms": 2400.0, "predicted_n": 90, "predicted_ms": 4500.0}})
 import rerun
 recorded = rerun.load(REC2)["calls"]
-out = rerun.replay(REC2, on_call=rerun.timer(REC2, "http://the-card:11434"))
+out = rerun.replay(REC2, on_call=rerun.timer(REC2, card.url))
 timed = [json.loads(l) for l in (REC2 / "timed.jsonl").read_text(encoding="utf-8").splitlines()]
 check("the replay still matches while the card is asked beside it", out["parted"] is None and out["matched"] == out["of"], out)
-check("...every recorded request is sent to the card, as recorded", len(asked) == len(recorded) == len(timed)
-      and [a.get("messages") for a in asked] == [c["request"].get("messages") for c in recorded], (len(asked), len(recorded), len(timed)))
-check("...and the card's measures are what the profile reads", card_profile.measure(REC2)["read_tps"] == 500.0)
+check("...every recorded chat is sent to the card as recorded, the grammar its contract's; an embed is skipped with no embedding server named",
+      len(timed) == len(recorded) and [r["body"]["messages"] for r in card.chats()] == [c["request"]["messages"] for c in recorded if c["kind"] == "chat"]
+      and all(b["body"]["grammar"].startswith("# Meravia ") and "n_predict" in b["body"] for b in card.chats())
+      and all(t.get("skipped") for t in timed if t["kind"] == "embed") and all(not t["error"] for t in timed), (len(card.chats()), len(recorded), timed[:2]))
+check("...and the card's measures are what the profile reads", card_profile.measure(REC2)["read_tps"] == 500.0, card_profile.measure(REC2))
+card.close()
 shutil.rmtree(REC2, ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

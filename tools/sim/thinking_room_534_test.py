@@ -52,7 +52,7 @@ CHILD = "\n".join([
     "R = create_model('R', x=(str, ''))",
     "out = {'room': config.THINK_ROOM, 'ctx': config.NUM_CTX}",
     "for name, chars in (('short', 10), ('long', 6000)):",
-    "    k = backend.ollama_kwargs(backend.ChatRequest(messages=[{'role': 'user', 'content': 'x' * chars}], schema=R, sampling=sampling.resolve('ruling', 0.3).at(0), max_tokens=500))",
+    "    k = backend.legacy_kwargs(backend.ChatRequest(messages=[{'role': 'user', 'content': 'x' * chars}], schema=R, sampling=sampling.resolve('ruling', 0.3).at(0), max_tokens=500))",
     "    out[name] = k['options']['num_predict']",
     "print(json.dumps(out))",
 ])
@@ -107,15 +107,21 @@ class Fake(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        return self.reply(200, {"version": "0.40.14"} if self.path == "/api/version" else {"models": []})
+        return self.reply(200, {"build_info": "b-test", "total_slots": 1, "default_generation_settings": {"n_ctx": 32768}} if self.path == "/props"
+                          else {"error": "no"})
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8"))
         SEEN.append(body)
-        content = json.dumps(simlib._fill(body["format"], body["format"]))
-        think = body.get("think")
-        self.reply(200, {"message": {"role": "assistant", "content": content, **({"thinking": "The road bends. " * 60} if think else {})},
-                         "done": True, "done_reason": "stop", "prompt_eval_count": 3000, "eval_count": 300 + (500 if think else 0)})
+        name = body["grammar"].splitlines()[0].split()[2]                        # (f527) "# Meravia <Title> <sha>": the grammar names its contract
+        from llm import contracts as _contracts
+        schema = getattr(_contracts, name).model_json_schema()
+        content = json.dumps(simlib._fill(schema, schema))
+        think = body["chat_template_kwargs"]["enable_thinking"]
+        self.reply(200, {"choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content,
+                                                                                        **({"reasoning_content": "The road bends. " * 60} if think else {})}}],
+                         "usage": {"prompt_tokens": 3000, "completion_tokens": 300 + (500 if think else 0)},
+                         "timings": {"prompt_n": 3000, "prompt_ms": 400.0, "predicted_n": 300 + (500 if think else 0), "predicted_ms": 900.0}})
 
 
 server = ThreadingHTTPServer(("127.0.0.1", 0), Fake)
@@ -124,15 +130,15 @@ url = f"http://127.0.0.1:{server.server_address[1]}"
 OUT = Path("saves/thinking_room_534")
 shutil.rmtree(OUT, ignore_errors=True)
 with contextlib.redirect_stdout(io.StringIO()):
-    rc = think_ab.main(["--recordings", "data/replay/sessions", "--server", f"ollama={url}", "--tasks", "road_event", "--per-task", "5",
+    rc = think_ab.main(["--recordings", "data/replay/sessions", "--server", f"llama={url}", "--tasks", "road_event", "--per-task", "5",
                         "--num-ctx", "32768", "--out", str(OUT / "road")])
 rows = [json.loads(l) for l in (OUT / "road" / "results.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
 check("road events are replayed off and on, with nothing to agree with, and each answer's text and its thinking's head and tail kept",
       rc == 0 and rows and {r["task"] for r in rows} == {"road_event"} and all(r["agree"] is None for r in rows)
       and all(r["answer"] for r in rows) and all(r["thinking_head"] and r["thinking_tail"] for r in rows if r["think"])
       and all(not r["thinking_head"] for r in rows if not r["think"]), rows[:1])
-check("...each at the context asked for, and the room it had written beside it", all(b["options"]["num_ctx"] == 32768 for b in SEEN[1:])
-      and all(r["room"] == 8192 for r in rows if r["think"]), [b["options"].get("num_ctx") for b in SEEN[:3]])
+check("...each thinking call with the whole room the context asked for holds, written beside it", all(b["max_tokens"] >= 8192 for b in SEEN[1:] if b["chat_template_kwargs"]["enable_thinking"])
+      and all(r["room"] == 8192 for r in rows if r["think"]), [b.get("max_tokens") for b in SEEN[:3]])
 server.shutdown()
 
 # ---- 4. the evaluations, by name
@@ -180,7 +186,7 @@ def refused(argv) -> bool:
         return e.code == 2
 
 
-base = ["--recordings", "data/replay/sessions", "--server", "ollama=http://127.0.0.1:9", "--out", str(OUT / "refused")]
+base = ["--recordings", "data/replay/sessions", "--server", "llama=http://127.0.0.1:9", "--out", str(OUT / "refused")]
 check("an evaluation none of whose tasks is chosen to think, or one the tool does not know, is refused before anything is sent",
       refused(base + ["--tasks", "ruling", "--evals", "events"]) and refused(base + ["--tasks", "ruling", "--evals", "nothing"])
       and not (OUT / "refused" / "results.jsonl").exists())

@@ -20,10 +20,10 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
-import httpx
 import ui.console as uc
 from engine import budget, failures, refusals, turnlog
 from llm import backend, gateway
+from llm.errors import Failure
 from npc.models import NPC
 from pydantic import BaseModel
 bad = []
@@ -115,20 +115,19 @@ check("with less than the floor left before the understanding, the line is not t
       (stood, ws.last_failure, stub.calls.get("ActionPlan", 0), plans0))
 restore()
 
-# ---- a rejected first draft charges twice; the deadline rides on the client's timeout; another thread's call is neither charged nor refused
+# ---- a rejected first draft charges twice; another thread's call is neither charged nor refused
 class Tiny(BaseModel):
     ok: bool
 
 
 class Fake:
     def __init__(self):
-        self._client = types.SimpleNamespace(timeout=httpx.Timeout(120.0))
         self.answers = []
         self.seen = []
         self.other = None
 
     def chat(self, **k):
-        self.seen.append(self._client.timeout)
+        self.seen.append(k["options"].get("temperature"))
         if self.other is None and threading.current_thread() is threading.main_thread():
             self.other = {}
             t = threading.Thread(target=lambda: self.other.update(got=gateway.generate("interpret_action", "s", "u", Tiny), charges=len(budget.CURRENT.charges)))
@@ -138,20 +137,17 @@ class Fake:
 
 
 fake = Fake()
-undo_fake = backend.use(backend.OllamaShape(client=fake))     # (f518) the old client's own shared timeout, through the Ollama-shaped source
+undo_fake = backend.use(backend.StandIn(chat=fake.chat))       # (f532) a stand-in source: the old client and its shared timeout are gone
 b = budget.open()
 fake.answers = ["not json at all", '{"ok": true}']
 fake.other = {}                                                   # no thread for this one
 got = gateway.generate("interpret_action", "system words", "user words", Tiny)
 check("a rejected first draft charges twice: both attempts on the budget", isinstance(got, Tiny) and [t for t, _ in b.charges] == ["interpret_action", "interpret_action"]
       and b.spent > 0 and abs(b.required_seconds - b.spent) < 1e-9, b.charges)
-dl = b.deadline()
 fake.other = None
 got = gateway.generate("interpret_action", "system words", "user words", Tiny)
-check("the deadline rides on the client's own timeout during the call, and is put back after", fake.seen[-2:] and fake.seen[-2] == httpx.Timeout(float(dl))
-      and fake._client.timeout == httpx.Timeout(120.0), (fake.seen[-2:], dl, fake._client.timeout))
-check("...and a call from another thread in that window is neither charged nor refused", isinstance(fake.other.get("got"), Tiny) and fake.other.get("charges") == 2
-      and fake.seen[-1] == httpx.Timeout(float(dl)), fake.other)
+check("a call from another thread while the turn's call runs is neither charged nor refused", isinstance(fake.other.get("got"), Tiny) and fake.other.get("charges") == 2
+      and len(fake.seen) == 4, fake.other)
 summary = budget.close()
 check("the budget closes with its summary, and open again starts from nothing", summary["calls"] == 3 and budget.CURRENT is None and budget.LAST["calls"] == 3, summary)
 undo_fake()
@@ -188,7 +184,7 @@ keys = []
 held = simlib.stand_in(chat=lambda **k: (keys.append(sorted(k)), types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content='{"ok": true}')))[1])
 got = gateway.generate("interpret_action", "system words", "user words", Tiny)
 check("...while one taking only **k is not handed it: exactly the old client's arguments", isinstance(got, Tiny)
-      and keys == [["format", "keep_alive", "messages", "model", "options", "think"]], keys)
+      and keys == [["format", "messages", "model", "options", "think"]], keys)
 held()
 budget.close()
 check("...and both stand-ins are gone, the stub answering again", isinstance(backend.source(), backend.StandIn) and backend.source().name == "stub"
@@ -210,7 +206,7 @@ real = simlib.below()                     # (f518) the stub answering now, taken
 
 def cutting_chat(**k):
     if CUT["on"] and k["format"].get("title") == "ActionPlan":
-        raise httpx.ReadTimeout("the deadline cut it")
+        raise Failure("deadline", "the deadline cut it")          # (f532) a source's own deadline
     return real.chat(**k)
 
 

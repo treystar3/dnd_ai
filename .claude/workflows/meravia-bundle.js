@@ -42,7 +42,7 @@ if (!args || !MODES.includes(args.mode) || !args.goal) {
 }
 const MODE = args.mode
 
-const GROUND = `Project: Meravia, a text role-playing game in this repository (Python). A local 12B model through Ollama writes the prose and reads what the player types.
+const GROUND = `Project: Meravia, a text role-playing game in this repository (Python). A local 12B model on the game's own llama-server (llama.cpp) writes the prose and reads what the player types.
 Read GOALS.md first: the owner's pillars and recorded decisions are the standard everything is held to.
 
 What this run is about: ${args.goal}

@@ -1,7 +1,7 @@
 """(f522) The model server's children: llama-server started, watched and stopped by the game itself (GOALS.md, owner's decisions of
 2026-11-05: llama.cpp's llama-server ships in the game's own folder, "started and stopped by the game itself", with the model files
 in a Steam depot of their own; the context is two slots of 16,384 tokens, the turn's and the background's). Behind a switch until
-f528: config.BACKEND 'runtime' (DND_BACKEND=runtime) makes main.py start the server; the default stays Ollama.
+f528: config.BACKEND 'runtime', the default, makes main.py start the server; DND_BACKEND=llama names one started by hand.
 
 Where things live (core/paths.py): RUNTIME, the server builds (runtime/<build>/llama-server), and MODELS, the model files, both outside
 data/; RUN, the game's own run files (run/game.lock, run/server.json, run/server.pid), outside logs/ (which players send). The

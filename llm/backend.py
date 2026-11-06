@@ -7,12 +7,13 @@
 The gateway (llm/gateway.py) is the only caller of chat; the embedder (llm/embed.py) the only caller of embed. Everything above the
 gateway is unchanged: the 59 generate() call sites never see this module.
 
-Behind the interface sits one source at a time. Until the game moves to llama-server (f528) the source is OllamaShape: it sends exactly
-today's request to whatever llm.gateway._client holds (the real client, the suite's stand-in, the replayer), so nothing a test, a
-recording or a night sees changes. ollama_kwargs() builds that request. (f527) The recorder's row and its fingerprint are the
-interface's own, neutral form: neutral_request() (the messages, the schema's title and fingerprint, every sampler with the base under
-the task's own, the answer's ceiling, whether it thinks, the voice, the model id) and embed_request() (the model and the texts), hashed
-whole by request_hash(); nothing of the machine (threads, slots, context) and never the deadline is in either.
+Behind the interface sits one source at a time: (f528) the game's own llama-server (llm/runtime.py Managed), put in when the game or a
+tool starts it, or a server started by hand (llm/llama.py from_env, DND_BACKEND=llama); the suite's stand-ins (StandIn, simlib) and the
+replayer (tools/rerun.py) are sources too, answering in the shape the old client answered in (legacy_kwargs), so every test's handler
+serves unchanged. (f532) The old client itself is gone. (f527) The recorder's row and its fingerprint are the interface's own, neutral form:
+neutral_request() (the messages, the schema's title and fingerprint, every sampler with the base under the task's own, the answer's
+ceiling, whether it thinks, the voice, the model id) and embed_request() (the model and the texts), hashed whole by request_hash();
+nothing of the machine (threads, slots, context) and never the deadline is in either.
 
 use(source) swaps the source; wrap(layer, rank) adds a layer around every call. Both return an undo handle, and a handle removes exactly
 its own layer whatever order they are removed in. (f517) The recorder (engine/recording.py, rank RECORDER, outermost), the night's
@@ -21,14 +22,15 @@ in place any more. A layer sees op 'chat' (a ChatRequest), 'embed' (a list of te
 request, no answer to keep) and passes what it does not handle straight down. lane(name) names the lane a thread's calls are made in
 (foreground unless a thread says otherwise; the busy light counts the foreground's alone, and f523 declares the background lanes).
 
-(f517, f527) What the recorder writes is the neutral request and the Reply as the interface gives it (text, finish, usage), whatever
-source answered: the old client's own fields (done_reason, raw counts) are read into the Reply by reply_of and kept nowhere else.
+(f517, f527, f532) What the recorder writes is the neutral request and the Reply as the interface gives it (text, finish, usage),
+whatever source answered; a stand-in's answer in the old client's shape is read into a Reply by reply_of (its usage dict) and kept
+nowhere else.
 
 (f516) A source fails one try by raising llm.errors.Failure of a kind (loading, too_big, invalid, server, unreachable, deadline,
-cancelled); the gateway decides what each kind does. failure_of() is the one mapping from the old client's errors to those kinds, so
-nothing recorded moves: a timeout is a deadline, Ollama's own error, an HTTP error and Python's ConnectionError are the server's, each
-with the old error's (type, text) kept as legacy; anything else is no Failure at all (the gateway's "the call failed", as before). A
-cancelled Failure leaves the interface as Cancelled, an Interrupt: never a failed try."""
+cancelled); the gateway decides what each kind does. failure_of() is the one mapping from what a source raises to those kinds: a Failure
+is itself, a missing server (NoServer) is unreachable, Python's ConnectionError is the server's (the (type, text) kept as legacy, as the
+old client's errors were recorded; legacy_failure reads a recorded pair back by its name); anything else is no Failure at all (the
+gateway's "the call failed", as before). A cancelled Failure leaves the interface as Cancelled, an Interrupt: never a failed try."""
 
 import contextlib
 import hashlib
@@ -75,22 +77,19 @@ class ChatRequest:
 # ------------------------------------------------------------------ the old client's errors, on the neutral kinds (f516)
 
 def failure_of(e: BaseException) -> Failure | None:
-    """The Failure a try's error is, or None when it is none of the kinds (the gateway's "the call failed", one failed try, as before). The
-    old client's errors are read as they always were (llm/gateway.py _transport): a timeout is a deadline; Ollama's own error, an HTTP
-    error and Python's ConnectionError (the client's while Ollama restarts) are the server's, one failed try. Each keeps its (type, text).
-    (f518) No model server in the process at all (NoServer, the suite's switch with nothing installed) is unreachable, with no legacy
-    pair: one try, nothing charged; a ConnectionError raised on purpose is still the server's."""
+    """The Failure a try's error is, or None when it is none of the kinds (the gateway's "the call failed", one failed try, as before). A
+    source raises Failures of the kinds itself (llm/llama.py); a plain ConnectionError (a stand-in's, raised on purpose) is the server's,
+    one failed try, keeping its (type, text). (f518) No model server in the process at all (NoServer, the suite's switch with nothing
+    installed) is unreachable, with no legacy pair: one try, nothing charged."""
     if isinstance(e, Failure):
         return e
     if isinstance(e, NoServer):
         f = Failure("unreachable", str(e)[:200])
         f.__cause__ = e
         return f
-    from llm import gateway
-    timed_out, server = gateway._transport(e)
-    if not (timed_out or server):
+    if not isinstance(e, ConnectionError):
         return None
-    f = Failure("deadline" if timed_out else "server", str(e)[:200], legacy=(type(e).__name__, str(e)))
+    f = Failure("server", str(e)[:200], legacy=(type(e).__name__, str(e)))
     f.__cause__ = e
     return f
 
@@ -115,17 +114,10 @@ def legacy_failure(err) -> Failure:
 PASS = object()      # (f518) a stand-in's handler returns this to send the request on below it (a live tool's real titles)
 
 
-def _send(fn, kwargs: dict, deadline=None, client=None, hand_deadline: bool = False):
-    """(f518) The one way a request in the old client's shape is sent, by OllamaShape and by a stand-in alike: the old client's errors on
-    the neutral kinds (failure_of), anything else as it is, an Interrupt untouched. With a client (OllamaShape's), the turn's deadline is
-    set on its own timeout as before, and the Failure says whether that limit was the one applied (failed_try words it so); a stand-in
-    names no client, so nothing reads the real one, and is handed the deadline only when its function asks for it by name."""
-    from llm import gateway
-    applied = False
+def _send(fn, kwargs: dict, deadline=None, hand_deadline: bool = False):
+    """(f518) The one way a request in the old client's shape is sent to a stand-in's function: its errors on the neutral kinds
+    (failure_of), anything else as it is, an Interrupt untouched. The function is handed the deadline only when it asks for it by name."""
     try:
-        if client is not None:
-            with gateway._deadline(deadline, client) as applied:
-                return fn(**kwargs)
         return fn(**kwargs, deadline=deadline) if hand_deadline else fn(**kwargs)
     except Interrupt:
         raise                                           # stopped on purpose (a replay parted, a cancel): never a failure of the model's
@@ -133,17 +125,16 @@ def _send(fn, kwargs: dict, deadline=None, client=None, hand_deadline: bool = Fa
         f = failure_of(e)
         if f is None or f is e:
             raise
-        f.client_limit = applied
         raise f from e
 
 
 def reply_of(response) -> "Reply":
-    """(f518) The old client's answer as the interface's Reply: its text, its finish, its counts rounded for the budget (usage), and its
-    own fields for the recorder (legacy). A Reply given back as it is."""
-    from llm import gateway
+    """(f518) A stand-in's answer, in the old client's shape, as the interface's Reply: its text, its finish, and its counts when it gives
+    any (a `usage` dict in the interface's form). A Reply given back as it is."""
     if isinstance(response, Reply):
         return response
-    return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=gateway._usage(response))
+    usage = getattr(response, "usage", None)
+    return Reply(text=response.message.content or "", finish=getattr(response, "done_reason", None), usage=dict(usage) if isinstance(usage, dict) else None)
 
 
 def embedding_of(response) -> "Embedding":
@@ -157,7 +148,7 @@ def title(req: ChatRequest) -> str:
     return req.schema.model_json_schema().get("title", "") if req is not None else ""
 
 
-# ------------------------------------------------------------------ the Ollama-shaped source (until f528)
+# ------------------------------------------------------------------ the request in the old client's shape (the stand-ins' contract)
 
 def think_room(messages: list, max_tokens: int) -> int:
     """(f534) The tokens a thinking call is given to think in: THINK_ROOM, but never more than the context holds beside the prompt
@@ -167,24 +158,20 @@ def think_room(messages: list, max_tokens: int) -> int:
     return max(0, min(int(getattr(config, "THINK_ROOM", 0) or 0), fits))
 
 
-def ollama_kwargs(req: ChatRequest) -> dict:
-    """Exactly the arguments the gateway sent the Ollama client before f515, in the same order (llm/gateway.py _generate). (f533) A task
-    chosen to think (config.THINK_TASKS) asks for it, with THINK_ROOM more tokens to think in; every other call as THINK says."""
-    from llm import gateway
+def legacy_kwargs(req: ChatRequest) -> dict:
+    """(f532) The request in the shape the old client took it, kept as the stand-ins' contract (simlib.Stub.chat reads `format` and
+    `messages`; a test's handler reads `options`): the model id, whether it thinks ((f533) a task chosen to think asks for it, with
+    THINK_ROOM more tokens to think in; every other call as THINK says), the messages, the schema, and the options in one fixed order."""
     s = req.sampling
     think = config.THINK if getattr(s, "think", None) is None else bool(s.think)
     room = think_room(req.messages, req.max_tokens) if getattr(s, "think", None) else 0
-    return dict(model=config.OLLAMA_MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
-                options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **gateway.threads(),
-                         **s.explicit},
-                keep_alive=config.KEEP_ALIVE)
+    return dict(model=config.MODEL, think=think, messages=req.messages, format=req.schema.model_json_schema(),
+                options={"temperature": s.temperature, "num_ctx": config.NUM_CTX, "num_predict": req.max_tokens + room, **s.explicit})
 
 
 def embed_kwargs(texts: list) -> dict:
-    """(f517) Exactly the arguments the embedder sent the Ollama client before f515, in the same order (llm/embed.py vectors): what
-    OllamaShape.embed sends and what the recorder writes and hashes."""
-    from llm.gateway import threads
-    return dict(model=config.OLLAMA_EMBED_MODEL, input=texts, keep_alive=config.KEEP_ALIVE, **({"options": threads()} if threads() else {}))
+    """(f517) An embedding request in the shape the old client took it, the stand-ins' contract: the model id and the texts."""
+    return dict(model=config.EMBED_MODEL, input=texts)
 
 
 def neutral_request(req: ChatRequest) -> dict:
@@ -211,62 +198,41 @@ def request_hash(request: dict) -> str:
     return hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
 
 
-class OllamaShape:
-    """The source until the game plays on llama-server: today's call, to the Ollama client (llm.gateway._client, or the client given: a
-    test's spy on what is sent), with the turn's deadline on the client's own timeout as before (llm/gateway.py _deadline)."""
+class NoServerSource:
+    """(f532) The default under the suite's switch (MERAVIA_NO_SERVER: the test suite, the recording makers, a replay): a call with nothing
+    put in fails at once as a missing server does (NoServer, a ConnectionError, read as unreachable: one try, nothing charged), there is
+    no embedder, and nothing is built or started. No test can reach a real model by accident."""
 
-    name = "ollama"
+    name = "no-server"
+    WHY = "no model server here (MERAVIA_NO_SERVER is set: the test suite never reaches a real model)"
 
-    def __init__(self, client=None):
-        self._given = client
-
-    @property
-    def client(self):
-        from llm import gateway
-        return self._given if self._given is not None else gateway._client      # read late: the lazy client, built on its first call
+    def _fail(self):
+        return failure_of(NoServer(self.WHY))           # unreachable, the NoServer (a ConnectionError) its cause, as the old client raised it
 
     def chat(self, req: ChatRequest, deadline=None) -> Reply:
-        c = self.client
-        return reply_of(_send(c.chat, ollama_kwargs(req), deadline, client=c))
+        raise self._fail()
 
     def embed(self, texts: list[str]) -> Embedding:
-        return embedding_of(_send(self.client.embed, embed_kwargs(texts)))
+        raise self._fail()
 
     def load(self, progress=None) -> None:
-        from llm import gateway
-        gateway.warm(self.client)
+        raise self._fail()
 
     def close(self) -> None:
-        from llm import gateway
-        gateway.unload(self.client)
+        pass
 
     def state(self) -> str:
-        return "ready"
+        return "not_started"
 
     def facts(self) -> dict:
-        """(f518) The embedder is here when the Ollama server has its model (llm/embed.py probe: never under the suite's switch, and
-        fixed for a strict session); a client given is a test's, with no embedder."""
-        from llm import embed as _embed
-        return {"source": self.name, "model": config.MODEL, "embed_model": config.EMBED_MODEL,
-                "embedder": _embed.probe() if self._given is None else False}
-
-
-class Untimed(OllamaShape):
-    """(f518) The Ollama shape under the client's own timeout, never the turn's deadline: where a developer tool's live titles go (a
-    stand-in's PASS, below=Untimed()). They ran so before f518, through a client patch the deadline never reached, and the tools do not
-    warm the model first, so a cold model's first live call would otherwise be cut by the turn's limit and read as the scene failing."""
-
-    name = "ollama-untimed"
-
-    def chat(self, req: ChatRequest, deadline=None) -> Reply:
-        return super().chat(req, None)
+        return {"source": self.name, "model": config.MODEL, "embed_model": config.EMBED_MODEL, "embedder": False}
 
 
 class StandIn:
     """(f518) A model source for the suite, the recording scripts and the developer tools: chat(**k) and embed(**k) are the functions it
-    answers with, given the old client's arguments (ollama_kwargs, embed_kwargs) and returning what the old client returned (an object
-    with .message.content and perhaps .done_reason and raw counts; a dict with 'embeddings'), so simlib.Stub's handlers and every
-    test's function serve unchanged. Its errors go the one way OllamaShape's go (_send). It reads no real client: a function that
+    answers with, given the old client's arguments (legacy_kwargs, embed_kwargs) and returning what the old client returned (an object
+    with .message.content and perhaps .done_reason; a dict with 'embeddings'), so simlib.Stub's handlers and every test's function
+    serve unchanged. Its errors are read on the neutral kinds (_send, failure_of). A function that
     names a `deadline` parameter is handed the turn's deadline, any other is not; a function returning PASS sends the request on to
     `below` (or (f528) to the source beneath this one in the stack), as a live tool's real titles go. No chat function: every chat is
     unreachable; no embed function: there
@@ -298,7 +264,7 @@ class StandIn:
             raise Failure("unreachable", "this stand-in answers no chat")
         with self._count:
             self.calls[title(req)] += 1
-        got = _send(self.chat_fn, ollama_kwargs(req), deadline, hand_deadline=self._hand)
+        got = _send(self.chat_fn, legacy_kwargs(req), deadline, hand_deadline=self._hand)
         if got is PASS:
             return self._down().chat(req, deadline)
         return reply_of(got)
@@ -329,7 +295,7 @@ class StandIn:
 
 # ------------------------------------------------------------------ the one source, its layers, the lanes
 
-_default = OllamaShape()
+_default = NoServerSource()
 _sources: list[tuple[int, object]] = []              # (f518) (order added, source): the newest answers; each handle removes its own
 _layers: list[tuple[int, int, object]] = []          # (rank, order added, layer), called lowest rank outermost
 _lock = threading.Lock()
@@ -372,12 +338,12 @@ _unstarted = Unstarted()
 
 def _default_locked():
     """The source the settings name when nothing is put in (the lock held): (f528) under 'runtime', the game's own server once started,
-    else Unstarted; (f521) under 'llama' a llama-server started by hand (DND_LLAMA_URL), built once; under 'ollama' (until f532) the
-    Ollama-shaped source. Under the suite's switch (MERAVIA_NO_SERVER) the Ollama shape, whose client raises NoServer: no default ever
-    reaches a live server there. The suite drops every DND_* setting, so it never switches."""
+    else Unstarted; (f521) under 'llama' a llama-server started by hand (DND_LLAMA_URL), built once. Under the suite's switch
+    (MERAVIA_NO_SERVER) the no-server source, whose calls raise NoServer: no default ever reaches a live server there. The suite drops
+    every DND_* setting, so it never switches."""
     global _switched
     kind = str(getattr(config, "BACKEND", "runtime") or "runtime")
-    if kind == "ollama" or __import__("os").environ.get("MERAVIA_NO_SERVER"):
+    if __import__("os").environ.get("MERAVIA_NO_SERVER"):
         return _default
     if kind == "llama":
         if _switched is None:
@@ -549,8 +515,8 @@ def embed(texts: list[str]) -> Embedding:
 
 
 def loading(run):
-    """(f517) The model's warm-up (llm/gateway.py warm), run through the layers as op 'load': the busy light shows while it loads, as it did
-    when it patched the client; the recorder and the night's counter pass it by, as a warm-up was never theirs."""
+    """(f517, f532) A model load (llm/llama.py LlamaServer waiting on a ready server), run through the layers as op 'load': the busy light
+    shows while it loads; the recorder and the night's counter pass it by, as a warm-up was never theirs."""
     return _through("load", None, lambda _: run())
 
 

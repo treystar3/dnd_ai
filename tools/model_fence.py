@@ -1,12 +1,12 @@
-"""(f518) The fence around the model's insides: no file outside llm/ reads or writes the Ollama client (llm.gateway._client), the
-embedder's own state (llm.embed._state, its old _client) or the interface's private lists (llm.backend._sources, _layers), nor
-assigns over embed.available. A test or a tool answers through a source (llm/backend.py use, StandIn; simlib.install, stand_in) and
-asks the embedder through embed.reset() and embed.failed(). Before f518 sixty-nine files patched the client in place, so whatever a
-test patched was what the next test found, and nothing could swap what serves the model (llama-server, from f528) underneath them.
+"""(f518) The fence around the model's insides: no file outside llm/ reads or writes the embedder's own state (llm.embed._state) or the
+interface's private lists (llm.backend._sources, _layers, _default, _switched), nor assigns over embed.available. A test or a tool
+answers through a source (llm/backend.py use, StandIn; simlib.install, stand_in) and asks the embedder through embed.reset() and
+embed.failed(). Before f518 sixty-nine files patched the model client in place, so whatever a test patched was what the next test
+found, and nothing could swap what serves the model (llama-server, from f528) underneath them; (f532) that client is gone.
 
-The check reads each file's syntax, not its text: an alias (`from llm import gateway as gw`, `from llm import embed as _em`) is
-followed, an attribute assigned on the client (`gw._client.chat = ...`) and a tuple target count, and a child script held in a string
-(a test that runs code in a subprocess) is read as code too.
+The check reads each file's syntax, not its text: an alias (`from llm import embed as _em`) is followed, an attribute assigned on a
+private object and a tuple target count, and a child script held in a string (a test that runs code in a subprocess) is read as code
+too.
 
     python tools/model_fence.py [path ...]      # every .py outside llm/ when no path is given; exit 1 on any site"""
 from __future__ import annotations
@@ -16,11 +16,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PRIVATE = {"llm.gateway": {"_client", "_deadline", "_DEADLINE_LOCK"},
-           "llm.embed": {"_client", "_state", "available"},
+PRIVATE = {"llm.embed": {"_state", "available"},
            "llm.backend": {"_sources", "_layers", "_default", "_switched"}}
 READ_OK = {("llm.embed", "available")}          # calling embed.available() is the embedder's public question; assigning over it is not
-ALLOWED = {"tools/sim/imports_514_test.py"}     # the lazy client's own test (f514): it builds its own clients in child processes
+ALLOWED: set = set()
 SKIP = ("llm/", ".git/", "saves/", "recordings/", "logs/", "node_modules/", "dist/", "build/")
 
 
@@ -75,7 +74,7 @@ def _visit(tree, where: str, hits: list, depth: int = 0) -> None:
                 kind = "write" if id(n) in stores else "read"
                 if not (kind == "read" and (mod, n.attr) in READ_OK):
                     hits.append(f"{where}:{n.lineno}: {kind} {base}.{n.attr}")
-            if isinstance(n.value, ast.Attribute) and id(n) in stores:          # gateway._client.chat = ...
+            if isinstance(n.value, ast.Attribute) and id(n) in stores:          # embed.available = ... (an attribute assigned on a module)
                 b2 = _dotted(n.value.value)
                 m2 = al.get(b2) if b2 else None
                 if m2 and n.value.attr in PRIVATE[m2]:

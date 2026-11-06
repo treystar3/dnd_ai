@@ -212,13 +212,13 @@ check("a loss confided is heard", ws.hire_feeling(hire, "My brother was killed b
 check("a question about their own hurt is not one", ws.hire_feeling(hire, "Are you all right after the wolf nearly killed you?") != "painful_told"
       and ws.hire_feeling(hire, "How are you holding up?") != "painful_told" and ws.hire_feeling(hire, "Someone died.") != "painful_told")
 
-# the model server failing (Ollama's 500 on its own repeat limit) is one failed attempt, not a crash
-import ollama
+# the model server failing (a 500 of its own) is one failed attempt, not a crash
 from llm import backend, gateway
+from llm.errors import Failure
 from llm.gateway import LLMError
 class Broken:
     def chat(self, **kw):
-        raise ollama.ResponseError("token repeat limit reached", 500)
+        raise Failure("server", "token repeat limit reached")
 held = simlib.stand_in(chat=Broken().chat, embed=None)            # (f518) the broken server as the source, no longer a client patch
 try:
     gateway.generate("narrate", "sys", "req", Narration, retries=1, _quiet=True)
@@ -244,8 +244,8 @@ try:
 finally:
     _config.NUM_THREAD = 0
     held()
-check("(f370) the runner's threads go with every call when config sets them, and not otherwise", len(_spy.calls) == 2 and _spy.calls[0]["options"].get("num_thread") == 6
-      and "num_thread" not in _spy.calls[1]["options"], [c.get("options") for c in _spy.calls])
+check("(f532) the server's threads are its own setting (llm/runtime.py chat_argv), never in a request", len(_spy.calls) == 2
+      and all("num_thread" not in c["options"] for c in _spy.calls), [c.get("options") for c in _spy.calls])
 
 class Away:
     def chat(self, **kw):
@@ -263,7 +263,7 @@ held()
 check("(f370) a server that cannot be reached at all is the gateway's own error too, not a crash through the turn", isinstance(away, LLMError)
       and type(away.__cause__) is ConnectionError and away_tries == ("narrate", False, 2) and away_asked == 2, (repr(away), away_tries, away_asked))
 check("a server error from the model becomes the gateway's own error, after every try, with the cause kept",
-      isinstance(got, LLMError) and isinstance(got.__cause__, ollama.ResponseError) and got_tries == ("narrate", False, 2) and got_asked == 2,
+      isinstance(got, LLMError) and isinstance(got.__cause__, Failure) and got.__cause__.kind == "server" and got_tries == ("narrate", False, 2) and got_asked == 2,
       (repr(got), got_tries, got_asked))
 check("(f518) each stand-in is taken away again: the stub answers once more", not held.live() and backend.source().name == "stub", backend.source())
 

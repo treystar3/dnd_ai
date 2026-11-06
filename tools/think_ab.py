@@ -1,28 +1,28 @@
 """(f533) Thinking on and off, task by task, measured before the owner decides which of the game's calls should think.
 
 The owner asked to try thinking for the judgment calls (reading the player's line, rulings, the audit's two checks, the canon check,
-reading a move in a fight) and to keep it off for prose. This tool measures what it costs and what it changes, on a server of either
-kind the game may run on:
+reading a move in a fight) and to keep it off for prose. This tool measures what it costs and what it changes, on a llama-server (the
+engine the game ships with; (f532) nothing else is measured against):
 
   1. Recorded requests. The first try of each chosen task's calls in recordings (a night's run folders, a recording folder, or the
-     night's zip as fetched) is sent again, once with thinking off and once on, to each server given: Ollama (/api/chat, its `think`)
-     and llama-server (/v1/chat/completions, the template's enable_thinking, the schema as its grammar). Each answer is scored by
-     the game's own contract (it parses, it validates), against the decision the night recorded (the plan's kinds, the ruling's sense,
-     the audit's match, the move, the canon verdict), for leaked thinking (an answer that is not the JSON alone), for being cut off, and
-     timed: wall seconds, the server's own counts, and what the call would take on the minimum card (data/measured/card_profile.yaml).
-     Thinking off and on go in turn for each request, the order alternating, so neither always finds the prompt already cached.
-  2. The game's own evaluations (--evals, on the llama-server named: (f529) the game speaks to llama-server alone, so the children run
-     with DND_BACKEND=llama at that URL): tools/interp_eval.py on the night corpus and tools/ruling_eval.py, both --live, once with
+     night's zip as fetched) is sent again, once with thinking off and once on, to each server given (/v1/chat/completions, the
+     template's enable_thinking, the schema as its grammar). Each answer is scored by the game's own contract (it parses, it
+     validates), against the decision the night recorded (the plan's kinds, the ruling's sense, the audit's match, the move, the canon
+     verdict), for leaked thinking (an answer that is not the JSON alone), for being cut off, and timed: wall seconds, the server's own
+     counts, and what the call would take on the minimum card (data/measured/card_profile.yaml). Thinking off and on go in turn for
+     each request, the order alternating, so neither always finds the prompt already cached.
+  2. The game's own evaluations (--evals, on the llama-server named: the children run with DND_BACKEND=llama at that URL, and an
+     embedder when --embed-url names one): tools/interp_eval.py on the night corpus and tools/ruling_eval.py, both --live, once with
      thinking off and once with it on for the chosen tasks (DND_THINK_TASKS): how many of their cases each gets right.
 
-    python tools/think_ab.py --recordings post_e_full.zip --server ollama=http://127.0.0.1:11434 --server llama=http://127.0.0.1:8080
-    python tools/think_ab.py --recordings nightrun/ --server ollama=http://127.0.0.1:11434 --per-task 60 --evals --out think_ab/
-    (f534) python tools/think_ab.py --recordings post_e.zip --server ollama=URL --tasks ruling,road_event,pulse_cataclysm,pulse_thread \
+    python tools/think_ab.py --recordings post_e_full.zip --server llama=http://127.0.0.1:8080
+    python tools/think_ab.py --recordings nightrun/ --server llama=http://127.0.0.1:8080 --per-task 60 --evals --out think_ab/
+    (f534) python tools/think_ab.py --recordings post_e.zip --server llama=URL --tasks ruling,road_event,pulse_cataclysm,pulse_thread \
                --room 8192 --num-ctx 32768 --evals ruling_complex,events --out think_ab_room8192/
       a writing task (road_event) is replayed and timed with its text kept to be read; the evaluations are chosen by name (interp,
       ruling, ruling_complex: the improvised actions of several steps, events: the model writing campaigns and cataclysms)
 
-It writes results.jsonl (one row a call, with the first response's raw fields from each server, to learn their names), summary.json and
+It writes results.jsonl (one row a call, with the first response's raw fields from the server, to learn their names), summary.json and
 summary.md (a table per server, task and setting). It sends nothing anywhere but the servers named."""
 from __future__ import annotations
 
@@ -160,32 +160,22 @@ def room_for(row: dict, opts: dict, room: int) -> int:
 
 
 def _options(row: dict, think: bool, room: int) -> dict:
-    """The recorded options, with this machine's runner threads (DND_NUM_THREAD, as the game sends them: a pod's CPU quota needs them,
-    and the night's count was the night's machine's), the context asked for (--num-ctx) and, thinking, the room that fits."""
+    """The recorded options (every sampler and the answer's ceiling; a row from before f527 had them in the old client's shape, its thread
+    count dropped: threads are the server's own setting since f532), the context asked for (--num-ctx) and, thinking, the room that fits."""
     import config
     req = row.get("request") or {}
-    if "options" in req:                                             # a row from before f527: the Ollama-shaped request
+    if "options" in req:                                             # a row from before f527: the request in the old client's shape
         opts = {k: v for k, v in (req.get("options") or {}).items() if k != "num_thread"}
     else:                                                            # (f527) the neutral row: every sampler, and the answer's ceiling
         opts = dict(req.get("sampling") or {})
         if req.get("max_tokens") is not None:
             opts["num_predict"] = int(req["max_tokens"])
         opts.setdefault("num_ctx", int(getattr(config, "NUM_CTX", 16384) or 16384))
-    n = int(getattr(config, "NUM_THREAD", 0) or 0)
-    if n:
-        opts["num_thread"] = n
     if NUM_CTX:
         opts["num_ctx"] = int(NUM_CTX)
     if think:
         opts["num_predict"] = int(opts.get("num_predict") or 0) + room_for(row, opts, room)
     return opts
-
-
-def ollama_body(row: dict, schema, think: bool, room: int, model: str | None = None) -> dict:
-    req = row.get("request") or {}
-    import config
-    return {"model": model or req.get("model") or config.OLLAMA_MODEL, "messages": req.get("messages"), "format": schema.model_json_schema(),
-            "options": _options(row, think, room), "think": bool(think), "stream": False, "keep_alive": req.get("keep_alive", "30m")}
 
 
 def llama_body(row: dict, schema, think: bool, room: int, model: str | None = None) -> dict:
@@ -224,14 +214,6 @@ def post(url: str, body: dict, timeout: float) -> tuple[int, dict | str, float]:
         return status, text, took
 
 
-def read_ollama(resp: dict) -> dict:
-    m = resp.get("message") or {}
-    return {"content": m.get("content") or "", "thinking": m.get("thinking") or "", "finish": resp.get("done_reason"),
-            "prompt_tokens": resp.get("prompt_eval_count"), "answer_tokens": resp.get("eval_count"),
-            "server_seconds": round((resp.get("total_duration") or 0) / 1e9, 3) or None,
-            "fields": sorted(resp), "message_fields": sorted(m)}
-
-
 def read_llama(resp: dict) -> dict:
     ch = (resp.get("choices") or [{}])[0]
     m = ch.get("message") or {}
@@ -243,7 +225,7 @@ def read_llama(resp: dict) -> dict:
             "timing_fields": sorted(timings)}
 
 
-SERVERS = {"ollama": ("/api/chat", ollama_body, read_ollama), "llama": ("/v1/chat/completions", llama_body, read_llama)}
+SERVERS = {"llama": ("/v1/chat/completions", llama_body, read_llama)}
 
 
 # ---------- scoring
@@ -316,17 +298,9 @@ def get(url: str, timeout: float = 20.0) -> tuple[int, dict | str]:
         return status, text
 
 
-def facts(kind: str, base: str) -> dict:
-    """What the server says of itself: Ollama's version and where its models sit (all on the card, or some on the processor), and
-    llama-server's build, context and slots. Read after the warm-up, so the model is loaded."""
+def facts(base: str) -> dict:
+    """What the server says of itself: llama-server's build, context and slots (/props). Read after the warm-up, so the model is loaded."""
     base = base.rstrip("/")
-    if kind == "ollama":
-        st, v = get(base + "/api/version")
-        st2, ps = get(base + "/api/ps")
-        models = [{"name": m.get("name"), "size": m.get("size"), "size_vram": m.get("size_vram"), "context": m.get("context_length")}
-                  for m in ((ps or {}).get("models") or [])] if isinstance(ps, dict) else []
-        return {"version": (v or {}).get("version") if isinstance(v, dict) else None, "status": [st, st2], "models": models,
-                "all_on_card": all((m["size_vram"] or 0) >= (m["size"] or 0) for m in models) if models else None}
     st, p = get(base + "/props")
     if not isinstance(p, dict):
         return {"status": st}
@@ -367,13 +341,11 @@ def measure(chosen: dict[str, list[dict]], servers: list[tuple[str, str]], think
             break
         ok, why = ready(lambda: post(base.rstrip("/") + path, body_of(warm_row, schema_of(warm_row["title"]), False, 0, model), timeout),
                         ready_wait, say)
-        about[name] = {"url": base, **facts(kind, base)}
+        about[name] = {"url": base, **facts(base)}
         if not ok:
             about[name]["skipped"] = f"not ready: {why}"
             say(f"{name}: SKIPPED, not ready: {why}")
             continue
-        if kind == "ollama" and about[name].get("all_on_card") is False:
-            say(f"{name}: WARNING: part of the model sits on the processor ({about[name]['models']}); its times are not the card's")
         failed_in_row, stopped = 0, ""
         for task, rows in chosen.items():
             if stopped:
@@ -458,7 +430,7 @@ EVAL_PATTERNS = {"interp_eval": re.compile(r"(\d+)/(\d+) right"),
 INTERP_NO_READING = re.compile(r"the model gave no usable reading (\d+) time")
 COMPLEX = "data/replay/ruling_cases_complex.yaml"
 # (f534) The game's own evaluations, by the name --evals takes: (its name in the summary, its command after the interpreter, the tasks
-# whose thinking it measures). Each runs live against Ollama, with the rest of the game stubbed.
+# whose thinking it measures). Each runs live on the llama-server named, with the rest of the game stubbed.
 EVALS = {"interp": ("interp_eval", ["tools/interp_eval.py", "--corpus", "{corpus}", "--live"], {"interpret_action"}),
          "ruling": ("ruling_eval", ["tools/ruling_eval.py", "--live"], {"ruling"}),
          "ruling_complex": ("ruling_eval_complex", ["tools/ruling_eval.py", "--live", "--cases", COMPLEX], {"ruling"}),
@@ -564,7 +536,7 @@ def warnings_of(rows: list[dict]) -> list[str]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--recordings", help="a night's zip, a recording folder, or a folder holding recordings")
-    ap.add_argument("--server", action="append", default=[], metavar="KIND=URL", help="ollama=URL or llama=URL (each kind once)")
+    ap.add_argument("--server", action="append", default=[], metavar="KIND=URL", help="llama=URL, the llama-server to measure on (once)")
     ap.add_argument("--tasks", default=",".join(TASKS), help="from " + ", ".join(KNOWN))
     ap.add_argument("--per-task", type=int, default=40)
     ap.add_argument("--think", default="off,on", help="off, on, or off,on")
@@ -601,7 +573,7 @@ def main(argv=None) -> int:
     for s in a.server:
         kind, _, url = s.partition("=")
         if kind not in SERVERS or not url:
-            ap.error(f"--server takes ollama=URL or llama=URL, not {s!r}")
+            ap.error(f"--server takes llama=URL, not {s!r}")
         if kind in kinds:
             ap.error(f"--server: {kind} named twice (one server of a kind a run; a second goes in a run of its own, with its own --out)")
         kinds.add(kind)
@@ -622,7 +594,7 @@ def main(argv=None) -> int:
     if not a.recordings:
         ap.error("--recordings is needed (or --summarise)")
     if not servers:
-        ap.error("name at least one server (--server ollama=URL or llama=URL)")
+        ap.error("name the server (--server llama=URL)")
     llama_url = next((u for k, u in servers if k == "llama"), None)
     if a.evals:
         if llama_url is None:

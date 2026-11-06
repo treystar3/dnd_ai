@@ -127,8 +127,7 @@ words = gateway.timeout_words(44.2, on_client=True)      # (f518) the limit was 
 check("a try cut at the turn's deadline says so, with the limit it had", words == "timed out after 44s (what was left of the turn's time)", words)
 check("...and with no deadline set, the client's own", gateway.timeout_words(None) == f"timed out after {gateway.config.REQUEST_TIMEOUT}s"
       and gateway.timeout_words(None, on_client=True) == f"timed out after {gateway.config.REQUEST_TIMEOUT}s")
-cut = Failure("deadline", "timed out", legacy=("ReadTimeout", "timed out"))
-cut.client_limit = True
+cut = Failure("deadline", "the turn's limit cut the try")                       # (f532) a source's own Failure: no legacy pair
 own = Failure("deadline", "timed out", legacy=("ReadTimeout", "timed out"))
 kept = Failure("deadline", "the source kept the limit itself")
 check("...a failed try the turn's limit cut on the client is worded from that limit; the client's own timeout from the client's",

@@ -134,17 +134,11 @@ class Bridge:
         self.update_info = info
         self.emit(k="update", data=info)
 
-    def setup(self, data: dict) -> None:
-        self.emit(k="setup", data=data)
-
     def setup_progress(self, frac: float, text: str) -> None:
         with self.cv:
             if self.log and self.log[-1][1].get("k") == "setup_progress":
                 self.log.pop()                       # only the latest figure matters: do not fill the log with them
         self.emit(k="setup_progress", frac=round(frac, 3), text=text)
-
-    def setup_done(self) -> None:
-        self.emit(k="setup_end")
 
     def home(self, data: dict) -> bool:
         """(f345) The home page, drawn by the page itself (web/app.js showHome)."""
@@ -267,13 +261,13 @@ class Bridge:
     def install(self) -> None:
         from llm import backend
         self.saved = {"stdout": sys.stdout, "ask": console.ask, "scope": console.scope,
-                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "busy_text": console.busy_text, "combat_state": console.combat_state, "setup": console.setup, "setup_progress": console.setup_progress, "setup_done": console.setup_done, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH,
+                      "status_block": console.status_block, "kind": console.kind, "panel": console.panel, "busy_text": console.busy_text, "combat_state": console.combat_state, "setup_progress": console.setup_progress, "home": console.home, "home_done": console.home_done, "creation": console.creation, "creation_done": console.creation_done, "damage_tags": console.damage_tags, "width": console.WIDTH,
                       "unwrap": backend.wrap(self.busy_layer, rank=backend.BUSY)}         # (f517) a layer, no longer a patch on the client
         sys.stdout = _Out(self)
         console.ask, console.scope, console.status_block, console.kind = self.ask, self.scope, self.status_block, self.kind
         console.busy_text = self.busy_text
         console.panel = self.panel
-        console.setup, console.setup_progress, console.setup_done = self.setup, self.setup_progress, self.setup_done
+        console.setup_progress = self.setup_progress
         console.home, console.home_done = self.home, self.home_done
         console.creation, console.creation_done = self.creation, self.creation_done
         console.combat_state, console.damage_tags = self.combat_state, True
@@ -288,7 +282,7 @@ class Bridge:
         console.ask, console.scope, console.status_block, console.kind = s["ask"], s["scope"], s["status_block"], s["kind"]
         console.busy_text = s["busy_text"]
         console.panel = s["panel"]
-        console.setup, console.setup_progress, console.setup_done = s["setup"], s["setup_progress"], s["setup_done"]
+        console.setup_progress = s["setup_progress"]
         console.home, console.home_done = s["home"], s["home_done"]
         console.creation, console.creation_done = s["creation"], s["creation_done"]
         console.combat_state, console.damage_tags = s["combat_state"], s["damage_tags"]

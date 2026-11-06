@@ -94,14 +94,14 @@ ok = pulse.start_thread(store, world, ws.catalog, state, now, random.Random(4), 
 check("a rare situation is still the model's", ok and stub.calls.get("ThreadProposal", 0) == before + 1 and state["threads"][-1]["made_by"] == "model")
 
 # the model fails a rare one: the engine builds it; a campaign is not built by the engine
-import httpx
+from llm.errors import Failure
 class Broken:                                            # the gateway turns a timed-out call into an LLMError after its retries
     def __init__(self):
         self.tried = []
 
     def chat(self, **kw):
         self.tried.append(kw["format"].get("title", ""))
-        raise httpx.TimeoutException("no model")
+        raise Failure("deadline", "no model")                # (f532) a source's own deadline, one failed try
 broken = Broken()
 _h = simlib.stand_in(chat=broken.chat, embed=None, name="timed-out model")    # (f518) a source of its own, where the client was swapped
 state["cooldowns"] = {}

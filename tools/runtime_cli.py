@@ -10,7 +10,7 @@ a time: a tool never starts a second server beside it, llm/runtime.py game_open)
     server.close()                                       # this tool's own children stopped and the source taken away; the game's never
 
 A tool under its stand-in (--stub) never calls this. DND_BACKEND=llama (a server started by hand, DND_LLAMA_URL) waits for that server
-and stops nothing; DND_BACKEND=ollama (until f532) warms Ollama's model and unloads it at close. Several runs at once (tools/nightrun.py
+and stops nothing. Several runs at once (tools/nightrun.py
 --parallel) are as many servers, each in its own process with its own run folder, so one run's close never reaches a sibling's."""
 from __future__ import annotations
 
@@ -47,8 +47,6 @@ class Server:
         if self.src is not None:
             return self.src
         from llm import backend
-        if self.kind == "ollama":
-            return backend.Untimed()                      # (until f532) under the client's own timeout, as the tools ran before
         return backend.source()
 
     def facts(self) -> dict:
@@ -94,9 +92,6 @@ class Server:
             self.rt = None
         elif self.kind == "attached" and self.src is not None:
             self.src.close()                              # (f523) nothing of this tool's waits for the game's card any more
-        elif self.kind == "ollama":
-            from llm.gateway import unload
-            unload()
         if self.own_run_dir and self.run_dir is not None:
             shutil.rmtree(self.run_dir, ignore_errors=True)
 
@@ -116,15 +111,6 @@ def load(args=None, *, attach: bool | None = None, out: Path | str | None = None
         backend.load(progress)
         say(f"model server: the llama-server at {os.environ.get('DND_LLAMA_URL', 'DND_LLAMA_URL')} (started by hand)")
         return Server("llama", src=backend.source())
-    if kind == "ollama":                                  # (until f532)
-        from llm import setup_check
-        if not setup_check.server_up():
-            raise SystemExit("Ollama is not running (DND_BACKEND=ollama). Start it, or drop the setting to run the game's own server.")
-        if not setup_check.model_present():
-            raise SystemExit(f"The model {config.OLLAMA_MODEL} is not downloaded: run  ollama pull {config.OLLAMA_MODEL}  first.")
-        from llm.gateway import warm
-        warm()
-        return Server("ollama")
     from llm import runtime
     if attach:
         src = runtime.attach()                            # Failure("unreachable") in plain words when no game's server.json is there

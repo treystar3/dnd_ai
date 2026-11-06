@@ -1,6 +1,6 @@
 """Maren's words come from the model inside limits: every figure, command and quoted phrase survives, nothing new is added, fixed rules are
 said exactly as written, and a bad or failed answer means the written line is said instead. Also the model warm-up."""
-import sys, random, shutil, time
+import sys, random, shutil
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -19,7 +19,6 @@ from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
 from npc.traits import load_traits
 from world.loader import load_world
-import llm.gateway as gw
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
@@ -144,70 +143,7 @@ w.mentor_say(mentor.Fixed(["Rank F may hold 2 contracts."]), "Take your time ove
 check("fixed rules are never rewritten", "Rank F may hold 2 contracts." in SAID[-1][1].split("\n"))
 config.FREE_MENTOR = False
 
-# warm-up: the model is loaded in the background, same context size, and every call asks to keep it loaded
-# (f518) the warm-up and the unload are handed the client they speak to (llm/gateway.py warm/unload: the real one when given none, as
-# main.py calls them), so a spy is given to them, never planted on the lazy client
-import types
-from llm import backend
-seen = []
-spy = types.SimpleNamespace(chat=lambda **k: (seen.append(k), None)[1])
-gw.warm(spy)
-t0 = time.time()
-while not seen and time.time() - t0 < 3:
-    time.sleep(0.02)
-check("the warm-up asks for a tiny reply with the game's context size", seen and seen[0]["options"]["num_predict"] <= 8 and seen[0]["options"]["num_ctx"] == config.NUM_CTX, seen[:1])
-check("...and keeps the model loaded", seen and seen[0]["keep_alive"] == config.KEEP_ALIVE)
-seen.clear()
-backend.OllamaShape(client=spy).load()           # (f518) the Ollama-shaped source's own load is that same warm-up, on its client
-t0 = time.time()
-while not seen and time.time() - t0 < 3:
-    time.sleep(0.02)
-check("(f518) the Ollama source's load is the same warm-up", seen and seen[0]["options"]["num_predict"] <= 8 and seen[0]["keep_alive"] == config.KEEP_ALIVE, seen[:1])
-seen.clear()
-real = simlib.below()                             # (f518) the stub answering now, taken before the spy goes in over it
-ollama_spy = backend.OllamaShape(client=types.SimpleNamespace(chat=lambda **k: (seen.append(k), real.chat(**k))[1]))
-undo_spy = backend.use(ollama_spy)                # (f518) the Ollama-shaped source real play sends through, on a spy client
-w.mentor_say(W, beat="test")
-undo_spy()
-check("every real call keeps the model loaded too (what the Ollama-shaped source sends)", seen
-      and any(k["format"].get("title") == "MentorLines" for k in seen) and all(k["keep_alive"] == config.KEEP_ALIVE for k in seen), seen[:1])
-check("(f518) the spy is taken away again, the stub answering", backend.source() is not ollama_spy and backend.source().name == "stub",
-      backend.source())
-tried = []
-def broken(**k):
-    tried.append(k)
-    raise ConnectionError("no ollama")
-gw.warm(types.SimpleNamespace(chat=broken))
-t0 = time.time()
-while not tried and time.time() - t0 < 3:
-    time.sleep(0.02)
-time.sleep(0.05)
-check("a missing Ollama does not break the warm-up", tried)
-
-# closing the game unloads the model
-seen2 = []
-spy2 = types.SimpleNamespace(chat=lambda **k: (seen2.append(k), None)[1])
-gw.unload(spy2)
-check("closing the game asks Ollama to unload the model", seen2 and seen2[0]["keep_alive"] == 0 and seen2[0]["messages"] == [], seen2)
-seen2.clear()
-backend.OllamaShape(client=spy2).close()         # (f518) the Ollama-shaped source's close is that same unload
-check("(f518) the Ollama source's close is the same unload", seen2 and seen2[0]["keep_alive"] == 0 and seen2[0]["messages"] == [], seen2)
-config.UNLOAD_ON_EXIT = False
-seen2.clear(); gw.unload(spy2)
-check("...unless switched off", not seen2)
-config.UNLOAD_ON_EXIT = True
-tried.clear()
-gw.unload(types.SimpleNamespace(chat=broken))
-check("a missing Ollama does not break closing", tried)
-
-# (f518) as main.py calls them, with no client: the real one, which under the suite's switch is never built and raises at once
-r0 = gw.reached()
-gw.warm()
-t0 = time.time()
-while gw.reached() == r0 and time.time() - t0 < 3:
-    time.sleep(0.02)
-gw.unload()
-check("(f518) the warm-up and the unload as main.py calls them go to the real client, quietly when there is none",
-      gw.reached() == r0 + 2 and not gw.built(), (r0, gw.reached(), gw.built()))
+# (f532) the warm-up and the unload went with the old client: the game's own server loads once, behind the home page (f526), and
+# stops with the game (llm/runtime.py); nothing here warms or unloads anything.
 
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

@@ -1,5 +1,4 @@
 MODEL = "gemma4-12b-bb722270"                 # (f527) the chat model's GGUF id: its file's stem, name and sha prefix, pinned in data/runtime/server.yaml
-OLLAMA_MODEL = "gemma4:12b"                   # (f527, until f532) the same weights under Ollama's tag, for the Ollama-shaped source and its pulls
 THINK = False
 # (f533) The model's thinking for chosen tasks only, to measure it before the owner decides (tools/think_ab.py): DND_THINK_TASKS in the
 # environment, task names split by commas, turns thinking on for those tasks' calls, each given THINK_ROOM more tokens to think in (so
@@ -13,9 +12,9 @@ THINK_ROOM = int(__import__("os").environ.get("DND_THINK_ROOM", "").strip() or 8
 # (f425) The context the model is given for each call. DND_NUM_CTX in the environment sets it for one night: a night of six runs on one
 # card reserves this much for every run at once, and no call of the f395 night went past about 10,000 tokens.
 NUM_CTX = int(__import__("os").environ.get("DND_NUM_CTX", "0") or 0) or 32768
-# (f370) CPU threads the model runner may use, 0 for Ollama's own default (one per core the machine shows). A container that shows every
-# core of its host while its quota is a dozen needs this set (the night script sets it from the quota), or the runner's threads fight
-# for the quota and the card waits on them; DND_NUM_THREAD in the environment sets it without an edit.
+# (f370) CPU threads the model server may use (llm/runtime.py chat_argv -t), 0 for its own default (one per core the machine shows). A
+# container that shows every core of its host while its quota is a dozen needs this set (the night script sets it from the quota), or
+# the server's threads fight for the quota and the card waits on them; DND_NUM_THREAD in the environment sets it without an edit.
 NUM_THREAD = int(__import__("os").environ.get("DND_NUM_THREAD", "0") or 0)
 # (f387) For a night that tries the world's voice warmer: DND_TEMP_ADD is added to the temperature of every call already warm (0.5 and up:
 # the narrator, the frames, everyone who speaks) - never the cold ones that read the player's line or judge (0.1-0.4), and never the night
@@ -37,12 +36,11 @@ MAX_TOKENS = 800
 PROSE_MAX_TOKENS = 2048
 REQUEST_TIMEOUT = 120
 # (f528) Which model server a session talks to: "runtime" (the default: the game starts its own llama-server from runtime/ with the
-# model files in models/, llm/runtime.py, as it ships); "llama", a llama-server started by hand at DND_LLAMA_URL (llm/llama.py from_env),
-# for a measurement beside one; or "ollama" (until f532), the Ollama-shaped source of the nights before Bundle F. The suite drops every
-# DND_* setting and, under MERAVIA_NO_SERVER, no default ever reaches a live server.
+# model files in models/, llm/runtime.py, as it ships); or "llama", a llama-server started by hand at DND_LLAMA_URL (llm/llama.py
+# from_env), for a measurement beside one. The suite drops every DND_* setting and, under MERAVIA_NO_SERVER, no default ever reaches a
+# live server.
 BACKEND = (__import__("os").environ.get("DND_BACKEND", "") or "runtime").strip().lower()
 CLOSE_WAIT_SECONDS = 2      # (f453) how long a closing campaign waits for its background work (a creation call, people being written) before leaving it behind
-KEEP_ALIVE = "30m"          # how long Ollama keeps the model loaded after a call (its default is 5 minutes, and a cold load costs 20-60 seconds)
 COMBAT_NUMBERS = True  # show the numbers under each narrated round (#numbers toggles it in game)
 NARRATED_DIALOGUE = True  # wrap conversations in narration (#dialogue toggles it in game)
 LOG_MAX_MB = 5            # when logs/llm_calls.jsonl grows past this, it is trimmed
@@ -69,10 +67,8 @@ UPDATE_REPO = "treystar3/dnd_ai"            # "owner/repo" of the public GitHub 
 UPDATE_CHECK = True                          # (f364) False for a build whose updates come another way (a store): no release is looked for
 
 VOICED_MENTOR = True        # Maren says her written lines in her own words (False: exactly as written)
-UNLOAD_ON_EXIT = True                        # free the model from memory when the game closes
 FREE_MENTOR = True                           # her speeches are written freely from facts (False: her written lines, one-to-one in her words)
 EMBED_MODEL = "nomic-embed-text-970aa74c"    # (f527) the embedding model's GGUF id (about 270 MB): tells how alike two lines are in meaning
-OLLAMA_EMBED_MODEL = "nomic-embed-text"      # (f527, until f532) the same under Ollama's tag
 EMBED_ENABLED = True                         # False: the game uses its simpler word checks instead
 SIM_REPEAT = 0.93                            # a sentence this close in meaning to one the speaker said lately is a repeat
 SIM_GESTURE = 0.90                           # the same for a gesture

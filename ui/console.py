@@ -90,17 +90,6 @@ def panel(name: str, data: dict) -> bool:
     return False
 
 
-def setup(data: dict) -> None:
-    """A start-up screen (install Ollama, download the model). The window draws it as a page with buttons; here it is text."""
-    print("\n" + "═" * 60)
-    print("  " + data["title"])
-    print("═" * 60)
-    for line in data["lines"]:
-        print(textwrap.fill(line, 70, initial_indent="  ", subsequent_indent="  "))
-    if data["buttons"]:
-        print("\n  Type one of: " + ", ".join(key for _, key in data["buttons"]))
-
-
 def home(data: dict) -> bool:
     """(f345) The home page: True when something drew it (the window); the terminal returns False and scenes/home.py prints a menu."""
     return False
@@ -121,13 +110,11 @@ def creation_done() -> None:
 
 
 def setup_progress(frac: float, text: str) -> None:
+    """(f526, f532) The model load's progress while Continue waits on it (main.py; llm/launch.py Screen calls it only while the wait is on
+    screen). The installer's start-up screen that once shared this place is gone with it (f532)."""
     print(f"\r  {text}  {int(frac * 100):>3}%   ", end="", flush=True)
     if frac >= 1:
         print()
-
-
-def setup_done() -> None:
-    """The start-up screen is finished."""
 
 
 @contextlib.contextmanager

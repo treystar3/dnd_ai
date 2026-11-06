@@ -68,10 +68,10 @@ check("one matter settled is not yet renown", not any(r["id"] == "renown_campaig
 state["deeds"].append({"kind": "settled", "minute": later - 600, "place": "parth", "thread": "b", "title": "Two doors", "tier": "normal", "how": "by persuasion"})
 check("two in the region within six weeks are", any(r["id"] == "renown_campaign" for r, _ in consequences.met(state, world, "parth", later)))
 check("...and the deed reads plainly for the judge", deeds.describe(state["deeds"][-1]).startswith("settled 'Two doors' at parth"))
-import httpx
+from llm.errors import Failure
 class Broken:
     def chat(self, **kw):
-        raise httpx.TimeoutException("no model")
+        raise Failure("deadline", "no model")                # (f532) a source's own deadline
 broken = simlib.stand_in(chat=Broken().chat)      # (f518) a source that times out on every call, where the client was swapped before
 state["campaign"] = ""
 ok = consequences.tick(store, world, catalog, state, later, random.Random(3))

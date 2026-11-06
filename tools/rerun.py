@@ -5,7 +5,7 @@
                                                         stage that changes prompts); only the state and outcomes are compared
     python3 tools/rerun.py --golden [--rebless]         replay the kept stub recording (data/replay/sessions/stub_short); with
                                                         --rebless, record it again and print what changed, to read before keeping it
-    python3 tools/rerun.py recordings/<name> --time URL (f443) send every recorded request to the model at URL as the replay meets it,
+    python3 tools/rerun.py recordings/<name> --time URL (f443) send every recorded request to the llama-server at URL (on this machine) as the replay meets it,
                                                         and keep how long each took (timed.jsonl) for tools/card_profile.py
 
 A recording (engine/recording.py) holds the save as the session opened, every input, and every model call in order. The replay copies
@@ -24,13 +24,13 @@ import json
 import os
 import shutil
 import sys
-import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
+from llm.errors import Failure     # noqa: E402  (f514) imports nothing of the server's
 GOLDEN = ROOT / "data" / "replay" / "sessions" / "stub_short"
 SCRIPTS = ROOT / "data" / "replay" / "scripts"        # (f476) a kept recording made from a script: data/replay/scripts/<name>.py
 
@@ -124,7 +124,7 @@ def report_rebless(old: dict, new: dict) -> None:
 
 def neutral_of(row: dict, schema_sha: str | None = None) -> dict:
     """(f527) A recorded row's request in the neutral form: as it is when the row already holds one (made since f527), else rebuilt from
-    the Ollama-shaped request the recorder wrote before (model, messages, format's title, options, think): the base laid under the
+    the request in the old client's shape the recorder wrote before (model, messages, format's title, options, think): the base laid under the
     options, num_predict as the ceiling, the schema's fingerprint from the contract of that title (or `schema_sha`, the new row's, for
     a schema built at run time, which a title alone cannot rebuild)."""
     import hashlib
@@ -250,7 +250,7 @@ def report_placement(old: dict, new: dict) -> None:
 class Replay:
     """(f518) A recording's calls as the model's source (llm/backend.py use; R1: it replaces everything below the recorder): each call
     the game makes is served the next row, in the file's order, once its kind, its title and (unless loose) its request's fingerprint
-    are the row's; on_call(row, k) is told with the old client's arguments (--time sends them to a live card). A recorded answer is
+    are the row's; on_call(row, k) is told with the old client's arguments (--time sends them to a llama-server on a live card). A recorded answer is
     served as the old client gave it (its done_reason and counts), a recorded error is raised as the Failure it was read as
     (llm/backend.py legacy_failure: no import of the old client), and anything else the game asks for parts the replay. Its facts are
     the recording's (R4): an embedder when the recording had one."""
@@ -333,7 +333,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     f443, sends the same request to a model)."""
     rec = load(folder)
     from engine import recording, streams
-    from llm import embed, gateway
+    from llm import embed
     from storage import statehash
     if rec["meta"].get("data") != statehash.data_hash():
         print("warning: this recording was made on other rules or content (its data hash differs); differences may be that", file=sys.stderr)
@@ -458,27 +458,66 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
             "crashed": len(crashlog.SESSION) - crashes0, "logs": str(scratch)}   # (f518) faults the replay hit (its own crash.log)
 
 
-def timer(folder: Path, url: str):
-    """(f443) An on_call for replay(): the same request, sent to the model at url (the card the game is built for), timed, its counts
-    kept in the recording's timed.jsonl. The game goes on with the recorded answer, so the session stays the one recorded."""
+TIME_DEADLINE = 900.0       # the seconds one re-timed call may take: a slow card's longest passage is the measure, never cut (the hang guard is 120 s)
+
+
+def timer(folder: Path, url: str, key: str = "", embed_url: str | None = None, embed_key: str = ""):
+    """(f443, f532) An on_call for replay(): the same request, sent to a llama-server on this machine at url (the game's own build started
+    by hand on the card the game is built for, or DND_BACKEND=llama's; a loopback address, as the adapter takes), timed, its counts kept in
+    the recording's timed.jsonl in the interface's form (usage: prompt, out, read_ms, write_ms, cached, and load_ms when the model loaded
+    before the call; tools/card_profile.py reads it). The game goes on with the recorded answer, so the session stays the one recorded. A
+    chat is rebuilt from the request exactly: its messages, its schema as the grammar, every sampler as recorded, the answer's ceiling as
+    recorded (a thinking call's room is in it), thinking as recorded. An embedding goes to embed_url's server when one is named, else its
+    row says it was skipped. Raises Failure when a server is not answering at the start."""
     import time
-    import ollama
-    live = ollama.Client(host=url, timeout=900)
+    from llm import llama
+    from llm.sampling import BASE
+    chat_server = llama.Server(llama._port_of(url, "--time"), key)
+    embed_server = llama.Server(llama._port_of(embed_url, "--time-embed"), embed_key) if embed_url else None
+    llama.LlamaServer(chat_server, embed_server).load()            # waits for the server(s) to be ready
     out = (folder / "timed.jsonl").open("w", encoding="utf-8")
-    COUNTS = ("prompt_eval_count", "prompt_eval_duration", "eval_count", "eval_duration", "load_duration", "total_duration")
 
     def on_call(row: dict, k: dict, request) -> None:
         from llm import backend
         t0 = time.perf_counter()
-        err, got = "", {}
-        try:                                        # (f527) the Ollama-shaped arguments, built from the request the game made
-            r = live.embed(**backend.embed_kwargs(request)) if row["kind"] == "embed" else live.chat(**backend.ollama_kwargs(request))
-            got = {c: getattr(r, c, None) for c in COUNTS}
+        err, usage, skipped = "", {}, ""
+        try:
+            if row["kind"] == "embed":
+                texts = list(request) if isinstance(request, (list, tuple)) else list(request["input"])
+                if embed_server is None:
+                    skipped = "no embedding server (--time-embed URL)"
+                else:
+                    status, payload, wall, loading = embed_server.request("POST", "/v1/embeddings", llama.embed_body(texts), TIME_DEADLINE)
+                    if status != 200:
+                        err = f"HTTP {status}: {str(payload)[:200]}"
+                    else:
+                        usage = {"prompt": int(((payload or {}).get("usage") or {}).get("prompt_tokens") or 0), "total_ms": round(wall)}
+                        if loading:
+                            usage["load_ms"] = round(loading)
+            else:
+                neutral = backend.neutral_request(request) if isinstance(request, backend.ChatRequest) else dict(request)
+                if isinstance(request, backend.ChatRequest):
+                    schema = request.schema.model_json_schema()
+                else:                                   # a bare neutral row: the contract its title names
+                    from llm import contracts
+                    schema = getattr(contracts, str(neutral.get("schema") or "")).model_json_schema()
+                sampling = {**BASE, **(neutral.get("sampling") or {})}
+                body = {"model": neutral.get("model"), "messages": neutral["messages"], "grammar": llama.grammar_of(schema),
+                        **{key_: sampling[key_] for key_ in llama.SAMPLER_KEYS if key_ in sampling},
+                        "n_predict": int(neutral["max_tokens"]), "chat_template_kwargs": {"enable_thinking": bool(neutral.get("think"))},
+                        "cache_prompt": True, "stream": False}
+                status, payload, wall, loading = chat_server.request("POST", "/v1/chat/completions", body, TIME_DEADLINE)
+                if status != 200 or not isinstance(payload, dict):
+                    err = f"HTTP {status}: {str(payload)[:200]}"
+                else:
+                    usage = llama.usage_of(payload, wall, None)
+                    if loading:                     # the model loading before this call answered (card_profile reads it as load_ms)
+                        usage["load_ms"] = round(loading)
         except Exception as e:                      # the card failing a call is a measure too
             err = f"{type(e).__name__}: {str(e)[:200]}"
         out.write(json.dumps({"i": row["i"], "input": row["input"], "kind": row["kind"], "title": row.get("title", ""),
-                              "seconds": round(time.perf_counter() - t0, 3), "tokens": {c: v for c, v in got.items() if v is not None},
-                              "error": err}) + "\n")
+                              "seconds": round(time.perf_counter() - t0, 3), "usage": usage, "error": err,
+                              **({"skipped": skipped} if skipped else {})}) + "\n")
         out.flush()
     return on_call
 
@@ -583,8 +622,10 @@ def main() -> int:
     ap.add_argument("--translate", action="store_true", help="(f527) with --rebless: every kept row's request in the neutral form against the new rows' fingerprints")
     ap.add_argument("--make", metavar="FOLDER", help="record a stub session into FOLDER (used by the tests)")
     ap.add_argument("--inputs", type=int, default=40)
-    ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the model at URL beside the replay, and keep "
+    ap.add_argument("--time", metavar="URL", help="(f443) send every recorded request to the llama-server at URL beside the replay, and keep "
                     "how long each took in the recording's timed.jsonl (tools/card_profile.py reads it)")
+    ap.add_argument("--time-key", default="", help="--time's API key, if the server has one")
+    ap.add_argument("--time-embed", metavar="URL", default="", help="--time: the embedding llama-server beside it (else the embed rows are skipped)")
     a = ap.parse_args()
     import config
     if (a.make or a.rebless) and config.THINK_TASKS:              # (f533) a kept recording is made as the game ships: no task thinks
@@ -630,9 +671,12 @@ def main() -> int:
         ap.error(f"no recording at {folder}")
     try:
         load(folder)                                                   # (f517) refused before anything is opened for writing:
-        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time) if a.time else None)   # --time's timed.jsonl is kept
+        out = replay(folder, loose=a.loose, on_call=timer(folder, a.time, a.time_key, a.time_embed) if a.time else None)   # --time's timed.jsonl is kept
     except Unreplayable as e:
         print(f"refused: {e}")
+        return 2
+    except Failure as e:                                                # --time's server is not answering: a line, not a traceback
+        print(f"the server at {a.time} is not answering: {e}")
         return 2
     if out["parted"]:
         print(f"parted at input {out['parted']['input']} of {out['of']}: {out['parted']['why']}")

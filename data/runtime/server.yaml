@@ -3,10 +3,11 @@
 # (storage/statehash.py), as data/measured is: it says how this machine runs the model, not what the game is, so a recording replays
 # across a change here (the answers are served); night comparisons read each run's run.json for what it ran on.
 #
-# The builds are llama.cpp's own releases of the commit the pod measured (b11963, 39febd2, the same llama-server Ollama 0.40.14 runs
-# underneath), hashed whole on 2026-11-06. Linux has no CUDA release: tools/fetch_runtime.py builds it from that commit on a pod.
-# The model files are the ones every night ran on, served by their sha256 from Ollama's public registry (content-addressed, so the
-# digest is the file's own checksum). tools/fetch_runtime.py fetches and checks them; runtime/ and models/ are never in git.
+# The builds are llama.cpp's own releases of the commit the pod measured (b11963, 39febd2), hashed whole on 2026-11-06. Linux has no
+# CUDA release: tools/fetch_runtime.py builds it from that commit on a pod.
+# The model files are the ones every night ran on, served by their sha256 from a public, content-addressed registry (the digest in the
+# URL is the file's own checksum, checked again after the fetch). tools/fetch_runtime.py fetches and checks them; runtime/ and models/
+# are never in git. (f531) On Steam the model files are a depot of their own; the testers' installer fetches these same URLs.
 
 llama_cpp:
   tag: b11963

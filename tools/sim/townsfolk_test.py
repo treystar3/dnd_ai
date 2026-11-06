@@ -11,7 +11,7 @@ import simlib
 from engine import data_check, partings, voice_profile as vp, voice_rules
 from llm.contracts import NPCReply, Parting
 from pydantic import ValidationError
-stub = simlib.Stub("warrior", 1); simlib.install(stub)      # first: the stand-in model, so nothing here reaches for a real Ollama
+stub = simlib.Stub("warrior", 1); simlib.install(stub)      # first: the stand-in model, so nothing here reaches for a real server
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)

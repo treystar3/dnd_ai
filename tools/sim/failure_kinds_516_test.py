@@ -5,7 +5,7 @@
   costs nothing; a request refused before it was read (too big, invalid) ends the tries, costs nothing, gets no relaxed retry, and is
   filed as request_refused, apart from an outage. A full slot is too big: no cut-off retry, nobody told they went round in circles.
 - The old client's errors map onto the kinds in one place (llm/backend.py failure_of), so nothing recorded or logged moves: Python's
-  ConnectionError, an HTTP error and Ollama's own are the server's, a timeout is a deadline, anything else is "the call failed".
+  a ConnectionError raised on purpose is the server's, a Failure keeps its kind, anything else is "the call failed".
 - A cancel is an Interrupt, whether a source raises it or tells it as a reply's finish: no try counted, nothing charged, no fallback, no
   refusal, no tally. Raised at a turn's understanding, inside an operation (at a call made inside it or asked outside it), in a talk
   turn, or through the game's own loop, it leaves the save as it was, shows no "not taken" line, writes nothing to logs/crash.log, keeps
@@ -194,11 +194,9 @@ class Given(Source):
 env0 = os.environ.get("MERAVIA_NO_SERVER")
 os.environ["MERAVIA_NO_SERVER"] = "1"
 given = Given("deadline")
-reached0 = gateway.reached()                    # (f518) every try to reach the real client (a call, a read of its inner timeout) counts
 try:
     r = run(given)
     row = last_logged()
-    reached = gateway.reached() - reached0
 finally:
     if env0 is None:
         os.environ.pop("MERAVIA_NO_SERVER", None)
@@ -208,37 +206,23 @@ said = re.match(r"timed out after (\d+)s \(what was left of the turn's time\)", 
 check("a new source's deadline is one try and the gateway's own failure, worded from the seconds the source was given",
       isinstance(r.err, LLMError) and r.tries == 1 and said is not None and given.deadline is not None
       and int(said.group(1)) == round(given.deadline), (repr(r.err), row.get("error"), getattr(given, "deadline", None)))
-check("...and the old client is never read (never reached, nothing built, nothing raised out of the gateway)", reached == 0 and not gateway.built(),
-      (reached, gateway.built()))
 
-# ---- 3. the old client's errors, on the kinds, read as they always were
-import httpx
-import ollama
-gateway.keep_extra_fields()
-cases = {
-    "ConnectionError": (ConnectionError("Failed to connect to Ollama"), "server"),
-    "an HTTP error": (httpx.HTTPError("bad gateway"), "server"),
-    "Ollama's own error": (ollama.ResponseError("repeat limit", 500), "server"),
-    "a timeout": (httpx.ReadTimeout("stalled"), "deadline"),
-}
-for label, (e, kind) in cases.items():
-    f = backend.failure_of(e)
-    check(f"{label} is the {kind} kind, with the old error's type and text kept", f is not None and f.kind == kind
-          and f.legacy == (type(e).__name__, str(e)) and f.__cause__ is e, (f and (f.kind, f.legacy)))
+# ---- 3. a plain error from a source, on the kinds
+f = backend.failure_of(ConnectionError("Failed to connect"))
+check("a ConnectionError is the server kind, with the error's type and text kept", f is not None and f.kind == "server"
+      and f.legacy == ("ConnectionError", "Failed to connect") and isinstance(f.__cause__, ConnectionError), (f and (f.kind, f.legacy)))
+own = Failure("deadline", "stalled")
+check("...a Failure is itself", backend.failure_of(own) is own)
 check("...and anything else is no kind at all (the gateway's 'the call failed', as before)", backend.failure_of(RuntimeError("x")) is None)
 
 def through(exc, how, retries=2):
-    """(f518) The old client's error raised by the client the Ollama-shaped source is given (its own path: the deadline on the client's
-    timeout, then the call), or by a stand-in's chat (the suite's path); both send through the one function (llm/backend.py _send)."""
+    """(f518) An error raised by a stand-in's chat (the suite's path), sent through the one function (llm/backend.py _send)."""
     calls = []
 
     def chat(**k):
         calls.append(k)
         raise exc
-    if how == "ollama":
-        undo = backend.use(backend.OllamaShape(client=types.SimpleNamespace(chat=chat)))
-    else:
-        undo = simlib.stand_in(chat=chat, embed=None)
+    undo = simlib.stand_in(chat=chat, embed=None)
     try:
         gateway.generate(TASK, "Read the offer.", "Morning.", Read, retries=retries, _quiet=True)
         got = None
@@ -249,12 +233,12 @@ def through(exc, how, retries=2):
     return got, len(calls), last_logged().get("error")
 
 
-for how, where in (("ollama", "through the Ollama-shaped source"), ("stand-in", "through a stand-in")):
-    got, n, said = through(ConnectionError("Failed to connect to Ollama"), how)
-    check(f"{where} a ConnectionError is three failed tries, logged as the server's, the client's error kept as the cause",
-          isinstance(got, LLMError) and n == 3 and said == "the model server failed: Failed to connect to Ollama"
+for how, where in (("stand-in", "through a stand-in"),):
+    got, n, said = through(ConnectionError("Failed to connect"), how)
+    check(f"{where} a ConnectionError is three failed tries, logged as the server's, the error kept as the cause",
+          isinstance(got, LLMError) and n == 3 and said == "the model server failed: Failed to connect"
           and isinstance(got.__cause__, ConnectionError), (repr(got), n, said, repr(getattr(got, "__cause__", None))))
-    got, n, said = through(httpx.ReadTimeout("stalled"), how)
+    got, n, said = through(Failure("deadline", "stalled"), how)
     check("...a timeout one try, logged as timed out", isinstance(got, LLMError) and n == 1 and said.startswith("timed out after"), (n, said))
     got, n, said = through(RuntimeError("the client fell over"), how)
     check("...and an error of no kind three tries, 'the call failed' as before", isinstance(got, LLMError) and n == 3

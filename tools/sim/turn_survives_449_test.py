@@ -11,7 +11,6 @@ is not in view goes looking for it instead of "There's nothing here to fight".""
 import json, random, re, shutil, sys, types
 from pathlib import Path
 sys.path.insert(0, ".")
-import httpx
 import simlib
 stub = simlib.Stub("warrior", 9)
 simlib.install(stub)
@@ -24,6 +23,7 @@ console.panel = lambda *a, **k: False
 from core.interrupts import Interrupt
 from llm import gateway
 from llm.contracts import ActionIntent, ActionPlan
+from llm.errors import Failure
 from llm.gateway import LLMError, generate
 from engine import crashlog, data_check, doings, encounters, failures, hygiene, refusals, turnlog
 from storage import statehash
@@ -65,7 +65,7 @@ check("an error the gateway did not list is a failed try, not the end of the gam
 check("...and the refusal filed is the server's failure", refusals.SESSION[n0:] and refusals.SESSION[-1]["kind"] == "model_down", refusals.SESSION[n0:])
 
 def slow(**k):
-    calls.append("slow"); raise httpx.ReadTimeout("stalled")
+    calls.append("slow"); raise Failure("deadline", "stalled")         # (f532) a source's own deadline
 held = client(slow); calls.clear()
 try:
     generate("interpret_action", "s", "u", ActionPlan, max_tokens=50)

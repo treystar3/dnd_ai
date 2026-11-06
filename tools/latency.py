@@ -10,7 +10,7 @@
     python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
     python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
 
-The call log carries one row per attempt: its task, its wall seconds and, since the gateway began keeping them, Ollama's own
+The call log carries one row per attempt: its task, its wall seconds and, since the gateway began keeping them, the server's own
 counts (`tokens`: prompt and written tokens, the milliseconds each took, a model load). A night run adds turns.jsonl, one row per
 typed line with its wall time, the time to its first word, and the calls it took.
 """
@@ -78,7 +78,7 @@ def calls_table(rows: list[dict]) -> list[str]:
     total = sum(float(r.get("seconds") or 0) for r in rows)
     lines.append(f"\n{len(rows)} attempts for {sum(1 for r in rows if r.get('attempt', 0) == 0)} calls, {fmt(total / 60, 1)} minutes in the model in all.")
     if not any(isinstance(r.get("tokens"), dict) for r in rows):
-        lines.append("No token counts in this log: it was written before the gateway kept Ollama's counts, or by a stand-in model.")
+        lines.append("No token counts in this log: it was written before the gateway kept the server's counts, or by a stand-in model.")
     return lines
 
 
