@@ -25,25 +25,18 @@ if not exist ".venv\installed.flag" (
     echo done> ".venv\installed.flag"
 )
 
-where ollama >nul 2>nul
+REM (f531) The game runs its own model server: its builds under runtime\ and the model files under models\, each checked against
+REM data\runtime\server.yaml. Whatever is missing is fetched once (the model files are about 8 GB).
+".venv\Scripts\python.exe" -c "import sys; sys.path.insert(0, '.'); from llm import runtime; bad = runtime.runtime_problems(check_files=True); print('\n'.join(bad)); sys.exit(1 if bad else 0)" >nul 2>nul
 if errorlevel 1 (
-    echo Ollama was not found. Install it from ollama.com, then run play.bat again.
-    pause
-    exit /b 1
-)
-
-ollama list >nul 2>nul
-if errorlevel 1 (
-    echo Ollama is not running. Start the Ollama app, wait a few seconds, then run play.bat again.
-    pause
-    exit /b 1
-)
-
-for /f "tokens=2 delims== " %%M in ('findstr /b "MODEL" config.py') do set MODEL=%%~M
-ollama list | findstr /i /c:"%MODEL%" >nul
-if errorlevel 1 (
-    echo Downloading the model %MODEL% - this is a large one-time download...
-    ollama pull %MODEL%
+    echo The model server's files are not all here yet. Fetching them once...
+    ".venv\Scripts\python.exe" tools\fetch_runtime.py --models
+    if errorlevel 1 goto fail
+    ".venv\Scripts\python.exe" tools\fetch_runtime.py --build cuda
+    if errorlevel 1 goto fail
+    ".venv\Scripts\python.exe" tools\fetch_runtime.py --build vulkan
+    if errorlevel 1 goto fail
+    ".venv\Scripts\python.exe" tools\fetch_runtime.py --build cpu
     if errorlevel 1 goto fail
 )
 

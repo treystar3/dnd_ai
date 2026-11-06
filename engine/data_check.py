@@ -168,8 +168,9 @@ def fights_problems(data: dict | None = None) -> list[str]:
     limit = data.get("limit_seconds")
     if not isinstance(limit, (int, float)) or isinstance(limit, bool) or limit <= 0:
         bad.append(f"bundle_e_fights.yaml limit_seconds: needs a number above zero, not {limit!r}")
-    for name, rows in (data.get("goldens") or {}).items():
-        if not (ROOT / "data" / "replay" / "sessions" / str(name) / "calls.jsonl.gz").exists():
+    replay = ROOT / "data" / "replay"                                # (f531) the kept recordings are a source tree's: a built game
+    for name, rows in (data.get("goldens") or {}).items():          # ships without data/replay, and is not told they are missing
+        if replay.exists() and not (replay / "sessions" / str(name) / "calls.jsonl.gz").exists():
             bad.append(f"bundle_e_fights.yaml goldens.{name}: no such recording is kept")
         for i, row in (rows or {}).items():
             for k in ("estimate", "operations", "reruns", "simulations"):

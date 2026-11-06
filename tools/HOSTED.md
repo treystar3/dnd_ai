@@ -51,6 +51,21 @@ when the pod is terminated, which is what you want once the zip is downloaded.
    says what the model ran on (the build, the device, the machine's class, the model's sha, the sampling base and table as data has
    them), and `tools/lora_dataset.py --runs-dir` takes the whole folder.
 
+## The depots (f531)
+
+What is built and shipped, so a night on a rented box runs the same files a player gets:
+
+- **The game depot:** `Meravia.exe` with its data/ (build_exe.bat: PyInstaller's folder) and the model server's builds beside it under
+  `runtime/<build>/` (cuda, vulkan and cpu on Windows, copied from the project's runtime/ folder, fetched by tools/fetch_runtime.py
+  --build <build> --platform windows). The CUDA build carries its runtime libraries; the game picks the build at launch (llm/launch.py's
+  ladder) and never needs a download.
+- **The model depot:** `models/*.gguf`, the files data/runtime/server.yaml names, each pinned by its sha256 and size: the same files
+  tools/fetch_runtime.py --models fetches from their public source and a night runs on. On Steam the depot installs with the game; the
+  testers' installer downloads the files itself, checking each checksum (installer/models.iss, written from server.yaml by
+  tools/installer_files.py).
+- **Never shipped:** data/replay (the kept recordings are a source tree's; the startup check asks for them only where a replay folder
+  exists), the tools, the tests.
+
 ## Bundle D's closing night (f490)
 
 The night that closes Bundle D is run as its baseline was (four runs at once, continuity on, the same personas and seeds) and measured

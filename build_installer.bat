@@ -1,10 +1,13 @@
 @echo off
-REM Makes installer\Output\Meravia_<version>_setup.exe: build the game, then wrap it with Inno Setup (free: https://jrsoftware.org/isinfo.php, version 6.1 or newer).
+REM Makes installer\Output\Meravia_<version>_setup.exe: build the game, write the installer's model downloads from data\runtime\server.yaml,
+REM then wrap it all with Inno Setup (free: https://jrsoftware.org/isinfo.php, version 6.1 or newer).
 REM RAISE core\version.py BEFORE BUILDING. The game compares its own version with the newest release tag: an installer built from the old
 REM number and attached to a new tag installs a game that thinks it is still old, and offers the same update forever.
 for /f %%v in ('python -c "from core.version import VERSION; print(VERSION)"') do set GAME_VERSION=%%v
 echo Building version %GAME_VERSION% (core\version.py). The release tag must be v%GAME_VERSION%.
 call build_exe.bat || goto :fail
+REM (f531) The model files are downloaded by the installer, each checked against its sha256: the include is written from server.yaml.
+python tools\installer_files.py || goto :fail
 set ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe
 if not exist "%ISCC%" set ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe
 if not exist "%ISCC%" set ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe

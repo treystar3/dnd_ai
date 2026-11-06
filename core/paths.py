@@ -1,5 +1,6 @@
 """Where things live. Run from source, both are the project folder. Built into an exe, BUNDLE is where the packaged game data is unpacked
-and APP is the folder holding the exe, where saves/ and logs/ are kept."""
+and APP is the folder holding the exe, where saves/ and logs/ are kept. (f531) The game depot holds the exe, data/ and the server's builds
+under runtime/; the model files under models/ are a depot of their own: both beside the exe, never inside the bundle."""
 import os
 import sys
 from pathlib import Path

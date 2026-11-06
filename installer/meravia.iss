@@ -1,6 +1,8 @@
 ; Inno Setup 6.1+ script. Build with build_installer.bat.
-; Installs the game for the current user (no administrator needed), adds shortcuts, and offers to install Ollama (and Microsoft's WebView2
-; window component) when they are missing. The AI model itself is downloaded by the game on first launch, with a progress bar.
+; Installs the game for the current user (no administrator needed), adds shortcuts, and offers to install Microsoft's WebView2 window
+; component when it is missing. (f531) The game runs its own model server (its builds come with the game, under runtime\); the model
+; files are downloaded here, each checked against its sha256, from the include build_installer.bat writes out of data\runtime\server.yaml
+; (installer\models.iss, tools\installer_files.py). On Steam those files are a depot of their own.
 
 #define AppName "Meravia"
 #define AppExe "Meravia.exe"
@@ -25,7 +27,6 @@ DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#AppExe}
 
 [Tasks]
-Name: "ollama"; Description: "Install Ollama, the free local AI program the game needs (about 1 GB; skipped if you already have it)"; Check: not OllamaInstalled
 Name: "desktopicon"; Description: "Add a desktop shortcut"; Flags: unchecked
 
 [Files]
@@ -36,14 +37,15 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\OllamaSetup.exe"; Parameters: "/SILENT /NORESTART"; StatusMsg: "Installing Ollama (Windows may ask for permission)..."; Check: HaveOllamaSetup
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing the window component..."; Check: HaveWebView2Setup
 Filename: "{app}\{#AppExe}"; Flags: nowait; Check: WizardSilent
-Filename: "{app}\{#AppExe}"; Description: "Start the game (it will download its AI model the first time)"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Description: "Start the game"; Flags: nowait postinstall skipifsilent
 
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+
+#include "models.iss"
 
 { An upgrade over a build whose exe had another name: that exe is removed, and so is any shortcut of ours in the Start menu or on
   the desktop that still points at it, so no shortcut can start the old build (which would offer the same update for ever). The
@@ -96,21 +98,13 @@ begin
     RemoveStaleShortcuts(ExpandConstant('{autoprograms}'));
     RemoveStaleShortcuts(ExpandConstant('{autodesktop}'));
   end;
-end;
-
-function HaveOllamaSetup: Boolean;
-begin
-  Result := FileExists(ExpandConstant('{tmp}\OllamaSetup.exe'));
+  if CurStep = ssPostInstall then
+    InstallModels;    { the downloaded model files into {app}\models (installer\models.iss) }
 end;
 
 function HaveWebView2Setup: Boolean;
 begin
   Result := FileExists(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'));
-end;
-
-function OllamaInstalled: Boolean;
-begin
-  Result := FileExists(ExpandConstant('{localappdata}\Programs\Ollama\ollama.exe')) or FileExists(ExpandConstant('{commonpf}\Ollama\ollama.exe'));
 end;
 
 function WebView2Installed: Boolean;
@@ -137,9 +131,9 @@ begin
   begin
     DownloadPage.Clear;
     Any := False;
-    if WizardIsTaskSelected('ollama') and not OllamaInstalled then
+    if not ModelsPresent then
     begin
-      DownloadPage.Add('https://ollama.com/download/OllamaSetup.exe', 'OllamaSetup.exe', '');
+      AddModelDownloads(DownloadPage);    { each file checked against its sha256 before it is kept }
       Any := True;
     end;
     if not WebView2Installed then
@@ -157,7 +151,7 @@ begin
           if DownloadPage.AbortedByUser then
             Result := False
           else
-            SuppressibleMsgBox('A download did not finish (' + GetExceptionMessage + '). The game is installed anyway and will offer to fix this the first time you start it.', mbInformation, MB_OK, IDOK);
+            SuppressibleMsgBox('A download did not finish (' + GetExceptionMessage + '). The game is installed anyway; run the installer again to fetch what is missing.', mbInformation, MB_OK, IDOK);
         end;
       finally
         DownloadPage.Hide;
