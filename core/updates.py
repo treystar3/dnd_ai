@@ -99,6 +99,16 @@ def check_in_background(on_found) -> None:
         threading.Thread(target=work, daemon=True, name="update-check").start()
 
 
+def _leave() -> None:
+    """(f522) The game ends for the installer: the model server it started stops first (os._exit runs no atexit), then the process."""
+    try:
+        from llm import runtime
+        runtime.stop_for_game()
+    except Exception:
+        pass
+    os._exit(0)
+
+
 def install(info: dict, progress, quit_game) -> str | None:
     """Download the installer and hand over to it. Returns a problem text, or None once the installer has started.
     Not in a built Windows app (or no installer attached): open the release page instead."""
@@ -122,5 +132,5 @@ def install(info: dict, progress, quit_game) -> str | None:
         return f"{type(e).__name__}: {e}"
     note_attempt(info)
     quit_game()
-    threading.Timer(10.0, lambda: os._exit(0)).start()       # the installer needs the exe free; the game saves after every action
+    threading.Timer(10.0, _leave).start()       # the installer needs the exe free; the game saves after every action
     return None

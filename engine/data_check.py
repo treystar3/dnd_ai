@@ -653,6 +653,8 @@ def check() -> list[str]:
     bad += fights_problems()                                           # (f510) the fight measures' shape
     from llm import llama as _llama
     bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
+    from llm import runtime as _runtime
+    bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
     return bad
 
 

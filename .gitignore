@@ -8,6 +8,11 @@ logs/
 recordings/
 *.log
 
+# --- (f522) The model server's builds, the model files and the game's run files: fetched or written, never kept ---
+/runtime/
+/models/
+/run/
+
 # --- Build output: build_exe.bat and build_installer.bat recreate these ---
 build/
 dist/

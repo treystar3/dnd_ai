@@ -45,7 +45,8 @@ def main():
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, "w"))
     import atexit
-    atexit.register(unload)                        # however the game ends, the model does not stay in memory
+    if config.BACKEND != "runtime":                # (f522) the game's own server is stopped by runtime.stop_for_game, registered when it starts
+        atexit.register(unload)                    # however the game ends, the model does not stay in memory
     from engine import turnlog
     atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl
     try:
@@ -55,20 +56,29 @@ def main():
         else:
             guarded(lambda: play(args), None)
     finally:
-        unload()
+        if config.BACKEND == "runtime":
+            from llm import runtime
+            runtime.stop_for_game()                    # (f522) the game's own server stops with the game
+        else:
+            unload()
 
 
 def play(args):
     from llm.gateway import trim_log
     trim_log()
 
-    from llm import setup_check
-    if not setup_check.ensure_ready():
-        return
     from llm import embed
-    embed.pull_in_background()                     # the small helper model, fetched quietly the first time; the game does not wait for it
-    warm()                                         # load the model while the player is at the title and typing their name
-    embed.warm()                                   # (f469) ...and the embedder, so neither first load is paid inside a turn
+    if config.BACKEND == "runtime":                # (f522) the game starts its own llama-server (behind the switch until f528)
+        from llm import runtime
+        if not runtime.start_for_game(say=console.out):
+            return
+    else:
+        from llm import setup_check
+        if not setup_check.ensure_ready():
+            return
+        embed.pull_in_background()                 # the small helper model, fetched quietly the first time; the game does not wait for it
+        warm()                                     # load the model while the player is at the title and typing their name
+        embed.warm()                               # (f469) ...and the embedder, so neither first load is paid inside a turn
 
     from engine import data_check                  # the character data, checked as one system before anything uses it
     problems = data_check.check()
@@ -134,8 +144,9 @@ def play(args):
                                                        # closing folds the write-ahead log in) and every binding this campaign set
         if getattr(scene, "to_menu", False):
             choice = None                              # the main menu: New game, Load and the rest are there
-            warm()                                     # (f469) back at the home page: both models warm again while the player reads it
-            embed.warm()
+            if config.BACKEND != "runtime":            # (f522) the game's own server stays loaded; there is nothing to warm
+                warm()                                 # (f469) back at the home page: both models warm again while the player reads it
+                embed.warm()
         else:
             return
 
