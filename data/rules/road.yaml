@@ -58,3 +58,16 @@ aid:
 danger_effect:                  # what an event may leave on the road itself (percent, days)
   max_value: {normal: 25, uncommon: 40, rare: 60}
   max_days: {normal: 3, uncommon: 7, rare: 14}
+
+# (f541) A road a situation has shut (engine/pulse.py), met at the barrier (the owner, 2026-11-07: "Met at the barrier"): the walk stops
+# where the closure is, on the road. From there the way back is open; the way on is not, until the situation lifts it. Once a character
+# has met a closure, their walks go the long way round it when there is one, and are refused before setting out when there is none.
+# A character who knows a way around (wayfinder) passes it. {road} is the road's name, first letter raised.
+barrier:
+  at: 0.5                       # how far along the shut road the barrier lies, from the end the walk comes from
+  meet: "The road on to {onward} is shut here. Back to {back}{round}."
+  round: ", or the long way round to {dest}, about {time}"
+  none: "; there is no other way to {onward}"
+  around: "{road} is shut ({why}), so you go the long way round."
+  refused: "{road} is shut: {why}. There is no other way to {dest} until it opens."
+  wayfinder: "{road} is shut ({why}), but you know a way around."

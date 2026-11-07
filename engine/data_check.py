@@ -520,6 +520,22 @@ def check() -> list[str]:
     need("sight" not in RD_.get("stops", []), "road.yaml stops: a passing sight never stops the walk (the owner, review Q2)")
     for k_, r_ in (RD_.get("stop_roles") or {}).items():
         need(r_ in _roles, f"road.yaml stop_roles.{k_}: '{r_}' is not a role")
+    import string as _string                                                                  # (f541) the barrier's lines and where it lies
+    _bar = RD_.get("barrier") or {}
+    _at = _bar.get("at")
+    need(isinstance(_at, (int, float)) and not isinstance(_at, bool) and 0 < _at < 1, f"road.yaml barrier.at: a share of the road between 0 and 1 ({_at!r})")
+    for k_, allowed_ in {"meet": {"onward", "back", "round"}, "round": {"dest", "time"}, "none": {"onward"}, "around": {"road", "why"},
+                         "refused": {"road", "why", "dest"}, "wayfinder": {"road", "why"}}.items():
+        line_ = _bar.get(k_)
+        if not isinstance(line_, str) or not line_.strip():
+            need(False, f"road.yaml barrier.{k_}: a line is needed")
+            continue
+        try:
+            got_ = {f_ for _, f_, _, _ in _string.Formatter().parse(line_) if f_}
+        except ValueError as e_:
+            need(False, f"road.yaml barrier.{k_}: {e_}")
+            continue
+        need(got_ <= allowed_, f"road.yaml barrier.{k_}: {sorted(got_ - allowed_)} are not among {sorted(allowed_)}")
     for path_ in (("hazard", "around_words"), ("aid", "help_words")):
         try:
             re.compile(RD_[path_[0]][path_[1]])

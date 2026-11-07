@@ -18,6 +18,18 @@ def edge_key(world, a: str, b: str) -> str:
     return r.id if r else "|".join(sorted((a, b)))
 
 
+def way_key(world, a: str, b: str) -> str:
+    """(f541) The pulse's name for the stretch from a to b: edge_key, except that a stop on a road (a place of type road made for one
+    journey) lies on the road between its two real ends, so a walk from or to it meets what is laid on that road."""
+    for x, y in ((a, b), (b, a)):
+        p = world.places.get(x)
+        if p is not None and p.type == "road" and not p.parent and y in (p.connects or {}) and len(p.connects) == 2:
+            r = world.road_between(*list(p.connects))
+            if r is not None:
+                return r.id
+    return edge_key(world, a, b)
+
+
 def way_round(world, road_id: str) -> bool:
     """(f540) Whether a named road's two ends are joined some other way: with its stretch shut, can one still walk from one end to the
     other? A stop on the road (a place of type road made for one journey) is never a way round: it lies on the stretch itself."""

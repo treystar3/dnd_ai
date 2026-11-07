@@ -64,7 +64,7 @@ from scenes.part_actions import PartActions
 from scenes.listening import Listening
 from scenes.spell_actions import SpellActions
 from scenes import markup
-from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, questions, quests, turnlog
+from engine import entities, failures, features, hygiene, ledger, mapview, mentor, needs, pulse, pulselog, questions, quests, roads, turnlog
 from engine import inventory as inv
 from engine.names import cap_first                      # (f422) a capital first letter, the rest as written
 from engine import crafting
@@ -3088,6 +3088,20 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             self.show_exits()
             return
         route, walk = found
+        barrier = self.shut_on(route)                                           # (f541) a road a situation has shut, on the way
+        if barrier:
+            r_ = self.world.roads[barrier[1]]
+            say = {"road": r_.name[:1].upper() + r_.name[1:], "why": barrier[2].rstrip("."), "dest": self.world.places[dest].name}
+            if self.has("wayfinder") is not None:
+                console.note(roads.R["barrier"]["wayfinder"].format(**say))
+                barrier = None
+            elif self.met_closure(barrier[1]):                                   # met already: the long way round, or not at all
+                around = self.route_round(self.player.location, dest)
+                if around is None:
+                    self.refuse(roads.R["barrier"]["refused"].format(**say))
+                    return
+                console.note(roads.R["barrier"]["around"].format(**say))
+                (route, walk), barrier = around, None
         free = pulse.way_out(self.world, self.player.location)                 # (f390) a closure never shuts in whoever is already there
         passed = [p for p in route[1:] if p in free and pulse.closed_reason(self.store, p, self.minutes)]
         blocked = next(((p, pulse.closed_reason(self.store, p, self.minutes)) for p in route[1:]
@@ -3119,12 +3133,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         walk = max(1, walk - already)
         walk, fatigue_factor = self.take_haste(walk)
         fatigue_factor *= self.take_swift(walk)
-        self.travel_fatigue(walk, fatigue_factor)
+        self.travel_fatigue(self.barrier_minutes(roads.edges(self.world, route, walk), barrier) if barrier else walk, fatigue_factor)
         self.leaving_stop(route, text)                      # (f427) the hazard ahead got past, and anyone in need walked past, seen
         self.end_conversation()
         self.last_spoken = None
-        console.debug(f"walking {walk} minutes: {' -> '.join(route)}")
-        self.run_journey(route, walk, text, events)
+        console.debug(f"walking {walk} minutes: {' -> '.join(route)}" + (f" (to the barrier on {barrier[1]})" if barrier else ""))
+        self.run_journey(route, walk, text, events, barrier=barrier)
 
     def on_look(self, intent: ActionIntent, text: str) -> None:
         from engine import matters
