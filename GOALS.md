@@ -226,3 +226,7 @@ Newest first. Each is a call the owner made about what the game should be; follo
 - Multiplayer's clock: how does time work when players separate (one player fighting while another travels for days, sleeping while another fights)? To be researched first: how MUDs and other shared worlds handled players who split up.
 - Should a class's "main" attributes be the ones its abilities and weapon actually use? A mage was shown Dexterity as a main stat.
 - Should the home page pick up a save folder copied in from an installed copy of the game?
+- (f536) The two slots of 16,384 tokens are now the understanding's and every other call's, by task, so the understanding's system
+  message is read once a session instead of every turn; the decision of 2026-11-05 called them "the turn's and the background's", and
+  "background work may run beside the player's turn" now holds with the turn's call taking the understanding's slot when a background
+  call it may not interrupt holds the shared one. To confirm or refuse; measured on the next pod night.

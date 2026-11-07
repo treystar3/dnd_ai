@@ -1,13 +1,15 @@
-"""(f523) The model worker: who may use the chat server's two slots when. It carries no call itself: every call is still made on its
+"""(f523) The model worker: who may use the card when. It carries no call itself: every call is still made on its
 caller's own thread (so everything that reads the calling thread, the turn's budget, the gateway's task, the open operation, the
 recorder's serving, reads it exactly as before); the worker only decides when a background call may start, and takes the card back
-from one when the turn needs it.
+from one when the turn needs it. (f536) Which of the server's two slots a call takes is not the lane's any more but the task's
+(data/runtime/server.yaml slot_of; llm/llama.py): the understanding alone on one, every other call on the other, so a background call
+and a telling of the turn share a slot and the server runs them one after the other.
 
 Lanes, declared by the caller (llm/backend.py lane): foreground by default (the turn, the first entry, creation's own calls, the
 validators); background, declared by the two thread bodies that run beside the player, npc/backfill.py's run() and
 character/creation.py's _run(); input, the night bot's line, which never takes the card from anyone.
 
-- A foreground call is never held: it is sent at once, and any background call in flight is cancelled (its connection closed, so
+- A foreground call is never held by the worker: it is sent at once, and any background call in flight is cancelled (its connection closed, so
   llama-server frees the slot within about a second) unless it has been cancelled max_cancels times already or the turn is waiting on
   it. The cancelled call is not a failure: it is sent again, below the recorder, once no foreground call has run for
   resume_idle_seconds, so a recording keeps one row for it and its caller never knows.
@@ -19,7 +21,8 @@ character/creation.py's _run(); input, the night bot's line, which never takes t
   never promoted.
 - After max_cancels, a call runs beside a turn rather than starve (a fast typist and a 47-second populate_place); and so does a call
   that has waited max_wait seconds without being let in at all (turns less than resume_idle apart never leave it a reading time:
-  the owner's "after it has been put off twice", two turns of the 60-second budget).
+  the owner's "after it has been put off twice", two turns of the 60-second budget). (f536) Such a call holds the shared slot, so the
+  turn's next call is told so (held) and takes the understanding's slot rather than queue behind it on the server: beside it still.
 - cancel_session(key): a closing campaign's background calls end Cancelled (in flight or waiting); another campaign's go on.
 - close(): every call in flight ends Cancelled; nothing waits.
 - STRICT (a session that must replay exactly): nothing is ever preempted, so the recorded rows keep their order (its background
@@ -49,6 +52,7 @@ class _Call:
 class Worker:
     def __init__(self, max_cancels: int = 3, resume_idle: float = 2.0, step: float = 0.05, max_wait: float = 120.0):
         self.max_cancels, self.resume_idle, self.step = int(max_cancels), float(resume_idle), float(step)
+        self._tl = threading.local()                   # (f536) held: set for the calling thread while its foreground call is sent
         self.max_wait = float(max_wait)
         self._cv = threading.Condition()
         self._foreground = 0
@@ -75,21 +79,30 @@ class Worker:
             return False
 
     def foreground(self, send, lane: str = "foreground"):
-        """A foreground (or input) call: sent at once. A foreground call takes the card back from the background calls that may be."""
+        """A foreground (or input) call: sent at once. A foreground call takes the card back from the background calls that may be.
+        (f536) While send runs, held() is True when a background call the turn may not take the card from (promoted, past max_cancels
+        or max_wait, or STRICT) stays in flight on the shared slot, so the call can take the understanding's slot instead of queueing
+        behind it on the server (llm/llama.py _machine_for_call)."""
+        held = False
         with self._cv:
             if self._closed:
                 raise Cancelled("the model is closing")
             if lane == "foreground":
                 self._foreground += 1
-                if not self._strict():
-                    for c in self._background.values():
-                        if (c.flag is not None and c.cancels < self.max_cancels and not self._is_promoted(c)
-                                and not self._given_up_waiting(c)):
-                            c.reason = "preempted"
-                            c.flag.set()
+                strict = self._strict()
+                for c in self._background.values():
+                    if c.flag is None:
+                        continue                                        # not in flight
+                    if (not strict and c.cancels < self.max_cancels and not self._is_promoted(c) and not self._given_up_waiting(c)):
+                        c.reason = "preempted"
+                        c.flag.set()
+                    else:
+                        held = True
+        self._tl.held = held
         try:
             return send(None)
         finally:
+            self._tl.held = False
             if lane == "foreground":
                 with self._cv:
                     self._foreground -= 1
@@ -187,6 +200,10 @@ class Worker:
                     c.reason = "closing"
                     c.flag.set()
             self._cv.notify_all()
+
+    def held(self) -> bool:
+        """(f536) Whether the calling thread's foreground call found the shared slot held by a background call it may not take the card from."""
+        return bool(getattr(self._tl, "held", False))
 
     def stats(self) -> dict:
         with self._cv:

@@ -142,8 +142,10 @@ try:
           chats and all(b.get("chat_template_kwargs") == {"enable_thinking": False} and str(b.get("grammar", "")).startswith("# Meravia ")
                         and "response_format" not in b and b.get("model") == config.MODEL and "cache_prompt" in b for b in chats),
           {k: str(v)[:60] for k, v in chats[0].items() if k != "messages"} if chats else None)
-    check("...each in the turn's slot or the background's, never another", chats and all(b.get("id_slot") in (0, 1) for b in chats),
-          sorted({b.get("id_slot") for b in chats}))
+    check("...(f536) the understanding alone in slot 0, every other call in slot 1",
+          chats and all(b.get("id_slot") == (0 if str(b.get("grammar", "")).startswith("# Meravia ActionPlan") else 1) for b in chats)
+          and any(str(b.get("grammar", "")).startswith("# Meravia ActionPlan") for b in chats),
+          sorted({(str(b.get("grammar", ""))[:20], b.get("id_slot")) for b in chats}))
     check("the embedder was started on the chat's card and asked too", any(a[0] == "cuda" and "--embeddings" in a for a in lay.argv())
           and any(b.get("path") == "/v1/embeddings" and b.get("input") for b in bodies), (len(lay.argv()), [b.get("path") for b in bodies][:6]))
     check("no line a player saw names the machinery", not any(re.search(r"\b(llama|server|slot|grammar|cuda|json)\b", s, re.I) for s in said), said)

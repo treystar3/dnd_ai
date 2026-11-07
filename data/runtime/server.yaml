@@ -77,7 +77,10 @@ machine:                    # (f526) the minimum card (GOALS.md, the owner's dec
      'llvmpipe', 'lavapipe', 'SwiftShader', 'Microsoft Basic']
 
 server:
-  slots: 2                  # the turn's slot and the background's (owner's decision, 2026-11-05)
+  slots: 2                  # two slots (owner's decision, 2026-11-05); f536: the understanding's and every other call's, below
+  slot_of:                  # (f536) the slot a task's calls take, by the gateway's task name. The understanding alone on slot 0: the server
+    interpret_action: 0     # keeps a checkpoint at the end of its system message (the start of the user message), reusable only while no
+  other_slot: 1             # other prompt takes the slot; every other call, the background's included, on slot 1 (its checkpoints the RAM cache's)
   slot_ctx: 16384           # each slot's context; the server is started with twice it, and --fit may not shrink it
   batch: 1024
   ubatch: 1024

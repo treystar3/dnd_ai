@@ -139,8 +139,10 @@ def generate(
                                                     relaxed_context, _quiet))
     budget.allow(task, _chars(system, user))
     operation.note_legacy(task)                     # (f470) made inside an operation's transaction: the ratchet's residue
+    from llm import backend
     try:
-        return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
+        with backend.task(task):                    # (f536) the source may place the call by its task (the understanding's own slot)
+            return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:
         again = (getattr(e, "failure", "") in ("unreachable", "loading", "thought_out") or getattr(e, "transport", False)
                  or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True)))
@@ -148,7 +150,8 @@ def generate(
             try:                                        # was read (too big, invalid), is refused again; a retry refused for the draft it
                                                         # carried is not, so the request as first made goes once more; (f527) nor after a
                                                         # transport failure on any try (the server, a timeout): looser checks mend no outage
-                return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
+                with backend.task(task):
+                    return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
             except LLMError:
                 pass
         if not _quiet:

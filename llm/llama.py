@@ -11,7 +11,7 @@ The body (llama_body) is pure: the request and the machine's facts in, the dict 
 - n_predict, the answer's ceiling (with a thinking task's room, f534);
 - thinking off on every request unless the task was chosen to think (config.THINK_TASKS): chat_template_kwargs enable_thinking,
   which the pod confirmed on 407 of 407 calls, and without which the model thinks (scratchpad pod533 report);
-- cache_prompt; id_slot from the machine (the lane's slot, f523); a voice's adapter as lora, from the machine.
+- cache_prompt; id_slot from the machine (the task's slot, f536; a lane's, f523); a voice's adapter as lora, from the machine.
 What the machine adds (the slot, the adapter's index) is never in the request's own fingerprint (neutral, neutral_hash): a request
 hashes the same whichever slot it ran on. f527 makes neutral_hash the recorder's request hash.
 
@@ -317,7 +317,8 @@ def usage_of(payload: dict, wall_ms: float, slot_ctx: int | None) -> dict:
 
 class LlamaServer:
     """A model source on the interface (llm/backend.py): chat on one llama-server, embeddings on another (or none). machine holds what
-    the request does not: the slot each lane uses, the voices' adapters, the slot's context (to tell a full slot), the model ids."""
+    the request does not: the slot each task uses (f536; a caller's own map may still be by lane), the voices' adapters, the slot's
+    context (to tell a full slot), the model ids."""
 
     name = "llama-server"
 
@@ -347,13 +348,25 @@ class LlamaServer:
             f.set()
         return len(flags)
 
-    def _machine_for_lane(self) -> dict:
+    def _machine_for_call(self, held: bool = False) -> dict:
+        """(f536) The machine for this call, its slot chosen: by the gateway's task name when the map is by task ({"tasks": {name: slot},
+        "default": slot}: the understanding alone on one slot, so the checkpoint the server keeps at the end of its system message is never
+        thrown away by another task's prompt; everything else on the other), else by the lane ({"foreground": 0, ...}, f523's shape, a
+        caller's own map). held (the worker's word, f536's review): a background call the turn may not take the card from holds the shared
+        slot, so a call bound for it takes a task's own slot instead of queueing behind it on the server; that task re-reads its system
+        message once, seconds, where the turn would have waited the whole background call."""
         from llm import backend
-        lane = backend.current_lane()
         m = dict(self.machine)
         slots = m.pop("slots", None) or {}
-        if lane in slots:
-            m["slot"] = slots[lane]
+        if "tasks" in slots or "default" in slots:
+            tasks, default = slots.get("tasks") or {}, slots.get("default")
+            slot = tasks.get(backend.current_task() or "", default)
+            if held and slot == default:
+                slot = next((v for v in tasks.values() if v != default), slot)
+        else:
+            slot = slots.get(backend.current_lane())
+        if slot is not None:
+            m["slot"] = int(slot)
         return m
 
     def chat(self, req, deadline=None, cancel: threading.Event | None = None):
@@ -380,7 +393,8 @@ class LlamaServer:
 
     def _send(self, req, deadline=None, cancel: threading.Event | None = None):
         from llm.backend import Reply
-        body = llama_body(req, self._machine_for_lane())
+        held = self.worker.held() if self.worker is not None else False      # (f536) the shared slot held by a background call
+        body = llama_body(req, self._machine_for_call(held))
         flag = self._flag(cancel)
         try:
             status, payload, wall_ms, _ = self.chat_server.request("POST", "/v1/chat/completions", body, deadline, flag)

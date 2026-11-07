@@ -1,6 +1,7 @@
 """(f522) The model server's children: llama-server started, watched and stopped by the game itself (GOALS.md, owner's decisions of
 2026-11-05: llama.cpp's llama-server ships in the game's own folder, "started and stopped by the game itself", with the model files
-in a Steam depot of their own; the context is two slots of 16,384 tokens, the turn's and the background's). Behind a switch until
+in a Steam depot of their own; the context is two slots of 16,384 tokens: f536, the understanding's and every other call's, an open
+question in GOALS.md until the owner confirms the change from "the turn's and the background's"). Behind a switch until
 f528: config.BACKEND 'runtime', the default, makes main.py start the server; DND_BACKEND=llama names one started by hand.
 
 Where things live (core/paths.py): RUNTIME, the server builds (runtime/<build>/llama-server), and MODELS, the model files, both outside
@@ -10,8 +11,9 @@ machine runs the model, not the game. runtime_problems() holds them to what the 
 
 Starting a child (spawn): every child is started from one long-lived thread (the spawner), so Linux's parent-death signal, which fires
 when the thread that started a child ends, cannot fire when a short-lived loading thread ends. Each child gets a free loopback port, a
-fresh --api-key, --no-webui; two slots with the context at twice the slot's (-np 2 -c 32768), --fit-ctx at the full context so the
-fit step moves layers to the processor rather than shrinking the context (no -ngl: the fit decides it, every layer on the card when
+fresh --api-key, --no-webui; two slots with the context at twice the slot's (-np 2 -c 32768; f536: the understanding's and every other
+call's, by task, server.slot_of), --fit-ctx at the full context so the fit step moves layers to the processor rather than shrinking the
+context (no -ngl: the fit decides it, every layer on the card when
 it fits); --cache-ram capped from the settings; -lv 4 so the server's log carries the library's load lines, which say how many
 layers went to the card (at the default verbosity it is silent on them, and the machine would always read as below the minimum);
 its own process group (Linux: a new session plus the parent-death signal; Windows: a
@@ -99,6 +101,21 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
     log_kib = s.get("log_kib")
     if not isinstance(log_kib, int) or isinstance(log_kib, bool) or log_kib < 64:
         bad.append("data/runtime/server.yaml server.log_kib: a whole number of KiB, 64 or more (each server log file's cap)")
+    slot_of, other = s.get("slot_of"), s.get("other_slot")                     # (f536) the slot a task's calls take
+    if not isinstance(slot_of, dict) or not all(isinstance(k, str) and isinstance(v, int) and not isinstance(v, bool) and 0 <= v < slots
+                                                 for k, v in slot_of.items()):
+        bad.append(f"data/runtime/server.yaml server.slot_of: task names to a slot number from 0 to {slots - 1}")
+    else:
+        try:
+            from engine import budget
+            known = set(budget.TASKS)
+        except Exception:
+            known = set()
+        for k in slot_of:
+            if known and k not in known:
+                bad.append(f"data/runtime/server.yaml server.slot_of: {k!r} is no task the game prices (data/rules/budget.yaml tasks)")
+    if not isinstance(other, int) or isinstance(other, bool) or not 0 <= other < slots:
+        bad.append(f"data/runtime/server.yaml server.other_slot: a slot number from 0 to {slots - 1} (every call slot_of does not name)")
     mach = cfg.get("machine") or {}
     for k in ("minimum_cuda_mib", "minimum_vulkan_mib"):
         v = mach.get(k)
@@ -470,8 +487,17 @@ def attach(run_dir: Path | None = None) -> llama.LlamaServer:
     except (OSError, ValueError) as e:
         raise Failure("unreachable", "no game's server to attach to (run/server.json)") from e
     embed = llama.Server(int(info["embed_port"]), info.get("embed_key", "")) if info.get("embed_port") else None
-    return llama.LlamaServer(llama.Server(int(info["port"]), info.get("key", "")), embed,
-                             machine={"slot_ctx": info.get("slot_ctx"), "slots": {"foreground": 0, "background": 1, "input": 0}})
+    try:
+        slots = slot_map(info)                                              # (f536) the game's own map, from its run file
+    except (TypeError, ValueError) as e:
+        raise Failure("unreachable", "the game's run file is damaged (run/server.json slot_of)") from e
+    return llama.LlamaServer(llama.Server(int(info["port"]), info.get("key", "")), embed, machine={"slot_ctx": info.get("slot_ctx"), "slots": slots})
+
+
+def slot_map(s: dict) -> dict:
+    """(f536) The slot each call takes, from the server settings (or the run file that copied them): by the gateway's task name, else the
+    other slot. The understanding alone on slot 0 keeps its system message's checkpoint alive from one turn to the next (llm/llama.py)."""
+    return {"tasks": {str(k): int(v) for k, v in (s.get("slot_of") or {}).items()}, "default": int(s.get("other_slot") or 0)}
 
 
 def refuse_unless_attached(argv: list[str], run_dir: Path | None = None) -> str | None:
@@ -670,7 +696,9 @@ class Runtime:
     def _write_run_files(self) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
         c, e = self.chat, self.embed
-        info = {"port": c.port, "key": c.key, "pid": c.proc.pid, "slot_ctx": self.facts_.get("slot_ctx"), "build": self.build}
+        s = self.cfg.get("server") or {}
+        info = {"port": c.port, "key": c.key, "pid": c.proc.pid, "slot_ctx": self.facts_.get("slot_ctx"), "build": self.build,
+                "slot_of": dict(s.get("slot_of") or {}), "other_slot": int(s.get("other_slot") or 0)}      # (f536) for a tool that attaches
         pids = [{"pid": c.proc.pid, "exe": c.argv[0]}]
         if e is not None and e.alive():
             info.update(embed_port=e.port, embed_key=e.key)
@@ -879,7 +907,7 @@ class Runtime:
             s = self.cfg.get("server") or {}
             emb_srv = (llama.Server(self.embed.port, self.embed.key)
                        if self.embed_on and self.embed is not None and self.embed.alive() and self.embed_state == "ready" else None)
-            machine = {"slot_ctx": self.facts_["slot_ctx"], "slots": {"foreground": 0, "background": 1, "input": 0}}
+            machine = {"slot_ctx": self.facts_["slot_ctx"], "slots": slot_map(s)}       # (f536) the slot by task, the understanding's apart
             if self.adapters:
                 machine["lora"] = {a.stem: i for i, a in enumerate(self.adapters)}    # (f529) each voice's adapter, by the server's numbering
             self.source = llama.LlamaServer(server, emb_srv, machine=machine,

@@ -444,6 +444,25 @@ def current_lane() -> str:
     return getattr(_lane, "name", None) or "foreground"
 
 
+_task = threading.local()
+
+
+@contextlib.contextmanager
+def task(name: str):
+    """(f536) The gateway's task the calls inside the block are made for (llm/gateway.py generate sets it). A source may read it to place
+    the call (llm/llama.py: the slot by task); nothing of it is in the request or the recording."""
+    before = getattr(_task, "name", None)
+    _task.name = name
+    try:
+        yield
+    finally:
+        _task.name = before
+
+
+def current_task() -> str | None:
+    return getattr(_task, "name", None)
+
+
 def current_session() -> str | None:
     return getattr(_lane, "session", None)
 
