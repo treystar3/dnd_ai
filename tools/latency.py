@@ -199,6 +199,111 @@ def against(calls: list[dict], base: dict | None = None, ceil: dict | None = Non
     return lines
 
 
+# ---- (f535) the prompt cache: what the server read and what it reused, task by task, and what its own log says of the cache
+
+def system_share(row: dict) -> float | None:
+    """(f535) The constant system message's share of one attempt's prompt, by characters (the gateway's shape since f475: sizes[0] is
+    the system, chars the whole). None when the row does not carry the shape."""
+    sizes, chars = row.get("sizes"), row.get("chars")
+    if not isinstance(sizes, list) or not sizes or not isinstance(chars, int) or chars <= 0:
+        return None
+    first = sizes[0]
+    if not (isinstance(first, list) and len(first) == 3 and first[0] == "system" and isinstance(first[2], int)):
+        return None
+    return min(1.0, first[2] / chars)
+
+
+def cache_measures(calls: list[dict]) -> dict:
+    """(f535) Per task, over every attempt: the tokens the prompts held (the server's prompt count: what it read and what it reused
+    together), the constant system message's share of them (estimated from the shape's characters, a proxy for tokens: the reading a kept
+    cache would spare, since a task's system message is the same from one call to the next) and the tokens the server said it reused
+    (the cached count in the interface's usage: what a cache did spare). The shape is logged once per call and repeated on its retries,
+    whose messages also carry the draft and the correction, so a retry's system share is a little overstated (under a point over a
+    night). known_prompt is the tokens of the attempts that carry a shape; the share is taken over those alone."""
+    out: dict[str, dict] = {}
+    for r in calls:
+        t = r.get("tokens")
+        if not isinstance(t, dict) or not isinstance(t.get("prompt"), int):
+            continue
+        m = out.setdefault(r.get("task") or "?", {"attempts": 0, "prompt": 0, "known_prompt": 0, "system": 0.0, "cached": 0, "unknown": 0})
+        m["attempts"] += 1
+        m["prompt"] += t["prompt"]
+        share = system_share(r)
+        if share is None:
+            m["unknown"] += 1
+        else:
+            m["known_prompt"] += t["prompt"]
+            m["system"] += t["prompt"] * share
+        m["cached"] += int(t.get("cached") or 0)
+    return out
+
+
+def _system_estimate(m: dict) -> tuple[int, float] | None:
+    """The constant system messages' estimated tokens over every attempt, and their share: the share of the attempts with a shape,
+    applied to all. None when no attempt carried one."""
+    if not m["known_prompt"]:
+        return None
+    share = m["system"] / m["known_prompt"]
+    return round(share * m["prompt"]), share
+
+
+_LOG_MARKS = {"prompts": "new prompt, n_ctx_slot", "whole": "forcing full prompt re-processing", "restored": "restored context checkpoint",
+              "checkpoints": "created context checkpoint", "evicted": "removing oldest entry"}
+
+
+def server_log_measures(path: Path) -> dict:
+    """(f535) What llama-server's own log says of its prompt cache: prompts begun, prompts the server was forced to process whole for
+    want of cache data (a sliding-window model's cache is reusable only back to a checkpoint, and this build keeps them at the start of a
+    user message and near a prompt's end), checkpoints made and restored, prompt-cache updates (one slot's state copied out to RAM and a
+    better match copied in; their count and seconds) and entries evicted from that cache. The game caps the log (server.log_kib) and keeps
+    the file before as <name>.1: both are read, the older first. {} when there is no log."""
+    path = Path(path)
+    older = path.with_name(path.name + ".1")
+    files = [p for p in (older, path) if p.exists()]
+    if not files:
+        return {}
+    out = {k: 0 for k in _LOG_MARKS}
+    out.update({"updates": 0, "update_ms": 0.0, "update_ms_max": 0.0})
+    for line in (l for p in files for l in p.read_text(encoding="utf-8", errors="replace").splitlines()):
+        for key, mark in _LOG_MARKS.items():
+            if mark in line:
+                out[key] += 1
+        m = re.search(r"prompt cache update took ([0-9.]+) ms", line)
+        if m:
+            ms = float(m.group(1))
+            out["updates"] += 1
+            out["update_ms"] += ms
+            out["update_ms_max"] = max(out["update_ms_max"], ms)
+    return out
+
+
+def cache_table(calls: list[dict], log: dict | None = None) -> list[str]:
+    """(f535) The prompt cache's section of the night: per task, the reading the constant system message is (what a kept cache spares)
+    and the reading the server reused; then the server log's own account."""
+    m = cache_measures(calls)
+    if not m:
+        return ["No calls with the server's counts."]
+    lines = ["| Task | Attempts | Prompt tokens | System message | Reused |", "| --- | ---: | ---: | ---: | ---: |"]
+    for task, v in sorted(m.items(), key=lambda kv: -kv[1]["prompt"]):
+        est = _system_estimate(v)
+        sys_cell = f"{est[0]} ({round(100 * est[1])}%)" if est else "-"
+        lines.append(f"| {task} | {v['attempts']} | {v['prompt']} | {sys_cell} | {v['cached']} ({round(100 * v['cached'] / max(1, v['prompt']))}%) |")
+    attempts = sum(v["attempts"] for v in m.values())
+    prompt = sum(v["prompt"] for v in m.values())
+    system = sum(e[0] for e in (_system_estimate(v) for v in m.values()) if e)
+    cached = sum(v["cached"] for v in m.values())
+    lines += ["", f"The prompts held {prompt} tokens; the constant system messages were about {system} of them ({round(100 * system / max(1, prompt))}%, estimated "
+                  f"from their share of the prompts' characters), the reading a kept cache spares; the server reused {cached} ({round(100 * cached / max(1, prompt))}%) "
+                  f"and read the rest."]
+    if log:
+        capped = f" (the log holds the night's last {log['prompts']} prompts of {attempts}: it is capped)" if log["prompts"] < attempts else ""
+        lines.append(f"The server's log: {log['prompts']} prompts{capped}; {log['whole']} forced to re-process the whole prompt for want of cache data (a "
+                     f"sliding-window model reuses its cache only back to a checkpoint); {log['checkpoints']} checkpoints made, {log['restored']} restored; "
+                     f"{log['updates']} prompt-cache updates taking {log['update_ms'] / 1000:.1f} s in all (mean {log['update_ms'] / max(1, log['updates']):.0f} ms, "
+                     f"the longest {log['update_ms_max']:.0f} ms); {log['evicted']} entries evicted from the RAM cache.")
+    return lines
+
+
 def speech_inputs(folder: Path) -> set[int]:
     """(f490) The inputs of a recording that made a speech call."""
     import card_profile
@@ -651,6 +756,7 @@ def summarise(run_dir: Path) -> str:
         lines += ["", "## Speech tasks (prompt size and first try)", ""] + speech_table(calls)
         if BASELINE.exists():                                       # (f490) beside the baseline's, with each task's ceiling
             lines += ["", "## Speech tasks against Bundle D's baseline", ""] + against(calls)
+        lines += ["", "## Prompt cache", ""] + cache_table(calls, server_log_measures(run_dir / "llama-server.log"))   # (f535)
     text = "\n".join(lines) + "\n"
     (run_dir / "summary.md").write_text(text, encoding="utf-8")
     return text

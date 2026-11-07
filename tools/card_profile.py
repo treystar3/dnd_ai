@@ -91,12 +91,44 @@ def scaled(c: dict, read: float, write: float) -> dict:
     return {**c, "usage": {**u, "read_ms": round(new_rd), "write_ms": round(new_wr)}, "seconds": round(secs + (new_rd - rd + new_wr - wr) / 1000, 3)}
 
 
+def system_share(c: dict) -> float | None:
+    """(f535) The constant system message's share of a recorded chat's prompt, by characters of its messages; None when the row carries
+    no messages (a re-timed row, timed.jsonl)."""
+    ms = (c.get("request") or {}).get("messages") or []
+    total = sum(len(str(m.get("content") or "")) for m in ms)
+    if not total:
+        return None
+    return sum(len(str(m.get("content") or "")) for m in ms if m.get("role") == "system") / total
+
+
+def requests_of(folder: Path) -> dict:
+    """(f535) The recording's own request per call index: a re-timed row (timed.jsonl) carries the card's counts and no messages, so the
+    system message's share is read from the row the recorder kept."""
+    gz = folder / "calls.jsonl.gz"
+    if not gz.exists():
+        return {}
+    with gzip.open(gz, "rt", encoding="utf-8") as f:
+        return {r.get("i"): r.get("request") for r in (json.loads(l) for l in f if l.strip()) if r.get("request")}
+
+
 def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
     calls = [scaled(c, read, write) for c in calls_of(folder)] if (read, write) != (1.0, 1.0) else calls_of(folder)
     per_input: dict[int, float] = {}
+    split: dict[int, list[float]] = {}                                      # (f535) a turn's seconds reading, reading the system, writing
+    unknown = 0                                                             # chat rows whose system share could not be read
+    requests = requests_of(folder) if (folder / "timed.jsonl").exists() else {}
     read, wrote, loads, embeds = [], [], [], []
     for c in calls:
         per_input[c.get("input", 0)] = per_input.get(c.get("input", 0), 0.0) + float(c.get("seconds") or 0)
+        if c.get("kind") != "embed":
+            u0 = usage_of(c)
+            share = system_share(c if c.get("request") else {**c, "request": requests.get(c.get("i"))})
+            if share is None and u0.get("read_ms"):
+                unknown += 1
+            sp = split.setdefault(c.get("input", 0), [0.0, 0.0, 0.0])
+            sp[0] += float(u0.get("read_ms") or 0) / 1000
+            sp[1] += float(u0.get("read_ms") or 0) / 1000 * (share or 0.0)
+            sp[2] += float(u0.get("write_ms") or 0) / 1000
         if c.get("kind") == "embed":                                        # (f527) the embedder's seconds a text, measured too
             texts = len((c.get("request") or {}).get("input") or [])
             if texts and c.get("seconds"):
@@ -123,6 +155,11 @@ def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
         "p95_turn_s": round(sorted(secs)[int(0.95 * (len(secs) - 1))], 1) if secs else None,
         "longest_turn_s": round(max(secs), 1) if secs else None,
         "over": [(i, round(s, 1)) for i, s in turns if s > BUDGET],
+        # (f535) at the median over the turns, each taken on its own: the seconds a turn reads prompts, the constant system messages'
+        # part of that (None when a chat row's share could not be read), and the seconds it writes answers
+        "read_s_p50": round(statistics.median(v[0] for v in split.values()), 1) if split else None,
+        "system_s_p50": round(statistics.median(v[1] for v in split.values()), 1) if split and not unknown else None,
+        "write_s_p50": round(statistics.median(v[2] for v in split.values()), 1) if split else None,
     }
 
 
@@ -216,6 +253,9 @@ def main() -> int:
           f"{m['p95_turn_s']} s, longest {m['longest_turn_s']} s; reads {m['read_tps']} and writes {m['write_tps']} tokens a second; "
           f"a load {m['load_s']} s")
     print(f"turns over {BUDGET:g} s: {len(m['over'])}" + (": " + ", ".join(f"input {i} ({s} s)" for i, s in m["over"][:20]) if m["over"] else ""))
+    if m.get("read_s_p50") is not None:                                 # (f535) where a turn's model time goes, each part at its median
+        sys_part = f"the constant system messages {m['system_s_p50']} s of it" if m.get("system_s_p50") is not None else "the system part unknown: no messages kept for some rows"
+        print(f"at the median, a turn reads prompts for {m['read_s_p50']} s ({sys_part}) and writes answers for {m['write_s_p50']} s")
     if a.write:
         write(m, a.card, meta.get("model", ""), folder.name, a.measured_on, fits)
         print(f"kept in {PROFILE.relative_to(ROOT)}")
