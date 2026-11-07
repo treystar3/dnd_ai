@@ -399,18 +399,19 @@ class GoddessLine(BaseModel):
         return self
 
 
-PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody",
-                "empty", "blank"}                    # (f545) a prompt that says "or leave it blank" is sometimes answered with the word
+PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody"}
+PART_PLACEHOLDERS = PLACEHOLDERS | {"empty", "blank"}   # (f545) a situation part's field the prompt says to "leave blank" is sometimes
+                                                        # answered with the word; elsewhere "Empty." and "Blank." are things said
 
 
-def blank_placeholders(*fields: str):
+def blank_placeholders(*fields: str, words: set = PLACEHOLDERS):
     """A before-validator: a model that fills an optional text field with 'none', 'n/a' or 'null' means it left it empty."""
     def clean(cls, data):
         if isinstance(data, dict):
             data = dict(data)
             for f in fields:
                 v = data.get(f)
-                if isinstance(v, str) and v.strip().strip(".\"'").lower() in PLACEHOLDERS:
+                if isinstance(v, str) and v.strip().strip(".\"'").lower() in words:
                     data[f] = ""
         return data
     return model_validator(mode="before")(classmethod(clean))
@@ -1430,7 +1431,7 @@ class PartPerson(BaseModel):
     condition: Literal["", "paid", "protected", "given", "trusted", "told"] = ""   # what they need before helping; "" helps freely
     holds: str = ""        # a good's id from GOODS they hold, if any
     label: str = ""        # a few words on their part
-    _blank = blank_placeholders("condition", "holds", "label")
+    _blank = blank_placeholders("condition", "holds", "label", words=PART_PLACEHOLDERS)
 
 
 class PartResource(BaseModel):
@@ -1441,7 +1442,7 @@ class PartResource(BaseModel):
     holder: str = ""
     wanted_by: str = ""
     label: str = ""
-    _blank = blank_placeholders("holder", "wanted_by", "label")
+    _blank = blank_placeholders("holder", "wanted_by", "label", words=PART_PLACEHOLDERS)
 
 
 class PartTie(BaseModel):
@@ -1456,7 +1457,7 @@ class PartCondition(BaseModel):
     on: str
     kind: Literal["closed", "danger", "prices", "mark"]
     label: str = ""
-    _blank = blank_placeholders("label")
+    _blank = blank_placeholders("label", words=PART_PLACEHOLDERS)
 
 
 class PartEvidence(BaseModel):
@@ -1466,6 +1467,7 @@ class PartEvidence(BaseModel):
     holder: str
     points_to: str
     certainty: Literal["sure", "they say", "hearsay"]
+    _blank = blank_placeholders("label", "holder", "points_to", words=PART_PLACEHOLDERS)   # (f545's review) "empty" is no evidence
 
 
 class SituationParts(BaseModel):

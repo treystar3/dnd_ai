@@ -196,7 +196,7 @@ people: each {who, stake, want, condition, holds, label}.
     open or the goods moved.
   condition: most people help freely: leave it blank unless the situation gives them a reason to ask for more. Otherwise: paid,
     protected, given (the good they want, in hand first: give them a wanted resource), trusted or told (something they must hear first:
-    give the situation evidence another person holds). A person who wants coin needs no condition paid.
+    give the situation evidence another person holds, or that lies at a place). A person who wants coin needs no condition paid.
   holds: a good's id from GOODS they have and could part with, or blank.
 resources: each {good, state, holder, wanted_by, label}: a good's id from GOODS; scarce (hard to come by), stranded (a load that cannot
   be moved) or wanted (called for); holder: the `who` of one of your people who has it, or blank; wanted_by: for wanted, the `who` of

@@ -137,7 +137,8 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         who_of.setdefault(person, person)                                    # named later by the id it bound to, it is the same person
         condition = "" if (p.want, p.condition) in lifted else p.condition    # (f545) one who wants coin needs no condition of pay
         add({"kind": "person", "who": person, "bind": bind, "new": bind == "new", "stake": p.stake, "want": p.want,
-             "condition": condition, "holds": p.holds if p.holds in _goods() else "", "label": p.label})
+             "condition": condition, "holds": p.holds if p.holds in _goods() else "", "label": p.label,
+             **({"lifted": p.condition} if condition != p.condition else {})})
 
     def person_of(ref: str) -> str:
         return who_of.get((ref or "").strip(), "")
@@ -151,6 +152,8 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         wanter = person_of(p.wanted_by) if p.state == "wanted" else ""      # (f545) a wanted good names who wants it, one of the situation
         if p.state == "wanted" and not wanter:
             drop(p, "no_wanter"); continue
+        if wanter and holder == wanter:
+            holder = ""                                     # (f545's review) "wanted, held by X" meant X wants it: nobody has it to hand
         if _raw(p.label, ids):
             drop(p, "raw_id"); continue
         full = room("resource")
@@ -213,8 +216,9 @@ def settle(accepted: list[dict]) -> None:
     """(f545) What the whole situation decides of its parts, once every part is in, so nothing kept is a locked door or a lie no one can
     find out. A condition the situation offers no way to meet is lifted, and the person helps freely: told needs a piece of evidence
     someone else holds (a person, or a place), given needs a good that person wants. A false piece of evidence stands only beside a true
-    one that points elsewhere, so the player can weigh one against the other; else it is true after all. Each change is noted on the
-    part (lifted, made_true) for the pulse's log."""
+    one that points elsewhere, so the player can weigh one against the other; else it is true after all. Each piece is weighed
+    against the others as the engine first decided them, never as this pass leaves them, so the outcome does not hang on the order the
+    pieces were proposed in. Each change is noted on the part (lifted, made_true) for the pulse's log."""
     evidence = [a for a in accepted if a["kind"] == "evidence"]
     for a in accepted:
         if a["kind"] != "person" or not a.get("condition"):
@@ -223,8 +227,9 @@ def settle(accepted: list[dict]) -> None:
             a["lifted"], a["condition"] = "told", ""
         elif a["condition"] == "given" and not any(r["kind"] == "resource" and r.get("wanted_by") == a["who"] for r in accepted):
             a["lifted"], a["condition"] = "given", ""
-    for e in evidence:
-        if not e["true"] and not any(o is not e and o["true"] and o["points_to"] != e["points_to"] for o in evidence):
+    first = [e["true"] for e in evidence]                                    # (f545's review) as decided, before any is made true
+    for i, e in enumerate(evidence):
+        if not first[i] and not any(j != i and first[j] and o["points_to"] != e["points_to"] for j, o in enumerate(evidence)):
             e["true"], e["made_true"] = True, True
 
 
@@ -558,7 +563,10 @@ def problems() -> list[str]:
         if not isinstance(v, (int, float)) or isinstance(v, bool) or not lo <= v <= hi:
             bad.append(f"situations.yaml thinking.{k}: a number from {lo} to {hi}")
     bad += measured_problems()
-    st = S.get("stances") or {}                                          # (f545) the stances refused and the conditions lifted, in the lists' words
+    st = S.get("stances")                                                # (f545) the stances refused and the conditions lifted, in the lists' words
+    if not isinstance(st, dict) or set(st) != {"refused", "lifted"} or not all(isinstance(st[k], list) for k in st):
+        bad.append("situations.yaml stances: refused and lifted, each a list of pairs (and nothing else)")
+        st = {}
     for which, cols in (("refused", (("stakes", "stake"), ("wants", "want"))), ("lifted", (("wants", "want"), ("conditions", "condition")))):
         for pair in st.get(which) or []:
             if not isinstance(pair, list) or len(pair) != 2 or any(w not in (L.get(lst) or ()) for w, (lst, _) in zip(pair, cols)):

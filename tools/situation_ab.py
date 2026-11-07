@@ -246,7 +246,7 @@ def score(content: str, store, world, case: dict, t: int, seed: int) -> dict:
 
 
 def _content(part: dict) -> str:
-    return json.dumps({k: v for k, v in part.items() if k not in ("true", "v")}, sort_keys=True)
+    return json.dumps({k: v for k, v in part.items() if k not in ("true", "made_true", "lifted", "v")}, sort_keys=True)   # (f545's review)
 
 
 def card(store, world, case: dict, parts: list[dict]) -> str:
