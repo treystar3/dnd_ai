@@ -288,7 +288,8 @@ class Stub:
         people, places, roads, goods = ids("PEOPLE (id: name, trade)"), ids("PLACES (id: name)"), ids("ROADS (id: name, from - to)"), ids("GOODS (id: name)")
         trades = [x.strip() for x in one("OTHER TRADES").split(",") if x.strip()] or \
                  [x.strip() for x in one("TRADES OF THE TOWN").split(",") if x.strip() and " " not in x.strip()]
-        most = int((re.search(r"AT MOST: (\d+)", u) or [0, 6])[1])
+        m = re.search(r"AT MOST: (\d+) parts", u)
+        most = int(m.group(1)) if m else 99                                        # (f550) no total cap: every part of the plan
         if getattr(self, "parts_bad", False):
             first = people[0] if people else "nobody_at_all"
             return {"people": [{"who": "player", "stake": "knows", "want": "believed"}, {"who": "dragon_king", "stake": "blocks", "want": "coin"},

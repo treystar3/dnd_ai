@@ -206,7 +206,7 @@ evidence: each {label, holder, points_to, certainty}: label - what it is, in pla
   your people, or a place or road id; certainty - sure (they saw it or can show it), they say (they had it from others) or hearsay
   (half heard). Evidence lying at a place is always sure.
 
-Keep within AT MOST. Give the player ways in: someone who wants something done, a thing to carry or find, a person who could set it
+Keep to AT MOST, or HOW MANY where it stands instead. Give the player ways in: someone who wants something done, a thing to carry or find, a person who could set it
 right, a reason to doubt what is said. Make the parts hang together, and fit the place, its people's trades, the season and what is
 already going on. A label is a few plain words for the game's own use, never a sentence for a reader: no names, ids or underscores
 in it. Respond only with JSON matching the schema."""

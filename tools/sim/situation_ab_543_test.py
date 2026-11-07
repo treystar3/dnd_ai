@@ -96,10 +96,11 @@ check("the town's unmet trades and the world's other trades, apart, none of them
       and not set(trades) & {n.role for n in rows}, (trades, others))
 _, u2 = situations.prompt(store, world, state, place, "uncommon", ws.minutes)
 check("a tier that brings nobody new is shown no other trades, and its own caps", "OTHER TRADES" not in u2
-      and f"AT MOST: {situations.S['caps']['parts']['uncommon']} parts" in u2 and "none from outside the town" in u2, u2[-300:])
+      and f"AT MOST: {situations.S['caps']['parts']['uncommon']} parts" in u2 and "none of its people from outside the town" in u2, u2[-300:])
 check("...and THE TROUBLE, left unset, says what to fit instead", "THE TROUBLE: nothing set" in u2)
-check("AT MOST carries the rare tier's caps from the data", f"AT MOST: {situations.S['caps']['parts']['rare']} parts in all; "
-      f"{situations.S['caps']['people']} people, {situations.S['caps']['new_people']['rare']} of them from OTHER TRADES" in user, one("AT MOST"))
+check("(f550) a rare situation, with no caps on its parts, is asked for as many as it needs, its new people still capped",
+      "AT MOST" not in user and one("HOW MANY") == f"as many parts as this situation needs; at most {situations.S['caps']['new_people']['rare']} "
+      "of its people from OTHER TRADES", one("HOW MANY"))
 roads_line = one("ROADS (id: name, from - to)")
 check("the roads that touch the town, a shut one said so, and no other road", f"{road}: " in roads_line and "(shut now)" in roads_line
       and all(town in (world.roads[r].from_, world.roads[r].to) for r in re.findall(r"(\w+): ", roads_line)), roads_line)
@@ -135,8 +136,7 @@ situations.S["proposal"]["people_most"] = most
 parts, acc, dropped = situations.propose(store, world, state, place, "rare", ws.minutes, random.Random(1), trouble="A caravan is late.",
                                          players=(ws.acting,))
 caps = situations.S["caps"]
-check("the stand-in's answer is kept whole at the rare tier, within its caps", acc and not dropped and len(acc) <= caps["parts"]["rare"],
-      (acc, dropped))
+check("the stand-in's answer is kept whole at the rare tier", acc and not dropped, (acc, dropped))
 check("...with a person of the town, someone new of another trade, a good, a tie and a rumour", {a["kind"] for a in acc} >= {"person", "resource", "tie", "evidence"}
       and any(a.get("bind") == "new" for a in acc) and any(a.get("bind") == "npc" for a in acc), acc)
 _, acc_u, dropped_u = situations.propose(store, world, state, place, "uncommon", ws.minutes, random.Random(1))
@@ -147,10 +147,10 @@ _, acc_b, dropped_b = situations.propose(store, world, state, place, "rare", ws.
 stub.parts_bad = False
 R = situations.S["reasons"]
 reasons = [r for _, r in dropped_b]
-check("the bad answer is dropped part by part: the player, nobody, the game's ids, past the caps, a doubtful piece at a place",
-      all(R[k] in reasons for k in ("player", "not_a_person", "raw_id", "not_a_good", "not_a_place", "claim_at_place"))
-      and (R["people_cap"] in reasons or R["parts_cap"] in reasons), reasons)
-check("...what stands keeps within the caps", len(acc_b) <= caps["parts"]["rare"] and sum(a["kind"] == "person" for a in acc_b) <= caps["people"], acc_b)
+check("the bad answer is dropped part by part: the player, nobody, the game's ids, someone new past the cap, a doubtful piece at a place",
+      all(R[k] in reasons for k in ("player", "not_a_person", "raw_id", "not_a_good", "not_a_place", "claim_at_place", "new_cap"))
+      and not {R["people_cap"], R["parts_cap"], R["kind_cap"]} & set(reasons), reasons)
+check("...what stands keeps within the new people's cap", sum(a.get("new", False) for a in acc_b) <= caps["new_people"]["rare"], acc_b)
 check("the card is the same for the same parts in any order, and its wording a part's own", ab.card(store, world, {"pressure": "p", "tier": "rare"}, acc)
       == ab.card(store, world, {"pressure": "p", "tier": "rare"}, list(reversed(acc)))
       and ab.card(store, world, {"pressure": "p", "tier": "rare"}, acc[:1]).splitlines()[0] in ab.card(store, world, {"pressure": "p", "tier": "rare"}, acc))

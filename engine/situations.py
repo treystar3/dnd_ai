@@ -78,12 +78,13 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
     trades_used = collections.Counter()
     who_of: dict[str, str] = {}                                              # what the proposal called someone -> who they are
 
-    def room(kind: str) -> str:
-        if len(accepted) >= caps["parts"].get(tier, 0):
+    def room(kind: str) -> str:                                             # (f550) a cap of null is none
+        most = caps["parts"].get(tier)
+        if most is not None and len(accepted) >= most:
             return "parts_cap"
         if kind == "person":
-            return "people_cap" if sum(a["kind"] == "person" for a in accepted) >= caps["people"] else ""
-        return "kind_cap" if sum(a["kind"] == kind for a in accepted) >= caps["each_other"] else ""
+            return "people_cap" if caps.get("people") is not None and sum(a["kind"] == "person" for a in accepted) >= caps["people"] else ""
+        return "kind_cap" if caps.get("each_other") is not None and sum(a["kind"] == kind for a in accepted) >= caps["each_other"] else ""
 
     def drop(part, reason: str) -> None:
         dropped.append((part.model_dump() if hasattr(part, "model_dump") else dict(part), why[reason]))
@@ -308,10 +309,26 @@ def prompt(store, world, state: dict, place, tier: str, t: int, trouble: str = "
     lines += [f"PLACES (id: name): {'; '.join(f'{pid}: {world.places[pid].name}' for pid in m['places'])}",
               "ROADS (id: name, from - to): " + ("; ".join(road(rid) for rid in m["roads"]) or "none"),
               f"GOODS (id: name): {'; '.join(f'{g}: {_goods()[g].name}' for g in m['goods'])}",
-              f"AT MOST: {caps['parts'].get(tier, 0)} parts in all; {caps['people']} people"
-              + (f", {new} of them from OTHER TRADES" if new else ", none from outside the town")
-              + f"; {caps['each_other']} of each other kind"]
+              how_many(tier)]
     return pp.PARTS_SYSTEM, "\n".join(lines)
+
+
+def how_many(tier: str) -> str:
+    """(f550) How many parts the prompt asks for: the tier's caps where it has them, else as many as the situation needs; the new
+    people's cap always (a cap of null is none)."""
+    caps = S["caps"]
+    new = caps["new_people"].get(tier, 0)
+    most, people, other = caps["parts"].get(tier), caps.get("people"), caps.get("each_other")
+    newly = f"at most {new} of its people from OTHER TRADES" if new else "none of its people from outside the town"
+    if most is None and people is None and other is None:
+        return f"HOW MANY: as many parts as this situation needs; {newly}"
+    bits = [f"{most} parts in all" if most is not None else "as many parts as the situation needs"]
+    if people is not None:
+        bits.append(f"{people} people")
+    bits.append(newly)
+    if other is not None:
+        bits.append(f"{other} of each other kind")
+    return "AT MOST: " + "; ".join(bits)
 
 
 def propose(store, world, state: dict, place, tier: str, t: int, rng: random.Random, *, trouble: str = "", ways: bool = False,
@@ -450,15 +467,17 @@ def problems() -> list[str]:
         if k not in effects:
             bad.append(f"the contract's PartCondition kind '{k}' is not an effect the pulse applies")
     caps = S.get("caps") or {}
-    for t in ("parts", "new_people"):
+    whole = lambda n, least: isinstance(n, int) and not isinstance(n, bool) and n >= least
+    for t, none_ok in (("parts", True), ("new_people", False)):                # (f550) a part cap may be null (none); new people never
         table = caps.get(t) or {}
         for tier in TIERS:
             n = table.get(tier)
-            if not isinstance(n, int) or isinstance(n, bool) or n < 0:
-                bad.append(f"situations.yaml caps.{t}.{tier}: a whole number of 0 or more ({n!r})")
+            if tier not in table or not (whole(n, 0) or (none_ok and n is None)):
+                bad.append(f"situations.yaml caps.{t}.{tier}: a whole number of 0 or more" + (", or null for none" if none_ok else "")
+                           + f" ({n!r})")
     for t in ("people", "each_other"):
-        if not isinstance(caps.get(t), int) or isinstance(caps.get(t), bool) or caps.get(t) < 1:
-            bad.append(f"situations.yaml caps.{t}: a whole number of 1 or more")
+        if t not in caps or not (caps[t] is None or whole(caps[t], 1)):
+            bad.append(f"situations.yaml caps.{t}: a whole number of 1 or more, or null for none")
     fc = S.get("false_chance") or {}
     if set(fc) != set(L.get("certainties") or ()):
         bad.append("situations.yaml false_chance: one chance for each certainty")

@@ -114,8 +114,8 @@ check("any character playing is never a part, by their own id (more than one may
 
 # ---- caps by tier, and someone new only past the town's own of that trade
 C = situations.S["caps"]
-check("the caps are the owner's: 2, 3, 6 and 8 parts; 4 people; 2 of any other kind; new people 0, 0, 2 and 2",
-      C["parts"] == {"normal": 2, "uncommon": 3, "rare": 6, "campaign": 8} and C["people"] == 4 and C["each_other"] == 2
+check("(f550) the caps are the owner's: 2 and 3 parts for the common tiers, none for rare and campaign, none by kind; new people 0, 0, 2 and 2",
+      C["parts"] == {"normal": 2, "uncommon": 3, "rare": None, "campaign": None} and C["people"] is None and C["each_other"] is None
       and C["new_people"] == {"normal": 0, "uncommon": 0, "rare": 2, "campaign": 2}, C)
 check("...and so are the chances: sure never false, they say one in five, hearsay one in two",
       situations.S["false_chance"] == {"sure": 0.0, "they say": 0.2, "hearsay": 0.5}, situations.S["false_chance"])
@@ -126,12 +126,22 @@ def many(tier):
                      conditions=[{"on": town, "kind": "mark"}]), tier=tier)
 for tier, n in situations.S["caps"]["parts"].items():
     acc, dropped = many(tier)
-    check(f"a {tier} situation holds {n} parts at most", len(acc) == min(n, 9) and (R["parts_cap"] in [r for _, r in dropped]) == (n < 9),
-          (len(acc), [r for _, r in dropped]))
+    if n is None:
+        check(f"a {tier} situation keeps every part proposed (no total cap)", len(acc) == 9 and not dropped, (len(acc), [r for _, r in dropped]))
+    else:
+        check(f"a {tier} situation holds {n} parts at most", len(acc) == min(n, 9) and (R["parts_cap"] in [r for _, r in dropped]) == (n < 9),
+              (len(acc), [r for _, r in dropped]))
 acc, dropped = run(parts(resources=[{"good": goods[i], "state": "scarce"} for i in range(3)]), tier="campaign")
-check("at most two of any kind but people", len(acc) == 2 and [r for _, r in dropped] == [R["kind_cap"]], dropped)
+check("(f550) no cap by kind: three goods, all kept", len(acc) == 3 and not dropped, dropped)
 acc, dropped = run(parts(people=[person(r.id) for r in rows[:3]] + [person(unmade[0]), person(unmade[1])]), tier="campaign")
-check("at most four people in any situation", sum(a["kind"] == "person" for a in acc) == 4 and R["people_cap"] in [r for _, r in dropped], dropped)
+check("...five people, all kept", sum(a["kind"] == "person" for a in acc) == 5 and not dropped, dropped)
+held = copy.deepcopy(situations.S["caps"])
+situations.S["caps"].update(people=4, each_other=2)
+acc, dropped = run(parts(people=[person(r.id) for r in rows[:3]] + [person(unmade[0]), person(unmade[1])],
+                         resources=[{"good": goods[i], "state": "scarce"} for i in range(3)]), tier="campaign")
+check("...and a cap by kind, where the data sets one, still holds: four people, two goods", sum(a["kind"] == "person" for a in acc) == 4
+      and sum(a["kind"] == "resource" for a in acc) == 2 and sorted(r for _, r in dropped) == sorted([R["people_cap"], R["kind_cap"]]), dropped)
+situations.S["caps"].clear(); situations.S["caps"].update(held)
 acc, _ = run(parts(people=[person(a_.role, "can_fix", "coin")]), tier="normal")
 check("a role is the town's own of that trade first, even where no one new may be made", acc and acc[0]["who"] == a_.id and acc[0]["bind"] == "npc", acc)
 acc, dropped = run(parts(people=[person(unmade[0], "can_fix", "coin")]), tier="normal")
@@ -229,7 +239,10 @@ check("...a sure piece that could be false, and a phrase table too short to vary
       and any("tie.kin" in x for x in p3), p3)
 check("...a line that leaves out its own slot", any("leaves out ['name']" in x for x in p4), p4)
 check("...a line with a slot it may not have, a bad slot or no words, reported, never a crash", len([x for x in p5 if "phrases.holds" in x]) >= 3, p5)
-check("...and a missing reason, or a tier with no cap", any("reasons.only_way" in x for x in p6) and any("caps.parts.rare" in x for x in p6), p6)
+check("...and a missing reason, or a tier left out of the caps", any("reasons.only_way" in x for x in p6) and any("caps.parts.rare" in x for x in p6), p6)
+p7 = problems_with(lambda S: (S["caps"]["new_people"].update(rare=None), S["caps"].update(people=0), S["caps"]["parts"].update(normal=-1)))
+check("...new people never uncapped, and no cap below its least", any("caps.new_people.rare" in x for x in p7) and any("caps.people" in x for x in p7)
+      and any("caps.parts.normal" in x for x in p7), p7)
 real = list(situations.S["never_roles"])
 situations.S["never_roles"] = real + ["court_jester_of_mars"]
 dc = data_check.check()
