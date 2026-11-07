@@ -225,7 +225,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
         written = len(raw)
         if thinking and (usage or {}).get("out"):                   # (f533) its thinking is written too: priced from the tokens the server
             written = max(written, int(usage["out"] * float(budget.B.get("chars_per_token") or 4)))   # counted (a replay has them recorded)
-        budget.charge(task, chars, written)                         # (f468) every attempt is charged, a rejected draft too (decision 9)
+        budget.charge(task, chars, written, budget.cached_share(usage))   # (f468) every attempt is charged, a rejected draft too (decision 9);
+                                                                    # (f538) the prompt the server reused from its cache is not
 
         if reply.finish == "length" and (usage or {}).get("full"):
             # (f516) a full slot (the request and its answer filled the context, f521): the request was too big, not the answer long. No

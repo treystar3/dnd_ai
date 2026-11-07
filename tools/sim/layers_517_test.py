@@ -151,7 +151,8 @@ turns = lambda p: (p / "turns.jsonl").read_text(encoding="utf-8")
 om, nm = json.loads((kept / "meta.json").read_text()), json.loads((folder / "meta.json").read_text())
 print(json.dumps({"rows": [len(old), len(new)], "differ": differ[:10], "turns": turns(kept) == turns(folder),
                   "inputs": (kept / "inputs.jsonl").read_text(encoding="utf-8") == (folder / "inputs.jsonl").read_text(encoding="utf-8"),
-                  "meta_keys": [k for k in nm if k != "overlapped"] == [k for k in om if k != "overlapped"] and list(nm)[-1:] == ["overlapped"],
+                  "meta_keys": [k for k in nm if k not in ("overlapped", "budget_cached")] == [k for k in om if k not in ("overlapped", "budget_cached")]
+                               and list(nm)[-1:] == ["overlapped"] and nm.get("budget_cached") is True,      # (f538) a fresh recording says how it priced
                   "overlapped": nm.get("overlapped"),
                   "meta_moved": [k for k in om if om[k] != nm.get(k) and k not in ("made", "commit", "save")]}))
 '''

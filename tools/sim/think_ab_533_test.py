@@ -99,7 +99,7 @@ GATE = "\n".join([
     "from engine import budget",
     "charged = []",
     "real = budget.charge",
-    "budget.charge = lambda task, p, a=None: charged.append([task, p, a]) or 0.0",
+    "budget.charge = lambda task, p, a=None, c=0.0: charged.append([task, p, a]) or 0.0",   # (f538) the reused share is the fourth
     "MODE = sys.argv[1]",
     "def chat(**k):",
     "    if MODE == 'overrun':",

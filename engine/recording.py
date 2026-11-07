@@ -119,7 +119,8 @@ class Recorder:
             "turn": store.meta.turn, "data": statehash.data_hash(), "model": config.MODEL, "version": VERSION,
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
             "save": store.meta.name,
-            "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds")}     # (f468) the speeds the budget priced calls at
+            "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds"),     # (f468) the speeds the budget priced calls at
+            "budget_cached": bool(budget.CACHED)}                  # (f538) and whether a reused prompt was charged as reused
         if budget.SLOW:                                     # (f526) made below the minimum card: a replay lifts the same time limits
             self.meta["slow"] = True
         if getattr(config, "THINK_TASKS", None):            # (f533) the tasks that thought, and their room: a replay asks as they did

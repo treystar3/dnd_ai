@@ -1,7 +1,8 @@
 """(f468) The turn budget: the owner's decision that the longest turn finishes within 60 seconds of model time on the RTX 3060 12 GB
 (GOALS.md, f459), kept by arithmetic, not by a clock. The suite has no clock and a replay must make the same choices as the recording,
-so every call is priced from text alone: the prompt's characters and the answer's (or the task's expected size, data/rules/budget.yaml
-tasks) over the card's measured speeds (data/measured/card_profile.yaml, or the speeds a recording's meta carries, tools/rerun.py).
+so every call is priced from what the recording keeps: the prompt's characters and the answer's (or the task's expected size,
+data/rules/budget.yaml tasks) over the card's measured speeds (data/measured/card_profile.yaml, or the speeds a recording's meta
+carries, tools/rerun.py), and (f538) after a call, less the share of the prompt the server reported reusing from its cache.
 
 One Budget is open per input (scenes/world.py new_input opens it, the executor closes it when the line is done): llm/gateway.py asks
 allow() before a call's first attempt and charge()s after every attempt (a retry costs what it costs, decision 9). A required task
@@ -59,6 +60,9 @@ class priced:
 
 
 PROFILE: dict = load_profile()
+# (f538) A call is charged for the prompt the server read, not the part it reused from its cache (the share it reported). A replay of a
+# recording made before f538 turns this off (tools/rerun.py, the recording's meta budget_cached), so it defers where the recording did.
+CACHED = True
 # (f526) Below the minimum card (llm/launch.py): no wall-clock cut, so deadline() is None; the arithmetic stays (every call is still
 # priced at PROFILE, the minimum card's speeds), so a slow machine defers and drops exactly what the 3060 does, slowly but whole.
 SLOW = False
@@ -74,11 +78,12 @@ def later(task: str) -> str:
     return (TASKS.get(task) or {}).get("later", "dropped")
 
 
-def estimate(task: str, prompt_chars: int, answer_chars: int | None = None) -> float:
+def estimate(task: str, prompt_chars: int, answer_chars: int | None = None, cached: float = 0.0) -> float:
     """Seconds the call takes on the card, from text: the prompt read at the card's reading speed, the answer (its characters when it is
-    known, else the task's expected size) written at its writing speed; chars_per_token is the one calibration."""
+    known, else the task's expected size) written at its writing speed; chars_per_token is the one calibration. (f538) cached: the share
+    of the prompt the server reused from its cache and did not read (0 to 1; 0 when it is not known)."""
     cpt = float(B.get("chars_per_token") or 4.0)
-    tokens_in = max(0, prompt_chars) / cpt
+    tokens_in = max(0, prompt_chars) / cpt * (1.0 - min(1.0, max(0.0, float(cached or 0.0))))
     tokens_out = (max(0, answer_chars) / cpt) if answer_chars is not None else float((TASKS.get(task) or {}).get("answer_tokens") or 200)
     return tokens_in / PROFILE["read_tps"] + tokens_out / PROFILE["write_tps"]
 
@@ -148,12 +153,13 @@ class Budget:
             self.dropped.append(task)
             raise Dropped(task, f"dropped this turn ({cost:.0f} s wanted, {left:.0f} s left with {keep:.0f} s kept back)")
 
-    def charge(self, task: str, prompt_chars: int, answer_chars: int | None = None) -> float:
+    def charge(self, task: str, prompt_chars: int, answer_chars: int | None = None, cached: float = 0.0) -> float:
         """After every attempt, what it cost: the prompt as read, the answer as written (or the task's expected size when there was
-        none). Returns the seconds charged."""
+        none). (f538) cached: the share of the prompt the server reused (its own count), not charged while CACHED. Returns the seconds
+        charged."""
         if not self.mine() or need(task) == "tool":
             return 0.0
-        cost = estimate(task, prompt_chars, answer_chars)
+        cost = estimate(task, prompt_chars, answer_chars, cached if CACHED else 0.0)
         self.spent += cost
         if need(task) == "required":
             self.required_seconds += cost
@@ -211,8 +217,18 @@ def allow(task: str, prompt_chars: int) -> None:
         CURRENT.allow(task, prompt_chars)
 
 
-def charge(task: str, prompt_chars: int, answer_chars: int | None = None) -> float:
-    return CURRENT.charge(task, prompt_chars, answer_chars) if CURRENT is not None else 0.0
+def charge(task: str, prompt_chars: int, answer_chars: int | None = None, cached: float = 0.0) -> float:
+    return CURRENT.charge(task, prompt_chars, answer_chars, cached) if CURRENT is not None else 0.0
+
+
+def cached_share(usage: dict | None) -> float:
+    """(f538) The share of a call's prompt the server reused from its cache, from its own counts (usage prompt and cached, the interface's
+    form, llm/llama.py usage_of); 0 when it gave none (a stand-in, a failed try)."""
+    u = usage or {}
+    prompt, cached = u.get("prompt"), u.get("cached")
+    if not isinstance(prompt, int) or not isinstance(cached, int) or isinstance(prompt, bool) or isinstance(cached, bool) or prompt <= 0:
+        return 0.0
+    return min(1.0, max(0.0, cached / prompt))
 
 
 def embed(texts: int) -> float:

@@ -204,6 +204,7 @@ class Run:
                    outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
         from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
         row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
+                   budget_cached=bool(_budget.CACHED),                     # (f538) priced without the prompt the server reused
                    deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
                    stand_ins=list(_budget.LAST.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)

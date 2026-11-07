@@ -519,6 +519,11 @@ def baseline(run_dirs: list[Path], note: str = "") -> dict:
             "continuity": cont}
 
 
+def _priced_by_reuse(rows: list[dict]) -> bool:
+    """(f538) Whether the night's turns were priced without the prompt the server reused: the turn rows say so from f538 on."""
+    return any(r.get("budget_cached") for r in rows)
+
+
 def turns_table(rows: list[dict]) -> list[str]:
     """Per kind of line the bot typed: how many, how long they took, how long to the first word, calls per turn."""
     by: dict[str, list[dict]] = collections.defaultdict(list)
@@ -553,7 +558,8 @@ def turns_table(rows: list[dict]) -> list[str]:
                      f"{sum(1 for r in rows if 'passage' in (r.get('stand_ins') or []))} of them stood without a passage; "
                      f"{sum(int(r.get('recovered') or 0) for r in rows)} outcomes told at a load; "                                 # (f471)
                      f"the required path estimated at p50 {fmt(pct(req, .5))} s and p90 {fmt(pct(req, .9))} s, over {limit:g} s in "
-                     f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above).")
+                     f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above)"
+                     + ("; the prompt the server reused not priced (f538), so not comparable with a night before it" if _priced_by_reuse(rows) else "") + ".")
     slow = sorted(rows, key=lambda r: -float(r.get("seconds") or 0))[:5]
     if slow:
         lines.append("\nSlowest turns:")

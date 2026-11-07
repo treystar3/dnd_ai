@@ -135,7 +135,8 @@ def measure(folder: Path, read: float = 1.0, write: float = 1.0) -> dict:
                 embeds.append(float(c["seconds"]) / texts)
             continue
         u = usage_of(c)
-        pe, pd = u.get("prompt"), u.get("read_ms")
+        pe, pd = (u.get("prompt") or 0) - (u.get("cached") or 0), u.get("read_ms")     # (f538) read_ms covers the tokens read, not the reused:
+                                                                                        # counting those too would credit the cache twice
         ec, ed = u.get("out"), u.get("write_ms")
         if pe and pd:
             read.append(pe / (pd / 1000))
@@ -176,7 +177,8 @@ def estimate_inputs(folder: Path, expected: bool = False) -> list[tuple[int, flo
     characters read, the answer's written, at the card's speeds): the chat calls of required tasks and the embed calls those need. The
     done-when's measure, read from a night recording, never from the suite. (f475) `expected`: every answer priced at its task's
     expected size (budget.yaml answer_tokens), not the recorded one. A stand-in model's answers are a few words, so a stub recording
-    priced by them measures the prompts alone; Bundle D's gate prices both goldens this way, before and after."""
+    priced by them measures the prompts alone; Bundle D's gate prices both goldens this way, before and after. (f538) The share of a
+    prompt the server reported reusing is not priced, as the budget charges it (a stub recording reports none)."""
     from engine import budget
     per: dict[int, float] = {}
     for c in calls_of(folder):
@@ -190,7 +192,8 @@ def estimate_inputs(folder: Path, expected: bool = False) -> list[tuple[int, flo
             continue
         chars = sum(len(str(m.get("content") or "")) for m in (c.get("request") or {}).get("messages") or [])
         ans = c.get("answer") if isinstance(c.get("answer"), str) else None
-        per[i] = per.get(i, 0.0) + budget.estimate(task, chars, len(ans) if ans is not None and not expected else None)
+        per[i] = per.get(i, 0.0) + budget.estimate(task, chars, len(ans) if ans is not None and not expected else None,
+                                                   budget.cached_share(usage_of(c)))
     return sorted(per.items())
 
 

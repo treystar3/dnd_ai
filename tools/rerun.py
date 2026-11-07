@@ -341,6 +341,8 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
     from engine import budget
     profile_before = dict(budget.PROFILE)
     slow_before = budget.SLOW
+    cached_before = budget.CACHED
+    budget.CACHED = bool(rec["meta"].get("budget_cached"))                           # (f538) made before f538: reuse was charged as read
     budget.SLOW = bool(rec["meta"].get("slow"))                                      # (f526) a recording made below the minimum card
     if isinstance(rec["meta"].get("profile"), dict):                                   # (f468) the speeds the recording priced its calls at:
         budget.PROFILE.update({k: float(v) for k, v in rec["meta"]["profile"].items() if k in budget.DEFAULT_PROFILE and v})   # the replay defers where it did
@@ -452,6 +454,7 @@ def replay(folder: Path, loose: bool = False, quiet: bool = True, on_call=None) 
         budget.PROFILE.clear()
         budget.PROFILE.update(profile_before)
         budget.SLOW = slow_before
+        budget.CACHED = cached_before
         config.THINK_TASKS, config.THINK_ROOM = think_before
     matched = state["input"] - (1 if state["parted"] else 0)
     return {"matched": max(0, matched), "of": len(inputs_main), "parted": state["parted"], "calls": source.at, "recorded_calls": len(calls),
