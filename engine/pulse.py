@@ -147,7 +147,11 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
         hit = next((e for e in state.get("effects", []) if r is not None and e["kind"] == "closed" and e["place"] == r.id
                     and e["until"] > now and e.get("cause") != "improvised"), None)
         if hit is not None and r.id not in told:
-            out.append(f"The road ({r.name}) is shut here: {hit['text']}")
+            far = roads.far_side(world, place_id, r.id, roads.R["barrier"]["at"])                # (f541's review) here, or further on
+            total = sum(p.connects.values()) or 1
+            mark = abs(p.connects[r.from_] - roads.R["barrier"]["at"] * total) <= max(1, 0.02 * total)
+            out.append(f"The road ({r.name}) is shut here: {hit['text']}" if mark else
+                       f"The road ({r.name}) is shut further on, toward {world.places[far].name}: {hit['text']}")
     return out
 
 

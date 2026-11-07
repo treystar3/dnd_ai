@@ -2683,12 +2683,19 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return {"here": "", "town": "", "local": [], "far": []}
         top = mapview.top_of(w, here)
 
+        shut = self.shut_roads()
+
         def row(pid: str, state: str) -> dict | None:
             found = w.path(here, pid)
             if not found:
                 return None
             pl = w.places[pid]
-            return {"id": pid, "name": pl.name, "type": pl.type, "minutes": found[1], "away": clock.describe_duration(found[1]), "state": state}
+            away = clock.describe_duration(found[1])
+            if shut and self.shut_on(found[0]):                                 # (f541's review) the walk that can be made, not the shut one
+                around = self.route_round(here, pid)
+                found, away = (around, f"{clock.describe_duration(around[1])}, the long way round") if around else \
+                    (found, f"{away}, but the road is shut")
+            return {"id": pid, "name": pl.name, "type": pl.type, "minutes": found[1], "away": away, "state": state}
         local = [r for pid, pl in w.places.items() if pid != here and mapview.top_of(w, pid) == top and pl.id != top
                  for r in [row(pid, "here")] if r]
         if here != top and top != here:
@@ -3091,19 +3098,28 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         route, walk = found
         barrier = self.shut_on(route)                                           # (f541) a road a situation has shut, on the way
         if barrier:
+            B = roads.R["barrier"]
             r_ = self.world.roads[barrier[1]]
             say = {"road": r_.name[:1].upper() + r_.name[1:], "why": barrier[2].rstrip("."), "dest": self.world.places[dest].name}
+            if (self.here_stop() or {}).get("barrier") == barrier[1] and not self.met_closure(barrier[1]):
+                self.meet_closure(barrier[1])                                    # (f541's review) met where they stand: never a barrier further on
             if self.has("wayfinder") is not None:
-                console.note(roads.R["barrier"]["wayfinder"].format(**say))
+                console.note(B["wayfinder"].format(**say))
                 barrier = None
             elif self.met_closure(barrier[1]):                                   # met already: the long way round, or not at all
                 around = self.route_round(self.player.location, dest)
                 if around is None:
-                    self.refuse(roads.R["barrier"]["refused"].format(**say))
+                    self.refuse(B["refused"].format(**say))
                     return
-                console.note(roads.R["barrier"]["around"].format(**say))
-                (route, walk), barrier = around, None
+                if around[1] > B["ask_ratio"] * max(1, walk) and not re.search(roads.R["hazard"]["around_words"], (text or "").lower()):
+                    self.refuse(B["ask"].format(**say, time=clock.walk_words(around[1])))     # (f541's review) a long detour is asked for
+                    return
+                console.note(B["around"].format(**say))
+                (route, walk), barrier, already = around, None, 0       # the walk out to a fork is not part of the way round
         free = pulse.way_out(self.world, self.player.location)                 # (f390) a closure never shuts in whoever is already there
+        near = self.near_end(self.here_stop()) if self.here_stop() else ""
+        if near:
+            free |= pulse.way_out(self.world, near)                             # (f541's review) nor on a road whose barrier is ahead of them
         passed = [p for p in route[1:] if p in free and pulse.closed_reason(self.store, p, self.minutes)]
         blocked = next(((p, pulse.closed_reason(self.store, p, self.minutes)) for p in route[1:]
                         if p not in free and pulse.closed_reason(self.store, p, self.minutes)), None)
@@ -3132,7 +3148,12 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             walk = max(1, round(walk * (1 - mount["speed"])))
             console.note(f"You ride {mount['name']}.")
         walk = max(1, walk - already)
-        walk, fatigue_factor = self.take_haste(walk)
+        if barrier:                                                             # (f541's review) haste spent on the walk to the barrier
+            upto = self.barrier_minutes(roads.edges(self.world, route, walk), barrier)
+            hasted, fatigue_factor = self.take_haste(upto)
+            walk = max(1, round(walk * hasted / upto)) if hasted != upto else walk
+        else:
+            walk, fatigue_factor = self.take_haste(walk)
         fatigue_factor *= self.take_swift(walk)
         self.travel_fatigue(self.barrier_minutes(roads.edges(self.world, route, walk), barrier) if barrier else walk, fatigue_factor)
         self.leaving_stop(route, text)                      # (f427) the hazard ahead got past, and anyone in need walked past, seen

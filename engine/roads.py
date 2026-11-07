@@ -30,6 +30,38 @@ def way_key(world, a: str, b: str) -> str:
     return edge_key(world, a, b)
 
 
+def on_road(world, place_id: str, road_id: str) -> bool:
+    """(f541's review) Is this a stop on that road: a place of type road made for one journey, joined to the road's two ends?"""
+    p, r = world.places.get(place_id), world.roads.get(road_id)
+    return bool(p is not None and r is not None and p.type == "road" and not p.parent and set(p.connects or {}) == {r.from_, r.to})
+
+
+def far_side(world, place_id: str, road_id: str, at: float, came_from: str = "") -> str:
+    """(f541's review) For a stop on a shut road, the end across its barrier. The barrier is one fixed point on the road, `at` of the
+    way from its first end (from_), so every stop on the road is on one side of it; a stop on the mark itself is on the side it came
+    from."""
+    r, p = world.roads[road_id], world.places[place_id]
+    total = sum(p.connects.values()) or 1
+    d, mark = p.connects[r.from_], at * total
+    if d < mark:
+        return r.to
+    if d > mark:
+        return r.from_
+    return r.from_ if came_from == r.to else r.to
+
+
+def barrier_frac(world, a: str, b: str, road_id: str, at: float) -> float:
+    """(f541's review) How far along the stretch from a to b the road's barrier lies, as a share of the stretch: from either end of
+    the road, or from a stop on it."""
+    r = world.roads[road_id]
+    if on_road(world, a, road_id):
+        p = world.places[a]
+        total = sum(p.connects.values()) or 1
+        gap = abs(at * total - p.connects[r.from_])
+        return min(0.95, max(0.05, gap / max(1, p.connects.get(b) or total)))
+    return at if a == r.from_ else 1 - at
+
+
 def way_round(world, road_id: str, shut=()) -> bool:
     """(f540) Whether a named road's two ends are joined some other way: with its stretch shut, can one still walk from one end to the
     other? A stop on the road (a place of type road made for one journey) is never a way round: it lies on the stretch itself; nor

@@ -100,15 +100,29 @@ class RoadActions:
                 out.setdefault(e["place"], e.get("text") or "")
         return out
 
+    def near_end(self, stop: dict) -> str:
+        """(f541's review) The end of a shut road on the player's side of its barrier, for a stop they stand at on it ('' off one)."""
+        if stop.get("barrier"):
+            return stop.get("behind") or ""
+        key = next((k for k in self.shut_roads() if roads.on_road(self.world, stop["id"], k)), "")
+        if not key:
+            return ""
+        far = roads.far_side(self.world, stop["id"], key, R["barrier"]["at"], stop.get("from", ""))
+        return next((e for e in self.world.places[stop["id"]].connects if e != far), "")
+
     def shut_stretch(self, x: str, y: str, shut: dict[str, str]) -> str:
-        """The road a stretch from x to y runs on, when it is shut to the player now; '' when open. A closure stops people going onto
-        a road, never off it: from a stop on the road either end is open, save the way on through the barrier they stand at."""
+        """The road a stretch from x to y runs on, when it is shut to the player now; '' when open. The barrier is one fixed point on
+        the road (roads.far_side): from a stop on the road, the end on the player's side of it is open and the end across it is not,
+        whatever made the stop (the barrier itself, a happening on the walk back, a fight)."""
         key = roads.way_key(self.world, x, y)
         if key not in shut:
             return ""
         stop = self.here_stop()
-        if stop and x == stop["id"] and (stop.get("barrier") != key or y == stop.get("behind")):
-            return ""
+        if stop and x == stop["id"]:
+            if stop.get("barrier") == key:
+                return "" if y == stop.get("behind") else key
+            if roads.on_road(self.world, x, key):
+                return key if y == roads.far_side(self.world, x, key, R["barrier"]["at"], stop.get("from", "")) else ""
         return key
 
     def shut_on(self, route: list[str]) -> tuple[int, str, str] | None:
@@ -148,8 +162,9 @@ class RoadActions:
 
     def barrier_minutes(self, stretches: list[tuple[str, str, int]], barrier: tuple) -> int:
         """How long the walk to the barrier takes: the stretches before the shut one, and the part of it walked before the barrier."""
-        i = barrier[0]
-        return max(1, sum(m for _, _, m in stretches[:i]) + max(1, round(R["barrier"]["at"] * stretches[i][2])))
+        i, key = barrier[0], barrier[1]
+        a, b, m = stretches[i]
+        return max(1, sum(m_ for _, _, m_ in stretches[:i]) + max(1, round(roads.barrier_frac(self.world, a, b, key, R["barrier"]["at"]) * m)))
 
     def met_closure(self, key: str) -> bool:
         """Has the acting character met this closure at its barrier (so their walks go round it, or are refused before setting out)?"""
@@ -173,7 +188,7 @@ class RoadActions:
         r = self.world.roads[key]
         B = R["barrier"]
         name = r.name[:1].upper() + r.name[1:]
-        stop = roads.make_stop(self.world, a, b, B["at"], m, why, "", f"{name} shut", why)
+        stop = roads.make_stop(self.world, a, b, roads.barrier_frac(self.world, a, b, key, B["at"]), m, why, "", f"{name} shut", why)
         ends = list(stop["place"]["connects"])
         stop.update(log=log[-6:], text=text, resume="", bound=route[-1], kind="barrier", tier="normal", barrier=key, behind=ends[0])
         if (self.player.road or {}).get("id") not in stop["place"]["connects"]:
@@ -185,11 +200,11 @@ class RoadActions:
         back, onward = self.world.places[ends[0]].name, self.world.places[ends[-1]].name
         happened = (f" On the way (the player has read this already: do not tell it again): {' '.join(log[-4:])}") if log else ""
         self.narrate(f"After {clock.describe_duration(walked)} on foot, the player comes to where {r.name} is shut: {why.rstrip('.')}."
-                     f"{happened} Tell the road, then what bars the way and anyone or anything stranded at it, as it is seen. The "
-                     "scene ends before the player does anything: whether to turn back, go round or find a way through is theirs.", text)
+                     f"{happened} Tell the road, then what bars the way, as it is seen. The way on cannot be passed here while it is "
+                     "shut. The scene ends before the player does anything: whether to turn back or go round is theirs.", text)
         around = self.route_round(stop["id"], route[-1])
-        rnd = (B["round"].format(dest=self.world.places[route[-1]].name, time=clock.describe_duration(around[1])) if around
-               else B["none"].format(onward=onward))
+        dest = self.world.places[route[-1]].name
+        rnd = B["round"].format(dest=dest, time=clock.walk_words(around[1])) if around else B["none"].format(dest=dest)
         console.note(B["meet"].format(onward=onward, back=back, round=rnd))
         self.show_exits()
         self.store.save_player(self.player)

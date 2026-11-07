@@ -524,8 +524,10 @@ def check() -> list[str]:
     _bar = RD_.get("barrier") or {}
     _at = _bar.get("at")
     need(isinstance(_at, (int, float)) and not isinstance(_at, bool) and 0 < _at < 1, f"road.yaml barrier.at: a share of the road between 0 and 1 ({_at!r})")
-    for k_, allowed_ in {"meet": {"onward", "back", "round"}, "round": {"dest", "time"}, "none": {"onward"}, "around": {"road", "why"},
-                         "refused": {"road", "why", "dest"}, "wayfinder": {"road", "why"}}.items():
+    _ar = _bar.get("ask_ratio")
+    need(isinstance(_ar, (int, float)) and not isinstance(_ar, bool) and _ar >= 1, f"road.yaml barrier.ask_ratio: a ratio of 1 or more ({_ar!r})")
+    for k_, allowed_ in {"meet": {"onward", "back", "round"}, "round": {"dest", "time"}, "none": {"dest"}, "around": {"road", "why"},
+                         "refused": {"road", "why", "dest"}, "wayfinder": {"road", "why"}, "ask": {"road", "why", "dest", "time"}}.items():
         line_ = _bar.get(k_)
         if not isinstance(line_, str) or not line_.strip():
             need(False, f"road.yaml barrier.{k_}: a line is needed")
