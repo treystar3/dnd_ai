@@ -268,6 +268,12 @@ caps_ = [r for r in rows1 if r["arm"] == "budget_1024"]
 check("off's answers are kept whole", all(r["valid"] and r["accepted_n"] > 0 and not r["dropped"] for r in offs), [(r["accepted_n"], r["dropped"]) for r in offs])
 check("the capped arm's bad answers are dropped part by part, every reason recorded", all(r["valid"] and len(r["dropped"]) >= 5
       and R["player"] in r["dropped"] for r in caps_), [r["dropped"] for r in caps_][:1])
+check("each row keeps the proposal whole, every dropped part beside its reason, what was kept, the count proposed, and the thinking",
+      all(json.loads(r["answer"]) and len(r["dropped_parts"]) == len(r["dropped"]) and all(d["why"] in r["dropped"] and isinstance(d["part"], dict)
+          for d in r["dropped_parts"]) and len(r["kept_parts"]) == r["accepted_n"]
+          and sum(r["proposed"].values()) == r["accepted_n"] + len(r["dropped"]) for r in rows1 if r["valid"])
+      and any(d["part"].get("who") == "player" for r in caps_ for d in r["dropped_parts"])
+      and all(r["thinking"] for r in rows1 if r["think"] and r["valid"]) and all(not r["thinking"] for r in offs), rows1[1].get("dropped_parts", [])[:2])
 check("each row has its finish, tokens, card seconds and the server's field names", all(r.get("finish") and r.get("prompt_tokens") == 1200
       and isinstance(r.get("card_seconds"), float) and "choices" in r.get("fields", []) for r in rows1), rows1[0])
 check("the budget sent is recorded on the capped arm and on no other", all((r.get("budget_sent") == 1024) == (r["arm"] == "budget_1024") for r in rows1))

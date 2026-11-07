@@ -240,6 +240,8 @@ def score(content: str, store, world, case: dict, t: int, seed: int) -> dict:
     for a in acc:
         out["accepted"][a["kind"]] = out["accepted"].get(a["kind"], 0) + 1
     out["dropped"] = [r for _, r in dropped]
+    out["dropped_parts"] = [{"part": part, "why": why} for part, why in dropped]   # (f544) what was refused, beside why
+    out["proposed"] = {k: len(getattr(parts, k)) for k in ("people", "resources", "ties", "conditions", "evidence")}
     return out
 
 
@@ -366,6 +368,9 @@ def run(store, world, chosen: list[dict], arm_names: list[str], *, server: str =
                 rec["finish"] == "thought_out" or (th or 0) > OVER * int(spec["budget"]))
             sc = score(content, store, world, case, t, seed)
             rec.update({k: v for k, v in sc.items() if k not in ("parts", "error")})
+            rec["answer"] = unfenced(content)[0]                                  # (f544) the proposal whole, as the contract read it,
+            rec["kept_parts"] = sc["parts"]                                       # what the check kept,
+            rec["thinking"] = thinking                                            # and the thinking that came before it
             if sc["error"] and not rec.get("error"):                              # the server's own error, when it gave one, stands
                 rec["error"] = sc["error"]
             rec["card"] = card(store, world, case, sc["parts"])
