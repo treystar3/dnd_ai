@@ -100,12 +100,13 @@ phrases:
   is_false: ["It is not so.", "It is false.", "It does not hold.", "It is not the truth."]
   new_person: "{a} {trade}"                                 # one yet to be met, by trade ({a}: a or an)
 
-# (f543) The proposal (engine/situations.py prompt and propose; asked in play from f547): its warmth and the answer's ceiling.
-proposal: {temperature: 0.8, max_tokens: 900}
+# (f543) The proposal (engine/situations.py prompt and propose; asked in play from f547): its warmth, the answer's ceiling, and how
+# many of the town's people and of the things already going on there it is shown.
+proposal: {temperature: 0.8, max_tokens: 900, people_most: 20, going_most: 6}
 
 # (f543) How the proposal's thinking is measured before the owner decides (tools/situation_ab.py; f544 on the pod): the arms (thinking
-# off; capped per request at a budget of thinking tokens; uncapped within the background slot of slot_tokens), and the rule fixed in
-# advance. Thinking goes into the proposal only if readers prefer an arm in prefer_share or more of the reads that are not ties, the
+# off; capped per request at a budget of thinking tokens; uncapped within the background slot, data/runtime/server.yaml slot_ctx),
+# and the rule fixed in advance. Thinking goes into the proposal only if readers prefer an arm in prefer_share or more of the reads that are not ties, the
 # preference holding in both slot orders, with no fewer parts accepted per proposal than with thinking off, and its p90 on the minimum
 # card within slot_seconds. data/measured/situation_thinking.yaml, when a run writes it, names only these arms.
 thinking:
@@ -114,7 +115,6 @@ thinking:
     budget_1024: {think: true, budget: 1024}
     budget_2048: {think: true, budget: 2048}
     uncapped: {think: true}
-  slot_tokens: 16384
   prefer_share: 0.6
   slot_seconds: 120
 

@@ -49,7 +49,7 @@ def parts(**kw):
 
 
 def run(p, tier="rare", seed=7, ways=True, **kw):
-    return situations.check(p, store, world, tier, random.Random(seed), town=town, ways=ways, now=ws.minutes, player_id=ws.acting, **kw)
+    return situations.check(p, store, world, tier, random.Random(seed), town=town, ways=ways, now=ws.minutes, players=(ws.acting,), **kw)
 
 
 def person(who, stake="harmed", want="safety", **kw):
@@ -109,7 +109,7 @@ gone.role = was_role
 store.save_npc(gone)
 
 acc, dropped = situations.check(parts(people=[person("hero_two", "knows", "believed")]), store, world, "rare", random.Random(1), town=town,
-                                ways=True, now=ws.minutes, player_id="hero_two")
+                                ways=True, now=ws.minutes, players=(ws.acting, "hero_two"))
 check("any character playing is never a part, by their own id (more than one may play)", not acc and [r for _, r in dropped] == [R["player"]], dropped)
 
 # ---- caps by tier, and someone new only past the town's own of that trade

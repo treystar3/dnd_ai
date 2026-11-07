@@ -186,8 +186,9 @@ stand to each other, what it lays on places and roads, and what evidence there i
 against the world and keeps only what holds: a part that names nobody real, or breaks a rule below, is lost on its own.
 
 people: each {who, stake, want, condition, holds, label}.
-  who: a person's id from PEOPLE; or, for someone not listed, a trade from TRADES OF THE TOWN (the town's own, not yet met) or from
-    OTHER TRADES (someone new, whom the game will name). Never the player, and never a name of your own.
+  who: a person's id from PEOPLE; or, for someone not listed, a trade from TRADES OF THE TOWN (the game finds or makes the town's own)
+    or from OTHER TRADES (someone new, whom the game will name). Each who once: a trade names one person, so to cast two people of
+    one trade, give their ids from PEOPLE. Never the player, and never a name of your own.
   stake: gains (does well out of the trouble), harmed (is hurt by it), can_fix (could put it right), blocks (stands in the way of an
     end to it) or knows (knows more of it than is said).
   want: coin, road_open, goods_moved, safety, believed, left_alone or rid_of_rival.
@@ -198,11 +199,12 @@ resources: each {good, state, holder, label}: a good's id from GOODS; scarce (ha
   or wanted (called for); holder: the `who` of one of your people, or empty.
 ties: each {a, b, tie}: two of your people by their `who`, and rival, owes (a owes b), kin, employs (a employs b) or fears (a fears b).
 conditions: each {on, kind, label}: a place id from PLACES or a road id from ROADS, and closed (it cannot be passed), danger, prices
-  (a town's, never a road's) or mark (a lasting sign of what happened there).
+  (a town's, never a road's) or mark (a lasting sign of what happened there). A road ROADS calls the only way between its ends is
+  never closed.
 evidence: each {label, holder, points_to, certainty}: label - what it is, in plain words ("a cut rope", "fresh hoofprints by the
-  mill"); holder - the `who` of one of your people, or the id of a place from PLACES where it lies; points_to - a person's `who`, or a
-  place or road id; certainty - sure (they saw it or can show it), they say (they had it from others) or hearsay (half heard). Evidence
-  lying at a place is only ever sure.
+  mill"); holder - the `who` of one of your people, or the id of a place from PLACES where it lies; points_to - the `who` of one of
+  your people, or a place or road id; certainty - sure (they saw it or can show it), they say (they had it from others) or hearsay
+  (half heard). Evidence lying at a place is always sure.
 
 Keep within AT MOST. Give the player ways in: someone who wants something done, a thing to carry or find, a person who could set it
 right, a reason to doubt what is said. Make the parts hang together, and fit the place, its people's trades, the season and what is
