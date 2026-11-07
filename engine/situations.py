@@ -18,7 +18,11 @@ id; "town": who is a trade the town has, its person found or made when bound; "n
 held ("person" or "place"). An evidence part carries its truth: it is never handed to the model that proposed the parts.
 
 render() makes the SITUATION PARTS lines from the names, trades and goods of the world, never an id, one line per part from the phrase
-tables, each drawn on streams.fixed(key, "parts", i), so a situation's lines are the same every time they are told."""
+tables, each drawn on streams.fixed(key, "parts", i), so a situation's lines are the same every time they are told.
+
+(f543) prompt() is what the model is shown to propose them (the lists it may name, sorted, ids beside names; the system text is
+pulse_prompts.PARTS_SYSTEM, which gives every word of the closed lists), and propose() the one call that asks, then checks: asked in
+play from f547, measured with thinking off and on first (tools/situation_ab.py, f544)."""
 from __future__ import annotations
 
 import collections
@@ -241,6 +245,108 @@ def render(accepted: list[dict], store, world, key: str, with_truth: bool = Fals
     return ("SITUATION PARTS:\n" + "\n".join(lines)) if lines else ""
 
 
+
+# ---------- (f543) the proposal: what the model is shown, and the one call that asks it
+
+def menus(store, world, state: dict, place, t: int) -> dict:
+    """(f543) What a proposal at `place` may name, each list sorted so the same world gives the same prompt: the town's people (the
+    trades no situation casts left out, as check drops them), the trades its places are written with that nobody has met yet, the
+    other trades of the world (someone new), the town's places and the places one road away, the roads that touch the town (those
+    shut now said so), and the goods."""
+    from engine import pulse
+    town = pulse.town_of(world, place.id)
+    never = set(S.get("never_roles") or ())
+    rows = [n for n in retrieval.people_in_town(store, world, town) if n.role not in never]
+    made = {n.role for n in rows}
+    here = [pid for pid in retrieval.town_places(world, town) if pulse.known(world, pid)]
+    written = sorted({role for pid in here for role in (world.places[pid].residents or {})} - made - never)
+    others = sorted(r for r in world.roles if r not in never and r not in made and r not in written)
+    touching = sorted(rid for rid, r in world.roads.items() if town in (r.from_, r.to))
+    near = sorted({world.roads[rid].to if world.roads[rid].from_ == town else world.roads[rid].from_ for rid in touching} - set(here))
+    shut = pulse.shut_roads(state or {}, world, t)
+    return {"town": town, "people": rows, "written": written, "others": others,
+            "places": [pid for pid in sorted(here) + near if pulse.known(world, pid)], "roads": touching, "shut": shut,
+            "goods": sorted(_goods())}
+
+
+def prompt(store, world, state: dict, place, tier: str, t: int, trouble: str = "") -> tuple[str, str]:
+    """(f543) The proposal's system and user text: lean, ids beside names so the parts can be checked, every list in a fixed order."""
+    from engine import clock, pulse
+    from engine import pulse_prompts as pp
+    m = menus(store, world, state, place, t)
+    caps = S["caps"]
+    going = [x["title"] for x in (state or {}).get("threads", []) if x.get("status") == "active"
+             and pulse.town_of(world, x.get("place") or "") == m["town"]][-6:]
+    region = world.regions[place.region].name if place.region in world.regions else ""
+    lines = [f"TIER: {tier}",
+             f"PLACE: {place.id} - {place.name}" + (f", {region}" if region else ""),
+             f"SEASON: {clock.season(t)}",
+             f"THE TROUBLE: {trouble.strip() or 'nothing set: whatever fits the place, the season and what is already going on'}",
+             f"ALREADY GOING ON HERE: {'; '.join(going) or 'nothing'}",
+             f"PEOPLE (id: name, trade): {'; '.join(f'{n.id}: {n.name}, {n.role}' for n in m['people'][:20]) or 'none known'}",
+             f"TRADES OF THE TOWN: {', '.join(m['written']) or 'none besides the people above'}"]
+    new = caps["new_people"].get(tier, 0)
+    if new:
+        lines.append(f"OTHER TRADES: {', '.join(m['others'])}")
+    lines += [f"PLACES (id: name): {'; '.join(f'{pid}: {world.places[pid].name}' for pid in m['places'])}",
+              "ROADS (id: name, from - to): " + ("; ".join(f"{rid}: {world.roads[rid].name}, {world.roads[rid].from_} - {world.roads[rid].to}"
+                                                           + (" (shut now)" if rid in m["shut"] else "") for rid in m["roads"]) or "none"),
+              f"GOODS (id: name): {'; '.join(f'{g}: {_goods()[g].name}' for g in m['goods'])}",
+              f"AT MOST: {caps['parts'].get(tier, 0)} parts in all; {caps['people']} people"
+              + (f", {new} of them from OTHER TRADES" if new else ", none from outside the town")
+              + f"; {caps['each_other']} of each other kind"]
+    return pp.PARTS_SYSTEM, "\n".join(lines)
+
+
+def propose(store, world, state: dict, place, tier: str, t: int, rng: random.Random, *, trouble: str = "", ways: bool = False,
+            player_id: str = ""):
+    """(f543) Ask the model for a situation's parts and check them: (the answer, accepted, dropped). An LLMError (or the budget's) is
+    the caller's to catch: a situation stands on the engine's own build without parts. Not asked in play until f547."""
+    from engine import pulse
+    from llm.contracts import SituationParts
+    from llm.gateway import generate
+    system, user = prompt(store, world, state, place, tier, t, trouble)
+    spec = S["proposal"]
+    parts = generate("situation_parts", system, user, SituationParts, temperature=float(spec["temperature"]),
+                     max_tokens=int(spec["max_tokens"]))
+    accepted, dropped = check(parts, store, world, tier, rng, town=pulse.town_of(world, place.id), ways=ways, now=t, player_id=player_id)
+    return parts, accepted, dropped
+
+
+def arms() -> dict:
+    """(f543) The arms the proposal's thinking is measured in, by name: {think, budget (None uncapped or off)}."""
+    return {name: {"think": bool((a or {}).get("think")), "budget": (a or {}).get("budget")}
+            for name, a in ((S.get("thinking") or {}).get("arms") or {}).items()}
+
+
+def measured_problems(doc: dict | None = None) -> list[str]:
+    """(f543) data/measured/situation_thinking.yaml, when a run has written it (outside the data hash): its task one the budget knows,
+    every arm and its verdict an arm situations.yaml names, each measure a number where one is given."""
+    path = ROOT / "data" / "measured" / "situation_thinking.yaml"
+    if doc is None:
+        if not path.exists():
+            return []
+        doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    bad = []
+    tasks = (yaml.safe_load((ROOT / "data" / "rules" / "budget.yaml").read_text(encoding="utf-8")) or {}).get("tasks") or {}
+    if doc.get("task") not in tasks:
+        bad.append(f"situation_thinking.yaml task: '{doc.get('task')}' is not a task budget.yaml knows")
+    known = set(arms())
+    measured = doc.get("arms") or {}
+    if not isinstance(measured, dict) or not measured:
+        bad.append("situation_thinking.yaml arms: needs the arms it measured")
+        measured = {}
+    for name, row in measured.items():
+        if name not in known:
+            bad.append(f"situation_thinking.yaml arms.{name}: not an arm situations.yaml names ({sorted(known)})")
+        for k, v in (row or {}).items():
+            if k in ("accepted_per_proposal", "finished_share", "p50_card_seconds", "p90_card_seconds", "preferred_share") and v is not None \
+                    and (not isinstance(v, (int, float)) or isinstance(v, bool)):
+                bad.append(f"situation_thinking.yaml arms.{name}.{k}: a number ({v!r})")
+    if doc.get("verdict") not in known:
+        bad.append(f"situation_thinking.yaml verdict: '{doc.get('verdict')}' is not an arm situations.yaml names")
+    return bad
+
 # The slots every line of a table must carry (data_check holds them), and the sample that fills them all.
 NEEDS = {"stake": {"name"}, "want": set(), "condition": set(), "tie": {"name", "other"}, "state": {"good"}, "kind": {"place"},
          "certainty": {"holder", "label", "points"}}
@@ -323,6 +429,31 @@ def problems() -> list[str]:
         for line in got:
             bad += _line_problems(f"phrases.{flat}", line, needs)
     bad += _line_problems("phrases.new_person", P.get("new_person"), {"a", "trade"})
+    from engine import pulse_prompts as pp                               # (f543) the proposal is told every word it may use
+    for name, words in L.items():
+        for w in words or ():
+            if w not in pp.PARTS_SYSTEM:
+                bad.append(f"situations.yaml lists.{name}: '{w}' is not among the words the proposal's prompt gives (pulse_prompts.PARTS_SYSTEM)")
+    spec = S.get("proposal") or {}
+    if not isinstance(spec.get("temperature"), (int, float)) or isinstance(spec.get("temperature"), bool) or not 0 <= spec["temperature"] <= 1.5:
+        bad.append("situations.yaml proposal.temperature: a number between 0 and 1.5")
+    if not isinstance(spec.get("max_tokens"), int) or isinstance(spec.get("max_tokens"), bool) or spec["max_tokens"] < 1:
+        bad.append("situations.yaml proposal.max_tokens: a whole number above 0")
+    T = S.get("thinking") or {}
+    A = T.get("arms") or {}
+    if not isinstance(A.get("off"), dict) or A["off"].get("think") is not False:
+        bad.append("situations.yaml thinking.arms.off: the arm every other is read against, thinking off")
+    for name, a in A.items():
+        b = (a or {}).get("budget")
+        if (a or {}).get("think") is not True and name != "off":
+            bad.append(f"situations.yaml thinking.arms.{name}: an arm other than off thinks")
+        if b is not None and (not isinstance(b, int) or isinstance(b, bool) or b < 1 or not (a or {}).get("think")):
+            bad.append(f"situations.yaml thinking.arms.{name}.budget: a whole number above 0, on an arm that thinks")
+    for k, lo, hi in (("slot_tokens", 1, 10 ** 6), ("prefer_share", 0.5, 1), ("slot_seconds", 1, 3600)):
+        v = T.get(k)
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not lo <= v <= hi:
+            bad.append(f"situations.yaml thinking.{k}: a number from {lo} to {hi}")
+    bad += measured_problems()
     for k in ("not_a_person", "gone", "player", "twice", "people_cap", "new_cap", "parts_cap", "kind_cap", "not_a_good", "no_holder",
               "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id", "claim_at_place"):
         if not (S.get("reasons") or {}).get(k):

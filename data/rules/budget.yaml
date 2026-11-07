@@ -79,6 +79,7 @@ tasks:
   pulse_motive:             {need: optional, later: dropped, answer_tokens: 500}
   pulse_cataclysm:          {need: optional, later: dropped, answer_tokens: 1500}
   thread_telling:           {need: optional, later: dropped, answer_tokens: 500}
+  situation_parts:          {need: optional, later: dropped, answer_tokens: 500}     # (f543) a situation's typed parts, asked from f547
   board_stakes:             {need: optional, later: dropped, answer_tokens: 900}
   loot_name:                {need: optional, later: dropped, answer_tokens: 60}
   legendary_name:           {need: optional, later: dropped, answer_tokens: 80}

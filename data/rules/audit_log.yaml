@@ -48,6 +48,7 @@ tasks:
   pulse_thread:          "the world starting a situation somewhere, off-screen"
   pulse_motive:          "a person's private goal moving a step, off-screen"
   pulse_cataclysm:       "the world starting a cataclysm"
+  situation_parts:       "the world deciding who and what a situation is made of, off-screen"
   road_event:            "inventing what the traveller comes across on the road"
   discovery:             "inventing a place that is not on the map yet"
   loot_name:             "naming a rare item"

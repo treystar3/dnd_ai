@@ -278,6 +278,51 @@ class Stub:
             out["contract"] = {"kind": "hunt", "what": r.choice(["wolves", "boars", "goblins", "giant spiders", "bandits"]), "count": 3}
         return out
 
+    def a_SituationParts(self, u, k):
+        """(f543) A situation's parts from the prompt's own lists (engine/situations.py prompt), the same for the same prompt: the first
+        two people of the town, one at odds with the other; someone of a trade from outside (or of the town's own) who could put it
+        right; a good stranded with the one harmed; danger on the town's first road; a rumour that points at the one who gains; all
+        within AT MOST. With self.parts_bad, an answer past every cap that names the player, nobody, and the game's ids."""
+        one = lambda key: (re.search(rf"^{re.escape(key)}: (.*)$", u, re.M).group(1) if re.search(rf"^{re.escape(key)}: ", u, re.M) else "")
+        ids = lambda key: [x.split(":")[0].strip() for x in one(key).split("; ") if ":" in x]
+        people, places, roads, goods = ids("PEOPLE (id: name, trade)"), ids("PLACES (id: name)"), ids("ROADS (id: name, from - to)"), ids("GOODS (id: name)")
+        trades = [x.strip() for x in one("OTHER TRADES").split(",") if x.strip()] or \
+                 [x.strip() for x in one("TRADES OF THE TOWN").split(",") if x.strip() and " " not in x.strip()]
+        most = int((re.search(r"AT MOST: (\d+)", u) or [0, 6])[1])
+        if getattr(self, "parts_bad", False):
+            first = people[0] if people else "nobody_at_all"
+            return {"people": [{"who": "player", "stake": "knows", "want": "believed"}, {"who": "dragon_king", "stake": "blocks", "want": "coin"},
+                               {"who": first, "stake": "gains", "want": "coin", "label": f"sells at {places[0] if places else 'x_y'}"}]
+                              + [{"who": w, "stake": "harmed", "want": "safety"} for w in (people[1:] + trades)[:5]],
+                    "resources": [{"good": "dragon_gold", "state": "scarce"}, {"good": goods[0], "state": "wanted", "holder": "nobody_here"}],
+                    "ties": [{"a": first, "b": first, "tie": "kin"}],
+                    "conditions": [{"on": "nowhere_keep", "kind": "closed"}] + [{"on": r, "kind": "prices"} for r in roads[:2]],
+                    "evidence": [{"label": "the_cut_rope", "holder": first, "points_to": "dragon_king", "certainty": "sure"},
+                                 {"label": "a torn sack", "holder": places[0] if places else "x", "points_to": first, "certainty": "hearsay"}]}
+        out = {"people": [], "resources": [], "ties": [], "conditions": [], "evidence": []}
+        a = people[0] if people else (trades[0] if trades else "")
+        b = people[1] if len(people) > 1 else ""
+        c = trades[0] if trades and trades[0] not in (a, b) else (people[2] if len(people) > 2 else "")
+        plan = []
+        if a:
+            plan.append(("people", {"who": a, "stake": "gains", "want": "coin", "condition": "paid", "holds": goods[0] if goods else "",
+                                    "label": "sells dear"}))
+        if b:
+            plan.append(("people", {"who": b, "stake": "harmed", "want": "goods_moved", "label": "cannot get a load out"}))
+        if c:
+            plan.append(("people", {"who": c, "stake": "can_fix", "want": "safety", "condition": "protected", "label": "could mend it"}))
+        if b and len(goods) > 1:
+            plan.append(("resources", {"good": goods[1], "state": "stranded", "holder": b, "label": "a load stuck"}))
+        if a and b:
+            plan.append(("ties", {"a": a, "b": b, "tie": "rival"}))
+        if a and (c or b):
+            plan.append(("evidence", {"label": "talk of a cut rope", "holder": c or b, "points_to": a, "certainty": "hearsay"}))
+        if roads:
+            plan.append(("conditions", {"on": roads[0], "kind": "danger", "label": "unsafe now"}))
+        for kind, part in plan[:most]:
+            out[kind].append(part)
+        return out
+
     def a_ThreadTelling(self, u, k):
         stages = re.findall(r"^STAGE \d+: (.*)$", u, re.M)
         clues = re.findall(r"^CLUE \d+ \(.*?\): (.*)$", u, re.M)
