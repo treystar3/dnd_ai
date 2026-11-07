@@ -6,8 +6,10 @@ tool measures it on the one call that may think, the situation's parts (engine/s
   1. A scratch world, the same for the same --seed: a fresh campaign (saves/situation_ab*, removed after the run), each case's town
      peopled by the engine with names it draws itself (no model), so PEOPLE has ids and every arm reads the same town.
   2. Cases: --cases N of (a pressure at a settlement, the rare or the campaign tier), chosen on the seed; each case's prompt is the one
-     the game would send (situations.prompt), its request the one llama-server would be sent (tools/think_ab.py llama_body: the schema
-     as its grammar, every sampler, the template's enable_thinking).
+     the game would send (situations.prompt), its request the one llama-server would be sent (tools/think_ab.py llama_body: every
+     sampler, the template's enable_thinking), the answer's shape sent to every arm alike as response_format (--constraint schema,
+     f544: the server binds it after the thinking; the game's own raw grammar binds from the first token, so nothing could think),
+     and the ```json fence Gemma 4 then writes around an answer taken off and counted.
   3. Arms (data/rules/situations.yaml thinking.arms): off; capped per request at a budget of thinking tokens (the server's field,
      --budget-field, sent only on a capped arm); uncapped within the background slot (data/runtime/server.yaml slot_ctx). Before any
      case: the server's slot must hold that slot, a thinking call must come back with thinking, and a call capped at a small budget
@@ -164,17 +166,39 @@ def row_of(p: dict) -> dict:
                         "sampling": plan.at(0).resolved(), "max_tokens": int(spec["max_tokens"])}}
 
 
-def body_of(row: dict, spec: dict, budget_field: str, slot: int, model: str | None = None) -> dict:
+CONSTRAINTS = ("schema", "grammar")
+
+
+def body_of(row: dict, spec: dict, budget_field: str, slot: int, model: str | None = None, constraint: str = "schema") -> dict:
     """The llama-server body for one arm: think_ab's, with the room a thinking arm gets (its budget, or the slot for uncapped, never more
-    than the slot holds beside the prompt and the answer) and the budget field on a capped arm alone."""
+    than the slot holds beside the prompt and the answer) and the budget field on a capped arm alone.
+
+    (f544) The answer's shape, the same for every arm so thinking is the one thing that differs: "schema" (the default) sends it as
+    response_format, as f533 did, which the server's chat template turns into a grammar that binds only after the thinking; "grammar"
+    sends the game's own raw grammar (llm/llama.py since f527), which binds from the first token, so a call asked to think cannot."""
     from llm.contracts import SituationParts
     from tools import think_ab
     think_ab.NUM_CTX = slot
     room = int(spec["budget"]) if spec.get("budget") else slot
     body = think_ab.llama_body(row, SituationParts, bool(spec["think"]), room, model)
+    if constraint == "schema":
+        body.pop("grammar", None)
+        body["response_format"] = {"type": "json_schema", "json_schema": {"name": "SituationParts", "schema": SituationParts.model_json_schema(),
+                                                                          "strict": True}}
     if spec["think"] and spec.get("budget"):
         body[budget_field] = int(spec["budget"])
     return body
+
+
+FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?(.*?)\n?```\s*$", re.S)
+
+
+def unfenced(content: str) -> tuple[str, bool]:
+    """(f544) The answer without the ```json fence Gemma 4's chat parser writes around a response_format answer (f527 found it):
+    (the text, whether it was fenced). The contract reads the JSON inside; the fence is counted, never a leak."""
+    text = (content or "").strip()
+    m = FENCE.match(text)
+    return (m.group(1).strip(), True) if m else (text, False)
 
 
 # ---------- scoring
@@ -202,7 +226,7 @@ def score(content: str, store, world, case: dict, t: int, seed: int) -> dict:
     from engine import situations
     from llm.contracts import SituationParts
     out = {"valid": False, "error": "", "accepted": {}, "accepted_n": 0, "dropped": [], "parts": []}
-    text = (content or "").strip()
+    text, _ = unfenced(content)
     try:
         parts = SituationParts.model_validate_json(text)
     except Exception as e:
@@ -246,7 +270,7 @@ def setting(store, world, case: dict) -> str:
 # ---------- the server, checked before any case
 
 def check_server(url_base: str, first: dict, arm_names: list[str], budget_field: str, model: str | None, slot: int,
-                 say=print, timeout: float = 600.0) -> dict:
+                 say=print, timeout: float = 600.0, constraint: str = "schema") -> dict:
     """The slot the server gives a call must hold the game's slot; a thinking call must come back with its thinking; a call capped at
     PROBE_BUDGET must come back answered with its thinking near it. Any of these failing stops the run before a case is spent."""
     from engine import situations
@@ -265,7 +289,7 @@ def check_server(url_base: str, first: dict, arm_names: list[str], budget_field:
         return out
     capped = [a for a in thinking if A[a].get("budget")]
     spec = {"think": True, "budget": PROBE_BUDGET} if capped else {"think": True, "budget": None}
-    body = body_of(row_of(first), spec, budget_field, slot, model)
+    body = body_of(row_of(first), spec, budget_field, slot, model, constraint)
     if capped:
         body["max_tokens"] = int(situations.S["proposal"]["max_tokens"]) + 2048
     status, resp, took = think_ab.post(url_base.rstrip("/") + "/v1/chat/completions", body, timeout)
@@ -278,7 +302,8 @@ def check_server(url_base: str, first: dict, arm_names: list[str], budget_field:
         raise SystemExit(f"the probe call failed (HTTP {status}): {str(resp)[:300]}")
     if not got.get("thinking"):
         raise SystemExit("a call asked to think came back with no thinking (no reasoning_content): the server or its template does not "
-                         "honour enable_thinking, so every thinking arm would be measured as thinking off")
+                         "honour enable_thinking" + (", and a raw grammar binds from the first token (--constraint schema lets it think)"
+                                                     if constraint == "grammar" else "") + ", so every thinking arm would be measured as thinking off")
     if capped and (not (got.get("content") or "").strip() or th is None or th > PROBE_MOST):
         raise SystemExit(f"a call capped at {PROBE_BUDGET} thinking tokens thought about {th} and finished {got.get('finish')!r}: the server "
                          f"does not read the budget from {budget_field!r}; name the field it reads with --budget-field")
@@ -291,6 +316,7 @@ def check_server(url_base: str, first: dict, arm_names: list[str], budget_field:
 
 def run(store, world, chosen: list[dict], arm_names: list[str], *, server: str = "", stub: bool = False, seed: int = 543,
         budget_field: str = "thinking_budget_tokens", model: str | None = None, timeout: float = 600.0, out: Path | None = None,
+        constraint: str = "schema",
         sink=None, done: set | None = None, rows: list | None = None, give_up: int = 5, meta: dict | None = None, say=print) -> list[dict]:
     """Every case through every arm, the order turning case by case; a row a call, written to `sink` as it comes. `done` holds the
     (case, arm) already measured (a resumed run). Stops after `give_up` failed calls in a row (the server is not answering)."""
@@ -317,7 +343,7 @@ def run(store, world, chosen: list[dict], arm_names: list[str], *, server: str =
             if stub:
                 got = _stub_call(p)
             else:
-                body = body_of(row, spec, budget_field, slot, model)
+                body = body_of(row, spec, budget_field, slot, model, constraint)
                 rec["budget_sent"] = body.get(budget_field)
                 rec["max_tokens"] = body.get("max_tokens")
                 status, resp, took = think_ab.post(url, body, timeout)
@@ -333,7 +359,8 @@ def run(store, world, chosen: list[dict], arm_names: list[str], *, server: str =
             if th is not None:
                 rec["thinking_tokens"] = th
             rec["card_seconds"] = think_ab.card_seconds(rec.get("prompt_tokens"), rec.get("answer_tokens"), prof) if rec["finish"] != "failed" else None
-            rec["leaked"] = bool(content.strip()) and (not content.lstrip().startswith("{") or "<think" in content.lower())
+            bare, rec["fenced"] = unfenced(content)
+            rec["leaked"] = bool(bare) and (not bare.startswith("{") or "<think" in bare.lower())
             rec["no_thinking"] = bool(spec["think"]) and rec["finish"] != "failed" and not stub and not thinking
             rec["over_budget"] = bool(spec.get("budget")) and rec["finish"] != "failed" and (
                 rec["finish"] == "thought_out" or (th or 0) > OVER * int(spec["budget"]))
@@ -498,6 +525,7 @@ def arm_stats(rows: list[dict]) -> dict:
                     "thinking_tokens_p50": _q(think, 0.5), "thinking_tokens_p90": _q(think, 0.9),
                     "thinking_tokens_most": max(think) if think else None,
                     "leaked": sum(1 for r in rs if r.get("leaked")), "no_thinking": sum(1 for r in rs if r.get("no_thinking")),
+                    "fenced": sum(1 for r in rs if r.get("fenced")),
                     "over_budget": sum(1 for r in rs if r.get("over_budget"))}
     return out
 
@@ -596,7 +624,8 @@ def write_summary(folder: Path, rows: list[dict], decision: dict | None, meta: d
     out = ["# Thinking in a situation's parts", "",
            f"{meta.get('cases')} case(s), seed {meta.get('seed')}, arms {', '.join(meta.get('arms') or stats)}. Card seconds are what a "
            "call would take on the minimum card (data/measured/card_profile.yaml); a failed call counts as past any limit. A closure of "
-           "an only way is judged as at a birth with no way through offered yet.", ""]
+           "an only way is judged as at a birth with no way through offered yet. The answer's shape was sent to every arm as "
+           f"{'response_format (the server binds it after any thinking; a ```json fence around an answer is taken off and counted)' if meta.get('constraint', 'schema') == 'schema' else 'the raw grammar the game sends, bound from the first token'}.", ""]
     if meta.get("stopped"):
         out += [f"**The run stopped early: {meta['stopped']}.**", ""]
     out += ["| arm | calls | valid | finished | parts kept a proposal | p50 s | p90 s | thinking tokens p50 / p90 |", "|---|---|---|---|---|---|---|---|"]
@@ -609,7 +638,7 @@ def write_summary(folder: Path, rows: list[dict], decision: dict | None, meta: d
     for arm, st in stats.items():
         kinds = ", ".join(f"{k} {v}" for k, v in sorted(st["accepted_by_kind"].items())) or "none"
         drops = "; ".join(f"{k} ({v})" for k, v in st["dropped"].items()) or "none"
-        out.append(f"- **{arm}**: kept {kinds}. Dropped: {drops}.")
+        out.append(f"- **{arm}**: kept {kinds}. Dropped: {drops}." + (f" Fenced answers: {st['fenced']}." if st.get("fenced") else ""))
     warn = warnings_of(rows)
     if warn:
         out += ["", "## Warnings", ""] + [f"- {w}" for w in warn]
@@ -690,6 +719,8 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=543)
     ap.add_argument("--arms", default=",".join(situations.arms()), help="which arms, by name (situations.yaml thinking.arms)")
     ap.add_argument("--budget-field", default="thinking_budget_tokens", help="the request's field the server reads a thinking budget from")
+    ap.add_argument("--constraint", default="schema", choices=CONSTRAINTS,
+                    help="(f544) how the answer's shape is sent to every arm: schema (response_format; can think) or grammar (the game's own)")
     ap.add_argument("--model", default=None)
     ap.add_argument("--timeout", type=float, default=600.0)
     ap.add_argument("--ready-wait", type=float, default=600.0)
@@ -729,11 +760,13 @@ def main(argv=None) -> int:
     have = load_rows(out)
     if have and not (a.force or a.resume):
         raise SystemExit(f"{out / 'results.jsonl'} already holds {len(have)} row(s): --resume to go on with them, --force to start again")
-    meta = {"cases": a.cases, "arms": names, "seed": a.seed, "server": a.server or "stub", "budget_field": a.budget_field}
+    meta = {"cases": a.cases, "arms": names, "seed": a.seed, "server": a.server or "stub", "budget_field": a.budget_field,
+            "constraint": a.constraint}
     if a.resume and have:
         was = json.loads((out / "meta.json").read_text(encoding="utf-8")) if (out / "meta.json").exists() else {}
-        if (was.get("seed"), was.get("cases"), was.get("arms")) != (a.seed, a.cases, names):
-            raise SystemExit(f"--resume needs the run's own seed, cases and arms ({was.get('seed')}, {was.get('cases')}, {was.get('arms')})")
+        if (was.get("seed"), was.get("cases"), was.get("arms"), was.get("constraint", "schema")) != (a.seed, a.cases, names, a.constraint):
+            raise SystemExit(f"--resume needs the run's own seed, cases, arms and constraint ({was.get('seed')}, {was.get('cases')}, "
+                             f"{was.get('arms')}, {was.get('constraint', 'schema')})")
     else:
         have = []
     import simlib
@@ -751,17 +784,18 @@ def main(argv=None) -> int:
             from tools import think_ab
             url = a.server.rstrip("/") + "/v1/chat/completions"
             first = prompt_of(store, world, chosen[0], int(store.meta.minutes or 0))
-            warm = body_of(row_of(first), {"think": False, "budget": None}, a.budget_field, slot_tokens(), a.model)
+            warm = body_of(row_of(first), {"think": False, "budget": None}, a.budget_field, slot_tokens(), a.model, a.constraint)
             ok, why = think_ab.ready(lambda: think_ab.post(url, dict(warm, max_tokens=8), 120.0), a.ready_wait, print)
             if not ok:
                 raise SystemExit(f"the server is not ready: {why}")
-            meta.update(check_server(a.server, first, names, a.budget_field, a.model, slot_tokens(), timeout=a.timeout))
+            meta.update(check_server(a.server, first, names, a.budget_field, a.model, slot_tokens(), timeout=a.timeout, constraint=a.constraint))
         out.mkdir(parents=True, exist_ok=True)
         (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         started = True
         with (out / "results.jsonl").open("a" if have else "w", encoding="utf-8") as sink:
             run(store, world, chosen, names, server=a.server, stub=a.stub, seed=a.seed, budget_field=a.budget_field, model=a.model,
-                timeout=a.timeout, out=out, sink=sink, done={(r["case"], r["arm"]) for r in have}, rows=rows, give_up=a.give_up, meta=meta)
+                timeout=a.timeout, out=out, sink=sink, done={(r["case"], r["arm"]) for r in have}, rows=rows, give_up=a.give_up, meta=meta,
+                constraint=a.constraint)
     except KeyboardInterrupt:
         meta["stopped"] = "interrupted"
         print("  interrupted: what was measured is kept")

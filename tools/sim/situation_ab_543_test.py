@@ -187,7 +187,7 @@ class Fake(BaseHTTPRequestHandler):
         if MODE["fail"] and body.get("max_tokens") != 8:                         # the warm-up answers; every call after it fails
             return self.reply(500, {"error": {"message": "the model fell over", "code": 500}})
         user = body["messages"][-1]["content"]
-        think = body["chat_template_kwargs"]["enable_thinking"] and MODE["think"]
+        think = body["chat_template_kwargs"]["enable_thinking"] and MODE["think"] and "grammar" not in body   # (f544) a raw grammar binds at once
         budget = body.get("thinking_budget_tokens") if MODE["budget"] else None
         ANSWER.parts_bad = budget == 1024                                        # the capped arm answers past every cap, with ids
         content = json.dumps(ANSWER.a_SituationParts(user, {}))
@@ -195,6 +195,8 @@ class Fake(BaseHTTPRequestHandler):
         finish = "stop"
         if think and budget is None and "PLACE: parth" in user and body.get("max_tokens", 0) > 4000:   # uncapped at Parth: all the room thought
             content, finish = "", "length"
+        if content and "response_format" in body:
+            content = "```json\n" + content + "\n```"                              # (f527) Gemma 4's parser fences a response_format answer
         resp = {"choices": [{"index": 0, "finish_reason": finish, "message": {"role": "assistant", "content": content,
                                                                              **({"reasoning_content": "hmm " * thought} if think else {})}}],
                 "usage": {"prompt_tokens": 1200, "completion_tokens": thought + len(content) // 4},
@@ -256,8 +258,11 @@ check("a capped arm: thinking on, the budget field at its budget, room for it be
 slot = ab.slot_tokens()
 check("uncapped: thinking on, no budget field, room up to what the runtime's slot holds beside the prompt and the answer", len(unc_b) == 4
       and slot == 16384 and all(spec_max + 1024 < b["max_tokens"] < slot for b in unc_b), [b.get("max_tokens") for b in unc_b])
-check("every body carries the schema as its grammar and the task's samplers", all("SituationParts" in b["grammar"].splitlines()[0]
-      and "temperature" in b and "top_k" in b for b in seen1))
+check("every body carries the schema as response_format (never the raw grammar, which binds before any thinking) and the task's samplers",
+      all(b["response_format"]["json_schema"]["name"] == "SituationParts" and "grammar" not in b and b["response_format"]["json_schema"]["schema"]
+          and "temperature" in b and "top_k" in b for b in seen1), sorted(seen1[0]))
+check("the fence around a response_format answer is taken off and counted, never a leak", all(r["fenced"] and not r["leaked"]
+      for r in rows1 if r["content_chars"]) and any(r["fenced"] for r in rows1))
 offs = [r for r in rows1 if r["arm"] == "off"]
 caps_ = [r for r in rows1 if r["arm"] == "budget_1024"]
 check("off's answers are kept whole", all(r["valid"] and r["accepted_n"] > 0 and not r["dropped"] for r in offs), [(r["accepted_n"], r["dropped"]) for r in offs])
@@ -344,6 +349,15 @@ for what, change, words in (("ignores the budget field", {"budget": False}, "--b
     said = runs(args + ["--out", str(outx)])
     MODE.update({"budget": True, "think": True, "n_ctx": 16384})
     check(f"a server that {what} stops the run before any case, its results untouched", words in str(said) and not (outx / "results.jsonl").exists(), said)
+
+# ---- the game's own raw grammar: a call asked to think cannot, and the run says so before any case
+outg = tmp / "grammar"
+said = runs(args + ["--out", str(outg), "--constraint", "grammar"])
+gb = [b for b in SEEN if "grammar" in b]
+check("--constraint grammar sends the game's raw grammar, and with it the probe finds no thinking and names the schema as the way",
+      "--constraint schema" in str(said) and gb and all("response_format" not in b for b in gb) and not (outg / "results.jsonl").exists(), said)
+check("ab.unfenced takes a fence off and leaves plain JSON alone", ab.unfenced("```json\n{\"a\": 1}\n```") == ('{"a": 1}', True)
+      and ab.unfenced('{"a": 1}') == ('{"a": 1}', False))
 
 # ---- a server that fails: each call kept as failed, and the run stops after --give-up of them in a row
 MODE["fail"] = True
