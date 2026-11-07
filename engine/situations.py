@@ -2,17 +2,26 @@
 (llm/contracts.py SituationParts), part by part, and the fixed render of what passed.
 
 check() is pure: it reads the store and the world and writes nothing. It takes the parts in the order proposed, people first, and drops
-a part that fails with its reason while the rest stand: a person neither of the town nor a role the world has, one gone, the player, the
-same person twice, or past the caps by tier (data/rules/situations.yaml); a role resolves to a person of that trade in the town first, and
-only past them is someone new for the engine to make; a good the world does not have; a holder, a tie's end or what evidence points to
-that is not of the situation; a place or road the world does not have; a closure of the only way between two places when the situation
-offers no way through it; words that name the game's machinery. Whether each piece of evidence is true is rolled here, once, on the die
-passed in (the pulse's seeded one), against its certainty's chance (a sure piece never false); the proposing model is never told.
+a part that fails with its reason while the rest stand: a person neither of the town nor a role the world has, one gone, the player, a
+trade no situation casts, the same person twice, or past the caps by tier (data/rules/situations.yaml). A role is the town's own of that
+trade first: a person of it already made, else one the town's places are written with (bind "town", made when the place is first
+entered, as a clue settles on its role); only a trade the town has none of is someone new for the engine to make (bind "new"), within
+the tier's cap. A good the world does not have; a holder, a tie's end or what evidence points to that is not of the situation; a place or
+road the world does not have, or prices on a road (the pulse lays prices on a town); a closure of the only way between two places, the
+roads already shut and those this proposal shuts counted, when the situation offers no way through it; words that name the game's
+machinery: each dropped alone. Evidence held by a person may be false (rolled once on the die passed in, against its certainty's
+chance; a sure piece never false; the proposing model is never told); evidence lying at a place is only ever sure, since a false piece
+is only ever a claim its holder makes.
 
-render() makes THE PARTS lines from the names, trades and goods of the world, never an id, one line per part from the phrase tables,
-each drawn on streams.fixed(key, "parts", i), so a situation's lines are the same every time they are told."""
+Each accepted part is a dict with its kind and v (the shape's version), and for f545 what it binds to: a person's bind ("npc": who is an
+id; "town": who is a trade the town has, its person found or made when bound; "new": who is a trade for the engine to make), evidence's
+held ("person" or "place"). An evidence part carries its truth: it is never handed to the model that proposed the parts.
+
+render() makes the SITUATION PARTS lines from the names, trades and goods of the world, never an id, one line per part from the phrase
+tables, each drawn on streams.fixed(key, "parts", i), so a situation's lines are the same every time they are told."""
 from __future__ import annotations
 
+import collections
 import random
 from pathlib import Path
 
@@ -22,7 +31,8 @@ from engine import hygiene, retrieval, roads, streams
 
 ROOT = Path(__file__).resolve().parent.parent
 S = yaml.safe_load((ROOT / "data" / "rules" / "situations.yaml").read_text(encoding="utf-8"))
-KINDS = ("people", "resources", "ties", "conditions", "evidence")
+TIERS = ("normal", "uncommon", "rare", "campaign")
+V = 1
 
 
 def _raw(text: str, ids: set[str]) -> bool:
@@ -34,19 +44,32 @@ def _raw(text: str, ids: set[str]) -> bool:
     return any(w in ids for w in text.lower().replace(",", " ").replace(".", " ").split())
 
 
-def check(parts, store, world, tier: str, rng: random.Random, *, town: str = "", ways: bool = True,
+def _goods() -> dict:
+    from engine import inventory
+    return inventory.GOODS
+
+
+def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways: bool, now: int,
           player_id: str = "") -> tuple[list[dict], list[tuple[dict, str]]]:
     """(accepted parts, dropped (part, reason)). `town` is the situation's town (its people are found first for a role); `ways` whether
-    the situation offers the player a way through it (a closure of an only way needs one)."""
+    the situation offers the player a way through it (a closure of an only way needs one); `now` the minute it is born at."""
     from engine import pulse
     caps, why = S["caps"], S["reasons"]
     never = set(S.get("never_roles") or ())
     accepted: list[dict] = []
     dropped: list[tuple[dict, str]] = []
-    names = {pid for pid, pl in world.places.items() if pl.name.lower() == pid} | {rid for rid, r in world.roads.items() if r.name.lower() == rid}
-    ids = (set(world.places) | set(world.roads)) - names                     # a place called by its own id ("parth") is a name, not an id
+
+    def named(name: str, key: str) -> bool:                                  # "the Greywood" is greywood's name, not an id
+        n = name.lower()
+        return n == key or n.removeprefix("the ") == key
+    ids = {pid for pid, pl in world.places.items() if not named(pl.name, pid)} | {rid for rid, r in world.roads.items() if not named(r.name, rid)}
     rows = retrieval.people_in_town(store, world, town) if town else []
+    written = collections.Counter()                                          # the town's trades as its places are written, unmade or not
+    for pid in (retrieval.town_places(world, town) if town else []):
+        for role, n in (world.places[pid].residents or {}).items():
+            written[role] += int(n or 1)
     used: set[str] = set()
+    trades_used = collections.Counter()
     who_of: dict[str, str] = {}                                              # what the proposal called someone -> who they are
 
     def room(kind: str) -> str:
@@ -59,6 +82,9 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str = "",
     def drop(part, reason: str) -> None:
         dropped.append((part.model_dump() if hasattr(part, "model_dump") else dict(part), why[reason]))
 
+    def add(part: dict) -> None:
+        accepted.append({**part, "v": V})
+
     new = 0
     for p in parts.people:
         w = (p.who or "").strip()
@@ -66,30 +92,39 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str = "",
             drop(p, "player"); continue
         if _raw(p.label, ids):
             drop(p, "raw_id"); continue
-        person, made = "", False
         if store.npc_exists(w):
             n = store.load_npc(w)
             if n.gone:
                 drop(p, "gone"); continue
-            person = w
+            if n.role in never:
+                drop(p, "not_a_person"); continue
+            person, bind = w, "npc"
         elif w in world.roles and w not in never:
             free = next((r.id for r in rows if r.role == w and r.id not in used), "")
-            person, made = (free, False) if free else (w, True)              # (the owner) the town's own of that trade first
+            if free:
+                person, bind = free, "npc"                                   # (the owner) the town's own of that trade first...
+            elif trades_used[w] + sum(1 for r in rows if r.role == w) < written[w]:
+                person, bind = w, "town"                                     # ...one its places are written with, not yet met...
+            else:
+                person, bind = w, "new"                                      # ...and only past them someone new
         else:
             drop(p, "not_a_person"); continue
-        if person in used or w in who_of:
+        if (bind == "npc" and person in used) or w in who_of:
             drop(p, "twice"); continue
         full = room("person")
         if full:
             drop(p, full); continue
-        if made and new >= caps["new_people"].get(tier, 0):
+        if bind == "new" and new >= caps["new_people"].get(tier, 0):
             drop(p, "new_cap"); continue
-        holds = p.holds if p.holds in _goods() else ""
-        new += made
-        used.add(person)
+        new += bind == "new"
+        if bind == "npc":
+            used.add(person)
+        else:
+            trades_used[person] += 1
         who_of[w] = person
-        accepted.append({"kind": "person", "who": person, "new": made, "stake": p.stake, "want": p.want, "condition": p.condition,
-                         "holds": holds, "label": p.label})
+        who_of.setdefault(person, person)                                    # named later by the id it bound to, it is the same person
+        add({"kind": "person", "who": person, "bind": bind, "new": bind == "new", "stake": p.stake, "want": p.want,
+             "condition": p.condition, "holds": p.holds if p.holds in _goods() else "", "label": p.label})
 
     def person_of(ref: str) -> str:
         return who_of.get((ref or "").strip(), "")
@@ -105,33 +140,44 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str = "",
         full = room("resource")
         if full:
             drop(p, full); continue
-        accepted.append({"kind": "resource", "good": p.good, "state": p.state, "holder": holder, "label": p.label})
+        add({"kind": "resource", "good": p.good, "state": p.state, "holder": holder, "label": p.label})
+    pairs: set[tuple] = set()
     for p in parts.ties:
         a, b = person_of(p.a), person_of(p.b)
         if not a or not b:
             drop(p, "no_end"); continue
         if a == b:
             drop(p, "self_tie"); continue
+        if (frozenset((a, b)), p.tie) in pairs:
+            drop(p, "twice"); continue
         full = room("tie")
         if full:
             drop(p, full); continue
-        accepted.append({"kind": "tie", "a": a, "b": b, "tie": p.tie})
-    shut = pulse.shut_roads(store.load_world_state() or {}, world, 0) if parts.conditions else set()
+        pairs.add((frozenset((a, b)), p.tie))
+        add({"kind": "tie", "a": a, "b": b, "tie": p.tie})
+    shut = pulse.shut_roads(store.load_world_state() or {}, world, now) if parts.conditions else set()
     for p in parts.conditions:
-        if not (pulse.known(world, p.on) or p.on in world.roads):
+        on_road = p.on in world.roads
+        if not (pulse.known(world, p.on) or on_road) or (on_road and p.kind == "prices"):
             drop(p, "not_a_place"); continue
-        if p.kind == "closed" and p.on in world.roads and not ways and not roads.way_round(world, p.on, shut):
+        if p.kind == "closed" and on_road and not ways and not roads.way_round(world, p.on, shut):
             drop(p, "only_way"); continue
         if _raw(p.label, ids):
             drop(p, "raw_id"); continue
         full = room("condition")
         if full:
             drop(p, full); continue
-        accepted.append({"kind": "condition", "on": p.on, "what": p.kind, "label": p.label})
+        if p.kind == "closed" and on_road:
+            shut = shut | {p.on}                                             # two closures of one proposal never cut a town off between them
+        add({"kind": "condition", "on": p.on, "what": p.kind, "label": p.label})
     for p in parts.evidence:
-        holder = person_of(p.holder) or (p.holder if pulse.known(world, p.holder) else "")
+        holder, held = person_of(p.holder), "person"
+        if not holder and pulse.known(world, p.holder):
+            holder, held = p.holder, "place"
         if not holder:
             drop(p, "no_holder"); continue
+        if held == "place" and p.certainty != "sure":
+            drop(p, "claim_at_place"); continue
         points = person_of(p.points_to) or (p.points_to if pulse.known(world, p.points_to) or p.points_to in world.roads else "")
         if not points:
             drop(p, "points_nowhere"); continue
@@ -140,22 +186,21 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str = "",
         full = room("evidence")
         if full:
             drop(p, full); continue
-        false = rng.random() < float(S["false_chance"].get(p.certainty, 0.0))   # (the owner) the engine's, once; a sure piece never false
-        accepted.append({"kind": "evidence", "holder": holder, "points_to": points, "certainty": p.certainty, "label": p.label,
-                         "true": not false})
+        false = held == "person" and rng.random() < float(S["false_chance"].get(p.certainty, 0.0))   # (the owner) the engine's, once
+        add({"kind": "evidence", "holder": holder, "held": held, "points_to": points, "certainty": p.certainty, "label": p.label,
+             "true": not false})
     return accepted, dropped
 
 
-def _goods() -> dict:
-    from engine import inventory
-    return inventory.GOODS
-
-
 def render(accepted: list[dict], store, world, key: str, with_truth: bool = False) -> str:
-    """THE PARTS: one line per accepted part, names and goods never ids. `with_truth` adds whether each piece of evidence holds (for a
-    telling; never for the model that proposed the parts)."""
+    """SITUATION PARTS: one line per accepted part, names and goods never ids. `with_truth` adds whether each piece of evidence holds
+    (for a telling; never for the model that proposed the parts)."""
     P = S["phrases"]
     lines = []
+
+    def trade(role: str) -> str:
+        t = role.replace("_", " ")
+        return P["new_person"].format(a="an" if t[:1].lower() in "aeiou" else "a", trade=t)
 
     def name(who: str) -> str:
         if store.npc_exists(who):
@@ -164,10 +209,7 @@ def render(accepted: list[dict], store, world, key: str, with_truth: bool = Fals
             return world.places[who].name
         if who in world.roads:
             return world.roads[who].name
-        return P["new_person"].format(trade=who.replace("_", " "))
-
-    def part_name(a: dict) -> str:
-        return name(a["who"])
+        return trade(who)
 
     def good(g: str) -> str:
         gd = _goods().get(g)
@@ -177,7 +219,7 @@ def render(accepted: list[dict], store, world, key: str, with_truth: bool = Fals
         rng = streams.fixed(key, "parts", i)
         k = a["kind"]
         if k == "person":
-            line = rng.choice(P["stake"][a["stake"]]).format(name=part_name(a)) + " " + rng.choice(P["want"][a["want"]])
+            line = rng.choice(P["stake"][a["stake"]]).format(name=name(a["who"])) + " " + rng.choice(P["want"][a["want"]])
             if a.get("condition"):
                 line += ", " + rng.choice(P["condition"][a["condition"]])
             if a.get("holds"):
@@ -191,17 +233,43 @@ def render(accepted: list[dict], store, world, key: str, with_truth: bool = Fals
         elif k == "condition":
             line = rng.choice(P["kind"][a["what"]]).format(place=name(a["on"]))
         else:
-            line = rng.choice(P["certainty"][a["certainty"]]).format(holder=name(a["holder"]), label=a["label"].strip().rstrip("."),
-                                                                      points=name(a["points_to"]))
+            table = P["lies"] if a.get("held") == "place" else P["certainty"][a["certainty"]]
+            line = rng.choice(table).format(holder=name(a["holder"]), label=a["label"].strip().rstrip("."), points=name(a["points_to"]))
             if with_truth:
                 line += ". " + rng.choice(P["is_true"] if a.get("true", True) else P["is_false"]).rstrip(".")
         lines.append("- " + line[:1].upper() + line[1:].rstrip(".") + ".")
-    return ("THE PARTS:\n" + "\n".join(lines)) if lines else ""
+    return ("SITUATION PARTS:\n" + "\n".join(lines)) if lines else ""
+
+
+# The slots every line of a table must carry (data_check holds them), and the sample that fills them all.
+NEEDS = {"stake": {"name"}, "want": set(), "condition": set(), "tie": {"name", "other"}, "state": {"good"}, "kind": {"place"},
+         "certainty": {"holder", "label", "points"}}
+FLAT_NEEDS = {"holds": {"good"}, "held_by": {"name"}, "lies": {"holder", "label", "points"}, "is_true": set(), "is_false": set()}
+SAMPLE = {"name": "Hollis", "other": "Maud", "good": "salt", "place": "the ford", "holder": "Hollis", "label": "a cut rope",
+          "points": "the toll keeper", "trade": "bargeman", "a": "a"}
+
+
+def _line_problems(where: str, line, needs: set) -> list[str]:
+    import string
+    if not isinstance(line, str) or not line.strip():
+        return [f"situations.yaml {where}: a line of words is needed ({line!r})"]
+    try:
+        slots = {f for _, f, _, _ in string.Formatter().parse(line) if f is not None}
+    except ValueError as e:
+        return [f"situations.yaml {where}: '{line}' ({e})"]
+    bad = [f"situations.yaml {where}: '{line}' names {sorted(slots - set(SAMPLE))}, not among {sorted(SAMPLE)}"] if slots - set(SAMPLE) else []
+    if needs - slots:
+        bad.append(f"situations.yaml {where}: '{line}' leaves out {sorted(needs - slots)}")
+    if not bad:
+        out = line.format(**SAMPLE)
+        if "{" in out or "}" in out or "_" in out:
+            bad.append(f"situations.yaml {where}: '{line}' leaves machinery")
+    return bad
 
 
 def problems() -> list[str]:
-    """(f542) The lists held equal to the contract's Literals both ways, the caps and chances sound, every phrase table filled."""
-    import string
+    """(f542) The lists held equal to the contract's Literals both ways, the caps and chances sound, every phrase table filled, each of
+    its lines carrying its own slots and no others; a report, never a crash."""
     import typing
     from llm import contracts as c
     bad = []
@@ -212,53 +280,51 @@ def problems() -> list[str]:
     for name, model, field in (("stakes", c.PartPerson, "stake"), ("wants", c.PartPerson, "want"), ("conditions", c.PartPerson, "condition"),
                                ("ties", c.PartTie, "tie"), ("resource_states", c.PartResource, "state"),
                                ("place_kinds", c.PartCondition, "kind"), ("certainties", c.PartEvidence, "certainty")):
-        if set(L.get(name) or ()) != lit(model, field):
-            bad.append(f"situations.yaml lists.{name}: {sorted(set(L.get(name) or ()))} differs from the contract's {sorted(lit(model, field))}")
+        got = set(L.get(name) or ())
+        if got != lit(model, field):
+            bad.append(f"situations.yaml lists.{name}: {sorted(got)} differs from the contract's {sorted(lit(model, field))}")
     effects = set(typing.get_args(c.WorldEffect.model_fields["kind"].annotation))
-    for k in L.get("place_kinds") or ():
+    for k in lit(c.PartCondition, "kind"):
         if k not in effects:
-            bad.append(f"situations.yaml lists.place_kinds: '{k}' is not an effect the pulse applies")
+            bad.append(f"the contract's PartCondition kind '{k}' is not an effect the pulse applies")
     caps = S.get("caps") or {}
     for t in ("parts", "new_people"):
-        for tier, n in (caps.get(t) or {}).items():
-            if not isinstance(n, int) or n < 0:
-                bad.append(f"situations.yaml caps.{t}.{tier}: a whole number of 0 or more")
+        table = caps.get(t) or {}
+        for tier in TIERS:
+            n = table.get(tier)
+            if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+                bad.append(f"situations.yaml caps.{t}.{tier}: a whole number of 0 or more ({n!r})")
     for t in ("people", "each_other"):
-        if not isinstance(caps.get(t), int) or caps.get(t) < 1:
+        if not isinstance(caps.get(t), int) or isinstance(caps.get(t), bool) or caps.get(t) < 1:
             bad.append(f"situations.yaml caps.{t}: a whole number of 1 or more")
     fc = S.get("false_chance") or {}
     if set(fc) != set(L.get("certainties") or ()):
         bad.append("situations.yaml false_chance: one chance for each certainty")
     if fc.get("sure", 0) != 0:
         bad.append("situations.yaml false_chance.sure: a sure piece of evidence is never false (the owner)")
-    if any(not isinstance(v, (int, float)) or not 0 <= v <= 1 for v in fc.values()):
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not 0 <= v <= 1 for v in fc.values()):
         bad.append("situations.yaml false_chance: each a chance between 0 and 1")
     P = S.get("phrases") or {}
-    sample = {"name": "Hollis", "other": "Maud", "good": "salt", "place": "the ford", "holder": "Hollis", "label": "a cut rope",
-              "points": "the toll keeper", "trade": "bargeman"}
     tables = {"stake": L.get("stakes"), "want": L.get("wants"), "condition": L.get("conditions"), "tie": L.get("ties"),
               "state": L.get("resource_states"), "kind": L.get("place_kinds"), "certainty": L.get("certainties")}
     for table, keys in tables.items():
         for k in keys or ():
-            got = (P.get(table) or {}).get(k)
+            got = (P.get(table) or {}).get(k) if isinstance(P.get(table), dict) else None
             if not isinstance(got, list) or len(got) < 4:
                 bad.append(f"situations.yaml phrases.{table}.{k}: four lines or more, so nothing is told the same way twice running")
                 continue
             for line in got:
-                try:
-                    out = line.format(**sample)
-                except (KeyError, IndexError, ValueError) as e:
-                    bad.append(f"situations.yaml phrases.{table}.{k}: '{line}' ({e})"); continue
-                if "{" in out or "}" in out or "_" in out:
-                    bad.append(f"situations.yaml phrases.{table}.{k}: '{line}' leaves machinery")
-    for flat in ("holds", "held_by", "is_true", "is_false"):
+                bad += _line_problems(f"phrases.{table}.{k}", line, NEEDS[table])
+    for flat, needs in FLAT_NEEDS.items():
         got = P.get(flat)
-        if not isinstance(got, list) or len(got) < 4 or any("{" in x.format(**sample) for x in got):
-            bad.append(f"situations.yaml phrases.{flat}: four lines or more, every slot one of {sorted(sample)}")
-    if "{trade}" not in str(P.get("new_person") or ""):
-        bad.append("situations.yaml phrases.new_person: names someone yet to be made by {trade}")
+        if not isinstance(got, list) or len(got) < 4:
+            bad.append(f"situations.yaml phrases.{flat}: four lines or more")
+            continue
+        for line in got:
+            bad += _line_problems(f"phrases.{flat}", line, needs)
+    bad += _line_problems("phrases.new_person", P.get("new_person"), {"a", "trade"})
     for k in ("not_a_person", "gone", "player", "twice", "people_cap", "new_cap", "parts_cap", "kind_cap", "not_a_good", "no_holder",
-              "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id"):
+              "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id", "claim_at_place"):
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed")
     return bad

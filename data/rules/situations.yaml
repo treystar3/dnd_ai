@@ -39,10 +39,10 @@ false_chance:
 phrases:
   stake:
     gains: ["{name} stands to gain from the trouble", "{name} does well out of how things are", "{name} would lose by the trouble ending",
-            "the trouble puts money in the way of {name}"]
+            "{name} has money to make from the trouble"]
     harmed: ["{name} is hurt by it", "{name} is paying for it", "{name} has lost by it already", "{name} is caught in it"]
     can_fix: ["{name} could put it right", "{name} has the means to mend it", "{name} knows how it could be ended",
-              "it would take {name} to set it right"]
+              "{name} is the one who could set it right"]
     blocks: ["{name} stands in the way of an end to it", "{name} is keeping it as it is", "{name} would not have it mended",
              "{name} works against any remedy"]
     knows: ["{name} knows more of it than is said", "{name} saw how it began", "{name} holds a piece of the truth of it",
@@ -64,7 +64,7 @@ phrases:
     trusted: ["but helps only someone trusted", "but trusts no stranger yet", "but must be won over first", "but must trust whoever asks"]
     told: ["but wants to be told the truth first", "but helps once told what is known", "but wants news before helping",
            "but asks to hear what is known"]
-  holds: ["with {good} to hand", "keeping {good}", "holding {good}", "who has {good}"]
+  holds: ["with a supply of {good} to hand", "keeping a store of {good}", "holding a stock of {good}", "with {good} put by"]
   tie:
     rival: ["{name} and {other} are rivals", "{name} and {other} work against each other", "{name} and {other} have long been at odds",
             "{name} would see {other} lose"]
@@ -73,10 +73,11 @@ phrases:
     employs: ["{name} employs {other}", "{other} works for {name}", "{name} pays the wage of {other}", "{other} is in the hire of {name}"]
     fears: ["{name} fears {other}", "{name} is afraid of {other}", "{name} keeps clear of {other}", "{other} frightens {name}"]
   state:
-    scarce: ["{good} is scarce", "{good} is running short", "there is little {good} to be had", "{good} has grown dear and hard to find"]
-    stranded: ["{good} is stranded", "{good} is stuck where it cannot be moved", "a load of {good} sits waiting, going nowhere",
-               "{good} cannot be got through"]
-    wanted: ["{good} is wanted", "{good} is needed badly", "{good} is asked for everywhere", "{good} would fetch a good price"]
+    scarce: ["there is a shortage of {good}", "stocks of {good} are running low", "{good} has grown hard to come by",
+             "{good} is dear and hard to find"]
+    stranded: ["a load of {good} is stranded", "a cargo of {good} cannot be moved", "a load of {good} sits waiting, going nowhere",
+               "a cargo of {good} is stuck on the road"]
+    wanted: ["there is a call for {good}", "{good} is needed badly", "{good} is asked for everywhere", "{good} would fetch a good price"]
   held_by: ["held by {name}", "and {name} has it", "in the keeping of {name}", "with {name}"]
   kind:
     closed: ["the way at {place} is shut", "{place} cannot be passed", "nothing gets through at {place}", "{place} is closed to all"]
@@ -91,10 +92,13 @@ phrases:
                "{holder} was told it: {label}, which would point to {points}", "{holder} passes on what people say: {label}, pointing to {points}"]
     hearsay: ["{holder} half heard it: {label}, maybe pointing to {points}", "{holder} has a rumour of it: {label}, which may point to {points}",
               "{holder} picked it up third hand: {label}, perhaps pointing to {points}", "{holder} only guesses it: {label}, maybe leading to {points}"]
+  # evidence lying at a place, not held by anyone: only ever sure (a false piece is a claim, and a claim is a person's)
+  lies: ["{label} lies at {holder}, and it points to {points}", "at {holder} there is {label}, pointing to {points}",
+         "{label} can be found at {holder}, which points to {points}", "{holder} holds the sign of it: {label}, leading to {points}"]
   # for the tellings only, never for the model that proposed the parts (the owner: it is never told)
   is_true: ["It is so.", "It is true.", "It holds.", "It is the truth."]
   is_false: ["It is not so.", "It is false.", "It does not hold.", "It is not the truth."]
-  new_person: "a {trade}"                                   # one the engine has yet to make, by trade
+  new_person: "{a} {trade}"                                 # one yet to be met, by trade ({a}: a or an)
 
 # Why a part was dropped, for the pulse's log and the runner (never shown to a player).
 reasons:
@@ -114,3 +118,4 @@ reasons:
   only_way: "the only way between two places, and the situation offers no way through it"
   points_nowhere: "it points to no person, place or road of the situation"
   raw_id: "its words name the game's machinery"
+  claim_at_place: "evidence lying at a place is only ever sure: a doubtful piece is a claim, and a claim is someone's"
