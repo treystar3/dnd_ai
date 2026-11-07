@@ -85,7 +85,19 @@ server:
   batch: 1024
   ubatch: 1024
   threads: 0                # 0: the server's own choice (DND_NUM_THREAD, config.NUM_THREAD, sets it for a night)
-  cache_ram_mib: 2048       # the prompt cache in RAM, capped (llama-server's default is 8 GiB, untested; f530 sets this on the 3060)
+  cache_ram_mib: 2048       # the prompt cache in RAM, capped (llama-server's default is 8 GiB; 0 turns it off). (f537) One entry is a
+                            # slot's whole state with its checkpoints, about 0.8 GiB on the 6 Nov night; 2 GiB held two to four and
+                            # evicted 270 times. Each new prompt that displaces a slot's prompt saves that state to RAM and looks for a
+                            # better one: 190 times that night, 550 ms each, 104 s of the 7.7 minutes. Sized on the pod, then the 3060 (f530)
+  ctx_checkpoints: 32       # (f537) context checkpoints a slot keeps (the server's default); each is the sliding-window state at the
+                            # start of a user message or near a prompt's end, up to 320 MiB (half of them that, a quarter under 150 MiB),
+                            # and the RAM cache saves them with the slot
+  kv_type: f16              # (f537) the KV cache's type for K and V: f16 (the server's default), bf16, q8_0 (half the memory and half the
+                            # copying, quality near f16), q4_0, q4_1, q5_0, q5_1, iq4_nl, f32. A quantized type turns flash attention on;
+                            # the Vulkan night is measured with it. Measured on the pod before any change
+  cache_idle_slots: true    # (f537) whether an idle slot's state is also saved to the RAM cache when a new task starts (the server's
+                            # default); off, only the slot a new prompt displaces is saved. On the 6 Nov night 91 idle saves copied state
+                            # (115 found it already cached), 380 ms each, 35 s in all, for 5 reuses
   draft_n_max: 3            # the draft model guesses this many tokens ahead (the pod: 75% accepted, writing 1.55 times as fast)
   start_seconds: 300        # the longest a load may take before it is 'failed' (the pod: 7.9 s cold on its own disk)
   hang_seconds: 1800        # the hang guard for one call on a machine below the minimum card (f526)

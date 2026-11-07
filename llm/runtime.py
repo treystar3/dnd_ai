@@ -121,10 +121,14 @@ def runtime_problems(cfg: dict | None = None, check_files: bool = False, runtime
         v = mach.get(k)
         if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
             bad.append(f"data/runtime/server.yaml machine.{k}: a whole number of MiB above zero (the minimum card's memory)")
-    for k in ("batch", "ubatch", "cache_ram_mib", "start_seconds", "hang_seconds", "restarts", "max_cancels"):
+    for k in ("batch", "ubatch", "cache_ram_mib", "start_seconds", "hang_seconds", "restarts", "max_cancels", "ctx_checkpoints"):
         v = s.get(k)
         if not isinstance(v, int) or isinstance(v, bool) or v < 0:
             bad.append(f"data/runtime/server.yaml server.{k}: a whole number, zero or more")
+    if s.get("kv_type") not in KV_TYPES:                                        # (f537) the server's own list of cache types
+        bad.append(f"data/runtime/server.yaml server.kv_type: one of {', '.join(KV_TYPES)}")
+    if not isinstance(s.get("cache_idle_slots"), bool):
+        bad.append("data/runtime/server.yaml server.cache_idle_slots: true or false")
     idle = s.get("resume_idle_seconds")
     if isinstance(idle, bool) or not isinstance(idle, (int, float)) or idle < 0:
         bad.append("data/runtime/server.yaml server.resume_idle_seconds: a number of seconds, zero or more")
@@ -212,6 +216,9 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+KV_TYPES = ("f16", "bf16", "q8_0", "q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "f32")     # (f537) llama-server's cache types (common/arg.cpp)
+
+
 def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: str | None = None, adapters=()) -> list[str]:
     s, m = cfg["server"], cfg["models"]
     chat = next(v for v in m.values() if v.get("role") == "chat")
@@ -220,6 +227,10 @@ def chat_argv(exe: Path, cfg: dict, port: int, key: str, models: Path, device: s
     argv = [str(exe), "--model", str(models / chat["file"]), "--host", "127.0.0.1", "--port", str(port), "--api-key", key, "--no-webui",
             "--jinja", "-np", str(s["slots"]), "-c", str(ctx), "--fit", "on", "--fit-ctx", str(ctx),
             "--cache-ram", str(s["cache_ram_mib"]), "--flash-attn", "auto", "-b", str(s["batch"]), "-ub", str(s["ubatch"]),
+            # (f537) the prompt cache's shape, measured before any change: the checkpoints a slot keeps, the KV cache's type, and whether
+            # an idle slot is saved to the RAM cache when a task starts (the server's defaults are 32, f16 and saving)
+            "--ctx-checkpoints", str(s.get("ctx_checkpoints", 32)), "-ctk", str(s.get("kv_type", "f16")), "-ctv", str(s.get("kv_type", "f16")),
+            "--cache-idle-slots" if s.get("cache_idle_slots", True) else "--no-cache-idle-slots",
             "-lv", "4"]       # (f526, the real card) the library's load lines ("offloaded 49/49 layers to GPU", the fit's decisions) are
                               # "trace", one above the default: without this the class is read as below the minimum on every machine
     if draft is not None:

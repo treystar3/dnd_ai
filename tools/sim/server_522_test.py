@@ -200,6 +200,10 @@ try:
     check("the fit step held at the full context, no -ngl", val("--fit") == "on" and val("--fit-ctx") == "32768" and "-ngl" not in args)
     check("the cache capped, the batch, flash attention, the template", val("--cache-ram") == str(CFG["server"]["cache_ram_mib"])
           and val("-b") == "1024" and val("-ub") == "1024" and val("--flash-attn") == "auto" and "--jinja" in args)
+    check("(f537) the cache's shape from the settings: checkpoints, the KV type for K and V, the idle-slot saving",
+          val("--ctx-checkpoints") == str(CFG["server"]["ctx_checkpoints"]) and val("-ctk") == CFG["server"]["kv_type"] == val("-ctv")
+          and ("--cache-idle-slots" in args) == CFG["server"]["cache_idle_slots"] and ("--no-cache-idle-slots" in args) != CFG["server"]["cache_idle_slots"],
+          [a for a in args if "cache" in a or a in ("-ctk", "-ctv")])
     check("the draft model", val("--spec-type") == "draft-mtp" and val("--spec-draft-model") == str(models_dir / CFG["models"]["draft"]["file"])
           and val("--model") == str(models_dir / CFG["models"]["chat"]["file"]))
     check("its own process group and session", os.getpgid(child.proc.pid) != os.getpgid(0) and os.getsid(child.proc.pid) == child.proc.pid)
