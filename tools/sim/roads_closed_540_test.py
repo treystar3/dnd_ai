@@ -47,9 +47,10 @@ road = (th or {}).get("words", {}).get("ids", {}).get("road") if th else ""
 road = road or next((e["place"] for e in state["effects"] if e["kind"] == "closed"), "")
 shut = [e for e in state["effects"] if e["kind"] == "closed" and e["place"] in world.roads]
 check("its first stage shuts the road itself, keyed by the road's id", road in world.roads and [e["place"] for e in shut] == [road], (road, shut))
-rows = [json.loads(l) for l in open(f"saves/roads_540/pulse_log.jsonl", encoding="utf-8")] if __import__("os").path.exists("saves/roads_540/pulse_log.jsonl") else []
-said = [ef for r in rows for ef in r.get("effects") or [] if "closed" in json.dumps(ef)]
-check("...and the pulse's log says the closure was applied, not ignored", not said or all("ignored" not in json.dumps(x) for x in said), said)
+from engine import pulselog
+said = [ef for r in pulselog.LOG for ef in r.get("effects") or [] if ef.get("text", "").startswith("closed")]
+check("...and the pulse's log says the closure was applied, at the road's name", said and said[0]["result"] == "applied"
+      and world.roads[road].name in said[0]["text"], said)
 check("the closure lasts the situation: no clock of its own, the 60-day cap the only safety",
       shut and shut[0]["until"] >= t0 + pulse.P["effects"]["max_days"] * 1440 and shut[0].get("thread") == th["id"], shut)
 check("...and why the way is shut is the store's to say", pulse.closed_reason(store, road, ws.minutes) == shut[0]["text"] if shut else False)
@@ -97,6 +98,65 @@ if lone and mesh:
     ws.world.add_place(Place(**stop["place"]))                 # (f451) through the campaign's world, as the road's stop is made
     check("a stop on the road is never a way round it", stop["id"] in ws.world.places and roads.way_round(ws.world, lone[0]) is False)
     ws.world.remove_place(stop["id"])
+
+# (f540's review) the way through is judged when it is known, and a situation that is over offers none
+if lone and mesh:
+    def thread(tid, paths, status="active", end_days=5):
+        th_ = {"id": tid, "title": tid, "tier": "normal", "status": status, "stage": 0, "place": "parth", "stages": [{"description": "x",
+               "effects": []}], "times": [ws.minutes, ws.minutes + end_days * 1440], "paths": paths, "groups": ["everyone"]}
+        state["threads"].append(th_)
+        return th_
+    lone_shut = {"kind": "closed", "place": lone[0], "days": 2, "text": "a fall of rock"}
+    def shut_by(tid):
+        return [e for e in state["effects"] if e.get("thread") == tid and e["kind"] == "closed" and e["until"] > ws.minutes]
+    thread("T_paths", [{"id": "p", "done": False}])
+    thread("T_none", [])
+    thread("T_taken", [{"id": "p", "done": True}])
+    pulse.apply_effects(store, world, ws.catalog, state, [lone_shut], "normal", ws.minutes, "test", raw=True, thread_id="T_paths")
+    pulse.apply_effects(store, world, ws.catalog, state, [lone_shut], "normal", ws.minutes, "test", raw=True, thread_id="T_none")
+    pulse.apply_effects(store, world, ws.catalog, state, [lone_shut], "normal", ws.minutes, "test", raw=True, thread_id="T_taken")
+    check("a later stage shuts the only way when its situation has a way through not yet taken, and not otherwise",
+          shut_by("T_paths") and not shut_by("T_none") and not shut_by("T_taken"), [len(shut_by(x)) for x in ("T_paths", "T_none", "T_taken")])
+    over = thread("T_over", [{"id": "p", "done": False}], status="ended")
+    pulse.apply_effects(store, world, ws.catalog, state, [lone_shut], "normal", ws.minutes, "test", raw=True, thread_id="T_over")
+    pulse.apply_effects(store, world, ws.catalog, state, [{**lone_shut, "place": mesh[0]}], "normal", ws.minutes, "test", raw=True,
+                        thread_id="T_over")
+    gone = [e for e in shut_by("T_over") if e["place"] == mesh[0]]
+    check("a fallout (its situation over) never shuts the only way, and shuts another road for its own days, not the situation's span",
+          not any(e["place"] == lone[0] for e in shut_by("T_over")) and gone and gone[0]["until"] == ws.minutes + 2 * 1440, shut_by("T_over"))
+    first = thread("T_first", [])                                # a first stage, applied before the paths: then lifted for want of one
+    pulse.apply_effects(store, world, ws.catalog, state, [lone_shut], "normal", ws.minutes, "test", raw=True, thread_id="T_first", ways=True)
+    row = {"effects": []}
+    pulse.unshut_without_way(world, state, first, ws.minutes, row)
+    kept = thread("T_kept", [{"id": "p", "done": False}])
+    pulse.apply_effects(store, world, ws.catalog, state, [lone_shut], "normal", ws.minutes, "test", raw=True, thread_id="T_kept", ways=True)
+    pulse.unshut_without_way(world, state, kept, ws.minutes)
+    check("a first stage's closure of the only way is lifted once its situation has no way through, and kept when it has one",
+          not shut_by("T_first") and shut_by("T_kept") and row["effects"] and "lifted" in row["effects"][0]["result"], row)
+    long_ = thread("T_long", [{"id": "p", "done": False}], end_days=90)
+    pulse.apply_effects(store, world, ws.catalog, state, [{**lone_shut, "place": mesh[0]}], "normal", ws.minutes, "test", raw=True,
+                        thread_id="T_long")
+    check("a situation longer than the 60-day safety keeps its road shut to its end", shut_by("T_long")
+          and shut_by("T_long")[0]["until"] >= long_["times"][-1] + 1440, shut_by("T_long"))
+    long_["times"][-1] += 30 * 1440                              # put off, as a campaign judged in part is
+    pulse.tick_threads(store, world, ws.catalog, state, ws.minutes, random.Random(1))
+    check("...and to its end when the end is put off", shut_by("T_long")[0]["until"] >= long_["times"][-1] + 1440, shut_by("T_long"))
+    for tid in ("T_paths", "T_none", "T_taken", "T_over", "T_first", "T_kept", "T_long"):
+        state["effects"] = [e for e in state["effects"] if e.get("thread") != tid]
+    state["threads"] = [x for x in state["threads"] if not x["id"].startswith("T_")]
+    # two closures never cut a town off between them
+    pair = next(((x, y) for x in mesh for y in sorted(world.roads) if y != x and roads.way_round(world, x)
+                 and not roads.way_round(world, x, {y})), None)
+    check("the world has a road whose only way round runs over another road", pair is not None)
+    if pair:
+        x, y = pair
+        t = ws.minutes
+        pulse.apply_one(store, world, ws.catalog, state, {"kind": "closed", "place": y, "days": 3, "text": "a toll gate"}, "normal", t, "test",
+                        ways=True)
+        got = pulse.apply_one(store, world, ws.catalog, state, {"kind": "closed", "place": x, "days": 3, "text": "a fall of rock"}, "normal", t,
+                              "test", ways=False)
+        check("a road whose way round is shut already is the only way, and is not shut with no way through", got.startswith("skipped"), got)
+        state["effects"] = [e for e in state["effects"] if e.get("cause") != "test" or e["place"] not in (x, y)]
 
 # the situation's end lifts its closure, however it ends
 pulse.end_thread(store, state, th, "faded", "", ws.minutes)

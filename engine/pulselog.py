@@ -75,7 +75,8 @@ def describe(e: dict, store, world) -> str:
         bits.append(f"toward {e['other']}")
     if e.get("place"):
         p = world.places.get(e["place"])
-        bits.append("at " + (p.name if p else f"{e['place']} (unknown)"))
+        r = world.roads.get(e["place"]) if p is None else None                     # (f540) a road may be closed, marked or made dangerous
+        bits.append("at " + (p.name if p else r.name if r else f"{e['place']} (unknown)"))
     if e.get("role"):
         bits.append(e["role"])
     if e.get("creature"):

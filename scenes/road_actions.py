@@ -261,7 +261,7 @@ class RoadActions:
 
     def journey_facts(self, route, a, b, walked: int) -> str:
         """(f408) Where the player set out from, where they are bound, the road they are on and how long they have walked."""
-        r = self.world.road_between(a, b)
+        r = self.world.road_between(a, b) or self.world.roads.get(roads.way_key(self.world, a, b))   # (f540's review) from a stop too
         way = r.name if r else f"the way toward {self.world.places[b].name}"
         marks = pulse.road_marks(self.store.load_world_state() or {}, r.id) if r else []      # (f540) what the road carries now
         return (f"set out from {self.world.places[route[0]].name}, bound for {self.world.places[route[-1]].name}; now on {way}, "

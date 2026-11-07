@@ -2749,7 +2749,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def where_name(self, place_id: str) -> str:
         p = self.world.places.get(place_id)
-        return p.name if p else "somewhere on the road"
+        r = self.world.roads.get(place_id) if p is None else None             # (f540) a road a situation lies on, by its name
+        return p.name if p else r.name if r else "somewhere on the road"
 
     def people_elsewhere(self) -> list:
         """Everyone the player has met who is not here: from the index, not the records (storage.campaign.NPCRow)."""

@@ -47,9 +47,10 @@ def known(world, place_id) -> bool:
     return bool(p) and p.type != "road"
 
 
-def known_way(world, place_id) -> bool:
-    """(f540) What a closure, a mark or danger may be laid on: a real place of the world, or a named road (world.roads, by its id)."""
-    return known(world, place_id) or (place_id or "") in world.roads
+def shut_roads(state: dict, world, t: int) -> set[str]:
+    """(f540's review) The named roads a closure holds shut now (a closure the player made themselves aside)."""
+    return {e["place"] for e in state.get("effects", []) if e["kind"] == "closed" and e["until"] > t and e["place"] in world.roads
+            and e.get("cause") != "improvised"}
 
 
 def road_marks(state: dict, road_id: str) -> list[str]:
@@ -429,7 +430,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
                         reach=any(x["id"] == thread_id for x in within_reach(store, world, state, t)))
     apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row,
-                  ways=bool(proposal.paths))                         # (f540) its paths are built below: whether it offers any, from the proposal
+                  ways=True)                                         # (f540) its paths are built below: unshut_without_way decides then
     from engine import matters                                      # (f317) the door the player meets it through, and what it carries
     reputation = store.load_player().reputation.get(town_of(world, proposal.place), 0) if store.player_exists() else 0
     matters.attach(store, world, state, thread, proposal, reputation, rng, t, door=door)
@@ -440,6 +441,7 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     thread["paths"] = events.build_paths(store, world, state, proposal.paths, thread, posted and not thread["hidden"])
     if big and not thread["paths"]:                                  # a big event the model left with no checkable way to end it gets one
         events.ensure_a_way(store, world, state, thread, t, rng)
+    unshut_without_way(world, state, thread, t, row)                 # (f540's review) the only road shut only with a way through
     if big:
         thread["scope_places"] = sorted({e.place for st in proposal.stages for e in st.effects if e.place in world.places})
     console.debug(f"pulse: [{tier}] {proposal.title} at {proposal.place}")
@@ -560,6 +562,10 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             elif th["tier"] in events.BIG:
                 events.sync_paths(state, th)
             changed = True
+        if th["status"] == "active":                              # (f540's review) a road it shuts stays shut its whole span, put off or not
+            for e in state.get("effects", []):
+                if e.get("thread") == th["id"] and e["kind"] == "closed" and e["place"] in world.roads and t < e["until"] < th["times"][-1] + 1440:
+                    e["until"] = int(th["times"][-1]) + 1440
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
                 who = resolver(store, world, th, rng, t)
@@ -752,12 +758,33 @@ def apply_effects(store, world, catalog, state, effects, tier: str, t: int, caus
                 pass
 
 
+def thread_of(state: dict, thread_id: str) -> dict | None:
+    return next((x for x in state.get("threads", []) if x.get("id") == thread_id), None) if thread_id else None
+
+
 def ways_through(state: dict, thread_id: str, ways: bool | None = None) -> bool:
-    """(f540) Whether a situation offers the player a way through it (a path not yet taken): as said when known, else its own paths."""
+    """(f540) Whether a situation offers the player a way through it (a path not yet taken): as said when known, else its own paths.
+    (f540's review) A situation that is over offers none: what its fallout lays is not a matter anyone can still settle."""
+    th = thread_of(state, thread_id)
+    if th is not None and th.get("status") != "active":
+        return False
     if ways is not None:
         return ways
-    th = next((x for x in state.get("threads", []) if x.get("id") == thread_id), None) if thread_id else None
-    return bool(th) and any(not p.get("done") for p in th.get("paths") or [])
+    return th is not None and any(not p.get("done") for p in th.get("paths") or [])
+
+
+def unshut_without_way(world, state: dict, thread: dict, t: int, row: dict | None = None) -> None:
+    """(f540's review) A situation's first stage is applied before its paths are built, as if it offered a way through; once they are
+    built, a situation left with none lifts its closures of a road that is the only way between its ends."""
+    if any(not p.get("done") for p in thread.get("paths") or []):
+        return
+    for e in state.get("effects", []):
+        if (e.get("thread") == thread["id"] and e["kind"] == "closed" and e["until"] > t and e["place"] in world.roads
+                and not roads.way_round(world, e["place"], shut_roads(state, world, t))):
+            e["until"] = t
+            if row is not None:
+                pulselog.effect(row, f"closed at {world.roads[e['place']].name}", "lifted: the only way between its ends, and the situation "
+                                "offers no way through it")
 
 
 def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str, thread_id: str = "", ways: bool | None = None) -> str:
@@ -810,9 +837,11 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "closed" and e.get("place") in world.roads:
-        if not ways_through(state, thread_id, ways) and not roads.way_round(world, e["place"]):
+        if not ways_through(state, thread_id, ways) and not roads.way_round(world, e["place"], shut_roads(state, world, t)):
             return "skipped: the only way between its ends, and the situation offers no way through it"
-        until = t + (lim["max_days"] if thread_id else days) * 1440
+        th = thread_of(state, thread_id)
+        until = (max(t + lim["max_days"] * 1440, int((th.get("times") or [t])[-1]) + 1440)      # the situation's whole span (renewed in
+                 if th is not None and th.get("status") == "active" else t + days * 1440)      # tick_threads if it is put off); a fallout's
         state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": until,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "mark" and known(world, e.get("place")) and e.get("text"):

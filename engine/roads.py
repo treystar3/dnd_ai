@@ -30,18 +30,20 @@ def way_key(world, a: str, b: str) -> str:
     return edge_key(world, a, b)
 
 
-def way_round(world, road_id: str) -> bool:
+def way_round(world, road_id: str, shut=()) -> bool:
     """(f540) Whether a named road's two ends are joined some other way: with its stretch shut, can one still walk from one end to the
-    other? A stop on the road (a place of type road made for one journey) is never a way round: it lies on the stretch itself."""
+    other? A stop on the road (a place of type road made for one journey) is never a way round: it lies on the stretch itself; nor
+    (f540's review) is any road in `shut`, the roads already shut, so two closures never cut a town off between them."""
     r = world.roads.get(road_id)
     if r is None or r.from_ not in world.places or r.to not in world.places:
         return False
     cut = {r.from_, r.to}
+    barred = [{x.from_, x.to} for k, x in world.roads.items() if k in set(shut or ()) and k != road_id]
     seen, todo = {r.from_}, [r.from_]
     while todo:
         here = todo.pop()
         for nxt in world.neighbors(here):
-            if nxt in seen or {here, nxt} == cut or world.places[nxt].type == "road":
+            if nxt in seen or {here, nxt} == cut or world.places[nxt].type == "road" or {here, nxt} in barred:
                 continue
             if nxt == r.to:
                 return True
