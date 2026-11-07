@@ -399,7 +399,8 @@ class GoddessLine(BaseModel):
         return self
 
 
-PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody"}
+PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody",
+                "empty", "blank"}                    # (f545) a prompt that says "or leave it blank" is sometimes answered with the word
 
 
 def blank_placeholders(*fields: str):
@@ -1433,12 +1434,14 @@ class PartPerson(BaseModel):
 
 
 class PartResource(BaseModel):
-    """A good the trouble turns on: its id from GOODS, who holds it (a person's `who` from the parts, or none) and how it stands."""
+    """A good the trouble turns on: its id from GOODS, who holds it (a person's `who` from the parts, or none) and how it stands; (f545)
+    for a wanted good, who wants it."""
     good: str
     state: Literal["scarce", "stranded", "wanted"]
     holder: str = ""
+    wanted_by: str = ""
     label: str = ""
-    _blank = blank_placeholders("holder", "label")
+    _blank = blank_placeholders("holder", "wanted_by", "label")
 
 
 class PartTie(BaseModel):

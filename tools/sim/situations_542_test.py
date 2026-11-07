@@ -79,7 +79,7 @@ check("an answer with no parts at all is refused, so the gateway asks once more"
 p = parts(people=[person(a_.id, "gains", "coin"), person("dragon_king", "blocks"), person("player", "knows", "believed"),
                   person(ws.acting, "knows", "believed"), person(a_.id, "knows", "believed"), person(b_.id, label="lost the trading_square stall")],
           resources=[{"good": "dragon_gold", "state": "wanted"}, {"good": good_id, "state": "scarce", "holder": "dragon_king"},
-                     {"good": good_id, "state": "scarce", "holder": a_.id}, {"good": good_id, "state": "wanted", "label": "the a_cut stock"}],
+                     {"good": good_id, "state": "scarce", "holder": a_.id}, {"good": good_id, "state": "wanted", "wanted_by": a_.id, "label": "the a_cut stock"}],
           conditions=[{"on": "atlantis", "kind": "closed"}, {"on": road, "kind": "prices"}, {"on": town, "kind": "prices"}],
           ties=[{"a": a_.id, "b": a_.id, "tie": "kin"}, {"a": a_.id, "b": "nobody", "tie": "owes"}],
           evidence=[{"label": "a boot print", "holder": a_.id, "points_to": "the moon", "certainty": "sure"},
@@ -121,7 +121,7 @@ check("...and so are the chances: sure never false, they say one in five, hearsa
       situations.S["false_chance"] == {"sure": 0.0, "they say": 0.2, "hearsay": 0.5}, situations.S["false_chance"])
 def many(tier):
     ppl = [person(r.id) for r in rows[:3]] + [person(unmade[0])]
-    return run(parts(people=ppl, resources=[{"good": goods[0], "state": "scarce"}, {"good": goods[1], "state": "wanted"}],
+    return run(parts(people=ppl, resources=[{"good": goods[0], "state": "scarce"}, {"good": goods[1], "state": "wanted", "wanted_by": rows[0].id}],
                      ties=[{"a": rows[0].id, "b": rows[1].id, "tie": "kin"}, {"a": rows[1].id, "b": rows[2].id, "tie": "owes"}],
                      conditions=[{"on": town, "kind": "mark"}]), tier=tier)
 for tier, n in situations.S["caps"]["parts"].items():
@@ -184,7 +184,8 @@ strip = lambda acc_: [{k: v for k, v in a.items() if k != "true"} for a in acc_]
 check("another die may turn a hearsay piece false, and nothing else", flips == {True, False}
       and all(strip(run(ev, seed=s)[0]) == strip(one[0]) for s in range(10)), flips)
 check("a sure piece is never false, over 200 dice", all(run(ev, seed=s)[0][2]["true"] for s in range(200)))
-say = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "they say"}])
+say = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "they say"},
+                                                                  {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])   # (f545) beside a true piece
 check("...and 'they say' is false about one time in five (data)", 0.1 < sum(not run(say, seed=s)[0][1]["true"] for s in range(400)) / 400 < 0.3)
 lying = {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}
 acc, dropped = run(parts(evidence=[{**lying, "certainty": "hearsay"}, lying]))

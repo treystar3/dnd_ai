@@ -93,12 +93,17 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         accepted.append({**part, "v": V})
 
     new = 0
+    stances = S.get("stances") or {}
+    refused = {tuple(x) for x in stances.get("refused") or ()}
+    lifted = {tuple(x) for x in stances.get("lifted") or ()}
     for p in parts.people:
         w = (p.who or "").strip()
         if w.lower() in ("player", "the player", "you") or w in players:
             drop(p, "player"); continue
         if _raw(p.label, ids):
             drop(p, "raw_id"); continue
+        if (p.stake, p.want) in refused:
+            drop(p, "contrary"); continue                                    # (f545) one who blocks an end to it does not want it ended
         if store.npc_exists(w):
             n = store.load_npc(w)
             if n.gone:
@@ -130,8 +135,9 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             trades_used[person] += 1
         who_of[w] = person
         who_of.setdefault(person, person)                                    # named later by the id it bound to, it is the same person
+        condition = "" if (p.want, p.condition) in lifted else p.condition    # (f545) one who wants coin needs no condition of pay
         add({"kind": "person", "who": person, "bind": bind, "new": bind == "new", "stake": p.stake, "want": p.want,
-             "condition": p.condition, "holds": p.holds if p.holds in _goods() else "", "label": p.label})
+             "condition": condition, "holds": p.holds if p.holds in _goods() else "", "label": p.label})
 
     def person_of(ref: str) -> str:
         return who_of.get((ref or "").strip(), "")
@@ -142,12 +148,15 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         holder = person_of(p.holder) if p.holder else ""
         if p.holder and not holder:
             drop(p, "no_holder"); continue
+        wanter = person_of(p.wanted_by) if p.state == "wanted" else ""      # (f545) a wanted good names who wants it, one of the situation
+        if p.state == "wanted" and not wanter:
+            drop(p, "no_wanter"); continue
         if _raw(p.label, ids):
             drop(p, "raw_id"); continue
         full = room("resource")
         if full:
             drop(p, full); continue
-        add({"kind": "resource", "good": p.good, "state": p.state, "holder": holder, "label": p.label})
+        add({"kind": "resource", "good": p.good, "state": p.state, "holder": holder, "wanted_by": wanter, "label": p.label})
     pairs: set[tuple] = set()
     for p in parts.ties:
         a, b = person_of(p.a), person_of(p.b)
@@ -196,7 +205,27 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         false = held == "person" and rng.random() < float(S["false_chance"].get(p.certainty, 0.0))   # (the owner) the engine's, once
         add({"kind": "evidence", "holder": holder, "held": held, "points_to": points, "certainty": p.certainty, "label": p.label,
              "true": not false})
+    settle(accepted)
     return accepted, dropped
+
+
+def settle(accepted: list[dict]) -> None:
+    """(f545) What the whole situation decides of its parts, once every part is in, so nothing kept is a locked door or a lie no one can
+    find out. A condition the situation offers no way to meet is lifted, and the person helps freely: told needs a piece of evidence
+    someone else holds (a person, or a place), given needs a good that person wants. A false piece of evidence stands only beside a true
+    one that points elsewhere, so the player can weigh one against the other; else it is true after all. Each change is noted on the
+    part (lifted, made_true) for the pulse's log."""
+    evidence = [a for a in accepted if a["kind"] == "evidence"]
+    for a in accepted:
+        if a["kind"] != "person" or not a.get("condition"):
+            continue
+        if a["condition"] == "told" and not any(e["holder"] != a["who"] for e in evidence):
+            a["lifted"], a["condition"] = "told", ""
+        elif a["condition"] == "given" and not any(r["kind"] == "resource" and r.get("wanted_by") == a["who"] for r in accepted):
+            a["lifted"], a["condition"] = "given", ""
+    for e in evidence:
+        if not e["true"] and not any(o is not e and o["true"] and o["points_to"] != e["points_to"] for o in evidence):
+            e["true"], e["made_true"] = True, True
 
 
 def render(accepted: list[dict], store, world, key: str, with_truth: bool = False) -> str:
@@ -235,6 +264,8 @@ def render(accepted: list[dict], store, world, key: str, with_truth: bool = Fals
             line = rng.choice(P["state"][a["state"]]).format(good=good(a["good"]))
             if a.get("holder"):
                 line += ", " + rng.choice(P["held_by"]).format(name=name(a["holder"]))
+            if a.get("wanted_by"):
+                line += ", " + rng.choice(P["wanted_by"]).format(name=name(a["wanted_by"]))
         elif k == "tie":
             line = rng.choice(P["tie"][a["tie"]]).format(name=name(a["a"]), other=name(a["b"]))
         elif k == "condition":
@@ -396,7 +427,8 @@ def measured_problems(doc: dict | None = None) -> list[str]:
 # The slots every line of a table must carry (data_check holds them), and the sample that fills them all.
 NEEDS = {"stake": {"name"}, "want": set(), "condition": set(), "tie": {"name", "other"}, "state": {"good"}, "kind": {"place"},
          "certainty": {"holder", "label", "points"}}
-FLAT_NEEDS = {"holds": {"good"}, "held_by": {"name"}, "lies": {"holder", "label", "points"}, "is_true": set(), "is_false": set()}
+FLAT_NEEDS = {"holds": {"good"}, "held_by": {"name"}, "wanted_by": {"name"}, "lies": {"holder", "label", "points"}, "is_true": set(),
+              "is_false": set()}
 SAMPLE = {"name": "Hollis", "other": "Maud", "good": "salt", "place": "the ford", "holder": "Hollis", "label": "a cut rope",
           "points": "the toll keeper", "trade": "bargeman", "a": "a"}
 
@@ -526,8 +558,13 @@ def problems() -> list[str]:
         if not isinstance(v, (int, float)) or isinstance(v, bool) or not lo <= v <= hi:
             bad.append(f"situations.yaml thinking.{k}: a number from {lo} to {hi}")
     bad += measured_problems()
+    st = S.get("stances") or {}                                          # (f545) the stances refused and the conditions lifted, in the lists' words
+    for which, cols in (("refused", (("stakes", "stake"), ("wants", "want"))), ("lifted", (("wants", "want"), ("conditions", "condition")))):
+        for pair in st.get(which) or []:
+            if not isinstance(pair, list) or len(pair) != 2 or any(w not in (L.get(lst) or ()) for w, (lst, _) in zip(pair, cols)):
+                bad.append(f"situations.yaml stances.{which}: {pair!r} is not a [{cols[0][1]}, {cols[1][1]}] pair of the lists' words")
     for k in ("not_a_person", "gone", "player", "twice", "people_cap", "new_cap", "parts_cap", "kind_cap", "not_a_good", "no_holder",
-              "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id", "claim_at_place"):
+              "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id", "claim_at_place", "contrary", "no_wanter"):
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed")
     return bad

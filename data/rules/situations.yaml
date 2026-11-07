@@ -13,6 +13,14 @@ lists:
   place_kinds: [closed, danger, prices, mark]               # what the situation lays on a place or a road (the pulse's own effects)
   certainties: [sure, they say, hearsay]                    # how sure the holder of a piece of evidence is (memory.yaml's words)
 
+# (f545) Stances the check refuses, and conditions it lifts: a person who blocks an end to the trouble does not want the road open or
+# the goods moved ([stake, want]); a person who wants coin needs no condition of pay ([want, condition]: the condition is lifted, the
+# person kept). A condition the situation offers no way to meet is lifted too (told with no evidence another holds; given with no
+# good wanted by that person), so the person helps freely rather than standing as a locked door.
+stances:
+  refused: [[blocks, road_open], [blocks, goods_moved]]
+  lifted: [[coin, paid]]
+
 # Trades a situation never casts: the protected and the kept, and the guild's and the crown's own offices.
 never_roles: [prisoner, guild_clerk, guild_master, guild_instructor, guild_contractor, quartermaster, land_agent, relic_dealer, monarch,
               chamberlain, royal_guard]
@@ -42,7 +50,7 @@ phrases:
   stake:
     gains: ["{name} stands to gain from the trouble", "{name} does well out of how things are", "{name} would lose by the trouble ending",
             "{name} has money to make from the trouble"]
-    harmed: ["{name} is hurt by it", "{name} is paying for it", "{name} has lost by it already", "{name} is caught in it"]
+    harmed: ["{name} is hurt by it", "{name} is suffering for it", "{name} has lost by it already", "{name} is caught in it"]
     can_fix: ["{name} could put it right", "{name} has the means to mend it", "{name} knows how it could be ended",
               "{name} is the one who could set it right"]
     blocks: ["{name} stands in the way of an end to it", "{name} is keeping it as it is", "{name} would not have it mended",
@@ -81,6 +89,7 @@ phrases:
                "a cargo of {good} is stuck on the road"]
     wanted: ["there is a call for {good}", "{good} is needed badly", "{good} is asked for everywhere", "{good} would fetch a good price"]
   held_by: ["held by {name}", "and {name} has it", "in the keeping of {name}", "with {name}"]
+  wanted_by: ["and {name} wants it", "which {name} is after", "and {name} is looking for it", "and {name} would pay to have it"]
   kind:
     closed: ["the way at {place} is shut", "{place} cannot be passed", "nothing gets through at {place}", "{place} is closed to all"]
     danger: ["{place} has grown dangerous", "{place} is not safe", "there is danger at {place}", "{place} is a risk to anyone passing"]
@@ -139,3 +148,5 @@ reasons:
   points_nowhere: "it points to no person, place or road of the situation"
   raw_id: "its words name the game's machinery"
   claim_at_place: "evidence lying at a place is only ever sure: a doubtful piece is a claim, and a claim is someone's"
+  contrary: "a stance at odds with itself: one who blocks an end to it does not want it ended"
+  no_wanter: "a wanted good with no one of the situation who wants it"

@@ -306,10 +306,11 @@ class Stub:
         c = trades[0] if trades and trades[0] not in (a, b) else (people[2] if len(people) > 2 else "")
         plan = []
         if a:
-            plan.append(("people", {"who": a, "stake": "gains", "want": "coin", "condition": "paid", "holds": goods[0] if goods else "",
+            plan.append(("people", {"who": a, "stake": "gains", "want": "coin", "holds": goods[0] if goods else "",
                                     "label": "sells dear"}))
         if b:
-            plan.append(("people", {"who": b, "stake": "harmed", "want": "goods_moved", "label": "cannot get a load out"}))
+            plan.append(("people", {"who": b, "stake": "harmed", "want": "goods_moved", "condition": "trusted",
+                                    "label": "cannot get a load out"}))
         if c:
             plan.append(("people", {"who": c, "stake": "can_fix", "want": "safety", "condition": "protected", "label": "could mend it"}))
         if b and len(goods) > 1:

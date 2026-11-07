@@ -186,17 +186,21 @@ stand to each other, what it lays on places and roads, and what evidence there i
 against the world and keeps only what holds: a part that names nobody real, or breaks a rule below, is lost on its own.
 
 people: each {who, stake, want, condition, holds, label}.
-  who: a person's id from PEOPLE; or, for someone not listed, a trade from TRADES OF THE TOWN (the game finds or makes the town's own)
-    or from OTHER TRADES (someone new, whom the game will name). Each who once: a trade names one person, so to cast two people of
-    one trade, give their ids from PEOPLE. Never the player, and never a name of your own.
+  who: cast the town's own first: a person's id from PEOPLE, or a trade from TRADES OF THE TOWN (the game finds or makes the town's
+    own). Take a trade from OTHER TRADES (someone new, whom the game will name) only when the trouble needs a trade the town lacks.
+    Each who once: a trade names one person, so to cast two people of one trade, give their ids from PEOPLE. Never the player, never a
+    name of your own, never a trade with a number.
   stake: gains (does well out of the trouble), harmed (is hurt by it), can_fix (could put it right), blocks (stands in the way of an
     end to it) or knows (knows more of it than is said).
-  want: coin, road_open, goods_moved, safety, believed, left_alone or rid_of_rival.
-  condition: what they need before they help: paid, protected, given (something in hand first), trusted or told (what is known);
-    empty when they help freely.
-  holds: a good's id from GOODS they have to hand, or empty.
-resources: each {good, state, holder, label}: a good's id from GOODS; scarce (hard to come by), stranded (a load that cannot be moved)
-  or wanted (called for); holder: the `who` of one of your people, or empty.
+  want: coin, road_open, goods_moved, safety, believed, left_alone or rid_of_rival. One who blocks an end to it does not want the road
+    open or the goods moved.
+  condition: most people help freely: leave it blank unless the situation gives them a reason to ask for more. Otherwise: paid,
+    protected, given (the good they want, in hand first: give them a wanted resource), trusted or told (something they must hear first:
+    give the situation evidence another person holds). A person who wants coin needs no condition paid.
+  holds: a good's id from GOODS they have and could part with, or blank.
+resources: each {good, state, holder, wanted_by, label}: a good's id from GOODS; scarce (hard to come by), stranded (a load that cannot
+  be moved) or wanted (called for); holder: the `who` of one of your people who has it, or blank; wanted_by: for wanted, the `who` of
+  one of your people who wants it.
 ties: each {a, b, tie}: two of your people by their `who`, and rival, owes (a owes b), kin, employs (a employs b) or fears (a fears b).
 conditions: each {on, kind, label}: a place id from PLACES or a road id from ROADS, and closed (it cannot be passed), danger, prices
   (a town's, never a road's) or mark (a lasting sign of what happened there). A road ROADS calls the only way between its ends is
@@ -206,7 +210,7 @@ evidence: each {label, holder, points_to, certainty}: label - what it is, in pla
   your people, or a place or road id; certainty - sure (they saw it or can show it), they say (they had it from others) or hearsay
   (half heard). Evidence lying at a place is always sure.
 
-Keep to AT MOST, or HOW MANY where it stands instead. Give the player ways in: someone who wants something done, a thing to carry or find, a person who could set it
-right, a reason to doubt what is said. Make the parts hang together, and fit the place, its people's trades, the season and what is
-already going on. A label is a few plain words for the game's own use, never a sentence for a reader: no names, ids or underscores
-in it. Respond only with JSON matching the schema."""
+Keep to AT MOST, or HOW MANY where it stands instead. Give the player ways in: someone who wants something done, a thing to carry or
+find, a person who could set it right, a reason to doubt what is said. Make the parts hang together, and fit the place, its people's
+trades, the season and what is already going on. A label is a few plain words for the game's own use, never a sentence for a reader:
+no names, ids or underscores in it. Respond only with JSON matching the schema."""
