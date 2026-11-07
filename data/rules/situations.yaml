@@ -1,0 +1,116 @@
+# (f542) SITUATION PARTS - what a situation's people, goods, ties, places and evidence may be (Stage 4; the owner's decisions of
+# 2026-11-07, GOALS.md). The model proposes parts in these words only: llm/contracts.py SituationParts holds the same lists as
+# Literals, so the grammar refuses anything else, and engine/data_check.py holds the two equal both ways. The engine checks each part on
+# its own (engine/situations.py check: a part that fails is dropped with its reason, the rest stand) and later registers what passed
+# through the game's own writers. Nothing here is a clock: no part times out.
+
+lists:
+  stakes: [gains, harmed, can_fix, blocks, knows]            # what a person has in the trouble
+  wants: [coin, road_open, goods_moved, safety, believed, left_alone, rid_of_rival]
+  conditions: [paid, protected, given, trusted, told]       # what a person needs before helping (none: helps freely)
+  ties: [rival, owes, kin, employs, fears]                  # how two people of the situation stand to each other
+  resource_states: [scarce, stranded, wanted]
+  place_kinds: [closed, danger, prices, mark]               # what the situation lays on a place or a road (the pulse's own effects)
+  certainties: [sure, they say, hearsay]                    # how sure the holder of a piece of evidence is (memory.yaml's words)
+
+# Trades a situation never casts: the protected and the kept, and the guild's and the crown's own offices.
+never_roles: [prisoner, guild_clerk, guild_master, guild_instructor, guild_contractor, quartermaster, land_agent, relic_dealer, monarch,
+              chamberlain, royal_guard]
+
+# At most, per situation (the owner: 2, 3, 6 and 8 parts by tier; at most 4 people and 2 of any other kind; new people none for the
+# common tiers and 2 for rare and campaign ones). Parts past a cap are dropped in the order they were proposed.
+caps:
+  parts: {normal: 2, uncommon: 3, rare: 6, campaign: 8}
+  people: 4
+  each_other: 2
+  new_people: {normal: 0, uncommon: 0, rare: 2, campaign: 2}
+
+# (the owner) The chance a piece of evidence is false, by how sure its holder is: decided once by the engine, never told to the model
+# that proposed it. A sure piece is never false.
+false_chance:
+  sure: 0.0
+  they say: 0.2
+  hearsay: 0.5
+
+# The fixed render (engine/situations.py render): one line per part, from these, with the names, trades and goods of the world and
+# never an id. {name} is a person (a name, or "a bargeman" for one the engine has yet to make), {other} the other end of a tie, {good}
+# a good's name, {place} a place's or a road's name, {holder} who holds a piece of evidence, {label} its few words, {points} what it
+# points to. At least four lines each, so the tellings are not handed the same sentence twice running.
+phrases:
+  stake:
+    gains: ["{name} stands to gain from the trouble", "{name} does well out of how things are", "{name} would lose by the trouble ending",
+            "the trouble puts money in the way of {name}"]
+    harmed: ["{name} is hurt by it", "{name} is paying for it", "{name} has lost by it already", "{name} is caught in it"]
+    can_fix: ["{name} could put it right", "{name} has the means to mend it", "{name} knows how it could be ended",
+              "it would take {name} to set it right"]
+    blocks: ["{name} stands in the way of an end to it", "{name} is keeping it as it is", "{name} would not have it mended",
+             "{name} works against any remedy"]
+    knows: ["{name} knows more of it than is said", "{name} saw how it began", "{name} holds a piece of the truth of it",
+            "{name} could tell what lies behind it"]
+  want:
+    coin: ["and wants paying", "and wants coin above all", "and has a price", "and will not stir without money"]
+    road_open: ["and wants the road open", "and needs the way clear again", "and wants the road travelled again", "and wants the way out open"]
+    goods_moved: ["and wants goods carried", "and needs a load moved", "and wants what is stuck got through", "and needs a cargo shifted"]
+    safety: ["and wants to be safe", "and wants protection", "and wants nothing worse to happen", "and wants the danger kept off"]
+    believed: ["and wants to be believed", "and is not believed", "and wants the word taken seriously", "and wants the story heard"]
+    left_alone: ["and wants to be left alone", "and wants no part in it", "and wants it all to pass by", "and wants no questions"]
+    rid_of_rival: ["and wants a rival brought down", "and wants a rival out of the way", "and wants a rival shamed", "and would see a rival fall"]
+  condition:
+    paid: ["but helps only for pay", "but does nothing without coin", "but must be paid first", "but asks a price for any help"]
+    protected: ["but helps only if kept safe", "but needs a guard before anything", "but will not move unprotected",
+                "but wants someone standing by first"]
+    given: ["but wants something in hand first", "but asks for a thing given before helping", "but wants a gift before a word",
+            "but helps in return for something given"]
+    trusted: ["but helps only someone trusted", "but trusts no stranger yet", "but must be won over first", "but must trust whoever asks"]
+    told: ["but wants to be told the truth first", "but helps once told what is known", "but wants news before helping",
+           "but asks to hear what is known"]
+  holds: ["with {good} to hand", "keeping {good}", "holding {good}", "who has {good}"]
+  tie:
+    rival: ["{name} and {other} are rivals", "{name} and {other} work against each other", "{name} and {other} have long been at odds",
+            "{name} would see {other} lose"]
+    owes: ["{name} owes {other}", "{name} is in debt to {other}", "{name} has a debt to {other}", "{other} holds a debt over {name}"]
+    kin: ["{name} and {other} are kin", "{name} and {other} are family", "{name} and {other} share blood", "{name} is of the family of {other}"]
+    employs: ["{name} employs {other}", "{other} works for {name}", "{name} pays the wage of {other}", "{other} is in the hire of {name}"]
+    fears: ["{name} fears {other}", "{name} is afraid of {other}", "{name} keeps clear of {other}", "{other} frightens {name}"]
+  state:
+    scarce: ["{good} is scarce", "{good} is running short", "there is little {good} to be had", "{good} has grown dear and hard to find"]
+    stranded: ["{good} is stranded", "{good} is stuck where it cannot be moved", "a load of {good} sits waiting, going nowhere",
+               "{good} cannot be got through"]
+    wanted: ["{good} is wanted", "{good} is needed badly", "{good} is asked for everywhere", "{good} would fetch a good price"]
+  held_by: ["held by {name}", "and {name} has it", "in the keeping of {name}", "with {name}"]
+  kind:
+    closed: ["the way at {place} is shut", "{place} cannot be passed", "nothing gets through at {place}", "{place} is closed to all"]
+    danger: ["{place} has grown dangerous", "{place} is not safe", "there is danger at {place}", "{place} is a risk to anyone passing"]
+    prices: ["prices have risen at {place}", "everything costs more at {place}", "{place} is dear now", "trade at {place} has turned costly"]
+    mark: ["{place} bears the mark of it", "something at {place} shows what happened", "the trouble has left its mark at {place}",
+           "{place} has been changed by it"]
+  certainty:
+    sure: ["{holder} can show it: {label}, and it points to {points}", "{holder} has plain proof: {label}, pointing to {points}",
+           "{holder} holds clear signs of it: {label}, which point to {points}", "{holder} saw it for certain: {label}, and it leads to {points}"]
+    they say: ["{holder} has it from others: {label}, pointing to {points}", "{holder} repeats what is going round: {label}, and it points to {points}",
+               "{holder} was told it: {label}, which would point to {points}", "{holder} passes on what people say: {label}, pointing to {points}"]
+    hearsay: ["{holder} half heard it: {label}, maybe pointing to {points}", "{holder} has a rumour of it: {label}, which may point to {points}",
+              "{holder} picked it up third hand: {label}, perhaps pointing to {points}", "{holder} only guesses it: {label}, maybe leading to {points}"]
+  # for the tellings only, never for the model that proposed the parts (the owner: it is never told)
+  is_true: ["It is so.", "It is true.", "It holds.", "It is the truth."]
+  is_false: ["It is not so.", "It is false.", "It does not hold.", "It is not the truth."]
+  new_person: "a {trade}"                                   # one the engine has yet to make, by trade
+
+# Why a part was dropped, for the pulse's log and the runner (never shown to a player).
+reasons:
+  not_a_person: "neither a person of the town nor a role the world has"
+  gone: "that person is gone"
+  player: "the player is never a part of a situation"
+  twice: "the same person twice"
+  people_cap: "more people than the situation may hold"
+  new_cap: "more new people than the situation may bring"
+  parts_cap: "more parts than the situation may hold"
+  kind_cap: "more of this kind than the situation may hold"
+  not_a_good: "not a good the world has"
+  no_holder: "its holder is not a person of the situation"
+  no_end: "a tie's other end is not a person of the situation"
+  self_tie: "a tie to oneself"
+  not_a_place: "neither a place nor a road the world has"
+  only_way: "the only way between two places, and the situation offers no way through it"
+  points_nowhere: "it points to no person, place or road of the situation"
+  raw_id: "its words name the game's machinery"

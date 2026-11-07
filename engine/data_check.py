@@ -514,6 +514,10 @@ def check() -> list[str]:
     bad += _brief.problems()
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
+    from engine import situations as _sit                                                    # (f542) a situation's parts: lists, caps, phrases
+    bad += _sit.problems()
+    for r_ in _sit.S.get("never_roles") or ():
+        need(r_ in _roles, f"situations.yaml never_roles: '{r_}' is not a role")
     RD_ = _load("data/rules/road.yaml")                                                       # (f427) what stops the walk, and who is there
     for k_ in RD_.get("stops", []):
         need(k_ in RD_.get("kinds", {}), f"road.yaml stops: '{k_}' is not a kind of happening (kinds)")

@@ -1416,6 +1416,74 @@ class WorldEffect(BaseModel):
     boss: bool = False     # spawn: one dangerous named creature (true) or a few ordinary ones (false)
 
 
+# ---------- (f542) the parts of a situation: typed, proposed by the model, checked part by part by the engine (engine/situations.py) ----------
+# The closed lists are data/rules/situations.yaml's, held equal to these Literals both ways at startup (engine/data_check.py), so the
+# grammar refuses any word outside them. No part is prose a player reads: a label is a few words for the engine's own record.
+
+class PartPerson(BaseModel):
+    """Someone with a part in the situation: an existing person by their id from PEOPLE, or a role from ROLES for one the engine will
+    find in the town or make and name. Never the player."""
+    who: str
+    stake: Literal["gains", "harmed", "can_fix", "blocks", "knows"]
+    want: Literal["coin", "road_open", "goods_moved", "safety", "believed", "left_alone", "rid_of_rival"]
+    condition: Literal["", "paid", "protected", "given", "trusted", "told"] = ""   # what they need before helping; "" helps freely
+    holds: str = ""        # a good's id from GOODS they hold, if any
+    label: str = ""        # a few words on their part
+    _blank = blank_placeholders("condition", "holds", "label")
+
+
+class PartResource(BaseModel):
+    """A good the trouble turns on: its id from GOODS, who holds it (a person's `who` from the parts, or none) and how it stands."""
+    good: str
+    state: Literal["scarce", "stranded", "wanted"]
+    holder: str = ""
+    label: str = ""
+    _blank = blank_placeholders("holder", "label")
+
+
+class PartTie(BaseModel):
+    """How two people of the parts stand to each other, each by their `who`."""
+    a: str
+    b: str
+    tie: Literal["rival", "owes", "kin", "employs", "fears"]
+
+
+class PartCondition(BaseModel):
+    """What the situation lays on a place (an id from PLACES) or a road (an id from ROADS)."""
+    on: str
+    kind: Literal["closed", "danger", "prices", "mark"]
+    label: str = ""
+    _blank = blank_placeholders("label")
+
+
+class PartEvidence(BaseModel):
+    """A piece of evidence: a few words of what it is, who holds it (a person's `who`, or the id of the place where it lies), what it
+    points to (a person's `who`, or a place or road id) and how sure its holder is. Whether it is true is the engine's to decide."""
+    label: str
+    holder: str
+    points_to: str
+    certainty: Literal["sure", "they say", "hearsay"]
+
+
+class SituationParts(BaseModel):
+    """(f542) The cast and the angles around a situation's engine-set core: who is in it and how, the goods it turns on, how its people
+    stand to each other, what it lays on places and roads, and the evidence of what is behind it. The engine checks each part and drops
+    what fails, one part at a time."""
+    people: list[PartPerson] = []
+    resources: list[PartResource] = []
+    ties: list[PartTie] = []
+    conditions: list[PartCondition] = []
+    evidence: list[PartEvidence] = []
+
+    @model_validator(mode="after")
+    def some(self):
+        for f in ("people", "resources", "ties", "conditions", "evidence"):
+            setattr(self, f, getattr(self, f)[:8])            # shape only: the caps by tier are the engine's (data/rules/situations.yaml)
+        if not (self.people or self.resources or self.ties or self.conditions or self.evidence):
+            raise ValueError("propose at least one part: a person, a good, a tie, a place's condition or a piece of evidence")
+        return self
+
+
 class StageProposal(BaseModel):
     description: str       # what is happening now, as it would be seen and heard
     effects: list[WorldEffect] = []
