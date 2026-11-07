@@ -18,6 +18,26 @@ def edge_key(world, a: str, b: str) -> str:
     return r.id if r else "|".join(sorted((a, b)))
 
 
+def way_round(world, road_id: str) -> bool:
+    """(f540) Whether a named road's two ends are joined some other way: with its stretch shut, can one still walk from one end to the
+    other? A stop on the road (a place of type road made for one journey) is never a way round: it lies on the stretch itself."""
+    r = world.roads.get(road_id)
+    if r is None or r.from_ not in world.places or r.to not in world.places:
+        return False
+    cut = {r.from_, r.to}
+    seen, todo = {r.from_}, [r.from_]
+    while todo:
+        here = todo.pop()
+        for nxt in world.neighbors(here):
+            if nxt in seen or {here, nxt} == cut or world.places[nxt].type == "road":
+                continue
+            if nxt == r.to:
+                return True
+            seen.add(nxt)
+            todo.append(nxt)
+    return False
+
+
 def road_text(world, a: str, b: str) -> str:
     r = world.road_between(a, b)
     pa, pb = world.places[a], world.places[b]

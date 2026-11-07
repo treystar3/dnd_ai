@@ -83,8 +83,10 @@ class RoadActions:
         passing = f" They pass through {', '.join(via)} on the way." if via else ""
         named = [r for r in (self.world.road_between(a, b) for a, b in zip(route, route[1:])) if r]
         if named:
+            state = self.store.load_world_state() or {}
+            marks = [f"On {r.name}: {'; '.join(pulse.road_marks(state, r.id)[-2:])}." for r in named[:2] if pulse.road_marks(state, r.id)]
             passing = f" They travel by {', then '.join(r.name for r in named)}: " + \
-                " ".join(r.description for r in named[:2]) + (passing or "")
+                " ".join(r.description for r in named[:2]) + (" " + " ".join(marks) if marks else "") + (passing or "")   # (f540)
         happened = (f" On the way (the player has read this already, back where it happened on the road: do not tell it again or put it "
                     f"here): {' '.join(log[-4:])}") if log else ""      # (f406) a dropped ledger on the road was told again, lying at the hollow
         if walk < 45 and self.quiet_return(log, text):                     # (f349) back somewhere seen, nothing new: a line, and no narrator;
@@ -143,8 +145,9 @@ class RoadActions:
         """(f408) Where the player set out from, where they are bound, the road they are on and how long they have walked."""
         r = self.world.road_between(a, b)
         way = r.name if r else f"the way toward {self.world.places[b].name}"
+        marks = pulse.road_marks(self.store.load_world_state() or {}, r.id) if r else []      # (f540) what the road carries now
         return (f"set out from {self.world.places[route[0]].name}, bound for {self.world.places[route[-1]].name}; now on {way}, "
-                f"{clock.describe_duration(max(5, walked))} into the walk")
+                f"{clock.describe_duration(max(5, walked))} into the walk" + (f"; on this road: {'; '.join(marks[-3:])}" if marks else ""))
 
     def journey_line(self, route, a, b, walked: int) -> str:
         """(f408) The walk before a happening, when the model gave none: where from, where to, by what road, how long."""

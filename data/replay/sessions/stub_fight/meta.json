@@ -1,12 +1,12 @@
 {
- "made": "2026-11-06T19:52:38+00:00",
+ "made": "2026-11-07T09:06:30+00:00",
  "seed": 18,
  "steps": 0,
  "turn": 1,
- "data": "e275f49b301bb66c79c1cc02d4279827108f17a8a575cd310dcb4fe3cc0fd061",
+ "data": "00d4d23af312cf61846dff2af4654f153c8645ad35df49796c58d01f32b25a83",
  "model": "gemma4-12b-bb722270",
  "version": "0.0.4.1",
- "commit": "db8bb841dfbc96e421462cfece884a33fcaf02f3",
+ "commit": "3e987dc72ee3d5683b211c54e795d42f156e95b1",
  "start": {
   "kv": "ab3bc9e2576b1ccbfef82db8564c6947461f5c65ea006af9c1f8dfc73b7a1353",
   "places": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -25,5 +25,6 @@
   "embed_seconds_per_text": 0.15
  },
  "limit_seconds": 60,
+ "budget_cached": true,
  "overlapped": 0
 }

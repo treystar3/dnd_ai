@@ -72,7 +72,9 @@ effects:
   prices: {min: -30, max: 60}         # percent change to prices in a town
   danger: {min: -50, max: 100}        # percent change to encounter odds in a place
   relation: {min: -25, max: 25}       # change in how one person feels about another
-  max_days: 60                        # longest any temporary effect lasts (campaign events can renew them)
+  max_days: 60                        # longest any temporary effect lasts (campaign events can renew them); (f540) a road a
+                                      # situation closes stays shut until the situation ends, this the safety
+  marks_keep: 12                      # (f540) the most lasting marks a place or a road keeps, the newest kept
 
 history_keep: 200                     # (f484) the most lines the world's history keeps; trimmed at every append (pulse.add_history)
 

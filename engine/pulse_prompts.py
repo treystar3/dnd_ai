@@ -11,8 +11,8 @@ EFFECTS = """EFFECTS you may use (the game applies them; anything else is story 
   danger    - place, value (-50..100), days: the place - or a ROAD, using its road id - becomes more (or less) dangerous
               for a while. A road made dangerous (bandits, a beast, a war party) means more fights for travelers on it;
               a road made safe (patrols, a cleared pass) means fewer.
-  closed    - place, days, text: a place or route can't be passed for a while (text says why)
-  mark      - place, text: a lasting visible change to a place
+  closed    - place, days, text: a place - or a ROAD, using its road id - can't be passed for a while (text says why)
+  mark      - place, text: a lasting visible change to a place, or to a ROAD by its road id (a cart in the ditch)
   loot      - place, text: something of value is left there to be found
   fact      - text, groups: something now known, by these knowledge groups
   lead      - place, text, groups: word of somewhere not on any map - a hunters' path, a hidden spring, a ruin up in

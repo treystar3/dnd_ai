@@ -488,6 +488,9 @@ def check() -> list[str]:
     _kinds = {getattr(c_, "kind", None) for c_ in _de.Deed.__subclasses__()} | {c_.__dataclass_fields__["kind"].default for c_ in _de.Deed.__subclasses__() if "kind" in c_.__dataclass_fields__}
     _law = _load("data/rules/law.yaml")
     _pulse_rules = _load("data/rules/pulse.yaml")
+    _mk = (_pulse_rules.get("effects") or {}).get("marks_keep")
+    need(isinstance(_mk, int) and not isinstance(_mk, bool) and _mk > 0,
+         f"pulse.yaml effects.marks_keep: the most marks a place or a road keeps must be a whole number above 0 (it is {_mk!r})")   # (f540)
     for p_ in _rx.problems({k for k in _kinds if isinstance(k, str)}, set(Q.get("deeds") or {}), set(_load("data/rules/standing.yaml").get("deeds") or {}),
                            {k for k in (_pulse_rules.get("reputation") or {}) if k != "trust_per_point"}, set((_law.get("heat") or {}).get("gain") or {}),
                            set(_law.get("offenses") or {})):

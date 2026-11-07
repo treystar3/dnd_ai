@@ -117,12 +117,17 @@ check("...and a required call still running is given the longer deadline", b_on.
 import rerun   # noqa: E402
 
 seen = []
-out = rerun.replay(rerun.golden("stub_short"), on_call=lambda row, k, request: seen.append(budget.CACHED))
-check("a kept recording made before f538 replays whole, its calls priced as they were (reuse charged as read)",
-      out["parted"] is None and out["matched"] == out["of"] and seen and not any(seen), (out.get("parted"), set(seen)))
-check("...and the pricing is put back after", budget.CACHED is True)
 tmp = Path(tempfile.mkdtemp(prefix="cached538_"))
 try:
+    old = tmp / "stub_short_before"                   # (f540) the kept recordings are re-made since f538, so one made before it is a
+    shutil.copytree(rerun.golden("stub_short"), old)  # copy with the flag taken out of its meta, as every recording before f538 was
+    meta = json.loads((old / "meta.json").read_text(encoding="utf-8"))
+    meta.pop("budget_cached", None)
+    (old / "meta.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
+    out = rerun.replay(old, on_call=lambda row, k, request: seen.append(budget.CACHED))
+    check("a recording made before f538 replays whole, its calls priced as they were (reuse charged as read)",
+          out["parted"] is None and out["matched"] == out["of"] and seen and not any(seen), (out.get("parted"), set(seen)))
+    check("...and the pricing is put back after", budget.CACHED is True)
     copy = tmp / "stub_short"
     shutil.copytree(rerun.golden("stub_short"), copy)
     meta = json.loads((copy / "meta.json").read_text(encoding="utf-8"))
