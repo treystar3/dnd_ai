@@ -76,7 +76,8 @@ def play(args):
         from llm import launch, runtime
         if launch.screen_on():                     # (f526) the owner's lines are in: the load runs behind the home page
             screen = launch.Screen(say=console.out, ask=console.ask,
-                                   progress=lambda f: console.setup_progress(f, launch.line("loading") or ""))   # only while it waits
+                                   progress=lambda f: console.setup_progress(f, launch.line("loading") or ""),   # only while it waits
+                                   uncover=lambda: console.creation_done())    # (f539) creation's page, over the could-not-wake page
             if not screen.begin():
                 return
             launch.SCREEN["screen"] = screen
@@ -114,14 +115,14 @@ def play(args):
             choice = home.choose(written)          # (f345) the home page: continue, load, new, delete, or quit
         kind, name = choice
         choice = None
-        if screen is not None:
-            screen.flush()                             # (f526's review) what the load said, now, on this thread, at the page's edge
         if kind == "quit":
             return
         if kind == "new":
             name = saves.new_name()                    # (f526) New Game's first pages open while the model loads; its first call waits
-        elif screen is not None and not screen.wait():  # Continue waits for the load behind the loading line (Try again, or Quit)
-            return
+        elif screen is not None:
+            console.home_done()                        # (f539) the home page goes first: the loading line, the could-not-wake page and
+            if not screen.wait():                      # its choices are told in the story it would cover. Continue waits for the load
+                return                                 # behind the loading line (Try again, or Quit)
         try:
             session = CampaignSession.open(name)       # (f453) the campaign's session: its store, its map (f434: its own, never another
         except SaveTooNew as e:                        # save's), the work it starts in the background, and what it closes when it ends
@@ -129,6 +130,9 @@ def play(args):
             continue
         saves.touch(name)
         console.home_done()
+        if screen is not None:
+            screen.flush()                             # (f526's review) what the load said, now, on this thread, at a page's edge;
+                                                       # (f539) after the home page has gone, whose going clears the window's story
         store, world = session.store, session.world
         if store.player_exists():
             player = store.load_player()
@@ -143,6 +147,8 @@ def play(args):
             player = PlayerState(character=character, location=world.start_location)
             store.save_player(player)
 
+        if screen is not None:
+            screen.flush()                             # (f539) a load that finished during creation: its warning before the story
         scene = session.scene(catalog, player)
         if config.RECORD:                              # (f440) this session, kept so the real turn can replay it (tools/rerun.py)
             session.record()

@@ -8,6 +8,7 @@ Events (all dicts with "k"):  text{pane,kind,text}  echo{text}  side_begin{cmd} 
                               ended  fatal{text}
 """
 
+import bisect
 import contextlib
 import queue
 import sys
@@ -93,8 +94,9 @@ class Bridge:
                 self.cv.wait(timeout)
             if not self.log or self.log[-1][0] <= last:
                 return []
-            first = self.log[0][0]
-            return self.log[max(0, last + 1 - first):]
+            # (f539) by id, not by position: setup_progress replaces the log's last progress event, so the ids have gaps, and a page
+            # that had read the one replaced was handed nothing (the window's load bar never rose past its first figure)
+            return self.log[bisect.bisect_right(self.log, last, key=lambda e: e[0]):]
 
     # ---------- output ----------
     def write(self, s: str) -> None:

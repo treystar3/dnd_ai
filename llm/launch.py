@@ -203,10 +203,12 @@ class Screen:
     a card failed and the processor build is here) and Quit. (f526's review) One runtime, loaded again on Try again: the source is never
     swapped, so no call reaches another, and its build and card are kept. A load that fails while the player is on New Game's first
     pages reaches the same page from its first model call (recover). What the load says (the slow warning) waits for the main thread's
-    next page edge (flush), and the progress shows only while a wait is on screen."""
+    next page edge (flush), and the progress shows only while a wait is on screen. (f539) The could-not-wake page is told in the story:
+    uncover takes away a page over it (creation's) first, and main.py takes the home page away before Continue waits."""
 
-    def __init__(self, say, ask, runtime_factory=None, progress=None):
+    def __init__(self, say, ask, runtime_factory=None, progress=None, uncover=None):
         self.say, self.ask, self.progress = say, ask, progress
+        self.uncover = uncover             # (f539) takes away a page over the story (creation's) before the could-not-wake page is told
         self.factory = runtime_factory
         self.rt = None
         self.lock = None
@@ -315,7 +317,7 @@ class Screen:
                 self.loading_line()
                 self.waiting = True
                 try:
-                    if self.progress is not None and self.shown:
+                    if self.progress is not None:      # (f539) at once, at 0 before the load's first figure
                         self.progress(self.shown)
                     self.done.wait()
                 finally:
@@ -349,6 +351,8 @@ class Screen:
     def _could_not_wake(self) -> str:
         from llm import runtime
         from llm.errors import Failure, NoServer
+        if self.uncover is not None:
+            self.uncover()
         e = self.error
         why = (e.detail or e.kind) if isinstance(e, Failure) else str(e) if isinstance(e, NoServer) else f"{type(e).__name__}: {e}"
         if isinstance(e, (Failure, NoServer)):

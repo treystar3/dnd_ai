@@ -1329,13 +1329,17 @@ function paintSide() {
   applyShopState(); renderButtons();
 }
 
-// ---------- (f526, f532) the model load's progress bar, while Continue waits on it (main.py setup_progress). The installer's start-up
-// screen that drew the card around it is gone (f532): the bar's card is shown by nothing today, so the wait is read in the text; a
-// visible bar in the window is a later change. ----------
+// ---------- (f526, f539) the model's load, while Continue waits on it (main.py setup_progress, llm/launch.py Screen): a card over the
+// window with the loading line and a bar that only rises. It goes at ready, or as soon as the game next speaks, asks or opens a page
+// (ENDS_LOAD in handle below), such as the could-not-wake page, which is told in the story (main.py takes the home page away before
+// Continue waits, and the Screen takes creation's page away before it tells it). ----------
+const ENDS_LOAD = new Set(["text", "prompt", "home", "creation", "fatal", "ended"]);
 function setupProgress(frac, text) {
+  if (frac >= 1) { $("setup").hidden = true; return; }
+  $("setup").hidden = false;
   $("setupbar").hidden = false;
-  $("setupfill").style.width = Math.round(frac * 100) + "%";
-  $("setuptext").textContent = text;
+  $("setupfill").style.width = Math.round(Math.max(0, frac) * 100) + "%";
+  $("setuptext").textContent = text || "";
 }
 
 // ---------- (f345) the home page: Continue, New game, every saved game with Load and Delete, Quit ----------
@@ -1491,6 +1495,7 @@ function updateProgress(ev) {
 
 // ---------- events ----------
 function handle(ev) {
+  if (ENDS_LOAD.has(ev.k)) $("setup").hidden = true;     // (f539) the game speaks, asks or opens a page: the load's card is done
   switch (ev.k) {
     case "text":
       if (ev.pane === "side") sideRaw += ev.text;
