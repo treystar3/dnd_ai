@@ -1,7 +1,7 @@
 """(f537) The prompt cache's shape is settings, measured before any change: the RAM cache's size, the context checkpoints a slot keeps,
 the KV cache's type and whether an idle slot is saved to the RAM cache reach llama-server's launch line from data/runtime/server.yaml
-(outside the data hash), and the settings check names a bad value. The shipped values are the server's own defaults, so nothing changes
-until a pod night has measured the alternatives."""
+(outside the data hash), and the settings check names a bad value. The shipped values are the ones the 7 Nov pod night measured best:
+the server's own defaults, with the RAM cache off (the owner's choice)."""
 import copy
 import sys
 from pathlib import Path
@@ -25,14 +25,14 @@ def val(args, flag):
 
 cfg = runtime.settings()
 s = cfg["server"]
-check("the shipped shape is the server's own defaults: 32 checkpoints, f16, idle slots saved, the 2 GiB cache of f522",
-      (s["ctx_checkpoints"], s["kv_type"], s["cache_idle_slots"], s["cache_ram_mib"]) == (32, "f16", True, 2048), (s["ctx_checkpoints"], s["kv_type"], s["cache_idle_slots"], s["cache_ram_mib"]))
+check("the shipped shape is the one the 7 Nov pod measured best and the owner chose: 32 checkpoints, f16, idle slots saved, no RAM cache",
+      (s["ctx_checkpoints"], s["kv_type"], s["cache_idle_slots"], s["cache_ram_mib"]) == (32, "f16", True, 0), (s["ctx_checkpoints"], s["kv_type"], s["cache_idle_slots"], s["cache_ram_mib"]))
 check("...and passes the settings check", not [p for p in runtime.runtime_problems(cfg) if "kv_type" in p or "idle" in p or "checkpoints" in p])
 exe, models = Path("/x/llama-server"), Path("/m")
 a = runtime.chat_argv(exe, cfg, 1234, "k", models)
 check("the launch line carries them: the checkpoints, the KV type for K and V alike, the idle-slot saving, the cache cap",
       val(a, "--ctx-checkpoints") == "32" and val(a, "-ctk") == "f16" and val(a, "-ctv") == "f16" and "--cache-idle-slots" in a
-      and "--no-cache-idle-slots" not in a and val(a, "--cache-ram") == "2048", [x for x in a if "cache" in x or x in ("-ctk", "-ctv")])
+      and "--no-cache-idle-slots" not in a and val(a, "--cache-ram") == "0", [x for x in a if "cache" in x or x in ("-ctk", "-ctv")])
 other = copy.deepcopy(cfg)
 other["server"].update(ctx_checkpoints=4, kv_type="q8_0", cache_idle_slots=False, cache_ram_mib=6144)
 b = runtime.chat_argv(exe, other, 1234, "k", models)
