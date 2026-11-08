@@ -160,6 +160,7 @@ reasons:
   no_wanter: "a wanted good with no one of the situation who wants it"
   new_today: "the town has had as many new people from situations as it takes in a day"
   unmade: "a part that rests on someone who could not be made"
+  no_carrier: "a stranded load with nobody of the town to carry it to: a price rise and a worry, no request"
 
 # (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
 # writers, and what the situation's end takes back (pulse.end_thread): each person's worry (released, settled or let go) and the mood
@@ -170,7 +171,7 @@ register:
   prices: 20                    # percent dearer a town's market, for a prices condition (pulse.yaml effects.prices)
   mark_most: 60                 # the longest label a mark keeps as its own words; longer, or not plain, the mark is told with a phrase
   stock: [2, 4]                 # how much a person holds of a good they hold, or have to hand of a scarce one: theirs to sell, until gone
-  load: [6, 10]                 # how much a stranded load is
+                                # (a stranded load is no stock: the owner, a price rise, the holder's worry and a request, no new store)
   wanted: [2, 4]                # how much of a wanted good is asked for
   scarce: 30                    # percent dearer a scarce good in the town (that good alone)
   stranded: 20                  # percent dearer a stranded good in the town, while the load cannot be moved

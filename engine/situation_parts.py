@@ -49,7 +49,8 @@ def _name(store, world, ref: str) -> str:
 
 def _today(state: dict, town: str, t: int) -> dict:
     """(the owner) How many new people situations have made in this town today, kept in the world's state so a reload keeps the count."""
-    day = int(t) // 1440
+    from engine import clock
+    day = clock.day(int(t))                                          # (f545's review) the game's day, as ruling.appear counts it
     row = state.setdefault("situation_people", {}).setdefault(town, {"day": day, "n": 0})
     if row.get("day") != day:
         row.update(day=day, n=0)
@@ -78,9 +79,10 @@ def _written_place(store, world, town: str, role: str) -> str:
     return ""
 
 
-def make_person(store, world, catalog, role: str, home: str, t: int, key: str):
+def make_person(store, world, catalog, role: str, home: str, t: int, key: str, anchor=None):
     """Someone the situation needs, made a real person of `home` by the engine as ruling.appear makes one: their name, people and gender
-    drawn as for any townsperson, their trade's own description, kept, and one of the place's residents."""
+    drawn as for any townsperson, their trade's own description, kept, and one of the place's residents. (f545's review) One of the
+    town's anchors (data/world/towns) is made as the town would make them: their own name and note, protected."""
     from engine import doings
     from npc import life, names
     from npc.models import NPC
@@ -88,9 +90,15 @@ def make_person(store, world, catalog, role: str, home: str, t: int, key: str):
     rng = random.Random(f"{store.meta.seed}:situation:{key}:{role}:{home}")
     peoples = world.peoples_at(home) or {"human": 1}
     people = rng.choices(list(peoples), weights=list(peoples.values()))[0]
-    name, gender = names.pick(people, store.npc_names(), rng)
+    taken = store.npc_names()
+    name, gender = names.pick(people, taken, rng)
+    if anchor is not None and anchor.name and anchor.name not in taken:
+        name = anchor.name
+    desc = world.roles[role].description.strip() + (f" In this town: {anchor.note}" if anchor is not None and anchor.note else "")
     npc = NPC(id=life._unique_id(store, name), name=name, gender=gender, people=people, role=role, location=home,
-              epithet=f"the {role.replace('_', ' ')}", description=world.roles[role].description.strip())
+              epithet=f"the {role.replace('_', ' ')}", description=desc)
+    if anchor is not None:
+        npc.anchor, npc.protected = anchor.note or anchor.role, True
     npc.activity = doings.doing_for(npc, store.meta.seed, int(t))
     if catalog:
         assign_traits(npc, catalog, npc_rng(store.meta.seed, npc.id))
@@ -113,6 +121,10 @@ def _people(store, world, catalog, state, th: dict, accepted: list[dict], t: int
             ids[a["who"]] = a["who"]
             continue
         home = _written_place(store, world, town, a["who"]) if a["bind"] == "town" else ""
+        anchor = None
+        if home:
+            from npc import life
+            anchor = life._anchors_wanted(store, world, home).get(a["who"])
         if not home:                                                     # someone new (or the written place is full after all)
             row = _today(state, town, t)
             if row["n"] >= most:
@@ -120,7 +132,7 @@ def _people(store, world, catalog, state, th: dict, accepted: list[dict], t: int
                 continue
             row["n"] += 1
             home = _home(world, town, th.get("place", ""))
-        npc = make_person(store, world, catalog, a["who"], home, t, f"{th['id']}:{len(ids)}")
+        npc = make_person(store, world, catalog, a["who"], home, t, f"{th['id']}:{a['who']}", anchor=anchor)
         ids[a["who"]] = npc.id
     return ids
 
@@ -142,8 +154,8 @@ def _remap(accepted: list[dict], ids: dict[str, str], world, skipped: list) -> l
                 if a.get(f):
                     got = ids.get(a[f])
                     if got is None:
+                        skipped.append((dict(a), S["reasons"]["unmade"]))   # (f545's review) noted, whether it goes or stays without them
                         if f == "wanted_by":
-                            skipped.append((a, S["reasons"]["unmade"]))
                             a = None
                             break
                         a[f] = ""
@@ -169,51 +181,57 @@ def _remap(accepted: list[dict], ids: dict[str, str], world, skipped: list) -> l
 
 # ---------- what a person really holds (recommendation 2: a held good is a small stock they can sell, give or lose)
 
-def held(store, npc_id: str) -> list:
-    """The stock this person holds now, oldest first."""
-    return [e for e in store.find_entities(kind="stock", state="held") if e.links.get("npc") == npc_id and e.data.get("count", 0) > 0]
+def held(store, npc_id: str, good: str = "") -> list:
+    """The stock this person holds now (of `good`, when given), oldest first: one row a situation, so each goes with its own."""
+    return [e for e in store.find_entities(kind="stock", state="held") if e.links.get("npc") == npc_id and e.data.get("count", 0) > 0
+            and (not good or e.data.get("good") == good)]
 
 
 def held_wares(store, npc_id: str) -> list:
-    """What they hold, as wares a shop sells: the good, at its own price (the town's prices and the player's standing laid on by the
-    shop, as for any ware). Its id says it is stock, so a sale takes one from it."""
+    """What they hold, as wares a shop sells, one a good however many situations gave it: the good, at its own price (the town's prices
+    and the player's standing laid on by the shop, as for any ware). Its id says it is stock, so a sale takes one from it."""
     from engine import inventory
     from world.loader import Ware
-    out = []
+    out, seen = [], set()
     for e in held(store, npc_id):
         g = inventory.GOODS.get(e.data.get("good", ""))
-        if g is not None:
+        if g is not None and g.id not in seen:
+            seen.add(g.id)
             out.append(Ware(id=f"stock:{g.id}", name=g.name, price=int(g.price), kind="item", item=g.id))
     return out
 
 
-def give_stock(store, npc, good: str, count: int, th_id: str, t: int, load: bool = False):
-    """They hold `count` of `good`, the situation's (a load when stranded): a stock entity, added to what they hold of it already."""
+def give_stock(store, npc, good: str, count: int, th_id: str, t: int):
+    """They hold `count` of `good`, the situation's: a stock entity of that situation (f545's review: never added to another's, which
+    its end would take away with its own)."""
     from engine import entities, inventory
-    ref = f"stock:{npc.id}:{good}"
+    ref = f"stock:{npc.id}:{good}:{th_id}"
     e = store.load_entity(ref)
     if e is not None and e.state == "held":
         e.data = {**e.data, "count": int(e.data.get("count", 0)) + int(count)}
         store.save_entity(e)
         return e
     return entities.begin(store, "stock", ref, f"{npc.name}'s {inventory.GOODS[good].name}"[:120], int(t), place=npc.location,
-                          links={"npc": npc.id}, data={"good": good, "count": int(count), "thread": th_id, "load": bool(load)})
+                          links={"npc": npc.id}, data={"good": good, "count": int(count), "thread": th_id})
 
 
-def take_stock(store, npc_id: str, good: str, n: int, minute: int, end: str = "sold_out") -> bool:
-    """`n` taken from what they hold of `good` (sold, handed over, stolen); at none left it ends `end` (sold_out, lost). False when they
-    hold none."""
+def take_stock(store, npc_id: str, good: str, n: int, minute: int, end: str = "sold_out") -> int:
+    """`n` taken from what they hold of `good` (sold, handed over, stolen), the oldest first; a row with none left ends `end`
+    (sold_out, lost). How many were taken (0 when they held none)."""
     from engine import entities
-    e = store.load_entity(f"stock:{npc_id}:{good}")
-    if e is None or e.state != "held" or int(e.data.get("count", 0)) <= 0:
-        return False
-    left = int(e.data["count"]) - int(n)
-    e.data = {**e.data, "count": max(0, left)}
-    if left <= 0:
-        entities.move(store, e, end, minute, "none left")
-    else:
-        store.save_entity(e)
-    return True
+    took = 0
+    for e in held(store, npc_id, good):
+        if took >= n:
+            break
+        have = int(e.data.get("count", 0))
+        k = min(have, int(n) - took)
+        e.data = {**e.data, "count": have - k}
+        took += k
+        if have - k <= 0:
+            entities.move(store, e, end, minute, "none left")
+        else:
+            store.save_entity(e)
+    return took
 
 
 def _count(key: str, span) -> int:
@@ -238,7 +256,7 @@ def _target(store, world, town: str, good: str, parts: list[dict], holder: str) 
 
 
 def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, *, catalog=None, ways: bool = False,
-             reach=frozenset()) -> list[dict]:
+             reach=None) -> list[dict]:
     """Write the checked parts of the situation `th` into the world (its people, worries and moods, ties, conditions and evidence), keep
     them on the thread as th["parts"], and return them. `ways` as check took it (a closure of an only way needs one); `reach` the goods
     within the player's reach, for settling what the parts that could not be made leave behind. Saves the people and places it
@@ -249,6 +267,9 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
     skipped: list = []
     ids = _people(store, world, catalog, state, th, accepted, t, town, skipped)
     parts = _remap(accepted, ids, world, skipped)
+    if reach is None:                                                      # (f545's review) as check() judged it: the town's reach
+        from engine import retrieval
+        reach = situations.within_reach(world, town, retrieval.people_in_town(store, world, town))
     situations.settle(parts, reach)                                        # a condition whose key went with an unmade person is lifted
     R = _R()
     title = th.get("title", "")
@@ -273,6 +294,7 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
     ids_world = set(world.places) | set(world.roads)
     end = int((th.get("times") or [t])[-1])
     days = max(1, -(-(end - int(t)) // 1440))
+    before = {id(e) for e in state.get("effects", [])}
     for i, a in enumerate(parts):
         if a["kind"] != "condition":
             continue
@@ -294,9 +316,9 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         if a["state"] in ("scarce", "stranded"):                       # that good dearer in the town while it lasts
             pulse.apply_one(store, world, None, state, {"kind": "prices", "place": town, "value": int(R[a["state"]]), "good": g,
                                                         "days": days}, th.get("tier", "rare"), t, title, thread_id=th["id"])
-        if a.get("holder"):
-            a["count"] = _count(f"{th['id']}:{a['state']}:{i}", R["load" if a["state"] == "stranded" else "stock"])
-            give_stock(store, store.load_npc(a["holder"]), g, a["count"], th["id"], t, load=a["state"] == "stranded")
+        if a.get("holder") and a["state"] == "scarce":               # a scarce good to hand, theirs to sell while it lasts; (the owner)
+            a["count"] = _count(f"{th['id']}:{a['state']}:{i}", R["stock"])   # a stranded load is a price rise, a worry and a request:
+            give_stock(store, store.load_npc(a["holder"]), g, a["count"], th["id"], t)   # no store of its own
         name = inventory.GOODS[g].name
         if a["state"] == "wanted":                                       # the one who wants it asks for it
             n = _count(f"{th['id']}:wanted:{i}", R["wanted"])
@@ -306,6 +328,11 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
             if to:
                 a["request"] = {"npc": a["holder"], "kind": "deliver", "good": g, "to": to,
                                 "title": f"Deliver a load of {name} to {store.load_npc(to).name}"}
+            else:
+                skipped.append((dict(a), S["reasons"]["no_carrier"]))   # (f545's review) a price rise and a worry, and nobody to carry it to
+    for e in state.get("effects", []):                                     # (f545's review) the parts' own effects last its span,
+        if e.get("thread") == th["id"] and id(e) not in before:            # renewed with it when it is put off (pulse.tick_threads)
+            e["part"] = True
     th.setdefault("clues", [])
     for i, a in enumerate(parts):
         if a["kind"] != "evidence":
@@ -408,10 +435,10 @@ def heard(ws, npc, speech: str) -> None:
 
 
 def part_done(ws, q: dict) -> None:
-    """(the hand-in of a situation's request) That part of the situation is done: a stranded load carried lifts its price rise and is no
-    longer the holder's to sell; a wanted good brought meets the asker's "given"; the one who asked is no longer worried by it. Then the
-    situation's ways are looked at again."""
-    from engine import circumstance, entities, events
+    """(the hand-in of a situation's request) That part of the situation is done, never asked again: a stranded load carried lifts its
+    price rise; a wanted good brought meets the asker's "given"; the one who asked is no longer worried by it. Then the situation's ways
+    are looked at again."""
+    from engine import circumstance, events
     key = str(q.get("part") or "")
     tid, _, i = key.rpartition(":")
     state = ws.store.load_world_state()
@@ -424,10 +451,6 @@ def part_done(ws, q: dict) -> None:
         if e.get("thread") == tid and e.get("kind") == "prices" and e.get("good") == a.get("good"):
             e["until"] = min(e["until"], ws.minutes)
     asker = (a.get("request") or {}).get("npc", "")
-    if a.get("state") == "stranded" and a.get("holder"):
-        e = ws.store.load_entity(f"stock:{a['holder']}:{a['good']}")
-        if e is not None and e.state == "held":
-            entities.move(ws.store, e, "released", ws.minutes, "carried where it was needed")
     if asker and ws.store.npc_exists(asker):
         n = ws.npc_by_id(asker) or ws.store.load_npc(asker)            # the scene's own copy, which the turn's end saves
         if circumstance.release_concern(n, tid, "settled", ws.minutes):
@@ -445,6 +468,8 @@ def ask(ws, npc) -> None:
         return
     state = ws.store.load_world_state()
     taken = {q.get("part") for q in ws.player.quests}
+    taken |= {str((e.data.get("terms") or {}).get("part", "")) for e in ws.store.find_entities(kind="offer", state="released")
+              if e.data.get("with") == ws.acting and e.data.get("cause") == "refused"}     # (f545's review) a no is an answer
     for th in state.get("threads", []):
         if th.get("status") != "active":
             continue
@@ -459,8 +484,8 @@ def ask(ws, npc) -> None:
             else:
                 to = ws.store.load_npc(r["to"])
                 item = f"a load of {inventory.GOODS[r['good']].name}"
-                q = quests._quest("deliver", "F", r["title"], ws.minutes, item=item, to_name=to.name.split()[0], to_role=to.role,
-                                  item_description=f"{item}, from {npc.name}.", **common)
+                q = quests._quest("deliver", "F", r["title"], ws.minutes, item=item, to_name=to.name.split()[0], to_role="",
+                                  item_description=f"{item}, from {npc.name}, for {to.name}.", **common)   # for the one named, no other
             obligations.open_(ws.store, "request", npc.id, ws.acting, q["title"], ws.minutes, terms=q, key=f"part:{key}:{ws.acting}")
             return
 
@@ -475,7 +500,7 @@ def release(store, th: dict, status: str, t: int) -> None:
             entities.move(store, e, "released", t, "the situation is over")
     for e in obligations.open_ones(store, "request"):
         if str((e.data.get("terms") or {}).get("part", "")).startswith(f"{th['id']}:"):
-            obligations.close(store, e, "released", "over", t)
+            obligations.close(store, e, "released", "over", t, remember=False)      # not "had no yes": the matter ended
     for a in th.get("parts") or []:
         if a.get("kind") != "person" or not store.npc_exists(a["who"]):
             continue
@@ -533,7 +558,7 @@ def problems() -> list[str]:
             bad.append(f"situations.yaml register.{k}: a whole number from 1 to pulse.yaml's effects.{k}.max")
     if not whole(R.get("mark_most"), 8, 200):
         bad.append("situations.yaml register.mark_most: a whole number from 8 to 200")
-    for k in ("stock", "load", "wanted"):
+    for k in ("stock", "wanted"):
         v = R.get(k)
         if not (isinstance(v, list) and len(v) == 2 and whole(v[0], 1, 50) and whole(v[1], 1, 50) and v[0] <= v[1]):
             bad.append(f"situations.yaml register.{k}: [least, most], whole numbers from 1 to 50")
@@ -575,7 +600,7 @@ def problems() -> list[str]:
         slots = {"name", "good"} if k == "given" else {"name"}
         bad.extend(situations._line_problems(f"register.ways.how.{k or 'none'}", (Wy.get("how") or {}).get(k), slots,
                                              {"name": "Hollis", "good": "salt"}))
-    for k in ("new_today", "unmade"):
+    for k in ("new_today", "unmade", "no_carrier"):
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed")
     return bad

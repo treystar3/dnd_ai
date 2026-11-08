@@ -572,7 +572,8 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             changed = True
         if th["status"] == "active":                              # (f540's review) a road it shuts stays shut its whole span, put off or not
             for e in state.get("effects", []):
-                if e.get("thread") == th["id"] and e["kind"] == "closed" and e["place"] in world.roads and t < e["until"] < th["times"][-1] + 1440:
+                if e.get("thread") == th["id"] and (e["kind"] == "closed" and e["place"] in world.roads or e.get("part")) \
+                        and t < e["until"] < th["times"][-1] + 1440:               # (f545) and what its parts lay, the same
                     e["until"] = int(th["times"][-1]) + 1440
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:

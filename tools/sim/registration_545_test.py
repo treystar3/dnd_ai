@@ -14,7 +14,7 @@ simlib.install(stub)
 import ui.console as uc
 for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
     setattr(uc, fn, lambda *a, **k: None)
-from engine import checks, data_check, matters, memory, pulse, pulselog, retrieval, situation_parts, situations
+from engine import checks, clock, data_check, matters, memory, pulse, pulselog, retrieval, situation_parts, situations
 from llm.contracts import SituationParts
 
 bad = []
@@ -84,7 +84,7 @@ new = [store.load_npc(people[r]["who"]) for r in ("ferryman", "carpenter") if r 
 check("someone new of a trade the town lacks is made and named by the engine, of the town, kept as one of its residents",
       len(new) == 2 and all(n.role in ("ferryman", "carpenter") and n.name and pulse.town_of(world, n.location) == town
                             and n.id in store.load_place(n.location).residents and n.description for n in new), [(n.name, n.location) for n in new])
-check("...counted against the town's day, kept in the world's state", state["situation_people"][town] == {"day": t0 // 1440, "n": 2},
+check("...counted against the town's day, kept in the world's state", state["situation_people"][town] == {"day": clock.day(t0), "n": 2},
       state.get("situation_people"))
 check("every reference to a trade is now the person made for it", all(p["a"] in {x["who"] for x in people.values()}
                                                                      and p["b"] in {x["who"] for x in people.values()} for p in parts if p["kind"] == "tie"))
@@ -104,7 +104,7 @@ check("a rivalry is felt both ways", rel(a_.id, miller.id).get("score", 0) < 0 a
       and rel(a_.id, miller.id).get("feeling"), (rel(a_.id, miller.id), rel(miller.id, a_.id)))
 check("...a debt as owed and owing", rel(fer, a_.id).get("score", 0) > 0 and rel(a_.id, fer).get("score", 0) < 0
       and "owes" in rel(fer, a_.id)["feeling"] and "owed" in rel(a_.id, fer)["feeling"], (rel(fer, a_.id), rel(a_.id, fer)))
-check("...fear only by the one afraid", rel(car, b_.id).get("score", 0) < 0 and b_.id not in [] and car not in store.load_npc(b_.id).relations,
+check("...fear only by the one afraid", rel(car, b_.id).get("score", 0) < 0 and car not in store.load_npc(b_.id).relations,
       (rel(car, b_.id), store.load_npc(b_.id).relations))
 
 # ---- conditions, marks in their own words
@@ -158,7 +158,7 @@ check("...and a worry another situation gave is never taken over", store.load_np
 th3 = thread("th545c", "A barge aground", t0 + 1440)
 parts3, _, state3 = born(th3, {"people": [{"who": "bargeman", "stake": "can_fix", "want": "coin"}]}, t0 + 1440)
 check("...the next day the town takes someone new again", any(p.get("role") == "bargeman" for p in parts3)
-      and state3["situation_people"][town] == {"day": (t0 + 1440) // 1440, "n": 1}, state3.get("situation_people"))
+      and state3["situation_people"][town] == {"day": clock.day(t0 + 1440), "n": 1}, state3.get("situation_people"))
 
 # ---- the end takes back the worries and moods; what was learned and the ties stay
 state = store.load_world_state()
@@ -188,6 +188,33 @@ again = situation_parts.register(store, world, st, st["threads"][-1], acc, t0, c
 check("the same world and situation make the same person, by name", again and store.load_npc(again[0]["who"]).name
       == store_keep.load_npc(fer).name, (again, store_keep.load_npc(fer).name))
 store = store_keep
+
+# ---- (the review) a town's anchor is made as the town makes them; given stands as check judged it; the parts' effects last its span
+from npc import life
+anchor_place = next((pid for pid in retrieval.town_places(world, town) if life._anchors_wanted(store, world, pid).get("watch_captain")), "")
+check("(the town has an anchor of a written trade nobody has met: its watch captain)", bool(anchor_place), anchor_place)
+if anchor_place:
+    want = life._anchors_wanted(store, world, anchor_place)["watch_captain"]
+    th4 = thread("th545d", "Thieves in the market", t0 + 1440 + 60)
+    parts4, _, _ = born(th4, {"people": [{"who": "watch_captain", "stake": "can_fix", "want": "safety"}]}, t0 + 1440 + 60)
+    cap = store.load_npc(next(p["who"] for p in parts4 if p["kind"] == "person"))
+    check("...a written trade that is one of the town's anchors is made as that anchor: their name, their note, protected",
+          cap.anchor and cap.protected and (not want.name or cap.name == want.name) and cap.location == anchor_place,
+          (cap.name, cap.anchor, cap.protected, want))
+    check("...and the town makes no second one when the place is entered", not life._anchors_wanted(store, world, anchor_place).get("watch_captain"))
+th5 = thread("th545e", "Short of light", t0 + 2 * 1440)
+parts5, _, _ = born(th5, {"people": [{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
+                          "resources": [{"good": "candles", "state": "wanted", "wanted_by": a_.id}],
+                          "conditions": [{"on": road, "kind": "danger"}]}, t0 + 2 * 1440)
+check("a given condition on a good the town sells stands through registration, as check judged it (no reach passed)",
+      next(p for p in parts5 if p["kind"] == "person")["condition"] == "given", parts5)
+state = store.load_world_state()
+th_now = next(x for x in state["threads"] if x["id"] == "th545e")
+th_now["times"] = [th_now["times"][0], th_now["times"][-1] + 3 * 1440]
+pulse.tick_threads(store, world, ws.catalog, state, t0 + 2 * 1440 + 60, __import__("random").Random(1))
+dang = [e for e in state["effects"] if e.get("thread") == "th545e" and e["kind"] == "danger"]
+check("(the review) a situation put off keeps its parts' danger its whole span", dang and all(e["until"] >= th_now["times"][-1] for e in dang),
+      [(e["until"], th_now["times"][-1]) for e in dang])
 
 # ---- the data
 check("situations.yaml's register block checks clean, and data_check with it", situation_parts.problems() == [] and data_check.check() == [],

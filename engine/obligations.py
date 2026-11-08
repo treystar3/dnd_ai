@@ -78,7 +78,7 @@ def reason(e, to: str, cause: str) -> str:
     return streams.keyed("obligation", e.links.get("npc", ""), e.ref, len(e.history)).choice(list(lines))
 
 
-def close(store, e, to: str, cause: str, minute: int, npc=None, day: int = -1, turn: int = 0):
+def close(store, e, to: str, cause: str, minute: int, npc=None, day: int = -1, turn: int = 0, remember: bool = True):
     """End it: moved to `to` (refused when its lifecycle does not allow it), with the reason said for `cause`, and what the holder keeps
     of it remembered (data: remember) on `npc` when given (the caller saves it), else on the record."""
     from engine import clock, entities, memory
@@ -89,7 +89,7 @@ def close(store, e, to: str, cause: str, minute: int, npc=None, day: int = -1, t
     why = reason(e, to, cause)
     e.data = {**e.data, "cause": cause}
     entities.move(store, e, to, minute, why)
-    line = (family(e.data["family"]).get("remember") or {}).get(to)
+    line = (family(e.data["family"]).get("remember") or {}).get(to) if remember else None
     holder = e.links.get("npc", "")
     if line and holder:
         n = npc if npc is not None else (store.load_npc(holder) if store.npc_exists(holder) else None)
