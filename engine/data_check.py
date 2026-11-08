@@ -504,6 +504,15 @@ def check() -> list[str]:
         need(False, p_)
     PT_ = _load("data/rules/pastimes.yaml")
     _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
+    _goods_ids = {g_["id"] for g_ in _load("data/world/goods.yaml")}                         # (f545) a ware names a real good or material
+    from engine import items as _items
+    _mats = set(_items.MATERIALS)
+    for r_ in _load("data/world/roles.yaml"):
+        for w_ in r_.get("sells") or []:
+            if w_.get("kind") == "item":
+                need(w_.get("item") in _goods_ids, f"roles.yaml {r_['id']} sells '{w_.get('id')}': item '{w_.get('item')}' is not a good")
+            elif w_.get("kind") == "material":
+                need(w_.get("item") in _mats, f"roles.yaml {r_['id']} sells '{w_.get('id')}': item '{w_.get('item')}' is not a material")
     from engine import clock as _clock, doings as _doings, moments as _moments                 # (f348) doings by role and period; moments by place and period
     _types = {p_.get("type", "") for p_ in _load("data/world/places.yaml")}
     bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES), _types | {"road", "dungeon", "home"})    # (f449) `at`: the kinds of place, the made ones too

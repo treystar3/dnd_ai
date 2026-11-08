@@ -107,7 +107,8 @@ check("the roads that touch the town, a shut one said so, and no other road", f"
 places_line = one("PLACES (id: name)")
 check("the places are the town's own and those one road away, never a road stop", f"{town}: " in places_line
       and all(pulse.known(world, p) for p in re.findall(r"(\w+): ", places_line)), places_line)
-check("every good of the world, by id and name", all(f"{gid}: " in one("GOODS (id: name)") for gid in situations._goods()))
+check("every good a situation may name, by id and name, and (f545) none of the player's kit",
+      all(f"{gid}: " in one("GOODS (id: name)") for gid in situations._goods()) and "tome_second_circle" not in one("GOODS (id: name)"))
 
 amaranth = world.places["amaranth"]
 lone = [rid for rid, r in world.roads.items() if "amaranth" in (r.from_, r.to)]
@@ -281,8 +282,8 @@ check("a capped call held to its budget is not flagged; no answer leaked thinkin
 parth = [r for r in rows1 if r["arm"] == "uncapped" and r["place"] == "parth"]
 check("an answer cut off with all its room spent thinking is thought_out, kept as nothing", parth and all(r["finish"] == "thought_out"
       and not r["valid"] and r["accepted_n"] == 0 and r["error"] == "no answer" for r in parth), [(r["place"], r["finish"]) for r in rows1 if r["arm"] == "uncapped"])
-check("a thinking arm's tokens are shared out between its thinking and its answer", all(r["thinking_tokens"] == (1024 if r["arm"] == "budget_1024" else NATURAL)
-      for r in rows1 if r["think"]) and all(not r.get("thinking_tokens") for r in offs), [(r["arm"], r.get("thinking_tokens")) for r in rows1])
+check("a thinking arm's tokens are shared out between its thinking and its answer (to a token: the share is by length, rounded)",
+      all(abs(r["thinking_tokens"] - (1024 if r["arm"] == "budget_1024" else NATURAL)) <= 1 for r in rows1 if r["think"]) and all(not r.get("thinking_tokens") for r in offs), [(r["arm"], r.get("thinking_tokens")) for r in rows1])
 
 # ---- the packs
 key = json.loads((out1 / "key.json").read_text())

@@ -49,8 +49,19 @@ def _raw(text: str, ids: set[str]) -> bool:
 
 
 def _goods() -> dict:
+    """(f545) The goods a situation may name, in situations.yaml's order (trade goods first), each the world's own Good."""
     from engine import inventory
-    return inventory.GOODS
+    return {g: inventory.GOODS[g] for g in S.get("goods") or () if g in inventory.GOODS}
+
+
+def within_reach(world, town: str, rows=()) -> set[str]:
+    """(f545) The situation's goods a player could get hold of in `town` without the situation: one a trade of the town sells (its
+    places' written trades and its people's), or one the land gives (a herb that grows, meat from a kill)."""
+    roles = {r.role for r in rows}
+    for pid in (retrieval.town_places(world, town) if town else []):
+        roles |= set(world.places[pid].residents or {})
+    sold = {w.item for r in roles if r in world.roles for w in world.roles[r].sells if w.kind == "item" and w.item}
+    return {g for g, good in _goods().items() if g in sold or good.grows_in or good.drops_from}
 
 
 def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways: bool, now: int,
@@ -208,24 +219,35 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         false = held == "person" and rng.random() < float(S["false_chance"].get(p.certainty, 0.0))   # (the owner) the engine's, once
         add({"kind": "evidence", "holder": holder, "held": held, "points_to": points, "certainty": p.certainty, "label": p.label,
              "true": not false})
-    settle(accepted)
+    settle(accepted, within_reach(world, town, rows))
     return accepted, dropped
 
 
-def settle(accepted: list[dict]) -> None:
+def settle(accepted: list[dict], reach=frozenset()) -> None:
     """(f545) What the whole situation decides of its parts, once every part is in, so nothing kept is a locked door or a lie no one can
     find out. A condition the situation offers no way to meet is lifted, and the person helps freely: told needs a piece of evidence
-    someone else holds (a person, or a place), given needs a good that person wants. A false piece of evidence stands only beside a true
-    one that points elsewhere, so the player can weigh one against the other; else it is true after all. Each piece is weighed
-    against the others as the engine first decided them, never as this pass leaves them, so the outcome does not hang on the order the
-    pieces were proposed in. Each change is noted on the part (lifted, made_true) for the pulse's log."""
+    someone else holds (a person, or a place), given needs a good that person wants which the player can get: one someone else of the
+    situation has, or one `reach` holds (within_reach: sold in the town, or given by the land). A false piece of evidence stands only
+    beside a true one that points elsewhere, so the player can weigh one against the other; else it is true after all. Each piece is
+    weighed against the others as the engine first decided them, never as this pass leaves them, so the outcome does not hang on the
+    order the pieces were proposed in. Each change is noted on the part (lifted, made_true) for the pulse's log."""
     evidence = [a for a in accepted if a["kind"] == "evidence"]
+    has: dict[str, set] = collections.defaultdict(set)                         # good -> who of the situation has it
+    for a in accepted:
+        if a["kind"] == "person" and a.get("holds"):
+            has[a["holds"]].add(a["who"])
+        elif a["kind"] == "resource" and a.get("holder"):
+            has[a["good"]].add(a["holder"])
+
+    def to_hand(r, who) -> bool:
+        return r["good"] in reach or bool(has[r["good"]] - {who})
     for a in accepted:
         if a["kind"] != "person" or not a.get("condition"):
             continue
         if a["condition"] == "told" and not any(e["holder"] != a["who"] for e in evidence):
             a["lifted"], a["condition"] = "told", ""
-        elif a["condition"] == "given" and not any(r["kind"] == "resource" and r.get("wanted_by") == a["who"] for r in accepted):
+        elif a["condition"] == "given" and not any(r["kind"] == "resource" and r.get("wanted_by") == a["who"] and to_hand(r, a["who"])
+                                                   for r in accepted):
             a["lifted"], a["condition"] = "given", ""
     first = [e["true"] for e in evidence]                                    # (f545's review) as decided, before any is made true
     for i, e in enumerate(evidence):
@@ -314,7 +336,7 @@ def menus(store, world, state: dict, place, t: int, ways: bool = False) -> dict:
     only = set() if ways else {rid for rid in touching if rid not in shut and not roads.way_round(world, rid, shut)}
     return {"town": town, "people": shown, "written": written, "others": others,
             "places": [pid for pid in sorted(here) + near if pulse.known(world, pid)], "roads": touching, "shut": shut, "only": only,
-            "goods": sorted(_goods())}
+            "goods": list(_goods())}
 
 
 def prompt(store, world, state: dict, place, tier: str, t: int, trouble: str = "", ways: bool = False) -> tuple[str, str]:
@@ -515,6 +537,18 @@ def problems() -> list[str]:
     for t in ("people", "each_other"):
         if t not in caps or not (caps[t] is None or whole(caps[t], 1)):
             bad.append(f"situations.yaml caps.{t}: a whole number of 1 or more, or null for none")
+    from engine import inventory                                         # (f545) the goods a situation turns on: the world's, never kit
+    G = S.get("goods")
+    if not isinstance(G, list) or not G:
+        bad.append("situations.yaml goods: a list of the goods a situation may name")
+    else:
+        for g in G:
+            if g not in inventory.GOODS:
+                bad.append(f"situations.yaml goods: '{g}' is not a good of data/world/goods.yaml")
+            elif inventory.GOODS[g].kind in ("book", "codex"):
+                bad.append(f"situations.yaml goods: '{g}' is the player's kit (a {inventory.GOODS[g].kind}), never a situation's cargo")
+        if len(set(G)) != len(G):
+            bad.append("situations.yaml goods: a good listed twice")
     fc = S.get("false_chance") or {}
     if set(fc) != set(L.get("certainties") or ()):
         bad.append("situations.yaml false_chance: one chance for each certainty")

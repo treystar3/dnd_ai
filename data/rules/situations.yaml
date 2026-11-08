@@ -21,6 +21,12 @@ stances:
   refused: [[blocks, road_open], [blocks, goods_moved]]
   lifted: [[coin, paid]]
 
+# (f545) The goods a situation may turn on, in the order its prompt lists them: the trade goods first (what a town makes, eats, burns and
+# builds with), then the herbs and meat the land gives and the one remedy a town would send for. Never the player's kit: no tome, codex,
+# tonic, torch or ration (f544: those read as cargo absurdly, and three of them were most of what the model named).
+goods: [salt, grain, flour, cloth, sawn_planks, dried_fish, wine, lamp_oil, rope, candles, silverleaf, moonpetal, yarrow, wild_garlic,
+        venison, boar_meat, healing_draught]
+
 # Trades a situation never casts: the protected and the kept, and the guild's and the crown's own offices.
 never_roles: [prisoner, guild_clerk, guild_master, guild_instructor, guild_contractor, quartermaster, land_agent, relic_dealer, monarch,
               chamberlain, royal_guard]

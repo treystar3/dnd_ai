@@ -54,6 +54,36 @@ for _r in RECIPES.values():
             raise ValueError(f"recipes.yaml {_r.id}: unknown good '{_g}'")
 
 
+def good_named(name: str) -> str:
+    """(f545) The good a name means, as find() would match it among one of every good, without minting an item for each (which drew
+    one id per good from the ids stream, so every good added moved the ids of every later thing in that turn). "" when none."""
+    words = [w.rstrip("s") for w in name.lower().replace("-", " ").split() if w not in ("the", "my", "a", "an", "some", "of")]
+    best, best_score = "", 0
+    base = items.CATALOG["goods"].name
+    for gid, g in GOODS.items():
+        text = f"{g.name} {gid}  {base}".lower().replace("_", " ")
+        score = sum(1 for w in words if w and w in text)
+        if score > best_score:
+            best, best_score = gid, score
+    return best
+
+
+def is_good(name: str) -> str:
+    """(f545) The good a thing someone hands over IS, when its name ends with that good's name ("a jar of wine", "two sacks of salt",
+    "silverleaf"); "" when it only mentions one ("a rope ladder", "a cloth-wrapped key", "a sealed letter" is no sealed codex). Stricter
+    than good_named, which finds the good a request means however it is put; this decides whether a gift is a story object or a good."""
+    import re
+    stem = lambda w: w[:-1] if w.endswith("s") and len(w) > 3 else w
+    words = [stem(w) for w in re.findall(r"[a-z]+", name.lower())]
+    best, size = "", 0
+    for gid, g in GOODS.items():
+        for form in {g.name, gid.replace("_", " ")}:
+            gw = [stem(w) for w in re.findall(r"[a-z]+", form.lower())]
+            if gw and len(gw) > size and words[-len(gw):] == gw:
+                best, size = gid, len(gw)
+    return best
+
+
 def make_good(good_id: str, quantity: int = 1) -> Item:
     g = GOODS[good_id]
     return Item(uid=streams.new_id(10), base="goods", name=g.name, good=good_id, quantity=quantity)

@@ -115,10 +115,10 @@ class InventoryActions:
                  "dagger", "armor", "armour", "shield", "helm", "hammer", "mace", "staff")
 
     def story_object(self, name: str) -> bool:
-        """Key items are tokens, documents and keys - never food, drink, gear, remedies or money."""
+        """Key items are tokens, documents and keys - never food, drink, gear, remedies or money. (f545) Nor a good of the world by name
+        ("a jar of wine" is wine), though a thing may mention one ("a rope ladder", "a sealed letter"): no item is minted to ask."""
         words = name.lower()
-        return not any(re.search(rf"\b{w}", words) for w in self.NOT_STORY) and not inv.find(
-            [inv.make_good(g) for g in inv.GOODS], name)
+        return not any(re.search(rf"\b{w}", words) for w in self.NOT_STORY) and not inv.is_good(name)
 
     def receive_key_item(self, gift, npc) -> None:
         c = self.player.character
@@ -201,7 +201,7 @@ class InventoryActions:
         if item is not None and item.good and inv.GOODS[item.good].kind == "codex":
             self.read_codex(item, text)                            # (f397) a codex teaches its named spell
             return
-        if not item or not item.good or inv.GOODS[item.good].kind == "herb":
+        if not item or not item.good or inv.GOODS[item.good].kind in ("herb", "trade"):        # (f545) a trade good is carried, never used
             self.refuse("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
             return
         used = inv.take(self.pack, inv.GOODS[item.good].name, 1)

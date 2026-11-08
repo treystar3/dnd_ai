@@ -1,6 +1,6 @@
-# GOODS - things that stack: herbs, food and consumables.
+# GOODS - things that stack: herbs, food, consumables, books and (f545) trade goods.
 #
-# kind:       herb | food | consumable | book | codex
+# kind:       herb | food | consumable | book | codex | trade
 # rank:       for a book (f397): the spell rank it teaches (data/rules/spells.yaml books)
 # price:      value in copper (100 copper = 1 silver). Merchants buy at a fraction of this.
 # stack:      how many fit in one pack slot
@@ -57,3 +57,18 @@
 # (f397) A codex: one named spell, sealed in it when it is found (the item carries the spell; engine/spells.py named).
 - {id: codex, name: sealed codex, kind: codex, price: 50000, stack: 1,
    description: "A codex bound in something older than leather, holding one great working."}
+
+# (f545) Trade goods: what a town makes, eats, burns and builds with, carried by the sack, bolt and jar. A situation turns on these
+# (data/rules/situations.yaml goods); merchants and the trades that make them sell them (data/world/roles.yaml), and anyone who buys
+# "any" buys them. They are carried and traded, never used: none grows wild or drops from a creature, so no forage, garden or kill
+# draws them.
+- {id: salt,        name: salt,        kind: trade, price: 12, stack: 10, description: "Coarse grey salt in a waxed sack; meat and fish keep with it."}
+- {id: grain,       name: grain,       kind: trade, price: 6,  stack: 10, description: "A sack of threshed barley and rye."}
+- {id: flour,       name: flour,       kind: trade, price: 8,  stack: 10, description: "Milled flour, sacked against the damp."}
+- {id: cloth,       name: cloth,       kind: trade, price: 30, stack: 10, description: "A bolt of plain woven cloth, undyed."}
+- {id: sawn_planks, name: sawn planks, kind: trade, price: 20, stack: 10, description: "A bundle of sawn planks, roped for carrying."}
+- {id: dried_fish,  name: dried fish,  kind: trade, price: 10, stack: 10, description: "A string of split and dried fish, stiff as bark."}
+- {id: wine,        name: wine,        kind: trade, price: 25, stack: 10, description: "A stoppered jar of red wine."}
+- {id: lamp_oil,    name: lamp oil,    kind: trade, price: 10, stack: 10, description: "A sealed flask of lamp oil."}
+- {id: rope,        name: rope,        kind: trade, price: 12, stack: 10, description: "A coil of hemp rope, fifty feet of it."}
+- {id: candles,     name: candles,     kind: trade, price: 6,  stack: 10, description: "A bundle of tallow candles tied by their wicks."}
