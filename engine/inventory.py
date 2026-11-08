@@ -32,6 +32,7 @@ class Good(BaseModel):
     drops_from: list[str] = []
     description: str = ""
     rank: int = 0                   # a book (f397): the spell rank it teaches (engine/spells.py)
+    mass: bool = False              # (f545's review) said as a mass ("some salt"), never counted ("three salts")
 
 
 class Ingredient(BaseModel):

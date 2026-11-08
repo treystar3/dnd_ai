@@ -119,6 +119,8 @@ for lab in ("UNKNOWN_PERSON", "npc_marker", f"{owner.id}_debt"):
 # ---- (the third review)
 for lab in ("the late miller", "a former guard", "the dead smith", "a fake priest", "not a real merchant"):
     check(f"(the third review) '{lab}' is no living trade", situations.trade_of("hal_vane", lab, world, never) == "")
+check("(the fourth review) a label is denied a trade only by its head: 'a miller who would not sell' is a miller",
+      situations.trade_of("hal_vane", "a miller who would not sell", world, never) == "miller")
 check("(the third review) an ordinary word is no machinery: 'unknown_buyer' reads as words", situations.plain("unknown_buyer", world, store) == "unknown buyer")
 tk = owner.role
 bad_stance = next(iter(situations.S["stances"]["refused"]))

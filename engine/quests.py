@@ -70,6 +70,24 @@ def reward(letter: str, guild: bool, bonus: float = 0) -> tuple[int, int]:
     return round(r["coins"] * share * (1 + bonus / 100)), round(r["xp"] * share * (1 + bonus / 100))
 
 
+def names_person(npc, text: str, by_trade: bool = True) -> bool:
+    """(f545's reviews) Whether words saying who a thing is for name this person: their full name, or their first or family name, as
+    whole words ("old Marta", "Vell", "Marta's"; "Mart" is not "Marta"), or - by_trade - their trade, its plural or a word it is also
+    called by (guild.yaml recipient_words: "the blacksmith"). A leading "the" and underscores are no part of it; "the" alone is no one."""
+    want = re.sub(r"^the ", "", (text or "").lower().replace("_", " ").strip()).strip()
+    if not want or want == "the":
+        return False
+    whole = lambda part: bool(part) and re.search(rf"(?<![a-z]){re.escape(part)}(?![a-z])", want) is not None
+    name = npc.name.lower()
+    if whole(name) or any(whole(p) for p in name.split() if len(p) >= 3):
+        return True
+    if not by_trade:
+        return False
+    role = npc.role.replace("_", " ").lower()
+    words = [role, plural(role), *[w.lower() for w in (G.get("recipient_words") or {}).get(npc.role, [])]]
+    return any(whole(w) for w in words)
+
+
 def plural(name: str) -> str:
     n = name.lower()
     if n.endswith("f"):

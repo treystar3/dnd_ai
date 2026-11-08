@@ -101,8 +101,9 @@ def trade_of(who: str, label: str, world, never=frozenset()) -> str:
     got = found(re.sub(r"[_ ]?\d+$", "", w).replace(" ", "_"))
     if got is not None:
         return got
-    if set(re.findall(r"[a-z]+", (label or "").lower())) & set(S.get("not_of_trade") or ()):
+    if set(re.findall(r"[a-z]+", _head(label))) & set(S.get("not_of_trade") or ()):
         return ""                                                    # (f545's review) "the late miller", "a former guard": no living trade
+                                                                     # (its head only: "a miller who would not sell" is a miller)
     words = re.findall(r"[a-z]+", _head(label))
     for cand in ([f"{words[-2]}_{words[-1]}"] if len(words) >= 2 else []) + words[-1:]:
         got = found(cand)

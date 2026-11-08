@@ -446,9 +446,9 @@ def need_met(path: dict, state: dict, thread: dict, by: str = "") -> bool:
     return False
 
 
-def _words(text: str, least: int = 3) -> set[str]:
-    """A line's own words, as a clue's telling is matched: three letters or more (two, for a clue that has no longer word of its own:
-    "an ox"), the filler of told_skip left out, a plural as its one."""
+def _words(text: str, least: int = 2) -> set[str]:
+    """A line's own words, as a clue's telling is matched: two letters or more ("an ox", "ox tracks"), the filler of told_skip left out
+    (its short function words with it: "in", "on", "by"), a plural as its one."""
     skip = set(_R()["ways"].get("told_skip") or ())
     out = set()
     for w in re.findall(rf"[a-z]{{{least},}}", (text or "").lower()):
@@ -464,10 +464,11 @@ def told_by(speech: str, clue: dict, store, world) -> bool:
     whole."""
     label = (clue.get("label") or "").strip().lower()
     own, said = _words(label), _words(speech)
-    if not own:                                                     # (f545's review) a short word only when it has no longer one
-        own, said = _words(label, 2), _words(speech, 2)
     if not own:
         return bool(label) and label in (speech or "").lower()
+    head = sorted(_words(" ".join(re.findall(r"[a-z]+", situations._head(label))[-1:])))   # (f545's review) what the clue is - "tracks"
+    if head and not set(head) & said:                                                    # by the watch tower - said, never only
+        return False                                                                     # where it is
     need = min(int(_R()["ways"]["told_words"]), len(own) - (1 if len(own) >= 3 else 0))
     if len(own & said) < need:
         return False

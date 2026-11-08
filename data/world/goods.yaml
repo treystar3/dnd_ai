@@ -10,21 +10,22 @@
 # combat:     true if it can be used mid-fight (one a turn; it does not use up your action)
 # grows_in:   for herbs - biomes where foraging can find it, with a chance per forage
 # drops_from: for food - creatures that can yield it when killed
+# mass:       (f545's review) said as a mass, never counted: "some salt", not "three salts" (a gift of several in words)
 
 - {id: silverleaf,   name: silverleaf,   kind: herb, price: 15, stack: 10, grows_in: {forest: 0.5, farmland: 0.2},
    description: "A pale, silver-backed leaf that steeps into a healing draught."}
 - {id: moonpetal,    name: moonpetal,    kind: herb, price: 25, stack: 10, grows_in: {forest: 0.3},
    description: "A blue-white flower that closes by day; the base of mana tonics."}
-- {id: yarrow,       name: yarrow,       kind: herb, price: 8,  stack: 10, grows_in: {farmland: 0.5, forest: 0.3},
+- {id: yarrow,       name: yarrow,       kind: herb, mass: true, price: 8,  stack: 10, grows_in: {farmland: 0.5, forest: 0.3},
    description: "A feathery wound-herb; packed into a bandage it stanches bleeding."}
-- {id: wild_garlic,  name: wild garlic,  kind: herb, price: 5,  stack: 10, grows_in: {forest: 0.4, farmland: 0.4},
+- {id: wild_garlic,  name: wild garlic,  kind: herb, mass: true, price: 5,  stack: 10, grows_in: {forest: 0.4, farmland: 0.4},
    description: "Pungent and plentiful; it keeps travel food edible."}
 
-- {id: venison,      name: venison,      kind: food, price: 20, stack: 10, drops_from: [deer, elk],
+- {id: venison,      name: venison,      kind: food, mass: true, price: 20, stack: 10, drops_from: [deer, elk],
    feeds: 40, restores: {health: 8, stamina: 10}, description: "Lean deer meat."}
-- {id: boar_meat,    name: boar meat,    kind: food, price: 20, stack: 10, drops_from: [boar, giant_boar],
+- {id: boar_meat,    name: boar meat,    kind: food, mass: true, price: 20, stack: 10, drops_from: [boar, giant_boar],
    feeds: 40, restores: {health: 8, stamina: 10}, description: "Dark, fatty boar meat."}
-- {id: wolf_meat,    name: wolf meat,    kind: food, price: 12, stack: 10, drops_from: [wolf, dire_wolf, worg, winter_wolf],
+- {id: wolf_meat,    name: wolf meat,    kind: food, mass: true, price: 12, stack: 10, drops_from: [wolf, dire_wolf, worg, winter_wolf],
    feeds: 35, restores: {health: 6, stamina: 8}, description: "Tough, gamey meat; better stewed than roasted."}
 - {id: hearty_meal,  name: hearty meal,  kind: food, price: 30, stack: 5, feeds: 60, restores: {stamina: 20, health: 10},
    description: "Meat seared over a fire with whatever the pack had to spare - a proper meal, hot and filling."}
@@ -62,13 +63,13 @@
 # (data/rules/situations.yaml goods); merchants and the trades that make them sell them (data/world/roles.yaml), and anyone who buys
 # "any" buys them. They are carried and traded, never used: none grows wild or drops from a creature, so no forage, garden or kill
 # draws them.
-- {id: salt,        name: salt,        kind: trade, price: 12, stack: 10, description: "Coarse grey salt in a waxed sack; meat and fish keep with it."}
-- {id: grain,       name: grain,       kind: trade, price: 6,  stack: 10, description: "A sack of threshed barley and rye."}
-- {id: flour,       name: flour,       kind: trade, price: 8,  stack: 10, description: "Milled flour, sacked against the damp."}
-- {id: cloth,       name: cloth,       kind: trade, price: 30, stack: 10, description: "A bolt of plain woven cloth, undyed."}
+- {id: salt,        name: salt,        kind: trade, mass: true, price: 12, stack: 10, description: "Coarse grey salt in a waxed sack; meat and fish keep with it."}
+- {id: grain,       name: grain,       kind: trade, mass: true, price: 6,  stack: 10, description: "A sack of threshed barley and rye."}
+- {id: flour,       name: flour,       kind: trade, mass: true, price: 8,  stack: 10, description: "Milled flour, sacked against the damp."}
+- {id: cloth,       name: cloth,       kind: trade, mass: true, price: 30, stack: 10, description: "A bolt of plain woven cloth, undyed."}
 - {id: sawn_planks, name: sawn planks, kind: trade, price: 20, stack: 10, description: "A bundle of sawn planks, roped for carrying."}
-- {id: dried_fish,  name: dried fish,  kind: trade, price: 10, stack: 10, description: "A string of split and dried fish, stiff as bark."}
-- {id: wine,        name: wine,        kind: trade, price: 25, stack: 10, description: "A stoppered jar of red wine."}
-- {id: lamp_oil,    name: lamp oil,    kind: trade, price: 10, stack: 10, description: "A sealed flask of lamp oil."}
-- {id: rope,        name: rope,        kind: trade, price: 12, stack: 10, description: "A coil of hemp rope, fifty feet of it."}
+- {id: dried_fish,  name: dried fish,  kind: trade, mass: true, price: 10, stack: 10, description: "A string of split and dried fish, stiff as bark."}
+- {id: wine,        name: wine,        kind: trade, mass: true, price: 25, stack: 10, description: "A stoppered jar of red wine."}
+- {id: lamp_oil,    name: lamp oil,    kind: trade, mass: true, price: 10, stack: 10, description: "A sealed flask of lamp oil."}
+- {id: rope,        name: rope,        kind: trade, mass: true, price: 12, stack: 10, description: "A coil of hemp rope, fifty feet of it."}
 - {id: candles,     name: candles,     kind: trade, price: 6,  stack: 10, description: "A bundle of tallow candles tied by their wicks."}

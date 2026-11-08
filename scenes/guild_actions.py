@@ -612,9 +612,15 @@ class GuildActions:
             situation_parts.taken(self.store, q["part"], self.acting, self.minutes)
         self.store.save_npc(npc)
         if q["kind"] == "deliver":
-            self.player.character.key_items.append(KeyItem(
-                id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
-                source=npc.name, day=clock.day(self.minutes), for_whom=q.get("to_role") or q.get("to_name", "")))   # (f545's review)
+            for_whom = q.get("to_role") or q.get("to_name", "")
+            held = next((k for k in self.player.character.key_items if k.kind == "quest" and k.source == npc.name
+                         and k.name.lower() == str(q["item"]).lower() and not k.id.startswith("quest_")), None)
+            if held is not None:                                            # (f545's review) the very thing they already handed over
+                held.id, held.description, held.for_whom = f"quest_{q['id']}", q["item_description"], for_whom   # is the one carried
+            else:
+                self.player.character.key_items.append(KeyItem(
+                    id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
+                    source=npc.name, day=clock.day(self.minutes), for_whom=for_whom))
         self.player.quests.append(q)
         self.store.save_player(self.player)
         from engine import ledger

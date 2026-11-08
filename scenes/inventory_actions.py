@@ -143,7 +143,7 @@ class InventoryActions:
         n = int(getattr(intent, "count", 1) or 1)
         if n > 1:
             return min(99, n)
-        for w in re.findall(r"\d+|[a-z]+", (intent.item or "").lower()):
+        for w in re.findall(r"\d+|[a-z]+", re.sub(r"\s+x\d+\s*$", "", (intent.item or "").lower())):   # "draught x3" is what is carried
             k = int(w) if w.isdigit() else mentor.WORD_NUM.get(w)
             if k:
                 return max(1, min(99, k))
@@ -153,11 +153,15 @@ class InventoryActions:
     def counted(item, n: int) -> str:
         """A thing handed over, as a person would say it: "a candle"'s name alone for one, "three candles" for more."""
         from engine import items as _items, mentor
+        from engine import quests
         name = _items.display_name(item)
         if n <= 1:
             return name
+        good = inv.GOODS.get(item.good or "")
+        if good is not None and good.mass:
+            return f"some {name}"                                       # (f545's review) "some salt", never "three salt"
         word = next((w for w, k in mentor.WORD_NUM.items() if k == n), str(n))
-        return f"{word} {name}"
+        return f"{word} {name if name.endswith('s') else quests.plural(name)}"
 
     def delivery_for(self, key):
         """(f545's review) The delivery a key item is carried for, when it is one of the player's jobs."""
@@ -173,13 +177,8 @@ class InventoryActions:
 
     def is_recipient(self, npc, for_whom: str) -> bool:
         """Does this person match who a quest item was meant for - by name, first name or role?"""
-        want = re.sub(r"^the ", "", for_whom.lower().strip()).strip()     # (f545's review) a leading "the", never one inside a name
-        if not want:
-            return False
-        name, role = npc.name.lower(), npc.role.replace("_", " ").lower()
-        whole = lambda part, text: bool(part) and re.search(rf"(?<![a-z]){re.escape(part)}(?![a-z])", text) is not None
-        return (whole(name, want) or whole(role, want) or want == name.split()[0]     # (f545's review) whole words: "Mart" is not
-                or (len(want.split()) == 1 and want == role))                          # "Marta Vell", nor "the" any name with it
+        from engine import quests
+        return quests.names_person(npc, for_whom)                        # (f545's reviews) whole names and trades, one reading
 
     def on_discard(self, intent, text: str) -> None:
         key = self.find_key(intent.item or text)
@@ -539,7 +538,7 @@ class InventoryActions:
         self.store.save_player(self.player)
         console.ledger(f"Gave {inv.label(item)} to {npc.label(self.acting)}.")
         intent.target = npc.id
-        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They hand you {inv.label(item)}, asking nothing for it.]"
+        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They hand you {self.counted(item, n)}, asking nothing for it.]"
         self.on_talk(intent, text)
 
     def on_store(self, intent, text: str) -> None:
