@@ -128,7 +128,8 @@ phrases:
 
 # (f543) The proposal (engine/situations.py prompt and propose; asked in play from f547): its warmth, the answer's ceiling, and how
 # many of the town's people and of the things already going on there it is shown.
-proposal: {temperature: 0.8, max_tokens: 900, people_most: 20, going_most: 6}
+proposal: {temperature: 0.8, max_tokens: 1400, people_most: 20, going_most: 6}   # (f545's re-test) the answer's room: with no caps
+                                                     # on the parts, answers run 761 tokens at the median and 881 at p90, and 900 cut some off
 
 # (f543) How the proposal's thinking is measured before the owner decides (tools/situation_ab.py; f544 on the pod): the arms (thinking
 # off; capped per request at a budget of thinking tokens; uncapped within the background slot, data/runtime/server.yaml slot_ctx),

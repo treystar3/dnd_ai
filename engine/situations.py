@@ -682,6 +682,11 @@ def problems() -> list[str]:
     for k in ("max_tokens", "people_most", "going_most"):
         if not isinstance(spec.get(k), int) or isinstance(spec.get(k), bool) or spec[k] < 1:
             bad.append(f"situations.yaml proposal.{k}: a whole number above 0")
+    from engine import budget
+    expected = int((budget.TASKS.get("situation_parts") or {}).get("answer_tokens") or 0)
+    if isinstance(spec.get("max_tokens"), int) and spec["max_tokens"] < 1.5 * expected:
+        bad.append(f"situations.yaml proposal.max_tokens: at least half again the answer budget.yaml expects ({expected} tokens), so the "
+                   "long answers are not cut off (f545's re-test: answers reached 900)")
     T = S.get("thinking") or {}
     A = T.get("arms") or {}
     if not isinstance(A.get("off"), dict) or A["off"].get("think") is not False:

@@ -140,6 +140,13 @@ check("...and asks who wants a wanted good, never inviting the word 'empty'", "w
 check("the harmed lines no longer read as money paid", not any("paying for it" in ln for ln in situations.S["phrases"]["stake"]["harmed"]))
 
 # ---- the data
+import copy as _copy
+keep_spec = _copy.deepcopy(situations.S["proposal"])
+situations.S["proposal"]["max_tokens"] = 900
+short = situations.problems()
+situations.S["proposal"] = keep_spec
+check("(f545's re-test) an answer room under half again the answer the turn budget expects is refused at startup",
+      any("proposal.max_tokens" in p for p in short) and situations.S["proposal"]["max_tokens"] >= 1400, short)
 check("situations.yaml checks clean, and data_check with it", situations.problems() == [] and data_check.check() == [], situations.problems())
 keep = copy.deepcopy(situations.S)
 situations.S["stances"]["refused"].append(["plots", "road_open"])
