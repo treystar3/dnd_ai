@@ -154,7 +154,10 @@ acc, dropped = run(parts(people=[person(absent[0], "can_fix", "coin"), person(ab
 check("a rare one brings two new people at most, for the engine to make", [a["bind"] for a in acc] == ["new", "new"]
       and [r for _, r in dropped] == [R["new_cap"]], (acc, dropped))
 acc, dropped = run(parts(people=[person(a_.role, "can_fix", "coin"), person(a_.id, "knows", "believed")]))
-check("the same person named by trade and then by id is one person: the second is twice", len(acc) == 1 and [r for _, r in dropped] == [R["twice"]], dropped)
+check("(f545's second review) a trade and one of that trade named by id are two people: the trade is cast past the one named",
+      len(acc) == 2 and acc[1]["who"] == a_.id and acc[0]["who"] != a_.id and not dropped, (acc, dropped))
+acc, dropped = run(parts(people=[person(a_.id, "can_fix", "coin"), person(a_.id, "knows", "believed")]))
+check("the same person named twice by id is one person: the second is twice", len(acc) == 1 and [r for _, r in dropped] == [R["twice"]], dropped)
 acc, dropped = run(parts(people=[person(a_.role, "can_fix", "coin"), person(b_.id)], ties=[{"a": a_.id, "b": b_.id, "tie": "kin"},
                                                                                                {"a": b_.id, "b": a_.role, "tie": "kin"}]))
 check("...one named by trade may be referred to by the id it bound to; a tie told twice either way round is once",

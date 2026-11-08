@@ -443,6 +443,9 @@ class GuildActions:
         self.player.quests.remove(q)
         from engine import obligations                                      # (f481) broken, with how
         obligations.close(self.store, obligations.find(self.store, str(q["id"])), "broken", "abandoned", self.minutes)
+        if q.get("part"):                                                   # (f545's review) a situation's job given up: free for
+            from engine import situation_parts                             # another, never asked of this one again
+            situation_parts.decline(self.store, q["part"], self.acting)
         self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
         self.store.save_player(self.player)
         console.ledger(f"Abandoned: {q['title']}.")
@@ -605,7 +608,11 @@ class GuildActions:
         e = obligations.current(self.store, "request", npc.id, self.acting)
         q = dict(e.data["terms"])
         obligations.close(self.store, e, "taken", "agreed", self.minutes, npc=npc)
-        obligations.open_(self.store, "contract", npc.id, self.acting, q["title"], self.minutes, terms={"quest": q["id"]}, key=str(q["id"]))
+        obligations.open_(self.store, "contract", npc.id, self.acting, q["title"], self.minutes,
+                          terms={"quest": q["id"], **({"part": q["part"]} if q.get("part") else {})}, key=str(q["id"]))
+        if q.get("part"):                                                   # (f545's review) one load, one carrier
+            from engine import situation_parts
+            situation_parts.taken(self.store, q["part"], self.acting, self.minutes)
         self.store.save_npc(npc)
         if q["kind"] == "deliver":
             self.player.character.key_items.append(KeyItem(

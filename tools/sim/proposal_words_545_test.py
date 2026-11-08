@@ -86,6 +86,29 @@ check("(the reading itself) trade_of and plain", situations.trade_of("elven_ward
       and situations.trade_of("x", "the old elven warden", world, never) == "elven_warden"
       and situations.trade_of("guild_master_1", "", world, never) == "" and situations.plain("trading_square", world, store) == "trading_square")
 
+# ---- (the review) a label read by its head, a person by their name, and order no matter
+owner = next(r for r in rows if r.role not in never)
+for lab in (f"the {owner.role.replace('_', ' ')}'s rival", f"widow of the {owner.role.replace('_', ' ')}", "elder brother of the tinker",
+            "keeps on guard against thieves", "a noble cause's champion"):
+    got = situations.trade_of("hal_vane", lab, world, never)
+    check(f"(the review) '{lab}' names no one by a trade that is not theirs", got == "" or lab.split()[-1].startswith(got.split("_")[-1])
+          and not (" of " in lab or "'s" in lab or " on " in lab), (lab, got))
+check("(the review) a trade no situation casts is no one, never read on into another", situations.trade_of("royal_guard", "a royal guard at the gate", world, never) == ""
+      and situations.trade_of("hal_vane", "a prisoner, once the smith", world, never) == "")
+acc, dropped = run(people=[person("hal_vane", f"the {owner.role.replace('_', ' ')}'s rival"), person(owner.id)],
+                   ties=[{"a": "hal_vane", "b": owner.id, "tie": "rival"}])
+check("(the review) ...so a rival of the town's own is never cast as them, and the tie stands or is no one's",
+      [a["who"] for a in acc if a["kind"] == "person"] == [owner.id] and not any(a["kind"] == "tie" for a in acc), (acc, dropped))
+acc, _ = run(people=[person(owner.name, "the one who knows"), person(owner.name.lower().replace(" ", "_") + "x", "x")])
+check("(the review) a town person written by their name is that person", any(a["kind"] == "person" and a["who"] == owner.id and a["bind"] == "npc"
+      for a in acc), acc)
+one = next(r for r in mine if sum(1 for x in retrieval.people_in_town(store, world, town) if x.role == r) == 1)
+first = sorted(a["bind"] for a in run(people=[person(one), person(f"{one}_1")])[0] if a["kind"] == "person")
+second = sorted(a["bind"] for a in run(people=[person(f"{one}_1"), person(one)])[0] if a["kind"] == "person")
+check("(the review) the order a proposal names one trade in, bare and numbered, makes no difference", first == second, (first, second))
+for lab in ("UNKNOWN_PERSON", "npc_marker", f"{owner.id}_debt"):
+    check(f"(the review) '{lab}' stays machinery", situations.plain(lab, world, store) == lab, situations.plain(lab, world, store))
+
 import shutil
 shutil.rmtree("saves/proposal_words_545", ignore_errors=True)
 print("\nALL PASS" if not bad else f"\n{len(bad)} FAILED: {bad}")

@@ -436,12 +436,14 @@ class Gift(Deed):
     kind: str = field(init=False, default="gift")
     item: str = ""
     coin: int = 0
+    count: int = 1                  # (f545's review) how many of the item were handed over at once
 
     def text(self) -> str:
         return f"gave {self.name} {self.item or str(self.coin) + ' copper'}"
 
     def ledger_row(self) -> dict | None:
-        return {"kind": "gift", "npc": self.npc, "item": self.item, "coin": self.coin}          # (f545) a condition of help it may meet
+        return {"kind": "gift", "npc": self.npc, "item": self.item, "coin": self.coin, "count": self.count}   # (f545) a condition of
+                                                                                                             # help it may meet
 
     def victim_line(self) -> str:
         from engine import money

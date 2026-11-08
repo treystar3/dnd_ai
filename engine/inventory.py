@@ -3,6 +3,7 @@
 Goods (herbs, food, consumables) and raw materials stack; gear takes a slot per piece.
 """
 
+import re
 from pathlib import Path
 
 import yaml
@@ -99,8 +100,9 @@ def is_good(name: str) -> str:
     good's name, whole) and ends in that good's own word or a form or measure of a good ("a jar of wine", "two sacks of salt",
     "moonpetal flowers", "venison jerky", "a clove of garlic"); it is not when it ends in another thing ("a rope ladder", "a
     cloth-wrapped key", "a sealed letter" is no sealed codex) or is a trifle of one ("a scrap of cloth", "a length of rope"). A raw
-    material by name is no story object either (data/world/materials.yaml): its own name answers with a material's id prefixed."""
-    words = _plain_words(name)
+    material by name is no story object either (data/world/materials.yaml): its own name answers with a material's id prefixed. A
+    stack's count as label() writes it ("candles x3") is no part of what it is."""
+    words = _plain_words(re.sub(r"\s+x\d+\s*$", "", name or ""))
     if not words:
         return ""
     head = words[-1]

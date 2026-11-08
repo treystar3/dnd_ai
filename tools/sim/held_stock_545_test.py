@@ -189,6 +189,27 @@ check("...and is not asked again of that character", obligations.current(store, 
 situation_parts.ask(ws, store.load_npc(b_.id))
 check("...however often they speak", obligations.current(store, "request", b_.id, ws.acting) is None)
 
+# ---- (the second review) one load, one carrier: by who holds it now, never by an old record
+tid6, parts6, _ = born({"people": [{"who": b_.id, "stake": "harmed", "want": "goods_moved"}],
+                        "resources": [{"good": "wine", "state": "stranded", "holder": b_.id}]})
+key6 = f"{tid6}:" + str(next(i for i, p in enumerate(parts6) if p.get("good") == "wine"))
+other_ask = obligations.open_(store, "request", b_.id, "char2", "Deliver the wine", ws.minutes,
+                              terms={"kind": "deliver", "part": key6, "title": "Deliver the wine"}, key=f"part:{key6}:char2")
+situation_parts.ask(ws, store.load_npc(b_.id))
+ws.take_personal(store.load_npc(b_.id))
+check("(the second review) a yes to a part lets go the same request open to another character",
+      store.load_entity(other_ask.ref).state == "released" and key6 in situation_parts.carried(store), store.load_entity(other_ask.ref).state)
+q6 = next(q for q in ws.player.quests if q.get("part") == key6)
+ws.on_abandon_quest(A(kind="abandon_quest", item=q6["title"]), f"abandon {q6['title']}")
+gave_up = not any(q.get("part") == key6 for q in ws.player.quests)
+check("(the second review) ...given up, it is carried by no one, free for another character", gave_up and key6 not in situation_parts.carried(store),
+      [q.get("part") for q in ws.player.quests])
+situation_parts.ask(ws, store.load_npc(b_.id))
+check("...but never asked again of the one who gave it up", obligations.current(store, "request", b_.id, ws.acting) is None
+      and ws.acting in next(p for p in next(x for x in store.load_world_state()["threads"] if x["id"] == tid6)["parts"]
+                            if p.get("good") == "wine").get("declined", []))
+end(tid6)
+
 # ---- the end lets go what is held and unanswered, saying no "had no yes"
 tid4, _, _ = born({"people": [{"who": c_.id, "stake": "gains", "want": "coin", "holds": "cloth"}],
                    "resources": [{"good": "rope", "state": "wanted", "wanted_by": c_.id}]})

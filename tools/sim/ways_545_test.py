@@ -134,13 +134,16 @@ fresh = store.load_npc(b_.id)
 check("(the review) a worry or mood the parts gave, brought back by a copy saved late, is let go by drift's own pass - however long "
       "ago the situation ended", fresh.concern_from != tid and not fresh.mood, (fresh.concern_from, fresh.mood, fresh.mood_source))
 tid = born([{"who": c_.id, "stake": "harmed", "want": "safety"}])
-proud = store.load_npc(rows[0].id)
+proud = store.load_npc(c_.id)                                    # one of its own people, who then settled it themselves
 circumstance.set_mood(proud, "proud, after settling it", ws.minutes, f"thread:{tid}")
+store.save_npc(proud)
 st = store.load_world_state()
 pulse.end_thread(store, st, next(x for x in st["threads"] if x["id"] == tid), "resolved", "Settled.", ws.minutes)
 store.save_world_state(st)
-check("(the review) ...while the pride of the one who settled it, the situation's by other means, lasts its own days",
-      not situation_parts.sweep(store.load_world_state(), proud, ws.minutes + 10) and proud.mood.startswith("proud"), proud.mood)
+proud = store.load_npc(c_.id)
+check("(the review) ...while the pride of the one who settled it, the situation's by other means, lasts its own days: neither the end's "
+      "release nor drift's sweep takes it", proud.mood.startswith("proud") and not situation_parts.sweep(store.load_world_state(), proud, ws.minutes + 10)
+      and proud.mood.startswith("proud"), proud.mood)
 
 # ---- trusted: trust earned since the situation began
 tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "trusted"}])
@@ -155,6 +158,22 @@ check("...nor by a little more", thread(tid)["status"] == "active")
 regard.step(npc, ws.acting, W["trust_gain"], cause="test", minute=ws.minutes)
 situation_parts.heard(ws, npc, "Good day.")
 check("...earned since, spoken with, they set it right", thread(tid)["status"] != "active", thread(tid)["paths"])
+friend = present(c_.id)
+regard.meet(friend, ws.acting, ws.minutes)
+regard.set_trust(friend, ws.acting, W["trust"] + 2, cause="test", minute=ws.minutes)
+store.save_npc(friend)
+tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "trusted"}])
+situation_parts.heard(ws, present(c_.id), "Good day, old friend.")
+check("(the second review) one who trusted the player before it began helps them: trust earned then counts", thread(tid)["status"] != "active",
+      thread(tid)["paths"])
+high = present(b_.id)
+tid = born([{"who": b_.id, "stake": "can_fix", "want": "safety", "condition": "trusted"}])
+regard.set_trust(high, ws.acting, 95, cause="a famous name", minute=ws.minutes)
+situation_parts.heard(ws, high, "Good day.")
+regard.step(high, ws.acting, 10, cause="test", minute=ws.minutes)
+situation_parts.heard(ws, high, "Good day.")
+check("(the second review) a first meeting near the top of trust can still be bettered to it", thread(tid)["status"] != "active",
+      thread(tid)["paths"])
 
 # ---- told: a found clue said to them, in its own words
 tid = born([{"who": b_.id, "stake": "can_fix", "want": "believed", "condition": "told"}, {"who": a_.id, "stake": "knows", "want": "believed"}],
@@ -168,6 +187,8 @@ situation_parts.heard(ws, npc, "Nice weather.")
 check("one who must be told something is not moved by small talk", thread(tid)["status"] == "active")
 situation_parts.heard(ws, npc, "Which way to the square? I found it myself, and it points nowhere.")
 check("(the review) ...nor by a word of the place it points to, or of the words its telling is phrased in", thread(tid)["status"] == "active")
+situation_parts.heard(ws, npc, "Is there an old pin seller by the trading square? Something broke.")
+check("(the review) ...nor by the place it points to and one word of it beside", thread(tid)["status"] == "active")
 situation_parts.heard(ws, npc, "Listen: I found a broken pin off an axle, by the trading square.")
 check("...told what the evidence shows, in its own words, they set it right", thread(tid)["status"] != "active", clue)
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "believed", "condition": "told"}],
@@ -177,6 +198,11 @@ next(x for x in st["threads"] if x["id"] == tid)["clues"][-1]["found"] = True
 store.save_world_state(st)
 situation_parts.heard(ws, present(a_.id), "There is a cut rope at the trading square.")
 check("(the review) ...but never by telling them what they hold themselves", thread(tid)["status"] == "active")
+for label, line, told in (("a cut rope", f"Have you seen {store.load_npc(a_.id).name}? I need rope.", False),
+                          ("an ox", "Which way to the trading square?", False), ("an ox", "There is an ox loose by the trading square.", True),
+                          ("what was there", "Which way to the trading square?", False)):
+    clue = {"label": label, "points_to": a_.id if label == "a cut rope" else "trading_square"}
+    check(f"(the review) '{line}' {'tells' if told else 'does not tell'} '{label}'", situation_parts.told_by(line, clue, store, world) == told)
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety"}])
 st = store.load_world_state()
 deeds.log(store, "persuade", next(x for x in st["threads"] if x["id"] == tid)["made"], "trading_square", npc=a_.id, degree="success")
@@ -198,6 +224,14 @@ check("(the review) one candle handed over, when they ask for more, is not what 
 for _ in range(want - 1):
     gift(npc, item=one)
 check("...as many as they ask, and they set it right", thread(tid)["status"] != "active", want)
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
+           resources=[{"good": "candles", "state": "wanted", "wanted_by": a_.id}])
+want = next(p for p in thread(tid)["parts"] if p["kind"] == "resource")["request"]["count"]
+ws.to_pack(inv.make_good("candles", want))
+present(a_.id)
+ws.on_give(A(kind="give", target=a_.id, item=f"{want} candles"), f"give her the {want} candles")
+check("(the second review) 'give her the 3 candles' hands over three, and that is what they asked", thread(tid)["status"] != "active"
+      and not any(i.good == "candles" for i in ws.pack), (want, thread(tid)["status"]))
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
            resources=[{"good": "candles", "state": "wanted", "wanted_by": a_.id}])
 npc = present(a_.id)
@@ -234,6 +268,14 @@ if wild:
     check("(the review) with no road made dangerous, a kill in the town's own wild keeps them safe", bool(thread(tid)["paths"][0].get("protected")),
           (wild, thread(tid)["paths"]))
 
+# ---- (the second review) a condition met by one character is that character's
+tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "protected"}])
+st = store.load_world_state()
+next(x for x in st["threads"] if x["id"] == tid)["paths"][0]["protected"] = "another_character"
+store.save_world_state(st)
+situation_parts.heard(ws, present(c_.id), "Good day.")
+check("(the second review) kept safe by another character, it is not this one's to end", thread(tid)["status"] == "active")
+
 # ---- paid away from them: the yes waits for them
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "paid"}])
 st = store.load_world_state()
@@ -260,6 +302,12 @@ namesake.name, namesake.role = to.name.split()[0] + " Oddlow", to.role
 ws.record_delivery(key, namesake)
 check("(the review) the load is for the one named: not anyone of their trade, nor one who shares their first name",
       next(x for x in ws.player.quests if x["id"] == q["id"])["progress"] == 0)
+check("(the second review) ...and the giving reads it so too: the namesake is not who it is meant for, the one named is",
+      not ws.meant_for(namesake, key) and ws.meant_for(to, key))
+rh = copy.copy(namesake)
+rh.name, rh.role = "Rhosethe Holhurst", "chandler"
+check("(the second review) a name with 'the' inside it is still its owner's", ws.is_recipient(rh, "Rhosethe Holhurst")
+      and ws.is_recipient(rh, "the chandler"))
 present(to.id)
 ws.on_give(A(kind="give", target=to.id, item=key.name), f"give the load to {to.name}")
 check("...handed to them, it is delivered, told as a delivery", next(x for x in ws.player.quests if x["id"] == q["id"])["progress"] == 1

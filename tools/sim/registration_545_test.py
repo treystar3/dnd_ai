@@ -211,6 +211,36 @@ if anchor_place:
     written = int((world.places[anchor_place].residents or {}).get("watch_captain") or 1)
     check("(the review) ...nor when a backfill planned before the situation made them is applied after: never two of the anchor",
           len(caps) == written and sum(1 for n in caps if n.anchor) == 1, [(n.name, n.anchor) for n in caps])
+pid = "watch_tower" if "watch_tower" in world.places else anchor_place
+if pid:                                                        # (f545's review) one the world added (arrivals, camps, refugees)
+    life.populate_place(store, world, pid, ws.catalog)
+    st_place = store.load_place(pid)
+    role = next(iter(world.places[pid].residents))
+    had = sum(1 for i in st_place.residents if not store.load_npc(i).gone and store.load_npc(i).role == role)
+    st_place.extra_roles[role] = st_place.extra_roles.get(role, 0) + 1
+    store.save_place(st_place)
+    life.populate_place(store, world, pid, ws.catalog)
+    now_have = sum(1 for i in store.load_place(pid).residents if not store.load_npc(i).gone and store.load_npc(i).role == role)
+    check("(the review) ...while one more of a trade the world brings to a place (an arrival) is made, and the place is whole",
+          now_have == had + 1 and not life.unfinished(store, world, pid), (role, had, now_have))
+for trial in range(5):                                         # (the review) its own effects marked by what they are, not by an
+    st = store.load_world_state()                                # address an expired one freed
+    st["effects"] = [{"kind": "prices", "place": town, "value": 10, "until": t0 - 3000 - k, "cause": "old", "thread": f"old{k}",
+                      "good": "salt"} for k in range(6)] + [e for e in st.get("effects", []) if e.get("until", 0) >= t0]
+    thx = {"id": f"th545m{trial}", "title": "Short of everything", "tier": "rare", "place": "trading_square", "times": [t0, t0 + 6 * 1440],
+           "status": "active", "made": t0, "clues": [], "paths": [], "stage": 0, "stages": [], "kind": "trouble", "groups": ["everyone"]}
+    st.setdefault("threads", []).append(thx)
+    accx, _ = situations.check(SituationParts.model_validate({"people": [{"who": a_.id, "stake": "harmed", "want": "safety"}],
+                                                              "conditions": [{"on": road, "kind": "danger"}, {"on": "trading_square", "kind": "prices"}],
+                                                              "resources": [{"good": "grain", "state": "scarce"}, {"good": "rope", "state": "scarce"}]}),
+                               store, world, "rare", random.Random(1), town=town, ways=True, now=t0, players=(ws.acting,))
+    situation_parts.register(store, world, st, thx, accx, t0, catalog=ws.catalog, ways=True)
+    mine = [e for e in st["effects"] if e.get("thread") == thx["id"]]
+    if not (mine and all(e.get("part") for e in mine) and sorted(e.get("of_part", -1) for e in mine if e.get("good")) ==
+            sorted(i for i, a in enumerate(thx["parts"]) if a["kind"] == "resource")):
+        break
+check("(the review) every effect a situation's parts lay is marked theirs, each price rise its own part's, whatever old effects are "
+      "pruned meanwhile", mine and all(e.get("part") for e in mine), [(e["kind"], e.get("good"), e.get("part"), e.get("of_part")) for e in mine])
 th5 = thread("th545e", "Short of light", t0 + 2 * 1440)
 parts5, _, _ = born(th5, {"people": [{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
                           "resources": [{"good": "candles", "state": "wanted", "wanted_by": a_.id}],

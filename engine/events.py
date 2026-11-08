@@ -333,7 +333,7 @@ def _won_over(state: dict, since: int, npc_id: str) -> bool:
     return any(d.get("degree") == "strong success" for d in mine) or len(mine) >= 2
 
 
-def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None) -> bool:
+def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None, by: str = "") -> bool:
     """near (f424): the places a kill counts at for a matter with nothing spawned - its own place, its town's and the wild on their
     doorstep. A wolf killed three regions away ended the Greywood's wolves before."""
     made = thread["made"]
@@ -360,7 +360,7 @@ def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None
         return any(d.get("place") == path["target"] and d.get("thread") == thread["id"] for d in deeds.since(state, made, ["found"]))
     if path["kind"] == "part":                                       # (f545) a person of the situation whose condition of help is met
         from engine import situation_parts
-        return situation_parts.need_met(path, state, thread)
+        return situation_parts.need_met(path, state, thread, by)
     return False
 
 
@@ -399,7 +399,8 @@ def after_deed(ws, deed: dict) -> None:
             near = ({th["place"], th.get("wild", "")} | _towns.town_places(world, pulse.town_of(world, th["place"]))
                     if th.get("place") in world.places else None)
             met = next((p for p in th["paths"] if not p["done"] and (p["kind"] != "part" or deed.get("npc") == p["target"])
-                        and path_met(p, state, th, near)), None)    # (f545's review) a person's yes is given with the player there
+                        and path_met(p, state, th, near, deed.get("by", ""))), None)   # (f545's review) a person's yes is given with
+                                                                                            # the player there, to the one who met it
             if met:
                 met["done"] = True
                 th["won_path"] = met

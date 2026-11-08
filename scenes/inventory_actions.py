@@ -134,9 +134,33 @@ class InventoryActions:
         meant = f" (meant for {key.for_whom})" if key.for_whom else ""
         console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant} - {key.description}")
 
+    @staticmethod
+    def how_many(*texts: str) -> int:
+        """(f545's review) How many of a thing a line asks to hand over ("the 3 candles", "three candles"), 1 when it says none: the first
+        figure in the item's words, else in the line."""
+        from engine import mentor
+        for t in texts:
+            for w in re.findall(r"\d+|[a-z]+", (t or "").lower()):
+                n = int(w) if w.isdigit() else mentor.WORD_NUM.get(w)
+                if n:
+                    return max(1, min(99, n))
+        return 1
+
+    def delivery_for(self, key):
+        """(f545's review) The delivery a key item is carried for, when it is one of the player's jobs."""
+        return next((q for q in self.player.quests if q.get("kind") == "deliver" and key.id == f"quest_{q['id']}"), None)
+
+    def meant_for(self, npc, key) -> bool:
+        """Is this the one a carried item is meant for: by who they are when the job names one person (to_id), else as is_recipient
+        reads its words. (f545's review) The giving and the job's progress decide it alike."""
+        q = self.delivery_for(key)
+        if q is not None and q.get("to_id"):
+            return npc.id == q["to_id"]
+        return key.kind == "quest" and self.is_recipient(npc, key.for_whom)
+
     def is_recipient(self, npc, for_whom: str) -> bool:
         """Does this person match who a quest item was meant for - by name, first name or role?"""
-        want = for_whom.lower().replace("the ", "").strip()
+        want = re.sub(r"^the ", "", for_whom.lower().strip()).strip()     # (f545's review) a leading "the", never one inside a name
         if not want:
             return False
         names = {npc.name.lower(), npc.name.split()[0].lower(), npc.role.replace("_", " ").lower()}
@@ -456,7 +480,7 @@ class InventoryActions:
         if not npc:
             key = self.find_key(intent.item or text)
             if key and key.for_whom:
-                npc = next((n for n in self.present if self.is_recipient(n, key.for_whom)), None)
+                npc = next((n for n in self.present if self.meant_for(n, key)), None)
         if not npc or npc not in self.present:
             self.refuse("There's no one here to give that to.")
             return
@@ -469,7 +493,7 @@ class InventoryActions:
             c = self.player.character
             c.key_items.remove(key)
             day = clock.day(self.minutes)
-            delivered = key.kind == "quest" and self.is_recipient(npc, key.for_whom)
+            delivered = self.meant_for(npc, key)
             if delivered:
                 regard.step(npc, self.acting, R["gift_trust"] + 1, cause="a gift", minute=self.minutes)   # (f480)
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
@@ -488,12 +512,13 @@ class InventoryActions:
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
-        item = inv.take(self.pack, intent.item or text, 1)
+        item = inv.take(self.pack, intent.item or text, self.how_many(intent.item or "", text))   # (f545's review) as many as said
         if not item:
             self.refuse("You aren't carrying that.")
             return
         from engine.domain_events import Gift                 # a thing given for nothing: taken, remembered, and the companions have a view
-        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), item=inv.label(item)), npc)
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), item=inv.label(item),
+                         count=max(1, int(item.quantity or 1))), npc)
         self.store.save_player(self.player)
         console.ledger(f"Gave {inv.label(item)} to {npc.label(self.acting)}.")
         intent.target = npc.id

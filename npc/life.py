@@ -40,21 +40,27 @@ def _wares(store, world, npc) -> list:
 FIRST_BATCH = 4          # how many residents the blocking call on arrival creates; the rest are made while the player reads
 
 
-def _plan(store: CampaignStore, world: World, place_id: str):
-    """Who this place still needs: (state, the residents it has, the slots to fill)."""
-    state = store.load_place(place_id)
-    existing = [store.load_npc(i) for i in state.residents]
-    existing = [n for n in existing if not n.gone]
-    place = world.places[place_id]
-    have = {}
-    for n in existing:
-        have[n.role] = have.get(n.role, 0) + 1
-    wanted = dict(place.residents)
+def _wanted(store: CampaignStore, world: World, place_id: str, state) -> dict:
+    """How many of each trade the place is to have: as written, with those the world has added (arrivals, camps, refugees:
+    extra_roles), a post a disaster emptied left empty for a while."""
+    wanted = dict(world.places[place_id].residents)
     for role, n in state.extra_roles.items():
         wanted[role] = wanted.get(role, 0) + n
     from engine import events
     for role in events.vacant_roles(store, place_id, store.meta.minutes):
         wanted.pop(role, None)          # a post emptied by a disaster stays empty for a while before someone takes it up
+    return wanted
+
+
+def _plan(store: CampaignStore, world: World, place_id: str):
+    """Who this place still needs: (state, the residents it has, the slots to fill)."""
+    state = store.load_place(place_id)
+    existing = [store.load_npc(i) for i in state.residents]
+    existing = [n for n in existing if not n.gone]
+    have = {}
+    for n in existing:
+        have[n.role] = have.get(n.role, 0) + 1
+    wanted = _wanted(store, world, place_id, state)
     missing = {role: count - have.get(role, 0) for role, count in wanted.items() if count > have.get(role, 0)}
     peoples = world.peoples_at(place_id)
     rng = random.Random(f"{store.meta.seed}:place:{place_id}:{len(existing)}")
@@ -126,12 +132,12 @@ def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, pla
     existing = [n for n in (store.load_npc(i) for i in state.residents) if not n.gone]
     npcs = []
     taken = {n.activity for n in existing}
-    written = {role: int(n or 1) for role, n in (world.places[place_id].residents or {}).items()}
+    wanted = _wanted(store, world, place_id, state)                  # (f545's review) as _plan counted it, extra_roles and all
     have = Counter(n.role for n in existing)
     for r in sorted(result.residents, key=lambda r: r.slot):
         role, _, people, name, gender = slots[r.slot - 1]
         anchor_of = _ANCHOR_SLOTS.get((place_id, name), "")
-        if role in written and have[role] >= written[role] or anchor_of and any(n.anchor == anchor_of for n in existing):
+        if have[role] >= int(wanted.get(role, 0)) or anchor_of and any(n.anchor == anchor_of for n in existing):
             _ANCHOR_SLOTS.pop((place_id, name), None)      # (f545's review) filled meanwhile (a situation made them): never two
             continue
         if name in store.npc_names():

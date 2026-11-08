@@ -58,27 +58,48 @@ def plain(label: str, world, store=None) -> str:
     answers whatever the prompt says) is those words: "flooded field owner". An id of the world or the store stays as written, so the
     check still refuses it as machinery."""
     s = (label or "").strip()
-    if not re.fullmatch(r"[A-Za-z]+(?:_[A-Za-z]+)+", s) or s in world.places or s in world.roads or (store is not None and store.npc_exists(s)):
-        return s
+    if not re.fullmatch(r"[A-Za-z]+(?:_[A-Za-z]+)+", s) or s.isupper():
+        return s                                                     # (f545's review) "UNKNOWN_PERSON" is machinery, not words
+    tokens = s.lower().split("_")
+    if set(tokens) & set(S.get("machinery_words") or ()):
+        return s                                                     # ...and so is "npc_marker"
+    for i in range(len(tokens)):                                     # an id of the world or the store inside it ("celesen_wickmore_debt")
+        for j in range(i + 1, len(tokens) + 1):
+            run = "_".join(tokens[i:j])
+            if run in world.places or run in world.roads or (j - i > 1 and store is not None and store.npc_exists(run)):
+                return s
     return s.replace("_", " ")
+
+
+_CUT = re.compile(r",|;|:|\(| of | who | whose | with | at | in | on | from | for | to | against | by | and | near | over | under ")
+
+
+def _head(label: str) -> str:
+    """The words a label names its person by: before any "of", "with", comma and the like, and after a possessive ("the chandler's
+    rival" is a rival; "widow of the guard" a widow; "a prisoner, once the smith" a prisoner)."""
+    text = _CUT.split(" " + (label or "").lower().strip() + " ")[0]
+    if "'s " in text + " " or "' " in text + " ":
+        text = re.split(r"'s?\s", text + " ")[-1]
+    return text
 
 
 def trade_of(who: str, label: str, world, never=frozenset()) -> str:
     """(f545 part 5) The trade a proposal meant by a `who` that is neither an id nor a trade as written, or "": a trade it numbered or
-    tagged ("merchant_1", "scout_01", "trade: guard", "new_scout"), else - a name of its own ("marek_vane") - a trade its label names
-    ("greedy merchant"). The name is never kept (the engine names the people it makes); the person is cast as that trade, the town's
-    own first, like any other."""
-    def ok(r: str) -> str:
-        return r if r in world.roles and r not in never else ""
+    tagged ("merchant_1", "scout_01", "trade: guard", "new_scout"), else - a name of its own ("marek_vane") - the trade its label's
+    head names, its last word or two ("greedy merchant", "an old elven warden"; never a word after "of" or before a possessive). A
+    trade no situation casts is no one, never read on into another. The name is never kept (the engine names the people it makes);
+    the person is cast as that trade, the town's own first, like any other."""
+    def found(r: str) -> str | None:
+        return None if r not in world.roles else ("" if r in never else r)
     w = re.sub(r"^(?:trade:\s*|new[_ ]|an? |the )", "", (who or "").strip().lower())
-    found = ok(re.sub(r"[_ ]?\d+$", "", w).replace(" ", "_"))
-    if found:
-        return found
-    words = re.findall(r"[a-z]+", (label or "").lower())
-    for i in range(len(words)):                                              # a trade of two words ("elven warden") before one
-        found = (ok(f"{words[i]}_{words[i + 1]}") if i + 1 < len(words) else "") or ok(words[i])
-        if found:
-            return found
+    got = found(re.sub(r"[_ ]?\d+$", "", w).replace(" ", "_"))
+    if got is not None:
+        return got
+    words = re.findall(r"[a-z]+", _head(label))
+    for cand in ([f"{words[-2]}_{words[-1]}"] if len(words) >= 2 else []) + words[-1:]:
+        got = found(cand)
+        if got is not None:
+            return got
     return ""
 
 
@@ -149,6 +170,12 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
     stances = S.get("stances") or {}
     refused = {tuple(x) for x in stances.get("refused") or ()}
     lifted = {tuple(x) for x in stances.get("lifted") or ()}
+    by_name = {r.name.lower(): r.id for r in rows}                          # (f545's review) a town person written by their name
+
+    def known(w: str) -> str:
+        return w if store.npc_exists(w) else by_name.get(w.lower().replace("_", " ").strip(), "")
+    reserved = {known((x.who or "").strip()) for x in parts.people} - {""}   # named in the proposal: never cast for a trade it reads
+    placed: set[str] = set()                                                 # the trades someone not yet of the town stands for
     for p in parts.people:
         w = (p.who or "").strip()
         label = plain(p.label, world, store)
@@ -158,15 +185,15 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             drop(p, "raw_id"); continue
         if (p.stake, p.want) in refused:
             drop(p, "contrary"); continue                                    # (f545) one who blocks an end to it does not want it ended
-        if store.npc_exists(w):
-            n = store.load_npc(w)
+        if known(w):
+            n = store.load_npc(known(w))
             if n.gone:
                 drop(p, "gone"); continue
             if n.role in never:
                 drop(p, "not_a_person"); continue
-            person, bind = w, "npc"
+            person, bind = n.id, "npc"
         elif (trade := w if w in world.roles and w not in never else trade_of(w, label, world, never)):
-            free = next((r.id for r in rows if r.role == trade and r.id not in used), "")
+            free = next((r.id for r in rows if r.role == trade and r.id not in used and r.id not in reserved), "")
             if free:
                 person, bind = free, "npc"                                   # (the owner) the town's own of that trade first...
             elif trades_used[trade] + sum(1 for r in rows if r.role == trade) < written[trade]:
@@ -175,8 +202,9 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
                 person, bind = trade, "new"                                  # ...and only past them someone new
         else:
             drop(p, "not_a_person"); continue
-        if (bind == "npc" and person in used) or w in who_of or (bind != "npc" and person in who_of):
-            drop(p, "twice"); continue                                       # (f545 part 5) "merchant_1", "merchant_2": one trade, one person
+        if (bind == "npc" and person in used) or w in who_of or (bind != "npc" and person in placed):
+            drop(p, "twice"); continue                                       # (f545 part 5) one not yet of the town a trade, whatever
+                                                                             # order the proposal names them in
         full = room("person")
         if full:
             drop(p, full); continue
@@ -187,6 +215,7 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             used.add(person)
         else:
             trades_used[person] += 1
+            placed.add(person)
         who_of[w] = person
         who_of.setdefault(person, person)                                    # named later by the id it bound to, it is the same person
         condition = "" if (p.want, p.condition) in lifted else p.condition    # (f545) one who wants coin needs no condition of pay
@@ -560,6 +589,9 @@ def problems() -> list[str]:
     from llm import contracts as c
     bad = []
     L = S.get("lists") or {}
+    mw = S.get("machinery_words")
+    if not isinstance(mw, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]+", w) for w in mw):
+        bad.append("situations.yaml machinery_words: a list of lowercase words (quote one YAML reads as something else: \"null\")")
 
     def lit(model, field) -> set:
         return {x for x in typing.get_args(model.model_fields[field].annotation) if x != ""}
