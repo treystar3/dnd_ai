@@ -43,11 +43,11 @@ not_of_trade: [late, former, dead, deceased, fake, "false", sham, ex, retired, i
 not_of_trade_head: ["not", would]
 
 # At most, per situation. null: no cap. (f550, the owner, 7 Nov: rare and campaign situations keep every part the model proposes, no
-# total and no cap by kind, after f544 showed the caps cut the ties, places and evidence first; normal and uncommon, which the engine
-# builds, keep 2 and 3 parts.) New people stay capped by tier: none for the common tiers, 2 for rare and campaign ones. Parts past a
-# cap are dropped in the order they were proposed.
+# total and no cap by kind, after f544 showed the caps cut the ties, places and evidence first. f556, the owner, 8 Nov: "no caps for
+# anything but new people", common and uncommon situations as well.) New people stay capped by tier: none for the common tiers, 2 for
+# rare and campaign ones (and new_per_town_day a day in one town). Parts past a cap are dropped in the order they were proposed.
 caps:
-  parts: {normal: 2, uncommon: 3, rare: null, campaign: null}
+  parts: {normal: null, uncommon: null, rare: null, campaign: null}
   people: null
   each_other: null
   new_people: {normal: 0, uncommon: 0, rare: 2, campaign: 2}

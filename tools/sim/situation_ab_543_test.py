@@ -95,8 +95,9 @@ check("the town's unmet trades and the world's other trades, apart, none of them
       trades and others and not set(trades) & set(others) and not (set(trades) | set(others)) & set(never)
       and not set(trades) & {n.role for n in rows}, (trades, others))
 _, u2 = situations.prompt(store, world, state, place, "uncommon", ws.minutes)
-check("a tier that brings nobody new is shown no other trades, and its own caps", "OTHER TRADES" not in u2
-      and f"AT MOST: {situations.S['caps']['parts']['uncommon']} parts" in u2 and "none of its people from outside the town" in u2, u2[-300:])
+check("a tier that brings nobody new is shown no other trades, and (f556) no cap but on its new people", "OTHER TRADES" not in u2
+      and "AT MOST" not in u2 and "HOW MANY: as many parts as this situation needs; none of its people from outside the town" in u2,
+      u2[-300:])
 check("...and THE TROUBLE, left unset, says what to fit instead", "THE TROUBLE: nothing set" in u2)
 check("(f550) a rare situation, with no caps on its parts, is asked for as many as it needs, its new people still capped",
       "AT MOST" not in user and one("HOW MANY") == f"as many parts as this situation needs; at most {situations.S['caps']['new_people']['rare']} "
@@ -141,8 +142,8 @@ check("the stand-in's answer is kept whole at the rare tier", acc and not droppe
 check("...with a person of the town, someone new of another trade, a good, a tie and a rumour", {a["kind"] for a in acc} >= {"person", "resource", "tie", "evidence"}
       and any(a.get("bind") == "new" for a in acc) and any(a.get("bind") == "npc" for a in acc), acc)
 _, acc_u, dropped_u = situations.propose(store, world, state, place, "uncommon", ws.minutes, random.Random(1))
-check("...and at the uncommon tier it keeps to that tier's caps and brings nobody new", acc_u and not dropped_u
-      and len(acc_u) <= caps["parts"]["uncommon"] and not any(a.get("new") for a in acc_u), (acc_u, dropped_u))
+check("...and at the uncommon tier (f556) it keeps every part but brings nobody new", acc_u
+      and not any(a.get("new") for a in acc_u) and all(r == situations.S["reasons"]["new_cap"] for _, r in dropped_u), (acc_u, dropped_u))
 stub.parts_bad = True
 _, acc_b, dropped_b = situations.propose(store, world, state, place, "rare", ws.minutes, random.Random(1), players=(ws.acting,))
 stub.parts_bad = False

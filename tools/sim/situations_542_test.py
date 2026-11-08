@@ -114,8 +114,8 @@ check("any character playing is never a part, by their own id (more than one may
 
 # ---- caps by tier, and someone new only past the town's own of that trade
 C = situations.S["caps"]
-check("(f550) the caps are the owner's: 2 and 3 parts for the common tiers, none for rare and campaign, none by kind; new people 0, 0, 2 and 2",
-      C["parts"] == {"normal": 2, "uncommon": 3, "rare": None, "campaign": None} and C["people"] is None and C["each_other"] is None
+check("(f556) the caps are the owner's: none on parts at any tier, none by kind; new people 0, 0, 2 and 2",
+      C["parts"] == {"normal": None, "uncommon": None, "rare": None, "campaign": None} and C["people"] is None and C["each_other"] is None
       and C["new_people"] == {"normal": 0, "uncommon": 0, "rare": 2, "campaign": 2}, C)
 check("...and so are the chances: sure never false, they say one in five, hearsay one in two",
       situations.S["false_chance"] == {"sure": 0.0, "they say": 0.2, "hearsay": 0.5}, situations.S["false_chance"])

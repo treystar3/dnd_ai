@@ -1,12 +1,12 @@
 {
- "made": "2026-11-08T08:23:27+00:00",
+ "made": "2026-11-08T18:11:36+00:00",
  "seed": 18,
  "steps": 0,
  "turn": 1,
- "data": "a0a2a748c11888da4b53b3c6e11fe6346d543530d4b08cf637b48e2961026ce0",
+ "data": "a56346591760490ae7d75d9aee926b14889beab368954efccf206c978b7bb6ca",
  "model": "gemma4-12b-bb722270",
  "version": "0.0.4.1",
- "commit": "eab7a14e9391db3f8a60a8fe7dd47a14f134e64e",
+ "commit": "f5810e3b8cbefff83f0018d59f3b9811114c0bd3",
  "start": {
   "kv": "ab3bc9e2576b1ccbfef82db8564c6947461f5c65ea006af9c1f8dfc73b7a1353",
   "places": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
