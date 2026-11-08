@@ -103,8 +103,9 @@ def people(store, world, state: dict, t: int, rng: random.Random) -> str:
     R, M, V = D.get("relations", {}), D.get("moods", {}), D.get("motives", {})
     settle, per_day = R.get("settle_after_days", 7) * 1440, R.get("per_day", 1.0)
     eased = faded = moved = ended = 0
+    from engine import situation_parts
     for npc in store.load_npcs(chunk):
-        changed = False
+        changed = situation_parts.sweep(state, npc, t)              # (f545) what an ended situation gave them, if a copy brought it back
         for oid, r in list(npc.relations.items()):
             since = r.get("since", 0)
             if per_day <= 0 or t - since < settle:

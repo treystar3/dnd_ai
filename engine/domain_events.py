@@ -370,6 +370,9 @@ class Bribe(Deed):
     def text(self) -> str:
         return f"{'bribed' if self.worked else 'tried to bribe'} {self.name} ({self.amount} copper)"
 
+    def ledger_row(self) -> dict | None:
+        return {"kind": "bribe", "npc": self.npc, "coin": self.amount} if self.worked else None   # (f545) paid, when it bought the favour
+
     def victim_line(self) -> str:
         from engine import money
         sum_ = money.words(self.amount)
@@ -436,6 +439,9 @@ class Gift(Deed):
 
     def text(self) -> str:
         return f"gave {self.name} {self.item or str(self.coin) + ' copper'}"
+
+    def ledger_row(self) -> dict | None:
+        return {"kind": "gift", "npc": self.npc, "item": self.item, "coin": self.coin}          # (f545) a condition of help it may meet
 
     def victim_line(self) -> str:
         from engine import money

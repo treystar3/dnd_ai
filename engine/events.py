@@ -358,6 +358,9 @@ def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None
         return any(d.get("thread") == thread["id"] for d in deeds.since(state, made, ["quest_done"]))
     if path["kind"] == "find":
         return any(d.get("place") == path["target"] and d.get("thread") == thread["id"] for d in deeds.since(state, made, ["found"]))
+    if path["kind"] == "part":                                       # (f545) a person of the situation whose condition of help is met
+        from engine import situation_parts
+        return situation_parts.need_met(path, state, thread)
     return False
 
 
@@ -480,6 +483,9 @@ def finish(ws, state, th, how: str, ending: str) -> None:
         ps.marks = (ps.marks + [f"broken in the war ({th['title']})"])[-12:]
         store.save_place(ps)
     pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
+    if th.get("parts"):                                 # (f545) the scene's own copies of its people take what the end released
+        from engine import situation_parts
+        situation_parts.refresh(ws, th)
     th["result"] = "player"
     th["ending"] = ending
     th["touched"] = True                                # (f424) the journal shows the matter the player ended

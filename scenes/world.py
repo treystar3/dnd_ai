@@ -3353,6 +3353,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         for clue in matters.mark_found(self, npc, revealed):              # (f317) a clue carried by their words is found: the matter is in the journal
             console.ledger(f"Noted: {clue}")
         matters.spoke(self, npc)
+        from engine import situation_parts
+        situation_parts.heard(self, npc, speech)                         # (f545) a clue told them, or their trust earned, may meet their terms
         self.secret_after(npc, pending_secret)
         if reply.intent == "leave" and reply.speech.rstrip().rstrip('"\'').endswith("?"):
             reply.intent = "small_talk"            # someone who has just asked a question has not walked away

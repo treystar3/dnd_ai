@@ -547,6 +547,9 @@ class GuildActions:
             self.notice(ContractDone(minute=self.minutes, place=q.get("place") if q.get("thread") and q.get("place") else self.player.location,
                                      witnesses=(payer.id,), npc=payer.id, name=payer.label(self.acting), quest=str(q["id"]), title=q["title"],
                                      thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
+            if q.get("part"):                                              # (f545) a situation's request done: that part of it is done
+                from engine import situation_parts
+                situation_parts.part_done(self, q)
             console.ledger(f"Completed: [{q['letter']}] {q['title']}. {cap_first(payer.label(self.acting))} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
             if q["guild"]:

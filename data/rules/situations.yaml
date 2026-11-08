@@ -216,3 +216,21 @@ register:
               "I overheard something about {label} and {points}.", "Rumour has it there is {label}, and that it points to {points}."]
     lies: ["{label}, which points to {points}", "{label}: it leads to {points}", "{label}, pointing to {points}",
            "{label}, and it points to {points}"]
+  # (f545 part 4, recommendation 1) The parts are ways through: one who could set it right does, once their condition is met, and one
+  # who stands in the way stands aside once won over; each is a path of the situation, its end the player's (engine/events.py finish).
+  ways:
+    most: 3                                          # paths a situation's own people open, at most (the can-fix first)
+    pay: {normal: 30, uncommon: 60, rare: 150, campaign: 400}   # copper handed over that meets a "paid" condition, by tier
+    trust: 70                                        # a character's trust (regard, 50 at a first meeting) that meets "trusted"
+    told_words: 3                                    # the most of a found clue's long words a line must carry to have told it
+    name:
+      can_fix: "{name}'s help"
+      blocks: "{name} won over"
+    how:
+      "": "Ask {name} to set it right."
+      paid: "Pay {name} what they ask, and they will set it right."
+      given: "Bring {name} the {good} they want, and they will set it right."
+      trusted: "Earn {name}'s trust, and they will set it right."
+      told: "Tell {name} what the evidence shows, and they will set it right."
+      protected: "Keep {name} safe while the trouble lasts, and they will set it right."
+      blocks: "Win {name} over, and they will stand aside."
