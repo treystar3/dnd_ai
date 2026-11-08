@@ -184,7 +184,7 @@ check("a normal birth is never due and asks nothing", th3 is not None and "parts
 stub.a_SituationParts = parts_answer
 th4 = start(store, world, ws.catalog, ws.minutes, "rare", seed=17)
 ws.combat = object()
-check("nothing is born during a fight", situation_parts.birth(ws, th4["id"]) == "a fight is on" and "parts" not in thread_of(store, th4["id"])
+check("nothing is born during a fight", situation_parts.birth(ws, th4["id"]) is False and "parts" not in thread_of(store, th4["id"])
       and thread_of(store, th4["id"]).get("parts_due") == 0)
 ws.combat = None
 ws.turn("I look around.")
@@ -262,7 +262,72 @@ add_effect(th7["id"], "closed", "trading_square", "eff546t")
 ws.turn("I look around.")
 got = thread_of(store, th7["id"])
 check("(the review) the heart holds its telling's own closure beside the parts' conditions",
-      any(x.get("effect") == "eff546t" and x["what"] == "closed" for x in (got.get("heart") or {}).get("threats", [])), got.get("heart"))
+      any(x.get("effect") == "closed@trading_square" and x["what"] == "closed" for x in (got.get("heart") or {}).get("threats", [])),
+      got.get("heart"))
+
+# ---- (the second review) a birth that makes someone new where the player stands: everyone read again inside its operation
+from engine import retrieval as _r
+written = set()
+for pid in _r.town_places(world, town):
+    written |= set(world.places[pid].residents or {})
+fresh_roles = [r for r in sorted(world.roles) if r not in written and r not in set(situations.S.get("never_roles") or ())
+               and r not in {x.role for x in _r.people_in_town(store, world, town)}][:6]
+most0 = situations.S["register"].get("new_per_town_day")
+situations.S["register"]["new_per_town_day"] = 50
+crashed = []
+for i, role in enumerate(fresh_roles):
+    stub.a_SituationParts = lambda u, k, role=role: {"people": [{"who": role, "stake": "harmed", "want": "safety"}]}
+    thx = start(store, world, ws.catalog, ws.minutes, "rare", seed=200 + i)
+    try:
+        ws.turn("I look around.")
+    except Exception as e:
+        crashed.append((role, type(e).__name__, str(e)[:120]))
+        break
+check("(the second review) births that make new people here never write outside an operation", not crashed and len(fresh_roles) >= 4,
+      (crashed, fresh_roles))
+
+# ---- (the second review) a birth whose kept parts could none of them be made: rolled back whole, a try spent
+situations.S["register"]["new_per_town_day"] = 0
+role = next(r for r in sorted(world.roles) if r not in written and r not in set(situations.S.get("never_roles") or ())
+            and r not in {x.role for x in _r.people_in_town(store, world, town)})        # a trade the town still has nobody of
+stub.a_SituationParts = lambda u, k: {"people": [{"who": role, "stake": "harmed", "want": "safety"}]}
+th8 = start(store, world, ws.catalog, ws.minutes, "rare", seed=31)
+people0 = len(_r.people_in_town(store, world, town))
+ws.turn("I look around.")
+got = thread_of(store, th8["id"])
+check("(the second review) none of its kept parts made: no parts, no heart, a try spent, still due", "parts" not in got and "heart" not in got
+      and got.get("parts_due") == 1 and situation_parts.due(store.load_world_state()) is not None, {k: got.get(k) for k in ("parts", "parts_due")})
+check("(the second review) ...and nobody was made for it", len(_r.people_in_town(store, world, town)) == people0
+      and not any(x.role == role for x in _r.people_in_town(store, world, town)), role)
+situations.S["register"]["new_per_town_day"] = most0
+
+# ---- (the second review) the condition its telling already laid is that part's, never laid twice; one threat for it in the heart
+stub.a_SituationParts = parts_answer
+th9 = start(store, world, ws.catalog, ws.minutes, "rare", seed=37)
+add_effect(th9["id"], "danger", road, "")
+ws.turn("I look around.")                                           # the oldest due first: th8, still due, takes its parts now
+check("(the second review) the oldest birth due is asked first", thread_of(store, th8["id"]).get("parts") and "parts" not in thread_of(store, th9["id"]))
+ws.turn("I look around.")
+got = thread_of(store, th9["id"])
+rows9 = [e for e in store.load_world_state()["effects"] if e.get("thread") == th9["id"] and e["kind"] == "danger" and e["place"] == road]
+check("(the second review) its telling's danger on the road is the part's, tagged, and no second one laid",
+      len(rows9) == 1 and "of_part" in rows9[0], rows9)
+check("(the second review) ...and the heart holds one threat for it", sum(1 for x in got["heart"]["threats"] if x["kind"] == "condition"
+      and x["what"] == "danger" and x["on"] == road) == 1, got["heart"]["threats"])
+
+# ---- (the second review) a tier no longer born, due by an older rule: adopted, never left waiting
+born0 = list(situations.S["births"]["tiers"])
+situations.S["births"]["tiers"] = ["campaign"]
+st = store.load_world_state()
+st["threads"].append({"id": "stale546", "title": "The old due", "tier": "rare", "place": "trading_square", "parts_due": 0,
+                      "times": [ws.minutes, ws.minutes + 9 * 1440], "status": "active", "made": ws.minutes, "clues": [], "paths": [],
+                      "stage": 0, "stages": [{"description": "Old.", "effects": []}], "kind": "threat", "groups": ["everyone"]})
+store.save_world_state(st)
+calls9 = stub.calls.get("SituationParts", 0)
+ws.turn("I look around.")
+check("(the second review) ...takes the engine's own parts, with no call", thread_of(store, "stale546").get("parts_by") == "engine"
+      and stub.calls.get("SituationParts", 0) == calls9)
+situations.S["births"]["tiers"] = born0
 
 # ---- the same seed twice: the same parts and heart
 def again(name):

@@ -320,6 +320,13 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         e = {"kind": a["what"], "place": a["on"], "days": days, "text": text if a["what"] in ("mark", "closed") else ""}
         if a["what"] in ("danger", "prices"):
             e["value"] = int(R[a["what"]])
+        same = next((x for x in state["effects"] if x.get("thread") == th["id"] and x.get("kind") == a["what"] and x.get("place") == a["on"]
+                     and "of_part" not in x and not x.get("lifted") and int(x.get("until", 0)) > int(t) and a["what"] != "mark"), None)
+        if same is not None:                                            # (f546's second review) what its telling already laid there is
+            same["of_part"] = i                                         # this condition: tagged its own, never laid a second time
+            a["result"] = "held"
+            a["text"] = text if a["what"] in ("mark", "closed") else ""
+            continue
         had = list(state["effects"])
         a["result"] = pulse.apply_one(store, world, None, state, e, th.get("tier", "rare"), t, title, thread_id=th["id"], ways=ways)
         for x in state["effects"]:
@@ -406,12 +413,14 @@ def heart(th: dict, parts: list[dict], state: dict, t: int, town: str = "") -> d
             stakes.append({"part": i, "kind": "person", "who": a["who"]})
         elif a["kind"] == "resource" and a.get("state") in states:
             stakes.append({"part": i, "kind": "resource", "good": a["good"], "state": a["state"]})
+    held = {(x["what"], x["on"]) for x in threats if x["kind"] == "condition"}
     for e in (state or {}).get("effects", []):                            # (f546's review) what its telling laid, no part's
         if e.get("thread") == th.get("id") and e.get("kind") in kinds and "of_part" not in e and not e.get("lifted") \
-                and int(e.get("until", 0)) > int(t):
+                and int(e.get("until", 0)) > int(t) and (e["kind"], e.get("place", "")) not in held:
+            held.add((e["kind"], e.get("place", "")))                     # (f546's second review) one condition, one threat
             by, by_kind = _laid_by(state, th, e, t)
             threats.append({"kind": "condition", "what": e["kind"], "on": e.get("place", ""), "by": by, "by_kind": by_kind,
-                            "effect": e.get("id", "")})
+                            "effect": f"{e['kind']}@{e.get('place', '')}"})
     for p in th.get("paths") or []:
         if p.get("kind") in ("kill", "horde") and (p.get("target") or p.get("spawn")):
             threats.append({"kind": "creature", "target": p.get("target", ""), "spawn": p.get("spawn", "")})
@@ -517,9 +526,10 @@ def _unparted(x: dict) -> bool:
 def adoptable(state: dict) -> list[dict]:
     """(f546) The live situations of the adopting tiers with no parts and no birth still due, oldest first."""
     B = S.get("births") or {}
-    tries, tiers = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ())
+    tries, tiers, born = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ()), set(B.get("tiers") or ())
     return sorted((x for x in (state or {}).get("threads", []) if _unparted(x) and x.get("tier") in tiers
-                   and (not isinstance(x.get("parts_due"), int) or x["parts_due"] >= tries)), key=lambda x: (int(x.get("made", 0)), x["id"]))
+                   and (not isinstance(x.get("parts_due"), int) or x["parts_due"] >= tries or x.get("tier") not in born)),
+                  key=lambda x: (int(x.get("made", 0)), x["id"]))      # (f546's second review) a tier no longer born: adopted, whatever its due
 
 
 def due(state: dict) -> dict | None:
@@ -549,67 +559,58 @@ def adopt_all(ws) -> bool:
     return bool(rows)
 
 
-def _spend_try(ws, state: dict, th: dict, why: str) -> None:
-    """(f546) One of a birth's tries spent: past births.tries, the engine's own parts stand."""
-    from engine import pulselog
+def missed(ws, tid: str, why: str = "its operation did not stand") -> None:
+    """(f546's reviews) A birth that did not stand - its call failed, it kept or made no part, or its operation failed for any reason -
+    counts as one of its tries, here, in an operation of its own, so no birth is asked for more than births.tries times. Past them it
+    is adoptable, and the adoption (an operation of its own, after) gives it the engine's own parts."""
+    from engine import pulse, pulselog
+    state = ws.store.load_world_state() or {}
+    th = pulse.thread_of(state, tid)
+    if th is None or not _unparted(th) or not isinstance(th.get("parts_due"), int):
+        return
     th["parts_due"] = int(th["parts_due"]) + 1
-    pulselog.note("miss", f"{th.get('title', '')}: no parts this time ({why})", thread=th["id"])
-    B = S.get("births") or {}
-    if th["parts_due"] >= int(B.get("tries", 3)) and th.get("tier") in set(B.get("adopt_tiers") or ()):
-        adopt(ws.store, ws.world, state, th, ws.minutes)
+    pulselog.note("miss", f"{th.get('title', '')}: no parts this time ({why})", thread=tid)
     ws.store.save_world_state(state)
 
 
-def missed(ws, tid: str, why: str = "its operation did not stand") -> None:
-    """(f546's review) A birth whose operation failed for any reason (a fault, a drift) counted as one of its tries, in an operation of
-    its own, so no birth is asked for more than births.tries times, and one that cannot stand never holds up those after it."""
-    from engine import pulse
-    state = ws.store.load_world_state() or {}
-    th = pulse.thread_of(state, tid)
-    if th is not None and _unparted(th) and isinstance(th.get("parts_due"), int):
-        _spend_try(ws, state, th, why)
-
-
-def birth(ws, tid: str) -> str:
+def birth(ws, tid: str) -> bool:
     """(f546) The birth operation's body, after the input's tail (scenes/world.py): the situation `tid`, due its parts, asks the model
-    for them with what its prose established, outside any transaction, and registers what the check and the agreement keep. A call that
-    fails or (f546's review) keeps no part spends one of its tries. Returns "" when it took parts, else why not. Never during a fight."""
+    for them with what its prose established, outside any transaction, and registers what the check and the agreement keep. True when
+    it took parts; False when there was nothing to do (a fight on, no longer due). A birth that takes none - its call failed, its place
+    is gone, the check and the agreement kept no part, or (f546's second review) registering made none of them - raises LLMError, so
+    its operation is rolled back whole (people made, effects laid) and the caller spends one of its tries apart."""
     from engine import pulse, pulselog
     from llm.gateway import LLMError
     if getattr(ws, "combat", None):
-        return "a fight is on"
+        return False
     store, world = ws.store, ws.world
     state = store.load_world_state() or {}
     th = pulse.thread_of(state, tid)
     if th is None or not _unparted(th):
-        return "no longer due"
+        return False
     place = world.places.get(th.get("place", ""))
     if place is None:
-        return "the situation's place is gone"
+        raise LLMError("the situation's place is gone")
     pressure = world.pressures.get(th.get("pressure") or "")
     trouble = pressure.description if pressure else th.get("title", "")
     ways = pulse.ways_through(state, th["id"])
-    try:
-        _, accepted, dropped = situations.propose(store, world, state, place, th["tier"], ws.minutes,
-                                                  random.Random(f"{store.meta.seed}:parts:{th['id']}"), trouble=trouble, ways=ways,
-                                                  players=tuple(c.id for c in ws.characters()),
-                                                  established_lines=situations.established(state, th))
-    except LLMError as e:
-        why = str(e) or "the model gave nothing usable"
-        _spend_try(ws, state, th, why)
-        return why
+    _, accepted, dropped = situations.propose(store, world, state, place, th["tier"], ws.minutes,
+                                              random.Random(f"{store.meta.seed}:parts:{th['id']}"), trouble=trouble, ways=ways,
+                                              players=tuple(c.id for c in ws.characters()),
+                                              established_lines=situations.established(state, th))
     kept, refused = agree(store, world, state, th, accepted)
     if refused:
         pulselog.note("parts", f"{th.get('title', '')}: {len(refused)} parts against what its telling established",
                       thread=th["id"], kept=[], skipped=[{"part": p, "why": w} for p, w in refused])
-    if not kept:                                                         # (f546's review) asked again, never an empty heart
-        _spend_try(ws, state, th, "every part it proposed was dropped")
-        return "every part it proposed was dropped"
+    if not kept:
+        raise LLMError("every part it proposed was dropped")
     register(store, world, state, th, kept, ws.minutes, catalog=ws.catalog, ways=ways)
+    if not th["parts"]:
+        raise LLMError("none of the parts it kept could be made")       # (f546's second review) never an empty heart for good
     th.pop("parts_due", None)
     refresh(ws, th)
     store.save_world_state(state)
-    return ""
+    return True
 
 
 # ---------- (part 4, recommendation 1) the parts are ways through

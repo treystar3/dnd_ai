@@ -468,32 +468,32 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
 
     def situation_births(self, text: str) -> None:
         """(f546) After the tail, apart from it, and only when something waits (so an input with nothing born commits what it always did):
-        the situations with no parts to adopt take the engine's own (an operation with no call); then the oldest birth due asks for its
-        parts outside any transaction (engine/situation_parts.py birth). A birth whose operation fails for any reason spends one of its
-        tries in an operation of its own (f546's review), so none is asked forever. The people here are read again after, as after the
-        pulse, so the scene's copies carry the worries and moods the parts gave them."""
+        the oldest birth due asks for its parts outside any transaction (engine/situation_parts.py birth), the people here read again
+        inside it (f546's second review: every write within an operation); a birth that took none, or whose operation failed for any
+        reason, spends one of its tries in an operation of its own (f546's review), so none is asked forever; then the situations with
+        no parts to adopt (one past its tries among them) take the engine's own, in an operation with no call."""
         from engine import situation_parts
-        if situation_parts.adoptable(self.store.load_world_state() or {}):
-            with self.operation("parts:adopt", text, world=True) as op:
-                situation_parts.adopt_all(self)
-            if op.state == "committed":
-                self.reread_here()
         th = situation_parts.due(self.store.load_world_state() or {})
-        if th is None:
-            return
-        tid, why = th["id"], {}
+        if th is not None:
+            tid, why = th["id"], {}
 
-        def _born(op):
-            why["it"] = situation_parts.birth(self, tid)
-        op, _ = self.asked_operation("parts", text, _born, world=True)
-        if op.state != "committed":
-            with self.operation("parts:missed", text, world=True):
-                situation_parts.missed(self, tid)
-        elif not why.get("it"):
-            self.reread_here()
+            def _born(op):
+                try:
+                    if situation_parts.birth(self, tid):
+                        self.reread_here()
+                except LLMError as e:
+                    why["it"] = str(e) or "the model gave nothing usable"
+                    raise
+            op, _ = self.asked_operation("parts", text, _born, world=True)
+            if op.state != "committed":
+                with self.operation("parts:missed", text, world=True):
+                    situation_parts.missed(self, tid, why.get("it") or "its operation did not stand")
+        if situation_parts.adoptable(self.store.load_world_state() or {}):
+            with self.operation("parts:adopt", text, world=True):
+                situation_parts.adopt_all(self)
 
     def reread_here(self) -> None:
-        """(f546) The people here read again from the save, as after the pulse."""
+        """(f546) The people here read again from the save, as after the pulse: within an operation, since placing them may save one."""
         here = self.store.load_place(self.player.location)
         if here.populated:
             self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
