@@ -573,7 +573,8 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
         if th["status"] == "active":                              # (f540's review) a road it shuts stays shut its whole span, put off or not
             for e in state.get("effects", []):
                 if e.get("thread") == th["id"] and (e["kind"] == "closed" and e["place"] in world.roads or e.get("part")) \
-                        and t < e["until"] < th["times"][-1] + 1440:               # (f545) and what its parts lay, the same
+                        and not e.get("lifted") and t < e["until"] < th["times"][-1] + 1440:   # (f545) and what its parts lay, the
+                                                                                            # same, but never a part done (lifted)
                     e["until"] = int(th["times"][-1]) + 1440
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
@@ -657,7 +658,7 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
                 store.save_npc(n)
     if th.get("parts"):                                      # (f545) and the worries and moods its parts gave its people
         from engine import situation_parts
-        situation_parts.release(store, th, status, t)
+        situation_parts.release(store, th, status, t, state)
     th["status"] = status
     th["ended_at"] = t
     if state.get("campaign") == th["id"]:

@@ -375,6 +375,9 @@ def after_deed(ws, deed: dict) -> None:
         return
     from engine import matters
     changed = False
+    if deed.get("kind") == "kill":                                    # (f545's review) a kill where a situation's trouble is keeps
+        from engine import situation_parts                           # safe the one who asked for that: noted, their yes to come
+        changed |= situation_parts.killed(ws, state, deed)
     for th in [x for x in state.get("threads", []) if x["status"] == "active"]:
         if deed["kind"] == "quest_done" and deed.get("thread") == th["id"]:
             if th.get("hidden") and not th.get("revealed"):          # (f317) the job is done; what it did not say comes out, and the matter stays open
@@ -395,7 +398,8 @@ def after_deed(ws, deed: dict) -> None:
             from engine import towns as _towns
             near = ({th["place"], th.get("wild", "")} | _towns.town_places(world, pulse.town_of(world, th["place"]))
                     if th.get("place") in world.places else None)
-            met = next((p for p in th["paths"] if not p["done"] and path_met(p, state, th, near)), None)
+            met = next((p for p in th["paths"] if not p["done"] and (p["kind"] != "part" or deed.get("npc") == p["target"])
+                        and path_met(p, state, th, near)), None)    # (f545's review) a person's yes is given with the player there
             if met:
                 met["done"] = True
                 th["won_path"] = met

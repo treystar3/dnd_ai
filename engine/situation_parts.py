@@ -201,6 +201,14 @@ def held_wares(store, npc_id: str) -> list:
     return out
 
 
+def wares(store, world, npc) -> list:
+    """(f545's review) What this person sells: what they hold first, then their trade's own list without the goods they hold, so a good
+    is one ware, sold from what they hold until it is gone and only then from the trade's stock."""
+    mine = held_wares(store, npc.id)
+    goods = {w.item for w in mine}
+    return mine + [w for w in world.roles[npc.role].sells if not (w.kind == "item" and w.item in goods)]
+
+
 def give_stock(store, npc, good: str, count: int, th_id: str, t: int):
     """They hold `count` of `good`, the situation's: a stock entity of that situation (f545's review: never added to another's, which
     its end would take away with its own)."""
@@ -255,6 +263,12 @@ def _target(store, world, town: str, good: str, parts: list[dict], holder: str) 
     return ""
 
 
+def mood_source(th_id: str) -> str:
+    """(f545's review) The cause a part's mood is kept with: its own, so the situation's end (and drift's sweep) lets go only the moods
+    its parts gave, never another the same situation gave by other means (the pride of the one who settled it)."""
+    return f"parts:{th_id}"
+
+
 def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, *, catalog=None, ways: bool = False,
              reach=None) -> list[dict]:
     """Write the checked parts of the situation `th` into the world (its people, worries and moods, ties, conditions and evidence), keep
@@ -282,7 +296,7 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         if not (theirs in live or theirs.startswith("quest:")):          # never over a worry another situation or a job gave them
             circumstance.set_concern(n, _pick(R["worries"][a["want"]], f"{th['id']}:worry:{i}").format(title=title), th["id"])
             a["worry"] = True
-        circumstance.set_mood(n, _pick(R["moods"][a["stake"]], f"{th['id']}:mood:{i}"), t, f"thread:{th['id']}")
+        circumstance.set_mood(n, _pick(R["moods"][a["stake"]], f"{th['id']}:mood:{i}"), t, mood_source(th["id"]))
         store.save_npc(n)
     for a in parts:
         if a["kind"] == "tie":
@@ -314,8 +328,12 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
             continue
         g = a["good"]
         if a["state"] in ("scarce", "stranded"):                       # that good dearer in the town while it lasts
+            had = {id(e) for e in state["effects"]}
             pulse.apply_one(store, world, None, state, {"kind": "prices", "place": town, "value": int(R[a["state"]]), "good": g,
                                                         "days": days}, th.get("tier", "rare"), t, title, thread_id=th["id"])
+            for e in state["effects"]:
+                if id(e) not in had:
+                    e["of_part"] = i                                    # (f545's review) this part's own: its end lifts this one
         if a.get("holder") and a["state"] == "scarce":               # a scarce good to hand, theirs to sell while it lasts; (the owner)
             a["count"] = _count(f"{th['id']}:{a['state']}:{i}", R["stock"])   # a stranded load is a price rise, a worry and a request:
             give_stock(store, store.load_npc(a["holder"]), g, a["count"], th["id"], t)   # no store of its own
@@ -346,11 +364,12 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         else:
             text = _pick(R["evidence"][a["certainty"]], f"{th['id']}:evidence:{i}").format(**words)
             th["clues"].append({"text": text, "holder": "", "npc": a["holder"], "found": False, "certainty": a["certainty"],
-                                "true": a["true"], "points_to": a["points_to"], "part": True})
+                                "label": words["label"], "true": a["true"], "points_to": a["points_to"], "part": True})
             matters.hold(store, th, len(th["clues"]) - 1, a["holder"], t)    # theirs to know, in words that say how sure they are
         a["clue"] = len(th["clues"]) - 1
     th["parts"] = parts
-    th.setdefault("paths", []).extend(part_paths(store, world, th, parts, town))
+    have = {(x.get("kind"), x.get("target")) for x in th.setdefault("paths", [])}
+    th["paths"].extend(x for x in part_paths(store, world, th, parts, town) if (x["kind"], x["target"]) not in have)
     pulselog.note("parts", f"{title}: {len(parts)} parts in the world" + (f", {len(skipped)} not" if skipped else ""),
                   thread=th["id"], kept=[{k: v for k, v in a.items() if k not in ("true", "made_true")} for a in parts],
                   skipped=[{"part": p, "why": why} for p, why in skipped])
@@ -361,11 +380,15 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
 
 def part_paths(store, world, th: dict, parts: list[dict], town: str) -> list[dict]:
     """The situation's own ways to an end: one who could set it right, once their condition is met (a path of kind part), and one who
-    stands in the way, once won over (a persuade path); the can-fix first, at most register.ways.most. A protected one is met by a kill
-    where the trouble is: the town's places and those the situation makes dangerous."""
-    from engine import inventory, retrieval
+    stands in the way, once won over (a persuade path); the can-fix first, at most register.ways.most. A protected one is kept safe by a
+    kill where the trouble is: the town's places and the wild on its doorstep, the places the situation makes dangerous, and the roads
+    it makes dangerous (a fight on one is at a stop on it) - or, with no road made dangerous, the roads out of the town. Trusted starts
+    from where each character already stands with them (trust_from), so only trust earned since counts."""
+    from engine import inventory, towns
     W = _R()["ways"]
-    near = sorted(set(retrieval.town_places(world, town)) | {a["on"] for a in parts if a["kind"] == "condition" and a["what"] == "danger"})
+    danger = {a["on"] for a in parts if a["kind"] == "condition" and a["what"] == "danger"}
+    near = sorted((set(towns.town_places(world, town)) | danger) - set(world.roads))
+    roads_near = sorted(danger & set(world.roads)) or sorted(rid for rid, r in world.roads.items() if town in (r.from_, r.to))
     out = []
     for stake in ("can_fix", "blocks"):
         for i, a in enumerate(parts):
@@ -375,70 +398,126 @@ def part_paths(store, world, th: dict, parts: list[dict], town: str) -> list[dic
             want = next((r["good"] for r in parts if r["kind"] == "resource" and r.get("wanted_by") == a["who"]), "")
             need = a.get("condition", "") if stake == "can_fix" else ""
             how = W["how"]["blocks" if stake == "blocks" else need].format(name=n.name, good=inventory.GOODS[want].name if want else "")
-            out.append({"id": f"{th['id']}:way:{i}", "name": W["name"][stake].format(name=n.name), "how": how,
-                        "kind": "part" if stake == "can_fix" else "persuade", "target": a["who"], "need": need, "good": want,
-                        "near": near, "spawn": "", "done": False})
+            path = {"id": f"{th['id']}:way:{i}", "name": W["name"][stake].format(name=n.name), "how": how,
+                    "kind": "part" if stake == "can_fix" else "persuade", "target": a["who"], "need": need, "good": want,
+                    "near": near, "roads": roads_near, "spawn": "", "done": False}
+            if need == "trusted":
+                path["trust_from"] = {cid: int(r.trust) for cid, r in n.regard.items() if r.met}
+            out.append(path)
     return out
 
 
-def need_met(path: dict, state: dict, thread: dict) -> bool:
-    """(events.path_met, kind part) Whether the one who could set it right now will: their condition met by what the player has done
-    since the situation began - asked them (a persuasion that landed), paid them (coin handed over or a bribe that bought the favour, at
-    least register.ways.pay for the tier), given them the good they want (handed over, or their request for it done), earned their trust
-    or told them what the evidence shows (noted by heard()), or kept them safe (a kill where the trouble is)."""
+def _given(path: dict, state: dict, thread: dict) -> bool:
+    """(f545's review) "given": the good they want, as much of it as their own request asks (each gift is one), handed to them; or their
+    request for it handed in; or a stranded load of it carried to them as its owner asked and that request handed in."""
     from engine import deeds, inventory
+    who, good = path["target"], path.get("good", "")
+    parts = thread.get("parts") or []
+    if any(a.get("kind") == "resource" and a.get("done") and a.get("good") == good
+           and (a.get("wanted_by") == who or (a.get("request") or {}).get("to") == who) for a in parts):
+        return True
+    want = next((a for a in parts if a.get("kind") == "resource" and a.get("wanted_by") == who and a.get("good") == good), None)
+    count = int(((want or {}).get("request") or {}).get("count") or 1)
+    gifts = [d for d in deeds.since(state, thread["made"] + 1, ["gift"])
+             if d.get("npc") == who and inventory.is_good(d.get("item") or "") == good]
+    return bool(good) and len(gifts) >= count
+
+
+def need_met(path: dict, state: dict, thread: dict) -> bool:
+    """(events.path_met, kind part) Whether the condition of the one who could set it right is met by what the player has done since the
+    situation began: asked them (a persuasion that landed), paid them (coin handed over or a bribe that bought the favour, at least
+    register.ways.pay for the tier), given them what they want (_given), earned their trust, told them what the evidence shows (both
+    noted by heard()), or kept them safe (a kill where the trouble is, noted by killed()). Their yes is theirs to give: events.after_deed
+    reads this only for a deed done with them (the player with them), so a condition met elsewhere waits for the player's next word."""
+    from engine import deeds
     since, who, need = thread["made"], path["target"], path.get("need", "")
-    mine = lambda kinds: [d for d in deeds.since(state, since, kinds) if d.get("npc") == who]
+    mine = lambda kinds: [d for d in deeds.since(state, since + 1, kinds) if d.get("npc") == who]   # (f545's review) after its
+                                                                                                    # birth, never in that minute
     if need == "":
         return any(d.get("degree") in ("success", "strong success") for d in mine(["persuade"]))
     if need == "paid":
         pay = int(_R()["ways"]["pay"].get(thread.get("tier", "rare"), 0))
         return sum(int(d.get("coin") or 0) for d in mine(["gift", "bribe"])) >= pay
     if need == "given":
-        good = path.get("good", "")
-        done = any(a.get("kind") == "resource" and a.get("wanted_by") == who and a.get("done") for a in thread.get("parts") or [])
-        return done or bool(good) and any(inventory.is_good(d.get("item") or "") == good for d in mine(["gift"]))
-    if need in ("trusted", "told"):
+        return _given(path, state, thread)
+    if need in ("trusted", "told", "protected"):
         return bool(path.get(need))
-    if need == "protected":
-        near = set(path.get("near") or ())
-        return any(d.get("place") in near for d in deeds.since(state, since, ["kill"]))
     return False
 
 
-def heard(ws, npc, speech: str) -> None:
-    """(the talk, after the reply) What talking with them may meet: a found clue of their situation said to them (told, by its own long
-    words, as a clue's telling is read), or the trust they now have in the one speaking (trusted). Noted on the path, then the
-    situation's ways are looked at again."""
-    from engine import events, regard
-    state = ws.store.load_world_state()
-    W = _R()["ways"]
-    said = {w for w in re.findall(r"[a-z]{5,}", (speech or "").lower())}
-    moved = False
+def _words(text: str) -> set[str]:
+    """A line's own words, as a clue's telling is matched: three letters or more, the filler of told_skip left out, a plural as its one."""
+    skip = set(_R()["ways"].get("told_skip") or ())
+    out = set()
+    for w in re.findall(r"[a-z]{3,}", (text or "").lower()):
+        if w not in skip:
+            out.add(w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w)
+    return out
+
+
+def told_by(speech: str, clue: dict, store, world) -> bool:
+    """(f545's review) Whether a line tells a clue: the clue's own words - what it is and what it points to, never the filler its
+    telling is phrased in - at least register.ways.told_words of them (all of them, when it has fewer)."""
+    own = _words(clue.get("label") or "") | _words(_name(store, world, clue.get("points_to") or ""))
+    return bool(own) and len(own & _words(speech)) >= min(int(_R()["ways"]["told_words"]), len(own))
+
+
+def _open_ways(state: dict, npc_id: str):
     for th in state.get("threads", []):
         if th.get("status") != "active":
             continue
         for p in th.get("paths") or []:
-            if p.get("kind") != "part" or p["target"] != npc.id or p["done"]:
-                continue
-            if p.get("need") == "trusted" and not p.get("trusted") and regard.of(npc, ws.acting).trust >= int(W["trust"]):
+            if p.get("kind") == "part" and p["target"] == npc_id and not p["done"]:
+                yield th, p
+
+
+def heard(ws, npc, speech: str) -> None:
+    """(the talk, after the reply) What talking with them may meet - a found clue of their situation said to them that they did not hold
+    themselves (told), or trust earned since the situation began (trusted) - noted on the path; then, the player being with them, every
+    way they open is looked at again, so a condition met elsewhere (paid, kept safe) is answered with their yes now."""
+    from engine import events, regard
+    state = ws.store.load_world_state()
+    W = _R()["ways"]
+    moved, theirs = False, False
+    for th, p in _open_ways(state, npc.id):
+        theirs = True
+        if p.get("need") == "trusted" and not p.get("trusted"):
+            now = int(regard.of(npc, ws.acting).trust)
+            base = p.setdefault("trust_from", {})
+            if ws.acting not in base:                                  # met since it began: where they stood at that first word
+                base[ws.acting], moved = now, True
+            if now >= max(int(W["trust"]), base[ws.acting] + int(W["trust_gain"])):
                 p["trusted"], moved = ws.acting, True
-            if p.get("need") == "told" and not p.get("told"):
-                for c in th.get("clues") or []:
-                    long = set(re.findall(r"[a-z]{5,}", c["text"].lower()))
-                    if c.get("found") and long and len(long & said) >= min(int(W["told_words"]), max(1, len(long) // 4)):
-                        p["told"], moved = ws.acting, True
-                        break
+        if p.get("need") == "told" and not p.get("told"):
+            if any(c.get("found") and c.get("npc") != npc.id and told_by(speech, c, ws.store, ws.world) for c in th.get("clues") or []):
+                p["told"], moved = ws.acting, True
     if moved:
         ws.store.save_world_state(state)
+    if theirs:
         events.after_deed(ws, {"kind": "heard", "minute": ws.minutes, "place": ws.player.location, "npc": npc.id})
 
 
+def killed(ws, state: dict, deed: dict) -> bool:
+    """(events.after_deed, a kill) A kill where a situation's trouble is keeps safe the one who asked for that (protected), noted on
+    their path; their yes comes when the player is next with them. True when a path was noted."""
+    from engine import roads
+    place = deed.get("place") or ""
+    noted = False
+    for th in state.get("threads", []):
+        if th.get("status") != "active":
+            continue
+        for p in th.get("paths") or []:
+            if p.get("kind") == "part" and p.get("need") == "protected" and not p["done"] and not p.get("protected") \
+                    and (place in (p.get("near") or ()) or any(roads.on_road(ws.world, place, r) for r in p.get("roads") or ())):
+                p["protected"], noted = ws.acting, True
+    return noted
+
+
 def part_done(ws, q: dict) -> None:
-    """(the hand-in of a situation's request) That part of the situation is done, never asked again: a stranded load carried lifts its
-    price rise; a wanted good brought meets the asker's "given"; the one who asked is no longer worried by it. Then the situation's ways
-    are looked at again."""
-    from engine import circumstance, events
+    """(the hand-in of a situation's request) That part of the situation is done, for everyone: its own price rise lifted for good (never
+    renewed), the one who asked no longer worried by it, the same request still open to another character let go. Then the situation's
+    ways are looked at again."""
+    from engine import circumstance, events, obligations
     key = str(q.get("part") or "")
     tid, _, i = key.rpartition(":")
     state = ws.store.load_world_state()
@@ -448,8 +527,11 @@ def part_done(ws, q: dict) -> None:
     a = th["parts"][int(i)]
     a["done"] = True
     for e in state.get("effects", []):
-        if e.get("thread") == tid and e.get("kind") == "prices" and e.get("good") == a.get("good"):
-            e["until"] = min(e["until"], ws.minutes)
+        if e.get("thread") == tid and e.get("kind") == "prices" and e.get("of_part") == int(i):
+            e["until"], e["lifted"] = min(e["until"], ws.minutes), True
+    for e in obligations.open_ones(ws.store, "request"):
+        if str((e.data.get("terms") or {}).get("part", "")) == key:
+            obligations.close(ws.store, e, "released", "over", ws.minutes, remember=False)   # done by another: nothing to say yes to
     asker = (a.get("request") or {}).get("npc", "")
     if asker and ws.store.npc_exists(asker):
         n = ws.npc_by_id(asker) or ws.store.load_npc(asker)            # the scene's own copy, which the turn's end saves
@@ -461,22 +543,28 @@ def part_done(ws, q: dict) -> None:
 
 def ask(ws, npc) -> None:
     """(the talk, when a character speaks with someone) What this person needs of the situation they are in, asked of the one speaking:
-    a request opened for them (obligations: request), waiting on their yes, as any request a person makes. Never when they already
-    have one open with this character, nor for a part this character has taken on or that is done."""
+    a request opened for them (obligations: request), waiting on their yes, as any request a person makes - and, as any (the owner,
+    2026-11-03), refused when a new conversation opens without it taken, released with its reason. Never asked again of a character who
+    let it go or said no; never while they have one open with this character; never for a part that is done, or that a character has
+    taken on (one load, one carrier)."""
     from engine import inventory, obligations, quests
     if obligations.current(ws.store, "request", npc.id, ws.acting) is not None:
         return
     state = ws.store.load_world_state()
-    taken = {q.get("part") for q in ws.player.quests}
-    taken |= {str((e.data.get("terms") or {}).get("part", "")) for e in ws.store.find_entities(kind="offer", state="released")
-              if e.data.get("with") == ws.acting and e.data.get("cause") == "refused"}     # (f545's review) a no is an answer
+    skip = {q.get("part") for q in ws.player.quests}
+    for e in ws.store.find_entities(kind="offer", state="taken"):
+        skip.add(str((e.data.get("terms") or {}).get("part", "")))
+    for e in ws.store.find_entities(kind="offer", state="released"):
+        if e.data.get("with") == ws.acting and e.data.get("cause") in ("refused", "no_answer"):
+            skip.add(str((e.data.get("terms") or {}).get("part", "")))
+    skip.discard("")
     for th in state.get("threads", []):
         if th.get("status") != "active":
             continue
         for i, a in enumerate(th.get("parts") or []):
             r = a.get("request")
             key = f"{th['id']}:{i}"
-            if not r or r["npc"] != npc.id or a.get("done") or key in taken:
+            if not r or r["npc"] != npc.id or a.get("done") or key in skip:
                 continue
             common = {"guild": False, "issuer": npc.id, "issuer_name": npc.name, "part": key}
             if r["kind"] == "gather":
@@ -484,17 +572,26 @@ def ask(ws, npc) -> None:
             else:
                 to = ws.store.load_npc(r["to"])
                 item = f"a load of {inventory.GOODS[r['good']].name}"
-                q = quests._quest("deliver", "F", r["title"], ws.minutes, item=item, to_name=to.name.split()[0], to_role="",
+                q = quests._quest("deliver", "F", r["title"], ws.minutes, item=item, to_name=to.name, to_role="", to_id=to.id,
                                   item_description=f"{item}, from {npc.name}, for {to.name}.", **common)   # for the one named, no other
             obligations.open_(ws.store, "request", npc.id, ws.acting, q["title"], ws.minutes, terms=q, key=f"part:{key}:{ws.acting}")
             return
 
 
-def release(store, th: dict, status: str, t: int) -> None:
+ENDED_KEPT = 500             # (f545's review) the ended situations with parts drift's sweep can still find, newest kept
+
+
+def release(store, th: dict, status: str, t: int, state: dict | None = None) -> None:
     """(the situation's end, from pulse.end_thread) The worries and moods its parts gave its people go with it: a worry settled when it
-    ended well, let go when it did not; a mood it gave fades now; what they still hold of it moves on (stock released); a request
-    nobody said yes to is let go. What the player took on and what people learned stay."""
+    ended well, let go when it did not; a mood its parts gave fades now; what they still hold of it moves on (stock released); a request
+    nobody said yes to is let go. What the player took on and what people learned stay. The end is kept (state's parts_ended) for drift's
+    sweep, so a copy saved late is put right however long after."""
     from engine import circumstance, entities, obligations
+    if state is not None:
+        ended = state.setdefault("parts_ended", {})
+        ended[th["id"]] = status
+        for old in list(ended)[:-ENDED_KEPT]:
+            del ended[old]
     for e in store.find_entities(kind="stock", state="held"):
         if e.data.get("thread") == th["id"]:
             entities.move(store, e, "released", t, "the situation is over")
@@ -506,7 +603,7 @@ def release(store, th: dict, status: str, t: int) -> None:
             continue
         n = store.load_npc(a["who"])
         changed = circumstance.release_concern(n, th["id"], "settled" if status == "resolved" else "let_go", t)
-        if n.mood_source == f"thread:{th['id']}":
+        if n.mood_source == mood_source(th["id"]):
             circumstance.clear_mood(n)
             changed = True
         if changed:
@@ -529,14 +626,17 @@ def refresh(ws, th: dict) -> None:
 
 
 def sweep(state: dict, npc, t: int) -> bool:
-    """(f545, drift's pass) A worry or a mood a situation with parts gave, left after that situation ended (a copy saved after the end
-    was told), is let go now. True when it changed them."""
+    """(f545, drift's pass) A worry or a mood a situation's parts gave, left after that situation ended (a copy saved after the end was
+    told), is let go now: the ends kept in parts_ended, however long ago. A mood the situation gave by other means (the pride of the one
+    who settled it) is not the parts' and lasts its own days. True when it changed them."""
     from engine import circumstance
-    ended = {x["id"]: x["status"] for x in state.get("threads", []) if x.get("parts") and x.get("status") != "active"}
+    ended = dict(state.get("parts_ended") or {})
+    ended.update({x["id"]: x["status"] for x in state.get("threads", []) if x.get("parts") and x.get("status") != "active"})
     changed = False
     if npc.concern and npc.concern_from in ended:
         changed |= circumstance.release_concern(npc, npc.concern_from, "settled" if ended[npc.concern_from] == "resolved" else "let_go", t)
-    if (npc.mood_source or "").startswith("thread:") and npc.mood_source[7:] in ended:
+    src = npc.mood_source or ""
+    if src.startswith("parts:") and src[6:] in ended:
         circumstance.clear_mood(npc)
         changed = True
     return changed
@@ -589,9 +689,13 @@ def problems() -> list[str]:
             if not ok:
                 bad.append(f"situations.yaml register.ties.{tie}.{side}: [a change within pulse.yaml's relation limits, the feeling]")
     Wy = R.get("ways") or {}
-    if not whole(Wy.get("most"), 0, 6) or not whole(Wy.get("trust"), 51, 100) or not whole(Wy.get("told_words"), 1, 10):
-        bad.append("situations.yaml register.ways: most (0 to 6), trust (51 to 100: above a first meeting's 50), told_words (1 to 10), "
-                   "whole numbers")
+    if not whole(Wy.get("most"), 0, 6) or not whole(Wy.get("trust"), 51, 100) or not whole(Wy.get("told_words"), 1, 10) \
+            or not whole(Wy.get("trust_gain"), 1, 50):
+        bad.append("situations.yaml register.ways: most (0 to 6), trust (51 to 100: above a stranger's 50), trust_gain (1 to 50: earned "
+                   "since the situation began), told_words (1 to 10), whole numbers")
+    skip = Wy.get("told_skip")
+    if not isinstance(skip, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]{3,}", w) for w in skip):
+        bad.append("situations.yaml register.ways.told_skip: a list of lowercase words of three letters or more")
     if set((Wy.get("pay") or {})) != set(situations.TIERS) or not all(whole(v, 1, 100000) for v in (Wy.get("pay") or {}).values()):
         bad.append("situations.yaml register.ways.pay: copper, a whole number above 0, for each tier")
     for k in ("can_fix", "blocks"):

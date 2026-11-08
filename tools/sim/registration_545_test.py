@@ -93,7 +93,7 @@ check("every reference to a trade is now the person made for it", all(p["a"] in 
 n_a = store.load_npc(a_.id)
 check("each person's worry is the situation's, by what they want", all(store.load_npc(p["who"]).concern_from == "th545"
       and "The ford is out" in store.load_npc(p["who"]).concern for p in people.values()), [(store.load_npc(p["who"]).concern, store.load_npc(p["who"]).concern_from) for p in people.values()])
-check("...and their mood is the situation's too, by their stake", all(store.load_npc(p["who"]).mood_source == "thread:th545"
+check("...and their mood is the situation's too, by their stake", all(store.load_npc(p["who"]).mood_source == situation_parts.mood_source("th545")
       and store.load_npc(p["who"]).mood for p in people.values()))
 check("...the one harmed who wants the road open worries about the road", "road" in n_a.concern or "way" in n_a.concern, n_a.concern)
 
@@ -166,7 +166,7 @@ th_now = next(x for x in state["threads"] if x["id"] == "th545")
 pulse.end_thread(store, state, th_now, "resolved", "The ford is mended.", t0 + 2 * 1440)
 store.save_world_state(state)
 after = {p["who"]: store.load_npc(p["who"]) for p in people.values()}
-check("at the end each person's worry is settled and its mood gone", all(n.concern_from != "th545" and n.mood_source != "thread:th545"
+check("at the end each person's worry is settled and its mood gone", all(n.concern_from != "th545" and n.mood_source != situation_parts.mood_source("th545")
       for n in after.values()) and after[miller.id].concern_state == "settled", [(n.concern, n.concern_state, n.mood_source) for n in after.values()])
 check("...what they learned stays theirs, and the ties stay", [r for r in memory.records(store, a_.id) if r["about"].startswith("thread:th545:")]
       and rel(a_.id, miller.id).get("score", 0) < 0)
@@ -195,6 +195,7 @@ anchor_place = next((pid for pid in retrieval.town_places(world, town) if life._
 check("(the town has an anchor of a written trade nobody has met: its watch captain)", bool(anchor_place), anchor_place)
 if anchor_place:
     want = life._anchors_wanted(store, world, anchor_place)["watch_captain"]
+    _, _, _, slots = life._plan(store, world, anchor_place)         # the place's backfill planned (its model call still out)...
     th4 = thread("th545d", "Thieves in the market", t0 + 1440 + 60)
     parts4, _, _ = born(th4, {"people": [{"who": "watch_captain", "stake": "can_fix", "want": "safety"}]}, t0 + 1440 + 60)
     cap = store.load_npc(next(p["who"] for p in parts4 if p["kind"] == "person"))
@@ -202,6 +203,14 @@ if anchor_place:
           cap.anchor and cap.protected and (not want.name or cap.name == want.name) and cap.location == anchor_place,
           (cap.name, cap.anchor, cap.protected, want))
     check("...and the town makes no second one when the place is entered", not life._anchors_wanted(store, world, anchor_place).get("watch_captain"))
+    from llm.contracts import ResidentProposal, ResidentSet
+    made = life._apply(store, world, ws.catalog, anchor_place, slots, ResidentSet(residents=[
+        ResidentProposal(slot=i + 1, name=sl[3], epithet="the " + sl[0].replace("_", " "), description="A person of the town.")
+        for i, sl in enumerate(slots)]))                              # ...and its answer applied after the situation made them
+    caps = [n for n in made if n.role == "watch_captain" and not n.gone]
+    written = int((world.places[anchor_place].residents or {}).get("watch_captain") or 1)
+    check("(the review) ...nor when a backfill planned before the situation made them is applied after: never two of the anchor",
+          len(caps) == written and sum(1 for n in caps if n.anchor) == 1, [(n.name, n.anchor) for n in caps])
 th5 = thread("th545e", "Short of light", t0 + 2 * 1440)
 parts5, _, _ = born(th5, {"people": [{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
                           "resources": [{"good": "candles", "state": "wanted", "wanted_by": a_.id}],

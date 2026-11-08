@@ -3243,9 +3243,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         if not self.convo:                                       # (f481) a new conversation: a request left without a yes in the last is let go
             from engine import obligations
             asked = obligations.current(self.store, "request", npc.id, self.acting)
-            if asked is not None and asked.since < self.minutes and not (asked.data.get("terms") or {}).get("part"):   # (f545) a
-                                                                         # situation's request stands until answered or the matter ends
-                obligations.close(self.store, asked, "released", "no_answer", self.minutes, npc=npc)
+            if asked is not None and asked.since < self.minutes:       # (the owner, 2026-11-03) a situation's request as any other:
+                obligations.close(self.store, asked, "released", "no_answer", self.minutes, npc=npc)   # and not asked again (ask)
         from engine import recognition
         back = "" if first_time or self.convo else recognition.line(npc, self.minutes, self.acting)       # (f382) they know the player again
         self._back = npc.id if back else None

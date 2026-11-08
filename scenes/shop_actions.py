@@ -35,8 +35,7 @@ class ShopActions:
         """(f545) What this person sells: their trade's list, and what they really hold of a good (a situation's stock, sold until it is
         gone). Every reader of a seller's wares asks here."""
         from engine import situation_parts
-        return situation_parts.held_wares(self.store, npc.id) + list(self.world.roles[npc.role].sells)   # (f545's review) what they
-                                                                                                         # hold sells first
+        return situation_parts.wares(self.store, self.world, npc)          # (f545's review) what they hold first, a good one ware
 
     def ware_asked(self, wares, wanted: str):
         """(f545's review) The ware a buyer asks for: by its id, or the words asked being in its name, or what is asked ending in the

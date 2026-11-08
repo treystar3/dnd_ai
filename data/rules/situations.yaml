@@ -222,8 +222,13 @@ register:
   ways:
     most: 3                                          # paths a situation's own people open, at most (the can-fix first)
     pay: {normal: 30, uncommon: 60, rare: 150, campaign: 400}   # copper handed over that meets a "paid" condition, by tier
-    trust: 70                                        # a character's trust (regard, 50 at a first meeting) that meets "trusted"
-    told_words: 3                                    # the most of a found clue's long words a line must carry to have told it
+    trust: 70                                        # a character's trust (regard) that meets "trusted", at the least...
+    trust_gain: 10                                   # ...and this much above where it stood when the situation began, or when they
+                                                     # first met (f545's review: a first meeting can start well above 50)
+    told_words: 3                                    # the most of a found clue's own words (what it is, and what it points to) a line
+                                                     # must carry to have told it
+    told_skip: [the, and, with, from, that, this, some, there, near, which, into, onto, over, under, for, its, their, they, was, are,
+                has, had, where, what, who, his, her, our, your, not, but, all, any, one, out, "off", way]   # never a clue's own word
     name:
       can_fix: "{name}'s help"
       blocks: "{name} won over"

@@ -491,7 +491,8 @@ class GuildActions:
         for q in self.player.quests:
             if q["kind"] == "deliver" and q.get("item") == key.name:
                 to = (q.get("to_role") or "").replace("_", " ")
-                if npc.role.replace("_", " ") == to or (q.get("to_name") and q["to_name"] in npc.name):
+                if (npc.id == q["to_id"]) if q.get("to_id") else (npc.role.replace("_", " ") == to or (q.get("to_name") and q["to_name"] in npc.name)):
+                    # (f545's review) a load for one named person is theirs alone, by who they are, never by a name's first word
                     q["progress"] = 1
                     console.note(f"{q['title']}: delivered" + (" - collect your pay from the guild clerk." if q["guild"] else "."))
                     self.store.save_player(self.player)
@@ -609,7 +610,7 @@ class GuildActions:
         if q["kind"] == "deliver":
             self.player.character.key_items.append(KeyItem(
                 id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
-                source=npc.name, day=clock.day(self.minutes), for_whom=q.get("to_role", "")))
+                source=npc.name, day=clock.day(self.minutes), for_whom=q.get("to_role") or q.get("to_name", "")))   # (f545's review)
         self.player.quests.append(q)
         self.store.save_player(self.player)
         from engine import ledger

@@ -4,6 +4,7 @@ Everything the model proposes is checked here before it touches saved state.
 """
 
 import random
+from collections import Counter
 import re
 import config
 
@@ -29,10 +30,11 @@ def _unique_id(store: CampaignStore, name: str) -> str:
     return candidate
 
 
-def _held_wares(store, npc_id: str) -> list:
-    """(f545) What they hold of a good, sold until it is gone (engine/situation_parts.py)."""
+def _wares(store, world, npc) -> list:
+    """(f545) What they sell: what they hold of a good first, sold until it is gone, then their trade's own list
+    (engine/situation_parts.py wares)."""
     from engine import situation_parts
-    return situation_parts.held_wares(store, npc_id)
+    return situation_parts.wares(store, world, npc)
 
 
 FIRST_BATCH = 4          # how many residents the blocking call on arrival creates; the rest are made while the player reads
@@ -124,10 +126,17 @@ def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, pla
     existing = [n for n in (store.load_npc(i) for i in state.residents) if not n.gone]
     npcs = []
     taken = {n.activity for n in existing}
+    written = {role: int(n or 1) for role, n in (world.places[place_id].residents or {}).items()}
+    have = Counter(n.role for n in existing)
     for r in sorted(result.residents, key=lambda r: r.slot):
         role, _, people, name, gender = slots[r.slot - 1]
+        anchor_of = _ANCHOR_SLOTS.get((place_id, name), "")
+        if role in written and have[role] >= written[role] or anchor_of and any(n.anchor == anchor_of for n in existing):
+            _ANCHOR_SLOTS.pop((place_id, name), None)      # (f545's review) filled meanwhile (a situation made them): never two
+            continue
         if name in store.npc_names():
             continue
+        have[role] += 1
         npc = NPC(
             id=_unique_id(store, name), name=name, gender=gender, people=people, role=role,
             location=place_id, epithet=r.epithet.strip(), description=r.description.strip(),
@@ -337,7 +346,7 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
             [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
             clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
             wares if wares is not None else
-            [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells + _held_wares(store, npc.id)]
+            [f"{w.name}: {money.words(w.price)}" for w in _wares(store, world, npc)]
             + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
