@@ -191,8 +191,8 @@ changes: each {n, part, who, becomes, because, about, needs}; n numbers them fro
   flees, surrenders, joins, warns: what a person does of their own accord (who: that person's own number; warns: about, the person
     they warn).
   safe, lifted, moved, given_up, lost, broken, mended, tested, found, destroyed: what changes in the world. who: 0 when the player's
-    own act does it by hand, or the number of the person who does it: a person lifts only what they impose or command, gives up only
-    what they hold, and acts only as they are willing to.
+    own act does it by hand, there where it is, or the number of the person who does it: a person lifts only what they impose or
+    command, gives up only what they hold, and acts only as they are willing to.
   because: what it rests on: words (what was said), coin (handed over), goods (given), force (done by hand), evidence (a found piece
     shown; about: its number) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
 Words change what people believe, feel and will do; the world changes only through someone's action. One refusing, hostile or

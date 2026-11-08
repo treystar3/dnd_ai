@@ -329,7 +329,8 @@ def sync_paths(state: dict, th: dict) -> None:
 
 
 def _won_over(state: dict, since: int, npc_id: str) -> bool:
-    mine = [d for d in deeds.since(state, since, ["persuade"]) if d.get("npc") == npc_id]
+    mine = [d for d in deeds.since(state, since, ["persuade"]) if d.get("npc") == npc_id
+            and d.get("degree", "success") in ("success", "strong success")]           # (f547's third review) a failure wins no one
     return any(d.get("degree") == "strong success" for d in mine) or len(mine) >= 2
 
 
@@ -399,6 +400,7 @@ def after_deed(ws, deed: dict) -> None:
             near = ({th["place"], th.get("wild", "")} | _towns.town_places(world, pulse.town_of(world, th["place"]))
                     if th.get("place") in world.places else None)
             met = next((p for p in th["paths"] if not p["done"] and (p["kind"] != "part" or deed.get("npc") == p["target"])
+                        and not _set_against(th, p, deed.get("by") or ws.acting)
                         and path_met(p, state, th, near, deed.get("by") or ws.acting)), None)   # (f545's review) a person's yes is given with
                                                                                             # the player there, to the one who met it
             if met:
@@ -414,6 +416,15 @@ def after_deed(ws, deed: dict) -> None:
             changed |= judge(ws, state, th, deed)
     if changed or deed.get("dirty"):
         store.save_world_state(state)
+
+
+def _set_against(th: dict, path: dict, by: str) -> bool:
+    """(f547's third review) A way through a person (their condition, their persuasion, a treaty's sides) is not met while one of them
+    stands against the one acting in a situation with parts: only what moves them (a ruling) opens it."""
+    if not th.get("parts") or path.get("kind") not in ("part", "persuade", "treaty"):
+        return False
+    from engine import situation_parts
+    return any(situation_parts.set_against(th, x, by) for x in str(path.get("target") or "").split(",") if x)
 
 
 def _scope_regions(world, th: dict) -> set[str]:

@@ -174,9 +174,19 @@ kept, dropped = situation_parts.ruled(store, th, act("persuade", carpenter.id, [
                                       [ch(1, C, "open"), ch(2, ROAD, "lifted", who=C, because="earlier", needs=[1])])
 check("the carpenter, won over, still has no say over the guard's chain", [c["n"] for c in kept] == [1]
       and why(dropped) == [R["no_authority"]], dropped)
-kept, dropped = situation_parts.ruled(store, th, act("attack", guard.id, [guard.id], words=False),
-                                      [ch(1, ROAD, "lifted", because="force")])
-check("...but the player may clear it by force", [c["n"] for c in kept] == [1], dropped)
+from world.loader import Place
+r_ = world.roads[road]
+stop = roads.make_stop(world, r_.from_, r_.to, 0.5, 60, "", "", "the chain")
+world.add_place(Place(**stop["place"]))                          # a stop on the guard's road, where his chain is
+kept, dropped = situation_parts.ruled(store, th, dict(act("kill", "", [], words=False), place=stop["id"]),
+                                      [ch(1, ROAD, "lifted", because="force")], world=world)
+check("...but the player may clear it by force, there on the road", [c["n"] for c in kept] == [1], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("kill", "", [], words=False), [ch(1, ROAD, "lifted", because="force")], world=world)
+check("(the third review) ...never from the square, away from it", not kept and why(dropped) == [R["not_there"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, dict(act("quest_done", "", [], words=False), place=stop["id"]),
+                                      [ch(1, ROAD, "lifted", because="force")], world=world)
+check("(the third review) ...nor, there, by any act but force against the one who holds it", not kept
+      and why(dropped) == [R["no_means"]], dropped)
 
 # ---- a failed act brings no gain
 kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id], degree="failure"),
@@ -227,12 +237,13 @@ check("(the review) one who refuses is not talked round in two steps", [c["n"] f
       dropped)
 th["parts"][N - 1]["willing"] = {by: "hostile"}
 kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, N, "wary"), ch(2, N, "open")])
-check("(the review) ...nor one who is hostile, by words alone", [c["n"] for c in kept] == [1] and why(dropped) == [R["still_refusing"]], dropped)
+check("(the review) ...nor one who is hostile, by words alone (the third review: not even to wary)", not kept
+      and why(dropped) == [R["still_refusing"], R["still_refusing"]], dropped)
 th["parts"][N - 1]["willing"] = {by: "committed"}
 kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]),
                                       [ch(1, N, "wary"), ch(2, N, "open"), ch(3, N, "believes", because="words"), ch(4, N, "open", needs=[3])])
 check("(the review) one who is committed is moved by no step of words, a belief made by words included",
-      [c["n"] for c in kept] == [1, 3] and why(dropped) == [R["still_committed"], R["still_committed"]], dropped)
+      [c["n"] for c in kept] == [3] and why(dropped) == [R["still_committed"]] * 3, dropped)
 th["parts"][N - 1]["willing"] = {}
 kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]),
                                       [ch(1, G, "terrified"), ch(2, G, "warns", who=G, about=N, needs=[1]), ch(3, N, "afraid", needs=[2]),
@@ -280,14 +291,16 @@ def stance(th, k, w, at=None):
 
 st, th = fresh()
 talk = act("persuade", noble.id, [noble.id, guard.id])
-for w, chain2, label in (("hostile", [ch(1, N, "wary"), ch(2, N, "joins", who=N)], "a hostile noble made wary by words still joins no one"),
-                         ("refusing", [ch(1, N, "terrified"), ch(2, P, "safe", who=N, because="earlier", needs=[1])],
-                          "a refusing noble made terrified by words still frees no one"),
-                         ("committed", [ch(1, N, "wary"), ch(2, N, "surrenders", who=N)], "a committed noble made wary still does not surrender")):
+for w, chain2, label, whys in (("hostile", [ch(1, N, "wary"), ch(2, N, "joins", who=N)], "a hostile noble made wary by words still joins no one",
+                                [R["still_refusing"], R["unwilling"]]),
+                               ("refusing", [ch(1, N, "terrified"), ch(2, P, "safe", who=N, because="earlier", needs=[1])],
+                                "a refusing noble made terrified by words still frees no one", [R["still_refusing"], R["rests_on"]]),
+                               ("committed", [ch(1, N, "wary"), ch(2, N, "surrenders", who=N)],
+                                "a committed noble made wary still does not surrender", [R["still_committed"], R["unwilling"]])):
     stance(th, N, w)
     kept, dropped = situation_parts.ruled(store, th, talk, chain2)
-    check(f"(the second review) {label}: no worse stance launders the one he held", [c["n"] for c in kept] == [1]
-          and why(dropped) == [R["unwilling"]], (kept, dropped))
+    check(f"(the second review) {label}: no softer stance launders the one he held (the third review: words make none)", not kept
+          and why(dropped) == whys, (kept, dropped))
 stance(th, N, "hostile")
 kept, dropped = situation_parts.ruled(store, th, talk, [ch(1, N, "warns", who=N, about=G), ch(2, N, "open")])
 check("(the second review) his own warning to his guard does not move him", [c["n"] for c in kept] == [1]
@@ -383,6 +396,117 @@ far = next(pid for pid in sorted(world.places) if pid not in towns.town_places(w
            and pulse.town_of(world, pid) != town)
 kept, dropped = situation_parts.ruled(store, th, dict(kill, place=far), [ch(1, P, "safe", because="force")], world=world)
 check("(the second review) ...a kill far from it frees no one", not kept and why(dropped) == [R["not_heard"]], (far, dropped))
+
+# ---- (the third review) no stance softened by words, across acts; a hand only where it is; what is so already; the dead warned
+st, th = fresh()
+for w, soft, reason in (("refusing", "terrified", R["still_refusing"]), ("hostile", "wary", R["still_refusing"]),
+                        ("committed", "hostile", R["still_committed"]), ("committed", "wary", R["still_committed"])):
+    stance(th, N, w)
+    kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, N, soft)])
+    check(f"(the third review) words do not soften one {w} to {soft}, to be finished by the next act", not kept
+          and why(dropped) == [reason], dropped)
+stance(th, N, "refusing")
+kept, dropped = situation_parts.ruled(store, th, act("assault", noble.id, [noble.id], words=False), [ch(1, N, "terrified", because="force")])
+check("(the third review) ...force may terrify him", [c["n"] for c in kept] == [1], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, N, "hostile")])
+check("(the third review) ...and words may still turn a refusal to hostility", [c["n"] for c in kept] == [1], dropped)
+stance(th, N, "committed")
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]),
+                                      [ch(1, G, "warns", who=G, about=N), ch(2, N, "terrified", needs=[1]), ch(3, N, "afraid", needs=[1])])
+check("(the third review) a warning frightens one committed, and moves him from nothing", [c["n"] for c in kept] == [1, 3]
+      and why(dropped) == [R["still_committed"]], dropped)
+
+st, th = fresh()
+kept, dropped = situation_parts.ruled(store, th, act("deliver", carpenter.id, [carpenter.id], item="salt", words=False),
+                                      [ch(1, C, "grateful", because="goods"), ch(2, ROAD, "lifted", because="earlier", needs=[1]),
+                                       ch(3, num(th, "tie"), "broken", because="earlier", needs=[1])], world=world)
+check("(the third review) a delivery to the carpenter lifts no chain on a road and breaks no tie between people not there",
+      [c["n"] for c in kept] == [1] and why(dropped) == [R["not_there"], R["not_heard"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, dict(act("kill", "", [], words=False), place=far), [ch(1, EV, "found", because="force")],
+                                      world=world)
+check("(the third review) a kill far away finds no letter lying in the square", not kept and why(dropped) == [R["not_there"]], dropped)
+th["clues"].append({"text": "The noble paid the forger.", "holder": "", "npc": noble.id, "found": False, "certainty": "sure", "true": True})
+th["parts"].append({"kind": "evidence", "holder": noble.id, "held": "person", "points_to": "trading_square", "label": "", "certainty": "sure",
+                    "true": True, "clue": len(th["clues"]) - 1, "engine": True})
+EV3 = len(th["parts"])
+kept, dropped = situation_parts.ruled(store, th, act("kill", "", [], words=False), [ch(1, EV3, "found", because="force")], world=world)
+check("(the third review) ...nor what the noble knows, he not being there", not kept and why(dropped) == [R["not_there"]], dropped)
+th["parts"].append({"kind": "condition", "on": "trading_square", "what": "danger", "label": "the spring flood", "by": "the river",
+                    "by_kind": "nature"})
+FLOOD = len(th["parts"])
+kept, dropped = situation_parts.ruled(store, th, act("kill", "", [], words=False), [ch(1, FLOOD, "lifted", because="force")], world=world)
+check("(the third review) a flood is not beaten back", not kept and why(dropped) == [R["no_means"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("quest_done", "", [], words=False), [ch(1, FLOOD, "lifted", because="force")], world=world)
+check("(the third review) ...it is dammed, by work done where it is", [c["n"] for c in kept] == [1], dropped)
+
+st, th = fresh()
+th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
+stance(th, N, "committed")
+for a_, label in ((act("deliver", noble.id, [noble.id], item="salt", words=False), "salt handed to him"),
+                  (act("quest_done", noble.id, [noble.id], words=False), "a job done for him")):
+    kept, dropped = situation_parts.ruled(store, th, a_, [ch(1, N, "open", because="evidence", about=EV)])
+    check(f"(the third review) one committed, shown the found letter with {label}, is moved by the letter", [c["n"] for c in kept] == [1],
+          dropped)
+stance(th, N, "")
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id, noble.id]),
+                                      [ch(1, G, "believes", because="evidence", about=EV),
+                                       ch(2, G, "warns", who=G, because="evidence", about=N, needs=[1])])
+check("(the third review) a warning may rest on the evidence shown first", [c["n"] for c in kept] == [1, 2], dropped)
+stance(th, N, "hostile")
+kept, dropped = situation_parts.ruled(store, th, act("gift", noble.id, [noble.id], coin=1, words=False), [ch(1, N, "open", because="coin")])
+check("(the third review) one copper does not buy one set against the player", not kept and why(dropped) == [R["unpaid"]], dropped)
+
+st, th = fresh()
+th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
+kill_sq = act("kill", "", [], words=False)
+kept, _ = situation_parts.ruled(store, th, kill_sq, [ch(1, EV, "destroyed", because="force")], world=world)
+situation_parts.keep_changes(ws, st, th, kill_sq, kept)
+kept, dropped = situation_parts.ruled(store, th, kill_sq, [ch(1, EV, "found", because="force")], world=world)
+check("(the third review) a letter destroyed is not found again", not kept and why(dropped) == [R["no_evidence"]], dropped)
+situation_parts.keep_changes(ws, st, th, kill_sq, [ch(1, EV, "found", because="force")])
+check("(the third review) ...and nothing writes over its destruction", th["parts"][EV - 1]["now"] == "destroyed", th["parts"][EV - 1])
+stance(th, N, "committed")
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, N, "open", because="evidence", about=EV)])
+check("(the third review) ...nor shown", not kept and why(dropped) == [R["no_evidence"]], dropped)
+
+st, th = fresh()
+th["parts"][ROAD - 1]["now"] = "lifted"
+stance(th, G, "refusing")
+kept, dropped = situation_parts.ruled(store, th, dict(act("kill", "", [guard.id], words=False), place=stop["id"]),
+                                      [ch(1, ROAD, "lifted", because="force"), ch(2, G, "open", because="earlier", needs=[1])], world=world)
+check("(the third review) a chain already lifted is lifted by no one again, and that moves no one", not kept
+      and why(dropped) == [R["already"], R["rests_on"]], dropped)
+th["parts"][ROAD - 1].pop("now")
+
+st, th = fresh()
+far_th = next(pid for pid in sorted(world.places) if pid not in towns.town_places(world, town) and pid not in world.roads)
+th["place"], th["town"] = far_th, town                       # an engine-built situation: its own place, and the town its ways were laid in
+kept, dropped = situation_parts.ruled(store, th, kill, [ch(1, P, "safe", because="force")], world=world)
+check("(the third review) the rescue reads where the trouble is from the town its ways were laid in", [c["n"] for c in kept] == [1],
+      (far_th, dropped))
+
+st, th = fresh()
+from engine import deeds
+stance(th, N, "committed")
+store.save_world_state(st)
+for _ in range(2):
+    d = deeds.log(store, "persuade", ws.minutes, "trading_square", npc=noble.id, degree="strong success", by=by)
+    events.after_deed(ws, d)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+check("(the third review) one committed is not won over by a way met: no yes, and the situation goes on",
+      th["status"] == "active" and th["parts"][N - 1]["willing"][by] == "committed", (th["status"], th["parts"][N - 1].get("willing")))
+check("(the third review) a failed persuasion wins no one over", not events._won_over(
+    {"deeds": [{"kind": "persuade", "minute": ws.minutes, "npc": guard.id, "degree": "failure"}] * 3}, 0, guard.id))
+
+st, th = fresh()
+gone_p = store.load_npc(prisoner.id)
+gone_p.gone = "dead"
+store.save_npc(gone_p)
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]), [ch(1, G, "warns", who=G, about=P)])
+check("(the third review) no one warns the dead", not kept and why(dropped) == [R["gone"]], dropped)
+gone_p.gone = ""
+store.save_npc(gone_p)
 
 # ---- (the second review) the found writer and what the act shows
 st, th = fresh()

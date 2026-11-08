@@ -186,9 +186,11 @@ reasons:
   no_authority: "whoever it says did it has no say over that"
   no_means: "whoever it says did it does not hold that"
   unwilling: "they stand against the one who acted, and would not do it"
-  still_committed: "only a changed belief moves one who is committed"
+  still_committed: "only evidence shown to them, or force, moves one who is committed"
   still_refusing: "nothing has changed that would move one who refuses"
   rests_on: "it rests on a change that was not kept"
+  not_there: "the one who acted was not where it is"
+  already: "it is already so"
   too_many: "more changes than one ruling may carry"
 
 # (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
@@ -336,6 +338,13 @@ rulings:
   wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action, until moved
   force_acts: [kill, dungeon_cleared, defend, assault]   # (f547's second review) violence: it moves one it was done to or who saw
                                          # it done, as force (assault: the act a beating is, from an offense against a person)
+  hand_lifts:                              # (f547's third review) what the player's own hand, there where it is, lifts a condition
+    person: [force]                        # with, by who holds it: force (rulings.force_acts) or work (any other deed, never words)
+    group: [force]
+    creature: [force]
+    mechanism: [force, work]
+    nature: [work]                         # a flood is not beaten; it is dammed, drained, bridged
+    world: [force, work]                   # one nobody holds (no by_kind)
   warned_may: [afraid, angry, colder, wary, hostile, refusing, terrified, flees, warns]   # what a warning alone may change in
                                          # the one warned: their fear and their guard, never the player's words carried to them
   cooperative: [lifted, given_up, surrenders, joins, safe, moved]

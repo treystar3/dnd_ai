@@ -712,11 +712,15 @@ def rulings_problems(c=None) -> list[str]:
     if not isinstance(RU.get("force_acts"), list) or not RU["force_acts"] or set(RU["force_acts"]) & set(RU.get("goods_acts") or ()) \
             or set(RU["force_acts"]) & set(RU.get("words_only_acts") or ()):
         bad.append("situations.yaml rulings.force_acts: the acts of violence, none of them words or goods (f547's second review)")
+    hl = RU.get("hand_lifts") or {}
+    if set(hl) != set(S.get("lists", {}).get("controllers") or ()) | {"world"} \
+            or any(not isinstance(v, list) or not v or not set(v) <= {"force", "work"} for v in hl.values()):
+        bad.append("situations.yaml rulings.hand_lifts: each controller (lists.controllers) and world, with force and/or work")
     if not RU.get("warned_may") or not set(RU["warned_may"]) <= set(ch) or set(RU["warned_may"]) & set(RU.get("cooperative") or ()) \
             or any((ch.get(w) or {}).get("layer") in ("belief", "world") for w in RU["warned_may"]):
         bad.append("situations.yaml rulings.warned_may: some of the change words, none cooperative, no belief and nothing in the world")
     for k in ("no_part", "not_actor", "not_heard", "words_only", "failed_act", "unpaid", "no_goods", "no_evidence", "no_authority",
-              "no_means", "unwilling", "still_committed", "still_refusing", "rests_on", "gone", "twice", "too_many"):
+              "no_means", "unwilling", "still_committed", "still_refusing", "rests_on", "gone", "twice", "too_many", "not_there", "already"):
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed (f547, the ruling's)")
     for k in ("most", "window", "trust"):
