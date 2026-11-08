@@ -491,14 +491,11 @@ class GuildActions:
 
     def record_delivery(self, key, npc) -> None:
         """A key item handed over counts for a delivery contract. (The deed itself is published by the giving, scenes/inventory_actions.py.)"""
-        for q in self.player.quests:
-            if q["kind"] == "deliver" and q.get("item") == key.name:
-                to = (q.get("to_role") or "").replace("_", " ")
-                if (npc.id == q["to_id"]) if q.get("to_id") else (npc.role.replace("_", " ") == to or (q.get("to_name") and q["to_name"] in npc.name)):
-                    # (f545's review) a load for one named person is theirs alone, by who they are, never by a name's first word
-                    q["progress"] = 1
-                    console.note(f"{q['title']}: delivered" + (" - collect your pay from the guild clerk." if q["guild"] else "."))
-                    self.store.save_player(self.player)
+        q = self.delivery_for(key)                                       # (f545's review) the job this very item is carried for, and
+        if q is not None and self.meant_for(npc, key):                   # the one it is meant for read as the giving reads it
+            q["progress"] = 1
+            console.note(f"{q['title']}: delivered" + (" - collect your pay from the guild clerk." if q["guild"] else "."))
+            self.store.save_player(self.player)
 
     def bounty_encounter(self) -> bool:
         """While searching where a bounty's target lives, the target may come to you."""

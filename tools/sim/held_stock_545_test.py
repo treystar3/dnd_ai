@@ -210,6 +210,23 @@ check("...but never asked again of the one who gave it up", obligations.current(
                             if p.get("good") == "wine").get("declined", []))
 end(tid6)
 
+# ---- (the third review) never a load to carry to the dead
+tid7, parts7, _ = born({"people": [{"who": b_.id, "stake": "harmed", "want": "goods_moved"}],
+                        "resources": [{"good": "flour", "state": "stranded", "holder": b_.id}]})
+to7 = next(p for p in parts7 if p.get("good") == "flour")["request"]["to"]
+dead = store.load_npc(to7)
+dead.gone = "drowned at the ford"
+store.save_npc(dead)
+for e in obligations.open_ones(store, "request"):
+    obligations.close(store, e, "released", "over", ws.minutes, remember=False)
+situation_parts.ask(ws, store.load_npc(b_.id))
+r7 = obligations.current(store, "request", b_.id, ws.acting)
+check("(the third review) a load whose one to receive it is gone is asked of no one", r7 is None
+      or not str((r7.data.get("terms") or {}).get("part", "")).startswith(tid7 + ":"), r7 and r7.data)
+dead.gone = ""
+store.save_npc(dead)
+end(tid7)
+
 # ---- the end lets go what is held and unanswered, saying no "had no yes"
 tid4, _, _ = born({"people": [{"who": c_.id, "stake": "gains", "want": "coin", "holds": "cloth"}],
                    "resources": [{"good": "rope", "state": "wanted", "wanted_by": c_.id}]})

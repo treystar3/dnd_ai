@@ -199,8 +199,11 @@ store.save_world_state(st)
 situation_parts.heard(ws, present(a_.id), "There is a cut rope at the trading square.")
 check("(the review) ...but never by telling them what they hold themselves", thread(tid)["status"] == "active")
 for label, line, told in (("a cut rope", f"Have you seen {store.load_npc(a_.id).name}? I need rope.", False),
-                          ("an ox", "Which way to the trading square?", False), ("an ox", "There is an ox loose by the trading square.", True),
-                          ("what was there", "Which way to the trading square?", False)):
+                          ("an ox", "Which way to the trading square?", False), ("an ox", "The ox got loose by the trading square.", True),
+                          ("what was there", "Which way to the trading square?", False),
+                          ("a body in the well", "Is there a well in town?", False), ("blood on the stones", "Come on, look at these stones.", False),
+                          ("a knife in the grain", "Is the grain in yet?", False), ("tracks by the ford", "Is the ford by the mill?", False),
+                          ("a body in the well", "I found a body down the well.", True)):
     clue = {"label": label, "points_to": a_.id if label == "a cut rope" else "trading_square"}
     check(f"(the review) '{line}' {'tells' if told else 'does not tell'} '{label}'", situation_parts.told_by(line, clue, store, world) == told)
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety"}])
@@ -232,6 +235,12 @@ present(a_.id)
 ws.on_give(A(kind="give", target=a_.id, item=f"{want} candles"), f"give her the {want} candles")
 check("(the second review) 'give her the 3 candles' hands over three, and that is what they asked", thread(tid)["status"] != "active"
       and not any(i.good == "candles" for i in ws.pack), (want, thread(tid)["status"]))
+check("(the third review) a gift of several is said in words, never as a stack's count", any(d.get("kind") == "gift" and d.get("item", "").endswith("candles")
+      and " x" not in d.get("item", "") and d.get("count") == want for d in store.load_world_state().get("deeds", [])))
+for line, item, count, k in (("give the 2nd guard my rope", "rope", 1, 1), ("give her my rope, I paid twenty copper for it", "rope", 1, 1),
+                             ("at ten bells I give her the rope", "rope", 1, 1), ("give her the 3 candles", "3 candles", 1, 3),
+                             ("give her two candles", "candles", 2, 2)):
+    check(f"(the third review) '{line}' hands over {k}", ws.how_many(A(kind="give", item=item, count=count)) == k)
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
            resources=[{"good": "candles", "state": "wanted", "wanted_by": a_.id}])
 npc = present(a_.id)
@@ -275,6 +284,8 @@ next(x for x in st["threads"] if x["id"] == tid)["paths"][0]["protected"] = "ano
 store.save_world_state(st)
 situation_parts.heard(ws, present(c_.id), "Good day.")
 check("(the second review) kept safe by another character, it is not this one's to end", thread(tid)["status"] == "active")
+gift(present(c_.id), coin=1)
+check("(the third review) ...nor by a coin this one hands them", thread(tid)["status"] == "active")
 
 # ---- paid away from them: the yes waits for them
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "paid"}])
@@ -304,6 +315,16 @@ check("(the review) the load is for the one named: not anyone of their trade, no
       next(x for x in ws.player.quests if x["id"] == q["id"])["progress"] == 0)
 check("(the second review) ...and the giving reads it so too: the namesake is not who it is meant for, the one named is",
       not ws.meant_for(namesake, key) and ws.meant_for(to, key))
+from engine import quests as Q
+from llm.contracts import QuestOffer
+for to_said, want_name, want_role in (("Rhosethe Holhurst", "Rhosethe Holhurst", "rhosethe holhurst"), ("the chandler", "chandler", "chandler")):
+    mq = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=to_said, item="a sealed letter"), b_.id, "B", ws.minutes)
+    check(f"(the third review) a delivery to '{to_said}' keeps the whole name, only a leading 'the' set aside",
+          mq["to_name"] == want_name and mq["to_role"] == want_role, (mq["to_name"], mq["to_role"]))
+marta = copy.copy(namesake)
+marta.name, marta.role = "Mart Holm", "tinker"
+check("(the third review) 'Mart' is not 'Marta Vell', nor is anyone 'the'", not ws.is_recipient(marta, "Marta Vell")
+      and not ws.is_recipient(marta, "the") and ws.is_recipient(marta, "Mart Holm") and ws.is_recipient(marta, "the tinker"))
 rh = copy.copy(namesake)
 rh.name, rh.role = "Rhosethe Holhurst", "chandler"
 check("(the second review) a name with 'the' inside it is still its owner's", ws.is_recipient(rh, "Rhosethe Holhurst")
@@ -350,6 +371,21 @@ check("(the review) ...the scarce rise of the same good is its own part's, not l
 situation_parts.heard(ws, present(c_.id), "Your salt came.")
 check("(the review) ...and, carried and handed in, the one who wanted it has what they asked: they set it right",
       thread(tid)["status"] != "active", thread(tid)["paths"])
+
+# ---- (the third review) two loads of one name: the one handed over is the one that counts
+from core.models import KeyItem
+qa = Q._quest("deliver", "F", "Deliver a load of salt to A", ws.minutes, item="a load of salt", to_name=store.load_npc(a_.id).name, to_role="",
+              to_id=a_.id, item_description="salt", guild=False, issuer=b_.id, issuer_name="B")
+qb = Q._quest("deliver", "F", "Deliver a load of salt to C", ws.minutes, item="a load of salt", to_name=store.load_npc(c_.id).name, to_role="",
+              to_id=c_.id, item_description="salt", guild=False, issuer=b_.id, issuer_name="B")
+ws.player.quests += [qa, qb]
+ka = KeyItem(id=f"quest_{qa['id']}", name="a load of salt", description="salt", kind="quest", source="B", day=1, for_whom=qa["to_name"])
+ws.record_delivery(ka, store.load_npc(c_.id))
+check("(the third review) A's load handed to C delivers neither: not A's (wrong hands), nor C's (C's own load is still carried)",
+      qa["progress"] == 0 and qb["progress"] == 0, (qa["progress"], qb["progress"]))
+ws.record_delivery(ka, store.load_npc(a_.id))
+check("...and handed to A it is A's", qa["progress"] == 1 and qb["progress"] == 0)
+ws.player.quests = [q for q in ws.player.quests if q not in (qa, qb)]
 
 # ---- the data
 check("the ways' data checks clean", situation_parts.problems() == [], situation_parts.problems())

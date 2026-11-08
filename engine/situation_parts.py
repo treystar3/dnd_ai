@@ -446,12 +446,12 @@ def need_met(path: dict, state: dict, thread: dict, by: str = "") -> bool:
     return False
 
 
-def _words(text: str) -> set[str]:
-    """A line's own words, as a clue's telling is matched: two letters or more ("an ox"), the filler of told_skip left out, a plural as
-    its one."""
+def _words(text: str, least: int = 3) -> set[str]:
+    """A line's own words, as a clue's telling is matched: three letters or more (two, for a clue that has no longer word of its own:
+    "an ox"), the filler of told_skip left out, a plural as its one."""
     skip = set(_R()["ways"].get("told_skip") or ())
     out = set()
-    for w in re.findall(r"[a-z]{2,}", (text or "").lower()):
+    for w in re.findall(rf"[a-z]{{{least},}}", (text or "").lower()):
         if w not in skip:
             out.add(w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w)
     return out
@@ -464,6 +464,8 @@ def told_by(speech: str, clue: dict, store, world) -> bool:
     whole."""
     label = (clue.get("label") or "").strip().lower()
     own, said = _words(label), _words(speech)
+    if not own:                                                     # (f545's review) a short word only when it has no longer one
+        own, said = _words(label, 2), _words(speech, 2)
     if not own:
         return bool(label) and label in (speech or "").lower()
     need = min(int(_R()["ways"]["told_words"]), len(own) - (1 if len(own) >= 3 else 0))
@@ -576,6 +578,8 @@ def ask(ws, npc) -> None:
             key = f"{th['id']}:{i}"
             if not r or r["npc"] != npc.id or a.get("done") or key in skip or ws.acting in (a.get("declined") or ()):
                 continue
+            if r["kind"] == "deliver" and (not ws.store.npc_exists(r["to"]) or ws.store.load_npc(r["to"]).gone):
+                continue                                             # (f545's review) never a load to carry to the dead
             common = {"guild": False, "issuer": npc.id, "issuer_name": npc.name, "part": key}
             if r["kind"] == "gather":
                 q = quests._quest("gather", "F", r["title"], ws.minutes, good=r["good"], count=r["count"], **common)
@@ -734,8 +738,9 @@ def problems() -> list[str]:
         bad.append("situations.yaml register.ways: most (0 to 6), trust (51 to 100: above a stranger's 50), trust_gain (1 to 50: earned "
                    "since the situation began), told_words (1 to 10), whole numbers")
     skip = Wy.get("told_skip")
-    if not isinstance(skip, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]{3,}", w) for w in skip):
-        bad.append("situations.yaml register.ways.told_skip: a list of lowercase words of three letters or more")
+    if not isinstance(skip, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]{2,}", w) for w in skip):
+        bad.append("situations.yaml register.ways.told_skip: a list of lowercase words of two letters or more (quote one YAML reads as "
+                   "something else: \"on\", \"no\", \"off\")")
     if set((Wy.get("pay") or {})) != set(situations.TIERS) or not all(whole(v, 1, 100000) for v in (Wy.get("pay") or {}).values()):
         bad.append("situations.yaml register.ways.pay: copper, a whole number above 0, for each tier")
     for k in ("can_fix", "blocks"):

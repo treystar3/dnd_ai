@@ -6,6 +6,7 @@ trade it numbered are two of the town's own when the town has two, else one; and
 the person by what the proposal called them finds them.
 Run: python tools/sim/proposal_words_545_test.py"""
 import random
+import re
 import sys
 sys.path.insert(0, ".")
 import simlib
@@ -84,7 +85,13 @@ check("...while a label that is an id of the world, or carries a number, is stil
       not acc and [r for _, r in dropped] == [R["raw_id"], R["raw_id"]], (acc, dropped))
 check("(the reading itself) trade_of and plain", situations.trade_of("elven_warden_1", "", world, never) == "elven_warden"
       and situations.trade_of("x", "the old elven warden", world, never) == "elven_warden"
-      and situations.trade_of("guild_master_1", "", world, never) == "" and situations.plain("trading_square", world, store) == "trading_square")
+      and situations.trade_of("guild_master_1", "", world, never) == "")
+coded = next((k for k in sorted(world.places) + sorted(world.roads) if "_" in k and re.fullmatch(r"[a-z_]+", k)
+              and situations._snake((world.places.get(k) or world.roads.get(k)).name) != k), "")
+check("(the third review) a place named as its id reads as its words; an id that is no name stays machinery",
+      situations.plain("trading_square", world, store) == "trading square"
+      and situations.plain("wolves_of_the_" + "trading_square", world, store) == "wolves of the trading square"
+      and (not coded or situations.plain(coded, world, store) == coded), coded)
 
 # ---- (the review) a label read by its head, a person by their name, and order no matter
 owner = next(r for r in rows if r.role not in never)
@@ -108,6 +115,24 @@ second = sorted(a["bind"] for a in run(people=[person(f"{one}_1"), person(one)])
 check("(the review) the order a proposal names one trade in, bare and numbered, makes no difference", first == second, (first, second))
 for lab in ("UNKNOWN_PERSON", "npc_marker", f"{owner.id}_debt"):
     check(f"(the review) '{lab}' stays machinery", situations.plain(lab, world, store) == lab, situations.plain(lab, world, store))
+
+# ---- (the third review)
+for lab in ("the late miller", "a former guard", "the dead smith", "a fake priest", "not a real merchant"):
+    check(f"(the third review) '{lab}' is no living trade", situations.trade_of("hal_vane", lab, world, never) == "")
+check("(the third review) an ordinary word is no machinery: 'unknown_buyer' reads as words", situations.plain("unknown_buyer", world, store) == "unknown buyer")
+tk = owner.role
+bad_stance = next(iter(situations.S["stances"]["refused"]))
+acc, dropped = run(people=[person(owner.id, stake=bad_stance[0], want=bad_stance[1]), person(tk)])
+check("(the third review) a town person named only in a part that is dropped does not keep their trade from being cast as them",
+      [(a["who"], a["bind"]) for a in acc if a["kind"] == "person"] == [(owner.id, "npc")], (acc, dropped))
+ghost = store.load_npc(rows[-1].id)
+ghost.gone = "drowned at the ford"
+store.save_npc(ghost)
+acc, dropped = run(people=[person(ghost.name, f"the {ghost.role.replace('_', ' ')}")])
+check("(the third review) a person who is gone, written by their name, is gone: never their trade made anew", not acc
+      and [r for _, r in dropped] == [R["gone"]], (acc, dropped))
+ghost.gone = ""
+store.save_npc(ghost)
 
 import shutil
 shutil.rmtree("saves/proposal_words_545", ignore_errors=True)

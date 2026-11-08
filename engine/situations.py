@@ -63,12 +63,18 @@ def plain(label: str, world, store=None) -> str:
     tokens = s.lower().split("_")
     if set(tokens) & set(S.get("machinery_words") or ()):
         return s                                                     # ...and so is "npc_marker"
-    for i in range(len(tokens)):                                     # an id of the world or the store inside it ("celesen_wickmore_debt")
-        for j in range(i + 1, len(tokens) + 1):
-            run = "_".join(tokens[i:j])
-            if run in world.places or run in world.roads or (j - i > 1 and store is not None and store.npc_exists(run)):
+    for i in range(len(tokens)):                                     # an id inside it that is no name ("celesen_wickmore_debt", a
+        for j in range(i + 1, len(tokens) + 1):                      # road stop's code), never a place named as its id ("the greywood",
+            run = "_".join(tokens[i:j])                              # "watch tower": f545's review)
+            spot = world.places.get(run) or world.roads.get(run)
+            if (spot is not None and _snake(spot.name) != run) or (j - i > 1 and store is not None and store.npc_exists(run)):
                 return s
     return s.replace("_", " ")
+
+
+def _snake(name: str) -> str:
+    """A name as an id is written from it: "The Watch Tower" -> "watch_tower"."""
+    return re.sub(r"[^a-z0-9]+", "_", re.sub(r"^the ", "", (name or "").lower().strip())).strip("_")
 
 
 _CUT = re.compile(r",|;|:|\(| of | who | whose | with | at | in | on | from | for | to | against | by | and | near | over | under ")
@@ -95,6 +101,8 @@ def trade_of(who: str, label: str, world, never=frozenset()) -> str:
     got = found(re.sub(r"[_ ]?\d+$", "", w).replace(" ", "_"))
     if got is not None:
         return got
+    if set(re.findall(r"[a-z]+", (label or "").lower())) & set(S.get("not_of_trade") or ()):
+        return ""                                                    # (f545's review) "the late miller", "a former guard": no living trade
     words = re.findall(r"[a-z]+", _head(label))
     for cand in ([f"{words[-2]}_{words[-1]}"] if len(words) >= 2 else []) + words[-1:]:
         got = found(cand)
@@ -170,11 +178,20 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
     stances = S.get("stances") or {}
     refused = {tuple(x) for x in stances.get("refused") or ()}
     lifted = {tuple(x) for x in stances.get("lifted") or ()}
-    by_name = {r.name.lower(): r.id for r in rows}                          # (f545's review) a town person written by their name
+    by_name = {r.name.lower(): r.id for r in (retrieval.people_in_town(store, world, town, gone=None) if town else [])}   # (f545's
+                                                                             # review) a town person written by their name, gone or not
 
     def known(w: str) -> str:
         return w if store.npc_exists(w) else by_name.get(w.lower().replace("_", " ").strip(), "")
-    reserved = {known((x.who or "").strip()) for x in parts.people} - {""}   # named in the proposal: never cast for a trade it reads
+
+    def stands(x) -> bool:                                                   # a person part named outright that its own checks keep
+        w = (x.who or "").strip()
+        if not known(w) or w.lower() in ("player", "the player", "you") or w in players or _raw(plain(x.label, world, store), ids) \
+                or (x.stake, x.want) in refused:
+            return False
+        n = store.load_npc(known(w))
+        return not n.gone and n.role not in never
+    reserved = {known((x.who or "").strip()) for x in parts.people if stands(x)}   # never cast for a trade read elsewhere
     placed: set[str] = set()                                                 # the trades someone not yet of the town stands for
     for p in parts.people:
         w = (p.who or "").strip()
@@ -589,9 +606,10 @@ def problems() -> list[str]:
     from llm import contracts as c
     bad = []
     L = S.get("lists") or {}
-    mw = S.get("machinery_words")
-    if not isinstance(mw, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]+", w) for w in mw):
-        bad.append("situations.yaml machinery_words: a list of lowercase words (quote one YAML reads as something else: \"null\")")
+    for key in ("machinery_words", "not_of_trade"):
+        mw = S.get(key)
+        if not isinstance(mw, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]+", w) for w in mw):
+            bad.append(f"situations.yaml {key}: a list of lowercase words (quote one YAML reads as something else: \"null\", \"false\")")
 
     def lit(model, field) -> set:
         return {x for x in typing.get_args(model.model_fields[field].annotation) if x != ""}

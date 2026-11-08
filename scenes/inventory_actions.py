@@ -135,16 +135,29 @@ class InventoryActions:
         console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant} - {key.description}")
 
     @staticmethod
-    def how_many(*texts: str) -> int:
-        """(f545's review) How many of a thing a line asks to hand over ("the 3 candles", "three candles"), 1 when it says none: the first
-        figure in the item's words, else in the line."""
+    def how_many(intent) -> int:
+        """(f545's review) How many of a thing the player asks to hand over: the understanding's own count when it gives one, else a figure
+        in the item's own words ("3 candles", "three candles"); 1 otherwise - never a figure the line says of something else ("the 2nd
+        guard", "I paid twenty copper", "at ten bells")."""
         from engine import mentor
-        for t in texts:
-            for w in re.findall(r"\d+|[a-z]+", (t or "").lower()):
-                n = int(w) if w.isdigit() else mentor.WORD_NUM.get(w)
-                if n:
-                    return max(1, min(99, n))
+        n = int(getattr(intent, "count", 1) or 1)
+        if n > 1:
+            return min(99, n)
+        for w in re.findall(r"\d+|[a-z]+", (intent.item or "").lower()):
+            k = int(w) if w.isdigit() else mentor.WORD_NUM.get(w)
+            if k:
+                return max(1, min(99, k))
         return 1
+
+    @staticmethod
+    def counted(item, n: int) -> str:
+        """A thing handed over, as a person would say it: "a candle"'s name alone for one, "three candles" for more."""
+        from engine import items as _items, mentor
+        name = _items.display_name(item)
+        if n <= 1:
+            return name
+        word = next((w for w, k in mentor.WORD_NUM.items() if k == n), str(n))
+        return f"{word} {name}"
 
     def delivery_for(self, key):
         """(f545's review) The delivery a key item is carried for, when it is one of the player's jobs."""
@@ -163,8 +176,10 @@ class InventoryActions:
         want = re.sub(r"^the ", "", for_whom.lower().strip()).strip()     # (f545's review) a leading "the", never one inside a name
         if not want:
             return False
-        names = {npc.name.lower(), npc.name.split()[0].lower(), npc.role.replace("_", " ").lower()}
-        return any(n and (n in want or want in n) for n in names)
+        name, role = npc.name.lower(), npc.role.replace("_", " ").lower()
+        whole = lambda part, text: bool(part) and re.search(rf"(?<![a-z]){re.escape(part)}(?![a-z])", text) is not None
+        return (whole(name, want) or whole(role, want) or want == name.split()[0]     # (f545's review) whole words: "Mart" is not
+                or (len(want.split()) == 1 and want == role))                          # "Marta Vell", nor "the" any name with it
 
     def on_discard(self, intent, text: str) -> None:
         key = self.find_key(intent.item or text)
@@ -512,13 +527,15 @@ class InventoryActions:
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
-        item = inv.take(self.pack, intent.item or text, self.how_many(intent.item or "", text))   # (f545's review) as many as said
+        item = inv.take(self.pack, intent.item or text, self.how_many(intent))   # (f545's review) as many as said, never a figure
+                                                                                  # said of something else
         if not item:
             self.refuse("You aren't carrying that.")
             return
         from engine.domain_events import Gift                 # a thing given for nothing: taken, remembered, and the companions have a view
-        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), item=inv.label(item),
-                         count=max(1, int(item.quantity or 1))), npc)
+        n = max(1, int(item.quantity or 1))
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting),
+                         item=self.counted(item, n), count=n), npc)                    # (f545's review) "three candles", never "candles x3"
         self.store.save_player(self.player)
         console.ledger(f"Gave {inv.label(item)} to {npc.label(self.acting)}.")
         intent.target = npc.id

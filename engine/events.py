@@ -399,7 +399,7 @@ def after_deed(ws, deed: dict) -> None:
             near = ({th["place"], th.get("wild", "")} | _towns.town_places(world, pulse.town_of(world, th["place"]))
                     if th.get("place") in world.places else None)
             met = next((p for p in th["paths"] if not p["done"] and (p["kind"] != "part" or deed.get("npc") == p["target"])
-                        and path_met(p, state, th, near, deed.get("by", ""))), None)   # (f545's review) a person's yes is given with
+                        and path_met(p, state, th, near, deed.get("by") or ws.acting)), None)   # (f545's review) a person's yes is given with
                                                                                             # the player there, to the one who met it
             if met:
                 met["done"] = True

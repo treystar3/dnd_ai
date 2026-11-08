@@ -33,7 +33,10 @@ goods: [salt, grain, flour, cloth, sawn_planks, dried_fish, wine, lamp_oil, rope
 never_roles: [prisoner, guild_clerk, guild_master, guild_instructor, guild_contractor, quartermaster, land_agent, relic_dealer, monarch,
               chamberlain, royal_guard]
 # (f545's review) Words that make a label machinery, written with underscores or not (engine/situations.py plain): never read as words.
-machinery_words: [npc, npcs, id, ids, todo, tbd, "null", none, placeholder, unknown, label, slot, var, tmp, undefined, nan]
+machinery_words: [npc, npcs, id, ids, todo, tbd, "null", none, placeholder, label, slot, var, tmp, undefined]
+# (f545's review) Words that say a person is no longer of a trade (or never was): a label with one of them names no living trade
+# (engine/situations.py trade_of: "the late miller", "a former guard", "a fake priest").
+not_of_trade: [late, former, dead, deceased, fake, "false", sham, not, ex, retired, would, imposter, impostor, dismissed]
 
 # At most, per situation. null: no cap. (f550, the owner, 7 Nov: rare and campaign situations keep every part the model proposes, no
 # total and no cap by kind, after f544 showed the caps cut the ties, places and evidence first; normal and uncommon, which the engine
@@ -230,7 +233,8 @@ register:
     told_words: 3                                    # the most of a found clue's own words (what it is, and what it points to) a line
                                                      # must carry to have told it
     told_skip: [the, and, with, from, that, this, some, there, near, which, into, onto, over, under, for, its, their, they, was, are,
-                has, had, where, what, who, his, her, our, your, not, but, all, any, one, out, "off", way]   # never a clue's own word
+                has, had, where, what, who, his, her, our, your, not, but, all, any, one, out, "off", way,
+                an, of, in, "on", at, by, to, is, it, as, or, up, we, he, me, my, so, do, be, us, if, "no"]   # never a clue's own word
     name:
       can_fix: "{name}'s help"
       blocks: "{name} won over"

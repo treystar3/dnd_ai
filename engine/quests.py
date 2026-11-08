@@ -6,6 +6,7 @@ A quest is a plain dict so it saves simply:
 """
 
 import random
+import re
 from pathlib import Path
 
 import yaml
@@ -358,7 +359,6 @@ def map_offer(world, store, offer, issuer: str, issuer_name: str, now: int, guil
                 return _quest("hunt", letter, f"Hunt {count} {c.name if count == 1 else plural(c.name)} in {p.name}", now, place=p.id,
                               creature=c.id, count=count, **common)
     if offer.kind == "gather":
-        import re
         named = next((m for m in sorted(items.MATERIALS.values(), key=lambda m: -len(m.name))      # (f545's review) a material named
                       if re.search(rf"\b{re.escape(m.name.lower())}s?\b", what)), None)            # whole first: "wool cloth" is wool
         good = "" if named else inv.is_good(what)            # (f545) the good the request is for, by its own word ("moonpetal flowers")
@@ -370,8 +370,9 @@ def map_offer(world, store, offer, issuer: str, issuer_name: str, now: int, guil
             return _quest("materials", "F", f"Bring {count} {mat.name}", now, material=mat.id, count=count, **common)
     if offer.kind == "deliver" and offer.to:
         item = offer.item or "a sealed letter"
-        return _quest("deliver", "F", f"Deliver {item} to {offer.to}", now, item=item, to_name=offer.to.split()[0],
-                      to_role=offer.to.lower().replace("the ", ""), item_description=f"{item}, from {issuer_name}.",
+        to = re.sub(r"^the ", "", offer.to.strip(), flags=re.I)        # (f545's review) a leading "the" only; the whole name kept
+        return _quest("deliver", "F", f"Deliver {item} to {offer.to}", now, item=item, to_name=to,
+                      to_role=to.lower(), item_description=f"{item}, from {issuer_name}.",
                       **common)
     return None
 
