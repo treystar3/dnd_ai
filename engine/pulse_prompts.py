@@ -178,6 +178,36 @@ def judge_request(thread: dict, deeds: list[str], live: str) -> str:
             f"LEDGER (the player's deeds since it began, oldest first):\n" + ("\n".join(f"  - {d}" for d in deeds) or "  (none)"))
 
 
+JUDGE_PARTS_SYSTEM = """You are the dungeon master of a fantasy game, ruling on what one act of the player changed in a situation. You
+are given the situation's PARTS (numbered: its people, goods, ties, what it lays on places and roads, and its evidence), what has
+changed in them so far, and THE ACT: what the player did, to whom, who was there, and how it went. Rule what this act changed, part by
+part, the way the world would answer it. People have minds of their own: they may refuse, deceive, give way, or stay set against the
+player.
+changes: each {n, part, who, becomes, because, about, needs}; n numbers them from 1, in order.
+  believes, doubts: a person who heard it now believes or doubts something (about: the number of the evidence it is about, 0 for
+    what the act claimed). A lie changes what someone believes, never what is true.
+  warmer, colder, afraid, angry, grateful: how a person who was there now feels toward the player.
+  open, wary, hostile, refusing, terrified, committed: what a person who was there is now willing to do for the player.
+  flees, surrenders, joins, warns: what a person does of their own accord (who: that person's own number; warns: about, the person
+    they warn).
+  safe, lifted, moved, given_up, lost, broken, mended, tested, found, destroyed: what changes in the world. who: 0 when the player's
+    own act does it by hand, or the number of the person who does it: a person lifts only what they impose or command, gives up only
+    what they hold, and acts only as they are willing to.
+  because: what it rests on: words (what was said), coin (handed over), goods (given), force (done by hand), evidence (a found piece
+    shown) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
+Words change what people believe, feel and will do; the world changes only through someone's action. A failed act brings no gain.
+Few true changes are better than many invented ones, and none at all is a fine answer. verdict: resolved only when, after these
+changes, nothing of the trouble remains; partial when anything changed; no otherwise. reason: one sentence. Respond only with JSON
+matching the schema."""
+
+
+def judge_parts_request(thread: dict, parts_lines: list[str], act_lines: list[str]) -> str:
+    """(f547) The ruling's request: the situation, its numbered parts with what has changed in each, and the act."""
+    stage = thread["stages"][thread["stage"]]["description"]
+    return (f"SITUATION: {thread['title']} ({thread['tier']})\nWHERE IT STANDS (stage {thread['stage'] + 1} of {len(thread['stages'])}): "
+            f"{stage}\nPARTS:\n" + ("\n".join(parts_lines) or "  (none)") + "\nTHE ACT:\n" + "\n".join(act_lines))
+
+
 # ---------- (f543) a situation's parts: the one call that may think (measured first, f544), proposing typed parts the engine checks ----------
 
 PARTS_SYSTEM = """You are the hidden life of a fantasy world. A situation is starting at the PLACE, off-screen, about THE TROUBLE, at the

@@ -1664,11 +1664,35 @@ class CataclysmProposal(BaseModel):
         return self
 
 
+class RulingChange(BaseModel):
+    """(f547) One change an act made in a situation: to the part numbered `part` in PARTS, done by `who` (0: the act itself; else the
+    number of a person in PARTS, by their own doing), resting on `because` (what was said, coin handed over, goods given, force, a
+    found piece of evidence shown, or an earlier change) and on the earlier changes numbered in `needs`. `about`: for believes or
+    doubts, the piece of evidence it is about (0: what the act claimed); for warns, the person warned. The engine checks each against
+    the world and drops one that does not hold, with every change that needs it (data/rules/situations.yaml rulings)."""
+    n: int
+    part: int
+    who: int = 0
+    becomes: Literal["believes", "doubts", "warmer", "colder", "afraid", "angry", "grateful", "open", "wary", "hostile", "refusing",
+                     "terrified", "committed", "flees", "surrenders", "joins", "warns", "safe", "lifted", "moved", "given_up", "lost",
+                     "broken", "mended", "tested", "found", "destroyed"]
+    because: Literal["words", "coin", "goods", "force", "evidence", "earlier"] = "words"
+    about: int = 0
+    needs: list[int] = []
+
+
 class JudgeVerdict(BaseModel):
-    """Did the player's deeds end an event? Decided from the ledger of deeds only."""
+    """Did the player's deeds end an event? Decided from the ledger of deeds only. (f547) For a situation with parts, the changes the
+    act made, part by part; whether the situation is over is never the model's to say there (f549 reads it from the world)."""
     verdict: Literal["resolved", "partial", "no"]
     reason: str            # one sentence naming which deeds did it (or why not)
     ending: Literal["victory", "truce", "sealed", "evacuated", "other"] = "other"
+    changes: list[RulingChange] = []
+
+    @model_validator(mode="after")
+    def capped(self):
+        self.changes = self.changes[:12]                     # shape only: the data's rulings.most is the engine's
+        return self
 
 
 class MotiveStep(BaseModel):

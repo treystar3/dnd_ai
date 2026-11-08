@@ -175,6 +175,20 @@ reasons:
   unmade: "a part that rests on someone who could not be made"
   no_carrier: "a stranded load with nobody of the town to carry it to: a price rise and a worry, no request"
   contradicts: "it contradicts what the situation has already established"
+  no_part: "it names no part of the situation that change can be made to"
+  not_actor: "whoever it says did it could not: not a living person of the situation, or not the one it must be"
+  not_heard: "the person was not there to hear it or see it done"
+  words_only: "words alone change what people believe, feel and will do, never the world itself"
+  failed_act: "an act that failed brings no gain"
+  unpaid: "no coin was handed over, or less than was asked"
+  no_goods: "nothing was given"
+  no_evidence: "no piece of evidence has been found to show"
+  no_authority: "whoever it says did it has no say over that"
+  no_means: "whoever it says did it does not hold that"
+  unwilling: "they stand against the one who acted, and would not do it"
+  still_committed: "only a changed belief moves one who is committed"
+  still_refusing: "nothing has changed that would move one who refuses"
+  rests_on: "it rests on a change that was not kept"
 
 # (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
 # writers, and what the situation's end takes back (pulse.end_thread): each person's worry (released, settled or let go) and the mood
@@ -272,3 +286,59 @@ births:
 heart:
   threat_kinds: [closed, danger, prices]     # the conditions that harm (a mark is a sign of what happened, not a harm)
   stake_states: [scarce, stranded, wanted]   # the goods a situation puts at stake
+
+# (f547) The ruling: what an act the player took changes in a situation, part by part, proposed by the model and checked by the engine
+# as a chain (the owner, 2026-11-08: "The model interprets consequential actions and proposes causally linked changes. The engine
+# validates prerequisites, presence, knowledge, authority, resources, and established world facts before committing them"). Each word
+# is held equal to the contract (llm/contracts.py RulingChange) both ways. layer: belief, feeling or willingness (what a person thinks,
+# feels and will do: "Belief, feeling, willingness, and action remain distinct"), action (what a person does, of their own accord), or
+# world (what changes in the world). kinds: the part kinds it may change. actor: act (only the act itself does it), person (only a
+# person of the situation, by their own doing), self (only the person it is, by their own doing), either. better: whether it is a gain
+# for the one who acted (a failed act may only bring what is not). because: what the change rests on, each checked against the act:
+# words (said), coin (handed over), goods (given), force (done by hand), evidence (a found piece shown), earlier (a change before it).
+rulings:
+  most: 12                         # the changes one ruling may carry
+  max_tokens: 900                  # the ruling's answer room (budget.yaml event_judge answer_tokens is what it is expected to use)
+  window: 40                       # the changes a situation keeps on record, newest last
+  trust: 10                        # how far warmer or colder moves a person's trust in the one who acted
+  changes:
+    believes:   {layer: belief, kinds: [person], actor: act, better: true}
+    doubts:     {layer: belief, kinds: [person], actor: act, better: false}
+    warmer:     {layer: feeling, kinds: [person], actor: act, better: true}
+    colder:     {layer: feeling, kinds: [person], actor: act, better: false}
+    afraid:     {layer: feeling, kinds: [person], actor: act, better: false}
+    angry:      {layer: feeling, kinds: [person], actor: act, better: false}
+    grateful:   {layer: feeling, kinds: [person], actor: act, better: true}
+    open:       {layer: willingness, kinds: [person], actor: act, better: true}
+    wary:       {layer: willingness, kinds: [person], actor: act, better: false}
+    hostile:    {layer: willingness, kinds: [person], actor: act, better: false}
+    refusing:   {layer: willingness, kinds: [person], actor: act, better: false}
+    terrified:  {layer: willingness, kinds: [person], actor: act, better: false}
+    committed:  {layer: willingness, kinds: [person], actor: act, better: false}
+    flees:      {layer: action, kinds: [person], actor: self, better: true}
+    surrenders: {layer: action, kinds: [person], actor: self, better: true}
+    joins:      {layer: action, kinds: [person], actor: self, better: true}
+    warns:      {layer: action, kinds: [person], actor: self, better: false}
+    safe:       {layer: world, kinds: [person], actor: either, better: true}
+    lifted:     {layer: world, kinds: [condition], actor: either, better: true}
+    moved:      {layer: world, kinds: [resource], actor: either, better: true}
+    given_up:   {layer: world, kinds: [resource], actor: person, better: true}
+    lost:       {layer: world, kinds: [resource], actor: either, better: false}
+    broken:     {layer: world, kinds: [tie], actor: either, better: true}
+    mended:     {layer: world, kinds: [tie], actor: either, better: true}
+    tested:     {layer: world, kinds: [evidence], actor: act, better: true}
+    found:      {layer: world, kinds: [evidence], actor: act, better: true}
+    destroyed:  {layer: world, kinds: [evidence], actor: either, better: false}
+  because: [words, coin, goods, force, evidence, earlier]
+  words_only_acts: [persuade, heard, talk, lie, deceived, lie_caught, part_done]   # acts of words alone (never the world itself)
+  wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action
+  cooperative: [lifted, given_up, surrenders, joins, safe, moved]
+  # words a person keeps of what they now believe (a told memory: what someone said, never what is), and the moods a ruling gives
+  beliefs:
+    believes: ["{name} has me believing it now", "I believe what {name} told me", "What {name} said holds, I think", "{name} convinced me"]
+    doubts: ["I doubt what I was told, after {name}", "{name} has me doubting it", "After {name}, I am not so sure of it", "{name} made me wonder"]
+  moods:
+    afraid: ["afraid", "frightened", "uneasy and watchful", "shaken"]
+    angry: ["angry", "furious", "bitter", "seething"]
+    grateful: ["grateful", "relieved and thankful", "warm toward a stranger", "glad of the help"]
+  warned: ["{name} warned me about {who}", "I was warned about {who} by {name}", "{name} told me to watch {who}", "{name} says {who} is trouble"]

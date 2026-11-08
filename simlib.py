@@ -347,7 +347,10 @@ class Stub:
                                 "captain_intro": "For the banner! Cut them down!"}] * 2}
 
     def a_JudgeVerdict(self, u, k):
-        return {"verdict": getattr(self, "verdict", "no"), "reason": "the ledger shows it", "ending": "victory"}
+        """(f547) With self.changes (a list, or a function of the request), the changes a ruling proposes for a situation's parts."""
+        ch = getattr(self, "changes", None)
+        ch = ch(u) if callable(ch) else (ch or [])
+        return {"verdict": getattr(self, "verdict", "no"), "reason": "the ledger shows it", "ending": "victory", "changes": ch}
 
     def a_MotiveStep(self, u, k):
         pid = re.search(r"PERSON: (\S+) -", u).group(1)

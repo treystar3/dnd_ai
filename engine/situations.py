@@ -670,6 +670,67 @@ SEGMENTS = {"stakes": ("stake:", "want:"), "wants": ("want:", "condition:"), "co
             "certainties": ("certainty -", "Evidence lying"), "controllers": ("by_kind:", "evidence:")}
 
 
+def rulings_problems(c=None) -> list[str]:
+    """(f547) The ruling's words held equal to the contract's both ways, each with a layer, the kinds it may change, who may do it and
+    whether it is a gain; the reasons a change may rest on likewise; the lists that name some of them; and the phrases each kept
+    change is told in, four lines or more."""
+    import typing
+    if c is None:
+        from llm import contracts as c
+    bad = []
+    RU = S.get("rulings") or {}
+    ch = RU.get("changes") or {}
+    lit = lambda f: set(typing.get_args(c.RulingChange.model_fields[f].annotation))
+    if set(ch) != lit("becomes"):
+        bad.append(f"situations.yaml rulings.changes: {sorted(set(ch) ^ lit('becomes'))} differ from the contract's RulingChange.becomes")
+    for w, row in ch.items():
+        row = row or {}
+        if row.get("layer") not in ("belief", "feeling", "willingness", "action", "world"):
+            bad.append(f"situations.yaml rulings.changes.{w}.layer: belief, feeling, willingness, action or world")
+        if not isinstance(row.get("kinds"), list) or not row["kinds"] or not set(row["kinds"]) <= {"person", "resource", "tie", "condition",
+                                                                                                   "evidence"}:
+            bad.append(f"situations.yaml rulings.changes.{w}.kinds: some of person, resource, tie, condition and evidence")
+        if row.get("actor") not in ("act", "person", "self", "either"):
+            bad.append(f"situations.yaml rulings.changes.{w}.actor: act, person, self or either")
+        if not isinstance(row.get("better"), bool):
+            bad.append(f"situations.yaml rulings.changes.{w}.better: true or false")
+    if set(RU.get("because") or ()) != lit("because"):
+        bad.append("situations.yaml rulings.because: the contract's RulingChange.because, both ways")
+    will = {w for w, row in ch.items() if (row or {}).get("layer") == "willingness"}
+    if not set(RU.get("wont") or ()) <= will or not RU.get("wont"):
+        bad.append("situations.yaml rulings.wont: some of the willingness words")
+    if not set(RU.get("cooperative") or ()) <= set(ch) or not RU.get("cooperative"):
+        bad.append("situations.yaml rulings.cooperative: some of the change words")
+    from engine import budget
+    expected = int((budget.TASKS.get("event_judge") or {}).get("answer_tokens") or 0)
+    if not isinstance(RU.get("max_tokens"), int) or isinstance(RU.get("max_tokens"), bool) or RU["max_tokens"] < 1.5 * expected:
+        bad.append(f"situations.yaml rulings.max_tokens: at least half again the answer budget.yaml expects ({expected} tokens)")
+    if not isinstance(RU.get("words_only_acts"), list) or not RU["words_only_acts"]:
+        bad.append("situations.yaml rulings.words_only_acts: the acts that are words alone")
+    for k in ("no_part", "not_actor", "not_heard", "words_only", "failed_act", "unpaid", "no_goods", "no_evidence", "no_authority",
+              "no_means", "unwilling", "still_committed", "still_refusing", "rests_on", "gone", "twice"):
+        if not (S.get("reasons") or {}).get(k):
+            bad.append(f"situations.yaml reasons.{k}: a reason is needed (f547, the ruling's)")
+    for k in ("most", "window", "trust"):
+        if not isinstance(RU.get(k), int) or isinstance(RU.get(k), bool) or RU[k] < 1:
+            bad.append(f"situations.yaml rulings.{k}: a whole number above 0")
+    for table, keys, slots in (("beliefs", ("believes", "doubts"), {"name"}), ("moods", ("afraid", "angry", "grateful"), set())):
+        for k in keys:
+            got = (RU.get(table) or {}).get(k)
+            if not isinstance(got, list) or len(got) < 4:
+                bad.append(f"situations.yaml rulings.{table}.{k}: four lines or more")
+                continue
+            for line in got:
+                bad += _line_problems(f"rulings.{table}.{k}", line, slots, {"name": "Hollis"})
+    got = RU.get("warned")
+    if not isinstance(got, list) or len(got) < 4:
+        bad.append("situations.yaml rulings.warned: four lines or more")
+    else:
+        for line in got:
+            bad += _line_problems("rulings.warned", line, {"name", "who"}, {"name": "Hollis", "who": "Maud"})
+    return bad
+
+
 def prompt_problems(lists: dict) -> list[str]:
     """(f543) The proposal is told every word it may use, each as a whole word inside its own field's lines."""
     import re
@@ -822,4 +883,5 @@ def problems() -> list[str]:
         bad.append("situations.yaml heart.threat_kinds: some of lists.place_kinds")
     if not isinstance(H.get("stake_states"), list) or not set(H["stake_states"]) <= set(L.get("resource_states") or ()):
         bad.append("situations.yaml heart.stake_states: some of lists.resource_states")
+    bad += rulings_problems(c)
     return bad

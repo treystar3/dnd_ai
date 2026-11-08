@@ -75,7 +75,7 @@ tasks:
   moment:                   {need: optional, later: dropped, answer_tokens: 200}
   npc_parting:              {need: optional, later: dropped, answer_tokens: 120}
   arc_story:                {need: optional, later: deferred, answer_tokens: 1200}
-  event_judge:              {need: optional, later: dropped, answer_tokens: 120}
+  event_judge:              {need: optional, later: dropped, answer_tokens: 350}     # (f547) with a situation's changes, part by part
   pulse_thread:             {need: optional, later: dropped, answer_tokens: 1200}
   pulse_motive:             {need: optional, later: dropped, answer_tokens: 500}
   pulse_cataclysm:          {need: optional, later: dropped, answer_tokens: 1500}

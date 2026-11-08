@@ -404,6 +404,9 @@ def after_deed(ws, deed: dict) -> None:
             if met:
                 met["done"] = True
                 th["won_path"] = met
+                if th.get("parts") and met.get("kind") in ("part", "persuade"):    # (f547) a met condition: a certain change on the
+                    from engine import situation_parts                              # person, made with no model call
+                    situation_parts.met_way(ws, state, th, met, deed.get("by") or ws.acting)
                 finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
                 changed = True
                 continue
@@ -437,6 +440,8 @@ def judge(ws, state, th, deed) -> bool:
     world = ws.world
     th["judge_calls"] = th.get("judge_calls", 0) + 1
     th["judge_last"] = ws.minutes
+    if "parts" in th:                                    # (f547) a situation with parts: the act ruled against them, change by change
+        return _rule(ws, state, th, deed)
     mine = [d for d in deeds.since(state, th["made"], E["judge"]["relevant_deeds"])
             if world.places.get(d.get("place") or "") and world.places[d["place"]].region in _scope_regions(world, th)]
     live = "; ".join(f"{s['name']} (boss)" if s["boss"] else f"{s['name']} (kills {s['kills']}/{s['need']})"
@@ -468,6 +473,22 @@ def judge(ws, state, th, deed) -> bool:
         console.note(f"What you have done has set {th['title']} back. It is not over.")
         return True
     return False
+
+
+def _rule(ws, state, th, deed) -> bool:
+    """(f547) The dungeon master's ruling on this deed against the situation's parts (engine/situation_parts.py rule): the changes the
+    engine keeps, then the verdict as before (f549 reads the end from the world instead). A call that fails changes nothing."""
+    from engine import situation_parts
+    try:
+        v, kept, dropped = situation_parts.rule(ws, state, th, situation_parts.act_of(ws, deed))
+    except LLMError as e:
+        console.debug(f"event ruling: no ruling ({e})")
+        return False
+    console.debug(f"event ruling: {th['title']} -> {len(kept)} kept, {len(dropped)} dropped; {v.verdict}")
+    if v.verdict == "resolved" and not (live_spawns(state, ws.minutes, th["id"]) and any(s["boss"] for s in live_spawns(state, ws.minutes, th["id"]))):
+        finish(ws, state, th, v.reason.rstrip("."), v.ending)
+        return True
+    return bool(kept)
 
 
 def finish(ws, state, th, how: str, ending: str) -> None:
