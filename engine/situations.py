@@ -709,6 +709,12 @@ def rulings_problems(c=None) -> list[str]:
         bad.append("situations.yaml rulings.words_only_acts: the acts that are words alone")
     if not isinstance(RU.get("goods_acts"), list) or not RU["goods_acts"]:
         bad.append("situations.yaml rulings.goods_acts: the acts that hand goods over")
+    if not isinstance(RU.get("force_acts"), list) or not RU["force_acts"] or set(RU["force_acts"]) & set(RU.get("goods_acts") or ()) \
+            or set(RU["force_acts"]) & set(RU.get("words_only_acts") or ()):
+        bad.append("situations.yaml rulings.force_acts: the acts of violence, none of them words or goods (f547's second review)")
+    if not RU.get("warned_may") or not set(RU["warned_may"]) <= set(ch) or set(RU["warned_may"]) & set(RU.get("cooperative") or ()) \
+            or any((ch.get(w) or {}).get("layer") in ("belief", "world") for w in RU["warned_may"]):
+        bad.append("situations.yaml rulings.warned_may: some of the change words, none cooperative, no belief and nothing in the world")
     for k in ("no_part", "not_actor", "not_heard", "words_only", "failed_act", "unpaid", "no_goods", "no_evidence", "no_authority",
               "no_means", "unwilling", "still_committed", "still_refusing", "rests_on", "gone", "twice", "too_many"):
         if not (S.get("reasons") or {}).get(k):

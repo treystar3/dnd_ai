@@ -626,20 +626,62 @@ def heard_by(act: dict) -> set[str]:
     return ({act.get("npc") or ""} | set(act.get("witnesses") or ())) - {""}
 
 
-def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], list[tuple[dict, str]]]:
+def trouble_near(world, th: dict, parts: list[dict], town: str = "") -> tuple[list[str], list[str]]:
+    """Where a situation's trouble is: the town's places and the wild on its doorstep, the places it makes dangerous, and the roads it
+    makes dangerous - or, with none of those, the roads out of the town. (places, roads), each sorted."""
+    from engine import towns
+    town = town or pulse_town(world, th.get("place", ""))
+    danger = {a["on"] for a in parts if a.get("kind") == "condition" and a.get("what") == "danger" and a.get("on")}
+    near = sorted(((set(towns.town_places(world, town)) if town in world.places else set()) | danger) - set(world.roads))
+    roads_near = sorted(danger & set(world.roads)) or sorted(rid for rid, r in world.roads.items() if town in (r.from_, r.to))
+    return near, roads_near
+
+
+def pulse_town(world, place: str) -> str:
+    from engine import pulse
+    return pulse.town_of(world, place) if place in world.places else ""
+
+
+def concerns(parts: list[dict], i: int, who: str) -> bool:
+    """(f547's second review) Whether part `i` (1-based) is about the person `who`: a condition they impose, goods they hold or want, a
+    tie with them at one end, a person tied to them, or evidence they hold or that points to them."""
+    a = parts[i - 1] if 1 <= i <= len(parts) else None
+    if a is None or not who:
+        return False
+    k = a.get("kind")
+    if k == "condition":
+        return a.get("by") == who
+    if k == "resource":
+        return who in (a.get("holder"), a.get("wanted_by"))
+    if k == "tie":
+        return who in (a.get("a"), a.get("b"))
+    if k == "evidence":
+        return who in (a.get("holder"), a.get("points_to"))
+    if k == "person":
+        return any(t.get("kind") == "tie" and {t.get("a"), t.get("b")} == {who, a.get("who")} for t in parts)
+    return False
+
+
+def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[list[dict], list[tuple[dict, str]]]:
     """(f547) The changes a ruling proposed for the act, checked in their order as one chain (the owner, 2026-11-08: "The engine
     validates prerequisites, presence, knowledge, authority, resources, and established world facts before committing them"): a change
     that does not hold is dropped with its reason, and so is every change that needs it; the rest stand, up to rulings.most. Reads the
-    save, writes nothing, asks nothing. Returns (kept, dropped with the reason)."""
+    save, writes nothing, asks nothing. Returns (kept, dropped with the reason).
+    (f547's second review) One rule moves a person set against the one acting (refusing, hostile, committed, as they stood before this
+    act): something beyond words must reach them - force, coin, goods or a deed done for them, evidence shown to them, or a change in
+    the world that concerns them, made in this act or since they took that stance (moved_by). One committed is moved only by evidence
+    or force. A warning carries fear to the one warned, never the player's words (rulings.warned_may). `world` places a rescue by
+    force where the trouble is; without it, only the situation's own place."""
     RU, why = S["rulings"], S["reasons"]
     CH = RU["changes"]
     parts = th.get("parts") or []
     by = act.get("by") or ""
-    reached = set(heard_by(act))                               # who the act reached; (f547's review) and whoever a kept warning reached
+    heard = set(heard_by(act))                                 # who the act itself reached
+    reached = set(heard)                                       # (f547's review) and whoever a kept warning reached
     words = bool(act.get("words_only"))
     failed = "fail" in (act.get("degree") or "")
     tier = th.get("tier", "rare")
-    wont, cooperative = set(RU["wont"]), set(RU["cooperative"])
+    wont, cooperative, goods, violence = set(RU["wont"]), set(RU["cooperative"]), set(RU["goods_acts"]), set(RU["force_acts"])
     kept: list[dict] = []
     dropped: list[tuple[dict, str]] = []
     ok: set[int] = set()
@@ -654,9 +696,6 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
 
     def base(k: int) -> str:                                   # (f547's review) as they stood before this act: no chain launders it
         return ((part(k) or {}).get("willing") or {}).get(by, "")
-
-    def standing(k: int) -> str:
-        return will.get(k) or base(k)
 
     def earlier(k: int, word: str) -> bool:
         return any(x["becomes"] == word and x["part"] == k for x in kept)
@@ -686,9 +725,65 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
             return actor.get("stake") == "blocks" or any(c.get("kind") == "condition" and c.get("by") == me for c in parts)
         return False
 
-    def changed_since(k: int) -> bool:                         # (f547's review) what moves one set against the player: a changed
-        return any(CH[x["becomes"]]["layer"] in ("world", "action") or (x["part"] == k and CH[x["becomes"]]["layer"] == "belief"
-                                                                          and x.get("because") == "evidence") for x in kept)
+    def asks(to: dict) -> int:
+        return max(1, int(S["register"]["ways"]["pay"].get(tier, 0)) if to.get("condition") == "paid" else 1)
+
+    def employs(boss: str, man: str) -> bool:
+        return any(t.get("kind") == "tie" and t.get("tie") == "employs" and t.get("a") == boss and t.get("b") == man for t in parts)
+
+    def since(k: int) -> int:                                  # when they took the stance they hold toward `by`
+        a = part(k) or {}
+        return int((a.get("willing_at") or {}).get(by, th.get("made", 0)) or 0)
+
+    def moved_by(k: int, c: dict) -> str:                      # (f547's second review) what beyond words reached them, or ""
+        me = (part(k) or {}).get("who", "")
+        to = act.get("npc") or ""
+        if not words and to and (to == me or employs(to, me)):
+            if act.get("kind") in goods:
+                if int(act.get("coin") or 0) >= max(asks(payee() or {}), asks(part(k) or {})):
+                    return "coin"
+                if act.get("item") and int(act.get("count") or 1) > 0 and to == me:
+                    return "goods"
+            elif to == me:                                     # done to them: violence, or a deed done for them (moves one who
+                return "force" if act.get("kind") in violence else "deed"      # refuses, never one committed)
+        if not words and act.get("kind") in violence and me in heard:
+            return "force"                                     # violence they saw done
+        if c.get("because") == "evidence" and found(int(c.get("about") or 0)):
+            return "evidence"
+        if any(x["part"] == k and x.get("because") == "evidence" for x in kept):
+            return "evidence"                                  # shown to them earlier in this act (checked found when kept)
+        if any(gain(x, k) and concerns(parts, x["part"], me) for x in kept):
+            return "world"
+        if any(gain(r, k) and int(r.get("minute") or 0) > since(k) and concerns(parts, int(r.get("part") or 0), me)
+               for r in th.get("changes") or ()):
+            return "world"                                     # (f547's second review) a change since they took their stance
+        return ""
+
+    def gain(x: dict, k: int) -> bool:                         # a change in the world for the player's side, not made by the one
+        row = CH.get(x.get("becomes")) or {}                   # moved (k), nor in their own part
+        return row.get("layer") in ("world", "action") and bool(row.get("better")) and int(x.get("part") or 0) != k \
+            and int(x.get("who") or 0) != k
+
+    def unmoved(k: int, c: dict) -> str:                       # the reason one set against `by` stays so, or ""
+        stand = base(k)
+        if stand not in wont:
+            return ""
+        how = moved_by(k, c)
+        if stand == "committed":
+            return "" if how in ("evidence", "force") else why["still_committed"]
+        return "" if how else why["still_refusing"]
+
+    def where_trouble() -> bool:                               # (f547's second review) an act of violence where the trouble is
+        place = act.get("place") or ""
+        if words or act.get("kind") not in violence:
+            return False
+        if place and place == th.get("place"):
+            return True
+        if world is None or not place:
+            return False
+        from engine import roads
+        near, on = trouble_near(world, th, parts)
+        return place in near or any(roads.on_road(world, place, r) for r in on)
 
     def problem(c: dict) -> str:
         n, w = c.get("n"), c.get("becomes")
@@ -713,26 +808,30 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
             return why["not_heard"]
         if who and part(who)["who"] not in reached:
             return why["not_heard"]
+        warned_only = {x for x in reached - heard}               # (f547's second review) a warning carries fear, not the player's words
+        if ((a.get("kind") == "person" and a["who"] in warned_only and layer != "world") or (who and part(who)["who"] in warned_only)) \
+                and w not in set(RU["warned_may"]):
+            return why["not_heard"]
         if not who and layer in ("world", "action"):
             if words or because in ("words", "coin"):            # (f547's review) the player's own hand changes the world, never
                 return why["words_only"]                          # a word or a coin by itself
-            if a["kind"] == "person" and a["who"] not in reached:
-                return why["not_heard"]                          # one freed by the player's own hand was where the act was
-        if failed and row.get("better"):
+            if a["kind"] == "person" and a["who"] not in heard and not (because == "force" and where_trouble()):
+                return why["not_heard"]                          # one freed by the player's own hand: where the act was, or freed by
+        if failed and row.get("better"):                         # force where the trouble is (their captor beaten)
             return why["failed_act"]
         if because == "coin":                                  # (f547's review) the coin went to someone: the one changed or the
-            to = payee()                                       # one acting must be them, and it must reach what they ask
-            if to is None or (a.get("who") != to["who"] and (not who or part(who)["who"] != to["who"])):
+            to = payee()                                       # one acting must be them (or, the second review, their employer),
+            doer = part(who)["who"] if who else ""             # and it must reach what they ask
+            if to is None or (a.get("who") != to["who"] and doer != to["who"] and not (doer and employs(to["who"], doer))):
                 return why["unpaid"]
-            asks = int(S["register"]["ways"]["pay"].get(tier, 0)) if to.get("condition") == "paid" else 1
-            if int(act.get("coin") or 0) < max(1, asks):
-                return why["unpaid"]
-        if because == "goods" and not (act.get("item") and int(act.get("count") or 1) > 0 and act.get("kind") in set(RU["goods_acts"])):
+            if int(act.get("coin") or 0) < max(asks(to), asks(part(who)) if who else 1):
+                return why["unpaid"]                           # paid through the one they answer to, still their own price
+        if because == "goods" and not (act.get("item") and int(act.get("count") or 1) > 0 and act.get("kind") in goods):
             return why["no_goods"]
         if because == "force" and words:
             return why["words_only"]
-        if because == "evidence" and not (found(int(c.get("about") or 0)) or any(found(i + 1) for i in range(len(parts)))):
-            return why["no_evidence"]
+        if because == "evidence" and not found(int(c.get("about") or 0)):
+            return why["no_evidence"]                          # (f547's second review) the piece shown, by its number
         if because == "earlier" and not c.get("needs"):
             return why["rests_on"]
         if w in ("lifted", "safe") and who and not authority(who, a):
@@ -745,14 +844,15 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
             return why["no_evidence"]
         if w == "warns" and not ((part(int(c.get("about") or 0)) or {}).get("kind") == "person" and int(c.get("about") or 0) != k):
             return why["no_part"]
-        if who and w in cooperative and standing(who) in wont:
-            return why["unwilling"]
+        if who and w in cooperative:
+            if will.get(who) in wont:                          # set against the player by this very act
+                return why["unwilling"]
+            if unmoved(who, c):                                # (f547's second review) as they stood before it, unless moved: no
+                return why["unwilling"]                        # worse stance in between launders it
         if layer == "willingness" and row.get("better"):
-            if base(k) == "committed" and not any(x["part"] == k and x["becomes"] in ("believes", "doubts") and x.get("because") == "evidence"
-                                                  for x in kept):
-                return why["still_committed"]
-            if base(k) in ("refusing", "hostile") and words and because in ("words", "earlier") and not changed_since(k):
-                return why["still_refusing"]
+            stuck = unmoved(k, c)
+            if stuck:
+                return stuck
         return ""
 
     for c in sorted((dict(x) for x in changes), key=lambda x: (int(x.get("n") or 0))):
@@ -790,8 +890,7 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
     parts = th.get("parts") or []
     by = act.get("by") or ""
     t = int(ws.minutes)
-    me = getattr(getattr(ws, "player", None), "character", None)
-    name = me.name if me is not None and getattr(me, "id", "") == by else "the stranger"
+    name = char_name(ws, by)
     dirty: dict[str, object] = {}
 
     def person(a):
@@ -811,12 +910,14 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
             circumstance.set_mood(person(a), _pick(RU["moods"][w], key), t, mood_source(th["id"]))
         elif RU["changes"][w]["layer"] == "willingness":
             a.setdefault("willing", {})[by] = w
+            a.setdefault("willing_at", {})[by] = t                # (f547's second review) when they took it: what changes after moves them
         elif w in ("flees", "surrenders", "joins"):
             a["now"] = {"flees": "fled", "surrenders": "surrendered", "joins": "joined"}[w]
         elif w == "warns":
             other = parts[int(c["about"]) - 1]
             if (other.get("willing") or {}).get(by, "") not in RU["wont"]:
                 other.setdefault("willing", {})[by] = "wary"
+                other.setdefault("willing_at", {})[by] = t
             memory.keep(person(other), _pick(RU["warned"], key).format(name=store_name(ws, a["who"]), who=name), day=clock.day(t), turn=-1,
                         kind="told", subject=by, source=a["who"], about=f"warned:{th['id']}:{c['part']}", minute=t)
         elif w in ("safe", "lifted", "moved", "given_up", "lost", "broken", "mended", "tested", "found", "destroyed"):
@@ -836,11 +937,13 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
             clue = (th.get("clues") or [])[a["clue"]] if a.get("kind") == "evidence" and isinstance(a.get("clue"), int) \
                 and a["clue"] < len(th.get("clues") or []) else None
             if clue is not None and w in ("found", "tested"):
-                if not clue.get("found"):                       # (f547's review) found as matters.mark_found finds a clue: its
-                    clue["found"], clue["by"] = True, store_name(ws, clue["npc"]) if clue.get("npc") else ""   # finder, the matter
-                    th["touched"] = th["answered"] = True       # the player's, and the holder's knowing told
-                    if clue.get("npc") and ws.store.npc_exists(clue["npc"]):
-                        ws.store.set_memory_state(clue["npc"], "knows", f"thread:{th['id']}:{a['clue']}", f"told:{by}")
+                if not clue.get("found"):                       # (f547's reviews) found as the game finds a clue: told by its holder
+                    holder = clue.get("npc") or ""              # (matters.mark_found: as the player knows them, and their knowing
+                    told = bool(holder) and holder == act.get("npc") and ws.store.npc_exists(holder)    # marked told), or found by
+                    clue["found"], clue["by"] = True, (_npc(ws, holder).label(by) if told else name)   # hand (the finder's name)
+                    th["touched"] = th["answered"] = True
+                    if told:
+                        ws.store.set_memory_state(holder, "knows", f"thread:{th['id']}:{a['clue']}", f"told:{by}")
                 if w == "tested":
                     clue["tested"] = True                       # its truth shown: the engine's (clue["true"]), never the ruling's
             if clue is not None and w == "destroyed":
@@ -849,6 +952,15 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
                                                            "by": by, "act": act.get("kind", ""), "minute": t}])[-int(RU["window"]):]
     for n in dirty.values():
         ws.store.save_npc(n)
+
+
+def char_name(ws, cid: str) -> str:
+    """A player character's name, by id; "the stranger" for none here."""
+    for c in (ws.characters() if hasattr(ws, "characters") else ()):
+        if getattr(c, "id", "") == cid:
+            return c.name
+    me = getattr(getattr(ws, "player", None), "character", None)
+    return me.name if me is not None and getattr(me, "id", "") == cid else "the stranger"
 
 
 def store_name(ws, nid: str) -> str:
@@ -862,11 +974,15 @@ def act_of(ws, deed: dict) -> dict:
     RU = S["rulings"]
     from engine import deeds
     here = sorted({n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")})
-    return {"kind": deed.get("kind", ""), "by": deed.get("by") or getattr(ws, "acting", ""), "npc": deed.get("npc", ""),
-            "witnesses": here, "place": deed.get("place", ""), "coin": int(deed.get("coin") or 0), "item": deed.get("item", ""),
+    place = deed.get("place", "")
+    shown = ws.world.places[place].name if place in getattr(ws.world, "places", {}) else place    # (f547's second review) its name
+    beaten = deed.get("kind") == "offense" and deed.get("offense") == "assault"                   # (f547's second review) one beaten is
+    npc = deed.get("npc") or (deed.get("target", "") if beaten else "")                           # the one it was done to
+    return {"kind": "assault" if beaten else deed.get("kind", ""), "by": deed.get("by") or getattr(ws, "acting", ""), "npc": npc,
+            "witnesses": here, "place": place, "coin": int(deed.get("coin") or 0), "item": deed.get("item", ""),
             "count": int(deed.get("count") or 1), "degree": deed.get("degree", ""),
             "words_only": deed.get("kind", "") in set(RU["words_only_acts"]),
-            "text": deed.get("text") or deeds.describe(deed)}             # (f547's review) what it was: the creature, the job, the dungeon
+            "text": deed.get("text") or deeds.describe(dict(deed, place=shown))}   # (f547's review) what it was: the creature, the job
 
 
 def parts_lines(store, world, th: dict, by: str = "") -> list[str]:
@@ -915,7 +1031,7 @@ def rule(ws, state: dict, th: dict, act: dict):
              f"  given: {act['item']}" if act.get("item") else "  given: nothing", f"  how it went: {act.get('degree') or 'done'}"]
     v = generate("event_judge", pp.JUDGE_PARTS_SYSTEM, pp.judge_parts_request(th, parts_lines(ws.store, ws.world, th, act.get("by", "")), lines),
                  JudgeVerdict, temperature=0.3, max_tokens=int(S["rulings"].get("max_tokens", 900)))
-    kept, dropped = ruled(ws.store, th, act, [c.model_dump() for c in v.changes])
+    kept, dropped = ruled(ws.store, th, act, [c.model_dump() for c in v.changes], world=ws.world)
     keep_changes(ws, state, th, act, kept)
     pulselog.note("ruled", f"{th.get('title', '')}: {len(kept)} kept, {len(dropped)} dropped", thread=th["id"],
                   kept=kept, dropped=[{"change": c, "why": w} for c, w in dropped])
@@ -933,6 +1049,7 @@ def met_way(ws, state: dict, th: dict, path: dict, by: str) -> None:
         return
     a = parts[i]
     a.setdefault("willing", {})[by] = "open"
+    a.setdefault("willing_at", {})[by] = int(ws.minutes)
     a.setdefault("met", {})[by] = path.get("need") or ("won over" if path.get("kind") == "persuade" else "asked")
     kept = [{"n": 1, "part": i + 1, "who": 0, "becomes": "open", "because": "earlier", "needs": []}]
     if a.get("stake") == "blocks":
@@ -953,11 +1070,9 @@ def part_paths(store, world, th: dict, parts: list[dict], town: str) -> list[dic
     it makes dangerous (a fight on one is at a stop on it) - or, with no road made dangerous, the roads out of the town. Trusted starts
     from what each character had earned with them before it began (trust_known: those who had met them), and for one met since from
     where the first meeting left them (trust_from, at the first word), so only trust earned counts, never a first meeting's."""
-    from engine import inventory, towns
+    from engine import inventory
     W = _R()["ways"]
-    danger = {a["on"] for a in parts if a["kind"] == "condition" and a["what"] == "danger"}
-    near = sorted((set(towns.town_places(world, town)) | danger) - set(world.roads))
-    roads_near = sorted(danger & set(world.roads)) or sorted(rid for rid, r in world.roads.items() if town in (r.from_, r.to))
+    near, roads_near = trouble_near(world, th, parts, town)
     out = []
     for stake in ("can_fix", "blocks"):
         for i, a in enumerate(parts):

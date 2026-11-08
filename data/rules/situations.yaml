@@ -333,7 +333,11 @@ rulings:
   because: [words, coin, goods, force, evidence, earlier]
   words_only_acts: [persuade, heard, talk, lie, deceived, lie_caught, part_done]   # acts of words alone (never the world itself)
   goods_acts: [gift, bribe, deliver]       # acts that hand goods over
-  wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action
+  wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action, until moved
+  force_acts: [kill, dungeon_cleared, defend, assault]   # (f547's second review) violence: it moves one it was done to or who saw
+                                         # it done, as force (assault: the act a beating is, from an offense against a person)
+  warned_may: [afraid, angry, colder, wary, hostile, refusing, terrified, flees, warns]   # what a warning alone may change in
+                                         # the one warned: their fear and their guard, never the player's words carried to them
   cooperative: [lifted, given_up, surrenders, joins, safe, moved]
   # words a person keeps of what they now believe (a told memory: what someone said, never what is), and the moods a ruling gives
   beliefs:

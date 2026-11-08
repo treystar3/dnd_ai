@@ -194,8 +194,10 @@ changes: each {n, part, who, becomes, because, about, needs}; n numbers them fro
     own act does it by hand, or the number of the person who does it: a person lifts only what they impose or command, gives up only
     what they hold, and acts only as they are willing to.
   because: what it rests on: words (what was said), coin (handed over), goods (given), force (done by hand), evidence (a found piece
-    shown) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
-Words change what people believe, feel and will do; the world changes only through someone's action. A failed act brings no gain.
+    shown; about: its number) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
+Words change what people believe, feel and will do; the world changes only through someone's action. One refusing, hostile or
+committed toward the player is not moved by words alone: only by what reaches them - force, coin, goods, evidence shown to them, or a
+change in the world that touches them; one committed, only by evidence or force. A failed act brings no gain.
 Few true changes are better than many invented ones, and none at all is a fine answer. Never say the situation is over: the game
 reads that from the world. verdict: partial when anything changed, no otherwise. reason: one sentence. Respond only with JSON matching
 the schema."""
