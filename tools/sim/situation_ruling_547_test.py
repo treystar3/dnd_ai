@@ -287,6 +287,7 @@ check("(the review) a condition shows who imposes it and in what words; willingn
 def stance(th, k, w, at=None):
     th["parts"][k - 1]["willing"] = {by: w} if w else {}
     th["parts"][k - 1]["willing_at"] = {by: ws.minutes if at is None else at} if w else {}
+    th["parts"][k - 1].pop("answered_seq", None)              # (a stance set by hand: the minute stands for when, as in an older save)
 
 
 st, th = fresh()
@@ -528,14 +529,31 @@ events.after_deed(ws, deeds.log(store, "kill", ws.minutes - 50, "trading_square"
 th = pulse.thread_of(store.load_world_state(), "th547")
 check("(the fourth review) words he refused, or another character's, do not win him over for someone else", th["status"] == "active"
       and "char_b" not in (th["parts"][N - 1].get("willing") or {}), (th["status"], th["parts"][N - 1].get("willing")))
+st = store.load_world_state()                                    # (the fifth review) through the writers: he refused, was persuaded
+th = pulse.thread_of(st, "th547")                                # twice while refusing, then a gift made him only wary
+st["deeds"] = []
+stance(th, N, "")
+refuse = dict(act("persuade", noble.id, [noble.id]), seq=deeds.tick(st))
+situation_parts.keep_changes(ws, st, th, refuse, [ch(1, N, "refusing")])
+store.save_world_state(st)
+for i in range(2):
+    events.after_deed(ws, deeds.log(store, "persuade", ws.minutes, "trading_square", npc=noble.id, degree="strong success", by=by))
 st = store.load_world_state()
 th = pulse.thread_of(st, "th547")
-th["parts"][N - 1]["willing"][by], th["parts"][N - 1]["willing_at"][by] = "wary", ws.minutes - 40   # a gift since moved him, a little
+gift = deeds.log(store, "gift", ws.minutes, "trading_square", npc=noble.id, item="salt", by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+g_act = situation_parts.act_of(ws, dict(gift, by=by))
+kept, dropped = situation_parts.ruled(store, th, g_act, [ch(1, N, "wary", because="goods")])
+situation_parts.keep_changes(ws, st, th, g_act, kept)
 store.save_world_state(st)
-events.after_deed(ws, deeds.log(store, "kill", ws.minutes - 30, "trading_square", creature="rat", by=by))
+events.after_deed(ws, deeds.log(store, "kill", ws.minutes, "trading_square", creature="rat", by=by))
 th = pulse.thread_of(store.load_world_state(), "th547")
-check("(the fourth review) ...nor, once a gift has made him only wary, the words he refused before it", th["status"] == "active"
-      and th["parts"][N - 1]["willing"][by] == "wary", (th["status"], th["parts"][N - 1].get("willing")))
+check("(the fourth review) ...nor, once a gift has made him only wary, the words he refused before it", kept and th["status"] == "active"
+      and th["parts"][N - 1]["willing"][by] == "wary", (dropped, th["status"], th["parts"][N - 1].get("willing")))
+events.after_deed(ws, deeds.log(store, "persuade", ws.minutes, "trading_square", npc=noble.id, degree="strong success", by=by))
+th = pulse.thread_of(store.load_world_state(), "th547")
+check("(the fifth review) ...words since, he answers: won over", th["status"] == "resolved", th["status"])
 
 st, th = fresh()
 th["clues"].append({"text": "The noble paid the forger.", "holder": "", "npc": noble.id, "found": False, "certainty": "sure", "true": True})
@@ -604,6 +622,127 @@ r_far = next(r for rid, r in sorted(world.roads.items()) if pulse.town_of(world,
 th["place"], th["town"] = r_far.from_, town                    # an engine-built threat at a far place, its ways laid in this town
 check("(the fourth review) the roads out of a situation's own place are where its trouble is",
       any(world.roads[x] is r_far for x in situation_parts.trouble_near(world, th, th["parts"])[1]))
+
+# ---- (the fifth review) the one shown the evidence acts on it; what a person has answered, in the world's count; and the rest
+st, th = fresh()
+th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]),
+                                      [ch(1, P, "safe", who=N, because="evidence", about=EV)])
+check("(the fifth review) the noble, shown the letter, frees a prisoner who is not there", [c["n"] for c in kept] == [1], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]),
+                                      [ch(1, N, "believes", because="evidence", about=EV), ch(2, P, "safe", who=N, because="evidence", needs=[1])])
+check("(the fifth review) ...by way of what he now believes", [c["n"] for c in kept] == [1, 2], dropped)
+
+st, th = fresh()
+st["deeds"] = []
+th["made"] = ws.minutes - 300
+pay_way = {"kind": "part", "target": carpenter.id, "need": "paid", "done": False}
+th["paths"] = [pay_way]
+store.save_world_state(st)
+deeds.log(store, "gift", ws.minutes - 200, "trading_square", npc=carpenter.id, coin=PAY - 10, by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+situation_parts.keep_changes(ws, st, th, act("persuade", carpenter.id, [carpenter.id]), [ch(1, C, "open")])
+situation_parts.keep_changes(ws, st, th, act("persuade", guard.id, [guard.id, carpenter.id]), [ch(1, G, "warns", who=G, about=C)])
+store.save_world_state(st)
+deeds.log(store, "gift", ws.minutes - 100, "trading_square", npc=carpenter.id, coin=10, by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+check("(the fifth review) a stance in the player's favour, or another's warning, takes nothing away from what was paid",
+      situation_parts.need_met(th["paths"][0], st, th, by), th["parts"][C - 1])
+
+st, th = fresh()
+st["deeds"] = []
+th["made"] = ws.minutes - 300
+store.save_world_state(st)
+d1 = deeds.log(store, "persuade", ws.minutes, "trading_square", npc=noble.id, degree="success", by=by)       # all in one minute
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+situation_parts.keep_changes(ws, st, th, situation_parts.act_of(ws, dict(d1, by=by)), [ch(1, N, "refusing")])
+store.save_world_state(st)
+g2 = deeds.log(store, "gift", ws.minutes, "trading_square", npc=noble.id, item="salt", by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+situation_parts.keep_changes(ws, st, th, situation_parts.act_of(ws, dict(g2, by=by)), [ch(1, N, "wary", because="goods")])
+store.save_world_state(st)
+deeds.log(store, "persuade", ws.minutes, "trading_square", npc=noble.id, degree="success", by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+way = {"kind": "persuade", "target": noble.id}
+check("(the fifth review) the words he refused in the very act he set himself against do not count, though in the same minute",
+      not events.path_met(way, st, th, None, by), situation_parts.answered_seq(th, noble.id, by))
+
+st, th = fresh()
+st["deeds"] = []
+th["paths"] = [{"kind": "part", "target": carpenter.id, "need": "protected", "done": False, "near": ["trading_square"], "roads": []}]
+store.save_world_state(st)
+k1 = deeds.log(store, "kill", ws.minutes, "trading_square", creature="wolf", by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+situation_parts.killed(ws, st, k1)
+situation_parts.keep_changes(ws, st, th, dict(act("persuade", carpenter.id, [carpenter.id]), seq=deeds.tick(st)), [ch(1, C, "refusing")])
+check("(the fifth review) kept safe before they refused does not meet their way", not situation_parts.need_met(th["paths"][0], st, th, by))
+store.save_world_state(st)
+k2 = deeds.log(store, "kill", ws.minutes, "trading_square", creature="wolf", by=by)
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+situation_parts.killed(ws, st, k2)
+kept, dropped = situation_parts.ruled(store, th, act("persuade", carpenter.id, [carpenter.id]), [ch(1, C, "open")])
+check("(the fifth review) ...kept safe again since, it moves them", th["paths"][0].get("protected_seq") == k2.get("seq") and [c["n"] for c in kept] == [1],
+      (th["paths"][0], dropped))
+
+st, th = fresh()
+c_ev = th["parts"][EV - 1]["clue"]
+th["clues"][c_ev]["destroyed"] = True
+th["parts"][EV - 1]["now"] = "destroyed"
+from engine import threads as threads_mod
+check("(the fifth review) a destroyed piece is never retold, nor shown on the road", c_ev not in threads_mod.untold(th)["clues"])
+store.save_world_state(st)
+matters.road_shown(ws, th["id"])
+check("(the fifth review) ...the road shows the matter, but finds no destroyed piece",
+      not pulse.thread_of(store.load_world_state(), th["id"])["clues"][c_ev]["found"])
+
+st, th = fresh()
+th["place"], th["town"] = town, town
+th["parts"].append({"kind": "condition", "on": road, "what": "danger", "label": "wolves on the road", "by": "", "by_kind": "creature"})
+check("(the fifth review) a situation in the town itself with a road made dangerous: that road is where its trouble is, not every road",
+      situation_parts.trouble_near(world, th, th["parts"])[1] == [road], situation_parts.trouble_near(world, th, th["parts"])[1])
+
+st, th = fresh()
+th["parts"].append({"kind": "condition", "on": "trading_square", "what": "prices", "at": town, "label": "salt dear", "by": guard.id,
+                    "by_kind": "person"})
+PR2 = len(th["parts"])
+kept, dropped = situation_parts.ruled(store, th, dict(act("kill", "", [], words=False), place=other), [ch(1, PR2, "lifted", because="force")],
+                                      world=world)
+check("(the fifth review) a price rise the guard imposes is not broken by force elsewhere in town", not kept
+      and why(dropped) == [R["not_there"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, dict(act("deliver", carpenter.id, [carpenter.id], item="salt", words=False), place=other),
+                                      [ch(1, PR2, "lifted", because="goods")], world=world)
+check("(the fifth review) ...goods brought ease it anywhere in town", [c["n"] for c in kept] == [1], dropped)
+th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
+kept, dropped = situation_parts.ruled(store, th, dict(act("persuade", noble.id, [noble.id]), place=other), [ch(1, EV, "destroyed", who=N)],
+                                      world=world)
+check("(the fifth review) the noble, with the player, may destroy the letter the player found and carries", [c["n"] for c in kept] == [1],
+      dropped)
+th["parts"].append({"kind": "resource", "good": "salt", "holder": guard.id, "state": "stranded", "wanted_by": carpenter.id,
+                    "request": {"to": carpenter.id, "count": 6}})
+RES2 = len(th["parts"])
+for a_, label in ((act("deliver", carpenter.id, [carpenter.id], item="salt", words=False), "one sack where six are asked"),
+                  (act("deliver", guard.id, [guard.id], item="salt", words=False), "salt handed back to the load's owner")):
+    kept, dropped = situation_parts.ruled(store, th, a_, [ch(1, RES2, "moved", because="goods")], world=world)
+    check(f"(the fifth review) {label} does not move the load", not kept and why(dropped) == [R["no_means"]], dropped)
+
+st, th = fresh()
+st["deeds"] = []
+th["made"] = ws.minutes - 300
+store.save_world_state(st)
+deeds.log(store, "persuade", ws.minutes - 200, "trading_square", npc=noble.id, degree="strong success", by="char_b")
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+check("(the fifth review) a side another character won over counts for the town", events._won_by_someone(st, th, noble.id))
+th["parts"][N - 1].setdefault("willing", {})["char_b"] = "hostile"
+th["parts"][N - 1].setdefault("answered_seq", {})["char_b"] = deeds.tick(st)
+check("(the fifth review) ...not once he has turned against them", not events._won_by_someone(st, th, noble.id))
 
 # ---- (the second review) the found writer and what the act shows
 st, th = fresh()

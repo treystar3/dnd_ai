@@ -634,9 +634,9 @@ def trouble_near(world, th: dict, parts: list[dict], town: str = "") -> tuple[li
     danger = {a["on"] for a in parts if a.get("kind") == "condition" and a.get("what") == "danger" and a.get("on")}
     own = {x for x in (th.get("place"), th.get("wild")) if x and x in world.places}                  # and the situation's own place
     near = sorted(((set(towns.town_places(world, town)) if town in world.places else set()) | danger | own) - set(world.roads))
-    roads_near = sorted(danger & set(world.roads)) or sorted(rid for rid, r in world.roads.items() if town in (r.from_, r.to))
-    roads_near = sorted(set(roads_near) | {rid for rid, r in world.roads.items() if own & {r.from_, r.to}})   # (f547's fourth review)
-    return near, roads_near                                                                                # and out of its own place
+    roads_near = sorted(danger & set(world.roads)) or sorted(rid for rid, r in world.roads.items()   # (f547's fourth and fifth reviews)
+                                                             if ({town} | own) & {r.from_, r.to})  # with none made dangerous, the roads
+    return near, roads_near                                                                       # out of the town and its own place
 
 
 def pulse_town(world, place: str) -> str:
@@ -766,9 +766,14 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
     def employs(boss: str, man: str) -> bool:
         return any(t.get("kind") == "tie" and t.get("tie") == "employs" and t.get("a") == boss and t.get("b") == man for t in parts)
 
-    def since(k: int) -> int:                                  # when they took the stance they hold toward `by`
+    def after(x: dict, k: int, seq: str = "seq", minute: str = "minute") -> bool:
+        """(f547's fifth review) Whether x came after k last set themselves against `by`: by the world's count when both carry it,
+        else (an older save) strictly after the minute they took their stance."""
         a = part(k) or {}
-        return int((a.get("willing_at") or {}).get(by, th.get("made", 0)) or 0)
+        mark = (a.get("answered_seq") or {}).get(by)
+        if mark is not None and x.get(seq) is not None:
+            return int(x[seq]) > int(mark)
+        return int(x.get(minute) or 0) > int((a.get("willing_at") or {}).get(by, th.get("made", 0)) or 0)
 
     def moved(k: int, c: dict) -> set[str]:                    # (f547's reviews) everything beyond words that reached them
         me = (part(k) or {}).get("who", "")
@@ -789,12 +794,11 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
         if me in heard and any(x["part"] == k and x.get("because") == "evidence" for x in kept):
             out.add("evidence")                                # shown to them earlier in this act (checked when kept)
         if any(p.get("target") == me and p.get("need") == "protected" and p.get("protected") == by
-               and int(p.get("protected_at") or 0) >= since(k) for p in th.get("paths") or ()):
+               and after(p, k, "protected_seq", "protected_at") for p in th.get("paths") or ()):
             out.add("deed")                                    # (f547's fourth review) kept safe as they asked, since their stance
         if any(gain(x, k) and concerns(parts, x["part"], me) for x in kept):
             out.add("world")
-        if any(gain(r, k) and int(r.get("minute") or 0) > since(k) and concerns(parts, int(r.get("part") or 0), me)
-               for r in th.get("changes") or ()):
+        if any(gain(r, k) and after(r, k) and concerns(parts, int(r.get("part") or 0), me) for r in th.get("changes") or ()):
             out.add("world")                                   # (f547's second review) a change since they took their stance
         return out
 
@@ -878,16 +882,18 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
             return why["words_only"]
         if because == "evidence" and not shown(c):
             return why["no_evidence"]                          # (f547's reviews) the piece shown, by its number or among its needs
-        if because == "evidence" and a.get("kind") == "person" and a["who"] not in heard:
-            return why["not_heard"]                            # (f547's fourth review) a warning carries fear, never the evidence
+        viewer = part(who) if who else (a if a.get("kind") == "person" else None)
+        if because == "evidence" and viewer is not None and viewer["who"] not in heard:
+            return why["not_heard"]                            # (f547's fourth and fifth reviews) shown to the one who acts on it,
         if because == "earlier" and not c.get("needs"):
             return why["rests_on"]
         if w in ("lifted", "safe") and who and not authority(who, a):
             return why["no_authority"]
         if w in ("given_up", "moved", "lost") and who and a.get("holder") != part(who)["who"]:
             return why["no_means"]
-        if w == "destroyed" and who and not (a.get("holder") == part(who)["who"] if a.get("held") == "person" else here(a.get("holder", ""))):
-            return why["no_means"]                             # (f547's fourth review) one destroys what they hold, or what lies there
+        if w == "destroyed" and who and not (a.get("holder") == part(who)["who"] if a.get("held") == "person" else here(a.get("holder", ""))) \
+                and not (found(k) and part(who)["who"] in heard):
+            return why["no_means"]                             # (f547's fourth review) one destroys what they hold, or what lies there,
         if w == "moved" and not who and not (act.get("item") or earlier(k, "given_up")):
             return why["no_means"]
         if w == "tested" and not found(k):
@@ -910,10 +916,12 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
     def by_hand(a: dict, k: int, w: str) -> str:                       # (f547's third review) what the player's own hand may change: only
         kind = a.get("kind")                                   # where it is, and as the one who holds it allows
         if kind == "condition":
-            if not (here(a.get("on", "")) or (a.get("what") == "prices" and in_town(a))):
-                return why["not_there"]                        # (f547's fourth review) a town's price rise is eased anywhere in it
             how = "force" if act.get("kind") in violence else "work"           # one held by someone is broken only by force; a flood
-            return "" if how in RU["hand_lifts"].get(a.get("by_kind") or "world", ()) else why["no_means"]   # is not beaten
+            if a.get("what") == "prices" and how == "work" and (here(a.get("on", "")) or in_town(a)):   # is not beaten. (f547's fourth
+                return ""                                      # and fifth reviews) goods brought ease a town's price rise anywhere in it,
+            if not here(a.get("on", "")):                      # whoever raised it; force breaks it only where it is
+                return why["not_there"]
+            return "" if how in RU["hand_lifts"].get(a.get("by_kind") or "world", ()) else why["no_means"]
         if kind == "evidence":
             if w != "found" and found(k):
                 return ""                                      # (f547's fourth review) once found, the player has it with them
@@ -922,9 +930,10 @@ def ruled(store, th: dict, act: dict, changes: list[dict], world=None) -> tuple[
         if kind == "resource":
             if w == "moved" and act.get("item"):
                 from engine import inventory
-                to = act.get("npc") or ""                      # (f547's fourth review) the very good, to the one it is for
-                ok = inventory.is_good(act["item"]) == a.get("good") and bool(to) \
-                    and to in (a.get("wanted_by"), (a.get("request") or {}).get("to"), a.get("holder"))
+                to = act.get("npc") or ""                      # (f547's fourth and fifth reviews) the very good, as much as is
+                need = int(((a.get("request") or {}).get("count")) or 1)          # asked, to the one it is for
+                ok = inventory.is_good(act["item"]) == a.get("good") and bool(to) and int(act.get("count") or 1) >= need \
+                    and to in (a.get("wanted_by"), (a.get("request") or {}).get("to"))
                 return "" if ok else why["no_means"]
             return "" if a.get("holder") in heard or here(a.get("holder", "")) else why["not_there"]
         if kind == "tie":
@@ -988,6 +997,8 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
     t = int(ws.minutes)
     name = char_name(ws, by)
     dirty: dict[str, object] = {}
+    from engine import deeds
+    seq = deeds.tick(state) if kept else 0                      # (f547's fifth review) this act's place in the world's count
 
     def person(a):
         n = dirty.get(a["who"]) or _npc(ws, a["who"])
@@ -1005,8 +1016,13 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
         elif w in ("afraid", "angry", "grateful"):
             circumstance.set_mood(person(a), _pick(RU["moods"][w], key), t, mood_source(th["id"]))
         elif RU["changes"][w]["layer"] == "willingness":
+            was = (a.get("willing") or {}).get(by, "")
             a.setdefault("willing", {})[by] = w
             a.setdefault("willing_at", {})[by] = t                # (f547's second review) when they took it: what changes after moves them
+            if w in RU["wont"]:                                   # (f547's fifth review) set against them: all they had done till now,
+                a.setdefault("answered_seq", {})[by] = int(act.get("seq") or seq)          # this act with it, is answered;
+            elif was in RU["wont"]:                               # moved out of it: what they refused meanwhile is answered, and the act
+                a.setdefault("answered_seq", {})[by] = int(act.get("seq") or seq) - 1      # that moved them counts
         elif w in ("flees", "surrenders", "joins"):
             a["now"] = {"flees": "fled", "surrenders": "surrendered", "joins": "joined"}[w]
         elif w == "warns":
@@ -1046,7 +1062,8 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
             if clue is not None and w == "destroyed":
                 clue["destroyed"] = True
         th["changes"] = (list(th.get("changes") or []) + [{"n": c["n"], "part": c["part"], "who": int(c.get("who") or 0), "becomes": w,
-                                                           "by": by, "act": act.get("kind", ""), "minute": t}])[-int(RU["window"]):]
+                                                           "by": by, "act": act.get("kind", ""), "minute": t,
+                                                           "seq": int(act.get("seq") or seq)}])[-int(RU["window"]):]   # the act's place
     for n in dirty.values():
         ws.store.save_npc(n)
 
@@ -1077,7 +1094,7 @@ def act_of(ws, deed: dict) -> dict:
     npc = deed.get("npc") or (deed.get("target", "") if beaten else "")                           # the one it was done to
     return {"kind": "assault" if beaten else deed.get("kind", ""), "by": deed.get("by") or getattr(ws, "acting", ""), "npc": npc,
             "witnesses": here, "place": place, "coin": int(deed.get("coin") or 0), "item": deed.get("item", ""),
-            "count": int(deed.get("count") or 1), "degree": deed.get("degree", ""),
+            "count": int(deed.get("count") or 1), "degree": deed.get("degree", ""), "seq": deed.get("seq"),
             "words_only": deed.get("kind", "") in set(RU["words_only_acts"]),
             "text": deed.get("text") or deeds.describe(dict(deed, place=shown))}   # (f547's review) what it was: the creature, the job
 
@@ -1188,16 +1205,22 @@ def part_paths(store, world, th: dict, parts: list[dict], town: str) -> list[dic
     return out
 
 
-def stance_at(th: dict, npc_id: str, by: str) -> int:
-    """(f547's fourth review) When this person of the situation took the stance they hold toward `by` (-1 for none): what was done
-    before it, they have already answered."""
+def answered_seq(th: dict, npc_id: str, by: str) -> int:
+    """(f547's fourth and fifth reviews) How far in the world's count (deeds.tick) this person of the situation has answered what `by`
+    did: up to the act they set themselves against them with (refusing, hostile, committed), or, once moved out of that, up to the act
+    that moved them; -1 for never. Their own stance in the player's favour, or another's warning, takes nothing away."""
     for a in th.get("parts") or ():
-        if a.get("kind") == "person" and a.get("who") == npc_id and by in (a.get("willing_at") or {}):
-            return int(a["willing_at"][by])
+        if a.get("kind") == "person" and a.get("who") == npc_id and by in (a.get("answered_seq") or {}):
+            return int(a["answered_seq"][by])
     return -1
 
 
-def _given(path: dict, state: dict, thread: dict, by: str = "", after: int = 0) -> bool:
+def counts_after(x: dict, mark: int, seq: str = "seq") -> bool:
+    """Whether a deed or a mark came after `mark` in the world's count (an older one, with no count, only when there is no mark)."""
+    return mark < 0 or int(x.get(seq) or 0) > mark
+
+
+def _given(path: dict, state: dict, thread: dict, by: str = "", mark: int = -1) -> bool:
     """(f545's review) "given": the good they want, as much of it as their own request asks (each gift is one), handed to them; or their
     request for it handed in; or a stranded load of it carried to them as its owner asked and that request handed in."""
     from engine import deeds, inventory
@@ -1208,8 +1231,9 @@ def _given(path: dict, state: dict, thread: dict, by: str = "", after: int = 0) 
         return True
     want = next((a for a in parts if a.get("kind") == "resource" and a.get("wanted_by") == who and a.get("good") == good), None)
     count = int(((want or {}).get("request") or {}).get("count") or 1)
-    gifts = [d for d in deeds.since(state, max(thread["made"] + 1, after), ["gift"])
-             if d.get("npc") == who and inventory.is_good(d.get("item") or "") == good and (not by or d.get("by", by) == by)]
+    gifts = [d for d in deeds.since(state, thread["made"] + 1, ["gift"])
+             if d.get("npc") == who and inventory.is_good(d.get("item") or "") == good and (not by or d.get("by", by) == by)
+             and counts_after(d, mark)]
     return bool(good) and sum(max(1, int(d.get("count") or 1)) for d in gifts) >= count
 
 
@@ -1221,18 +1245,19 @@ def need_met(path: dict, state: dict, thread: dict, by: str = "") -> bool:
     reads this only for a deed done with them (the player with them), so a condition met elsewhere waits for the player's next word."""
     from engine import deeds
     since, who, need = thread["made"], path["target"], path.get("need", "")
-    after = max(since + 1, stance_at(thread, who, by))          # (f545's review) after its birth, never in that minute; (f547's fourth
-    mine = lambda kinds: [d for d in deeds.since(state, after, kinds) if d.get("npc") == who      # review) by this character, and since
-                          and (not by or d.get("by", by) == by)]                                    # the stance they hold toward them
+    mark = answered_seq(thread, who, by)                        # (f545's review) after its birth, never in that minute; (f547's fourth
+    mine = lambda kinds: [d for d in deeds.since(state, since + 1, kinds) if d.get("npc") == who   # and fifth reviews) by this character,
+                          and (not by or d.get("by", by) == by) and counts_after(d, mark)]       # since they last set themselves against
     if need == "":
         return any(d.get("degree") in ("success", "strong success") for d in mine(["persuade"]))
     if need == "paid":
         pay = int(_R()["ways"]["pay"].get(thread.get("tier", "rare"), 0))
         return sum(int(d.get("coin") or 0) for d in mine(["gift", "bribe"])) >= pay
     if need == "given":
-        return _given(path, state, thread, by, after)
+        return _given(path, state, thread, by, mark)
     if need in ("trusted", "told", "protected"):                    # (f545's review) met by the character now with them, whose doing
-        return bool(path.get(need)) and (not by or path.get(need) == by)   # the end is
+        return bool(path.get(need)) and (not by or path.get(need) == by) \
+            and counts_after(path, mark, f"{need}_seq")              # the end is; (f547's fifth review) since they set against them
     return False
 
 
@@ -1294,7 +1319,7 @@ def heard(ws, npc, speech: str) -> None:
     """(the talk, after the reply) What talking with them may meet - a found clue of their situation said to them that they did not hold
     themselves (told), or trust earned since the situation began (trusted) - noted on the path; then, the player being with them, every
     way they open is looked at again, so a condition met elsewhere (paid, kept safe) is answered with their yes now."""
-    from engine import events, regard
+    from engine import deeds, events, regard
     state = ws.store.load_world_state()
     W = _R()["ways"]
     moved, theirs = False, False
@@ -1311,10 +1336,11 @@ def heard(ws, npc, speech: str) -> None:
                 b = base[ws.acting]
                 ok = now >= min(100, max(int(W["trust"]), b + int(W["trust_gain"]))) and (now > b or b >= 100)
             if ok:
-                p["trusted"], moved = ws.acting, True
+                p["trusted"], p["trusted_seq"], moved = ws.acting, deeds.tick(state), True
         if p.get("need") == "told" and not p.get("told"):
-            if any(c.get("found") and c.get("npc") != npc.id and told_by(speech, c, ws.store, ws.world) for c in th.get("clues") or []):
-                p["told"], moved = ws.acting, True
+            if any(c.get("found") and not c.get("destroyed") and c.get("npc") != npc.id and told_by(speech, c, ws.store, ws.world)
+                   for c in th.get("clues") or []):          # (f547's fifth review) a destroyed piece shows nothing
+                p["told"], p["told_seq"], moved = ws.acting, deeds.tick(state), True
     if moved:
         ws.store.save_world_state(state)
     if theirs:
@@ -1331,9 +1357,10 @@ def killed(ws, state: dict, deed: dict) -> bool:
         if th.get("status") != "active":
             continue
         for p in th.get("paths") or []:
-            if p.get("kind") == "part" and p.get("need") == "protected" and not p["done"] and not p.get("protected") \
+            if p.get("kind") == "part" and p.get("need") == "protected" and not p["done"] and p.get("protected", ws.acting) in ("", ws.acting) \
                     and (place in (p.get("near") or ()) or any(roads.on_road(ws.world, place, r) for r in p.get("roads") or ())):
                 p["protected"], p["protected_at"], noted = ws.acting, int(deed.get("minute") or ws.minutes), True
+                p["protected_seq"] = int(deed.get("seq") or 0)       # (f547's fifth review) each kill renews it, in the world's count
     return noted
 
 

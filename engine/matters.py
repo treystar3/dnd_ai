@@ -445,7 +445,7 @@ def road_matter(ws, a: str, b: str, rng: random.Random):
         return None
     live.sort(key=lambda t: t.get("touched", False))               # one the player has not met yet, first
     th = live[0]
-    clue = next((c for c in th["clues"] if not c["found"]), None)
+    clue = next((c for c in th["clues"] if not c["found"] and not c.get("destroyed")), None)   # (f547's fifth review) never one destroyed
     kill = next((p["target"] for p in th.get("paths", []) if p["kind"] == "kill" and not p["done"] and p["target"] in ws.world.bestiary), "")
     return th, (clue["text"] if clue else th["stages"][th["stage"]]["description"]), kill
 
@@ -467,7 +467,7 @@ def road_shown(ws, th_id: str, carried: bool = True) -> None:
         return
     th["road"] = True
     th["touched"] = True
-    c = next((c for c in th.get("clues", []) if not c["found"]), None) if carried else None
+    c = next((c for c in th.get("clues", []) if not c["found"] and not c.get("destroyed")), None) if carried else None
     if c:
         c["found"] = True
         c["by"] = "on the road"

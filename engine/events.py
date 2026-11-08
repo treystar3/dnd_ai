@@ -328,10 +328,12 @@ def sync_paths(state: dict, th: dict) -> None:
                                                "kind": "kill", "target": s["creature"], "spawn": s["id"], "done": False})
 
 
-def _won_over(state: dict, since: int, npc_id: str, by: str = "") -> bool:
+def _won_over(state: dict, since: int, npc_id: str, by: str = "", mark: int = -1) -> bool:
+    from engine import situation_parts
     mine = [d for d in deeds.since(state, since, ["persuade"]) if d.get("npc") == npc_id
             and d.get("degree", "success") in ("success", "strong success")            # (f547's third review) a failure wins no one;
-            and (not by or d.get("by", by) == by)]                                      # (the fourth) nor another character's words
+            and (not by or d.get("by", by) == by)                                       # (the fourth) nor another character's words;
+            and situation_parts.counts_after(d, mark)]                                  # (the fifth) nor words they have answered since
     return any(d.get("degree") == "strong success" for d in mine) or len(mine) >= 2
 
 
@@ -350,10 +352,10 @@ def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None
         found = [x for x in state.get("spawns", []) if x["id"] in ids]
         return bool(found) and all(x["defeated"] for x in found)
     if path["kind"] == "persuade":                                  # (f547's fourth review) words they have since answered with a stance
-        return _won_over(state, _since_stance(thread, made, path["target"], by), path["target"], by)          # do not count
+        return _won_over(state, made, path["target"], by, _against(thread, path["target"], by))           # do not count
     if path["kind"] == "treaty":
         ids = [i for i in path["target"].split(",") if i]
-        return bool(ids) and all(_won_over(state, _since_stance(thread, made, i, by), i, by) for i in ids)
+        return bool(ids) and all(_won_over(state, made, i, by, _against(thread, i, by)) for i in ids)
     if path["kind"] == "clear":
         return any(d.get("place") == path["target"] for d in deeds.since(state, made, ["dungeon_cleared"]))
     if path["kind"] == "contract":
@@ -419,9 +421,17 @@ def after_deed(ws, deed: dict) -> None:
         store.save_world_state(state)
 
 
-def _since_stance(th: dict, made: int, npc_id: str, by: str) -> int:
+def _against(th: dict, npc_id: str, by: str) -> int:
     from engine import situation_parts
-    return max(made, situation_parts.stance_at(th, npc_id, by)) if th.get("parts") else made
+    return situation_parts.answered_seq(th, npc_id, by) if th.get("parts") else -1
+
+
+def _won_by_someone(state: dict, th: dict, npc_id: str) -> bool:
+    """(f547's fifth review) A treaty's side won over by some character: by that character's own words, since that side last set itself
+    against them, and not set against them now."""
+    bys = {d.get("by", "") for d in deeds.since(state, th["made"], ["persuade"]) if d.get("npc") == npc_id}
+    return any(not _set_against(th, {"kind": "treaty", "target": npc_id}, b) and _won_over(state, th["made"], npc_id, b, _against(th, npc_id, b))
+               for b in sorted(bys))
 
 
 def _set_against(th: dict, path: dict, by: str) -> bool:
@@ -1041,7 +1051,7 @@ def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: i
         p *= cfg["boss_dead"]
     for path in th.get("paths", []):
         if path["kind"] == "treaty":
-            won = sum(1 for i in path["target"].split(",") if i and _won_over(state, th["made"], i))
+            won = sum(1 for i in path["target"].split(",") if i and _won_by_someone(state, th, i))
             p *= C["treaty_fall_halving"] ** won
     present = _player_in(store, world, town)
     if present:

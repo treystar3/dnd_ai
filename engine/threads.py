@@ -478,7 +478,8 @@ def untold(th: dict) -> dict:
     """The lines of a thread nothing has copied yet: stages not yet advanced to (the first, while it is current), the fallout, the truth,
     the clues not yet found and not in anyone's head (a word door's first clue is its holder's concern), the reveal, the resolution."""
     stages = [i for i in range(len(th["stages"])) if i > th["stage"] or (i == 0 and th["stage"] == 0)]
-    clues = [i for i, c in enumerate(th.get("clues", [])) if not c["found"] and not (i == 0 and th.get("door") == "word")]
+    clues = [i for i, c in enumerate(th.get("clues", [])) if not c["found"] and not c.get("destroyed")      # (f547's fifth review)
+             and not (i == 0 and th.get("door") == "word")]
     return {"stages": stages, "clues": clues, "fallout": th["status"] == "active", "truth": not th.get("revealed"),
             "reveal": bool(th.get("reveal")) and not th.get("revealed"), "resolution": True}
 

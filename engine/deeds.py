@@ -13,6 +13,14 @@ E = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / 
 KEEP = E["judge"]["keep_deeds"]
 
 
+def tick(state: dict) -> int:
+    """(f547's fifth review) The world's own count of what has happened, in order: every deed, every ruling kept and every mark a
+    situation's way takes (kept safe, told, trusted) gets the next. A count orders what minutes cannot (two things in one minute) and
+    what a person has already answered (their stance) from what came after."""
+    state["seq"] = int(state.get("seq") or 0) + 1
+    return state["seq"]
+
+
 def log(store, kind: str, minute: int, place: str = "", **data) -> dict:
     """Record a deed. Returns it. Never raises: the ledger is a convenience, not a rule."""
     deed = {"kind": kind, "minute": minute, "place": place, **data}
@@ -20,6 +28,7 @@ def log(store, kind: str, minute: int, place: str = "", **data) -> dict:
         state = store.load_world_state()
         if not state:
             return deed
+        deed["seq"] = tick(state)
         deeds = state.setdefault("deeds", [])
         deeds.append(deed)
         del deeds[:-KEEP]
