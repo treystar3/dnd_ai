@@ -323,7 +323,8 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         where = pulse.town_of(world, a["on"]) if a["what"] == "prices" else a["on"]    # (f546's third review) a price rise is the town's
         same = next((x for x in state["effects"] if x.get("thread") == th["id"] and x.get("kind") == a["what"] and x.get("place") == where
                      and "of_part" not in x and not x.get("good") and not x.get("lifted") and int(x.get("until", 0)) > int(t)
-                     and a["what"] != "mark"), None)
+                     and a["what"] != "mark" and (a["what"] == "closed" or int(x.get("value", 0)) > 0)), None)   # (f546's fourth
+                                                                 # review) only a harm is this harm: a price drop, a safer road, never
         if same is not None:                                            # (f546's second review) what its telling already laid there is
             same["of_part"] = i                                         # this condition: tagged its own, never laid a second time,
             same["part"] = True                                         # (f546's third review) and the parts' own from now on: it

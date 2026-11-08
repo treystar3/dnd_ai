@@ -345,10 +345,15 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         pairs.add((frozenset((a, b)), p.tie))
         add({"kind": "tie", "a": a, "b": b, "tie": p.tie})
     shut = pulse.shut_roads(store.load_world_state() or {}, world, now) if parts.conditions else set()
+    priced: set[str] = set()                                                 # (f546's fourth review) a price rise is its town's
     for p in parts.conditions:
         on_road = p.on in world.roads
         if not (pulse.known(world, p.on) or on_road) or (on_road and p.kind == "prices"):
             drop(p, "not_a_place"); continue
+        if p.kind == "prices":
+            if pulse.town_of(world, p.on) in priced:
+                drop(p, "twice"); continue                                   # a second rise in one town is the same rise, said twice
+            priced.add(pulse.town_of(world, p.on))
         if p.kind == "closed" and on_road and not ways and not roads.way_round(world, p.on, shut):
             drop(p, "only_way"); continue
         label = plain(p.label, world, store)

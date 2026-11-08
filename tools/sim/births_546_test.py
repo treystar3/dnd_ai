@@ -323,6 +323,29 @@ check("(the third review) a price rise proposed on a place of the town is the on
 check("(the third review) ...and one threat for it in the heart", sum(1 for x in got["heart"]["threats"] if x["kind"] == "condition"
       and x["what"] == "prices") == 1, [x for x in got["heart"]["threats"] if x["kind"] == "condition"])
 
+# ---- (the fourth review) a telling's price drop is no rise to take over; two rises in one town are one
+stub.a_SituationParts = lambda u, k: {"people": [{"who": rows[0].id, "stake": "harmed", "want": "safety"}],
+                                      "conditions": [{"on": "trading_square", "kind": "prices"},
+                                                     {"on": next(p for p in sorted(_r.town_places(world, town)) if p != "trading_square"),
+                                                      "kind": "prices"}]}
+th10 = start(store, world, ws.catalog, ws.minutes, "rare", seed=41)
+st = store.load_world_state()
+st["effects"].append({"kind": "prices", "place": town, "value": -10, "until": ws.minutes + 4 * 1440, "thread": th10["id"], "cause": "a glut"})
+store.save_world_state(st)
+for _ in range(3):
+    if thread_of(store, th10["id"]).get("parts"):
+        break
+    ws.turn("I look around.")
+got = thread_of(store, th10["id"])
+p10 = [e for e in store.load_world_state()["effects"] if e.get("thread") == th10["id"] and e["kind"] == "prices" and not e.get("good")]
+drop10 = [e for e in p10 if int(e["value"]) < 0]
+rise10 = [e for e in p10 if int(e["value"]) > 0]
+check("(the fourth review) a part's price rise never takes over its telling's price drop: the drop keeps its own days, a rise is laid",
+      got.get("parts") and len(drop10) == 1 and "of_part" not in drop10[0] and not drop10[0].get("part") and len(rise10) == 1
+      and "of_part" in rise10[0], p10)
+check("(the fourth review) two price rises proposed on two places of one town are one rise, one threat", len(rise10) == 1
+      and sum(1 for x in got["heart"]["threats"] if x["kind"] == "condition" and x["what"] == "prices") == 1, got.get("heart"))
+
 # ---- (the second review) a tier no longer born, due by an older rule: adopted, never left waiting
 born0 = list(situations.S["births"]["tiers"])
 situations.S["births"]["tiers"] = ["campaign"]
