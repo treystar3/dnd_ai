@@ -111,7 +111,7 @@ class InventoryActions:
         return False
 
     NOT_STORY = ("stew", "soup", "bread", "meal", "food", "ale", "beer", "wine", "drink", "meat", "potion", "draught",
-                 "tonic", "bandage", "coin", "gold", "silver", "copper", "money", "sword", "axe", "spear", "bow",
+                 "tonic", "bandage", "salve", "coin", "gold", "silver", "copper", "money", "sword", "axe", "spear", "bow",
                  "dagger", "armor", "armour", "shield", "helm", "hammer", "mace", "staff")
 
     def story_object(self, name: str) -> bool:
@@ -273,8 +273,7 @@ class InventoryActions:
         amount = self.coin_amount(intent.item or "") or self.coin_amount(text)
         wares = self.wares_of(npc)                            # (f545) their trade's and what they hold
         recent = " ".join(line for _, line in self.convo[-4:]).lower()
-        ware = next((w for w in wares if amount and w.price == amount), None) or \
-            next((w for w in wares if w.id in recent or w.name.lower().split()[-1] in recent), None)
+        ware = self.ware_paid_for(npc, wares, amount, f"{intent.item or ''} {text}".lower(), recent, intent)
         if ware:
             intent.target, intent.ware = npc.id, ware.id
             self.on_buy(intent, text)
@@ -300,6 +299,30 @@ class InventoryActions:
 
     BRIBE_WORDS = ("bribe", "look the other way", "blind eye", "let me through", "let me pass", "let me in", "keep quiet", "say nothing",
                    "forget", "overlook", "in exchange", "for your silence", "slip ", "grease", "so that you", "if you will", "to let")
+
+    GIFT_WORDS = ("keep it", "keep the change", "for your trouble", "for her trouble", "for his trouble", "for their trouble", "a gift",
+                  "as a gift", "a tip", "for luck", "for the children", "for nothing", "no need to")
+
+    def ware_paid_for(self, npc, wares, amount: int, said: str, recent: str, intent):
+        """(f545's review) The ware coin handed over pays for, or None (then it is a bribe or a gift). A ware named in the words that
+        come with the coin, or in the talk just before, whose price the coin meets; else the one ware at exactly that price, unless the
+        words say it is a bribe or a gift. A ware is named by its own words, whole ("fish" is not "fishing", "oil" not "soil")."""
+        def named(w, text: str) -> bool:
+            return bool(inv.ware_words(w) & set(inv._plain_words(text)))
+        priced = lambda w: bool(amount) and amount in (w.price, self.quote_ware(npc, w).price)
+        now = [w for w in wares if named(w, said)]
+        if now:
+            return next((w for w in now if priced(w)), now[0])
+        if self.is_bribe(intent, said) or any(g in said for g in self.GIFT_WORDS):
+            return None
+        before = [w for w in wares if named(w, recent)]
+        at_price = [w for w in wares if priced(w)]
+        both = [w for w in at_price if w in before]
+        if both:
+            return both[0]
+        if len(at_price) == 1:
+            return at_price[0]
+        return before[0] if len(before) == 1 and not amount else None
 
     def is_bribe(self, intent, text: str) -> bool:
         low = f"{text} {intent.summary}".lower()
@@ -818,7 +841,7 @@ class InventoryActions:
         buyer = next((n for n in buyers if n.id == intent.target), None) or \
             (sorted(buyers, key=lambda n: -(self.world.roles[n.role].buy_rate or R["sell_rate"]))[0] if buyers else None)
         if not buyer:
-            self.refuse(f"No one here buys {cat}.")
+            self.refuse(f"No one here buys {inv.category_word(cat)}.")      # (f545's review) "trade goods", never "trade"
             return
         sold = inv.take(self.pack, intent.item or text, max(1, intent.count))
         self.finish_sale(sold, buyer, text)

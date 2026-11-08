@@ -232,7 +232,8 @@ class PlanRepairs:
                 a.kind = "gamble"
             elif HAGGLE.search(low) and not question:
                 sellers = [n for n in here.values() if self.wares_of(n)]
-                seller = who if who in sellers else (sellers[0] if sellers and who is None else None)
+                seller = who if who in sellers else (next((n for n in sellers if self.ware_named(low, n)), sellers[0] if sellers else None)
+                                                    if who is None else None)      # (f545's review) the one who sells what is named
                 ware = self.ware_named(low, seller) if seller is not None else ""
                 if ware:
                     a.kind, a.ware, a.target = "haggle", ware, seller.id
@@ -265,8 +266,9 @@ class PlanRepairs:
     def ware_named(self, low: str, seller) -> str:
         """The id of the seller's ware the line names ("the room"), '' when none or several."""
         hits = []
-        for w in self.wares_of(seller):
-            names = {w.id.replace("_", " ")} | {t for t in re.findall(r"[a-z]+", w.name.lower()) if len(t) > 3}
+        from engine import inventory as inv
+        for w in self.wares_of(seller):                      # (f545's review) by its own words, never the sack it is sold in
+            names = {w.id.replace("_", " ")} | {t for t in inv.ware_words(w) if len(t) > 3}
             if any(re.search(rf"\b{re.escape(n)}s?\b", low) for n in names):
                 hits.append(w.id)
         return hits[0] if len(hits) == 1 else ""

@@ -358,10 +358,14 @@ def map_offer(world, store, offer, issuer: str, issuer_name: str, now: int, guil
                 return _quest("hunt", letter, f"Hunt {count} {c.name if count == 1 else plural(c.name)} in {p.name}", now, place=p.id,
                               creature=c.id, count=count, **common)
     if offer.kind == "gather":
-        good = inv.good_named(what)                          # (f545) as find() would match it, with no item minted per good
-        if good:
+        import re
+        named = next((m for m in sorted(items.MATERIALS.values(), key=lambda m: -len(m.name))      # (f545's review) a material named
+                      if re.search(rf"\b{re.escape(m.name.lower())}s?\b", what)), None)            # whole first: "wool cloth" is wool
+        good = "" if named else inv.is_good(what)            # (f545) the good the request is for, by its own word ("moonpetal flowers")
+        if good and not good.startswith("material:"):
             return _quest("gather", "F", f"Bring {count} {inv.GOODS[good].name}", now, good=good, count=count, **common)
-        mat = next((m for m in items.MATERIALS.values() if m.name.lower() in what), None)
+        mat = named or (items.MATERIALS.get(good.split(":", 1)[1]) if good.startswith("material:") else None) or \
+            next((m for m in items.MATERIALS.values() if m.name.lower() in what), None)
         if mat:
             return _quest("materials", "F", f"Bring {count} {mat.name}", now, material=mat.id, count=count, **common)
     if offer.kind == "deliver" and offer.to:

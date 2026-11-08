@@ -3542,14 +3542,14 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                      for n in sellers for w in self.wares_of(n))
         if not listed and self.buy_from_stock(intent, text):
             return
-        seller = next((n for n in sellers if n.id == intent.target), None) or (sellers[0] if sellers else None)
+        wanted = intent.ware.lower().strip()
+        seller = next((n for n in sellers if n.id == intent.target), None) or \
+            next((n for n in sellers if self.ware_asked(self.wares_of(n), wanted)), None) or (sellers[0] if sellers else None)   # (f545's review)
         if not seller:
             self.refuse("No one here is selling anything.")
             return
         wares = self.wares_of(seller)
-        wanted = intent.ware.lower().strip()
-        ware = next((w for w in wares if w.id == wanted), None) or \
-            next((w for w in wares if wanted and (wanted in w.name.lower() or w.id in wanted)), None)
+        ware = self.ware_asked(wares, wanted)
         if not ware:
             self.refuse(f"{seller.label(self.acting)} sells: " + ", ".join(f"{w.name} ({money.words(self.quote_ware(seller, w).price)})" for w in wares))
             return

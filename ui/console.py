@@ -459,7 +459,8 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
     print("═" * min(WIDTH, 92))
 
 
-PACK_GROUPS = (("Gear", ("weapon", "armor", "jewelry")), ("Consumables", ("consumable",)), ("Food & herbs", ("food", "herb")))
+PACK_GROUPS = (("Gear", ("weapon", "armor", "jewelry")), ("Consumables", ("consumable",)), ("Food & herbs", ("food", "herb")),
+               ("Trade goods", ("trade",)))                                   # (f545's review) salt and cloth are no materials
 
 
 def item_rows(bag: list, usable: bool = False) -> list[dict]:
@@ -473,7 +474,7 @@ def item_rows(bag: list, usable: bool = False) -> list[dict]:
         rows.append({"n": n, "uid": item.uid, "name": items.display_name(item), "qty": item.quantity, "detail": items.summary(item),
                      "value": money.short(inv.unit_value(item)), "rarity": item.rarity, "legendary": item.rarity == "legendary", "group": group,
                      "flavour": item.description if item.rarity == "legendary" and item.description else "",
-                     "use": good.name if usable and good and good.kind != "herb" else ""})
+                     "use": good.name if usable and good and good.kind not in ("herb", "trade") else ""})   # (f545's review) carried, never used
     return rows
 
 

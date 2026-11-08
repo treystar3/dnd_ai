@@ -82,7 +82,9 @@ class PastimeActions:
         and the seller thinks a little less of the stranger."""
         H = PT["haggle"]
         sellers = [n for n in self.present if self.wares_of(n) or self.world.roles[n.role].stock]
-        seller = next((n for n in sellers if n.id == intent.target), None) or (sellers[0] if sellers else None)
+        seller = next((n for n in sellers if n.id == intent.target), None) or \
+            next((n for n in sellers if self.ware_asked(self.wares_of(n), (intent.ware or "").lower().strip())), None) or \
+            (sellers[0] if sellers else None)                         # (f545's review) the one who sells what is haggled over
         if seller is None:
             self.refuse("No one here is selling anything.")
             return

@@ -8,3 +8,13 @@ gift_trust: 2           # trust gained when the player delivers a story item to 
 forage_minutes: 30      # time one forage takes
 forage_finds: [1, 3]    # how many herbs a successful forage turns up
 craft_minutes: 30       # time one craft takes
+
+# (f545's review) Telling a good from a thing that only mentions one (engine/inventory.py is_good, ware_words). A good's name may stand
+# with a form or a measure of it ("moonpetal flowers", "a sack of salt", "venison jerky") and is still that good; a thing whose name
+# ends in another word ("a rope ladder", "a sealed letter") is not. A trifle of a good ("a scrap of cloth", "a length of rope") is a
+# trifle: a keepsake a person may hand over, never the good the market sells. The measures are also what a ware's name is sold in, so
+# "the sack" never names salt rather than grain.
+good_forms: [leaf, leaves, flower, blossom, bloom, bulb, clove, sprig, bunch, bundle, sack, bag, jar, flask, bottle, cask, keg, coil,
+             string, bolt, roll, steak, jerky, ham, haunch, joint, loaf, measure, pouch, handful, basket, crate, barrel, load, slab,
+             cut, side, brace, root, stalk, head, mug, bowl]
+trifles: [scrap, length, stub, shred, strip, splinter, sliver, fragment, thread, twist, swatch]

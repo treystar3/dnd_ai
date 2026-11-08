@@ -40,11 +40,12 @@ sellers = {g: sorted(r.id for r in world.roles.values() for w in r.sells if w.ki
 check("...each is sold by some trade (the merchant, the baker, the fisher, the lumberjack, the innkeeper, the chandler)",
       all(sellers.values()) and "merchant" in sellers["salt"] and sellers["flour"] == ["baker"], sellers)
 check("...and bought by the trades that buy anything", all("any" in world.roles[r].buys for r in ("merchant", "tinker", "quartermaster")))
-roles_doc = yaml.safe_load(open("data/world/roles.yaml"))
-serves_was = {"merchant", "baker", "fisher", "lumberjack", "innkeeper", "chandler"}
-check("...sold only by trades that already served the player, so who is made first in a scene is unmoved",
-      {r for s in sellers.values() for r in s} <= serves_was and all(r.get("buys") or r.get("sells") for r in roles_doc
-                                                                       if r["id"] in {"fisher", "lumberjack"}))
+def served_without(role) -> bool:            # what made them serve the player, were the trade goods taken off their list
+    r = world.roles[role]
+    return bool([w for w in r.sells if not (w.kind == "item" and inv.GOODS.get(w.item) and inv.GOODS[w.item].kind == "trade")]
+                or r.buys or r.stock or r.commissions or r.relics)
+check("...sold only by trades that served the player without them, so who is made first in a scene is unmoved",
+      all(served_without(r) for s in sellers.values() for r in s), {r: served_without(r) for s in sellers.values() for r in s})
 
 # ---- the situation's goods: trade first, never the kit
 listed = list(situations._goods())
@@ -70,9 +71,56 @@ check("a request to gather salt is a request for the good salt", offer and offer
       and offer["title"] == "Bring 3 salt", offer)
 
 # ---- a gift is a story object unless it is a good by name
-for name, story in (("a sealed letter", True), ("a rope ladder", True), ("a cloth-wrapped key", True), ("a jar of wine", False),
-                    ("two sacks of salt", False), ("a sealed codex", False), ("silverleaf", False), ("a hot meal", False)):
-    check(f"a gift of {name!r} is {'a story object' if story else 'a good, never a story object'}", ws.story_object(name) is story)
+GIFTS = (("a sealed letter", True), ("a rope ladder", True), ("a cloth-wrapped key", True), ("a scrap of cloth", True),
+         ("a length of rope", True), ("the bundle of letters", True), ("an oil lamp", True), ("a cloth doll", True),
+         ("two sacks of salt", False), ("a bolt of cloth", False), ("a coil of rope", False), ("a sealed codex", False),
+         ("moonpetal flowers", False), ("a bundle of yarrow leaves", False), ("venison jerky", False), ("a boar ham", False),
+         ("a clove of garlic", False), ("rations", False), ("a tome", False), ("two torches", False), ("wolf hides", False),
+         ("healing salve", False))
+for name, story in GIFTS:                    # (f545's review) none of these is refused by NOT_STORY's words alone, but the salve
+    check(f"a gift of {name!r} is {'a story object' if story else 'a good or a material, never a story object'}", ws.story_object(name) is story)
+
+# ---- (the review) coin handed over, a theft, a purchase with no seller named, a haggle, a request: by the ware's own words
+from npc.models import NPC
+people = {r: NPC(id=f"t545_{r}", name=f"Tess {r}", role=r, people="human", location="trading_square") for r in ("merchant", "fisher", "innkeeper", "chandler",
+                                                                                                "lumberjack")}
+def paid(role, amount, said, recent=""):
+    w = ws.ware_paid_for(people[role], ws.wares_of(people[role]), amount, said, recent, A(kind="give", target=people[role].id))
+    return w.id if w else ""
+check("coin handed over for a ware named pays for that one, of two at the same price", paid("merchant", 12, "12 copper for the rope") == "rope")
+check("...coin to look the other way is a bribe, though a ware costs the same", paid("fisher", 10, "10 copper to look the other way") == "")
+check("...coin for their trouble is a gift", paid("innkeeper", 25, "25 copper for her trouble, keep it") == "")
+check("...a ware is named by its word whole: fishing is no fish, soil no oil", paid("fisher", 200, "two silver", "good fishing today?") == ""
+      and paid("chandler", 100, "a silver", "the soil is poor") == "")
+check("...and the one ware at the price still sells for it, as before", paid("innkeeper", 15, "15 copper") == "meal")
+loot = lambda role, what: ws.find_loot(people[role], what, what)
+check("stealing 'the bundle of letters' or 'the sack of coins' reaches for no ware sold in a bundle or a sack",
+      loot("chandler", "the bundle of letters").get("mode") != "ware" and loot("merchant", "the sack of coins").get("mode") != "ware"
+      and loot("fisher", "the string of pearls").get("mode") != "ware")
+check("...while 'the candles' are the chandler's candles", loot("chandler", "the candles").get("mode") == "ware"
+      and loot("chandler", "the candles")["ware"].item == "candles")
+asked = lambda role, what: getattr(ws.ware_asked(ws.wares_of(people[role]), what), "id", "")
+check("a ware asked for is matched by what the asking ends in: clothes, salted pork, a rope ladder, a wineskin and grain alcohol are none",
+      [asked("merchant", w) for w in ("clothes", "salted pork", "a rope ladder", "grain alcohol")] == ["", "", "", ""]
+      and asked("innkeeper", "a wineskin") == "", [asked("merchant", w) for w in ("clothes", "salted pork", "a rope ladder", "grain alcohol")])
+check("...and some rope, a sack of salt, a room are", asked("merchant", "some rope") == "rope" and asked("merchant", "a sack of salt") == "salt"
+      and asked("innkeeper", "room") == "room")
+check("...so with nobody named, a room is bought of the one who lets rooms, not the first seller there",
+      asked("fisher", "room") == "" and asked("innkeeper", "room") == "room")
+check("a haggle over the sack of salt is over the merchant's salt", ws.ware_named("i haggle over the sack of salt", people["merchant"]) == "salt")
+for what, title in (("spider silk cloth", "Bring 3 spider silk"), ("ironwood planks", "Bring 3 ironwood"), ("wool cloth", "Bring 3 wool"),
+                    ("moonpetal flowers", "Bring 3 moonpetal"), ("candle wax", None), ("wolf hide", "Bring 3 wolf hide")):
+    q = quests.map_offer(world, None, QuestOffer(kind="gather", what=what, count=3), "x", "Hollis", 600)
+    check(f"a request to gather {what!r} is {title or 'nothing the game can track'}", (q and q["title"]) == title, q and q["title"])
+from ui import console as real_console
+import importlib
+rows = real_console.item_rows([inv.make_good("salt", 2)], usable=True)
+check("the pack shows salt among trade goods, with no Use button, said to be a trade good",
+      rows[0]["group"] == "Trade goods" and rows[0]["use"] == "" and rows[0]["detail"].startswith("trade good - "), rows)
+check("...and nobody buying it is said plainly", inv.category_word("trade") == "trade goods")
+desert = pulse.town_of(world, "saltwind_oasis") if "saltwind_oasis" in world.places else ""
+check("the land about a desert town gives no moonpetal (the review: every herb counted everywhere)",
+      desert and "moonpetal" not in situations.within_reach(world, desert), desert and sorted(situations.within_reach(world, desert)))
 
 # ---- bought, carried, sold, never used
 ws.enter("tilted_plough")

@@ -15,15 +15,17 @@ lists:
 
 # (f545) Stances the check refuses, and conditions it lifts: a person who blocks an end to the trouble does not want the road open or
 # the goods moved ([stake, want]); a person who wants coin needs no condition of pay ([want, condition]: the condition is lifted, the
-# person kept). A condition the situation offers no way to meet is lifted too (told with no evidence another holds; given with no
-# good wanted by that person), so the person helps freely rather than standing as a locked door.
+# person kept). A condition the situation offers no way to meet is lifted too (told with no evidence another holds or that lies at a
+# place; given with no good that person wants within the player's reach: held by someone else of the situation, sold by a trade of the
+# town, or given by the land about it), so the person helps freely rather than standing as a locked door.
 stances:
   refused: [[blocks, road_open], [blocks, goods_moved]]
   lifted: [[coin, paid]]
 
 # (f545) The goods a situation may turn on, in the order its prompt lists them: the trade goods first (what a town makes, eats, burns and
 # builds with), then the herbs and meat the land gives and the one remedy a town would send for. Never the player's kit: no tome, codex,
-# tonic, torch or ration (f544: those read as cargo absurdly, and three of them were most of what the model named).
+# tonic, torch or ration (f544: those read as cargo absurdly, and three of them were most of what the model named). The startup check
+# refuses a book or a codex here, a good the world lacks and one listed twice; the rest of the kit is kept out by this list alone.
 goods: [salt, grain, flour, cloth, sawn_planks, dried_fish, wine, lamp_oil, rope, candles, silverleaf, moonpetal, yarrow, wild_garlic,
         venison, boar_meat, healing_draught]
 

@@ -705,7 +705,7 @@ function renderJournal(d) {
 const RARE = { uncommon: "r-uncommon", rare: "r-rare", epic: "r-epic", legendary: "leg" };
 const rarityOf = (x) => (x && (RARE[x.rarity] || (x.legendary ? "leg" : ""))) || "";
 const named = (x, text) => el("span", rarityOf(x), (rarityOf(x) === "leg" && !/^★/.test(text) ? "★ " : "") + text);
-const tidy = (t) => (t || "").replace(/^(consumable|food|herb|material|gear|key) - /, "").replace(/^lv (\d+) (?=\S)/, "lv $1 · ");
+const tidy = (t) => (t || "").replace(/^(consumable|food|herb|material|gear|key|trade good) - /, "").replace(/^lv (\d+) (?=\S)/, "lv $1 · ");
 const cap1 = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 function itemRow(x, withUse) {
   const row = el("div", "row2"), info = el("div", "info"), nm = el("div", "nm");

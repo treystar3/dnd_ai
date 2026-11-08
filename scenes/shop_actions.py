@@ -37,6 +37,18 @@ class ShopActions:
         from engine import situation_parts
         return list(self.world.roles[npc.role].sells) + situation_parts.held_wares(self.store, npc.id)
 
+    def ware_asked(self, wares, wanted: str):
+        """(f545's review) The ware a buyer asks for: by its id, or the words asked being in its name, or what is asked ending in the
+        ware's own word ("some rope", "a sack of salt"); never a ware whose word only sits inside another ("clothes", "salted pork", "a
+        rope ladder", "grain alcohol")."""
+        if not wanted:
+            return None
+        asked = inv._plain_words(wanted)
+        return next((w for w in wares if w.id == wanted), None) or next((w for w in wares if wanted in w.name.lower()), None) or \
+            next((w for w in wares if asked and asked[-1] in inv.ware_words(w)
+                  and asked[-1] in {inv._head(w.name), inv._head(w.id.replace("_", " "))}
+                  | ({inv._head(inv.GOODS[w.item].name)} if w.kind == "item" and w.item in inv.GOODS else set())), None)
+
     def quote_ware(self, seller, ware, announce: bool = False):
         """The ware with its price after haggling, guild discount, the town's prices and your heat (price_of)."""
         ware = ware.model_copy(update={"price": self.price_of(ware.price, seller, ware.kind, ware.item if ware.kind == "item" else "")})

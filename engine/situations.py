@@ -20,7 +20,7 @@ held ("person" or "place"). An evidence part carries its truth: it is never hand
 render() makes the SITUATION PARTS lines from the names, trades and goods of the world, never an id, one line per part from the phrase
 tables, each drawn on streams.fixed(key, "parts", i), so a situation's lines are the same every time they are told.
 
-(f543) prompt() is what the model is shown to propose them (the lists it may name, sorted, ids beside names; the system text is
+(f543) prompt() is what the model is shown to propose them (the lists it may name, each in a fixed order, ids beside names; the system text is
 pulse_prompts.PARTS_SYSTEM, which gives every word of the closed lists), and propose() the one call that asks, then checks: asked in
 play from f547, measured with thinking off and on first (tools/situation_ab.py, f544)."""
 from __future__ import annotations
@@ -56,12 +56,20 @@ def _goods() -> dict:
 
 def within_reach(world, town: str, rows=()) -> set[str]:
     """(f545) The situation's goods a player could get hold of in `town` without the situation: one a trade of the town sells (its
-    places' written trades and its people's), or one the land gives (a herb that grows, meat from a kill)."""
+    places' written trades and its people's), or one the land about it gives (f545's review: a herb that grows, or meat from a creature
+    that lives, in the country of the town's places and the places one road from them - no moonpetal in the desert)."""
     roles = {r.role for r in rows}
-    for pid in (retrieval.town_places(world, town) if town else []):
+    here = set(retrieval.town_places(world, town)) if town else set()
+    for pid in here:
         roles |= set(world.places[pid].residents or {})
+    near = here | {n for pid in here for n in world.neighbors(pid)}
+    biomes = {world.places[p].biome for p in near if p in world.places and world.places[p].biome}
     sold = {w.item for r in roles if r in world.roles for w in world.roles[r].sells if w.kind == "item" and w.item}
-    return {g for g, good in _goods().items() if g in sold or good.grows_in or good.drops_from}
+
+    def land(good) -> bool:
+        return bool(set(good.grows_in or {}) & biomes) or any(set(world.bestiary[c].biomes) & biomes for c in good.drops_from or ()
+                                                             if c in world.bestiary)
+    return {g for g, good in _goods().items() if g in sold or land(good)}
 
 
 def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways: bool, now: int,
