@@ -707,8 +707,10 @@ def rulings_problems(c=None) -> list[str]:
         bad.append(f"situations.yaml rulings.max_tokens: at least half again the answer budget.yaml expects ({expected} tokens)")
     if not isinstance(RU.get("words_only_acts"), list) or not RU["words_only_acts"]:
         bad.append("situations.yaml rulings.words_only_acts: the acts that are words alone")
+    if not isinstance(RU.get("goods_acts"), list) or not RU["goods_acts"]:
+        bad.append("situations.yaml rulings.goods_acts: the acts that hand goods over")
     for k in ("no_part", "not_actor", "not_heard", "words_only", "failed_act", "unpaid", "no_goods", "no_evidence", "no_authority",
-              "no_means", "unwilling", "still_committed", "still_refusing", "rests_on", "gone", "twice"):
+              "no_means", "unwilling", "still_committed", "still_refusing", "rests_on", "gone", "twice", "too_many"):
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed (f547, the ruling's)")
     for k in ("most", "window", "trust"):

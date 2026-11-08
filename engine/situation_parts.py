@@ -629,13 +629,13 @@ def heard_by(act: dict) -> set[str]:
 def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], list[tuple[dict, str]]]:
     """(f547) The changes a ruling proposed for the act, checked in their order as one chain (the owner, 2026-11-08: "The engine
     validates prerequisites, presence, knowledge, authority, resources, and established world facts before committing them"): a change
-    that does not hold is dropped with its reason, and so is every change that needs it; the rest stand. Reads the save, writes
-    nothing, asks nothing. Returns (kept, dropped with the reason)."""
+    that does not hold is dropped with its reason, and so is every change that needs it; the rest stand, up to rulings.most. Reads the
+    save, writes nothing, asks nothing. Returns (kept, dropped with the reason)."""
     RU, why = S["rulings"], S["reasons"]
     CH = RU["changes"]
     parts = th.get("parts") or []
     by = act.get("by") or ""
-    heard = heard_by(act)
+    reached = set(heard_by(act))                               # who the act reached; (f547's review) and whoever a kept warning reached
     words = bool(act.get("words_only"))
     failed = "fail" in (act.get("degree") or "")
     tier = th.get("tier", "rare")
@@ -645,22 +645,31 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
     ok: set[int] = set()
     seen: set[int] = set()
     will: dict[int, str] = {}                                  # a person part's willingness toward `by`, as this chain leaves it
-    believed: set[int] = set()
 
-    def part(k: int):
+    def part(k):
         return parts[k - 1] if isinstance(k, int) and 1 <= k <= len(parts) else None
 
     def alive(a) -> bool:
         return a is not None and a.get("kind") == "person" and store.npc_exists(a["who"]) and not store.load_npc(a["who"]).gone
 
+    def base(k: int) -> str:                                   # (f547's review) as they stood before this act: no chain launders it
+        return ((part(k) or {}).get("willing") or {}).get(by, "")
+
     def standing(k: int) -> str:
-        return will.get(k) or ((part(k) or {}).get("willing") or {}).get(by, "")
+        return will.get(k) or base(k)
+
+    def earlier(k: int, word: str) -> bool:
+        return any(x["becomes"] == word and x["part"] == k for x in kept)
 
     def found(k: int) -> bool:
         a = part(k)
         clues = th.get("clues") or []
-        return bool(a and a.get("kind") == "evidence" and isinstance(a.get("clue"), int) and a["clue"] < len(clues)
-                    and clues[a["clue"]].get("found") and not a.get("now") == "destroyed")
+        held = bool(a and a.get("kind") == "evidence" and isinstance(a.get("clue"), int) and a["clue"] < len(clues)
+                    and clues[a["clue"]].get("found"))
+        return bool(a and a.get("now") != "destroyed" and not earlier(k, "destroyed") and (held or earlier(k, "found")))
+
+    def payee():
+        return next((x for x in parts if x.get("kind") == "person" and x.get("who") == act.get("npc")), None)
 
     def authority(k: int, a: dict) -> bool:                    # (the owner) "the authority or ability to withdraw his soldiers"
         actor = part(k)
@@ -676,6 +685,10 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
         if a["kind"] == "person":                                # one who holds the harm over another lets them go
             return actor.get("stake") == "blocks" or any(c.get("kind") == "condition" and c.get("by") == me for c in parts)
         return False
+
+    def changed_since(k: int) -> bool:                         # (f547's review) what moves one set against the player: a changed
+        return any(CH[x["becomes"]]["layer"] in ("world", "action") or (x["part"] == k and CH[x["becomes"]]["layer"] == "belief"
+                                                                          and x.get("because") == "evidence") for x in kept)
 
     def problem(c: dict) -> str:
         n, w = c.get("n"), c.get("becomes")
@@ -695,21 +708,26 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
         if who and not alive(part(who)):
             return why["not_actor"]
         layer = row.get("layer")
-        if layer in ("belief", "feeling", "willingness") and a["who"] not in heard:
+        because = c.get("because") or "words"
+        if layer in ("belief", "feeling", "willingness") and a["who"] not in reached:
             return why["not_heard"]
-        if who and part(who)["who"] not in heard and who not in {x["part"] for x in kept}:
+        if who and part(who)["who"] not in reached:
             return why["not_heard"]
-        if not who and layer in ("world", "action") and words:
-            return why["words_only"]
+        if not who and layer in ("world", "action"):
+            if words or because in ("words", "coin"):            # (f547's review) the player's own hand changes the world, never
+                return why["words_only"]                          # a word or a coin by itself
+            if a["kind"] == "person" and a["who"] not in reached:
+                return why["not_heard"]                          # one freed by the player's own hand was where the act was
         if failed and row.get("better"):
             return why["failed_act"]
-        because = c.get("because") or "words"
-        if because == "coin":
-            coin = int(act.get("coin") or 0)
-            asks = int(S["register"]["ways"]["pay"].get(tier, 0)) if a.get("condition") == "paid" else 1
-            if coin < max(1, asks):
+        if because == "coin":                                  # (f547's review) the coin went to someone: the one changed or the
+            to = payee()                                       # one acting must be them, and it must reach what they ask
+            if to is None or (a.get("who") != to["who"] and (not who or part(who)["who"] != to["who"])):
                 return why["unpaid"]
-        if because == "goods" and not (act.get("item") and int(act.get("count") or 1) > 0 and act.get("kind") in ("gift", "bribe")):
+            asks = int(S["register"]["ways"]["pay"].get(tier, 0)) if to.get("condition") == "paid" else 1
+            if int(act.get("coin") or 0) < max(1, asks):
+                return why["unpaid"]
+        if because == "goods" and not (act.get("item") and int(act.get("count") or 1) > 0 and act.get("kind") in set(RU["goods_acts"])):
             return why["no_goods"]
         if because == "force" and words:
             return why["words_only"]
@@ -721,24 +739,27 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
             return why["no_authority"]
         if w in ("given_up", "moved", "lost") and who and a.get("holder") != part(who)["who"]:
             return why["no_means"]
-        if w == "moved" and not who and not (act.get("item") or any(x["becomes"] == "given_up" and x["part"] == k for x in kept)):
+        if w == "moved" and not who and not (act.get("item") or earlier(k, "given_up")):
             return why["no_means"]
-        if w in ("tested",) and not (found(k) or any(x["becomes"] == "found" and x["part"] == k for x in kept)):
+        if w == "tested" and not found(k):
             return why["no_evidence"]
-        if w == "warns" and not (part(int(c.get("about") or 0)) or {}).get("kind") == "person":
+        if w == "warns" and not ((part(int(c.get("about") or 0)) or {}).get("kind") == "person" and int(c.get("about") or 0) != k):
             return why["no_part"]
         if who and w in cooperative and standing(who) in wont:
             return why["unwilling"]
         if layer == "willingness" and row.get("better"):
-            if standing(k) == "committed" and k not in believed:
+            if base(k) == "committed" and not any(x["part"] == k and x["becomes"] in ("believes", "doubts") and x.get("because") == "evidence"
+                                                  for x in kept):
                 return why["still_committed"]
-            if standing(k) == "refusing" and words and not kept:
+            if base(k) in ("refusing", "hostile") and words and because in ("words", "earlier") and not changed_since(k):
                 return why["still_refusing"]
         return ""
 
     for c in sorted((dict(x) for x in changes), key=lambda x: (int(x.get("n") or 0))):
         reason = problem(c)
         seen.add(c.get("n"))
+        if not reason and len(kept) >= int(RU["most"]):
+            reason = why["too_many"]
         if reason:
             dropped.append((c, reason))
             continue
@@ -747,9 +768,9 @@ def ruled(store, th: dict, act: dict, changes: list[dict]) -> tuple[list[dict], 
         layer = CH[c["becomes"]]["layer"]
         if layer == "willingness":
             will[c["part"]] = c["becomes"]
-        elif layer == "belief":
-            believed.add(c["part"])
-    return kept[:int(RU["most"])], dropped
+        if c["becomes"] == "warns":
+            reached.add(part(int(c["about"]))["who"])            # (f547's review) the one warned heard it: they may answer at once
+    return kept, dropped
 
 
 def _npc(ws, nid: str):
@@ -804,16 +825,22 @@ def keep_changes(ws, state: dict, th: dict, act: dict, kept: list[dict]) -> None
                 for e in state.get("effects", []):
                     if e.get("thread") == th["id"] and e.get("of_part") == c["part"] - 1 and not e.get("lifted"):
                         e["until"], e["lifted"] = min(int(e.get("until", t)), t), True
-            if w in ("broken", "mended"):
+            if w in ("broken", "mended"):                       # (f547's review) on the copies this keeps, which are what is saved
                 value = int(RU["trust"]) * (1 if w == "mended" else -1)
                 for end, other in ((a["a"], a["b"]), (a["b"], a["a"])):
-                    pulse.apply_one(ws.store, ws.world, None, state, {"kind": "relation", "npc": end, "other": other, "value": value,
-                                                                       "text": ""}, th.get("tier", "rare"), t, th.get("title", ""),
-                                    thread_id=th["id"])
+                    if ws.store.npc_exists(end) and ws.store.npc_exists(other):
+                        n = person({"who": end})
+                        r = dict(n.relations.get(other) or {"score": 0, "feeling": ""})
+                        r["score"], r["since"] = max(-100, min(100, int(r.get("score", 0)) + value)), t
+                        n.relations[other] = r
             clue = (th.get("clues") or [])[a["clue"]] if a.get("kind") == "evidence" and isinstance(a.get("clue"), int) \
                 and a["clue"] < len(th.get("clues") or []) else None
             if clue is not None and w in ("found", "tested"):
-                clue["found"] = True
+                if not clue.get("found"):                       # (f547's review) found as matters.mark_found finds a clue: its
+                    clue["found"], clue["by"] = True, store_name(ws, clue["npc"]) if clue.get("npc") else ""   # finder, the matter
+                    th["touched"] = th["answered"] = True       # the player's, and the holder's knowing told
+                    if clue.get("npc") and ws.store.npc_exists(clue["npc"]):
+                        ws.store.set_memory_state(clue["npc"], "knows", f"thread:{th['id']}:{a['clue']}", f"told:{by}")
                 if w == "tested":
                     clue["tested"] = True                       # its truth shown: the engine's (clue["true"]), never the ruling's
             if clue is not None and w == "destroyed":
@@ -833,23 +860,45 @@ def act_of(ws, deed: dict) -> dict:
     """(f547) The act a deed was, for a ruling: its kind, who acted, whom it was done to, who was there, the coin or goods handed over,
     how it went, and whether it was words alone. Read from the deed and the scene, as they stand."""
     RU = S["rulings"]
+    from engine import deeds
     here = sorted({n.id for n in (getattr(ws, "present", None) or []) if getattr(n, "id", "")})
     return {"kind": deed.get("kind", ""), "by": deed.get("by") or getattr(ws, "acting", ""), "npc": deed.get("npc", ""),
             "witnesses": here, "place": deed.get("place", ""), "coin": int(deed.get("coin") or 0), "item": deed.get("item", ""),
             "count": int(deed.get("count") or 1), "degree": deed.get("degree", ""),
-            "words_only": deed.get("kind", "") in set(RU["words_only_acts"]), "text": deed.get("text", "")}
+            "words_only": deed.get("kind", "") in set(RU["words_only_acts"]),
+            "text": deed.get("text") or deeds.describe(deed)}             # (f547's review) what it was: the creature, the job, the dungeon
 
 
-def parts_lines(store, world, th: dict) -> list[str]:
-    """(f547) The situation's parts, numbered as a ruling names them, each with what has changed in it so far; never a clue's truth."""
+def parts_lines(store, world, th: dict, by: str = "") -> list[str]:
+    """(f547) The situation's parts, numbered as a ruling names them, each with what the check holds it to - who imposes a condition and
+    in what words, what an adopted piece of evidence says - and what has changed in it so far, toward the one acting (`by`) only;
+    never a clue's truth."""
     parts = th.get("parts") or []
+    clues = th.get("clues") or []
     out = []
     for i, a in enumerate(parts):
         one = situations.render([a], store, world, f"{th['id']}:rule:{i}").split("\n", 1)[-1].removeprefix("- ") or a.get("kind", "")
+        extra = []
+        if a.get("kind") == "condition":
+            if a.get("label") or a.get("text"):
+                extra.append(f"\"{a.get('label') or a.get('text')}\"")
+            if a.get("by_kind") == "person" and a.get("by"):
+                extra.append(f"imposed by {store_name_s(store, a['by'])}")
+            elif a.get("by"):
+                extra.append(f"imposed by {a['by']} ({a.get('by_kind')})")
+        if a.get("kind") == "evidence" and not a.get("label") and isinstance(a.get("clue"), int) and a["clue"] < len(clues):
+            one = f"{store_name_s(store, a['holder']) if a.get('held') == 'person' else 'At ' + a['holder']} knows: {clues[a['clue']].get('text', '')}"
         notes = [a["now"]] if a.get("now") else []
-        notes += [f"{w} to the player" for w in sorted(set((a.get("willing") or {}).values()))]
-        out.append(f"{i + 1}. {one}" + (f" (now: {', '.join(notes)})" if notes else ""))
+        if by and (a.get("willing") or {}).get(by):
+            notes.append(f"{a['willing'][by]} toward the player")
+        line = f"{i + 1}. {one.rstrip('.')}" + (f" ({'; '.join(extra)})" if extra else "") + "."
+        out.append(line + (f" Now: {', '.join(notes)}." if notes else ""))
     return out
+
+
+def store_name_s(store, nid: str) -> str:
+    """A person's name from the save, for a line the model reads."""
+    return store.load_npc(nid).name if store.npc_exists(nid) else "someone"
 
 
 def rule(ws, state: dict, th: dict, act: dict):
@@ -864,7 +913,7 @@ def rule(ws, state: dict, th: dict, act: dict):
              f"  there: {', '.join(sorted(names.values())) or 'no one else'}",
              f"  handed over: {act['coin']} copper" if act.get("coin") else "  handed over: no coin",
              f"  given: {act['item']}" if act.get("item") else "  given: nothing", f"  how it went: {act.get('degree') or 'done'}"]
-    v = generate("event_judge", pp.JUDGE_PARTS_SYSTEM, pp.judge_parts_request(th, parts_lines(ws.store, ws.world, th), lines),
+    v = generate("event_judge", pp.JUDGE_PARTS_SYSTEM, pp.judge_parts_request(th, parts_lines(ws.store, ws.world, th, act.get("by", "")), lines),
                  JudgeVerdict, temperature=0.3, max_tokens=int(S["rulings"].get("max_tokens", 900)))
     kept, dropped = ruled(ws.store, th, act, [c.model_dump() for c in v.changes])
     keep_changes(ws, state, th, act, kept)

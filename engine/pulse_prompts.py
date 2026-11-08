@@ -196,9 +196,9 @@ changes: each {n, part, who, becomes, because, about, needs}; n numbers them fro
   because: what it rests on: words (what was said), coin (handed over), goods (given), force (done by hand), evidence (a found piece
     shown) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
 Words change what people believe, feel and will do; the world changes only through someone's action. A failed act brings no gain.
-Few true changes are better than many invented ones, and none at all is a fine answer. verdict: resolved only when, after these
-changes, nothing of the trouble remains; partial when anything changed; no otherwise. reason: one sentence. Respond only with JSON
-matching the schema."""
+Few true changes are better than many invented ones, and none at all is a fine answer. Never say the situation is over: the game
+reads that from the world. verdict: partial when anything changed, no otherwise. reason: one sentence. Respond only with JSON matching
+the schema."""
 
 
 def judge_parts_request(thread: dict, parts_lines: list[str], act_lines: list[str]) -> str:

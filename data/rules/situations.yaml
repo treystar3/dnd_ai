@@ -189,6 +189,7 @@ reasons:
   still_committed: "only a changed belief moves one who is committed"
   still_refusing: "nothing has changed that would move one who refuses"
   rests_on: "it rests on a change that was not kept"
+  too_many: "more changes than one ruling may carry"
 
 # (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
 # writers, and what the situation's end takes back (pulse.end_thread): each person's worry (released, settled or let go) and the mood
@@ -331,6 +332,7 @@ rulings:
     destroyed:  {layer: world, kinds: [evidence], actor: either, better: false}
   because: [words, coin, goods, force, evidence, earlier]
   words_only_acts: [persuade, heard, talk, lie, deceived, lie_caught, part_done]   # acts of words alone (never the world itself)
+  goods_acts: [gift, bribe, deliver]       # acts that hand goods over
   wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action
   cooperative: [lifted, given_up, surrenders, joins, safe, moved]
   # words a person keeps of what they now believe (a told memory: what someone said, never what is), and the moods a ruling gives

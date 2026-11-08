@@ -477,18 +477,17 @@ def judge(ws, state, th, deed) -> bool:
 
 def _rule(ws, state, th, deed) -> bool:
     """(f547) The dungeon master's ruling on this deed against the situation's parts (engine/situation_parts.py rule): the changes the
-    engine keeps, then the verdict as before (f549 reads the end from the world instead). A call that fails changes nothing."""
+    engine keeps. Its verdict ends nothing (the owner: never "pretending they completed it successfully"); f549 reads the end from the
+    world. A call that fails changes nothing."""
     from engine import situation_parts
     try:
         v, kept, dropped = situation_parts.rule(ws, state, th, situation_parts.act_of(ws, deed))
     except LLMError as e:
         console.debug(f"event ruling: no ruling ({e})")
         return False
-    console.debug(f"event ruling: {th['title']} -> {len(kept)} kept, {len(dropped)} dropped; {v.verdict}")
-    if v.verdict == "resolved" and not (live_spawns(state, ws.minutes, th["id"]) and any(s["boss"] for s in live_spawns(state, ws.minutes, th["id"]))):
-        finish(ws, state, th, v.reason.rstrip("."), v.ending)
-        return True
-    return bool(kept)
+    console.debug(f"event ruling: {th['title']} -> {len(kept)} kept, {len(dropped)} dropped")
+    return bool(kept)                                    # (f547's review) never the model's to end it: what it changed stands, and
+                                                         # whether that ends it is read from the world (f549)
 
 
 def finish(ws, state, th, how: str, ending: str) -> None:

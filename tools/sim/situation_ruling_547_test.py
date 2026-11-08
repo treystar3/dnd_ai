@@ -205,6 +205,73 @@ situation_parts.met_way(ws, st, th, {"kind": "persuade", "target": noble.id, "ne
 check("...one who blocked it, won over, is open and stands aside: nothing he imposes himself is left (his guard's chain is the guard's)",
       th["parts"][N - 1]["willing"][by] == "open" and th["parts"][N - 1]["met"][by] == "won over", th["parts"][N - 1])
 
+# ---- (the review) what the model ends, what coin buys, what words do, and what a chain may not launder
+st, th = fresh()
+stub.changes, stub.verdict = [ch(1, ROAD, "lifted", because="words")], "resolved"
+ws.present = [store.load_npc(guard.id)]
+events.judge(ws, st, th, {"kind": "persuade", "npc": guard.id, "place": "trading_square", "degree": "success", "by": by})
+check("(the review) the model's 'resolved' ends nothing, least of all with every change dropped", th["status"] == "active"
+      and not th.get("changes"), (th["status"], th.get("changes")))
+stub.changes, stub.verdict = [], "no"
+kept, dropped = situation_parts.ruled(store, th, act("gift", guard.id, [guard.id], coin=10, words=False),
+                                      [ch(1, ROAD, "lifted", who=G, because="coin"), ch(2, ROAD, "lifted", because="coin")])
+check("(the review) coin short of the guard's price buys nothing he does, and coin alone lifts nothing by the player's hand",
+      not kept and why(dropped) == [R["unpaid"], R["words_only"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("deliver", carpenter.id, [carpenter.id], item="salt", words=False),
+                                      [ch(1, ROAD, "lifted", because="words"), ch(2, P, "safe", because="force"), ch(3, C, "grateful", because="goods")])
+check("(the review) a delivery's words lift nothing; the player frees no one who was not there; a delivered good was given",
+      [c["n"] for c in kept] == [3] and why(dropped) == [R["words_only"], R["not_heard"]], dropped)
+th["parts"][N - 1]["willing"] = {by: "refusing"}
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, N, "warmer"), ch(2, N, "open")])
+check("(the review) one who refuses is not talked round in two steps", [c["n"] for c in kept] == [1] and why(dropped) == [R["still_refusing"]],
+      dropped)
+th["parts"][N - 1]["willing"] = {by: "hostile"}
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, N, "wary"), ch(2, N, "open")])
+check("(the review) ...nor one who is hostile, by words alone", [c["n"] for c in kept] == [1] and why(dropped) == [R["still_refusing"]], dropped)
+th["parts"][N - 1]["willing"] = {by: "committed"}
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]),
+                                      [ch(1, N, "wary"), ch(2, N, "open"), ch(3, N, "believes", because="words"), ch(4, N, "open", needs=[3])])
+check("(the review) one who is committed is moved by no step of words, a belief made by words included",
+      [c["n"] for c in kept] == [1, 3] and why(dropped) == [R["still_committed"], R["still_committed"]], dropped)
+th["parts"][N - 1]["willing"] = {}
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]),
+                                      [ch(1, G, "terrified"), ch(2, G, "warns", who=G, about=N, needs=[1]), ch(3, N, "afraid", needs=[2]),
+                                       ch(4, N, "flees", who=N, needs=[2])])
+check("(the review) the master the guard warned answers at once: afraid, and gone", [c["n"] for c in kept] == [1, 2, 3, 4], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("search", "", [noble.id], words=False),
+                                      [ch(1, EV, "found", because="force"), ch(2, N, "believes", because="evidence", about=EV, needs=[1])])
+check("(the review) evidence found by this act may be shown at once", [c["n"] for c in kept] == [1, 2], dropped)
+many = [ch(i + 1, G, "afraid") for i in range(situations.S["rulings"]["most"] + 1)]
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]), many)
+check("(the review) past the most a ruling carries, a change is dropped with its reason, never cut silently",
+      len(kept) == situations.S["rulings"]["most"] and why(dropped) == [R["too_many"]], dropped)
+
+# ---- (the review) the writers: a mended tie and a found clue kept as the game keeps them
+st, th = fresh()
+TIE = num(th, "tie")
+scene_noble = store.load_npc(noble.id)
+ws.residents = [scene_noble] + [x for x in ws.residents if x.id != noble.id]
+before = (store.load_npc(noble.id).relations.get(guard.id) or {}).get("score", 0)
+situation_parts.keep_changes(ws, st, th, act("persuade", noble.id, [noble.id, guard.id]), [ch(1, TIE, "mended"), ch(2, N, "warmer")])
+after = (store.load_npc(noble.id).relations.get(guard.id) or {}).get("score", 0)
+check("(the review) a mended tie moves the relation on the copy that is saved, beside the same person's other changes",
+      after == before + situations.S["rulings"]["trust"] and (scene_noble.relations.get(guard.id) or {}).get("score") == after, (before, after))
+c_i = th["parts"][EV - 1]["clue"]
+situation_parts.keep_changes(ws, st, th, act("search", "", [], words=False), [ch(1, EV, "found", because="force")])
+check("(the review) a clue found by a ruling is found as the game finds one: the matter touched and answered",
+      th["clues"][c_i]["found"] and th.get("touched") and th.get("answered"), th["clues"][c_i])
+
+# ---- (the review) what the model is shown
+a_kill = situation_parts.act_of(ws, {"kind": "kill", "creature": "a grey wolf", "rank": "elite", "level": 3, "place": "trading_square"})
+check("(the review) the act says what it was: the creature killed", "grey wolf" in a_kill["text"], a_kill)
+st, th = fresh()
+th["parts"][N - 1]["willing"] = {by: "open", "someone_else": "refusing"}
+lines = situation_parts.parts_lines(store, world, th, by)
+road_line, noble_line = lines[ROAD - 1], lines[N - 1]
+check("(the review) a condition shows who imposes it and in what words; willingness only toward the one acting",
+      guard.name in road_line and "a chain across the road" in road_line and "open toward the player" in noble_line
+      and "refusing" not in noble_line, (road_line, noble_line))
+
 # ---- the same chain twice gives the same answer
 st, th = fresh()
 th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
