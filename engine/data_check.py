@@ -525,6 +525,8 @@ def check() -> list[str]:
     bad += _voices.problems()
     from engine import situations as _sit                                                    # (f542) a situation's parts: lists, caps, phrases
     bad += _sit.problems()
+    from engine import situation_parts as _sp                                               # (f545) how the parts are written in
+    bad += _sp.problems()
     for r_ in _sit.S.get("never_roles") or ():
         need(r_ in _roles, f"situations.yaml never_roles: '{r_}' is not a role")
     for r_ in _load("data/rules/threads.yaml").get("never_roles") or ():                   # (f542's review) one list of trades never cast

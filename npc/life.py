@@ -29,6 +29,12 @@ def _unique_id(store: CampaignStore, name: str) -> str:
     return candidate
 
 
+def _held_wares(store, npc_id: str) -> list:
+    """(f545) What they hold of a good, sold until it is gone (engine/situation_parts.py)."""
+    from engine import situation_parts
+    return situation_parts.held_wares(store, npc_id)
+
+
 FIRST_BATCH = 4          # how many residents the blocking call on arrival creates; the rest are made while the player reads
 
 
@@ -331,7 +337,7 @@ def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, 
             [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
             clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
             wares if wares is not None else
-            [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells]
+            [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells + _held_wares(store, npc.id)]
             + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
                f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
             + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]

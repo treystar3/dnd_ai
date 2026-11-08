@@ -156,3 +156,61 @@ reasons:
   claim_at_place: "evidence lying at a place is only ever sure: a doubtful piece is a claim, and a claim is someone's"
   contrary: "a stance at odds with itself: one who blocks an end to it does not want it ended"
   no_wanter: "a wanted good with no one of the situation who wants it"
+  new_today: "the town has had as many new people from situations as it takes in a day"
+  unmade: "a part that rests on someone who could not be made"
+
+# (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
+# writers, and what the situation's end takes back (pulse.end_thread): each person's worry (released, settled or let go) and the mood
+# it gave them; what the player took on and what people learned stay. Nothing here is a clock: the worry lasts the situation.
+register:
+  new_per_town_day: 2           # (the owner) people situations make new in one town in a day; rulings keep their own count
+  danger: 25                    # percent more encounters at a place or on a road the situation makes dangerous (pulse.yaml effects.danger)
+  prices: 20                    # percent dearer a town's market, for a prices condition (pulse.yaml effects.prices)
+  mark_most: 60                 # the longest label a mark keeps as its own words; longer, or not plain, the mark is told with a phrase
+  stock: [2, 4]                 # how much a person holds of a good they hold, or have to hand of a scarce one: theirs to sell, until gone
+  load: [6, 10]                 # how much a stranded load is
+  wanted: [2, 4]                # how much of a wanted good is asked for
+  scarce: 30                    # percent dearer a scarce good in the town (that good alone)
+  stranded: 20                  # percent dearer a stranded good in the town, while the load cannot be moved
+  marks: ["{place} bears the mark of it", "{place} shows what happened", "{place} has not been the same since",
+          "{place} carries the sign of it"]
+  worries:                      # what is on a person's mind, by what they want; {title} is the situation's title
+    coin: ["{title}: what there is to be made of it, or lost", "{title}, and the money in it", "{title}: whether it will pay",
+           "{title}, and what it costs them"]
+    road_open: ["{title}: getting the road open again", "{title}, and the road shut", "{title}: when the way will be clear",
+                "{title}, and the way cut"]
+    goods_moved: ["{title}: getting the goods moved", "{title}, and the load that cannot go on", "{title}: how to shift what is stuck",
+                  "{title}, and the goods going nowhere"]
+    safety: ["{title}: keeping safe through it", "{title}, and who will be hurt next", "{title}: whether their people are safe",
+             "{title}, and the danger of it"]
+    believed: ["{title}: being believed about it", "{title}, and nobody listening", "{title}: making the truth of it heard",
+               "{title}, and what they know of it"]
+    left_alone: ["{title}: being left out of it", "{title}, and being dragged into it", "{title}: keeping their head down",
+                 "{title}, and everyone asking"]
+    rid_of_rival: ["{title}: seeing their rival come off worst", "{title}, and the one who stands against them",
+                   "{title}: getting the better of a rival", "{title}, and an old score"]
+  moods:                        # how they have been lately, by their stake (it fades on its own, and with the situation)
+    gains: ["quietly pleased with how things are going", "busy and doing well", "pleased with themselves, and hiding it",
+            "brisk and cheerful, against the mood of the town"]
+    harmed: ["worn down and anxious", "short-tempered with worry", "low, and not sleeping well", "tight-lipped and tired"]
+    can_fix: ["torn about what to do", "restless, as if they ought to be doing something", "thoughtful and preoccupied",
+              "weighing something up"]
+    blocks: ["stubborn and guarded", "on edge, and quick to take offence", "wary of questions", "set in their ways and defensive"]
+    knows: ["uneasy, holding something back", "watchful and quiet", "troubled by something they have not said",
+            "careful about what they say"]
+  ties:                         # what each end of a tie comes to feel for the other: [change, the feeling]; [0, ""] is nothing
+    rival: {a: [-15, "a rival in the trouble"], b: [-15, "a rival in the trouble"]}
+    owes: {a: [5, "owes them, and knows it"], b: [-5, "is owed by them"]}
+    kin: {a: [15, "kin, and stands by them"], b: [15, "kin, and stands by them"]}
+    employs: {a: [5, "employs them"], b: [5, "works for them"]}
+    fears: {a: [-20, "is afraid of them"], b: [0, ""]}
+  evidence:                     # what the holder of a piece of evidence knows, in their own words, by how sure they are
+    sure: ["I saw {label} myself, and it points to {points}.", "I have seen {label} with my own eyes: it points to {points}.",
+           "I know {label} for a fact, and it leads to {points}.", "I found {label}; it points to {points}."]
+    they say: ["They say there is {label}, and that it points to {points}.", "I was told of {label}, pointing to {points}.",
+               "Word is there is {label}, and it leads to {points}.", "I had it from others: {label}, pointing to {points}."]
+    hearsay: ["There is talk of {label}, pointing to {points}, but I only half heard it.",
+              "Someone spoke of {label}, and of {points}; I could not swear to it.",
+              "I overheard something about {label} and {points}.", "Rumour has it there is {label}, and that it points to {points}."]
+    lies: ["{label}, which points to {points}", "{label}: it leads to {points}", "{label}, pointing to {points}",
+           "{label}, and it points to {points}"]

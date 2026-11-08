@@ -46,7 +46,8 @@ def festival_today(world, place_id: str, now: int) -> str:
 
 
 def _effect_total(state: dict, kind: str, places: set[str], now: int) -> int:
-    return sum(e["value"] for e in state.get("effects", []) if e["kind"] == kind and e["place"] in places and e["until"] > now)
+    return sum(e["value"] for e in state.get("effects", []) if e["kind"] == kind and e["place"] in places and e["until"] > now
+               and not e.get("good"))                               # (f545) one good's price rise is not the town's market
 
 
 def _threads_at(world, state: dict, places: set[str]) -> list[tuple[dict, str]]:

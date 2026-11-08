@@ -460,8 +460,10 @@ SAMPLE = {"name": "Hollis", "other": "Maud", "good": "salt", "place": "the ford"
           "points": "the toll keeper", "trade": "bargeman", "a": "a"}
 
 
-def _line_problems(where: str, line, needs: set) -> list[str]:
+def _line_problems(where: str, line, needs: set, sample: dict | None = None) -> list[str]:
+    """A phrase line: words, with the slots `needs` and none outside `sample`'s (the render's own, by default)."""
     import string
+    SAMPLE = sample if sample is not None else globals()["SAMPLE"]
     if not isinstance(line, str) or not line.strip():
         return [f"situations.yaml {where}: a line of words is needed ({line!r})"]
     try:

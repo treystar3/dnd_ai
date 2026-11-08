@@ -88,6 +88,8 @@
            {id: iron, name: an iron bar, price: 90, kind: material, item: iron}]}
 - {id: lumberjack, hours: [6, 18],    description: Fells and hauls timber from the woods.,                knowledge_groups: [hunters], buys: [wood],
    sells: [{id: sawn_planks, name: a bundle of sawn planks, price: 20, kind: item, item: sawn_planks}]}
+- {id: ferryman, hours: [6, 19],      description: Takes people and loads across the water on a flat ferry for a fare.,  knowledge_groups: [merchants]}   # (f545, the owner) made by a situation that needs one; no place lists them yet
+- {id: carpenter, hours: [7, 18],     description: Builds and mends in wood - roofs, carts, doors and bridges.,  knowledge_groups: []}   # (f545, the owner) the same
 - {id: stonemason, hours: [7, 18],    description: Cuts and dresses stone for building.,                  knowledge_groups: []}
 - {id: elven_warden, hours: [0, 24],  description: Guards the paths of the forest and the city within it., knowledge_groups: [guards, hunters]}
 - {id: loremaster, hours: [8, 20],    description: Keeps the old songs, records and histories.,           knowledge_groups: [scholars, mages],

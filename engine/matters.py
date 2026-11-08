@@ -390,6 +390,39 @@ def try_find(ws, text: str = "") -> bool:
         else:
             ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search.", text)   # (f413) no length (f375)
         return True
+    return _find_lying(ws, state, text)
+
+
+def _find_lying(ws, state: dict, text: str) -> bool:
+    """(f545) A situation's piece of evidence lying here (situation_parts: what lies at a place is always sure) is found by searching
+    where it lies: a perception roll, and on a success it is the player's, as a clue told is. It is something to weigh, never the end."""
+    from engine import checks
+    here = ws.player.location
+    for th in state.get("threads", []):
+        if th["status"] != "active":
+            continue
+        i = next((i for i, c in enumerate(th.get("clues") or []) if c.get("place") == here and not c["found"]), None)
+        if i is None:
+            continue
+        c = ws.player.character
+        odds, _ = checks.chance(c, "perception", ws.check_triggers("perception", False))
+        degree, _ = checks.roll(odds, ws.rng, c=c)
+        console.ledger(checks.label("perception", degree.replace("_", " ")))
+        if degree in ("success", "strong success"):
+            clue = th["clues"][i]
+            clue["found"], clue["by"] = True, ws.player.character.name
+            th["touched"] = th["answered"] = True
+            ws.store.save_world_state(state)
+            ws.narrate("THE PLAYER FINDS SOMETHING HERE, now: " + clue.get("label", clue["text"]) + ". Show it as it would be seen and "
+                       "handled, and stop there - no conclusions, no one explaining what it means.", text)
+            from engine.domain_events import ClueFound
+            ws.notice(ClueFound(minute=ws.minutes, place=here, thread=th["id"], what=clue.get("label", "")))
+        elif degree == "partial":
+            ws.narrate("The player searches here and has the feeling something is to be found, without putting a hand on it yet. "
+                       "Nothing named.", text)
+        else:
+            ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search.", text)
+        return True
     return False
 
 

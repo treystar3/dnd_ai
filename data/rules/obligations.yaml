@@ -28,6 +28,7 @@ families:
         refused: ["The stranger said no.", "Turned down, plainly."]
         no_answer: ["No answer came, and the asking passed.", "Asked, and left unanswered; it was not asked again."]
         gone: ["The one who asked is gone."]
+        over: ["What it was asked for is over now.", "The matter it was for has ended."]     # (f545) a situation's request, at its end
     remember:
       released: "Asked {them} to {title}, and had no yes."
   contract:

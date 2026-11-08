@@ -37,8 +37,11 @@ def empty_state(now: int) -> dict:
 
 # ---------- reading the world's state ----------
 
-def active_effects(state: dict, now: int, kind: str, place: str) -> list[dict]:
-    return [e for e in state.get("effects", []) if e["kind"] == kind and e["place"] == place and e["until"] > now]
+def active_effects(state: dict, now: int, kind: str, place: str, good: str = "") -> list[dict]:
+    """The effects of this kind live at this place. (f545) A price rise on one good (its `good`) counts only when that good is asked
+    about: a scarce salt is no dearer bread."""
+    return [e for e in state.get("effects", []) if e["kind"] == kind and e["place"] == place and e["until"] > now
+            and (not e.get("good") or e["good"] == good)]
 
 
 def known(world, place_id) -> bool:
@@ -76,10 +79,11 @@ def town_of(world, place_id: str) -> str:
     return p.id if p else place_id
 
 
-def price_factor(store, world, place_id: str, now: int) -> float:
+def price_factor(store, world, place_id: str, now: int, good: str = "") -> float:
+    """How dear the town's market is now; (f545) for `good`, with what is laid on that good alone."""
     town = town_of(world, place_id)
     state = store.load_world_state()
-    return 1 + sum(e["value"] for e in active_effects(state, now, "prices", town)) / 100
+    return 1 + sum(e["value"] for e in active_effects(state, now, "prices", town, good)) / 100
 
 
 def danger_factor(store, place_id: str, now: int) -> float:
@@ -650,6 +654,9 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
             if circumstance.release_concern(n, th["id"], "settled" if status == "resolved" else "let_go", t,
                                             line=f"{th['title']} is over, and off my mind." if status == "resolved" else f"{th['title']} came to its end."):
                 store.save_npc(n)
+    if th.get("parts"):                                      # (f545) and the worries and moods its parts gave its people
+        from engine import situation_parts
+        situation_parts.release(store, th, status, t)
     th["status"] = status
     th["ended_at"] = t
     if state.get("campaign") == th["id"]:
@@ -836,7 +843,8 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         lo, hi = lim[kind]["min"], lim[kind]["max"]
         place = town_of(world, e["place"]) if kind == "prices" else e["place"]
         state["effects"].append({"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
-                                 "until": t + days * 1440, "cause": cause, "thread": thread_id})
+                                 "until": t + days * 1440, "cause": cause, "thread": thread_id,
+                                 **({"good": e["good"]} if kind == "prices" and e.get("good") else {})})     # (f545) one good's price
     elif kind == "closed" and known(world, e.get("place")):
         state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})

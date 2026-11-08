@@ -16,7 +16,7 @@ class ShopActions:
 
     # ---------- what a ware costs / what a pack item fetches ----------
 
-    def price_of(self, base: float, seller=None, kind: str = "") -> int:
+    def price_of(self, base: float, seller=None, kind: str = "", good: str = "") -> int:
         """(f418) What a thing sold here costs the player, now: a ware, a piece of stock, a relic, a mount. Every quote a person gives,
         every list the player or the interpreter is shown, and every charge is this one sum, so the figure named is the figure taken.
         Before, four sums disagreed: a hungry town's bowl was quoted at its old price and charged a third more, the stock left out the
@@ -28,12 +28,18 @@ class ShopActions:
             off += crafting.mechanic(c, "ascetic")
         if seller is not None and seller.role == "quartermaster":
             off += self.mech("quartermasters_friend")
-        return round(base * max(0, 1 - off / 100) * pulse.price_factor(self.store, self.world, self.player.location, self.minutes)
+        return round(base * max(0, 1 - off / 100) * pulse.price_factor(self.store, self.world, self.player.location, self.minutes, good)
                      * self.heat_price() * getattr(self, "haggle_factor", 1.0))                  # (f332) a price a haggle won
+
+    def wares_of(self, npc) -> list:
+        """(f545) What this person sells: their trade's list, and what they really hold of a good (a situation's stock, sold until it is
+        gone). Every reader of a seller's wares asks here."""
+        from engine import situation_parts
+        return list(self.world.roles[npc.role].sells) + situation_parts.held_wares(self.store, npc.id)
 
     def quote_ware(self, seller, ware, announce: bool = False):
         """The ware with its price after haggling, guild discount, the town's prices and your heat (price_of)."""
-        ware = ware.model_copy(update={"price": self.price_of(ware.price, seller, ware.kind)})
+        ware = ware.model_copy(update={"price": self.price_of(ware.price, seller, ware.kind, ware.item if ware.kind == "item" else "")})
         if ware.kind == "room" and ((self.owns("shelter_earned") and self.town_rep() >= 30)
                                     or self.player.free_room_day == clock.day(self.minutes)):
             ware = ware.model_copy(update={"price": 0})
@@ -88,6 +94,9 @@ class ShopActions:
             st = self.to_pack(items.make_raw(ware.item))
             effect = f"They take {ware.name}." if st.left is None else f"They have {ware.name}, but no room to carry it: it is set down here."
         elif ware.kind == "item" and ware.item:
+            if ware.id.startswith("stock:"):                          # (f545) from what they hold: one fewer, until it is gone
+                from engine import situation_parts
+                situation_parts.take_stock(self.store, seller.id, ware.item, 1, self.minutes, "sold_out")
             st = self.to_pack(inv.make_good(ware.item, 1))           # (f417) a full pack: it is bought, and set down here, not pocketed
             effect = (f"They put {inv.GOODS[ware.item].name} in their pack." if st.left is None
                       else f"They have {inv.GOODS[ware.item].name}, but no room in their pack for it: it is set down here.")
@@ -188,7 +197,7 @@ class ShopActions:
 
     def met_sellers(self) -> list:
         roles = self.world.roles
-        return [n for n in self.present if regard.of(n, self.acting).met and (roles[n.role].sells or roles[n.role].stock or roles[n.role].relics)]
+        return [n for n in self.present if regard.of(n, self.acting).met and (self.wares_of(n) or roles[n.role].stock or roles[n.role].relics)]
 
     def trades_here(self) -> str:
         """(f328) Who sells here that you have not spoken to yet, and what they deal in: 'the smith (gear), Pell the carter (trail ration, torch)'."""
@@ -196,10 +205,11 @@ class ShopActions:
         out = []
         for n in self.present:
             r = roles[n.role]
-            if regard.of(n, self.acting).met or not (r.sells or r.stock or r.relics):
+            sells = self.wares_of(n)
+            if regard.of(n, self.acting).met or not (sells or r.stock or r.relics):
                 continue
-            deals = [re.sub(r"^(a|an) ", "", w.name) for w in r.sells][:3] + (["gear"] if r.stock else []) + (["relics"] if r.relics else [])
-            more = "…" if len(r.sells) > 3 else ""
+            deals = [re.sub(r"^(a|an) ", "", w.name) for w in sells][:3] + (["gear"] if r.stock else []) + (["relics"] if r.relics else [])
+            more = "…" if len(sells) > 3 else ""
             out.append(f"{n.label(self.acting)} ({', '.join(deals)}{more})")
         return ", ".join(out)
 
@@ -212,7 +222,7 @@ class ShopActions:
         for n in self.met_sellers():
             role = self.world.roles[n.role]
             lines = []
-            for w in role.sells:
+            for w in self.wares_of(n):
                 q = self.quote_ware(n, w)
                 lines.append({"kind": "ware", "key": w.id, "name": w.name, "detail": w.kind if w.kind not in ("item", "material") else "",
                               "price": q.price, "price_text": money.fmt(q.price), "price_short": money.short(q.price), "afford": c.coins >= q.price, "note": ""})
@@ -247,7 +257,7 @@ class ShopActions:
         if parts[0].lower() == "#shopbuy" and len(parts) >= 4:
             seller = present.get(parts[2])
             if seller and parts[1] == "ware":
-                ware = next((w for w in self.world.roles[seller.role].sells if w.id == parts[3]), None)
+                ware = next((w for w in self.wares_of(seller) if w.id == parts[3]), None)
                 if ware:
                     self.buy_ware(seller, ware, quiet=True)
                     done = True

@@ -271,7 +271,7 @@ class InventoryActions:
         """Handing over money: pays for what's being discussed, or is a gift of that amount."""
         c = self.player.character
         amount = self.coin_amount(intent.item or "") or self.coin_amount(text)
-        wares = self.world.roles[npc.role].sells
+        wares = self.wares_of(npc)                            # (f545) their trade's and what they hold
         recent = " ".join(line for _, line in self.convo[-4:]).lower()
         ware = next((w for w in wares if amount and w.price == amount), None) or \
             next((w for w in wares if w.id in recent or w.name.lower().split()[-1] in recent), None)
@@ -756,7 +756,7 @@ class InventoryActions:
         """(f418) What a seller says they sell, at the prices the game will charge (price_of), for their own words: they quoted the list's
         base price and the player was charged the town's."""
         role = self.world.roles[npc.role]
-        return ([f"{w.name}: {money.words(self.quote_ware(npc, w).price)}" for w in role.sells]
+        return ([f"{w.name}: {money.words(self.quote_ware(npc, w).price)}" for w in self.wares_of(npc)]
                 + [f"{i.name} ({i.rarity} work, level {i.item_level}): {money.words(p)}" for n, i, p in self.stock_here() if n.id == npc.id]
                 + ([f"commissions: you make {', '.join(role.commissions)} gear to order"] if role.commissions else []))
 

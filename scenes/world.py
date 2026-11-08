@@ -2788,7 +2788,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         people = people + [(p.id, p.label, p.desc) for p in _sc.present_people() if p.kind == "wildlife"]
         short = cand.I["always_if_short"]
         wares_all = [f"{w.id}: {w.name} - {money.words(self.quote_ware(n, w).price)} (sold by {n.label(self.acting)}, id {n.id})"   # (f333) the id alone first: the model copies
-                     for n in self.present for w in self.world.roles[n.role].sells] \
+                     for n in self.present for w in self.wares_of(n)] \
             + [f"{i.name}: {i.rarity}, level {i.item_level} - {money.words(p)} (stock of {n.label(self.acting)}, id {n.id})" for n, i, p in self.stock_here()]
         from engine import loadout
         abilities_all = [f"{a.id}: {a.name} ({a.field_use or a.effect.value}{', in a fight' if a.context.value == 'combat' else ''})"
@@ -3273,6 +3273,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                           + ". It is done, recorded and paid; you may say so in your own way, without the figures.]").strip()
         from engine import matters, court, stakes
         matters.bind_for(self.store, self.world, npc)                    # (f317) a clue written for their role settles on them
+        from engine import situation_parts
+        situation_parts.ask(self, npc)                                   # (f545) what they need of their situation, asked of this character
         ctx = (self.npc_context(npc) + self.local_knowledge(npc) + matters.talk_lines(self, npc)
                + court.keeper_lines(self, npc, speech) + court.gated_lines(self, npc)    # (f320) the door, and what is behind it
                + stakes.talk_lines(self, npc))                                          # (f322) the job they put on the board
@@ -3372,7 +3374,7 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         """(f344) What this townsperson can lay hands on now, and how tense the moment is (engine/reach.py)."""
         from engine import law, reach
         role = self.world.roles.get(npc.role)
-        wares = [w.name for w in role.sells] if role else []
+        wares = [w.name for w in self.wares_of(npc)] if role else []
         wares += [i.name for n, i, _ in self.stock_here() if n.id == npc.id]
         try:
             ground = [inv.label(i) for i in self.ground_here()]
@@ -3535,16 +3537,16 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
             return
         if self.property_buy(intent, text):
             return
-        sellers = [n for n in self.present if self.world.roles[n.role].sells]
+        sellers = [n for n in self.present if self.wares_of(n)]
         listed = any(w.id == intent.ware.lower().strip() or (intent.ware and intent.ware.lower() in w.name.lower())
-                     for n in sellers for w in self.world.roles[n.role].sells)
+                     for n in sellers for w in self.wares_of(n))
         if not listed and self.buy_from_stock(intent, text):
             return
         seller = next((n for n in sellers if n.id == intent.target), None) or (sellers[0] if sellers else None)
         if not seller:
             self.refuse("No one here is selling anything.")
             return
-        wares = self.world.roles[seller.role].sells
+        wares = self.wares_of(seller)
         wanted = intent.ware.lower().strip()
         ware = next((w for w in wares if w.id == wanted), None) or \
             next((w for w in wares if wanted and (wanted in w.name.lower() or w.id in wanted)), None)
