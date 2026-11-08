@@ -129,6 +129,7 @@ class Reactions:
             return
         from engine import deeds, events
         row = dict(row)
+        row.setdefault("by", getattr(self.ws, "acting", "") or "")   # (f547's fourth review) whose deed it was, for a party
         deed = deeds.log(self.ws.store, row.pop("kind"), e.minute, e.place or self.ws.player.location, **row)
         if deed["kind"] in AFTER_DEED:
             events.after_deed(self.ws, deed)              # legacy (f466): the judge's model call (engine/events.py judge) runs inside the action's

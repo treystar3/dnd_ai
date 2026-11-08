@@ -328,9 +328,10 @@ def sync_paths(state: dict, th: dict) -> None:
                                                "kind": "kill", "target": s["creature"], "spawn": s["id"], "done": False})
 
 
-def _won_over(state: dict, since: int, npc_id: str) -> bool:
+def _won_over(state: dict, since: int, npc_id: str, by: str = "") -> bool:
     mine = [d for d in deeds.since(state, since, ["persuade"]) if d.get("npc") == npc_id
-            and d.get("degree", "success") in ("success", "strong success")]           # (f547's third review) a failure wins no one
+            and d.get("degree", "success") in ("success", "strong success")            # (f547's third review) a failure wins no one;
+            and (not by or d.get("by", by) == by)]                                      # (the fourth) nor another character's words
     return any(d.get("degree") == "strong success" for d in mine) or len(mine) >= 2
 
 
@@ -348,11 +349,11 @@ def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None
         ids = [i for i in path.get("spawn", "").split(",") if i]
         found = [x for x in state.get("spawns", []) if x["id"] in ids]
         return bool(found) and all(x["defeated"] for x in found)
-    if path["kind"] == "persuade":
-        return _won_over(state, made, path["target"])
+    if path["kind"] == "persuade":                                  # (f547's fourth review) words they have since answered with a stance
+        return _won_over(state, _since_stance(thread, made, path["target"], by), path["target"], by)          # do not count
     if path["kind"] == "treaty":
         ids = [i for i in path["target"].split(",") if i]
-        return bool(ids) and all(_won_over(state, made, i) for i in ids)
+        return bool(ids) and all(_won_over(state, _since_stance(thread, made, i, by), i, by) for i in ids)
     if path["kind"] == "clear":
         return any(d.get("place") == path["target"] for d in deeds.since(state, made, ["dungeon_cleared"]))
     if path["kind"] == "contract":
@@ -416,6 +417,11 @@ def after_deed(ws, deed: dict) -> None:
             changed |= judge(ws, state, th, deed)
     if changed or deed.get("dirty"):
         store.save_world_state(state)
+
+
+def _since_stance(th: dict, made: int, npc_id: str, by: str) -> int:
+    from engine import situation_parts
+    return max(made, situation_parts.stance_at(th, npc_id, by)) if th.get("parts") else made
 
 
 def _set_against(th: dict, path: dict, by: str) -> bool:

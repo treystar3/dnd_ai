@@ -18,7 +18,7 @@ import ui.console as uc
 for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
     setattr(uc, fn, lambda *a, **k: None)
 import copy
-from engine import events, memory, pulse, regard, retrieval, roads, situation_parts, situations
+from engine import deeds, events, memory, pulse, regard, retrieval, roads, situation_parts, situations, towns
 from llm.contracts import SituationParts
 
 bad = []
@@ -486,7 +486,6 @@ check("(the third review) the rescue reads where the trouble is from the town it
       (far_th, dropped))
 
 st, th = fresh()
-from engine import deeds
 stance(th, N, "committed")
 store.save_world_state(st)
 for _ in range(2):
@@ -507,6 +506,104 @@ kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guar
 check("(the third review) no one warns the dead", not kept and why(dropped) == [R["gone"]], dropped)
 gone_p.gone = ""
 store.save_npc(gone_p)
+
+# ---- (the fourth review) evidence only to one who saw it; ways by the character and since the stance; a hand where it can be
+st, th = fresh()
+th["clues"][th["parts"][EV - 1]["clue"]]["found"] = True
+stance(th, N, "committed")
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]),
+                                      [ch(1, G, "warns", who=G, about=N), ch(2, N, "terrified", because="evidence", about=EV, needs=[1]),
+                                       ch(3, N, "afraid", because="evidence", about=EV, needs=[1])])
+check("(the fourth review) a warned master is not shown the letter by the warning", [c["n"] for c in kept] == [1]
+      and why(dropped) == [R["not_heard"], R["not_heard"]], dropped)
+
+st, th = fresh()
+st["deeds"] = []                                                 # this section's deeds only
+th["made"] = ws.minutes - 300
+stance(th, N, "refusing", at=ws.minutes - 200)
+store.save_world_state(st)
+for i in range(2):
+    events.after_deed(ws, deeds.log(store, "persuade", ws.minutes - 100 + i, "trading_square", npc=noble.id, degree="strong success", by=by))
+events.after_deed(ws, deeds.log(store, "kill", ws.minutes - 50, "trading_square", creature="rat", by="char_b"))
+th = pulse.thread_of(store.load_world_state(), "th547")
+check("(the fourth review) words he refused, or another character's, do not win him over for someone else", th["status"] == "active"
+      and "char_b" not in (th["parts"][N - 1].get("willing") or {}), (th["status"], th["parts"][N - 1].get("willing")))
+st = store.load_world_state()
+th = pulse.thread_of(st, "th547")
+th["parts"][N - 1]["willing"][by], th["parts"][N - 1]["willing_at"][by] = "wary", ws.minutes - 40   # a gift since moved him, a little
+store.save_world_state(st)
+events.after_deed(ws, deeds.log(store, "kill", ws.minutes - 30, "trading_square", creature="rat", by=by))
+th = pulse.thread_of(store.load_world_state(), "th547")
+check("(the fourth review) ...nor, once a gift has made him only wary, the words he refused before it", th["status"] == "active"
+      and th["parts"][N - 1]["willing"][by] == "wary", (th["status"], th["parts"][N - 1].get("willing")))
+
+st, th = fresh()
+th["clues"].append({"text": "The noble paid the forger.", "holder": "", "npc": noble.id, "found": False, "certainty": "sure", "true": True})
+th["parts"].append({"kind": "evidence", "holder": noble.id, "held": "person", "points_to": "trading_square", "label": "", "certainty": "sure",
+                    "true": True, "clue": len(th["clues"]) - 1, "engine": True})
+EV4 = len(th["parts"])
+kept, dropped = situation_parts.ruled(store, th, dict(act("persuade", carpenter.id, [carpenter.id]), place=far),
+                                      [ch(1, EV, "destroyed", who=C), ch(2, EV4, "destroyed", who=C)], world=world)
+check("(the fourth review) the carpenter, far away, destroys neither the letter in the square nor what the noble knows", not kept
+      and why(dropped) == [R["no_means"], R["no_means"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("persuade", noble.id, [noble.id]), [ch(1, EV4, "destroyed", who=N)], world=world)
+check("(the fourth review) ...the noble may destroy what he holds himself", [c["n"] for c in kept] == [1], dropped)
+th["parts"].append({"kind": "resource", "good": "salt", "holder": guard.id, "state": "stranded", "wanted_by": carpenter.id})
+RES = len(th["parts"])
+kept, dropped = situation_parts.ruled(store, th, dict(act("deliver", noble.id, [noble.id], item="salt", words=False), place=far),
+                                      [ch(1, RES, "moved", because="goods")], world=world)
+check("(the fourth review) a sack of salt handed to someone else does not move the stranded load", not kept
+      and why(dropped) == [R["no_means"]], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("deliver", carpenter.id, [carpenter.id], item="salt", words=False),
+                                      [ch(1, RES, "moved", because="goods")], world=world)
+check("(the fourth review) ...handed to the one it is for, it does", [c["n"] for c in kept] == [1], dropped)
+kept, dropped = situation_parts.ruled(store, th, act("persuade", guard.id, [guard.id]),
+                                      [ch(1, G, "warns", who=G, about=N), ch(2, G, "warns", who=G, about=C)])
+check("(the fourth review) one may warn two people", [c["n"] for c in kept] == [1, 2], dropped)
+
+st, th = fresh()
+c_ev = th["parts"][EV - 1]["clue"]
+th["clues"][c_ev]["found"] = True
+kept, dropped = situation_parts.ruled(store, th, dict(act("quest_done", carpenter.id, [carpenter.id], words=False), place=far),
+                                      [ch(1, EV, "tested", because="evidence", about=EV), ch(2, EV, "destroyed", because="force")], world=world)
+check("(the fourth review) a found letter goes with the player: tested or burnt anywhere", [c["n"] for c in kept] == [1, 2], dropped)
+th["clues"][c_ev].update(found=False, destroyed=True)
+from engine import matters
+store.save_world_state(st)
+got = matters.mark_found(ws, store.load_npc(noble.id), [f"clue:{th['id']}:{c_ev}"])
+check("(the fourth review) a destroyed piece is never found again by a telling", not got
+      and not pulse.thread_of(store.load_world_state(), th["id"])["clues"][c_ev]["found"], got)
+
+st, th = fresh()
+th["tier"] = "cataclysm"
+stance(th, N, "hostile")
+kept, dropped = situation_parts.ruled(store, th, act("gift", noble.id, [noble.id], coin=1, words=False), [ch(1, N, "open", because="coin")])
+check("(the fourth review) in a cataclysm too, one copper buys no one set against the player", not kept and why(dropped) == [R["unpaid"]],
+      dropped)
+
+st, th = fresh()
+stance(th, C, "refusing", at=ws.minutes - 10)
+th["paths"] = [{"kind": "part", "target": carpenter.id, "need": "protected", "protected": by, "protected_at": ws.minutes, "done": False}]
+kept, dropped = situation_parts.ruled(store, th, act("persuade", carpenter.id, [carpenter.id]), [ch(1, C, "open")])
+check("(the fourth review) one who refused, kept safe since as they asked, may come round", [c["n"] for c in kept] == [1], dropped)
+th["paths"][0]["protected_at"] = ws.minutes - 20
+kept, dropped = situation_parts.ruled(store, th, act("persuade", carpenter.id, [carpenter.id]), [ch(1, C, "open")])
+check("(the fourth review) ...not by what was done before they refused", not kept and why(dropped) == [R["still_refusing"]], dropped)
+
+st, th = fresh()
+th["parts"].append({"kind": "condition", "on": "trading_square", "what": "prices", "at": town, "label": "grain dear", "by": "", "by_kind": ""})
+PR = len(th["parts"])
+other = next(pid for pid in sorted(world.places) if pid != "trading_square" and pid not in world.roads and pulse.town_of(world, pid) == town)
+kept, dropped = situation_parts.ruled(store, th, dict(act("deliver", carpenter.id, [carpenter.id], item="salt", words=False), place=other),
+                                      [ch(1, PR, "lifted", because="goods")], world=world)
+check("(the fourth review) a town's price rise is eased anywhere in the town", [c["n"] for c in kept] == [1], (other, dropped))
+kept, dropped = situation_parts.ruled(store, th, dict(act("deliver", carpenter.id, [carpenter.id], item="salt", words=False), place=far),
+                                      [ch(1, PR, "lifted", because="goods")], world=world)
+check("(the fourth review) ...never from another town", not kept and why(dropped) == [R["not_there"]], dropped)
+r_far = next(r for rid, r in sorted(world.roads.items()) if pulse.town_of(world, r.from_) != town and pulse.town_of(world, r.to) != town)
+th["place"], th["town"] = r_far.from_, town                    # an engine-built threat at a far place, its ways laid in this town
+check("(the fourth review) the roads out of a situation's own place are where its trouble is",
+      any(world.roads[x] is r_far for x in situation_parts.trouble_near(world, th, th["parts"])[1]))
 
 # ---- (the second review) the found writer and what the act shows
 st, th = fresh()

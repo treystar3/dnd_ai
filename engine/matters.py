@@ -172,7 +172,8 @@ def clue_facts(store, world, npc) -> list:
         if len(parts) != 3 or not parts[2].isdigit():
             continue
         th, i = threads.get(parts[1]), int(parts[2])
-        if not th or th["status"] != "active" or i >= len(th.get("clues", [])) or th["clues"][i]["found"]:
+        if not th or th["status"] != "active" or i >= len(th.get("clues", [])) or th["clues"][i]["found"] \
+                or th["clues"][i].get("destroyed"):                 # (f547's fourth review) a destroyed piece is a clue to nothing
             continue
         out.append(Fact(id=f"clue:{th['id']}:{i}", text=r["text"], known_by=[]))
     return out
@@ -215,7 +216,7 @@ def mark_found(ws, npc, revealed: list[str]) -> list[str]:
     for r in ids:
         _, tid, i = r.split(":")
         th = next((x for x in state.get("threads", []) if x["id"] == tid), None)
-        if th and int(i) < len(th.get("clues", [])) and not th["clues"][int(i)]["found"]:
+        if th and int(i) < len(th.get("clues", [])) and not th["clues"][int(i)]["found"] and not th["clues"][int(i)].get("destroyed"):
             th["clues"][int(i)]["found"] = True
             th["clues"][int(i)]["by"] = npc.label(ws.acting)
             ws.store.set_memory_state(npc.id, "knows", f"thread:{tid}:{i}", f"told:{ws.acting}")     # (f483) they have said it, to whom
@@ -401,7 +402,8 @@ def _find_lying(ws, state: dict, text: str) -> bool:
     for th in state.get("threads", []):
         if th["status"] != "active":
             continue
-        i = next((i for i, c in enumerate(th.get("clues") or []) if c.get("place") == here and not c["found"]), None)
+        i = next((i for i, c in enumerate(th.get("clues") or []) if c.get("place") == here and not c["found"]
+                  and not c.get("destroyed")), None)                 # (f547's fourth review) what was destroyed is not found lying there
         if i is None:
             continue
         c = ws.player.character

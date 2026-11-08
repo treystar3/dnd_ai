@@ -252,7 +252,8 @@ register:
   # who stands in the way stands aside once won over; each is a path of the situation, its end the player's (engine/events.py finish).
   ways:
     most: 3                                          # paths a situation's own people open, at most (the can-fix first)
-    pay: {normal: 30, uncommon: 60, rare: 150, campaign: 400}   # copper handed over that meets a "paid" condition, by tier
+    pay: {normal: 30, uncommon: 60, rare: 150, campaign: 400, cataclysm: 800}   # copper handed over that meets a "paid" condition,
+                                                     # by tier (and the least that buys one set against the player)
     trust: 70                                        # a character's trust (regard) that meets "trusted", at the least...
     trust_gain: 10                                   # ...and this much above where it stood when the situation began, or when they
                                                      # first met (f545's review: a first meeting can start well above 50)
