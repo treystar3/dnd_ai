@@ -168,6 +168,9 @@ def _remap(accepted: list[dict], ids: dict[str, str], world, skipped: list) -> l
                 skipped.append((a, S["reasons"]["unmade"]))
                 continue
             a["a"], a["b"] = ids[a["a"]], ids[a["b"]]
+        elif k == "condition" and a.get("by_kind") == "person":           # (f546) its controller made their id, or unknown without them
+            got = ids.get(a.get("by", ""))
+            a["by"], a["by_kind"] = (got, "person") if got else ("", "")
         elif k == "evidence":
             holder = ids.get(a["holder"]) if a.get("held") == "person" else a["holder"]
             points = person(a["points_to"])
@@ -317,7 +320,11 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         e = {"kind": a["what"], "place": a["on"], "days": days, "text": text if a["what"] in ("mark", "closed") else ""}
         if a["what"] in ("danger", "prices"):
             e["value"] = int(R[a["what"]])
+        had = list(state["effects"])
         a["result"] = pulse.apply_one(store, world, None, state, e, th.get("tier", "rare"), t, title, thread_id=th["id"], ways=ways)
+        for x in state["effects"]:
+            if not any(x is h for h in had):
+                x["of_part"] = i                                        # (f546) this condition's own: one closure lifted alone
         a["text"] = text if a["what"] in ("mark", "closed") else ""
     from engine import inventory
     for i, a in enumerate(parts):                                         # what each person holds is theirs, to sell until it is gone
@@ -368,12 +375,174 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
             matters.hold(store, th, len(th["clues"]) - 1, a["holder"], t)    # theirs to know, in words that say how sure they are
         a["clue"] = len(th["clues"]) - 1
     th["parts"] = parts
+    th.setdefault("heart", heart(th, parts, state, t))                   # (f546) the original facts, written once
     have = {(x.get("kind"), x.get("target")) for x in th.setdefault("paths", [])}
     th["paths"].extend(x for x in part_paths(store, world, th, parts, town) if (x["kind"], x["target"]) not in have)
     pulselog.note("parts", f"{title}: {len(parts)} parts in the world" + (f", {len(skipped)} not" if skipped else ""),
                   thread=th["id"], kept=[{k: v for k, v in a.items() if k not in ("true", "made_true")} for a in parts],
                   skipped=[{"part": p, "why": why} for p, why in skipped])
     return parts
+
+
+# ---------- (f546) the heart, the engine's own parts, the agreement with the prose, and births
+
+def heart(th: dict, parts: list[dict], state: dict, t: int) -> dict:
+    """(f546) The situation's original facts, written once and never again (the owner, 2026-11-08: objectives "derived from their
+    original facts: what threatens the situation, what is at stake, and who or what controls the relevant conditions"): what threatens
+    it (each harmful condition with who or what imposes it, each person who blocks an end to it, each creature or band its ways must
+    defeat) and what is at stake (each person it harms, each good it puts at stake, the place it is at). The objective, the threat and
+    the ending are read against this (f549), never against the parts as they come to stand."""
+    H = S.get("heart") or {}
+    kinds, states = set(H.get("threat_kinds") or ()), set(H.get("stake_states") or ())
+    threats, stakes = [], []
+    for i, a in enumerate(parts):
+        if a["kind"] == "condition" and a.get("what") in kinds:
+            threats.append({"part": i, "kind": "condition", "what": a["what"], "on": a["on"], "by": a.get("by", ""),
+                            "by_kind": a.get("by_kind", "")})
+        elif a["kind"] == "person" and a.get("stake") == "blocks":
+            threats.append({"part": i, "kind": "person", "who": a["who"]})
+        elif a["kind"] == "person" and a.get("stake") == "harmed":
+            stakes.append({"part": i, "kind": "person", "who": a["who"]})
+        elif a["kind"] == "resource" and a.get("state") in states:
+            stakes.append({"part": i, "kind": "resource", "good": a["good"], "state": a["state"]})
+    for p in th.get("paths") or []:
+        if p.get("kind") in ("kill", "horde") and (p.get("target") or p.get("spawn")):
+            threats.append({"kind": "creature", "target": p.get("target", ""), "spawn": p.get("spawn", "")})
+    stakes.append({"kind": "place", "place": th.get("place", ""), "town": th.get("town", "")})
+    return {"threats": threats, "stakes": stakes, "made": int(t)}
+
+
+def adopt(store, world, state: dict, th: dict, t: int) -> list[dict]:
+    """(f546) The parts the engine can build from what it already holds, for a rare, campaign or cataclysm situation that has none (an
+    old save's, a cataclysm, a birth whose call failed past its tries; the owner: such situations need "stronger handling than simple
+    completion detection"): the people its ways must win over, the conditions it already lays on places and roads (each tagged its own,
+    its controller the creature it set loose when it set one), and the evidence its people hold. Written as its parts and its heart,
+    with nothing new laid on the world and no model call."""
+    parts: list[dict] = []
+    seen: set[str] = set()
+
+    def person(who: str, stake: str, want: str) -> None:
+        if who and who not in seen and store.npc_exists(who) and not store.load_npc(who).gone:
+            seen.add(who)
+            parts.append({"kind": "person", "who": who, "bind": "npc", "new": False, "stake": stake, "want": want, "condition": "",
+                          "holds": "", "label": "", "role": "", "engine": True})
+    for p in th.get("paths") or []:
+        if p.get("done"):
+            continue
+        if p.get("kind") == "persuade":
+            person(p.get("target", ""), "can_fix", "safety")
+        elif p.get("kind") == "treaty":
+            for w in [x for x in (p.get("target") or "").split(",") if x]:
+                person(w, "blocks", "rid_of_rival")
+    spawn = next((s for s in state.get("spawns", []) if s.get("thread") == th["id"] and not s.get("defeated")), None)
+    natural = th.get("kind") in ("natural", "nature")
+    for e in state.get("effects", []):
+        if e.get("thread") != th["id"] or e.get("kind") not in ("closed", "danger", "prices", "mark") or int(e.get("until", 0)) <= int(t) \
+                or e.get("lifted") or e.get("place") not in set(world.places) | set(world.roads):
+            continue
+        by, kind = ((spawn.get("name", ""), "creature") if spawn else ("", "nature") if natural else ("", ""))
+        e["of_part"] = len(parts)
+        parts.append({"kind": "condition", "on": e["place"], "what": e["kind"], "label": "", "text": e.get("text", ""), "by": by,
+                      "by_kind": kind if by or kind == "nature" else "", "engine": True})
+    for i, c in enumerate(th.get("clues") or []):
+        if c.get("npc") and store.npc_exists(c["npc"]):
+            parts.append({"kind": "evidence", "holder": c["npc"], "held": "person", "points_to": th.get("place", ""), "label": "",
+                          "certainty": c.get("certainty") or "they say", "true": c.get("true", True), "clue": i, "engine": True})
+    th["parts"] = parts
+    th["parts_by"] = "engine"
+    th.setdefault("heart", heart(th, parts, state, t))
+    th.pop("parts_due", None)
+    from engine import pulselog
+    pulselog.note("parts", f"{th.get('title', '')}: {len(parts)} parts the engine holds", thread=th["id"], kept=parts, skipped=[])
+    return parts
+
+
+def agree(store, world, state: dict, th: dict, accepted: list[dict]) -> tuple[list[dict], list[tuple[dict, str]]]:
+    """(f546) The checked parts held to what the situation's prose already established (the owner, 2026-11-08: made after the prose,
+    they "must agree with established facts"): a person the prose sent away is no part of it; words a reader may see (a condition's
+    mark, a piece of evidence) that contradict an established line, or could not be checked, are not kept - a condition takes the
+    engine's own words instead, a piece of evidence is dropped. Returns (kept, refused with the reason)."""
+    facts = situations.established(state, th)
+    sent = {e.get("npc") for st in (th.get("stages") or [])[:int(th.get("stage", 0)) + 1] for e in ((st or {}).get("effects") or [])
+            if e.get("kind") == "leave" and e.get("npc")}
+    why = S["reasons"]["contradicts"]
+    kept, refused = [], []
+    for a in accepted:
+        if a["kind"] == "person" and a.get("bind") == "npc" and a["who"] in sent:
+            refused.append((a, why))
+            continue
+        if a["kind"] in ("condition", "evidence") and a.get("label") and situations.against(a["label"], facts) != "ok":
+            if a["kind"] == "evidence":
+                refused.append((a, why))
+                continue
+            a = {**a, "label": ""}
+        kept.append(a)
+    return kept, refused
+
+
+def waiting(state: dict) -> bool:
+    """(f546) Whether the parts operation has anything to do: a live situation of the adopting tiers with no parts, or a birth due. The
+    operation is not opened otherwise, so an input with nothing born commits what it always did."""
+    B = S.get("births") or {}
+    tiers = set(B.get("tiers") or ()) | set(B.get("adopt_tiers") or ())
+    return any(x.get("status") == "active" and not x.get("parts") and x.get("tier") in tiers for x in (state or {}).get("threads", []))
+
+
+def birth(ws) -> bool:
+    """(f546) The operation after the input's tail (scenes/world.py): every rare, campaign or cataclysm situation with no parts and no
+    birth still due takes the engine's own (no call); then the first due birth, oldest first, asks the model for its parts with what
+    its prose established, and registers what the check and the agreement keep. A call that fails or finds no room is tried again on a
+    later input, births.tries times in all; past them the engine's own parts stand. Never during a fight. True when a situation took
+    parts."""
+    from engine import pulse, pulselog
+    from llm.gateway import LLMError
+    if getattr(ws, "combat", None):
+        return False
+    store, world = ws.store, ws.world
+    state = store.load_world_state()
+    if not state:
+        return False
+    B = S.get("births") or {}
+    tries, adopt_tiers = int(B.get("tries", 3)), set(B.get("adopt_tiers") or ())
+    live = sorted((x for x in state.get("threads", []) if x.get("status") == "active" and not x.get("parts")),
+                  key=lambda x: (int(x.get("made", 0)), x["id"]))
+    changed = False
+    for th in live:
+        due = th.get("parts_due")
+        if th.get("tier") in adopt_tiers and (not isinstance(due, int) or due >= tries):
+            adopt(store, world, state, th, ws.minutes)
+            changed = True
+    th = next((x for x in live if not x.get("parts") and isinstance(x.get("parts_due"), int) and x["parts_due"] < tries
+               and x.get("tier") in (B.get("tiers") or ())), None)
+    if th is not None:
+        place = world.places.get(th.get("place", ""))
+        pressure = world.pressures.get(th.get("pressure") or "")
+        trouble = pressure.description if pressure else th.get("title", "")
+        ways = pulse.ways_through(state, th["id"])
+        try:
+            if place is None:
+                raise LLMError("the situation's place is gone")
+            _, accepted, dropped = situations.propose(store, world, state, place, th["tier"], ws.minutes,
+                                                      random.Random(f"{store.meta.seed}:parts:{th['id']}"), trouble=trouble, ways=ways,
+                                                      players=(ws.acting,), established_lines=situations.established(state, th))
+        except LLMError as e:
+            th["parts_due"] = int(th["parts_due"]) + 1
+            pulselog.note("miss", f"{th.get('title', '')}: no parts this time ({e})", thread=th["id"])
+            if th["parts_due"] >= tries and th.get("tier") in adopt_tiers:
+                adopt(store, world, state, th, ws.minutes)
+            changed = True
+        else:
+            kept, refused = agree(store, world, state, th, accepted)
+            if refused:
+                pulselog.note("parts", f"{th.get('title', '')}: {len(refused)} parts against what its telling established",
+                              thread=th["id"], kept=[], skipped=[{"part": p, "why": w} for p, w in refused])
+            register(store, world, state, th, kept, ws.minutes, catalog=ws.catalog, ways=ways)
+            th.pop("parts_due", None)
+            refresh(ws, th)
+            changed = True
+    if changed:
+        store.save_world_state(state)
+    return changed
 
 
 # ---------- (part 4, recommendation 1) the parts are ways through

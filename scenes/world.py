@@ -466,6 +466,17 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes) or street,
                                             visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
 
+    def situation_births(self, op=None) -> None:
+        """(f546) The parts operation's body, after the tail: a situation born this input (or still due) given its parts, asked outside
+        any transaction (engine/situation_parts.py birth), and the people here read again, as after the pulse, so the scene's copies
+        carry the worries and moods the parts gave them."""
+        from engine import situation_parts
+        if situation_parts.birth(self):
+            here = self.store.load_place(self.player.location)
+            if here.populated:
+                self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
+                self.refresh_present()
+
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here. (f466) The pulse may write the player through the save (engine/pulse.py
         remove_npc ties off the quests and commissions of someone gone); when it has, the scene takes the saved player before the drift is
@@ -1508,6 +1519,9 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.turn_ticks(text, shown)
                 self.asked_operation("tail", text, _tail, world=True)
                 self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
+                from engine import situation_parts
+                if not self.combat and situation_parts.waiting(self.store.load_world_state() or {}):
+                    self.asked_operation("parts", text, self.situation_births, world=True)   # (f546) a situation born given its parts
                 self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
                 ledger.LAST = ledger.end()
                 return True if not self.line_failed else "part"

@@ -202,9 +202,13 @@ resources: each {good, state, holder, wanted_by, label}: a good's id from GOODS;
   be moved) or wanted (called for); holder: the `who` of one of your people who has it, or blank; wanted_by: for wanted, the `who` of
   one of your people who wants it.
 ties: each {a, b, tie}: two of your people by their `who`, and rival, owes (a owes b), kin, employs (a employs b) or fears (a fears b).
-conditions: each {on, kind, label}: a place id from PLACES or a road id from ROADS, and closed (it cannot be passed), danger, prices
-  (a town's, never a road's) or mark (a lasting sign of what happened there). A road ROADS calls the only way between its ends is
-  never closed.
+conditions: each {on, kind, label, by, by_kind}: a place id from PLACES or a road id from ROADS, and closed (it cannot be passed),
+  danger, prices (a town's, never a road's) or mark (a lasting sign of what happened there). A road ROADS calls the only way between
+  its ends is never closed.
+  by: who or what imposes it and could lift it: the `who` of one of your people, or a few plain words for anything else ("the toll
+    men", "the sluice gate", "the spring flood"); blank when nothing in particular does.
+  by_kind: person (one of your people), group (a band of people), creature (a beast or monster), mechanism (a made thing) or nature
+    (weather, water, rock, sickness); blank with a blank by.
 evidence: each {label, holder, points_to, certainty}: label - what it is, in plain words ("a cut rope", "fresh hoofprints by the
   mill"); holder - the `who` of one of your people, or the id of a place from PLACES where it lies; points_to - the `who` of one of
   your people, or a place or road id; certainty - sure (they saw it or can show it), they say (they had it from others) or hearsay

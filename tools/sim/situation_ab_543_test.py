@@ -119,7 +119,7 @@ check("with no way through offered, a road that is the only way between its ends
       and "only way" not in ua_ways and "only way" not in roads_line.replace(f"{road}: ", ""), (lone, one("ROADS (id: name, from - to)", ua)))
 check("the system text tells each who once, points_to among the proposal's own people, and the only way never closed",
       "Each who once" in pp.PARTS_SYSTEM and "points_to - the `who` of one of\n  your people" in pp.PARTS_SYSTEM
-      and "only way between its ends is\n  never closed" in pp.PARTS_SYSTEM)
+      and "only way between its ends is never closed" in " ".join(pp.PARTS_SYSTEM.split()))      # (f546) read across its line breaks
 most = situations.S["proposal"]["people_most"]
 situations.S["proposal"]["people_most"] = 1
 _, u_few = situations.prompt(store, world, state, place, "rare", ws.minutes)

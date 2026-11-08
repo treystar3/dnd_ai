@@ -1453,11 +1453,14 @@ class PartTie(BaseModel):
 
 
 class PartCondition(BaseModel):
-    """What the situation lays on a place (an id from PLACES) or a road (an id from ROADS)."""
+    """What the situation lays on a place (an id from PLACES) or a road (an id from ROADS); (f546) and who or what imposes it and could
+    lift it: one of the people's `who` (by_kind person), or a few plain words for a group of people, a creature, a mechanism or nature."""
     on: str
     kind: Literal["closed", "danger", "prices", "mark"]
     label: str = ""
-    _blank = blank_placeholders("label", words=PART_PLACEHOLDERS)
+    by: str = ""
+    by_kind: Literal["", "person", "group", "creature", "mechanism", "nature"] = ""
+    _blank = blank_placeholders("label", "by", words=PART_PLACEHOLDERS)
 
 
 class PartEvidence(BaseModel):

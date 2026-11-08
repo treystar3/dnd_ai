@@ -137,6 +137,72 @@ def within_reach(world, town: str, rows=()) -> set[str]:
     return {g for g, good in _goods().items() if g in sold or land(good)}
 
 
+def controller(p, person_of, world, store, ids: set[str]) -> dict:
+    """(f546) Who or what imposes a condition and could lift it (the owner, 2026-11-08: "who or what controls the relevant conditions"
+    - a person, a faction, a mechanism or an environmental condition): one of the situation's people by their id, or a few plain words
+    for a group, a creature, a mechanism or nature. A person the parts do not hold, or words that name the game's machinery, leave it
+    unknown ({by: "", by_kind: ""}), never the part dropped."""
+    by, kind = (getattr(p, "by", "") or "").strip(), getattr(p, "by_kind", "") or ""
+    if not by:
+        return {"by": "", "by_kind": ""}
+    who = person_of(by)
+    if kind in ("", "person"):
+        return {"by": who, "by_kind": "person"} if who else {"by": "", "by_kind": ""}
+    words = plain(by, world, store)
+    if not words or _raw(words, ids) or who:
+        return {"by": who, "by_kind": "person"} if who else {"by": "", "by_kind": ""}
+    return {"by": " ".join(words.split()[:6]), "by_kind": kind}
+
+
+def established(state: dict, th: dict) -> list[str]:
+    """(f546) What the situation's own prose has already made true, in its own sentences: the news it was born with, its stages so far,
+    what is really going on, and the clues its people hold (the owner, 2026-11-08: the parts, made after the prose, "must agree with
+    established facts")."""
+    out = [n.get("text", "") for n in (state or {}).get("news", []) if n.get("thread") == th.get("id")][:2]
+    out += [(s or {}).get("description", "") for s in (th.get("stages") or [])[:int(th.get("stage", 0)) + 1]]
+    out += [th.get("truth", "")] + [(c or {}).get("text", "") for c in th.get("clues") or [] if not (c or {}).get("part")]
+    seen, keep = set(), []
+    for x in out:
+        x = " ".join((x or "").split())
+        if x and x.lower() not in seen:
+            seen.add(x.lower())
+            keep.append(x)
+    return keep
+
+
+AGREE_SYSTEM = ("You compare a short statement about a situation in a fantasy world with what is already established about that situation. "
+                "same: it says what is already established, in other words. contradicts: it and an established statement cannot both be "
+                "true. new: it adds something that is not already there and fits with it. Respond only with JSON matching the schema: "
+                "{\"verdict\": \"new\", \"which\": 0}.")
+
+
+def against(label: str, facts: list[str]) -> str:
+    """(f546) Whether a part's words, a reader may see, agree with what the situation established: 'ok' when nothing established is close
+    to them in meaning, or the check finds no contradiction; 'contradicts'; or 'unverified' when the check could not be asked (fail
+    closed, as the canon check does: the engine's own words stand instead). One small call, only for words near an established line."""
+    import config
+    from engine import canon
+    if not label or not facts:
+        return "ok"
+    sims = canon._sims(label, facts)
+    if sims is None:
+        from engine import relevance
+        near = relevance.pick(label, facts, k=3)
+    else:
+        near = [f for v, f in sorted(zip(sims, facts), key=lambda x: -x[0]) if v >= config.SIM_CANON][:3]
+    if not near:
+        return "ok"
+    from llm.contracts import CanonCheck
+    from llm.gateway import LLMError, generate
+    listed = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(near))
+    try:
+        r = generate("canon_check", AGREE_SYSTEM, f"ALREADY ESTABLISHED:\n{listed}\n\nNEW STATEMENT: {label}", CanonCheck, temperature=0.1,
+                     retries=1, max_tokens=40)
+    except LLMError:
+        return "unverified"
+    return "contradicts" if r.verdict == "contradicts" else "ok"
+
+
 def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways: bool, now: int,
           players=()) -> tuple[list[dict], list[tuple[dict, str]]]:
     """(accepted parts, dropped (part, reason)). `town` is the situation's town (its people are found first for a role); `ways` whether
@@ -292,7 +358,7 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             drop(p, full); continue
         if p.kind == "closed" and on_road:
             shut = shut | {p.on}                                             # two closures of one proposal never cut a town off between them
-        add({"kind": "condition", "on": p.on, "what": p.kind, "label": label})
+        add({"kind": "condition", "on": p.on, "what": p.kind, "label": label, **controller(p, person_of, world, store, ids)})
     for p in parts.evidence:
         holder, held = person_of(p.holder), "person"
         if not holder and pulse.known(world, p.holder):
@@ -433,9 +499,11 @@ def menus(store, world, state: dict, place, t: int, ways: bool = False) -> dict:
             "goods": list(_goods())}
 
 
-def prompt(store, world, state: dict, place, tier: str, t: int, trouble: str = "", ways: bool = False) -> tuple[str, str]:
+def prompt(store, world, state: dict, place, tier: str, t: int, trouble: str = "", ways: bool = False,
+           established_lines=()) -> tuple[str, str]:
     """(f543) The proposal's system and user text: lean, ids beside names so the parts can be checked, every list in a fixed order.
-    `ways` as check takes it: with none offered, a road that is the only way between its ends is said to be one."""
+    `ways` as check takes it: with none offered, a road that is the only way between its ends is said to be one. (f546) The lines the
+    situation's prose has already made true, when it has any, are given as what nothing proposed may contradict."""
     from engine import clock, pulse
     from engine import pulse_prompts as pp
     m = menus(store, world, state, place, t, ways)
@@ -452,6 +520,7 @@ def prompt(store, world, state: dict, place, tier: str, t: int, trouble: str = "
              f"PLACE: {place.id} - {place.name}" + (f", {region}" if region else ""),
              f"SEASON: {clock.season(t)}",
              f"THE TROUBLE: {trouble.strip() or 'nothing set: whatever fits the place, the season and what is already going on'}",
+             *([f"ALREADY ESTABLISHED (true: propose nothing that contradicts it): {' '.join(established_lines)}"] if established_lines else []),
              f"ALREADY GOING ON HERE: {'; '.join(going) or 'nothing'}",
              f"PEOPLE (id: name, trade): {'; '.join(f'{n.id}: {n.name}, {n.role}' for n in m['people']) or 'none known'}",
              f"TRADES OF THE TOWN: {', '.join(m['written']) or 'none besides the people above'}"]
@@ -484,13 +553,14 @@ def how_many(tier: str) -> str:
 
 
 def propose(store, world, state: dict, place, tier: str, t: int, rng: random.Random, *, trouble: str = "", ways: bool = False,
-            players=()):
+            players=(), established_lines=()):
     """(f543) Ask the model for a situation's parts and check them: (the answer, accepted, dropped). An LLMError (or the budget's) is
-    the caller's to catch: a situation stands on the engine's own build without parts. Not asked in play until f547."""
+    the caller's to catch: a situation stands on the engine's own build without parts. (f546) Asked in play by a birth's own operation
+    (engine/situation_parts.py birth), with what the situation's prose established."""
     from engine import pulse
     from llm.contracts import SituationParts
     from llm.gateway import generate
-    system, user = prompt(store, world, state, place, tier, t, trouble, ways)
+    system, user = prompt(store, world, state, place, tier, t, trouble, ways, established_lines)
     spec = S["proposal"]
     parts = generate("situation_parts", system, user, SituationParts, temperature=float(spec["temperature"]),
                      max_tokens=int(spec["max_tokens"]))
@@ -578,7 +648,7 @@ def _line_problems(where: str, line, needs: set, sample: dict | None = None) -> 
 # its own field (a stake word in the stakes, never found by chance in "kind" or "only ever sure").
 SEGMENTS = {"stakes": ("stake:", "want:"), "wants": ("want:", "condition:"), "conditions": ("condition:", "holds:"),
             "resource_states": ("resources:", "ties:"), "ties": ("ties:", "conditions: each"), "place_kinds": ("conditions: each", "evidence:"),
-            "certainties": ("certainty -", "Evidence lying")}
+            "certainties": ("certainty -", "Evidence lying"), "controllers": ("by_kind:", "evidence:")}
 
 
 def prompt_problems(lists: dict) -> list[str]:
@@ -617,7 +687,8 @@ def problems() -> list[str]:
         return {x for x in typing.get_args(model.model_fields[field].annotation) if x != ""}
     for name, model, field in (("stakes", c.PartPerson, "stake"), ("wants", c.PartPerson, "want"), ("conditions", c.PartPerson, "condition"),
                                ("ties", c.PartTie, "tie"), ("resource_states", c.PartResource, "state"),
-                               ("place_kinds", c.PartCondition, "kind"), ("certainties", c.PartEvidence, "certainty")):
+                               ("place_kinds", c.PartCondition, "kind"), ("certainties", c.PartEvidence, "certainty"),
+                               ("controllers", c.PartCondition, "by_kind")):
         got = set(L.get(name) or ())
         if got != lit(model, field):
             bad.append(f"situations.yaml lists.{name}: {sorted(got)} differs from the contract's {sorted(lit(model, field))}")
@@ -711,7 +782,20 @@ def problems() -> list[str]:
             if not isinstance(pair, list) or len(pair) != 2 or any(w not in (L.get(lst) or ()) for w, (lst, _) in zip(pair, cols)):
                 bad.append(f"situations.yaml stances.{which}: {pair!r} is not a [{cols[0][1]}, {cols[1][1]}] pair of the lists' words")
     for k in ("not_a_person", "gone", "player", "twice", "people_cap", "new_cap", "parts_cap", "kind_cap", "not_a_good", "no_holder",
-              "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id", "claim_at_place", "contrary", "no_wanter"):
+              "no_end", "self_tie", "not_a_place", "only_way", "points_nowhere", "raw_id", "claim_at_place", "contrary", "no_wanter",
+              "contradicts"):
         if not (S.get("reasons") or {}).get(k):
             bad.append(f"situations.yaml reasons.{k}: a reason is needed")
+    B = S.get("births") or {}                                            # (f546) births and the engine's own parts
+    if not isinstance(B.get("tiers"), list) or not set(B["tiers"]) <= {"rare", "campaign"}:
+        bad.append("situations.yaml births.tiers: of rare and campaign only (the owner: common and uncommon stay as they are)")
+    if not isinstance(B.get("tries"), int) or isinstance(B.get("tries"), bool) or B["tries"] < 1:
+        bad.append("situations.yaml births.tries: a whole number above 0")
+    if not isinstance(B.get("adopt_tiers"), list) or not set(B["adopt_tiers"]) <= {"rare", "campaign", "cataclysm"}:
+        bad.append("situations.yaml births.adopt_tiers: of rare, campaign and cataclysm only")
+    H = S.get("heart") or {}
+    if not isinstance(H.get("threat_kinds"), list) or not H["threat_kinds"] or not set(H["threat_kinds"]) <= set(L.get("place_kinds") or ()):
+        bad.append("situations.yaml heart.threat_kinds: some of lists.place_kinds")
+    if not isinstance(H.get("stake_states"), list) or not set(H["stake_states"]) <= set(L.get("resource_states") or ()):
+        bad.append("situations.yaml heart.stake_states: some of lists.resource_states")
     return bad

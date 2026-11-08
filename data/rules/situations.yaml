@@ -12,6 +12,8 @@ lists:
   resource_states: [scarce, stranded, wanted]
   place_kinds: [closed, danger, prices, mark]               # what the situation lays on a place or a road (the pulse's own effects)
   certainties: [sure, they say, hearsay]                    # how sure the holder of a piece of evidence is (memory.yaml's words)
+  controllers: [person, group, creature, mechanism, nature] # (f546) who or what imposes a condition and could lift it (the owner,
+                                                            # 2026-11-08: a person, a faction, a mechanism or an environmental condition)
 
 # (f545) Stances the check refuses, and conditions it lifts: a person who blocks an end to the trouble does not want the road open or
 # the goods moved ([stake, want]); a person who wants coin needs no condition of pay ([want, condition]: the condition is lifted, the
@@ -169,6 +171,7 @@ reasons:
   new_today: "the town has had as many new people from situations as it takes in a day"
   unmade: "a part that rests on someone who could not be made"
   no_carrier: "a stranded load with nobody of the town to carry it to: a price rise and a worry, no request"
+  contradicts: "it contradicts what the situation has already established"
 
 # (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
 # writers, and what the situation's end takes back (pulse.end_thread): each person's worry (released, settled or let go) and the mood
@@ -252,3 +255,17 @@ register:
       told: "Tell {name} what the evidence shows, and they will set it right."
       protected: "Keep {name} safe while the trouble lasts, and they will set it right."
       blocks: "Win {name} over, and they will stand aside."
+
+# (f546) Births and the situation's heart (the owner, 2026-11-08: "Their objectives are derived from their original facts: what
+# threatens the situation, what is at stake, and who or what controls the relevant conditions"). A rare or campaign situation is born
+# with its prose (the world's operation), then given its parts in an operation of their own after the input's tail, asked outside any
+# transaction; a call that fails or finds no room is tried again on a later input, `tries` times in all, and past them the situation
+# takes the parts the engine can build from what it already holds. Those engine parts are also what every rare, campaign or cataclysm
+# situation that has none takes (an old save, a cataclysm): no model call. The heart is written once, when the parts are, and never again.
+births:
+  tiers: [rare, campaign]        # the tiers whose birth asks the model for parts (common and uncommon stay as they are: the owner)
+  tries: 3                       # the inputs a due birth is tried on before the engine's own parts stand
+  adopt_tiers: [rare, campaign, cataclysm]   # the tiers that take the engine's own parts when they have none
+heart:
+  threat_kinds: [closed, danger, prices]     # the conditions that harm (a mark is a sign of what happened, not a harm)
+  stake_states: [scarce, stranded, wanted]   # the goods a situation puts at stake
