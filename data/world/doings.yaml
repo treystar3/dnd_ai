@@ -215,7 +215,7 @@ by_role:
     - {text: "filing an axe", weight: 0.5}
   ferryman:                                   # (f545)
     - {text: "poling the ferry across", at: [coast, river, yard]}
-    - {text: "taking a fare at the landing", at: [coast, river, yard]}
+    - {text: "taking fares at the landing", at: [coast, river, yard]}
     - "mending a rope"
     - "watching the water"
     - {text: "bailing out the ferry", when: [morning], at: [coast, river, yard]}
@@ -223,7 +223,7 @@ by_role:
     - "planing a board"
     - "measuring a beam"
     - "sharpening a chisel"
-    - "sorting through a pile of timber"
+    - "sorting a pile of timber"
     - {text: "fitting a new door", when: [morning, afternoon]}
   stonemason:
     - "chiselling a block"
