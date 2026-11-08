@@ -101,4 +101,8 @@ recipient_words:
   guard: [guardsman, guardswoman, watchman]
   fisher: [fisherman, fisherwoman]
   priest: [priestess]
-  noble: [nobleman, noblewoman, lord, lady]
+  noble: [nobleman, noblewoman]
+# (f545's review) Words said before a name that are no part of it ("Captain Garrick", "old Marta", "Mother Ysolde"): left out when
+# finding the one name a delivery's words give.
+recipient_titles: [captain, lady, lord, mother, father, old, young, sister, brother, master, mistress, sir, dame, goodwife, goodman,
+                   aunt, uncle, elder, granny, gran]

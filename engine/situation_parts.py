@@ -457,6 +457,22 @@ def _words(text: str, least: int = 2) -> set[str]:
     return out
 
 
+def clue_head(label: str) -> str:
+    """(f545's reviews) The word that says what a clue is: the last word of its head ("tracks" by the watch tower), stepping back past
+    a participle or a word that says its state ("a body found in the well", "a door forced open": register.ways.told_not_head, or a
+    word of six letters or more ending in -ed); for a label that opens with where it is ("at the watch tower: tracks"), the head of
+    what follows its first comma, colon or semicolon."""
+    text = (label or "").lower()
+    head = situations._head(text)
+    if not re.findall(r"[a-z]+", head) and re.search(r"[,:;]", text):
+        head = situations._head(re.split(r"[,:;]", text, maxsplit=1)[1])
+    skip = set(_R()["ways"].get("told_not_head") or ()) | set(_R()["ways"].get("told_skip") or ())
+    words = re.findall(r"[a-z]+", head)
+    while len(words) > 1 and (words[-1] in skip or (len(words[-1]) >= 6 and words[-1].endswith("ed"))):
+        words.pop()
+    return words[-1] if words else ""
+
+
 def told_by(speech: str, clue: dict, store, world) -> bool:
     """(f545's review) Whether a line tells a clue: by what the clue is, never by the filler its telling is phrased in, nor by the name
     of where it points with one common word beside it. Its own words, all of them up to two, one fewer from three, at most
@@ -466,7 +482,7 @@ def told_by(speech: str, clue: dict, store, world) -> bool:
     own, said = _words(label), _words(speech)
     if not own:
         return bool(label) and label in (speech or "").lower()
-    head = sorted(_words(" ".join(re.findall(r"[a-z]+", situations._head(label))[-1:])))   # (f545's review) what the clue is - "tracks"
+    head = sorted(_words(clue_head(label)))                                              # (f545's review) what the clue is - "tracks"
     if head and not set(head) & said:                                                    # by the watch tower - said, never only
         return False                                                                     # where it is
     need = min(int(_R()["ways"]["told_words"]), len(own) - (1 if len(own) >= 3 else 0))
@@ -738,6 +754,9 @@ def problems() -> list[str]:
             or not whole(Wy.get("trust_gain"), 1, 50):
         bad.append("situations.yaml register.ways: most (0 to 6), trust (51 to 100: above a stranger's 50), trust_gain (1 to 50: earned "
                    "since the situation began), told_words (1 to 10), whole numbers")
+    nh = Wy.get("told_not_head")
+    if not isinstance(nh, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]+", w) for w in nh):
+        bad.append("situations.yaml register.ways.told_not_head: a list of lowercase words")
     skip = Wy.get("told_skip")
     if not isinstance(skip, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]{2,}", w) for w in skip):
         bad.append("situations.yaml register.ways.told_skip: a list of lowercase words of two letters or more (quote one YAML reads as "

@@ -158,10 +158,11 @@ class InventoryActions:
         if n <= 1:
             return name
         good = inv.GOODS.get(item.good or "")
-        if good is not None and good.mass:
-            return f"some {name}"                                       # (f545's review) "some salt", never "three salt"
+        if (good is not None and good.mass) or item.base == "raw_material":
+            return f"some {name}"                                       # (f545's review) "some salt", "some raw iron"
         word = next((w for w, k in mentor.WORD_NUM.items() if k == n), str(n))
-        return f"{word} {name if name.endswith('s') else quests.plural(name)}"
+        head, of, rest = name.partition(" of ")                         # "three tomes of the second circle"
+        return f"{word} {head if head.endswith('s') else quests.plural(head)}{of}{rest}"
 
     def delivery_for(self, key):
         """(f545's review) The delivery a key item is carried for, when it is one of the player's jobs."""

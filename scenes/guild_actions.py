@@ -613,8 +613,13 @@ class GuildActions:
         self.store.save_npc(npc)
         if q["kind"] == "deliver":
             for_whom = q.get("to_role") or q.get("to_name", "")
+            bare = lambda t: re.sub(r"^(?:a|an|the) ", "", str(t or "").lower().strip())
+            to_npc = self.store.load_npc(q["to_id"]) if q.get("to_id") and self.store.npc_exists(q["to_id"]) else None
+            mine = lambda k: not k.for_whom or (quests.names_person(to_npc, k.for_whom) if to_npc is not None
+                                               else bare(k.for_whom) in (bare(q.get("to_name")), bare(q.get("to_role"))))
             held = next((k for k in self.player.character.key_items if k.kind == "quest" and k.source == npc.name
-                         and k.name.lower() == str(q["item"]).lower() and not k.id.startswith("quest_")), None)
+                         and bare(k.name) == bare(q["item"]) and not k.id.startswith("quest_") and mine(k)), None)   # (f545's
+                                                                                         # review) never a letter meant for another
             if held is not None:                                            # (f545's review) the very thing they already handed over
                 held.id, held.description, held.for_whom = f"quest_{q['id']}", q["item_description"], for_whom   # is the one carried
             else:

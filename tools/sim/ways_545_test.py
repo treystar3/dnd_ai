@@ -206,7 +206,10 @@ for label, line, told in (("a cut rope", f"Have you seen {store.load_npc(a_.id).
                           ("a body in the well", "I found a body down the well.", True),
                           ("tracks by the watch tower", "Is the watch tower manned at night?", False),
                           ("heavy frost on grain", "Is the grain heavy this year?", False), ("ox tracks", "I saw ox tracks.", True),
-                          ("tracks by the watch tower", "There are fresh tracks by the watch tower.", True)):
+                          ("tracks by the watch tower", "There are fresh tracks by the watch tower.", True),
+                          ("a body found in the well", "There's a body in the well.", True), ("a door forced open", "Someone forced the door.", True),
+                          ("a debt owed to the miller", "He has a debt with the miller.", True),
+                          ("at the watch tower: tracks", "Is the watch tower manned at night?", False)):
     clue = {"label": label, "points_to": a_.id if label == "a cut rope" else "trading_square"}
     check(f"(the review) '{line}' {'tells' if told else 'does not tell'} '{label}'", situation_parts.told_by(line, clue, store, world) == told)
 tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety"}])
@@ -381,11 +384,29 @@ smith_ish.name, smith_ish.role = "Gwilde Marrow", "smith"
 for words, yes in (("Gwilde at the forge", True), ("old Gwilde", True), ("Marrow", True), ("Gwilde's", True), ("the blacksmith", True),
                    ("the smiths", True), ("the", False), ("Gwil", False), ("the baker", False)):
     check(f"(the fourth review) '{words}' {'names' if yes else 'does not name'} Gwilde Marrow, the smith", ws.is_recipient(smith_ish, words) == yes)
-check("(the fourth review) a death drops a delivery to them by name, never one to their trade",
-      Q.names_person(smith_ish, "Gwilde at the forge", by_trade=False) and not Q.names_person(smith_ish, "the smith", by_trade=False))
+check("(the fifth review) a death drops a delivery only by who it is for or their whole name, never a shared name or their trade",
+      Q.names_fully(smith_ish, "Gwilde Marrow at the forge") and not Q.names_fully(smith_ish, "Gwilde at the forge")
+      and not Q.names_fully(smith_ish, "the smith"))
+clay = copy.copy(smith_ish)
+clay.name, clay.role = "Dorn Clay", "potter"
+well = copy.copy(smith_ish)
+well.name = "Ivo Well"
+garrick = copy.copy(smith_ish)
+garrick.name, garrick.role = "Garrick Holt", "watch_captain"
+check("(the fifth review) a shared family name or an everyday word names no one else: 'Avla Clay' is not Dorn Clay, 'the woman at the "
+      "well' not Ivo Well; 'Captain Garrick' is Garrick Holt", not ws.is_recipient(clay, "Avla Clay") and not ws.is_recipient(well, "the woman at the well")
+      and ws.is_recipient(garrick, "Captain Garrick") and ws.is_recipient(garrick, "the captain"))
+one = store.load_npc(c_.id)
+mq1 = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=f"{one.name.split()[0]} at the market", item="a note"), b_.id,
+                  "B", ws.minutes)
+mq2 = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=f"the {one.role.replace('_', ' ')}", item="a note"), b_.id,
+                  "B", ws.minutes)
+check("(the fifth review) a delivery to someone named is settled on them as it is asked; one to a trade stays the trade's",
+      mq1.get("to_id") == one.id and not mq2.get("to_id"), (mq1.get("to_id"), mq2.get("to_id")))
 check("(the fourth review) a stack's count is no quantity asked", ws.how_many(A(kind="give", item="healing draught x3")) == 1)
 check("(the fourth review) several of a thing said as a person says it", ws.counted(inv.make_good("torch", 3), 3) == "three torches"
-      and ws.counted(inv.make_good("salt", 4), 4) == "some salt" and ws.counted(inv.make_good("candles", 2), 2) == "two candles")
+      and ws.counted(inv.make_good("salt", 4), 4) == "some salt" and ws.counted(inv.make_good("candles", 2), 2) == "two candles"
+      and ws.counted(inv.make_good("tome_second_circle", 3), 3) == "three tomes of the second circle")
 from core.models import KeyItem
 asker = present(b_.id)
 letter = KeyItem(id="sealed_letter", name="a sealed letter", description="A letter.", kind="quest", source=asker.name, day=1, for_whom=c_.id)
@@ -398,6 +419,19 @@ ws.take_personal(asker)
 held = [k for k in ws.player.character.key_items if k.name == "a sealed letter"]
 check("(the fourth review) a letter they already handed over is the one the job carries: one key, the job's",
       len(held) == 1 and held[0].id == f"quest_{mq['id']}", [(k.id, k.name) for k in held])
+ws.player.quests = [q for q in ws.player.quests if q["id"] != mq["id"]]
+ws.player.character.key_items = [k for k in ws.player.character.key_items if k.name != "a sealed letter"]
+other_letter = KeyItem(id="sealed_letter", name="a sealed letter", description="A letter.", kind="quest", source=asker.name, day=1,
+                       for_whom=store.load_npc(a_.id).name)
+ws.player.character.key_items.append(other_letter)
+mq = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=store.load_npc(c_.id).name, item="a sealed letter"), b_.id,
+                 asker.name, ws.minutes)
+obligations.open_(store, "request", b_.id, ws.acting, mq["title"], ws.minutes, terms=mq, key=f"test:{mq['id']}")
+ws.take_personal(asker)
+held = [k for k in ws.player.character.key_items if k.name == "a sealed letter"]
+check("(the fifth review) ...but never a letter of theirs meant for someone else: that one stays as it was",
+      sorted(k.id for k in held) == sorted(["sealed_letter", f"quest_{mq['id']}"]) and other_letter.for_whom == store.load_npc(a_.id).name,
+      [(k.id, k.for_whom) for k in held])
 ws.player.quests = [q for q in ws.player.quests if q["id"] != mq["id"]]
 ws.player.character.key_items = [k for k in ws.player.character.key_items if k.name != "a sealed letter"]
 

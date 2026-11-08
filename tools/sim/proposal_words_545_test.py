@@ -117,7 +117,8 @@ for lab in ("UNKNOWN_PERSON", "npc_marker", f"{owner.id}_debt"):
     check(f"(the review) '{lab}' stays machinery", situations.plain(lab, world, store) == lab, situations.plain(lab, world, store))
 
 # ---- (the third review)
-for lab in ("the late miller", "a former guard", "the dead smith", "a fake priest", "not a real merchant"):
+for lab in ("the late miller", "a former guard", "the dead smith", "a fake priest", "not a real merchant", "a miller, now dead",
+            "the smith (retired)", "a guard who was dismissed"):
     check(f"(the third review) '{lab}' is no living trade", situations.trade_of("hal_vane", lab, world, never) == "")
 check("(the fourth review) a label is denied a trade only by its head: 'a miller who would not sell' is a miller",
       situations.trade_of("hal_vane", "a miller who would not sell", world, never) == "miller")

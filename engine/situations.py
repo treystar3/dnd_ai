@@ -101,9 +101,10 @@ def trade_of(who: str, label: str, world, never=frozenset()) -> str:
     got = found(re.sub(r"[_ ]?\d+$", "", w).replace(" ", "_"))
     if got is not None:
         return got
-    if set(re.findall(r"[a-z]+", _head(label))) & set(S.get("not_of_trade") or ()):
-        return ""                                                    # (f545's review) "the late miller", "a former guard": no living trade
-                                                                     # (its head only: "a miller who would not sell" is a miller)
+    head_words, all_words = set(re.findall(r"[a-z]+", _head(label))), set(re.findall(r"[a-z]+", (label or "").lower()))
+    if (all_words & set(S.get("not_of_trade") or ())) or (head_words & set(S.get("not_of_trade_head") or ())):
+        return ""                                                    # (f545's reviews) "the late miller", "a miller, now dead": no living
+                                                                     # trade; "not" only in its head ("a miller who would not sell")
     words = re.findall(r"[a-z]+", _head(label))
     for cand in ([f"{words[-2]}_{words[-1]}"] if len(words) >= 2 else []) + words[-1:]:
         got = found(cand)
@@ -607,7 +608,7 @@ def problems() -> list[str]:
     from llm import contracts as c
     bad = []
     L = S.get("lists") or {}
-    for key in ("machinery_words", "not_of_trade"):
+    for key in ("machinery_words", "not_of_trade", "not_of_trade_head"):
         mw = S.get(key)
         if not isinstance(mw, list) or not all(isinstance(w, str) and re.fullmatch(r"[a-z]+", w) for w in mw):
             bad.append(f"situations.yaml {key}: a list of lowercase words (quote one YAML reads as something else: \"null\", \"false\")")

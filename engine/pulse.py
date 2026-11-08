@@ -921,7 +921,8 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     c = player.character
     for q in list(player.quests):
         if q.get("issuer") == npc.id or (q.get("kind") == "deliver" and ((q.get("to_id") == npc.id) if q.get("to_id")
-                                                                       else quests.names_person(npc, q.get("to_name") or "", by_trade=False))):
+                                                                       else quests.names_fully(npc, q.get("to_name") or ""))):   # by
+                # who they are, or their whole name: never a job for someone who shares a name with them (f545's review)
             player.quests.remove(q)
             obligations.close(store, obligations.find(store, str(q["id"])), "released", "issuer_gone", t)   # (f481)
             c.key_items = [k for k in c.key_items if k.id != f"quest_{q['id']}"]
