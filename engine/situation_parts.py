@@ -320,11 +320,15 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         e = {"kind": a["what"], "place": a["on"], "days": days, "text": text if a["what"] in ("mark", "closed") else ""}
         if a["what"] in ("danger", "prices"):
             e["value"] = int(R[a["what"]])
-        same = next((x for x in state["effects"] if x.get("thread") == th["id"] and x.get("kind") == a["what"] and x.get("place") == a["on"]
-                     and "of_part" not in x and not x.get("lifted") and int(x.get("until", 0)) > int(t) and a["what"] != "mark"), None)
+        where = pulse.town_of(world, a["on"]) if a["what"] == "prices" else a["on"]    # (f546's third review) a price rise is the town's
+        same = next((x for x in state["effects"] if x.get("thread") == th["id"] and x.get("kind") == a["what"] and x.get("place") == where
+                     and "of_part" not in x and not x.get("good") and not x.get("lifted") and int(x.get("until", 0)) > int(t)
+                     and a["what"] != "mark"), None)
         if same is not None:                                            # (f546's second review) what its telling already laid there is
-            same["of_part"] = i                                         # this condition: tagged its own, never laid a second time
-            a["result"] = "held"
+            same["of_part"] = i                                         # this condition: tagged its own, never laid a second time,
+            same["part"] = True                                         # (f546's third review) and the parts' own from now on: it
+            same["until"] = max(int(same.get("until", 0)), int(t) + days * 1440)   # lasts the situation's span, renewed with it
+            a["result"], a["at"] = "held", same.get("place", a["on"])
             a["text"] = text if a["what"] in ("mark", "closed") else ""
             continue
         had = list(state["effects"])
@@ -332,6 +336,7 @@ def register(store, world, state: dict, th: dict, accepted: list[dict], t: int, 
         for x in state["effects"]:
             if not any(x is h for h in had):
                 x["of_part"] = i                                        # (f546) this condition's own: one closure lifted alone
+                a["at"] = x.get("place", a["on"])                       # where it lies in the world (a price rise: its town)
         a["text"] = text if a["what"] in ("mark", "closed") else ""
     from engine import inventory
     for i, a in enumerate(parts):                                         # what each person holds is theirs, to sell until it is gone
@@ -405,15 +410,15 @@ def heart(th: dict, parts: list[dict], state: dict, t: int, town: str = "") -> d
     threats, stakes = [], []
     for i, a in enumerate(parts):
         if a["kind"] == "condition" and a.get("what") in kinds:
-            threats.append({"part": i, "kind": "condition", "what": a["what"], "on": a["on"], "by": a.get("by", ""),
-                            "by_kind": a.get("by_kind", "")})
+            threats.append({"part": i, "kind": "condition", "what": a["what"], "on": a["on"], "at": a.get("at") or a["on"],
+                            "by": a.get("by", ""), "by_kind": a.get("by_kind", "")})
         elif a["kind"] == "person" and a.get("stake") == "blocks":
             threats.append({"part": i, "kind": "person", "who": a["who"]})
         elif a["kind"] == "person" and a.get("stake") == "harmed":
             stakes.append({"part": i, "kind": "person", "who": a["who"]})
         elif a["kind"] == "resource" and a.get("state") in states:
             stakes.append({"part": i, "kind": "resource", "good": a["good"], "state": a["state"]})
-    held = {(x["what"], x["on"]) for x in threats if x["kind"] == "condition"}
+    held = {(x["what"], x.get("at") or x["on"]) for x in threats if x["kind"] == "condition"}   # where each lies (a price rise: its town)
     for e in (state or {}).get("effects", []):                            # (f546's review) what its telling laid, no part's
         if e.get("thread") == th.get("id") and e.get("kind") in kinds and "of_part" not in e and not e.get("lifted") \
                 and int(e.get("until", 0)) > int(t) and (e["kind"], e.get("place", "")) not in held:

@@ -195,9 +195,9 @@ def kinds():
     return [getattr(o, "kind", "") for o in ws.line_ops]
 
 
-def add_effect(tid, kind, place, eid):
+def add_effect(tid, kind, place, eid, days=9):
     st = store.load_world_state()
-    st["effects"].append({"id": eid, "kind": kind, "place": place, "text": "", "until": ws.minutes + 9 * 1440, "thread": tid, "value": 10})
+    st["effects"].append({"id": eid, "kind": kind, "place": place, "text": "", "until": ws.minutes + days * 1440, "thread": tid, "value": 10})
     store.save_world_state(st)
 
 
@@ -304,7 +304,8 @@ situations.S["register"]["new_per_town_day"] = most0
 # ---- (the second review) the condition its telling already laid is that part's, never laid twice; one threat for it in the heart
 stub.a_SituationParts = parts_answer
 th9 = start(store, world, ws.catalog, ws.minutes, "rare", seed=37)
-add_effect(th9["id"], "danger", road, "")
+add_effect(th9["id"], "danger", road, "", days=1)                   # its telling's danger, laid for a day only
+add_effect(th9["id"], "prices", town, "")                           # and its price rise, which the pulse lays on the town itself
 ws.turn("I look around.")                                           # the oldest due first: th8, still due, takes its parts now
 check("(the second review) the oldest birth due is asked first", thread_of(store, th8["id"]).get("parts") and "parts" not in thread_of(store, th9["id"]))
 ws.turn("I look around.")
@@ -314,6 +315,13 @@ check("(the second review) its telling's danger on the road is the part's, tagge
       len(rows9) == 1 and "of_part" in rows9[0], rows9)
 check("(the second review) ...and the heart holds one threat for it", sum(1 for x in got["heart"]["threats"] if x["kind"] == "condition"
       and x["what"] == "danger" and x["on"] == road) == 1, got["heart"]["threats"])
+check("(the third review) a held danger is the parts' own from then on: it lasts the situation's span, renewed with it",
+      rows9[0].get("part") is True and int(rows9[0]["until"]) >= int(got["times"][-1]), (rows9[0], got["times"][-1]))
+prices9 = [e for e in store.load_world_state()["effects"] if e.get("thread") == th9["id"] and e["kind"] == "prices" and not e.get("good")]
+check("(the third review) a price rise proposed on a place of the town is the one its telling laid on the town: one row, tagged",
+      len(prices9) == 1 and "of_part" in prices9[0] and prices9[0]["place"] == town, prices9)
+check("(the third review) ...and one threat for it in the heart", sum(1 for x in got["heart"]["threats"] if x["kind"] == "condition"
+      and x["what"] == "prices") == 1, [x for x in got["heart"]["threats"] if x["kind"] == "condition"])
 
 # ---- (the second review) a tier no longer born, due by an older rule: adopted, never left waiting
 born0 = list(situations.S["births"]["tiers"])
