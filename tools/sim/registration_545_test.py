@@ -67,7 +67,7 @@ parts, dropped, state = born(th, {
     "ties": [{"a": a_.id, "b": "miller", "tie": "rival"}, {"a": "ferryman", "b": a_.id, "tie": "owes"}, {"a": "carpenter", "b": b_.id, "tie": "fears"}],
     "conditions": [{"on": "trading_square", "kind": "mark", "label": "scorched grass on the green"},
                    {"on": road, "kind": "danger", "label": "wolves on the road"}, {"on": "trading_square", "kind": "prices"},
-                   {"on": road, "kind": "mark", "label": "the_ford_marker"}, {"on": road, "kind": "mark",
+                   {"on": road, "kind": "mark", "label": "ford_marker_2"}, {"on": road, "kind": "mark",
                                                                              "label": "where the old ferry rope used to be tied off before the flood took it"}],
     "evidence": [{"label": "a cut rope", "holder": a_.id, "points_to": "ferryman", "certainty": "they say"},
                  {"label": "fresh hoofprints by the ford", "holder": "trading_square", "points_to": road, "certainty": "sure"}]}, t0)

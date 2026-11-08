@@ -13,6 +13,10 @@ machinery: each dropped alone. Evidence held by a person may be false (rolled on
 chance; a sure piece never false; the proposing model is never told); evidence lying at a place is only ever sure, since a false piece
 is only ever a claim its holder makes.
 
+(f545 part 5) What the model writes whatever the prompt says is read as it meant, before any of that: a trade it numbered or tagged
+("merchant_1", "trade: guard") is the trade, a name of its own is the trade its label names (the name never kept), and a label of words
+joined by underscores is those words (trade_of, plain). An id of the world in a label stays machinery.
+
 Each accepted part is a dict with its kind and v (the shape's version), and for f545 what it binds to: a person's bind ("npc": who is an
 id; "town": who is a trade the town has, its person found or made when bound; "new": who is a trade for the engine to make), evidence's
 held ("person" or "place"). An evidence part carries its truth: it is never handed to the model that proposed the parts.
@@ -27,6 +31,7 @@ from __future__ import annotations
 
 import collections
 import random
+import re
 from pathlib import Path
 
 import yaml
@@ -46,6 +51,35 @@ def _raw(text: str, ids: set[str]) -> bool:
     if "_" in text or hygiene.SNAKE.search(text) or hygiene.CODED.search(text) or hygiene.PLACEHOLDER.search(text):
         return True
     return any(w in ids for w in text.lower().replace(",", " ").replace(".", " ").split())
+
+
+def plain(label: str, world, store=None) -> str:
+    """(f545 part 5) A label written as words joined by underscores ("flooded_field_owner", as the model writes one in a fifth of its
+    answers whatever the prompt says) is those words: "flooded field owner". An id of the world or the store stays as written, so the
+    check still refuses it as machinery."""
+    s = (label or "").strip()
+    if not re.fullmatch(r"[A-Za-z]+(?:_[A-Za-z]+)+", s) or s in world.places or s in world.roads or (store is not None and store.npc_exists(s)):
+        return s
+    return s.replace("_", " ")
+
+
+def trade_of(who: str, label: str, world, never=frozenset()) -> str:
+    """(f545 part 5) The trade a proposal meant by a `who` that is neither an id nor a trade as written, or "": a trade it numbered or
+    tagged ("merchant_1", "scout_01", "trade: guard", "new_scout"), else - a name of its own ("marek_vane") - a trade its label names
+    ("greedy merchant"). The name is never kept (the engine names the people it makes); the person is cast as that trade, the town's
+    own first, like any other."""
+    def ok(r: str) -> str:
+        return r if r in world.roles and r not in never else ""
+    w = re.sub(r"^(?:trade:\s*|new[_ ]|an? |the )", "", (who or "").strip().lower())
+    found = ok(re.sub(r"[_ ]?\d+$", "", w).replace(" ", "_"))
+    if found:
+        return found
+    words = re.findall(r"[a-z]+", (label or "").lower())
+    for i in range(len(words)):                                              # a trade of two words ("elven warden") before one
+        found = (ok(f"{words[i]}_{words[i + 1]}") if i + 1 < len(words) else "") or ok(words[i])
+        if found:
+            return found
+    return ""
 
 
 def _goods() -> dict:
@@ -117,9 +151,10 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
     lifted = {tuple(x) for x in stances.get("lifted") or ()}
     for p in parts.people:
         w = (p.who or "").strip()
+        label = plain(p.label, world, store)
         if w.lower() in ("player", "the player", "you") or w in players:
             drop(p, "player"); continue
-        if _raw(p.label, ids):
+        if _raw(label, ids):
             drop(p, "raw_id"); continue
         if (p.stake, p.want) in refused:
             drop(p, "contrary"); continue                                    # (f545) one who blocks an end to it does not want it ended
@@ -130,18 +165,18 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             if n.role in never:
                 drop(p, "not_a_person"); continue
             person, bind = w, "npc"
-        elif w in world.roles and w not in never:
-            free = next((r.id for r in rows if r.role == w and r.id not in used), "")
+        elif (trade := w if w in world.roles and w not in never else trade_of(w, label, world, never)):
+            free = next((r.id for r in rows if r.role == trade and r.id not in used), "")
             if free:
                 person, bind = free, "npc"                                   # (the owner) the town's own of that trade first...
-            elif trades_used[w] + sum(1 for r in rows if r.role == w) < written[w]:
-                person, bind = w, "town"                                     # ...one its places are written with, not yet met...
+            elif trades_used[trade] + sum(1 for r in rows if r.role == trade) < written[trade]:
+                person, bind = trade, "town"                                 # ...one its places are written with, not yet met...
             else:
-                person, bind = w, "new"                                      # ...and only past them someone new
+                person, bind = trade, "new"                                  # ...and only past them someone new
         else:
             drop(p, "not_a_person"); continue
-        if (bind == "npc" and person in used) or w in who_of:
-            drop(p, "twice"); continue
+        if (bind == "npc" and person in used) or w in who_of or (bind != "npc" and person in who_of):
+            drop(p, "twice"); continue                                       # (f545 part 5) "merchant_1", "merchant_2": one trade, one person
         full = room("person")
         if full:
             drop(p, full); continue
@@ -156,7 +191,7 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         who_of.setdefault(person, person)                                    # named later by the id it bound to, it is the same person
         condition = "" if (p.want, p.condition) in lifted else p.condition    # (f545) one who wants coin needs no condition of pay
         add({"kind": "person", "who": person, "bind": bind, "new": bind == "new", "stake": p.stake, "want": p.want,
-             "condition": condition, "holds": p.holds if p.holds in _goods() else "", "label": p.label,
+             "condition": condition, "holds": p.holds if p.holds in _goods() else "", "label": label,
              **({"lifted": p.condition} if condition != p.condition else {})})
 
     def person_of(ref: str) -> str:
@@ -173,12 +208,13 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             drop(p, "no_wanter"); continue
         if wanter and holder == wanter:
             holder = ""                                     # (f545's review) "wanted, held by X" meant X wants it: nobody has it to hand
-        if _raw(p.label, ids):
+        label = plain(p.label, world, store)
+        if _raw(label, ids):
             drop(p, "raw_id"); continue
         full = room("resource")
         if full:
             drop(p, full); continue
-        add({"kind": "resource", "good": p.good, "state": p.state, "holder": holder, "wanted_by": wanter, "label": p.label})
+        add({"kind": "resource", "good": p.good, "state": p.state, "holder": holder, "wanted_by": wanter, "label": label})
     pairs: set[tuple] = set()
     for p in parts.ties:
         a, b = person_of(p.a), person_of(p.b)
@@ -200,14 +236,15 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
             drop(p, "not_a_place"); continue
         if p.kind == "closed" and on_road and not ways and not roads.way_round(world, p.on, shut):
             drop(p, "only_way"); continue
-        if _raw(p.label, ids):
+        label = plain(p.label, world, store)
+        if _raw(label, ids):
             drop(p, "raw_id"); continue
         full = room("condition")
         if full:
             drop(p, full); continue
         if p.kind == "closed" and on_road:
             shut = shut | {p.on}                                             # two closures of one proposal never cut a town off between them
-        add({"kind": "condition", "on": p.on, "what": p.kind, "label": p.label})
+        add({"kind": "condition", "on": p.on, "what": p.kind, "label": label})
     for p in parts.evidence:
         holder, held = person_of(p.holder), "person"
         if not holder and pulse.known(world, p.holder):
@@ -219,13 +256,14 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         points = person_of(p.points_to) or (p.points_to if pulse.known(world, p.points_to) or p.points_to in world.roads else "")
         if not points:
             drop(p, "points_nowhere"); continue
-        if not p.label.strip() or _raw(p.label, ids):
+        label = plain(p.label, world, store)
+        if not label or _raw(label, ids):
             drop(p, "raw_id"); continue
         full = room("evidence")
         if full:
             drop(p, full); continue
         false = held == "person" and rng.random() < float(S["false_chance"].get(p.certainty, 0.0))   # (the owner) the engine's, once
-        add({"kind": "evidence", "holder": holder, "held": held, "points_to": points, "certainty": p.certainty, "label": p.label,
+        add({"kind": "evidence", "holder": holder, "held": held, "points_to": points, "certainty": p.certainty, "label": label,
              "true": not false})
     settle(accepted, within_reach(world, town, rows))
     return accepted, dropped
