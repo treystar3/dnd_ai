@@ -117,8 +117,9 @@ C = situations.S["caps"]
 check("(f556) the caps are the owner's: none on parts at any tier, none by kind; new people 0, 0, 2 and 2",
       C["parts"] == {"normal": None, "uncommon": None, "rare": None, "campaign": None} and C["people"] is None and C["each_other"] is None
       and C["new_people"] == {"normal": 0, "uncommon": 0, "rare": 2, "campaign": 2}, C)
-check("...and so are the chances: sure never false, they say one in five, hearsay one in two",
-      situations.S["false_chance"] == {"sure": 0.0, "they say": 0.2, "hearsay": 0.5}, situations.S["false_chance"])
+check("(f557) ...and a lie is never a roll: no chances, only who has a reason to lie", "false_chance" not in situations.S
+      and situations.S["lies"] == {"stakes": ["gains", "blocks"], "wants": ["rid_of_rival", "left_alone"], "ties": ["rival"]},
+      situations.S.get("lies"))
 def many(tier):
     ppl = [person(r.id) for r in rows[:3]] + [person(unmade[0])]
     return run(parts(people=ppl, resources=[{"good": goods[0], "state": "scarce"}, {"good": goods[1], "state": "wanted", "wanted_by": rows[0].id}],
@@ -176,20 +177,19 @@ if pair:
     check("...so one proposal never shuts both: the second is the only way once the first is shut", len(acc) == 1
           and [r for _, r in dropped] == [R["only_way"]], dropped)
 
-# ---- the truth is the engine's, on the die it is given
+# ---- (f557) the truth is the engine's: a lie by incentive, never a roll
 ev = parts(people=[person(a_.id, "knows", "believed")],
            evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "hearsay"},
                      {"label": "a torn sail", "holder": a_.id, "points_to": road, "certainty": "sure"}])
 one, two = run(ev, seed=7), run(ev, seed=7)
 check("the same die gives the same parts and the same truth", one == two)
-flips = {run(ev, seed=s)[0][1]["true"] for s in range(40)}
-strip = lambda acc_: [{k: v for k, v in a.items() if k != "true"} for a in acc_]
-check("another die may turn a hearsay piece false, and nothing else", flips == {True, False}
-      and all(strip(run(ev, seed=s)[0]) == strip(one[0]) for s in range(10)), flips)
-check("a sure piece is never false, over 200 dice", all(run(ev, seed=s)[0][2]["true"] for s in range(200)))
-say = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "they say"},
-                                                                  {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])   # (f545) beside a true piece
-check("...and 'they say' is false about one time in five (data)", 0.1 < sum(not run(say, seed=s)[0][1]["true"] for s in range(400)) / 400 < 0.3)
+check("(f557) one with no reason to deceive tells what they believe, hearsay or sure, on any die",
+      all(run(ev, seed=s)[0][1]["true"] and run(ev, seed=s)[0][2]["true"] for s in range(20)))
+say = parts(people=[person(a_.id, "gains", "coin"), person(b_.id, "harmed", "safety")],
+            evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": b_.id, "certainty": "sure"},
+                      {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])   # (f545) beside a true piece
+check("(f557) one who gains from the trouble lies about another, however sure they say they are, on every die",
+      all(not run(say, seed=s)[0][2]["true"] for s in range(20)), [run(say, seed=s)[0][2] for s in range(2)])
 lying = {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}
 acc, dropped = run(parts(evidence=[{**lying, "certainty": "hearsay"}, lying]))
 check("evidence lying at a place is only ever sure, and never false", [r for _, r in dropped] == [R["claim_at_place"]] and len(acc) == 1
@@ -234,12 +234,12 @@ def problems_with(change):
         situations.S.clear(); situations.S.update(copy.deepcopy(keep))
 p1 = problems_with(lambda S: S["lists"].update(stakes=S["lists"]["stakes"] + ["conspires"]))
 p1b = problems_with(lambda S: S["lists"].update(stakes=S["lists"]["stakes"][1:]))
-p3 = problems_with(lambda S: (S["false_chance"].update(sure=0.1), S["phrases"]["tie"].update(kin=S["phrases"]["tie"]["kin"][:2])))
+p3 = problems_with(lambda S: (S.update(false_chance={"hearsay": 0.5}), S["phrases"]["tie"].update(kin=S["phrases"]["tie"]["kin"][:2])))
 p4 = problems_with(lambda S: S["phrases"]["stake"].update(gains=["it pays someone", "{name} gains", "{name} wins", "{name} profits"]))
 p5 = problems_with(lambda S: S["phrases"].update(holds=["{nonsense}", "{0}", 7, "{good} kept"]))
 p6 = problems_with(lambda S: (S["reasons"].pop("only_way"), S["caps"]["parts"].pop("rare")))
 check("a list the contract does not hold is refused, either way round", any("lists.stakes" in x for x in p1) and any("lists.stakes" in x for x in p1b), (p1, p1b))
-check("...a sure piece that could be false, and a phrase table too short to vary", any("false_chance.sure" in x for x in p3)
+check("...(f557) a lie by a roll, and a phrase table too short to vary", any("false_chance" in x and "never a roll" in x for x in p3)
       and any("tie.kin" in x for x in p3), p3)
 check("...a line that leaves out its own slot", any("leaves out ['name']" in x for x in p4), p4)
 check("...a line with a slot it may not have, a bad slot or no words, reported, never a crash", len([x for x in p5 if "phrases.holds" in x]) >= 3, p5)

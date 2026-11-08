@@ -93,30 +93,39 @@ check("...evidence lying at a place is something to find and tell", find(acc, wh
 acc, _ = run(parts(people=[person(a_.id, condition="trusted"), person(b_.id, condition="protected")]))
 check("trusted and protected are always within reach and stand", [a["condition"] for a in acc] == ["trusted", "protected"], acc)
 
-# ---- a false piece needs a true one pointing elsewhere
-alone = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "hearsay"}])
-rolls = [run(alone, seed=s)[0][1] for s in range(60)]
-check("a false piece alone is true after all, noted as made true", all(e["true"] for e in rolls) and any(e.get("made_true") for e in rolls), rolls[:3])
-same = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": road, "certainty": "hearsay"},
-                                                                   {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
-check("...so is one beside a true piece pointing the same way (nothing to weigh it against)", all(run(same, seed=s)[0][1]["true"] for s in range(60)))
-other = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "hearsay"},
-                                                                    {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
-falses = sum(not run(other, seed=s)[0][1]["true"] for s in range(200))
-check("...beside a true piece pointing elsewhere it stands, about half the time for hearsay", 60 < falses < 140, falses)
-lone = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": road, "certainty": "they say"}])
-check("...a lone piece they say is never false (it has nothing to be weighed against)", all(run(lone, seed=s)[0][1]["true"] for s in range(60)))
-paired = parts(people=[person(a_.id, "knows", "believed")], evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "they say"},
-                                                                     {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
-said = sum(not run(paired, seed=s)[0][1]["true"] for s in range(400))
-check("...beside a true piece elsewhere a piece they say stands false about one time in five, as the data says", 50 < said < 110, said)
+# ---- a false piece needs a true one pointing elsewhere; (f557) and a reason to lie, never a roll
+liar = lambda ev: parts(people=[person(a_.id, "gains", "coin"), person(b_.id, "harmed", "safety")], evidence=ev)
+alone = liar([{"label": "a cut rope", "holder": a_.id, "points_to": b_.id, "certainty": "hearsay"}])
+got = run(alone)[0]
+check("a liar's piece alone is true after all, noted as made true", find(got, kind="evidence")["true"]
+      and find(got, kind="evidence").get("made_true"), got)
+same = liar([{"label": "a cut rope", "holder": a_.id, "points_to": road, "certainty": "hearsay"},
+             {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
+check("...so is one beside a true piece pointing the same way (nothing to weigh it against)", all(e["true"] for e in run(same)[0]
+                                                                                                 if e["kind"] == "evidence"))
+other = liar([{"label": "a cut rope", "holder": a_.id, "points_to": b_.id, "certainty": "hearsay"},
+              {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
+check("(f557) ...beside a true piece pointing elsewhere a liar's claim stands false, on every die",
+      all(not [e for e in run(other, seed=s)[0] if e["kind"] == "evidence"][0]["true"] for s in range(20)))
+honest = parts(people=[person(a_.id, "harmed", "safety"), person(b_.id, "harmed", "safety")],
+               evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": b_.id, "certainty": "hearsay"},
+                         {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
+check("(f557) ...while one with no reason to lie tells the truth beside it, on every die",
+      all(all(e["true"] for e in run(honest, seed=s)[0] if e["kind"] == "evidence") for s in range(20)))
+self_ = liar([{"label": "a cut rope", "holder": a_.id, "points_to": a_.id, "certainty": "hearsay"},
+              {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
+check("(f557) ...and nobody lies against themselves", all(e["true"] for e in run(self_)[0] if e["kind"] == "evidence"))
+rivals = parts(people=[person(a_.id, "knows", "believed"), person(b_.id, "harmed", "safety")], ties=[{"a": a_.id, "b": b_.id, "tie": "rival"}],
+               evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": b_.id, "certainty": "they say"},
+                         {"label": "a torn sail", "holder": town, "points_to": road, "certainty": "sure"}])
+check("(f557) ...a claim against a rival is a lie, whatever the holder's stake", not [e for e in run(rivals)[0] if e["kind"] == "evidence"][0]["true"])
 one, two = ({"label": "a cut rope", "holder": a_.id, "points_to": b_.id, "certainty": "hearsay"},
             {"label": "a torn sail", "holder": b_.id, "points_to": a_.id, "certainty": "hearsay"})
-pair = lambda ev: parts(people=[person(a_.id, "knows", "believed"), person(b_.id, "knows", "believed")], evidence=ev)
-ab = [sum(not run(pair([one, two]), seed=s)[0][k]["true"] for s in range(1000)) for k in (2, 3)]
-ba = [sum(not run(pair([two, one]), seed=s)[0][k]["true"] for s in range(1000)) for k in (2, 3)]
-check("(the review) two pieces pointing at each other are weighed as first decided, so neither's chance hangs on which was proposed "
-      "first: each stands false about one time in four", all(180 < n < 320 for n in ab + ba) and abs(ab[0] - ab[1]) < 80, (ab, ba))
+pair = lambda ev: parts(people=[person(a_.id, "gains", "coin"), person(b_.id, "harmed", "safety")], evidence=ev)
+ab = [e["true"] for e in run(pair([one, two]))[0] if e["kind"] == "evidence"]
+ba = [e["true"] for e in run(pair([two, one]))[0] if e["kind"] == "evidence"]
+check("(the review; f557) two pieces pointing at each other: the one with a reason lies, the other is true, whichever was proposed first",
+      ab == [False, True] and ba == [True, False], (ab, ba))
 
 # ---- "empty" and "blank" are no answer
 from llm import contracts

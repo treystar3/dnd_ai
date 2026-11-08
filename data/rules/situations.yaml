@@ -52,12 +52,15 @@ caps:
   each_other: null
   new_people: {normal: 0, uncommon: 0, rare: 2, campaign: 2}
 
-# (the owner) The chance a piece of evidence is false, by how sure its holder is: decided once by the engine, never told to the model
-# that proposed it. A sure piece is never false.
-false_chance:
-  sure: 0.0
-  they say: 0.2
-  hearsay: 0.5
+# (f557, the owner, 8 Nov: "lets not have it be a percentage roll to be a lie but instead some characters have an incentive to lie")
+# A piece of evidence a person holds is false only when they have a reason to deceive: their stake or their want is served by others
+# believing it, or it points at someone they are at odds with. No roll. Evidence lying at a place is never false, nor is a claim that
+# points at its own holder; a person with no reason to deceive tells what they believe, and it is so. The model that proposed it, and
+# the one that rules on it, is never told which claims are lies.
+lies:
+  stakes: [gains, blocks]          # one who does well out of the trouble, or stands in the way of its end
+  wants: [rid_of_rival, left_alone]
+  ties: [rival]                    # a claim against someone the holder is at odds with
 
 # The fixed render (engine/situations.py render): one line per part, from these, with the names, trades and goods of the world and
 # never an id. {name} is a person (a name, or "a bargeman" for one the engine has yet to make), {other} the other end of a tie, {good}

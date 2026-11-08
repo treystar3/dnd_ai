@@ -382,11 +382,24 @@ def check(parts, store, world, tier: str, rng: random.Random, *, town: str, ways
         full = room("evidence")
         if full:
             drop(p, full); continue
-        false = held == "person" and rng.random() < float(S["false_chance"].get(p.certainty, 0.0))   # (the owner) the engine's, once
         add({"kind": "evidence", "holder": holder, "held": held, "points_to": points, "certainty": p.certainty, "label": label,
-             "true": not false})
+             "true": not (held == "person" and lies(holder, points, accepted))})        # (f557) a lie by incentive, never a roll
     settle(accepted, within_reach(world, town, rows))
     return accepted, dropped
+
+
+def lies(holder: str, points: str, parts: list[dict]) -> bool:
+    """(f557, the owner, 8 Nov: "some characters have an incentive to lie") Whether a person's claim is a lie: only when they have a
+    reason to deceive - their stake or their want is served by others believing it (situations.yaml lies), or it points at someone
+    they are at odds with - and never a claim against themselves. No roll: the same parts always give the same answer."""
+    if not holder or points == holder:
+        return False
+    L = S.get("lies") or {}
+    me = next((a for a in parts if a.get("kind") == "person" and a.get("who") == holder), None)
+    if me is not None and (me.get("stake") in set(L.get("stakes") or ()) or me.get("want") in set(L.get("wants") or ())):
+        return True
+    return any(a.get("kind") == "tie" and a.get("tie") in set(L.get("ties") or ()) and {a.get("a"), a.get("b")} == {holder, points}
+               for a in parts)
 
 
 def settle(accepted: list[dict], reach=frozenset()) -> None:
@@ -726,13 +739,16 @@ def problems() -> list[str]:
                 bad.append(f"situations.yaml goods: '{g}' is the player's kit (a {inventory.GOODS[g].kind}), never a situation's cargo")
         if len(set(G)) != len(G):
             bad.append("situations.yaml goods: a good listed twice")
-    fc = S.get("false_chance") or {}
-    if set(fc) != set(L.get("certainties") or ()):
-        bad.append("situations.yaml false_chance: one chance for each certainty")
-    if fc.get("sure", 0) != 0:
-        bad.append("situations.yaml false_chance.sure: a sure piece of evidence is never false (the owner)")
-    if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not 0 <= v <= 1 for v in fc.values()):
-        bad.append("situations.yaml false_chance: each a chance between 0 and 1")
+    if "false_chance" in S:
+        bad.append("situations.yaml false_chance: a lie is never a roll (the owner, 8 Nov); say who has a reason to lie in lies")
+    LI = S.get("lies")
+    if not isinstance(LI, dict) or set(LI) != {"stakes", "wants", "ties"}:
+        bad.append("situations.yaml lies: stakes, wants and ties, each a list (and nothing else)")
+        LI = {}
+    for key, lst in (("stakes", "stakes"), ("wants", "wants"), ("ties", "ties")):
+        got = LI.get(key)
+        if not isinstance(got, list) or not set(got) <= set(L.get(lst) or ()):
+            bad.append(f"situations.yaml lies.{key}: some of lists.{lst}")
     P = S.get("phrases") or {}
     tables = {"stake": L.get("stakes"), "want": L.get("wants"), "condition": L.get("conditions"), "tie": L.get("ties"),
               "state": L.get("resource_states"), "kind": L.get("place_kinds"), "certainty": L.get("certainties")}
