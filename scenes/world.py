@@ -466,16 +466,38 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
         self._doing_changes = doings.assign(self.store, self.present, self.minutes, moments.active(self.store, self.player.location, self.minutes) or street,
                                             visiting=self._routine_here, place_type=self.place.type if self.player.location in self.world.places else "")
 
-    def situation_births(self, op=None) -> None:
-        """(f546) The parts operation's body, after the tail: a situation born this input (or still due) given its parts, asked outside
-        any transaction (engine/situation_parts.py birth), and the people here read again, as after the pulse, so the scene's copies
-        carry the worries and moods the parts gave them."""
+    def situation_births(self, text: str) -> None:
+        """(f546) After the tail, apart from it, and only when something waits (so an input with nothing born commits what it always did):
+        the situations with no parts to adopt take the engine's own (an operation with no call); then the oldest birth due asks for its
+        parts outside any transaction (engine/situation_parts.py birth). A birth whose operation fails for any reason spends one of its
+        tries in an operation of its own (f546's review), so none is asked forever. The people here are read again after, as after the
+        pulse, so the scene's copies carry the worries and moods the parts gave them."""
         from engine import situation_parts
-        if situation_parts.birth(self):
-            here = self.store.load_place(self.player.location)
-            if here.populated:
-                self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
-                self.refresh_present()
+        if situation_parts.adoptable(self.store.load_world_state() or {}):
+            with self.operation("parts:adopt", text, world=True) as op:
+                situation_parts.adopt_all(self)
+            if op.state == "committed":
+                self.reread_here()
+        th = situation_parts.due(self.store.load_world_state() or {})
+        if th is None:
+            return
+        tid, why = th["id"], {}
+
+        def _born(op):
+            why["it"] = situation_parts.birth(self, tid)
+        op, _ = self.asked_operation("parts", text, _born, world=True)
+        if op.state != "committed":
+            with self.operation("parts:missed", text, world=True):
+                situation_parts.missed(self, tid)
+        elif not why.get("it"):
+            self.reread_here()
+
+    def reread_here(self) -> None:
+        """(f546) The people here read again from the save, as after the pulse."""
+        here = self.store.load_place(self.player.location)
+        if here.populated:
+            self.residents = [n for n in (self.store.load_npc(i) for i in here.residents) if not n.gone]
+            self.refresh_present()
 
     def run_pulse(self) -> None:
         """Let the world move on, then see who is still here. (f466) The pulse may write the player through the save (engine/pulse.py
@@ -1519,9 +1541,8 @@ class WorldScene(ExitActions, InventoryActions, ShopActions, GearActions, CheckA
                     self.turn_ticks(text, shown)
                 self.asked_operation("tail", text, _tail, world=True)
                 self.run_passages()                            # (f498) the tail collects too: a road fight walked into as it resumes the
-                from engine import situation_parts
-                if not self.combat and situation_parts.waiting(self.store.load_world_state() or {}):
-                    self.asked_operation("parts", text, self.situation_births, world=True)   # (f546) a situation born given its parts
+                if not self.combat:
+                    self.situation_births(text)                # (f546) a situation born given its parts, each in operations of its own
                 self.collecting = False                        # road (resume_road) begins committed, its opening a passage told after it
                 ledger.LAST = ledger.end()
                 return True if not self.line_failed else "part"

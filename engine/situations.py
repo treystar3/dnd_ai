@@ -179,7 +179,8 @@ AGREE_SYSTEM = ("You compare a short statement about a situation in a fantasy wo
 def against(label: str, facts: list[str]) -> str:
     """(f546) Whether a part's words, a reader may see, agree with what the situation established: 'ok' when nothing established is close
     to them in meaning, or the check finds no contradiction; 'contradicts'; or 'unverified' when the check could not be asked (fail
-    closed, as the canon check does: the engine's own words stand instead). One small call, only for words near an established line."""
+    closed, as the canon check does: the engine's own words stand instead). One small call, only for words near an established line;
+    (f546's review) its own task, optional and asked outside, never counted against the turn's required time."""
     import config
     from engine import canon
     if not label or not facts:
@@ -196,7 +197,7 @@ def against(label: str, facts: list[str]) -> str:
     from llm.gateway import LLMError, generate
     listed = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(near))
     try:
-        r = generate("canon_check", AGREE_SYSTEM, f"ALREADY ESTABLISHED:\n{listed}\n\nNEW STATEMENT: {label}", CanonCheck, temperature=0.1,
+        r = generate("situation_agree", AGREE_SYSTEM, f"ALREADY ESTABLISHED:\n{listed}\n\nNEW STATEMENT: {label}", CanonCheck, temperature=0.1,
                      retries=1, max_tokens=40)
     except LLMError:
         return "unverified"
@@ -793,6 +794,8 @@ def problems() -> list[str]:
         bad.append("situations.yaml births.tries: a whole number above 0")
     if not isinstance(B.get("adopt_tiers"), list) or not set(B["adopt_tiers"]) <= {"rare", "campaign", "cataclysm"}:
         bad.append("situations.yaml births.adopt_tiers: of rare, campaign and cataclysm only")
+    elif isinstance(B.get("tiers"), list) and not set(B["tiers"]) <= set(B["adopt_tiers"]):
+        bad.append("situations.yaml births.adopt_tiers: every tier of births.tiers, so a birth past its tries takes the engine's own parts")
     H = S.get("heart") or {}
     if not isinstance(H.get("threat_kinds"), list) or not H["threat_kinds"] or not set(H["threat_kinds"]) <= set(L.get("place_kinds") or ()):
         bad.append("situations.yaml heart.threat_kinds: some of lists.place_kinds")

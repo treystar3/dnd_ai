@@ -78,11 +78,19 @@ check("(a rare situation is born)", th is not None)
 check("a rare birth is due its parts and has none yet", th.get("parts_due") == 0 and not th.get("parts"), th)
 st = store.load_world_state()
 row = next(x for x in st["threads"] if x["id"] == th["id"])
-row["truth"] = "The miller never wrote a letter to anyone; the gate burned by chance."
+row["truth"] = "The miller never wrote a letter to anyone; the gate burned by chance; there are wolves on the road at night."
 row["stages"][0].setdefault("effects", []).append({"kind": "leave", "npc": away.id, "text": "left for the coast"})
 store.save_world_state(st)
 calls0, legacy0, log0 = stub.calls.get("SituationParts", 0), list(operation.LEGACY), len(pulselog.LOG)
+import llm.gateway as gw
+asked_tasks = []
+_generate = gw.generate
+def spy(task, system, user, *a, **k):
+    asked_tasks.append((task, user))
+    return _generate(task, system, user, *a, **k)
+gw.generate = spy
 ws.turn("I look around.")
+gw.generate = _generate
 th = thread_of(store, th["id"])
 parts = th.get("parts") or []
 check("after the input, the parts operation gave it its parts with one call", parts and stub.calls.get("SituationParts", 0) == calls0 + 1
@@ -106,6 +114,12 @@ st = store.load_world_state()
 own = [e for e in st["effects"] if e.get("thread") == th["id"] and "of_part" in e]
 check("every condition's effect is its own (of_part), so one can be lifted alone (a mark is written on the place, not as an effect)",
       sorted(e["of_part"] for e in own) == sorted(i for i, a in enumerate(parts) if a["kind"] == "condition" and a["what"] != "mark"), own)
+agreed = [u for task, u in asked_tasks if task == "situation_agree"]
+check("(the review) the words a reader may see are checked on the agreement's own task, never the canon check's",
+      agreed and not any(task == "canon_check" for task, _ in asked_tasks), [t for t, _ in asked_tasks])
+check("(the review) ...and only those: a mark's words are checked, a danger's never are",
+      any("NEW STATEMENT: a burnt gate" in u for u in agreed) and not any("wolves on the road" in u.split("NEW STATEMENT:")[-1] for u in agreed),
+      agreed)
 h = th.get("heart") or {}
 check("the heart: the harmful conditions with their controllers and the one who blocks, as threats",
       {(x["kind"], x.get("what", ""), x.get("by", "")) for x in h.get("threats", [])} >= {("condition", "danger", rows[1].id),
@@ -114,6 +128,8 @@ check("the heart: the harmful conditions with their controllers and the one who 
       and not any(x.get("what") == "mark" for x in h.get("threats", [])), h)
 check("...and the one harmed and the place, at stake", {("person", rows[0].id)} <= {(x["kind"], x.get("who")) for x in h.get("stakes", [])}
       and any(x["kind"] == "place" and x["place"] == th["place"] for x in h.get("stakes", [])), h)
+check("(the review) ...the place's town too, for a situation the model wrote", any(x["kind"] == "place" and x.get("town") == town
+      for x in h.get("stakes", [])), h)
 frozen = json.dumps(h, sort_keys=True)
 st = store.load_world_state()
 row = next(x for x in st["threads"] if x["id"] == th["id"])
@@ -168,9 +184,85 @@ check("a normal birth is never due and asks nothing", th3 is not None and "parts
 stub.a_SituationParts = parts_answer
 th4 = start(store, world, ws.catalog, ws.minutes, "rare", seed=17)
 ws.combat = object()
-check("nothing is born during a fight", situation_parts.birth(ws) is False and not thread_of(store, th4["id"]).get("parts"))
+check("nothing is born during a fight", situation_parts.birth(ws, th4["id"]) == "a fight is on" and "parts" not in thread_of(store, th4["id"])
+      and thread_of(store, th4["id"]).get("parts_due") == 0)
 ws.combat = None
-check("...and after it, the birth goes on", situation_parts.birth(ws) is True and thread_of(store, th4["id"]).get("parts"))
+ws.turn("I look around.")
+check("...and after it, the birth goes on", thread_of(store, th4["id"]).get("parts"))
+
+
+def kinds():
+    return [getattr(o, "kind", "") for o in ws.line_ops]
+
+
+def add_effect(tid, kind, place, eid):
+    st = store.load_world_state()
+    st["effects"].append({"id": eid, "kind": kind, "place": place, "text": "", "until": ws.minutes + 9 * 1440, "thread": tid, "value": 10})
+    store.save_world_state(st)
+
+
+# ---- (the review) a situation the engine finds nothing to build from is done with: no operation every input after
+st = store.load_world_state()
+st["threads"].append({"id": "empty546", "title": "The quiet terror", "tier": "cataclysm", "place": "trading_square",
+                      "times": [ws.minutes, ws.minutes + 9 * 1440], "status": "active", "made": ws.minutes, "clues": [],
+                      "paths": [{"id": "k", "kind": "kill", "target": "wolf", "spawn": "", "done": False}], "stage": 0,
+                      "stages": [{"description": "Fear.", "effects": []}], "kind": "threat", "groups": ["everyone"]})
+store.save_world_state(st)
+ws.turn("I look around.")
+empty = thread_of(store, "empty546")
+check("(the review) a situation with nothing to adopt takes none, and is done with", empty.get("parts") == [] and empty.get("parts_by") == "engine"
+      and not situation_parts.waiting(store.load_world_state()), empty.get("parts"))
+ws.turn("I look around.")
+check("(the review) ...so the next input opens no parts operation", not any(k.startswith("parts") for k in kinds()), kinds())
+
+# ---- (the review) a birth whose every part is dropped spends a try and is asked again, never frozen empty
+stub.a_SituationParts = lambda u, k: {"conditions": [{"on": "nowhere_keep", "kind": "closed"}]}
+th5 = start(store, world, ws.catalog, ws.minutes, "rare", seed=19)
+add_effect(th5["id"], "danger", road, "eff546d")
+calls5 = stub.calls.get("SituationParts", 0)
+ws.turn("I look around.")
+got = thread_of(store, th5["id"])
+check("(the review) every part dropped: a try spent, no parts, no heart, still due", got.get("parts_due") == 1 and "parts" not in got
+      and "heart" not in got, {k: got.get(k) for k in ("parts_due", "parts", "heart")})
+for _ in range(tries - 1):
+    ws.turn("I look around.")
+got = thread_of(store, th5["id"])
+check("(the review) ...past its tries, the engine's own parts, and a heart that holds its own danger",
+      got.get("parts_by") == "engine" and any(x["kind"] == "condition" and x["what"] == "danger" for x in got["heart"]["threats"])
+      and stub.calls.get("SituationParts", 0) == calls5 + tries, (got.get("heart"), stub.calls.get("SituationParts", 0) - calls5))
+
+# ---- (the review) a fault in a birth spends a try too, and never undoes another situation's adoption
+stub.a_SituationParts = parts_answer
+_register = situation_parts.register
+def broken(*a, **k):
+    raise RuntimeError("a fault while registering")
+situation_parts.register = broken
+th6 = start(store, world, ws.catalog, ws.minutes, "rare", seed=23)
+st = store.load_world_state()
+st["threads"].append({"id": "cat546", "title": "The red sky", "tier": "cataclysm", "place": "trading_square",
+                      "times": [ws.minutes, ws.minutes + 9 * 1440], "status": "active", "made": ws.minutes, "clues": [], "paths": [],
+                      "stage": 0, "stages": [{"description": "Red.", "effects": []}], "kind": "natural", "groups": ["everyone"]})
+store.save_world_state(st)
+add_effect("cat546", "closed", road, "eff546c")
+calls6 = stub.calls.get("SituationParts", 0)
+ws.turn("I look around.")
+check("(the review) a birth that faults: its try spent in an operation of its own", thread_of(store, th6["id"]).get("parts_due") == 1
+      and "parts:missed" in kinds(), (thread_of(store, th6["id"]).get("parts_due"), kinds()))
+check("(the review) ...while the adoption beside it stands", thread_of(store, "cat546").get("parts_by") == "engine", thread_of(store, "cat546").get("parts"))
+for _ in range(tries + 2):
+    ws.turn("I look around.")
+check("(the review) ...and it is asked no more than its tries, then the engine's own parts stand",
+      stub.calls.get("SituationParts", 0) - calls6 == tries and thread_of(store, th6["id"]).get("parts_by") == "engine",
+      stub.calls.get("SituationParts", 0) - calls6)
+situation_parts.register = _register
+
+# ---- (the review) a registered birth's heart holds the conditions its own telling laid, that no part holds
+th7 = start(store, world, ws.catalog, ws.minutes, "rare", seed=29)
+add_effect(th7["id"], "closed", "trading_square", "eff546t")
+ws.turn("I look around.")
+got = thread_of(store, th7["id"])
+check("(the review) the heart holds its telling's own closure beside the parts' conditions",
+      any(x.get("effect") == "eff546t" and x["what"] == "closed" for x in (got.get("heart") or {}).get("threats", [])), got.get("heart"))
 
 # ---- the same seed twice: the same parts and heart
 def again(name):
