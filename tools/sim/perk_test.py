@@ -7,6 +7,7 @@ import simlib; simlib.install(simlib.Stub("warrior", 1))
 from character import creation
 from core.rules import MECHANICS
 from engine import battlefield as bf, battlefield_builder as bb, behaviors, combat
+from engine import effects as fx
 from llm.contracts import ClassInterpretation
 bad = []
 def check(n, ok, x=""):
@@ -116,7 +117,7 @@ check("a Cleave strike carries into a second engaged enemy", shaped_run("cleave"
 # ---- the new perks
 f, p, w = duel(stubborn_hold=1)
 p.row, p.hold = "front", 2
-p.statuses["stunned"] = 1
+fx.put_status(p, "stunned", 1)
 check("stubborn hold: stunned, you still hold the line", bf.can_hold(p))
 
 struck = False

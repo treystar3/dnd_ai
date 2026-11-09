@@ -3,6 +3,7 @@
 Goods (herbs, food, consumables) and raw materials stack; gear takes a slot per piece.
 """
 
+import re
 from pathlib import Path
 
 import yaml
@@ -31,6 +32,7 @@ class Good(BaseModel):
     drops_from: list[str] = []
     description: str = ""
     rank: int = 0                   # a book (f397): the spell rank it teaches (engine/spells.py)
+    mass: bool = False              # (f545's review) said as a mass ("some salt"), never counted ("three salts")
 
 
 class Ingredient(BaseModel):
@@ -52,6 +54,90 @@ for _r in RECIPES.values():
     for _g in list(_r.makes) + [i.good for i in _r.ingredients if i.good]:
         if _g not in GOODS:
             raise ValueError(f"recipes.yaml {_r.id}: unknown good '{_g}'")
+
+
+def good_named(name: str) -> str:
+    """(f545) The good a name means, as find() would match it among one of every good, without minting an item for each (which drew
+    one id per good from the ids stream, so every good added moved the ids of every later thing in that turn). "" when none."""
+    words = [w.rstrip("s") for w in name.lower().replace("-", " ").split() if w not in ("the", "my", "a", "an", "some", "of")]
+    best, best_score = "", 0
+    base = items.CATALOG["goods"].name
+    for gid, g in GOODS.items():
+        text = f"{g.name} {gid}  {base}".lower().replace("_", " ")
+        score = sum(1 for w in words if w and w in text)
+        if score > best_score:
+            best, best_score = gid, score
+    return best
+
+
+def _stem(w: str) -> str:
+    """A word as one of its kind: 'sacks' and 'sack', 'torches' and 'torch', 'leaves' and 'leaf'."""
+    if w.endswith("ves") and len(w) > 4:
+        return w[:-3] + "f"
+    if w.endswith(("ches", "shes", "sses", "xes")) and len(w) > 4:
+        return w[:-2]
+    return w[:-1] if w.endswith("s") and not w.endswith("ss") and len(w) > 3 else w
+
+
+def _plain_words(text: str) -> list[str]:
+    import re
+    return [_stem(w) for w in re.findall(r"[a-z]+", (text or "").lower().replace("_", " "))]
+
+
+def _head(name: str) -> str:
+    """The word a good's name is: its last, or the one before "of" ("lamp oil" is oil; a "tome of the second circle" a tome)."""
+    w = _plain_words(name)
+    return (w[:w.index("of")] or w)[-1] if "of" in w else (w[-1] if w else "")
+
+
+FORMS = {_stem(w) for w in RULES.get("good_forms") or ()}
+TRIFLES = {_stem(w) for w in RULES.get("trifles") or ()}
+_SMALL = {"of", "the", "a", "an", "some", "two", "three", "few", "and", "for", "with", "from", "to", "at", "in", "on", "by", "per", "or",
+          "one", "your", "my", "their", "her", "his", "its", "our", "night", "day"}
+
+
+def is_good(name: str) -> str:
+    """(f545) The good a thing someone hands over IS, or "" when it only mentions one. It is that good when it names one (a word of the
+    good's name, whole) and ends in that good's own word or a form or measure of a good ("a jar of wine", "two sacks of salt",
+    "moonpetal flowers", "venison jerky", "a clove of garlic"); it is not when it ends in another thing ("a rope ladder", "a
+    cloth-wrapped key", "a sealed letter" is no sealed codex) or is a trifle of one ("a scrap of cloth", "a length of rope"). A raw
+    material by name is no story object either (data/world/materials.yaml): its own name answers with a material's id prefixed. A
+    stack's count as label() writes it ("candles x3") is no part of what it is."""
+    words = _plain_words(re.sub(r"\s+x\d+\s*$", "", name or ""))
+    if not words:
+        return ""
+    head = words[-1]
+    first = words[:words.index("of")] if "of" in words else []
+    if set(first) & TRIFLES:
+        return ""
+    best, size = "", 0
+    for gid, g in GOODS.items():
+        own = {w for w in _plain_words(g.name) + _plain_words(gid) if w not in _SMALL}
+        hits = own & set(words)
+        if hits and (head == _head(g.name) or head in FORMS) and len(hits) > size:
+            best, size = gid, len(hits)
+    if best:
+        return best
+    for m in items.MATERIALS.values():
+        mw = _plain_words(m.name)
+        if mw and all(w in words for w in mw):
+            return f"material:{m.id}"
+    return ""
+
+
+def category_word(cat: str) -> str:
+    """A category as a sentence says it: "trade goods", never "trade"."""
+    return {"trade": "trade goods"}.get(cat, cat)
+
+
+def ware_words(ware) -> set[str]:
+    """(f545's review) The words a ware is known by: its id's and its good's name, and its own name's but the measure it is sold in
+    ("a sack of salt" is salt, never "sack", which names grain as well)."""
+    out = set(_plain_words(ware.id))
+    if ware.kind == "item" and ware.item in GOODS:
+        out |= set(_plain_words(GOODS[ware.item].name))
+    out |= {w for w in _plain_words(ware.name) if w not in FORMS}
+    return {w for w in out if w not in _SMALL and len(w) > 2}
 
 
 def make_good(good_id: str, quantity: int = 1) -> Item:

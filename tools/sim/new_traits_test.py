@@ -4,6 +4,7 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
 from engine import combat as C, ability_traits as AT
+from engine import effects as fx
 from engine import battlefield as BF
 from engine.battlefield import Battlefield, BattleZone, BattleEdge
 def FIELD():
@@ -112,7 +113,7 @@ check("a built-up combo hits much harder", tot_late > tot_first * 1.3, (tot_firs
 cmb, p, foes = setup(); p.counters["combo:e0"] = 3; C.act_ability(cmb, p, mv(shape="combo"), foes[1], random.Random(1))
 check("switching target breaks the combo", "combo:e0" not in p.counters)
 # exploiting
-def afflicted(cmb, p, foes): foes[0].statuses["bleeding"] = 3
+def afflicted(cmb, p, foes): fx.put_status(foes[0], "bleeding", 3)
 a = lost(mv(shape="exploiting"), setup_fn=afflicted)[0]; b = lost(mv(shape="exploiting"))[0]
 check("exploiting punishes an afflicted target and is a normal blow against a clean one", a > base * 1.3 and abs(b - base) < base * 0.05, (round(a), round(b), round(base)))
 # pack hunt
@@ -139,14 +140,14 @@ for rid, st in (("expose", "exposed"), ("grapple", "grappled"), ("venom", "poiso
 # exposed lowers protection
 def taken(status=None):
     cmb, p, foes = setup(); foes[0].armor = 40; foes[0].ward = 40
-    if status: foes[0].statuses[status] = 3
+    if status: fx.put_status(foes[0], status, 3)
     return C.mitigate(foes[0], 1000, "physical", 40, cmb, p)[0]
 check("exposed targets take more from armored defences", taken("exposed") > taken() * 1.1, (round(taken()), round(taken("exposed"))))
 def dealt_to(status, n=150):
     t = 0
     for i in range(n):
         cmb, p, foes = setup(n_foes=1)
-        if status: foes[0].statuses[status] = 3
+        if status: fx.put_status(foes[0], status, 3)
         h = foes[0].hp; C.apply_damage(cmb, p, foes[0], 1.0, "hits", random.Random(i)); t += h - foes[0].hp
     return t / n
 check("a marked target takes about 20% more", 1.1 < dealt_to("marked") / dealt_to(None) < 1.35, dealt_to("marked") / dealt_to(None))
@@ -154,15 +155,15 @@ def dealt_by(status, n=150):
     t = 0
     for i in range(n):
         cmb, p, foes = setup(n_foes=1)
-        if status: foes[0].statuses[status] = 3
+        if status: fx.put_status(foes[0], status, 3)
         h = p.hp; C.apply_damage(cmb, foes[0], p, 1.0, "hits", random.Random(i)); t += h - p.hp
     return t / n
 check("a weakened enemy deals less", dealt_by("weakened") < dealt_by(None) * 0.85, (dealt_by(None), dealt_by("weakened")))
 check("poison no longer weakens (f227: it is damage only)", abs(dealt_by("poisoned") - dealt_by(None)) < 0.01)
 for st in ("poisoned", "burning"):
-    cmb, p, foes = setup(); foes[0].statuses[st] = 3; h = foes[0].hp; C.start_turn(foes[0], cmb)
+    cmb, p, foes = setup(); fx.put_status(foes[0], st, 3); h = foes[0].hp; C.start_turn(foes[0], cmb)
     check(f"{st} hurts at the start of the target's turn", foes[0].hp < h, h - foes[0].hp)
-cmb, p, foes = setup(); foes[0].statuses["bleeding"] = 3; foes[0].bleed = 10; h = foes[0].hp; C.start_turn(foes[0], cmb)
+cmb, p, foes = setup(); fx.put_status(foes[0], "bleeding", 3); fx.set_strength(foes[0], "bleeding", 10); h = foes[0].hp; C.start_turn(foes[0], cmb)
 check("an open wound does nothing by itself at the start of a turn (f234: blows make it bleed)", foes[0].hp == h, h - foes[0].hp)
 # hooking
 cmb, p, foes = setup(); far(cmb, foes[0]); C.act_ability(cmb, p, mv(rider="hook", reach="ranged"), foes[0], random.Random(1))
@@ -174,12 +175,12 @@ for i in range(40):
     cmb, p, foes = setup(); near(cmb, foes[0]); C.act_ability(cmb, p, mv(rider="grapple", tier="heavy", reach="ranged"), foes[0], random.Random(i))
     if "grappled" in foes[0].statuses: break
 check("grappling drags the target into melee", "grappled" in foes[0].statuses and engaged(p, foes[0]), foes[0].statuses)
-cmb, p, foes = setup(); foes[0].statuses["grappled"] = 2; C.act_ability(cmb, p, mv(rider="shove"), foes[0], random.Random(1))
+cmb, p, foes = setup(); fx.put_status(foes[0], "grappled", 2); C.act_ability(cmb, p, mv(rider="shove"), foes[0], random.Random(1))
 check("a grappled target cannot be pushed away", engaged(p, foes[0]))
-cmb, p, foes = setup(); foes[0].temperament = "passive"; foes[0].statuses["grappled"] = 2; cmb.round = 3
+cmb, p, foes = setup(); foes[0].temperament = "passive"; fx.put_status(foes[0], "grappled", 2); cmb.round = 3
 fled = False
 for i in range(60):
-    foes[0].fled = False; foes[0].statuses["grappled"] = 2
+    foes[0].fled = False; fx.put_status(foes[0], "grappled", 2)
     C.enemy_turn(cmb, foes[0], random.Random(i)); fled |= foes[0].fled
 check("a grappled enemy cannot flee", not fled)
 # draining
@@ -203,10 +204,10 @@ try:
 except Exception as e:
     check("penetrating test ran", False, repr(e))
 # befuddle
-cmb, p, foes = setup(n_foes=2, pets=1); foes[0].statuses["befuddled"] = 2
+cmb, p, foes = setup(n_foes=2, pets=1); fx.put_status(foes[0], "befuddled", 2)
 hit_own = hit_other = 0
 for i in range(80):
-    cmb, p, foes = setup(n_foes=2, pets=1); foes[0].statuses["befuddled"] = 2; h1 = foes[1].hp
+    cmb, p, foes = setup(n_foes=2, pets=1); fx.put_status(foes[0], "befuddled", 2); h1 = foes[1].hp
     C.enemy_turn(cmb, foes[0], random.Random(i))
     hit_own += foes[1].hp < h1
     check_gone = "befuddled" not in foes[0].statuses

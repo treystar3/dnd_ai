@@ -1,0 +1,31 @@
+# (f490, tools/latency.py --ceilings) Each speech task's prompt ceiling, in characters (GOALS.md, 2026-11-03: S7, one context size for
+# every call, and a per-task prompt ceiling is a measure first). Reported beside each night's sizes (tools/latency.py --against and
+# summary.md), never enforced in play. A measurement, outside the data hash like card_profile.yaml.
+#
+#   source:    what the ceilings were set from. Until the post-D night: the baseline night (pod night 20261103_0520, before Bundle D)
+#   round_to:  a ceiling is rounded up to a multiple of this
+#   ceilings:  per task, chars and where they came from: the night's p95, never under the largest prompt a golden sends
+#              (data/replay/sessions) nor the briefs tools/sim/closing_490_test.py builds; a task neither the night nor a golden
+#              measures keeps the ceiling it had (mentor_chat, from the test's brief, until a night talks to Maren)
+#   closing:   Bundle D's closing marks (the design's measures and gate), kept by hand; the tool keeps them as they are
+#
+# Do not hand-edit the ceilings: python tools/latency.py --ceilings RUN_DIR... sets them from the post-D night.
+source: 'the baseline night and the goldens: the post-D night pending'
+round_to: 500
+ceilings:
+  npc_conversation: {chars: 36500, from: the baseline night's p95 36345; stub_party's largest 17198}
+  npc_parting: {chars: 2000, from: stub_short's largest 1574}
+  npc_profile: {chars: 3000, from: the baseline night's p95 2774; stub_short's largest 2485}
+  dialogue_frame: {chars: 11000, from: the baseline night's p95 10715; stub_party's largest 8330}
+  work_offer_read: {chars: 1000, from: the baseline night's p95 780}
+  hire_chat: {chars: 16500, from: the baseline night's p95 16275; stub_party's largest 12239}
+  canon_extract: {chars: 4000, from: the baseline night's p95 3998; stub_party's largest 3058}
+  canon_check: {chars: 1000, from: the baseline night's p95 853}
+  exchange: {chars: 15500, from: the baseline night's p95 15039; stub_party's largest 13250}
+  overheard: {chars: 1500, from: the baseline night's p95 1326; stub_party's largest 1175}
+  mentor_chat: {chars: 11500, from: the fixture brief (tools/sim/closing_490_test.py) 11204}
+closing:
+  first_try_points: 5          # first-try acceptance within this many points of the baseline, for these tasks
+  first_try_tasks: [npc_conversation, npc_parting, hire_chat, exchange, mentor_chat]
+  many_points: 10              # NPCReplyMany (live_check --mode addressees) within this many points of npc_conversation's baseline, else flat_each
+  npc_conversation_p95: 14000  # npc_conversation's p95 prompt at or below this

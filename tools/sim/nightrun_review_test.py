@@ -15,13 +15,12 @@ sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 CALLS = []
-_chat = gw._client.chat
+_chat = simlib.below().chat              # (f518) the stub's own function, taken before the spy goes in over it
 def chat(*a, **k):
     CALLS.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None, name="nightrun_review spy")      # (f518) where it replaced the client: no embedder, as before
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
@@ -133,6 +132,8 @@ stub.plan = [{"kind": "other", "summary": "going to sleep"}]
 ws.turn("I go to sleep")
 check("going to sleep is a rest, not a gamble rolled as hiding", ws.minutes - before >= 50 and not any("hidden here" in m for m in store.load_place("trading_square").marks),
       ws.minutes - before)
+check("(f518) the turns' model calls went through the test's spy, the stand-in answering", spy.live() and any(t == "ActionPlan" for t, _ in CALLS)
+      and spy.src.calls.get("ActionPlan", 0) >= 1, (spy.live(), [t for t, _ in CALLS][-6:]))
 
 # ---- 4. the player as the world sees them
 c = ws.player.character

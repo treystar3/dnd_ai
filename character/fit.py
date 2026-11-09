@@ -48,6 +48,9 @@ def trigger_scores(interp: ClassInterpretation) -> dict[str, int]:
     text = _class_text(interp)
     scores = {}
     for t in TRIGGERS.values():
+        if t.dormant:                                      # (f507) never offered: nothing would evaluate it
+            scores[t.id] = EXCLUDED
+            continue
         score = _base_score(t.suits, interp, text)
         if t.id == "with_companion_present":
             score += 4 if (interp.uses_companions or getattr(interp, "summoner", False)) else EXCLUDED

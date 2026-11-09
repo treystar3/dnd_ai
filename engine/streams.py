@@ -74,3 +74,29 @@ def keyed(purpose: str, speaker: str = "", conversation: str = "", n: int = 0) -
     speaker, the conversation and a count: drawing it moves no stream the game already rolls, so a speaker's brief can never shift a
     fight's dice, and the same input draws the same. Made fresh each call; nothing of it is kept."""
     return random.Random(f"{_key}:keyed:{purpose}:{speaker}:{conversation}:{int(n)}")
+
+
+def fixed(*parts) -> random.Random:
+    """(f501) A die seeded by its declared parts alone, never the input: for what must hold across inputs (a hall's roster for the week,
+    a companion's pronoun, chosen once from its id and name). The seed is the parts joined by ":", today's seed strings exactly, so
+    nothing rolled this way moves. Made fresh each call; nothing of it is kept."""
+    return random.Random(":".join(str(p) for p in parts))
+
+
+def snapshot() -> tuple:
+    """(f485) Every stream's state as it stands, the global module's with them: an operation asked again from its start (engine/asked.py)
+    meets the same dice."""
+    return (_key, {name: r.getstate() for name, r in _streams.items()}, random.getstate())
+
+
+def restore(snap: tuple) -> None:
+    """(f485) The streams put back as snapshot() found them; one made since starts again from its seed, as if it had not been drawn."""
+    key_then, states, global_state = snap
+    if key_then != _key:
+        raise RuntimeError("the streams were reseeded between snapshot and restore")
+    for name, r in _streams.items():
+        if name in states:
+            r.setstate(states[name])
+        else:
+            r.seed(_seed(name))
+    random.setstate(global_state)

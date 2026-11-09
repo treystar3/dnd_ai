@@ -27,6 +27,7 @@ SNAKE = re.compile(r"(?<![#`/\w])[A-Za-z]+(?:_[A-Za-z0-9]+)+_*(?![\w{])")      #
 # "REASON: ...", "kind: ambush, detail: 1 x ghost, creatures: ghost", '}"v1_0"'
 STRAY = re.compile(r"(?<=[^\s#\w])#(?=[A-Za-z])|(?<=\s)#(?=\s)")
 DANGLING = re.compile(r"[ \t]*[\{\[]+[ \t]*$|\]h\d+\[")
+TEMPLATE = re.compile(r"<\|?/?(?:start_of_turn|end_of_turn|start_of_image|end_of_image|think|channel|message|im_start|im_end|eot_id|start_header_id|end_header_id|turn)\|?>|\|<channel>|<\|[a-z_]+\|>")   # (f527) the chat template's and the thinking's own tokens
 LABEL = re.compile(r"(?m)^[ \t]*(?:REASON|NOTE|KIND|DETAIL|SCENE|TITLE|VERDICT|MEANING|SUMMARY|CREATURES|SPEECH|GESTURE)\s*:.*$")
 FIELDS = re.compile(r"\b(?:kind|detail|creatures|check|meets_role|title|scene)\s*:\s*[^,.;\n]+(?:,\s*(?:kind|detail|creatures|check|meets_role|title|scene)"
                     r"\s*:\s*[^,.;\n]+)+")
@@ -75,7 +76,7 @@ def problem(task: str, value) -> tuple[str, str]:
         m = CONTROL.search(t)                               # (f407) a stray escape in the model's JSON: "still\\but" read as backspace + "ut"
         if m:
             return "broken", t[max(0, m.start() - 12):m.start() + 12]
-        for kind, pat in (("json", JSON_BITS), ("json", LABEL), ("json", FIELDS), ("json", DANGLING), ("placeholder", PLACEHOLDER), ("id", CODED),
+        for kind, pat in (("template", TEMPLATE), ("json", JSON_BITS), ("json", LABEL), ("json", FIELDS), ("json", DANGLING), ("placeholder", PLACEHOLDER), ("id", CODED),
                           ("id", SNAKE), ("id", TRAILING), ("note", NOTE), ("broken", STRAY)):
             m = pat.search(t)
             if m:

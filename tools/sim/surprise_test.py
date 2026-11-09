@@ -7,6 +7,7 @@ sys.argv = ["x", "mage", "2", "1", "1", "1"]
 _out = sys.stdout
 import simbot
 from engine import combat, loadout
+from engine import effects as fx
 from engine.combat import Move
 from core.models import Ability
 from llm.contracts import ActionIntent
@@ -30,7 +31,7 @@ def fighter(fid="player", side="player", **kw):
 def unaware_step(move):
     p, e = fighter(), fighter("e", "enemy")
     f = combat.Combat(fighters=[p, e], record=True)
-    e.statuses["unaware"] = 1
+    fx.put_status(e, "unaware", 1)
     for i in range(40):
         f.hits = []
         combat.act_ability(f, p, move, e, random.Random(i))
@@ -50,7 +51,7 @@ p, e, b = fighter(), fighter("e", "enemy"), fighter("b", "enemy", rank="boss")
 f = combat.Combat(fighters=[p, e, b])
 caught = combat.surprise(f)
 check("surprise catches the ordinary foe, not the boss", [x.id for x in caught] == ["e"] and "unaware" not in b.statuses)
-b.statuses["unaware"] = 1
+fx.put_status(b, "unaware", 1)
 combat.opening(f, random.Random(1))
 check("a boss marked unaware by any other road is put back on guard as the fight opens", "unaware" not in b.statuses and "unaware" in e.statuses)
 

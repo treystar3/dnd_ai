@@ -6,6 +6,7 @@ A quest is a plain dict so it saves simply:
 """
 
 import random
+import re
 from pathlib import Path
 
 import yaml
@@ -67,6 +68,66 @@ def reward(letter: str, guild: bool, bonus: float = 0) -> tuple[int, int]:
     r = G["ranks"][letter]["reward"]
     share = 1.0 if guild else G["personal_share"]
     return round(r["coins"] * share * (1 + bonus / 100)), round(r["xp"] * share * (1 + bonus / 100))
+
+
+def _named(text: str) -> list[str]:
+    """The name words a delivery's words give, as written: capitalised words, a possessive's "'s" off, titles (guild.yaml
+    recipient_titles: "Captain", "old") left out - "Avla Clay" gives two, "Gwilde at the forge" one, "the woman at the well" none."""
+    titles = {t.lower() for t in G.get("recipient_titles") or ()}
+    out = []
+    for w in re.findall(r"[A-Za-z][A-Za-z']*", (text or "").replace("_", " ")):
+        w = re.sub(r"'s?$", "", w)
+        if w[:1].isupper() and w.lower() not in titles and w.lower() != "the":
+            out.append(w.lower())
+    return out
+
+
+def names_fully(npc, text: str) -> bool:
+    """(f545's review) Whether the words give this person's whole name."""
+    want = (text or "").lower().replace("_", " ")
+    return re.search(rf"(?<![a-z]){re.escape(npc.name.lower())}(?![a-z])", want) is not None
+
+
+def names_person(npc, text: str, by_trade: bool = True) -> bool:
+    """(f545's reviews) Whether words saying who a thing is for name this person, when no one was settled on as the job was asked
+    (resolve_to): their whole name; or one of their names when it is the only name the words give ("Gwilde at the forge", "old
+    Marta", "Vell", "Marta's"; never "Avla Clay" for Dorn Clay, nor "the woman at the well" for Ivo Well, nor "Mart" for "Marta"); or -
+    by_trade - their trade, its plural or a word it is also called by (guild.yaml recipient_words: "the blacksmith"). "the" alone is
+    no one."""
+    want = re.sub(r"^the ", "", (text or "").lower().replace("_", " ").strip()).strip()
+    if not want or want == "the":
+        return False
+    whole = lambda part: bool(part) and re.search(rf"(?<![a-z]){re.escape(part)}(?![a-z])", want) is not None
+    if names_fully(npc, text):
+        return True
+    given = _named(text)
+    parts = [p.lower() for p in npc.name.split() if len(p) >= 3]
+    if (len(set(given)) == 1 and given[0] in parts) or (not given and want in parts):
+        return True
+    if not by_trade:
+        return False
+    role = npc.role.replace("_", " ").lower()
+    words = [role, plural(role), *[w.lower() for w in (G.get("recipient_words") or {}).get(npc.role, [])]]
+    return any(whole(w) for w in words)
+
+
+def resolve_to(store, world, issuer: str, text: str) -> str:
+    """(f545's review) The one living person of the asker's town a delivery's words name, settled as the job is asked so it is theirs
+    by who they are: their whole name, else the one name the words give when it is no one else's there. "" when the words name no one,
+    or more than one."""
+    from engine import pulse, retrieval
+    if not text or not store.npc_exists(issuer):
+        return ""
+    town = pulse.town_of(world, store.load_npc(issuer).location)
+    people = [p for p in retrieval.people_in_town(store, world, town) if p.id != issuer]
+    whole = [p for p in people if names_fully(p, text)]
+    if len(whole) == 1:
+        return whole[0].id
+    given = set(_named(text))
+    if len(given) != 1:
+        return ""
+    hits = [p for p in people if given & {w.lower() for w in p.name.split()}]
+    return hits[0].id if len(hits) == 1 else ""
 
 
 def plural(name: str) -> str:
@@ -358,16 +419,21 @@ def map_offer(world, store, offer, issuer: str, issuer_name: str, now: int, guil
                 return _quest("hunt", letter, f"Hunt {count} {c.name if count == 1 else plural(c.name)} in {p.name}", now, place=p.id,
                               creature=c.id, count=count, **common)
     if offer.kind == "gather":
-        good = inv.find([inv.make_good(g) for g in inv.GOODS], what)
-        if good:
-            return _quest("gather", "F", f"Bring {count} {good.name}", now, good=good.good, count=count, **common)
-        mat = next((m for m in items.MATERIALS.values() if m.name.lower() in what), None)
+        named = next((m for m in sorted(items.MATERIALS.values(), key=lambda m: -len(m.name))      # (f545's review) a material named
+                      if re.search(rf"\b{re.escape(m.name.lower())}s?\b", what)), None)            # whole first: "wool cloth" is wool
+        good = "" if named else inv.is_good(what)            # (f545) the good the request is for, by its own word ("moonpetal flowers")
+        if good and not good.startswith("material:"):
+            return _quest("gather", "F", f"Bring {count} {inv.GOODS[good].name}", now, good=good, count=count, **common)
+        mat = named or (items.MATERIALS.get(good.split(":", 1)[1]) if good.startswith("material:") else None) or \
+            next((m for m in items.MATERIALS.values() if m.name.lower() in what), None)
         if mat:
             return _quest("materials", "F", f"Bring {count} {mat.name}", now, material=mat.id, count=count, **common)
     if offer.kind == "deliver" and offer.to:
         item = offer.item or "a sealed letter"
-        return _quest("deliver", "F", f"Deliver {item} to {offer.to}", now, item=item, to_name=offer.to.split()[0],
-                      to_role=offer.to.lower().replace("the ", ""), item_description=f"{item}, from {issuer_name}.",
+        to = re.sub(r"^the ", "", offer.to.strip(), flags=re.I)        # (f545's review) a leading "the" only; the whole name kept
+        who = resolve_to(store, world, issuer, offer.to)               # (f545's review) a person named: theirs by who they are
+        return _quest("deliver", "F", f"Deliver {item} to {offer.to}", now, item=item, to_name=to,
+                      to_role=to.lower(), item_description=f"{item}, from {issuer_name}.", **({"to_id": who} if who else {}),
                       **common)
     return None
 

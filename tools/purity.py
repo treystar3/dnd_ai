@@ -10,12 +10,68 @@ tools/sim/fence_476_test.py runs it on every module in PURE that exists; Bundle 
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py"]   # grows as Bundle D writes them
-FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "time", "datetime", "uuid")
+PURE = ["engine/brief.py", "engine/recall.py", "engine/conversation.py", "engine/time_words.py",   # grows as Bundle D writes them
+        "engine/damage.py", "engine/effects.py", "engine/stacking.py", "engine/afflictions.py",     # (f510) Bundle E's rule modules:
+        "engine/healing.py", "engine/relics.py", "engine/bosses.py", "engine/behaviors.py"]         # no store, scene, model or clock
+FORBIDDEN_IMPORTS = ("storage", "scenes", "llm.gateway", "llm.backend", "time", "datetime", "uuid")   # (f518) nor the model's interface
 RANDOM_OK = {"keyed"}                         # streams.keyed(...) is the one die a pure module may roll
+# (f501) The DICE fence: the fight modules may roll only the streams (streams.get, keyed, fixed, new_id) and the two named constants, a
+# scratch estimate's own die (engine/combat.py danger, Random(seed)) and the mentor probe's steady roll (Random(0)); never a die seeded by
+# what was logged or by the clock (decision 5: nothing in play is seeded by what was logged). services/fight.py joins when f503 writes it.
+DICE = ["engine/combat.py", "engine/combat_perks.py", "engine/spellcraft.py", "engine/behaviors.py", "engine/healing.py",
+        "engine/afflictions.py", "engine/relics.py", "engine/bosses.py", "engine/summons.py", "engine/martial.py", "engine/movement.py",
+        "engine/parley.py", "engine/party.py", "scenes/combat_scene.py", "services/fight.py",
+        "engine/damage.py", "engine/stacking.py"]                                             # (f504) the declared stages and recipes
+DICE_CONSTANTS = {("engine/combat.py", "random.Random(seed)"), ("engine/combat.py", "random.Random(0)")}
+# (f503) The fight service (services/fight.py) under the dependency rule: scenes coordinate services; services use rules and
+# repositories; a service writes nothing to the console, asks the model nothing, reads no clock, and names its dependencies once.
+FIGHT = "services/fight.py"
+FIGHT_FORBIDDEN = ("scenes", "ui", "llm.gateway", "llm.embed", "llm.backend", "time", "datetime")       # (f518)
+FIGHT_DEPENDS = ("store", "bus", "party", "streams")
+# (f503) The write-path rule (tools/sim/battlefield_test.py): nothing outside the battlefield law writes spatial state. The directories
+# it reads include services/.
+WRITE_SCAN_DIRS = ("engine", "scenes", "npc", "services")
+SPATIAL = ("zone_id", "row", "engaged_with", "position_tags", "band", "elevated")
+# (f505) The health write-path rule: the health bar is written by engine/damage.py (the declared paths) and engine/combat.py restore, and by
+# the sites HP_EXEMPT names, each (file, the line as written): construction and scaling, unmaking and execution, floors and clamps outside
+# a blow, heals outside restore, costs and drains, a trap's cut. The list may only shrink (tools/sim/hp_writes_505_test.py pins it).
+EFFECT_ALLOWED_FILES = ("engine/effects.py",)      # (f507) the one writer of statuses, strengths, buffs, curses and ground effects
+EFFECT_VIEWS = ("statuses", "status_from", "buffs", "curses", "zone_effects", "poison", "poison_fixed", "ignite", "bleed")
+EFFECT_MUTATORS = ("pop", "clear", "setdefault", "update", "append", "extend", "remove", "insert")
+HP_ALLOWED_FILES = ("engine/damage.py",)
+HP_ALLOWED_FUNCTIONS = {("engine/combat.py", "restore")}
+HP_EXEMPT = {
+    # construction and scaling
+    ("engine/combat.py", 'f.max_hp = f.hp = round(f.max_hp * g["health"])'),
+    ("engine/combat.py", 'f.max_hp = f.hp = round(f.max_hp * (c["health"] + c["late_health"] * over))'),
+    ("engine/bosses.py", 'g.max_hp = g.hp = max(1, round(e.max_hp * B["guard_share"]))'),
+    ("engine/events.py", "f.max_hp = f.hp = max(1, round(f.max_hp * scale))"),
+    ("engine/party.py", "f.hp = max(1.0, f.max_hp * health_now(member, minutes))"),
+    # unmaking and execution
+    ("engine/summons.py", "f.hp = 0"),
+    ("engine/combat_perks.py", "f.hp = 0"),
+    ("scenes/arc_actions.py", "e.hp = 0"),
+    # floors and clamps outside a blow
+    ("services/fight.py", "x.hp = 1"),
+    ("engine/spellcraft.py", "dfn.hp = min(dfn.hp, dfn.max_hp)"),
+    ("engine/spellcraft.py", "dfn.hp = float(floor)"),
+    ("engine/bosses.py", 'f.hp = max(1, round(f.max_hp * cfg["hp_pct"] / 100))'),
+    # heals outside restore
+    ("engine/combat_perks.py", "target.hp = min(target.max_hp, target.hp + amount)"),
+    ("engine/healing.py", 't.hp = max(1.0, t.max_hp * spec["revive"] * wither_factor(t))'),
+    # costs and drains
+    ("engine/spellcraft.py", 'att.hp = max(1.0, att.hp - taken * N("pct", 10) / 100)'),
+    ("engine/combat.py", 'att.hp = max(1, att.hp - owed * am["overchannel"])'),
+    ("engine/relics.py", "f.hp = max(1, f.hp - loss)"),
+    ("engine/healing.py", "att.hp -= max(0.0, price)"),
+    ("engine/combat_perks.py", "att.hp -= price"),
+    # a trap's cut, laid before the fight
+    ("scenes/field_actions.py", "e.hp = max(1, round(e.hp * (1 - cut)))"),
+}
 
 
 def _imports(tree: ast.AST) -> list[tuple[int, str]]:
@@ -75,4 +131,178 @@ def check_all() -> list[str]:
     for rel in PURE:
         if (ROOT / rel).exists():
             out += problems(rel)
+    return out
+
+
+def dice_problems_in(source: str, name: str = "<source>") -> list[str]:
+    """(f501) Every die a fight module makes outside the streams: random.Random(...) and random.<roll>(...) calls, less the named constants."""
+    tree = ast.parse(source)
+    lines = source.splitlines()
+    bad = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        is_random = isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == "random"
+        is_bare = isinstance(f, ast.Name) and f.id in ("Random", "SystemRandom")
+        if not (is_random or is_bare):
+            continue
+        text = lines[node.lineno - 1][node.col_offset:].split(",")[0].split(")")[0] + ")"
+        if (name, text) in DICE_CONSTANTS:
+            continue
+        what = "makes its own Random" if (is_bare or f.attr in ("Random", "SystemRandom")) else f"rolls random.{f.attr}"
+        bad.append(f"{name}:{node.lineno}: {what} (draw from the streams: get, keyed, fixed or new_id)")
+    return sorted(set(bad), key=lambda b: (int(b.split(":")[1]) if b.split(":")[1].isdigit() else 0, b))
+
+
+def check_dice() -> list[str]:
+    """(f501) Every fight module that exists, under the DICE rule."""
+    out = []
+    for rel in DICE:
+        p = ROOT / rel
+        if p.exists():
+            out += dice_problems_in(p.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def fight_problems_in(source: str, name: str = FIGHT) -> list[str]:
+    """(f503) What the fight service may not do: import scenes, ui, the model's gateway or embedder, or the clock; write to the console;
+    print; roll a die outside the streams; depend on anything but store, bus, party and streams (its DEPENDS tuple, read as written)."""
+    tree = ast.parse(source)
+    bad = []
+    for line, mod in _imports(tree):
+        if any(mod == f or mod.startswith(f + ".") for f in FIGHT_FORBIDDEN):
+            bad.append(f"{name}:{line}: imports {mod}")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "console":
+            bad.append(f"{name}:{node.lineno}: writes to the console (console.{node.attr})")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
+            bad.append(f"{name}:{node.lineno}: prints")
+    bad += dice_problems_in(source, name)
+    depends = [n for n in tree.body if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "DEPENDS" for t in n.targets)]
+    try:
+        names = tuple(ast.literal_eval(depends[0].value)) if depends else ()
+    except Exception:
+        names = ()
+    if names != FIGHT_DEPENDS:
+        bad.append(f"{name}: DEPENDS names {names or 'nothing'}; the service depends on {', '.join(FIGHT_DEPENDS)} and nothing else")
+    return sorted(set(bad), key=lambda b: (int(b.split(":")[1]) if b.split(":")[1].isdigit() else 0, b))
+
+
+def check_fight() -> list[str]:
+    """(f503) The fight service, fenced."""
+    p = ROOT / FIGHT
+    return fight_problems_in(p.read_text(encoding="utf-8"), FIGHT) if p.exists() else [f"{FIGHT} is missing"]
+
+
+def spatial_writes_in(text: str, rel: str) -> list[str]:
+    """(f503) The write-path rule on one module's source: every write of a fighter's zone, row, engagement or position tags outside the
+    battlefield law (engine/battlefield.py), less combat.enters, the one sanctioned writer (it places a mid-fight joiner)."""
+    import re
+    if rel == "engine/battlefield.py":
+        return []
+    out = []
+    for m in re.finditer(r"\.(" + "|".join(SPATIAL) + r")\s*=(?!=)", text):
+        line = text[:m.start()].count("\n") + 1
+        if rel == "engine/combat.py" and "def enters" in text[max(0, m.start() - 800):m.start()] and m.group(1) in ("zone_id", "row", "engaged_with"):
+            continue
+        out.append(f"{rel}:{line} writes .{m.group(1)}")
+    return out
+
+
+def spatial_writes() -> list[str]:
+    """(f503) The write-path rule over every game module (WRITE_SCAN_DIRS), services/ included."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += spatial_writes_in(py.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def hp_writes_in(text: str, rel: str) -> list[str]:
+    """(f505) Every write of a health bar in one module's source outside the law: the declared paths (engine/damage.py), restore, and the
+    named exemptions. Returns 'file:line writes .hp' for each."""
+    import re
+    if rel in HP_ALLOWED_FILES:
+        return []
+    allowed_spans = []
+    for f_rel, fn_name in HP_ALLOWED_FUNCTIONS:
+        if f_rel == rel:
+            tree = ast.parse(text)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and node.name == fn_name:
+                    allowed_spans.append((node.lineno, node.end_lineno))
+    out = []
+    for i, line in enumerate(text.split("\n"), 1):
+        code = line.split("#")[0]
+        if not re.search(r"\.hp\s*(=|-=|\+=)(?!=)", code):
+            continue
+        if any(a <= i <= b for a, b in allowed_spans) or (rel, line.strip()) in HP_EXEMPT:
+            continue
+        out.append(f"{rel}:{i} writes .hp")
+    return out
+
+
+def hp_writes() -> list[str]:
+    """(f505) The health write-path rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += hp_writes_in(py.read_text(encoding="utf-8"), rel)
+    return out
+
+
+def hp_exempt_missing() -> list[str]:
+    """(f505) Every exemption whose line no longer exists in its file: the list may only shrink, and a site that went must leave it."""
+    gone = []
+    for rel, text in sorted(HP_EXEMPT):
+        p = ROOT / rel
+        if not p.exists() or not any(l.strip() == text for l in p.read_text(encoding="utf-8").split("\n")):
+            gone.append(f"{rel}: {text}")
+    return gone
+
+
+def effect_writes_in(text: str, rel: str) -> list[str]:
+    """(f507) Every write through one of the fighter's or the fight's effect views (statuses, status_from, ignite, poison, poison_fixed,
+    bleed, buffs, curses, zone_effects) in one module's source outside engine/effects.py, read from the syntax tree: an assignment or an
+    augmented assignment to the view or to an item of it (alone or in a tuple), or a call of a mutating method on it. A view is
+    read-only, and such a write would change nothing or, worse, a dict the row holds behind the caller's back. Returns 'file:line
+    writes .name' for each."""
+    if rel in EFFECT_ALLOWED_FILES:
+        return []
+
+    def is_view(node) -> bool:
+        return isinstance(node, ast.Attribute) and node.attr in EFFECT_VIEWS
+
+    def targets(t):
+        if isinstance(t, (ast.Tuple, ast.List)):
+            for e in t.elts:
+                yield from targets(e)
+        else:
+            yield t
+    out = []
+    for node in ast.walk(ast.parse(text)):
+        ts = []
+        if isinstance(node, ast.Assign):
+            ts = [x for t in node.targets for x in targets(t)]
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            ts = list(targets(node.target))
+        for t in ts:
+            view = t if is_view(t) else (t.value if isinstance(t, ast.Subscript) and is_view(t.value) else None)
+            if view is not None:
+                out.append(f"{rel}:{node.lineno} writes .{view.attr}")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in EFFECT_MUTATORS and is_view(node.func.value):
+            out.append(f"{rel}:{node.lineno} writes .{node.func.value.attr}")
+    return sorted(set(out), key=lambda l: int(l.split(":")[1].split(" ")[0]))
+
+
+def effect_writes() -> list[str]:
+    """(f507) The effect write rule over every game module (WRITE_SCAN_DIRS)."""
+    out = []
+    for d in WRITE_SCAN_DIRS:
+        for py in sorted((ROOT / d).glob("*.py")):
+            rel = py.relative_to(ROOT).as_posix()
+            out += effect_writes_in(py.read_text(encoding="utf-8"), rel)
     return out

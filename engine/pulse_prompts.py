@@ -11,8 +11,8 @@ EFFECTS = """EFFECTS you may use (the game applies them; anything else is story 
   danger    - place, value (-50..100), days: the place - or a ROAD, using its road id - becomes more (or less) dangerous
               for a while. A road made dangerous (bandits, a beast, a war party) means more fights for travelers on it;
               a road made safe (patrols, a cleared pass) means fewer.
-  closed    - place, days, text: a place or route can't be passed for a while (text says why)
-  mark      - place, text: a lasting visible change to a place
+  closed    - place, days, text: a place - or a ROAD, using its road id - can't be passed for a while (text says why)
+  mark      - place, text: a lasting visible change to a place, or to a ROAD by its road id (a cart in the ditch)
   loot      - place, text: something of value is left there to be found
   fact      - text, groups: something now known, by these knowledge groups
   lead      - place, text, groups: word of somewhere not on any map - a hunters' path, a hidden spring, a ruin up in
@@ -176,3 +176,77 @@ def judge_request(thread: dict, deeds: list[str], live: str) -> str:
             f"WHAT WOULD SETTLE IT (as imagined): {thread.get('resolution') or 'not specified'}\n"
             f"STILL ALIVE IN THE WORLD: {live or 'nothing the game tracks'}\n"
             f"LEDGER (the player's deeds since it began, oldest first):\n" + ("\n".join(f"  - {d}" for d in deeds) or "  (none)"))
+
+
+JUDGE_PARTS_SYSTEM = """You are the dungeon master of a fantasy game, ruling on what one act of the player changed in a situation. You
+are given the situation's PARTS (numbered: its people, goods, ties, what it lays on places and roads, and its evidence), what has
+changed in them so far, and THE ACT: what the player did, to whom, who was there, and how it went. Rule what this act changed, part by
+part, the way the world would answer it. People have minds of their own: they may refuse, deceive, give way, or stay set against the
+player.
+changes: each {n, part, who, becomes, because, about, needs}; n numbers them from 1, in order.
+  believes, doubts: a person who heard it now believes or doubts something (about: the number of the evidence it is about, 0 for
+    what the act claimed). A lie changes what someone believes, never what is true.
+  warmer, colder, afraid, angry, grateful: how a person who was there now feels toward the player.
+  open, wary, hostile, refusing, terrified, committed: what a person who was there is now willing to do for the player.
+  flees, surrenders, joins, warns: what a person does of their own accord (who: that person's own number; warns: about, the person
+    they warn).
+  safe, lifted, moved, given_up, lost, broken, mended, tested, found, destroyed: what changes in the world. who: 0 when the player's
+    own act does it by hand, there where it is, or the number of the person who does it: a person lifts only what they impose or
+    command, gives up only what they hold, and acts only as they are willing to.
+  because: what it rests on: words (what was said), coin (handed over), goods (given), force (done by hand), evidence (a found piece
+    shown; about: its number) or earlier (an earlier change). needs: the numbers of the earlier changes it rests on.
+Words change what people believe, feel and will do; the world changes only through someone's action. One refusing, hostile or
+committed toward the player is not moved by words alone: only by what reaches them - force, coin, goods, evidence shown to them, or a
+change in the world that touches them; one committed, only by evidence or force. A failed act brings no gain.
+Few true changes are better than many invented ones, and none at all is a fine answer. Never say the situation is over: the game
+reads that from the world. verdict: partial when anything changed, no otherwise. reason: one sentence. Respond only with JSON matching
+the schema."""
+
+
+def judge_parts_request(thread: dict, parts_lines: list[str], act_lines: list[str]) -> str:
+    """(f547) The ruling's request: the situation, its numbered parts with what has changed in each, and the act."""
+    stage = thread["stages"][thread["stage"]]["description"]
+    return (f"SITUATION: {thread['title']} ({thread['tier']})\nWHERE IT STANDS (stage {thread['stage'] + 1} of {len(thread['stages'])}): "
+            f"{stage}\nPARTS:\n" + ("\n".join(parts_lines) or "  (none)") + "\nTHE ACT:\n" + "\n".join(act_lines))
+
+
+# ---------- (f543) a situation's parts: the one call that may think (measured first, f544), proposing typed parts the engine checks ----------
+
+PARTS_SYSTEM = """You are the hidden life of a fantasy world. A situation is starting at the PLACE, off-screen, about THE TROUBLE, at the
+given TIER. Before anyone tells it, decide what it is made of: who is caught up in it and how, the goods it turns on, how its people
+stand to each other, what it lays on places and roads, and what evidence there is of what lies behind it. The game checks every part
+against the world and keeps only what holds: a part that names nobody real, or breaks a rule below, is lost on its own.
+
+people: each {who, stake, want, condition, holds, label}.
+  who: cast the town's own first: a person's id from PEOPLE, or a trade from TRADES OF THE TOWN (the game finds or makes the town's
+    own). Take a trade from OTHER TRADES (someone new, whom the game will name) only when the trouble needs a trade the town lacks.
+    Each who once: a trade names one person, so to cast two people of one trade, give their ids from PEOPLE. Never the player, never a
+    name of your own, never a trade with a number.
+  stake: gains (does well out of the trouble), harmed (is hurt by it), can_fix (could put it right), blocks (stands in the way of an
+    end to it) or knows (knows more of it than is said).
+  want: coin, road_open, goods_moved, safety, believed, left_alone or rid_of_rival. One who blocks an end to it does not want the road
+    open or the goods moved.
+  condition: most people help freely: leave it blank unless the situation gives them a reason to ask for more. Otherwise: paid,
+    protected, given (the good they want, in hand first: give them a wanted resource), trusted or told (something they must hear first:
+    give the situation evidence another person holds, or that lies at a place). A person who wants coin needs no condition paid.
+  holds: a good's id from GOODS they have and could part with, or blank.
+resources: each {good, state, holder, wanted_by, label}: a good's id from GOODS; scarce (hard to come by), stranded (a load that cannot
+  be moved) or wanted (called for); holder: the `who` of one of your people who has it, or blank; wanted_by: for wanted, the `who` of
+  one of your people who wants it.
+ties: each {a, b, tie}: two of your people by their `who`, and rival, owes (a owes b), kin, employs (a employs b) or fears (a fears b).
+conditions: each {on, kind, label, by, by_kind}: a place id from PLACES or a road id from ROADS, and closed (it cannot be passed),
+  danger, prices (a town's, never a road's) or mark (a lasting sign of what happened there). A road ROADS calls the only way between
+  its ends is never closed.
+  by: who or what imposes it and could lift it: the `who` of one of your people, or a few plain words for anything else ("the toll
+    men", "the sluice gate", "the spring flood"); blank when nothing in particular does.
+  by_kind: person (one of your people), group (a band of people), creature (a beast or monster), mechanism (a made thing) or nature
+    (weather, water, rock, sickness); blank with a blank by.
+evidence: each {label, holder, points_to, certainty}: label - what it is, in plain words ("a cut rope", "fresh hoofprints by the
+  mill"); holder - the `who` of one of your people, or the id of a place from PLACES where it lies; points_to - the `who` of one of
+  your people, or a place or road id; certainty - sure (they saw it or can show it), they say (they had it from others) or hearsay
+  (half heard). Evidence lying at a place is always sure.
+
+Keep to AT MOST, or HOW MANY where it stands instead. Give the player ways in: someone who wants something done, a thing to carry or
+find, a person who could set it right, a reason to doubt what is said. Make the parts hang together, and fit the place, its people's
+trades, the season and what is already going on. A label is a few plain words for the game's own use, never a sentence for a reader:
+no names, ids or underscores in it. Respond only with JSON matching the schema."""

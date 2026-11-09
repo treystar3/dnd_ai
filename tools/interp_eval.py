@@ -3,7 +3,8 @@ through the real intercepts and plan rewrites (scenes/world.py handle()) on a re
 
     python tools/interp_eval.py                       offline: the model's reading is the case's own `plan`; what is measured is everything
                                                       around the model - which intercept takes the line, what the rewrites make of the plan
-    python tools/interp_eval.py --live                the real model reads every line (needs Ollama); its reading is measured too
+    python tools/interp_eval.py --live                the real model reads every line (the game's own server, tools/runtime_cli.py;
+                                                      --attach uses the open game's); its reading is measured too
     python tools/interp_eval.py --only road,bram      only the cases whose name contains one of these
     python tools/interp_eval.py --promote logs/turns.jsonl -1     a case stub from a logged turn (engine/turnlog.py rows; edit `expect`)
     python tools/interp_eval.py --corpus data/replay/interp_corpus.yaml --live    the corpus built from night runs (tools/interp_corpus.py)
@@ -46,22 +47,21 @@ def load_cases(path=CASES) -> list[dict]:
 class Bench:
     """One scene, re-dressed for each case: who is here, who travels with the player, where they stand, what the mentor is up to."""
 
-    def __init__(self, live: bool = False, save: str = SAVE):
+    def __init__(self, live: bool = False, save: str = SAVE, source=None):
         self.save = save                                       # (f365) its own save folder, so two benches may run at once (the suite runs tests in parallel)
         import simlib
-        from llm import gateway as gw
-        real = gw._client                                      # the real Ollama client, before the stand-in takes its place
+        from llm import backend
         self.stub = simlib.Stub("warrior", 5)
-        simlib.install(self.stub)
+        self.unstub = simlib.install(self.stub)                # (f518) the stub as the model's source; its Held takes it away again
+        self.unlive = None
         if live:                                               # --live: the interpreter's own calls reach the model; the rest of the scene stays stubbed
-            import types
             stub_chat = self.stub.chat
 
             def chat(**k):
                 if (k.get("format") or {}).get("title") == "ActionPlan":
-                    return real.chat(**k)
+                    return backend.PASS                        # (f518) sent on to the real model by the stand-in: (f529) the server `source`
                 return stub_chat(**k)
-            gw._client = types.SimpleNamespace(chat=chat)
+            self.unlive = simlib.stand_in(chat=chat, name="interp_eval live", below=source)
         import config
         from engine import actions
         from npc.traits import load_traits
@@ -112,6 +112,7 @@ class Bench:
         from engine import mentor
         from npc.models import NPC
         ws = self.ws
+        self.store.clear_question()          # (f534) a question the last case left open (the law's, after a bribe) is not this case's
         ws.player.location = sc.get("place", "trading_square")
         self.store.meta.minutes = int(sc.get("minutes", 120))
         ws.player.guild_rank = sc.get("rank", "")
@@ -253,15 +254,22 @@ def group_of(case: dict) -> str:
     return kinds[0] if kinds else ("move" if e.get("moves") else "other")
 
 
-def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE) -> dict:
-    bench = Bench(live=live, save=save)
+def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: str = SAVE, source=None) -> dict:
+    bench = Bench(live=live, save=save, source=source)
     results, wrong = [], []
     taken_wrong = missed = 0
+    from llm.errors import LLMError
     for case in cases:
-        got = bench.run(case)
+        try:
+            got = bench.run(case)
+        except LLMError as e:
+            # (f533) live, the model gave no reading this case could use, every try (cut off, refused, the server down): the case is
+            # wrong and the run goes on, so a setting that fails more is counted for it rather than ending the measure at its first
+            got = {"handled_by": "model_failed", "kinds": [], "first": {}, "steps": [], "moves": [], "talked": [], "hire": [],
+                   "repairs": [], "read": None, "error": str(e)[:200]}
         bad = judge(got, case.get("expect") or {})
         want = (case.get("expect") or {}).get("handled_by")
-        if bad and want:
+        if bad and want and got["handled_by"] != "model_failed":      # (f533) not an intercept's doing
             if want == "interpret" and got["handled_by"] != "interpret":
                 taken_wrong += 1
             elif want != "interpret" and got["handled_by"] == "interpret":
@@ -282,11 +290,13 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, save: s
     for _, got, _ in results:
         for r in got.get("repairs") or []:
             fired[r] = fired.get(r, 0) + 1
-    summary = {"cases": n, "right": n - len(wrong), "wrong": wrong, "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
+    failed = sum(1 for _, got, _ in results if got["handled_by"] == "model_failed")
+    summary = {"cases": n, "right": n - len(wrong), "wrong": wrong, "model_failed": failed, "intercept_took_wrongly": taken_wrong, "intercept_missed": missed,
                "by_kind": {k: f"{r}/{t}" for k, (r, t) in sorted(by_kind.items())}, "repairs": dict(sorted(fired.items(), key=lambda x: -x[1]))}
     if not quiet:
         print(f"\n{summary['right']}/{n} right; intercepts took {taken_wrong} line(s) that were not theirs and missed {missed} that were"
-              + (" (live: the model's reading counted)" if live else " (offline: the model's reading is the case's own)"))
+              + (" (live: the model's reading counted)" if live else " (offline: the model's reading is the case's own)")
+              + (f"; the model gave no usable reading {failed} time(s)" if failed else ""))
         print("by kind: " + ", ".join(f"{k} {v}" for k, v in summary["by_kind"].items()))
         print("repairs fired: " + (", ".join(f"{k} {v}" for k, v in summary["repairs"].items()) or "none"))
         if wrong:
@@ -310,6 +320,8 @@ if __name__ == "__main__":
     ap.add_argument("--only", default="")
     ap.add_argument("--promote", nargs=2, metavar=("LOG", "INDEX"))
     ap.add_argument("--corpus", default="", help="(f365) another case file, e.g. data/replay/interp_corpus.yaml from tools/interp_corpus.py")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     if a.promote:
         lines = [l for l in Path(a.promote[0]).read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -319,5 +331,10 @@ if __name__ == "__main__":
     if a.only:
         frags = [f.strip() for f in a.only.split(",") if f.strip()]
         cases = [c for c in cases if any(f in c["name"] for f in frags)]
-    out = evaluate(cases, live=a.live)
+    server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
+    try:
+        out = evaluate(cases, live=a.live, source=server.source if server is not None else None)
+    finally:
+        if server is not None:
+            server.close()
     sys.exit(1 if out["wrong"] else 0)

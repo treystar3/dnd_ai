@@ -47,6 +47,8 @@ class TriggerDef(BaseModel):
     context: Literal["combat", "out_of_combat", "anywhere"]
     noncombat: bool = False
     suits: Suits = Suits()
+    dormant: bool = False       # (f507) true for a trigger no code evaluates: it loads (an old character's passive still validates), is
+    #                             never offered at creation, on gear or in a lesson, and engine/data_check.py holds the flag to the code
 
 
 class RulesError(Exception):
@@ -154,10 +156,8 @@ ENGINE_WORLD_MECHANICS = {*"""siege_breaker scout_ahead reverse_engineer all_or_
                           signature_work never_shoddy prospector known_craftsman""".split()}
 
 MECHANICS: dict[str, MechanicDef] = _load(RULES_DIR / "passive_mechanics.yaml", MechanicDef)
-_unknown = [m.id for m in MECHANICS.values()
-            if m.id not in (ENGINE_COMBAT_MECHANICS if m.kind == "combat" else ENGINE_WORLD_MECHANICS)]
-if _unknown:
-    raise RulesError(f"passive_mechanics.yaml: the engine doesn't know how to run: {', '.join(_unknown)}")
+# (f509) The refusal of a passive mechanic the engine cannot run moved to engine/data_check.py allowlist_problems (run at startup and
+# by the suite), with the rest of the tables the fight reads; the sets above stay the engine's declaration.
 
 
 class FamilyOption(BaseModel):

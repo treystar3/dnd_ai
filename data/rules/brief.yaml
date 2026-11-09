@@ -1,0 +1,62 @@
+# (f486, Bundle D) THE BRIEF: what a speaker is given for one reply, built from the records (engine/brief.py), never cached.
+#
+# A townsperson knows far more than one reply needs. The lore of their circles and the town's matters are theirs to know, but a reply is
+# about the line in front of them: they are given the lore that bears on THIS line (a shared-word pre-filter to `prefilter`, then ranked
+# by meaning where the helper model is there, by shared words where it is not, at most `lore`), every clue they hold of a matter (those
+# are what the talk is for), and one line naming what else they know, so nothing they know is a facade: asked about it, it is there.
+# What the town has, the land's herbs and game, and the guild board come in full only when the line is about them (`asked`), or always
+# for the roles whose work they are (`always`). The town's list is still given to the checks that read it (llm/gateway.py given_also),
+# so an invented smithy is sent back whether the block was in the prompt or not.
+townsfolk:
+  lore: 4                  # at most this many lore facts for one line
+  prefilter: 12            # ...chosen from the facts sharing a word with the line and the last lines of the talk
+  recent_lines: 4          # how many of the conversation's last lines count with the line for what bears on it
+  index_label: "YOU ALSO KNOW OF (say what you know if it comes up; it is yours to tell)"
+  asked:                   # a facet in full when the line is about it
+    land: [herb, herbs, grow, grows, growing, forage, foraging, hunt, hunting, hunted, game, deer, boar, hare, plant, plants, root, roots,
+           mushroom, mushrooms, berries, wild, woods, forest]
+    town: [where, smith, smithy, forge, inn, tavern, temple, shrine, shop, store, guild, healer, herbalist, buy, sell, market, trader,
+           merchant, room, bed, stay, eat, drink, ale, priest, chapel, workshop, stable]
+    board: [work, job, jobs, contract, contracts, board, bounty, bounties, posting, postings, guild, coin, pay, paid, hire, hiring, task, quest]
+  about_them:              # (f488) the facets' words asked of the speaker's own life, not the place: these never bring a facet in
+    - where are you from
+    - where you are from
+    - where you're from
+    - where do you come from
+    - where did you come from
+    - where did you grow up
+    - where did you learn
+    - where were you born
+    - where were you raised
+  always:                  # the facets a role is given whatever the line: their work is it
+    board: [guild_clerk, guild_master, quartermaster, guild_instructor]
+    town: [innkeeper, guard, watch_captain]
+    land: [herbalist, hunter]
+  # (f487) Two or more characters to one townsperson: one call with a block for each (one_call, NPCReplyMany), or one plain reply per
+  # character in order (flat_each). Set from the night's measure (f490): one_call stays only if its first-try acceptance on the card is
+  # within 10 points of a single reply's.
+  many_addressees: one_call
+  # (f493) A promise made to them in words is remembered as their claim (GOALS.md, 2026-11-03). The reply's they_promised is asked for
+  # only when what was said to them has one of `words` in it: with nothing promised there is no field to fill. On the post-D night (pod
+  # night 20261104_0012) the field was always there, and 698 of 707 replies filled it, most with "none" or with notes to the model
+  # itself, the longest to the token limit; 188 of 874 first tries timed out. What comes back is kept only as its first clause (cut at
+  # the first of `clause_ends`), in at most `max_words` words, with none of `not_one` and no character of `not_in` in it.
+  promise:
+    words: [promise, promised, swear, vow, my word, "i'll", i will, i shall, "we'll", we will, count on me, rely on me, leave it to me,
+            consider it done, "i'm going to", i am going to, on my honor, on my honour]
+    max_chars: 120         # the field's length in the reply's schema: the server's grammar ends it there
+    max_words: 16
+    clause_ends: ["\n", ". ", " (", ";", " - ", " – ", " — ", "\","]
+    not_one: [none, nothing, empty, no promise, not a promise, no promises, prompt, instruction, instructions, schema, json, placeholder,
+              "n/a", "note:", "wait,", user]
+    not_in: ["_", "{", "}", "*"]
+
+
+# (f488, part 2) A hire's brief (scenes/party_prompts.py talk_prompt): who they are, what presses on them, the moment as they know it,
+# the one who hired them and what is open between them first; the talk so far; then what this line brings to mind, and how they speak
+# last. The town's list and the board come in full only when the line is about them, by the townsfolk's words above (no hire's role is
+# either); the checks read the list always.
+hire:
+  voice_habits: 6          # at most this many lines on how they speak besides their kit, in any one reply
+  talk_window: 8           # the talk shown with them: kept as it was said until it holds this many lines...
+  talk_turn: 4             # ...then cut to its last this many, a page turned, never slid by a line or two each reply

@@ -1,6 +1,8 @@
 # COMBAT RULES - every number combat uses. Tune with: python tools/balance.py
 
 round_seconds: 6
+effects_keep: 64     # (f499) the most rows a fight keeps of what it remembers between rounds (engine/effects.py: the quarry, a withering's
+                     # placer, the last heal); the oldest expired go first, then the oldest. Today's kinds hold three rows at most.
 
 # (f412) Where the passage after a fight begins (scenes/combat_scene.py aftermath_opening): the engine picks one, never one of the last
 # not_again, so the passages do not all open on the silence coming back. An opening about a companion is only offered with a party along.
@@ -154,6 +156,7 @@ statuses:
   humbled:    {}                   # cannot land critical hits (Humbled, f268)
   scented:    {}                   # companions and summons hit it harder (Pack Scent, f268)
   unraveled:  {}      # necrotic unravelling: any healing it gets deals that much damage instead (engine/combat.py restore, f263)
+  hexed:      {}      # (f507) a hex's mark: the next blows from the hexer land harder (perks.yaml hex); no delta of its own, it lasts the fight
 
 creatures:
   # Lift: a creature weaker than the benchmark build of its level (size, ability score and category below) is strengthened toward it, so

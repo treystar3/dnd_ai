@@ -328,12 +328,16 @@ def sync_paths(state: dict, th: dict) -> None:
                                                "kind": "kill", "target": s["creature"], "spawn": s["id"], "done": False})
 
 
-def _won_over(state: dict, since: int, npc_id: str) -> bool:
-    mine = [d for d in deeds.since(state, since, ["persuade"]) if d.get("npc") == npc_id]
+def _won_over(state: dict, since: int, npc_id: str, by: str = "", mark: int = -1) -> bool:
+    from engine import situation_parts
+    mine = [d for d in deeds.since(state, since, ["persuade"]) if d.get("npc") == npc_id
+            and d.get("degree", "success") in ("success", "strong success")            # (f547's third review) a failure wins no one;
+            and (not by or d.get("by", by) == by)                                       # (the fourth) nor another character's words;
+            and situation_parts.counts_after(d, mark)]                                  # (the fifth) nor words they have answered since
     return any(d.get("degree") == "strong success" for d in mine) or len(mine) >= 2
 
 
-def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None) -> bool:
+def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None, by: str = "") -> bool:
     """near (f424): the places a kill counts at for a matter with nothing spawned - its own place, its town's and the wild on their
     doorstep. A wolf killed three regions away ended the Greywood's wolves before."""
     made = thread["made"]
@@ -347,17 +351,20 @@ def path_met(path: dict, state: dict, thread: dict, near: set[str] | None = None
         ids = [i for i in path.get("spawn", "").split(",") if i]
         found = [x for x in state.get("spawns", []) if x["id"] in ids]
         return bool(found) and all(x["defeated"] for x in found)
-    if path["kind"] == "persuade":
-        return _won_over(state, made, path["target"])
+    if path["kind"] == "persuade":                                  # (f547's fourth review) words they have since answered with a stance
+        return _won_over(state, made, path["target"], by, _against(thread, path["target"], by))           # do not count
     if path["kind"] == "treaty":
         ids = [i for i in path["target"].split(",") if i]
-        return bool(ids) and all(_won_over(state, made, i) for i in ids)
+        return bool(ids) and all(_won_over(state, made, i, by, _against(thread, i, by)) for i in ids)
     if path["kind"] == "clear":
         return any(d.get("place") == path["target"] for d in deeds.since(state, made, ["dungeon_cleared"]))
     if path["kind"] == "contract":
         return any(d.get("thread") == thread["id"] for d in deeds.since(state, made, ["quest_done"]))
     if path["kind"] == "find":
         return any(d.get("place") == path["target"] and d.get("thread") == thread["id"] for d in deeds.since(state, made, ["found"]))
+    if path["kind"] == "part":                                       # (f545) a person of the situation whose condition of help is met
+        from engine import situation_parts
+        return situation_parts.need_met(path, state, thread, by)
     return False
 
 
@@ -372,6 +379,9 @@ def after_deed(ws, deed: dict) -> None:
         return
     from engine import matters
     changed = False
+    if deed.get("kind") == "kill":                                    # (f545's review) a kill where a situation's trouble is keeps
+        from engine import situation_parts                           # safe the one who asked for that: noted, their yes to come
+        changed |= situation_parts.killed(ws, state, deed)
     for th in [x for x in state.get("threads", []) if x["status"] == "active"]:
         if deed["kind"] == "quest_done" and deed.get("thread") == th["id"]:
             if th.get("hidden") and not th.get("revealed"):          # (f317) the job is done; what it did not say comes out, and the matter stays open
@@ -392,10 +402,16 @@ def after_deed(ws, deed: dict) -> None:
             from engine import towns as _towns
             near = ({th["place"], th.get("wild", "")} | _towns.town_places(world, pulse.town_of(world, th["place"]))
                     if th.get("place") in world.places else None)
-            met = next((p for p in th["paths"] if not p["done"] and path_met(p, state, th, near)), None)
+            met = next((p for p in th["paths"] if not p["done"] and (p["kind"] != "part" or deed.get("npc") == p["target"])
+                        and not _set_against(th, p, deed.get("by") or ws.acting)
+                        and path_met(p, state, th, near, deed.get("by") or ws.acting)), None)   # (f545's review) a person's yes is given with
+                                                                                            # the player there, to the one who met it
             if met:
                 met["done"] = True
                 th["won_path"] = met
+                if th.get("parts") and met.get("kind") in ("part", "persuade"):    # (f547) a met condition: a certain change on the
+                    from engine import situation_parts                              # person, made with no model call
+                    situation_parts.met_way(ws, state, th, met, deed.get("by") or ws.acting)
                 finish(ws, state, th, f"by way of '{met['name']}'", "truce" if met["kind"] == "treaty" else "victory")
                 changed = True
                 continue
@@ -403,6 +419,28 @@ def after_deed(ws, deed: dict) -> None:
             changed |= judge(ws, state, th, deed)
     if changed or deed.get("dirty"):
         store.save_world_state(state)
+
+
+def _against(th: dict, npc_id: str, by: str) -> int:
+    from engine import situation_parts
+    return situation_parts.answered_seq(th, npc_id, by) if th.get("parts") else -1
+
+
+def _won_by_someone(state: dict, th: dict, npc_id: str) -> bool:
+    """(f547's fifth review) A treaty's side won over by some character: by that character's own words, since that side last set itself
+    against them, and not set against them now."""
+    bys = {d.get("by", "") for d in deeds.since(state, th["made"], ["persuade"]) if d.get("npc") == npc_id}
+    return any(not _set_against(th, {"kind": "treaty", "target": npc_id}, b) and _won_over(state, th["made"], npc_id, b, _against(th, npc_id, b))
+               for b in sorted(bys))
+
+
+def _set_against(th: dict, path: dict, by: str) -> bool:
+    """(f547's third review) A way through a person (their condition, their persuasion, a treaty's sides) is not met while one of them
+    stands against the one acting in a situation with parts: only what moves them (a ruling) opens it."""
+    if not th.get("parts") or path.get("kind") not in ("part", "persuade", "treaty"):
+        return False
+    from engine import situation_parts
+    return any(situation_parts.set_against(th, x, by) for x in str(path.get("target") or "").split(",") if x)
 
 
 def _scope_regions(world, th: dict) -> set[str]:
@@ -429,6 +467,8 @@ def judge(ws, state, th, deed) -> bool:
     world = ws.world
     th["judge_calls"] = th.get("judge_calls", 0) + 1
     th["judge_last"] = ws.minutes
+    if "parts" in th:                                    # (f547) a situation with parts: the act ruled against them, change by change
+        return _rule(ws, state, th, deed)
     mine = [d for d in deeds.since(state, th["made"], E["judge"]["relevant_deeds"])
             if world.places.get(d.get("place") or "") and world.places[d["place"]].region in _scope_regions(world, th)]
     live = "; ".join(f"{s['name']} (boss)" if s["boss"] else f"{s['name']} (kills {s['kills']}/{s['need']})"
@@ -462,6 +502,21 @@ def judge(ws, state, th, deed) -> bool:
     return False
 
 
+def _rule(ws, state, th, deed) -> bool:
+    """(f547) The dungeon master's ruling on this deed against the situation's parts (engine/situation_parts.py rule): the changes the
+    engine keeps. Its verdict ends nothing (the owner: never "pretending they completed it successfully"); f549 reads the end from the
+    world. A call that fails changes nothing."""
+    from engine import situation_parts
+    try:
+        v, kept, dropped = situation_parts.rule(ws, state, th, situation_parts.act_of(ws, deed))
+    except LLMError as e:
+        console.debug(f"event ruling: no ruling ({e})")
+        return False
+    console.debug(f"event ruling: {th['title']} -> {len(kept)} kept, {len(dropped)} dropped")
+    return bool(kept)                                    # (f547's review) never the model's to end it: what it changed stands, and
+                                                         # whether that ends it is read from the world (f549)
+
+
 def finish(ws, state, th, how: str, ending: str) -> None:
     """The player ended an event. Lift what it did, tell the world, and pay the grand reward for the big ones."""
     pulse = _pulse()
@@ -480,6 +535,9 @@ def finish(ws, state, th, how: str, ending: str) -> None:
         ps.marks = (ps.marks + [f"broken in the war ({th['title']})"])[-12:]
         store.save_place(ps)
     pulse.end_thread(store, state, th, "resolved", f"{th['title']} - ended; {name} {how}.", t)
+    if th.get("parts"):                                 # (f545) the scene's own copies of its people take what the end released
+        from engine import situation_parts
+        situation_parts.refresh(ws, th)
     th["result"] = "player"
     th["ending"] = ending
     th["touched"] = True                                # (f424) the journal shows the matter the player ended
@@ -993,7 +1051,7 @@ def town_outcome(store, world, catalog, state, th, town: str, stage_i: int, t: i
         p *= cfg["boss_dead"]
     for path in th.get("paths", []):
         if path["kind"] == "treaty":
-            won = sum(1 for i in path["target"].split(",") if i and _won_over(state, th["made"], i))
+            won = sum(1 for i in path["target"].split(",") if i and _won_by_someone(state, th, i))
             p *= C["treaty_fall_halving"] ** won
     present = _player_in(store, world, town)
     if present:

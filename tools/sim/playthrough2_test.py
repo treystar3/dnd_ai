@@ -12,13 +12,12 @@ sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 CALLS = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                     # (f518) the stub answering now, which the spy calls through to
 def chat(*a, **k):
     CALLS.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat, embed=None)    # (f518) the spy as the model's source, over the stub
 import ui.console as uc
 for f in ("narrate", "note", "say", "npc_says", "dialogue", "ledger"):
     setattr(uc, f, lambda *a, **k: None)
@@ -37,10 +36,10 @@ world = load_world()
 
 # ---- watching for an opening
 check("'I watch the troll and look for an opening' is watching for an opening",
-      combat_improv.read_effect("I watch the troll and look for an opening") == "read_opening"
-      and combat_improv.read_effect("The player watches the troll for an opening.") == "read_opening")
-check("...and the other improvisations still read as themselves", combat_improv.read_effect("I throw sand in its eyes") == "distract"
-      and combat_improv.read_effect("I jam my lance into its knee") == "disable")
+      cs.read_effect("I watch the troll and look for an opening") == "read_opening"                  # (f503) the scene's read
+      and cs.read_effect("The player watches the troll for an opening.") == "read_opening")
+check("...and the other improvisations still read as themselves", cs.read_effect("I throw sand in its eyes") == "distract"
+      and cs.read_effect("I jam my lance into its knee") == "disable")
 
 def fight_with_troll():
     char, _ = simlib.make_character("warrior", random.Random(2))

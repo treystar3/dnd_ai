@@ -25,6 +25,8 @@ from typing import Callable
 class Event:
     kind: str = field(init=False, default="event")
     minute: int = 0
+    journaled = True              # (f503) a class flag, not a field: False for a signal the fight sends in the process (its record is its
+    #                               row and the ledger), which the campaign's journal (Bus.journal_everything) does not write as a row
 
     @property
     def actor(self) -> str:
@@ -368,6 +370,9 @@ class Bribe(Deed):
     def text(self) -> str:
         return f"{'bribed' if self.worked else 'tried to bribe'} {self.name} ({self.amount} copper)"
 
+    def ledger_row(self) -> dict | None:
+        return {"kind": "bribe", "npc": self.npc, "coin": self.amount} if self.worked else None   # (f545) paid, when it bought the favour
+
     def victim_line(self) -> str:
         from engine import money
         sum_ = money.words(self.amount)
@@ -431,9 +436,14 @@ class Gift(Deed):
     kind: str = field(init=False, default="gift")
     item: str = ""
     coin: int = 0
+    count: int = 1                  # (f545's review) how many of the item were handed over at once
 
     def text(self) -> str:
         return f"gave {self.name} {self.item or str(self.coin) + ' copper'}"
+
+    def ledger_row(self) -> dict | None:
+        return {"kind": "gift", "npc": self.npc, "item": self.item, "coin": self.coin, "count": self.count}   # (f545) a condition of
+                                                                                                             # help it may meet
 
     def victim_line(self) -> str:
         from engine import money
@@ -743,6 +753,59 @@ class PlaceDiscovered(Deed):
         return f"found {self.name or self.found}" + (" (a way through)" if self.what == "track" else "")
 
 
+# ---- (f503) the fight: signals from services/fight.py to whoever listens (the tests; later the director), not journal rows
+
+@dataclass(frozen=True)
+class FightBegun(Event):
+    kind: str = field(init=False, default="fight_begun")
+    journaled = False
+    serial: str = ""
+    place: str = ""
+    foes: tuple = ()
+    count: int = 0
+
+    def text(self) -> str:
+        return f"a fight begins: {', '.join(self.foes)}"
+
+
+@dataclass(frozen=True)
+class RoundFought(Event):
+    kind: str = field(init=False, default="round_fought")
+    journaled = False
+    serial: str = ""
+    round: int = 0
+    over: str = ""
+
+    def text(self) -> str:
+        return f"round {self.round}" + (f": {self.over}" if self.over else "")
+
+
+@dataclass(frozen=True)
+class FightEnded(Event):
+    kind: str = field(init=False, default="fight_ended")
+    journaled = False
+    serial: str = ""
+    outcome: str = ""
+    dead: tuple = ()
+    fallen: tuple = ()
+    duel: bool = False
+
+    def text(self) -> str:
+        return f"the fight ends: {self.outcome}"
+
+
+@dataclass(frozen=True)
+class PlayerFell(Event):
+    kind: str = field(init=False, default="player_fell")
+    journaled = False
+    serial: str = ""
+    place: str = ""
+    deaths: int = 0
+
+    def text(self) -> str:
+        return "the player fell"
+
+
 # ---- the bus
 
 class Bus:
@@ -787,6 +850,8 @@ class Bus:
         from engine import canon
 
         def to_journal(e: Event) -> None:
+            if not getattr(e, "journaled", True):          # (f503) the fight's signals are not the campaign's record
+                return
             canon.journal(e.kind, e.actor, e.target, e.text(), **e.data())
         self.subscribe(Event, to_journal)
         self.journal_on = True

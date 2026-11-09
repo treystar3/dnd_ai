@@ -31,6 +31,7 @@ def answer_all(w, default="go on", cap=30):
         n += 1
         w.handle(ANSWERS.pop(0) if ANSWERS else default)
 from engine import combat, mentor, pools, inventory, money
+from engine import effects as fx
 from core.models import Archetype
 from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
@@ -230,7 +231,7 @@ if f2:
     check("the fight goes on: no one steps in", f2.over == "" and ws.combat is not None and mentor.stage(player) == "hunt")
     combat.take_damage(f2, me, 900, f2.enemies()[0], random.Random(2))
     check("it holds every time", me.hp == 1 and f2.mentor_saved == 2 and me.alive)
-    me.statuses["bleeding"] = 3; me.hp = 1
+    fx.put_status(me, "bleeding", 3); me.hp = 1
     combat.start_turn(me, f2)
     check("a bleed cannot kill you either", me.hp >= 1)
     combat.take_damage(f2, f2.enemies()[0], 1, me, random.Random(3))
@@ -268,7 +269,7 @@ ASKED.clear(); SAID.clear(); rnd = ft.round
 CHOICE[0] = {"kind": "other", "summary": "asks a question"}
 ws.combat.turn("Hey Maren, how do i get my hit chance up?")
 check("she answers in the middle of a fight, free of a turn", ft.round == rnd and ASKED and any(s == mentor.NAME for s, _ in SAID), (ASKED, SAID))
-ft.enemies()[0].statuses["burning"] = 2
+fx.put_status(ft.enemies()[0], "burning", 2)
 ASKED.clear(); SAID.clear(); rnd = ft.round
 CHOICE[0] = {"kind": "talk", "target": "e0", "speech": "what does that mean"}
 ws.combat.turn("it says the wolves are burning what does that mean?")
@@ -277,7 +278,7 @@ check("she is told what is burning and what burning does", ASKED and "burning (2
 SAID.clear()
 ws.combat.turn("please stop, wolf")
 check("a plea to the wolf is still refused", any("Talking will not help" in t or "cannot be" in t or "wolves" in t for _, t in SAID), SAID)
-ft.enemies()[0].statuses.pop("burning", None)
+fx.end_status(ft.enemies()[0], "burning")
 check("nothing she says claims a draught costs a turn", "costs you a turn" not in open("data/world/mentor.yaml", encoding="utf-8").read())
 CHOICE[0] = {"kind": "attack", "target": "e1"}
 

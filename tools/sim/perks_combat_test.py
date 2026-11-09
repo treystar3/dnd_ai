@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import battlefield as bf, battlefield_builder as bb, combat, combat_perks as perks
+from engine import effects as fx
 from engine.combat import Move
 bad = []
 def check(n, ok, x=""):
@@ -85,12 +86,12 @@ for n, e in ((1, f.get("e1")), (2, f.get("e2"))):
 # ---- Plaguebearer: afflictions walk from the dead to the nearest living, twice
 p = player("plaguebearer", dmg=10**5)
 f = fight(p, foe(1, hp=20), foe(2, hp=20), foe(3))
-f.get("e1").statuses = {"poisoned": 3, "bleeding": 2}
+fx.put_status(f.get("e1"), "poisoned", 3); fx.put_status(f.get("e1"), "bleeding", 2)
 while f.get("e1").alive:
     combat.act_attack(f, p, f.get("e1"), rng)
 nxt = next(e for e in f.enemies() if e.statuses.get("poisoned") == 3 and e.statuses.get("bleeding") == 2)
 check("plaguebearer 1: the rot walks on, rounds intact", nxt is not None and not f.get("e1").alive)
-nxt.statuses["burning"] = 4
+fx.put_status(nxt, "burning", 4)
 while nxt.alive:
     combat.act_attack(f, p, nxt, rng)
 rest = f.enemies()[0]
@@ -157,7 +158,7 @@ for n in (1, 2):
     before = e.hp
     combat.start_turn(e, f)
     check(f"firebrand {n}: two ignites add up to twice the burn", before - e.hp == 20, (e.ignite, before - e.hp))
-    e.statuses.pop("burning", None); perks.on_status_end(e, "burning"); e.hp = 1000
+    fx.end_status(e, "burning"); perks.on_status_end(e, "burning"); e.hp = 1000
 q = player()
 f = fight(q, foe(1, hp=1000)); e = f.get("e1")
 q.counters["last_hit"] = 40
@@ -171,7 +172,7 @@ e = f.get("e1")
 engaged(f, e, p)
 for n, (el, status) in enumerate((("fire", "slowed"), ("cold", "burning")), 1):
     p.element = el
-    e.statuses = {status: 3}
+    fx.clear(e); fx.put_status(e, status, 3)
     while status in e.statuses:
         before = e.hp
         combat.act_attack(f, p, e, rng)
@@ -182,7 +183,7 @@ p = player("deep_freeze")
 f = fight(p, foe(1))
 e = f.get("e1")
 for n in (1, 2):
-    e.statuses = {}
+    fx.clear(e)
     combat.add_status(f, e, "slowed", 2, p)
     combat.add_status(f, e, "slowed", 2, p)
     check(f"deep freeze {n}: the second slow is a stun", "stunned" in e.statuses and "slowed" in e.statuses, e.statuses)
@@ -193,7 +194,7 @@ def torn(with_perk):
     p = player("open_wound") if with_perk else player()
     f = fight(p, foe(1, hp=10**6))
     e = f.get("e1"); engaged(f, e, p)
-    e.statuses = {"bleeding": 3}; e.bleed = 40
+    fx.clear(e); fx.put_status(e, "bleeding", 3); fx.set_strength(e, "bleeding", 40)
     f.log = []
     for i in range(30):
         combat.act_attack(f, p, e, random.Random(i))
@@ -225,7 +226,7 @@ heavy = skill("crush", tier="heavy")
 p = player("bulwark_engine", moves=[heavy], stam=10**6)
 f = fight(p, foe(1))
 e = f.get("e1"); engaged(f, e, p)
-p.buffs["wall"] = {"rounds": 9, "mech": {"stance": 30}, "drain": 0, "collapse": "", "name": "Wall", "kind": "stance"}
+fx.put_buff(p, "wall", {"rounds": 9, "mech": {"stance": 30}, "drain": 0, "collapse": "", "name": "Wall", "kind": "stance"})
 for n in (1, 2):
     for _ in range(3):
         combat.take_damage(f, p, 5, e, rng)
@@ -354,10 +355,10 @@ for n in (1, 2):
 p = player("dread_ambusher")
 f = fight(p, foe(1))
 e = f.get("e1")
-e.statuses["unaware"] = 1
+fx.put_status(e, "unaware", 1)
 combat.act_attack(f, p, e, rng)
 check("dread ambusher 1: a surprised enemy is struck critical", last_hit(f)["outcome"] == "crit", last_hit(f)["outcome"])
-e.statuses.pop("unaware", None); bf.gain(p, "concealed")
+fx.end_status(e, "unaware"); bf.gain(p, "concealed")
 combat.act_attack(f, p, e, rng)
 check("dread ambusher 2: ...and so is one struck from concealment", last_hit(f)["outcome"] == "crit")
 
@@ -405,7 +406,7 @@ p = player("mirror_plate")
 f = fight(p, foe(1))
 e = f.get("e1")
 for n, st in enumerate(("stunned", "prone"), 1):
-    e.statuses = {}; p.statuses = {}
+    fx.clear(e); fx.clear(p)
     combat.add_status(f, p, st, 1, e)
     check(f"mirror plate {n}: {st} is mirrored onto the one who did it", st in e.statuses and st in p.statuses, (p.statuses, e.statuses))
 
@@ -578,7 +579,7 @@ for n in (1, 2):
     f = fight(p, foe(1), foe(2), foe(3), foe(4))
     t = f.get("e1")
     for st in (["poisoned"], ["poisoned", "slowed"])[n - 1]:
-        t.statuses[st] = 3
+        fx.put_status(t, st, 3)
     before = {e.id: e.hp for e in f.enemies()}
     p.spell_kind = "spell"
     perks.conduct(f, p, t, 100, rng)

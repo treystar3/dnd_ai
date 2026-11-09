@@ -172,7 +172,8 @@ def clue_facts(store, world, npc) -> list:
         if len(parts) != 3 or not parts[2].isdigit():
             continue
         th, i = threads.get(parts[1]), int(parts[2])
-        if not th or th["status"] != "active" or i >= len(th.get("clues", [])) or th["clues"][i]["found"]:
+        if not th or th["status"] != "active" or i >= len(th.get("clues", [])) or th["clues"][i]["found"] \
+                or th["clues"][i].get("destroyed"):                 # (f547's fourth review) a destroyed piece is a clue to nothing
             continue
         out.append(Fact(id=f"clue:{th['id']}:{i}", text=r["text"], known_by=[]))
     return out
@@ -215,7 +216,7 @@ def mark_found(ws, npc, revealed: list[str]) -> list[str]:
     for r in ids:
         _, tid, i = r.split(":")
         th = next((x for x in state.get("threads", []) if x["id"] == tid), None)
-        if th and int(i) < len(th.get("clues", [])) and not th["clues"][int(i)]["found"]:
+        if th and int(i) < len(th.get("clues", [])) and not th["clues"][int(i)]["found"] and not th["clues"][int(i)].get("destroyed"):
             th["clues"][int(i)]["found"] = True
             th["clues"][int(i)]["by"] = npc.label(ws.acting)
             ws.store.set_memory_state(npc.id, "knows", f"thread:{tid}:{i}", f"told:{ws.acting}")     # (f483) they have said it, to whom
@@ -390,6 +391,40 @@ def try_find(ws, text: str = "") -> bool:
         else:
             ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search.", text)   # (f413) no length (f375)
         return True
+    return _find_lying(ws, state, text)
+
+
+def _find_lying(ws, state: dict, text: str) -> bool:
+    """(f545) A situation's piece of evidence lying here (situation_parts: what lies at a place is always sure) is found by searching
+    where it lies: a perception roll, and on a success it is the player's, as a clue told is. It is something to weigh, never the end."""
+    from engine import checks
+    here = ws.player.location
+    for th in state.get("threads", []):
+        if th["status"] != "active":
+            continue
+        i = next((i for i, c in enumerate(th.get("clues") or []) if c.get("place") == here and not c["found"]
+                  and not c.get("destroyed")), None)                 # (f547's fourth review) what was destroyed is not found lying there
+        if i is None:
+            continue
+        c = ws.player.character
+        odds, _ = checks.chance(c, "perception", ws.check_triggers("perception", False))
+        degree, _ = checks.roll(odds, ws.rng, c=c)
+        console.ledger(checks.label("perception", degree.replace("_", " ")))
+        if degree in ("success", "strong success"):
+            clue = th["clues"][i]
+            clue["found"], clue["by"] = True, ws.player.character.name
+            th["touched"] = th["answered"] = True
+            ws.store.save_world_state(state)
+            ws.narrate("THE PLAYER FINDS SOMETHING HERE, now: " + clue.get("label", clue["text"]) + ". Show it as it would be seen and "
+                       "handled, and stop there - no conclusions, no one explaining what it means.", text)
+            from engine.domain_events import ClueFound
+            ws.notice(ClueFound(minute=ws.minutes, place=here, thread=th["id"], what=clue.get("label", "")))
+        elif degree == "partial":
+            ws.narrate("The player searches here and has the feeling something is to be found, without putting a hand on it yet. "
+                       "Nothing named.", text)
+        else:
+            ws.narrate("The player searches here and finds nothing out of the ordinary. Describe the search.", text)
+        return True
     return False
 
 
@@ -410,7 +445,7 @@ def road_matter(ws, a: str, b: str, rng: random.Random):
         return None
     live.sort(key=lambda t: t.get("touched", False))               # one the player has not met yet, first
     th = live[0]
-    clue = next((c for c in th["clues"] if not c["found"]), None)
+    clue = next((c for c in th["clues"] if not c["found"] and not c.get("destroyed")), None)   # (f547's fifth review) never one destroyed
     kill = next((p["target"] for p in th.get("paths", []) if p["kind"] == "kill" and not p["done"] and p["target"] in ws.world.bestiary), "")
     return th, (clue["text"] if clue else th["stages"][th["stage"]]["description"]), kill
 
@@ -432,7 +467,7 @@ def road_shown(ws, th_id: str, carried: bool = True) -> None:
         return
     th["road"] = True
     th["touched"] = True
-    c = next((c for c in th.get("clues", []) if not c["found"]), None) if carried else None
+    c = next((c for c in th.get("clues", []) if not c["found"] and not c.get("destroyed")), None) if carried else None
     if c:
         c["found"] = True
         c["by"] = "on the road"
@@ -496,11 +531,10 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
     town = _town(world, th["place"])
     if town not in world.places or world.places[town].danger:
         return
-    when = f"{clock.season(minutes)}, day {clock.day(minutes)}"
-    text = M[how].format(title=th["title"], name=name, when=when)
-    ps = store.load_place(town)
-    ps.memory = (ps.memory + [{"text": text, "minute": minutes}])[-12:]
-    store.save_place(ps)
+    from engine import town_memory                         # (f484) the one writer: typed, its words undated, a settled one's mark after its month
+    text = M[how].format(title=th["title"], name=name)
+    town_memory.file(store, world, town, how, text, minutes, subjects=[f"thread:{th['id']}"] if th.get("id") else [],
+                     mark=M["mark"].format(title=th["title"], name=name) if how == "settled" else "")
     line = f"{name} settled {th['title'].lower()}." if how == "settled" else f"{name} was asked about {th['title'].lower()}, and let it be."
     for nid in sorted({c["npc"] for c in th.get("clues", []) if c["npc"]} | ({th["sender"]} if th.get("sender") else set())):   # (f478) in order,
         if store.npc_exists(nid):                                                            # never the set's, so the row ids are the same in every process
@@ -511,24 +545,16 @@ def remember(store, world, th: dict, how: str, name: str, minutes: int, turn: in
 
 
 def town_note(store, world, place_id: str, text: str, minutes: int) -> None:
-    """(f323) A line in the town's memory that is not the player's doing: what its own people settled."""
-    from engine import pulse, clock
-    town = pulse.town_of(world, place_id)
-    if town not in world.places or world.places[town].danger:
-        return
-    ps = store.load_place(town)
-    ps.memory = (ps.memory + [{"text": f"{text} ({clock.season(minutes)}, day {clock.day(minutes)})", "minute": minutes}])[-12:]
-    store.save_place(ps)
+    """(f323) A line in the town's memory that is not the player's doing: what its own people settled. (f484) Undated, through the one
+    writer."""
+    from engine import town_memory
+    town_memory.file(store, world, place_id, "note", text, minutes)
 
 
-def town_memory(store, world, place_id: str, now: int) -> list[str]:
-    """What this town remembers of the matters that ended here lately."""
-    from engine import pulse
-    town = pulse.town_of(world, place_id)
-    if town not in world.places or world.places[town].danger:
-        return []
-    keep = D["memory"]["keep_days"] * 1440
-    return [_undated(m["text"]) for m in store.load_place(town).memory if now - m["minute"] <= keep and m.get("until", now + 1) > now]
+def town_memory(store, world, place_id: str, now: int, only=None) -> list[str]:
+    """What this town remembers lately (engine/town_memory.py lines): the matters that ended here, the jobs done, its moments."""
+    from engine import town_memory as tm
+    return tm.lines(store, world, place_id, now, only)
 
 
 def _undated(text: str) -> str:

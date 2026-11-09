@@ -9,7 +9,6 @@ import shutil
 import subprocess
 import sys
 import time
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -18,7 +17,6 @@ import config
 import ui.console as uc
 from core.interrupts import Interrupt
 from engine import operation, turnlog
-from llm import gateway
 from llm.gateway import LLMError
 from npc.models import NPC
 bad = []
@@ -54,7 +52,7 @@ check("three hundred operations leave exactly retention.operations records, the 
 check("...and the hundredth commit costs no more than the tenth within a bound", timings[99] <= 5 * timings[9] + 0.02 and timings[299] <= 5 * timings[9] + 0.02, timings)
 
 # ---- three turns: stood, rolled back at the first operation, stood with a stand-in: three rows with their operations and states
-real = gateway._client
+real = simlib.below()                     # (f518) the stub answering now, taken before the wrapper goes in over it
 FAIL = {"titles": set()}
 
 
@@ -64,7 +62,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+failing = simlib.stand_in(chat=chat, embed=None, name="retention_471")
 ws.enter("parth")
 BOOM = {"on": False}
 real_look = ws.on_look
@@ -112,9 +110,12 @@ try:
 except Interrupt:
     stopped = True
 pending = len(store.unshown())
-gateway._client = real
+check("...the failing stand-in answered those turns, the narrations it failed among them", failing.live() and failing.src.calls["Narration"] >= 1,
+      dict(failing.src.calls))
+failing()
 g.close()
 check("the game stopped after the commit, its telling kept for the next load", stopped and pending == 1, (stopped, pending))
+check("...and the failing stand-in is taken away, the stub answering again", not failing.live() and simlib.below().chat == stub.chat)
 g = simlib.campaign(NAME, cls="warrior", seed=3, location="parth", fresh=False)
 ws, store = g.scene, g.store
 config.TURN_LOG_PATH = f"saves/{NAME}/turns.jsonl"

@@ -6,7 +6,8 @@
     python main.py --gui      play in a window instead of the terminal (needs: pip install pywebview; falls back to your browser)
     Meravia.exe               the built game opens its window by itself (--terminal for the text version)
 
-On start the game checks for Ollama and its model and offers to install and download what is missing (MERAVIA_SKIP_SETUP=1 skips the check).
+On start the game starts its own model server from runtime/ and models/ (data/runtime/server.yaml, llm/runtime.py) and shows the home
+page while it loads; Continue waits for it behind one line, New Game's first pages open at once (f528).
 
 Type 'quit' to save and exit.
 """
@@ -28,7 +29,7 @@ from scenes.goddess import ThresholdScene
 from storage.campaign import PlayerState, SaveTooNew
 from storage import saves
 from ui import console
-from llm.gateway import LLMError, unload, warm
+from llm.errors import Cancelled, LLMError                     # (f514) from the module that imports no model client
 from world.loader import WorldError, authored
 
 
@@ -44,7 +45,6 @@ def main():
         if getattr(sys, name) is None:
             setattr(sys, name, open(os.devnull, "w"))
     import atexit
-    atexit.register(unload)                        # however the game ends, the model does not stay in memory
     from engine import turnlog
     atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl
     try:
@@ -54,20 +54,37 @@ def main():
         else:
             guarded(lambda: play(args), None)
     finally:
-        unload()
+        if config.BACKEND != "llama":                  # (f528) the game's own server stops with the game
+            from llm import launch, runtime
+            launch.stop()                              # (f526) the load screen's server, when it started one
+            runtime.stop_for_game()                    # (f522) ...or the one started before the page (the dormant case)
 
 
 def play(args):
     from llm.gateway import trim_log
     trim_log()
 
-    from llm import setup_check
-    if not setup_check.ensure_ready():
-        return
-    from llm import embed
-    embed.pull_in_background()                     # the small helper model, fetched quietly the first time; the game does not wait for it
-    warm()                                         # load the model while the player is at the title and typing their name
-    embed.warm()                                   # (f469) ...and the embedder, so neither first load is paid inside a turn
+    screen = None
+    if config.BACKEND == "llama":                  # (f521) a llama-server started by hand: wait for it, and start nothing
+        from llm import backend
+        try:
+            backend.load()
+        except Exception as e:
+            console.out(f"The llama-server at DND_LLAMA_URL could not be reached ({e}).")
+            return
+    else:                                          # (f528) the game as it ships: its own llama-server (f522), loaded behind the home page
+        from llm import launch, runtime
+        if launch.screen_on():                     # (f526) the owner's lines are in: the load runs behind the home page
+            screen = launch.Screen(say=console.out, ask=console.ask,
+                                   progress=lambda f: console.setup_progress(f, launch.line("loading") or ""),   # only while it waits
+                                   uncover=lambda: console.creation_done())    # (f539) creation's page, over the could-not-wake page
+            if not screen.begin():
+                return
+            launch.SCREEN["screen"] = screen
+            import atexit
+            atexit.register(launch.stop)
+        elif not runtime.start_for_game(say=console.out):   # a tree without the lines (the dormant case): the load before the page
+            return
 
     from engine import data_check                  # the character data, checked as one system before anything uses it
     problems = data_check.check()
@@ -101,7 +118,11 @@ def play(args):
         if kind == "quit":
             return
         if kind == "new":
-            name = saves.new_name()
+            name = saves.new_name()                    # (f526) New Game's first pages open while the model loads; its first call waits
+        elif screen is not None:
+            console.home_done()                        # (f539) the home page goes first: the loading line, the could-not-wake page and
+            if not screen.wait():                      # its choices are told in the story it would cover. Continue waits for the load
+                return                                 # behind the loading line (Try again, or Quit)
         try:
             session = CampaignSession.open(name)       # (f453) the campaign's session: its store, its map (f434: its own, never another
         except SaveTooNew as e:                        # save's), the work it starts in the background, and what it closes when it ends
@@ -109,6 +130,9 @@ def play(args):
             continue
         saves.touch(name)
         console.home_done()
+        if screen is not None:
+            screen.flush()                             # (f526's review) what the load said, now, on this thread, at a page's edge;
+                                                       # (f539) after the home page has gone, whose going clears the window's story
         store, world = session.store, session.world
         if store.player_exists():
             player = store.load_player()
@@ -123,6 +147,8 @@ def play(args):
             player = PlayerState(character=character, location=world.start_location)
             store.save_player(player)
 
+        if screen is not None:
+            screen.flush()                             # (f539) a load that finished during creation: its warning before the story
         scene = session.scene(catalog, player)
         if config.RECORD:                              # (f440) this session, kept so the real turn can replay it (tools/rerun.py)
             session.record()
@@ -132,9 +158,7 @@ def play(args):
             session.close()                            # the recorder, the background work, the database (written through as it goes;
                                                        # closing folds the write-ahead log in) and every binding this campaign set
         if getattr(scene, "to_menu", False):
-            choice = None                              # the main menu: New game, Load and the rest are there
-            warm()                                     # (f469) back at the home page: both models warm again while the player reads it
-            embed.warm()
+            choice = None                              # the main menu: New game, Load and the rest are there; the server stays loaded
         else:
             return
 
@@ -143,6 +167,8 @@ def guarded(run, bridge):
     """Run the game and turn the known failures into readable messages (in the terminal or the window)."""
     try:
         run()
+    except Cancelled:
+        pass                                           # (f516) the game closing took its call back: nothing failed, nothing to say
     except LLMError as e:
         from engine import crashlog
         crashlog.record(e, "outside a turn: the model gave no usable answer")             # (f449) written down, so the logs sent carry it
@@ -161,10 +187,7 @@ def guarded(run, bridge):
         crashlog.record(e, "outside a turn")                   # (f449) a fault in a turn no longer reaches here (scenes/world.py turn); these are the rest
         if bridge:
             bridge.failed = True
-        if "connect" in f"{type(e).__name__} {e}".lower():
-            console.out("\nCan't reach Ollama. Install it from ollama.com, start it, and pull the model once:")
-            console.out(f"    ollama pull {config.MODEL}")
-        elif bridge:
+        if bridge:
             import traceback
             console.out("\nSomething went wrong and the game has to stop. What the world had settled before it stopped is saved, and is told when you come back.")
             console.out("The details are written to logs/crash.log.")

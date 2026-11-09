@@ -1,16 +1,14 @@
 """(f469) Deferral to a later turn: under a budget the party's exchange does not fit in is queued in the save, not spoken this turn, and
 spoken once at the next input's tail under that input's dice, the row gone after; a frame past the budget is dropped and nothing is
 queued; an entry older than retention.deferred_turns is dropped untried; a deferred exchange whose next turn is a fight waits; the
-embedder's warm-up is one embed call on a thread the session owns, with nothing left in the process after the close; and the pulse's
-cap is unmoved by a budget skip. The session is recorded and replays in a child process, the deferral at the same input."""
+pulse's cap is unmoved by a budget skip; and nothing is left in the process after the close (f532: the embedder's warm-up moved to the
+runtime's own load, llm/runtime.py, so the game calls nothing here for it). The session is recorded and replays in a child process, the deferral at the same input."""
 import json
 import pathlib
 import random
 import shutil
 import subprocess
 import sys
-import threading
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -18,7 +16,7 @@ simlib.install(stub)
 import config
 import ui.console as uc
 from engine import banter, budget, combat, pulse, quirks
-from llm import embed, gateway
+from llm import embed
 from npc.models import NPC
 from scenes import combat_scene as cs
 bad = []
@@ -186,24 +184,13 @@ ok = pulse.start_thread(store, ws.world, ws.catalog, state, ws.minutes, rng, mad
 budget.close()
 check("a pulse call the budget skipped is no attempt against the pulse's own cap", ok is False and pulse.LAST["attempted"] == "" and b.dropped == ["pulse_thread"], (ok, pulse.LAST, b.dropped, b.refused))
 
-# ---- the embedder's warm-up: one embed call on a thread the session owns; nothing left after the close
-CALLS = []
-
-
-class FakeEmbed:
-    def embed(self, **k):
-        CALLS.append(k)
-        return {"embeddings": [[1.0, 0.0]]}
-
-
-real_client, real_state = embed._client, dict(embed._state)
-embed._client = lambda: FakeEmbed()
-embed._state.update(ok=True, fixed=True, failed=False)
-t = embed.warm(g.session)
-t.join(5)
-check("embed.warm() makes one embed call on a thread the session owns", t is not None and not t.is_alive() and len(CALLS) == 1 and t in g.session._threads, (len(CALLS), t))
-embed._client = real_client
-embed._state.clear(); embed._state.update(real_state)
+# ---- (f532) the game asks nothing here for the embedder's warm-up (the runtime warms its own at the load); an embedder given and taken
+embed.reset()
+h = simlib.stand_in(embed=lambda **k: {"embeddings": [[1.0, 0.0]]}, name="an embedder")
+check("a stand-in with an embedder gives the game one", embed.available() and not hasattr(embed, "warm"))
+h()
+embed.reset()
+check("(f518) the embedder is taken away again: the stub answers, with none", not h.live() and not embed.available())
 g.close()
 check("nothing of it stays in the process once the campaign closes", simlib.residue() == {}, simlib.residue())
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)

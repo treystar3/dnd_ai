@@ -51,7 +51,6 @@ def _hurt(f, share: float) -> bool:
 def _break(combat, f, surrender: bool) -> None:
     from engine import combat as C
     from engine import battlefield as bf
-    import random as _r
     if not surrender:
         from engine import combat_perks as _cp
         if _cp.turn_coat(combat, f):
@@ -60,8 +59,9 @@ def _break(combat, f, surrender: bool) -> None:
                        and "no_one_escapes" in C.mechanics(o, combat)), None)
         if hunter is not None and f.alive:
             C.tell(combat, f"{C.who(f)} turns to run, and {C.who(hunter)} {C.vb(hunter, 'take', 'takes')} the parting strike owed (No One Escapes)")
-            C.apply_damage(combat, hunter, f, 1.0, "cuts down the fleeing", _r.Random(combat.round * 31 + len(combat.log)),
-                           can_cleave=False, can_riposte=False)
+            from engine import streams
+            C.apply_damage(combat, hunter, f, 1.0, "cuts down the fleeing", streams.keyed("escape", f.id, combat.serial, combat.round),
+                           can_cleave=False, can_riposte=False)                           # (f501) its own die, never seeded by what was logged
     f.fled = True
     f.surrendered = surrender
     bf.release(combat, f)
@@ -171,7 +171,7 @@ def pre_turn(combat, e, target, rng: random.Random) -> bool:
 def _area(combat, e, rng, mult: float, label: str, intro: str) -> None:
     from engine import combat as C
     C.tell(combat, intro)
-    foes = [f for f in [combat.player] + combat.allies() if f.alive]
+    foes = [f for f in combat.player_side() if f.alive]
     for t in foes:
         C.apply_damage(combat, e, t, mult, f"{label}s over", rng, can_cleave=False, can_riposte=False, can_flurry=False)
 
@@ -214,7 +214,7 @@ def sweeps(combat, e, rng) -> bool:
     from engine import combat as C
     if not e.family or e.boss or not beh(e, "sweep"):
         return False
-    foes = [f for f in [combat.player] + combat.allies() if f.alive and C.in_reach(e, f)]
+    foes = [f for f in combat.player_side() if f.alive and C.in_reach(e, f)]
     if not foes:
         return False
     C.tell(combat, f"{C.who(e)} boils over everyone in reach at once")

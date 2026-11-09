@@ -68,19 +68,19 @@ check("one matter settled is not yet renown", not any(r["id"] == "renown_campaig
 state["deeds"].append({"kind": "settled", "minute": later - 600, "place": "parth", "thread": "b", "title": "Two doors", "tier": "normal", "how": "by persuasion"})
 check("two in the region within six weeks are", any(r["id"] == "renown_campaign" for r, _ in consequences.met(state, world, "parth", later)))
 check("...and the deed reads plainly for the judge", deeds.describe(state["deeds"][-1]).startswith("settled 'Two doors' at parth"))
-import httpx
-from llm import gateway
+from llm.errors import Failure
 class Broken:
     def chat(self, **kw):
-        raise httpx.TimeoutException("no model")
-_client = gateway._client
-gateway._client = Broken()
+        raise Failure("deadline", "no model")                # (f532) a source's own deadline
+broken = simlib.stand_in(chat=Broken().chat)      # (f518) a source that times out on every call, where the client was swapped before
 state["campaign"] = ""
 ok = consequences.tick(store, world, catalog, state, later, random.Random(3))
 check("when the model gives nothing, no campaign starts and the rule waits only a day, not its cooldown",
       not ok and not state.get("campaign") and not any(r["id"] == "renown_campaign" for r, _ in consequences.met(state, world, "parth", later + 600))
       and any(r["id"] == "renown_campaign" for r, _ in consequences.met(state, world, "parth", later + 2 * 1440)), state.get("consequence_last"))
-gateway._client = _client
+check("...the model was asked, of the source that times out (f518)", broken.live() and sum(broken.src.calls.values()) >= 1, dict(broken.src.calls))
+broken()
+check("...and that source is taken away again, the stub answering", not broken.live())
 ok = consequences.tick(store, world, catalog, state, later + 2 * 1440, random.Random(3))
 th = state["threads"][-1] if state["threads"] else {}
 check("with the model answering, a campaign starts near the player, marked as earned, through the door the rule names",

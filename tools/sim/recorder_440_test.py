@@ -3,7 +3,7 @@ every input (a question answered mid-turn and a pane's command included), every 
 answer or its failure, and after each input the state's fingerprint, what the turn recorded and a hash of what the player was shown.
 The recorder wraps whatever model client and console are installed, puts them back when it closes, makes the session strict while it
 records, and keeps only the newest recordings."""
-import gzip, json, random, shutil, sqlite3, sys, types
+import gzip, json, random, shutil, sqlite3, sys
 from pathlib import Path
 sys.path.insert(0, ".")
 import simlib
@@ -15,7 +15,6 @@ for fn in ("narrate", "say", "note", "ledger"):
     setattr(uc, fn, lambda *a, **k: None)
 uc.panel = lambda name, data: False
 from engine import recording, streams
-from llm import gateway
 from storage import statehash
 from storage.campaign import CampaignStore
 
@@ -32,12 +31,12 @@ store = game.store
 start = statehash.digest(store)
 
 fail = {"on": False}
-real = gateway._client
+real = simlib.below()                               # (f518) the stub answering now, taken before the wrapper goes in over it
 def chat(**k):
     if fail["on"] and k["format"].get("title") == "ActionPlan":
         raise ConnectionError("the model server cannot be reached")
     return real.chat(**k)
-gateway._client = client = types.SimpleNamespace(chat=chat)
+h = simlib.stand_in(chat=chat, embed=None, name="recorder_440")
 SCRIPT = [("I look around.", [{"kind": "look"}]), ("#stats", None), ("I wait a while.", [{"kind": "wait"}]),
           ("I look around again.", [{"kind": "look"}]), ("I wait.", [{"kind": "wait"}])]
 state = {"n": 0}
@@ -54,12 +53,14 @@ def ask(*a, main=False, **k):
     return text
 uc.ask = ask_before = ask
 ws = game.scene
+from llm import backend
 rec = recording.Recorder(store, folder=OUT).install()
-check("a recording session is strict while it records", streams.STRICT is True)
+check("a recording session is strict while it records, its layer on the model interface and the source untouched",
+      streams.STRICT is True and rec._layer in backend.layers() and h.live() and h.src.chat_fn is chat)
 ws.run()
 folder = rec.close()
-check("...and the model client and the console are put back when it closes", client.chat is chat and uc.ask is ask_before
-      and streams.STRICT is False)
+check("...and its layer taken off and the console put back when it closes", rec._layer not in backend.layers() and h.live()
+      and h.src.chat_fn is chat and uc.ask is ask_before and streams.STRICT is False)
 
 # ---- what was kept
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))
@@ -80,9 +81,11 @@ with gzip.open(OUT / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
     calls = [json.loads(l) for l in f]
 check("every model call is kept in order, its request in full", calls and [c["i"] for c in calls] == list(range(len(calls)))
       and all(c["req"] and "messages" in c["request"] for c in calls), len(calls))
+check("...each one answered by the test's own stand-in, under the recorder's layer",
+      h.src.calls["ActionPlan"] >= 4 and sum(h.src.calls.values()) == len(calls), (dict(h.src.calls), len(calls)))
 check("...with its answer", any(c.get("answer") and c["title"] == "ActionPlan" for c in calls))
 check("...and a failed one with the failure, so a replay can fail it the same way",
-      any(c.get("error", [""])[0] == "ConnectionError" and c["title"] == "ActionPlan" for c in calls))
+      any((c.get("error") or {}).get("kind") == "server" and c["title"] == "ActionPlan" for c in calls))
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
 check("after each input, the state's fingerprint and what was shown", len(turns) == len(mains)
       and all(t["state"]["all"] and t["shown"] for t in turns), len(turns))

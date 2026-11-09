@@ -1,0 +1,466 @@
+"""(f545 part 4, recommendation 1) A situation's parts are ways through it: one who could set it right does, once their condition is met
+(asked, paid, given the good they want, trusted, told what the evidence shows, kept safe), and one who stands in the way stands aside once
+won over; each a path of the situation, and meeting it ends the situation as the player's doing. Their yes is given with the player there
+(the owner: conditions are checked before a yes): a condition met elsewhere waits for the player's next word with them. A request of the
+situation done is that part done: a stranded load carried lifts its price rise for good and is no longer the holder's, and the one who
+asked is no longer worried by it.
+(f545's review) Told needs the clue's own words, not one of its telling's; trusted needs trust earned since the situation began; given
+needs as much of the good as their request asks; a load carried to the one who wanted it meets their given; kept safe is a kill in the
+town's wild or on a road the trouble makes dangerous; a load is for the one named alone, handed over as a delivery; the mood the one
+who settled it keeps is not the parts' to take back.
+Run: python tools/sim/ways_545_test.py"""
+import copy
+import random
+import shutil
+import sys
+sys.path.insert(0, ".")
+import simlib
+simlib.install(simlib.Stub("warrior", 3))
+import ui.console as uc
+for fn in ("note", "narrate", "say", "npc_says", "dialogue", "ledger"):
+    setattr(uc, fn, lambda *a, **k: None)
+uc.panel = lambda name, data: False
+from engine import circumstance, deeds, drift, events, pulse, regard, retrieval, roads, situation_parts, situations, towns
+from engine import inventory as inv
+from engine.domain_events import Gift, Persuaded
+from llm.contracts import ActionIntent as A, SituationParts
+
+bad = []
+def check(n, ok, x=""):
+    print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
+    if not ok: bad.append(n)
+
+g = simlib.campaign("ways_545", seed=7, location="trading_square")
+ws = g.scene
+ws.enter("trading_square")
+store, world = g.store, ws.world
+ws.player.character.coins = 10 ** 5
+town = pulse.town_of(world, "trading_square")
+rows = retrieval.people_in_town(store, world, town)
+W = situations.S["register"]["ways"]
+n = [0]
+
+
+def born(people, **more):
+    """A rare situation at the square with these person parts (and any other parts), registered; its id."""
+    n[0] += 1
+    tid = f"thw{n[0]}"
+    t = ws.minutes
+    st = store.load_world_state()
+    st.setdefault("threads", []).append({"id": tid, "title": f"Trouble {n[0]}", "tier": "rare", "place": "trading_square",
+                                         "times": [t, t + 6 * 1440], "status": "active", "made": t, "clues": [], "paths": [], "stage": 0,
+                                         "stages": [{"description": "Trouble.", "effects": []}], "kind": "trouble", "groups": ["everyone"],
+                                         "fallout": {"description": "", "effects": []}, "resolution": "", "triumph": None})
+    store.save_world_state(st)
+    state = store.load_world_state()
+    th = next(x for x in state["threads"] if x["id"] == tid)
+    acc, dropped = situations.check(SituationParts.model_validate({"people": people, **more}), store, world, "rare", random.Random(n[0]),
+                                    town=town, ways=True, now=t, players=(ws.acting,))
+    situation_parts.register(store, world, state, th, acc, t, catalog=ws.catalog, ways=True,
+                             reach=situations.within_reach(world, town, rows))
+    store.save_world_state(state)
+    store.meta.minutes += 1                                  # what the player does next is after its birth (a deed in that minute is not)
+    return tid
+
+
+def thread(tid):
+    return next(x for x in store.load_world_state()["threads"] if x["id"] == tid)
+
+
+def present(npc_id):
+    npc = store.load_npc(npc_id)
+    if all(p.id != npc_id for p in ws.present):
+        ws.present = list(ws.present) + [npc]
+    return ws.npc_by_id(npc_id) or npc
+
+
+def gift(npc, **kw):
+    ws.notice(Gift(minute=ws.minutes, place=ws.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.name, **kw), npc)
+
+
+def kill_at(place):
+    deed = deeds.log(store, "kill", ws.minutes, place, creature="wolf", level=1, rank="normal", spawn="")
+    events.after_deed(ws, deed)
+
+# ---- the ways a situation's people open
+check("(the town has three people to cast)", len(rows) >= 3, len(rows))
+a_, b_, c_ = rows[0], rows[1], rows[2]
+tid = born([{"who": b_.id, "stake": "blocks", "want": "left_alone"}, {"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "paid"},
+            {"who": c_.id, "stake": "harmed", "want": "safety"}])
+paths = thread(tid)["paths"]
+check("one who could set it right opens a way through, by their condition; one who stands in the way, one by winning them over",
+      [(p["kind"], p["target"], p.get("need")) for p in paths] == [("part", a_.id, "paid"), ("persuade", b_.id, "")], paths)
+check("...each named and told in plain words, with the person's own name", all(store.load_npc(p["target"]).name in p["name"] + p["how"]
+      and "_" not in p["how"] for p in paths), [p["how"] for p in paths])
+
+# ---- paid: coin handed over, enough of it
+npc = present(a_.id)
+gift(npc, coin=W["pay"]["rare"] // 3)
+check("coin short of what they ask leaves the situation going on", thread(tid)["status"] == "active")
+gift(npc, coin=W["pay"]["rare"])
+th = thread(tid)
+check("...paid in full, they set it right: the situation is over, the player's doing, by that way", th["status"] != "active"
+      and th.get("result") == "player" and (th.get("won_path") or {}).get("target") == a_.id, (th["status"], th.get("result"), th.get("won_path")))
+
+# ---- asked (helps freely): a persuasion that landed
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety"}])
+npc = present(a_.id)
+check("one who helps freely is a way through by asking", thread(tid)["paths"][0]["need"] == "")
+ws.notice(Persuaded(minute=ws.minutes, place="trading_square", witnesses=(a_.id,), npc=a_.id, name=npc.name, how="persuasion", degree="success"), npc)
+check("...a persuasion that lands ends it", thread(tid)["status"] != "active", thread(tid)["status"])
+
+# ---- won over: the one who blocks, by the existing persuade path
+tid = born([{"who": b_.id, "stake": "blocks", "want": "left_alone"}])
+npc = present(b_.id)
+for _ in range(2):
+    ws.notice(Persuaded(minute=ws.minutes, place="trading_square", witnesses=(b_.id,), npc=b_.id, name=npc.name, how="persuasion", degree="success"), npc)
+check("the one who stood in the way, won over twice, stands aside and it ends", thread(tid)["status"] != "active")
+check("...and the scene's own copy of them, saved after, keeps their worry let go (the end is told to the copy the turn saves)",
+      store.load_npc(b_.id).concern_from != tid and ws.npc_by_id(b_.id).concern_from != tid,
+      (store.load_npc(b_.id).concern_from, ws.npc_by_id(b_.id).concern_from))
+
+# ---- what drift's pass puts right, and what it leaves
+stale = store.load_npc(b_.id)
+stale.concern, stale.concern_from, stale.concern_state = "an old worry", tid, "active"
+stale.mood, stale.mood_source, stale.mood_until = "low", situation_parts.mood_source(tid), ws.minutes + 3 * 1440
+store.save_npc(stale)
+st = store.load_world_state()
+st["threads"] = [x for x in st["threads"] if x["id"] != tid]           # trimmed from the ended list long since (pulse.FINISHED_KEPT)
+store.save_world_state(st)
+st = store.load_world_state()
+st["drift"] = {**(st.get("drift") or {}), "cursor": 0}
+drift.people(store, world, st, ws.minutes + 10, random.Random(3))
+fresh = store.load_npc(b_.id)
+check("(the review) a worry or mood the parts gave, brought back by a copy saved late, is let go by drift's own pass - however long "
+      "ago the situation ended", fresh.concern_from != tid and not fresh.mood, (fresh.concern_from, fresh.mood, fresh.mood_source))
+tid = born([{"who": c_.id, "stake": "harmed", "want": "safety"}])
+proud = store.load_npc(c_.id)                                    # one of its own people, who then settled it themselves
+circumstance.set_mood(proud, "proud, after settling it", ws.minutes, f"thread:{tid}")
+store.save_npc(proud)
+st = store.load_world_state()
+pulse.end_thread(store, st, next(x for x in st["threads"] if x["id"] == tid), "resolved", "Settled.", ws.minutes)
+store.save_world_state(st)
+proud = store.load_npc(c_.id)
+check("(the review) ...while the pride of the one who settled it, the situation's by other means, lasts its own days: neither the end's "
+      "release nor drift's sweep takes it", proud.mood.startswith("proud") and not situation_parts.sweep(store.load_world_state(), proud, ws.minutes + 10)
+      and proud.mood.startswith("proud"), proud.mood)
+
+# ---- trusted: trust earned since the situation began
+tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "trusted"}])
+npc = present(c_.id)
+regard.set_trust(npc, ws.acting, W["trust"] + 5, cause="test", minute=ws.minutes)      # a first meeting that starts high (a famous name)
+situation_parts.heard(ws, npc, "Good day.")
+check("(the review) one who wants trust is not won at a word by trust they already gave (a first meeting's, or an old friend's)",
+      thread(tid)["status"] == "active")
+regard.step(npc, ws.acting, W["trust_gain"] // 2, cause="test", minute=ws.minutes)
+situation_parts.heard(ws, npc, "Good day.")
+check("...nor by a little more", thread(tid)["status"] == "active")
+regard.step(npc, ws.acting, W["trust_gain"], cause="test", minute=ws.minutes)
+situation_parts.heard(ws, npc, "Good day.")
+check("...earned since, spoken with, they set it right", thread(tid)["status"] != "active", thread(tid)["paths"])
+friend = present(c_.id)
+regard.meet(friend, ws.acting, ws.minutes)
+regard.set_trust(friend, ws.acting, W["trust"] + 2, cause="test", minute=ws.minutes)
+store.save_npc(friend)
+tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "trusted"}])
+situation_parts.heard(ws, present(c_.id), "Good day, old friend.")
+check("(the second review) one who trusted the player before it began helps them: trust earned then counts", thread(tid)["status"] != "active",
+      thread(tid)["paths"])
+high = present(b_.id)
+tid = born([{"who": b_.id, "stake": "can_fix", "want": "safety", "condition": "trusted"}])
+regard.set_trust(high, ws.acting, 95, cause="a famous name", minute=ws.minutes)
+situation_parts.heard(ws, high, "Good day.")
+regard.step(high, ws.acting, 10, cause="test", minute=ws.minutes)
+situation_parts.heard(ws, high, "Good day.")
+check("(the second review) a first meeting near the top of trust can still be bettered to it", thread(tid)["status"] != "active",
+      thread(tid)["paths"])
+
+# ---- told: a found clue said to them, in its own words
+tid = born([{"who": b_.id, "stake": "can_fix", "want": "believed", "condition": "told"}, {"who": a_.id, "stake": "knows", "want": "believed"}],
+           evidence=[{"label": "a broken axle pin", "holder": a_.id, "points_to": "trading_square", "certainty": "sure"}])
+clue = thread(tid)["clues"][-1]
+st = store.load_world_state()
+next(x for x in st["threads"] if x["id"] == tid)["clues"][-1]["found"] = True
+store.save_world_state(st)
+npc = present(b_.id)
+situation_parts.heard(ws, npc, "Nice weather.")
+check("one who must be told something is not moved by small talk", thread(tid)["status"] == "active")
+situation_parts.heard(ws, npc, "Which way to the square? I found it myself, and it points nowhere.")
+check("(the review) ...nor by a word of the place it points to, or of the words its telling is phrased in", thread(tid)["status"] == "active")
+situation_parts.heard(ws, npc, "Is there an old pin seller by the trading square? Something broke.")
+check("(the review) ...nor by the place it points to and one word of it beside", thread(tid)["status"] == "active")
+situation_parts.heard(ws, npc, "Listen: I found a broken pin off an axle, by the trading square.")
+check("...told what the evidence shows, in its own words, they set it right", thread(tid)["status"] != "active", clue)
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "believed", "condition": "told"}],
+           evidence=[{"label": "a cut rope", "holder": a_.id, "points_to": "trading_square", "certainty": "sure"}])
+st = store.load_world_state()
+next(x for x in st["threads"] if x["id"] == tid)["clues"][-1]["found"] = True
+store.save_world_state(st)
+situation_parts.heard(ws, present(a_.id), "There is a cut rope at the trading square.")
+check("(the review) ...but never by telling them what they hold themselves", thread(tid)["status"] == "active")
+for label, line, told in (("a cut rope", f"Have you seen {store.load_npc(a_.id).name}? I need rope.", False),
+                          ("an ox", "Which way to the trading square?", False), ("an ox", "The ox got loose by the trading square.", True),
+                          ("what was there", "Which way to the trading square?", False),
+                          ("a body in the well", "Is there a well in town?", False), ("blood on the stones", "Come on, look at these stones.", False),
+                          ("a knife in the grain", "Is the grain in yet?", False), ("tracks by the ford", "Is the ford by the mill?", False),
+                          ("a body in the well", "I found a body down the well.", True),
+                          ("tracks by the watch tower", "Is the watch tower manned at night?", False),
+                          ("heavy frost on grain", "Is the grain heavy this year?", False), ("ox tracks", "I saw ox tracks.", True),
+                          ("tracks by the watch tower", "There are fresh tracks by the watch tower.", True),
+                          ("a body found in the well", "There's a body in the well.", True), ("a door forced open", "Someone forced the door.", True),
+                          ("a debt owed to the miller", "He has a debt with the miller.", True),
+                          ("at the watch tower: tracks", "Is the watch tower manned at night?", False)):
+    clue = {"label": label, "points_to": a_.id if label == "a cut rope" else "trading_square"}
+    check(f"(the review) '{line}' {'tells' if told else 'does not tell'} '{label}'", situation_parts.told_by(line, clue, store, world) == told)
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety"}])
+st = store.load_world_state()
+deeds.log(store, "persuade", next(x for x in st["threads"] if x["id"] == tid)["made"], "trading_square", npc=a_.id, degree="success")
+situation_parts.heard(ws, present(a_.id), "Good day.")
+check("(the review) a persuasion in the very minute it began, before it was there to ask about, is not asking", thread(tid)["status"] == "active")
+
+# ---- given: as much of the good as they ask, handed over
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
+           resources=[{"good": "candles", "state": "wanted", "wanted_by": a_.id}])
+th = thread(tid)
+check("one who wants a good to hand opens a way by it", th["paths"][0]["need"] == "given" and th["paths"][0]["good"] == "candles"
+      and "candles" in th["paths"][0]["how"], th["paths"])
+want = next(p for p in th["parts"] if p["kind"] == "resource")["request"]["count"]
+npc = present(a_.id)
+one = inv.label(inv.make_good("candles", 1))
+gift(npc, item=one)
+check("(the review) one candle handed over, when they ask for more, is not what they asked", want == 1 or thread(tid)["status"] == "active",
+      want)
+for _ in range(want - 1):
+    gift(npc, item=one)
+check("...as many as they ask, and they set it right", thread(tid)["status"] != "active", want)
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
+           resources=[{"good": "candles", "state": "wanted", "wanted_by": a_.id}])
+want = next(p for p in thread(tid)["parts"] if p["kind"] == "resource")["request"]["count"]
+ws.to_pack(inv.make_good("candles", want))
+present(a_.id)
+ws.on_give(A(kind="give", target=a_.id, item=f"{want} candles"), f"give her the {want} candles")
+check("(the second review) 'give her the 3 candles' hands over three, and that is what they asked", thread(tid)["status"] != "active"
+      and not any(i.good == "candles" for i in ws.pack), (want, thread(tid)["status"]))
+check("(the third review) a gift of several is said in words, never as a stack's count", any(d.get("kind") == "gift" and d.get("item", "").endswith("candles")
+      and " x" not in d.get("item", "") and d.get("count") == want for d in store.load_world_state().get("deeds", [])))
+for line, item, count, k in (("give the 2nd guard my rope", "rope", 1, 1), ("give her my rope, I paid twenty copper for it", "rope", 1, 1),
+                             ("at ten bells I give her the rope", "rope", 1, 1), ("give her the 3 candles", "3 candles", 1, 3),
+                             ("give her two candles", "candles", 2, 2)):
+    check(f"(the third review) '{line}' hands over {k}", ws.how_many(A(kind="give", item=item, count=count)) == k)
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
+           resources=[{"good": "candles", "state": "wanted", "wanted_by": a_.id}])
+npc = present(a_.id)
+situation_parts.ask(ws, npc)
+ws.take_personal(npc)
+q = next(q for q in ws.player.quests if str(q.get("part", "")).startswith(tid + ":"))
+ws.to_pack(inv.make_good("candles", q["count"]))
+ws.turn_in(a_.id)
+check("...or their request for it handed in", thread(tid)["status"] != "active" and not any(x is q for x in ws.player.quests),
+      thread(tid)["status"])
+
+# ---- protected: a kill where the trouble is, their yes with the player there
+wild = sorted(towns.town_places(world, town) - set(retrieval.town_places(world, town)))
+road = next(rid for rid in sorted(world.roads) if town in (world.roads[rid].from_, world.roads[rid].to))
+tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "protected"}],
+           conditions=[{"on": road, "kind": "danger"}])
+far = next(pid for pid in sorted(world.places) if pid not in towns.town_places(world, town) and world.places[pid].type != "road")
+kill_at(far)
+check("one who must be kept safe is not kept safe by a kill far away", not thread(tid)["paths"][0].get("protected"))
+r = world.roads[road]
+stop = roads.make_stop(world, r.from_, r.to, 0.5, 60, "fight", "", "a fight on the road")
+from world.loader import Place
+world.add_place(Place(**stop["place"]))
+kill_at(stop["id"])
+th = thread(tid)
+check("(the review) a kill at a stop on the road the trouble makes dangerous keeps them safe...", bool(th["paths"][0].get("protected")),
+      th["paths"])
+check("...and they say yes when the player is next with them, not before", th["status"] == "active")
+situation_parts.heard(ws, present(c_.id), "It is done; the road is safe.")
+check("...spoken with, they set it right", thread(tid)["status"] != "active")
+if wild:
+    tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "protected"}])
+    kill_at(wild[0])
+    check("(the review) with no road made dangerous, a kill in the town's own wild keeps them safe", bool(thread(tid)["paths"][0].get("protected")),
+          (wild, thread(tid)["paths"]))
+
+# ---- (the second review) a condition met by one character is that character's
+tid = born([{"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "protected"}])
+st = store.load_world_state()
+next(x for x in st["threads"] if x["id"] == tid)["paths"][0]["protected"] = "another_character"
+store.save_world_state(st)
+situation_parts.heard(ws, present(c_.id), "Good day.")
+check("(the second review) kept safe by another character, it is not this one's to end", thread(tid)["status"] == "active")
+gift(present(c_.id), coin=1)
+check("(the third review) ...nor by a coin this one hands them", thread(tid)["status"] == "active")
+
+# ---- paid away from them: the yes waits for them
+tid = born([{"who": a_.id, "stake": "can_fix", "want": "safety", "condition": "paid"}])
+st = store.load_world_state()
+deeds.log(store, "gift", ws.minutes, "trading_square", npc=a_.id, coin=W["pay"]["rare"])
+events.after_deed(ws, {"kind": "heard", "minute": ws.minutes, "place": ws.player.location, "npc": b_.id})
+check("(the owner: a yes is theirs to give) a condition met is not their yes while the player is with someone else",
+      thread(tid)["status"] == "active")
+situation_parts.heard(ws, present(a_.id), "Good day.")
+check("...and is, at the player's next word with them", thread(tid)["status"] != "active")
+
+# ---- a stranded load carried: that part done, for good
+tid = born([{"who": b_.id, "stake": "harmed", "want": "goods_moved"}], resources=[{"good": "salt", "state": "stranded", "holder": b_.id}])
+f_before = pulse.price_factor(store, world, "trading_square", ws.minutes + 1, "salt")
+npc = present(b_.id)
+situation_parts.ask(ws, npc)
+ws.take_personal(npc)
+q = next(q for q in ws.player.quests if str(q.get("part", "")).startswith(tid + ":"))
+check("the holder of a stranded load asks for it carried to one who deals in it", q["kind"] == "deliver" and "salt" in q["item"], q)
+to = store.load_npc(next(p for p in thread(tid)["parts"] if p["kind"] == "resource")["request"]["to"])
+key = next(k for k in ws.player.character.key_items if k.id == f"quest_{q['id']}")
+other = next(p for p in retrieval.people_in_town(store, world, town) if p.id != to.id and p.id != b_.id)
+namesake = copy.copy(store.load_npc(other.id))
+namesake.name, namesake.role = to.name.split()[0] + " Oddlow", to.role
+ws.record_delivery(key, namesake)
+check("(the review) the load is for the one named: not anyone of their trade, nor one who shares their first name",
+      next(x for x in ws.player.quests if x["id"] == q["id"])["progress"] == 0)
+check("(the second review) ...and the giving reads it so too: the namesake is not who it is meant for, the one named is",
+      not ws.meant_for(namesake, key) and ws.meant_for(to, key))
+from engine import quests as Q
+from llm.contracts import QuestOffer
+for to_said, want_name, want_role in (("Rhosethe Holhurst", "Rhosethe Holhurst", "rhosethe holhurst"), ("the chandler", "chandler", "chandler")):
+    mq = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=to_said, item="a sealed letter"), b_.id, "B", ws.minutes)
+    check(f"(the third review) a delivery to '{to_said}' keeps the whole name, only a leading 'the' set aside",
+          mq["to_name"] == want_name and mq["to_role"] == want_role, (mq["to_name"], mq["to_role"]))
+marta = copy.copy(namesake)
+marta.name, marta.role = "Mart Holm", "tinker"
+check("(the third review) 'Mart' is not 'Marta Vell', nor is anyone 'the'", not ws.is_recipient(marta, "Marta Vell")
+      and not ws.is_recipient(marta, "the") and ws.is_recipient(marta, "Mart Holm") and ws.is_recipient(marta, "the tinker"))
+rh = copy.copy(namesake)
+rh.name, rh.role = "Rhosethe Holhurst", "chandler"
+check("(the second review) a name with 'the' inside it is still its owner's", ws.is_recipient(rh, "Rhosethe Holhurst")
+      and ws.is_recipient(rh, "the chandler"))
+present(to.id)
+ws.on_give(A(kind="give", target=to.id, item=key.name), f"give the load to {to.name}")
+check("...handed to them, it is delivered, told as a delivery", next(x for x in ws.player.quests if x["id"] == q["id"])["progress"] == 1
+      and ws.player.character.item_history[-1].startswith("Delivered"), ws.player.character.item_history[-1:])
+st = store.load_world_state()
+st["last"] = ws.minutes - pulse.INTERVAL - 30                         # a pulse boundary passed this turn, its tick still to run
+store.save_world_state(st)
+ws.turn_in(b_.id)
+th = thread(tid)
+part = next(p for p in th["parts"] if p["kind"] == "resource")
+check("...carried and handed in, that part is done", part.get("done"), part)
+check("...its price rise is lifted", f_before > 1 and pulse.price_factor(store, world, "trading_square", ws.minutes + 1, "salt")
+      == pulse.price_factor(store, world, "trading_square", ws.minutes + 1), f_before)
+st = store.load_world_state()
+pulse.tick_threads(store, world, ws.catalog, st, ws.minutes - 30, random.Random(1))
+store.save_world_state(st)
+check("(the review) ...for good: the turn's late tick does not renew it", pulse.price_factor(store, world, "trading_square", ws.minutes + 1, "salt")
+      == pulse.price_factor(store, world, "trading_square", ws.minutes + 1))
+check("...and the one who asked is no longer worried by it", store.load_npc(b_.id).concern_from != tid
+      and store.load_npc(b_.id).concern_state == "settled", (store.load_npc(b_.id).concern, store.load_npc(b_.id).concern_state))
+check("...while the situation itself goes on (a load carried is not the trouble ended)", th["status"] == "active")
+
+# ---- a load carried to the one who wanted it meets their given
+tid = born([{"who": b_.id, "stake": "harmed", "want": "goods_moved"}, {"who": c_.id, "stake": "can_fix", "want": "safety", "condition": "given"}],
+           resources=[{"good": "salt", "state": "stranded", "holder": b_.id}, {"good": "salt", "state": "wanted", "wanted_by": c_.id},
+                      {"good": "salt", "state": "scarce"}])
+parts = thread(tid)["parts"]
+stranded = next(p for p in parts if p["kind"] == "resource" and p["state"] == "stranded")
+check("(the review) a stranded load is carried to the one of the situation who wants it", stranded["request"]["to"] == c_.id, stranded)
+npc = present(b_.id)
+situation_parts.ask(ws, npc)
+ws.take_personal(npc)
+q = next(q for q in ws.player.quests if str(q.get("part", "")).startswith(tid + ":"))
+key = next(k for k in ws.player.character.key_items if k.id == f"quest_{q['id']}")
+present(c_.id)
+ws.on_give(A(kind="give", target=c_.id, item=key.name), "give the load")
+ws.turn_in(b_.id)
+check("(the review) ...the scarce rise of the same good is its own part's, not lifted with the load's",
+      pulse.price_factor(store, world, "trading_square", ws.minutes + 1, "salt") > pulse.price_factor(store, world, "trading_square", ws.minutes + 1))
+situation_parts.heard(ws, present(c_.id), "Your salt came.")
+check("(the review) ...and, carried and handed in, the one who wanted it has what they asked: they set it right",
+      thread(tid)["status"] != "active", thread(tid)["paths"])
+
+# ---- (the fourth review) who a thing is for, as people say it; how many; a gift of several in words
+smith_ish = copy.copy(store.load_npc(a_.id))
+smith_ish.name, smith_ish.role = "Gwilde Marrow", "smith"
+for words, yes in (("Gwilde at the forge", True), ("old Gwilde", True), ("Marrow", True), ("Gwilde's", True), ("the blacksmith", True),
+                   ("the smiths", True), ("the", False), ("Gwil", False), ("the baker", False)):
+    check(f"(the fourth review) '{words}' {'names' if yes else 'does not name'} Gwilde Marrow, the smith", ws.is_recipient(smith_ish, words) == yes)
+check("(the fifth review) a death drops a delivery only by who it is for or their whole name, never a shared name or their trade",
+      Q.names_fully(smith_ish, "Gwilde Marrow at the forge") and not Q.names_fully(smith_ish, "Gwilde at the forge")
+      and not Q.names_fully(smith_ish, "the smith"))
+clay = copy.copy(smith_ish)
+clay.name, clay.role = "Dorn Clay", "potter"
+well = copy.copy(smith_ish)
+well.name = "Ivo Well"
+garrick = copy.copy(smith_ish)
+garrick.name, garrick.role = "Garrick Holt", "watch_captain"
+check("(the fifth review) a shared family name or an everyday word names no one else: 'Avla Clay' is not Dorn Clay, 'the woman at the "
+      "well' not Ivo Well; 'Captain Garrick' is Garrick Holt", not ws.is_recipient(clay, "Avla Clay") and not ws.is_recipient(well, "the woman at the well")
+      and ws.is_recipient(garrick, "Captain Garrick") and ws.is_recipient(garrick, "the captain"))
+one = store.load_npc(c_.id)
+mq1 = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=f"{one.name.split()[0]} at the market", item="a note"), b_.id,
+                  "B", ws.minutes)
+mq2 = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=f"the {one.role.replace('_', ' ')}", item="a note"), b_.id,
+                  "B", ws.minutes)
+check("(the fifth review) a delivery to someone named is settled on them as it is asked; one to a trade stays the trade's",
+      mq1.get("to_id") == one.id and not mq2.get("to_id"), (mq1.get("to_id"), mq2.get("to_id")))
+check("(the fourth review) a stack's count is no quantity asked", ws.how_many(A(kind="give", item="healing draught x3")) == 1)
+check("(the fourth review) several of a thing said as a person says it", ws.counted(inv.make_good("torch", 3), 3) == "three torches"
+      and ws.counted(inv.make_good("salt", 4), 4) == "some salt" and ws.counted(inv.make_good("candles", 2), 2) == "two candles"
+      and ws.counted(inv.make_good("tome_second_circle", 3), 3) == "three tomes of the second circle")
+from core.models import KeyItem
+asker = present(b_.id)
+letter = KeyItem(id="sealed_letter", name="a sealed letter", description="A letter.", kind="quest", source=asker.name, day=1, for_whom=c_.id)
+ws.player.character.key_items.append(letter)
+mq = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=store.load_npc(c_.id).name, item="a sealed letter"), b_.id,
+                 asker.name, ws.minutes)
+from engine import obligations
+obligations.open_(store, "request", b_.id, ws.acting, mq["title"], ws.minutes, terms=mq, key=f"test:{mq['id']}")
+ws.take_personal(asker)
+held = [k for k in ws.player.character.key_items if k.name == "a sealed letter"]
+check("(the fourth review) a letter they already handed over is the one the job carries: one key, the job's",
+      len(held) == 1 and held[0].id == f"quest_{mq['id']}", [(k.id, k.name) for k in held])
+ws.player.quests = [q for q in ws.player.quests if q["id"] != mq["id"]]
+ws.player.character.key_items = [k for k in ws.player.character.key_items if k.name != "a sealed letter"]
+other_letter = KeyItem(id="sealed_letter", name="a sealed letter", description="A letter.", kind="quest", source=asker.name, day=1,
+                       for_whom=store.load_npc(a_.id).name)
+ws.player.character.key_items.append(other_letter)
+mq = Q.map_offer(world, store, QuestOffer(kind="deliver", what="a letter", to=store.load_npc(c_.id).name, item="a sealed letter"), b_.id,
+                 asker.name, ws.minutes)
+obligations.open_(store, "request", b_.id, ws.acting, mq["title"], ws.minutes, terms=mq, key=f"test:{mq['id']}")
+ws.take_personal(asker)
+held = [k for k in ws.player.character.key_items if k.name == "a sealed letter"]
+check("(the fifth review) ...but never a letter of theirs meant for someone else: that one stays as it was",
+      sorted(k.id for k in held) == sorted(["sealed_letter", f"quest_{mq['id']}"]) and other_letter.for_whom == store.load_npc(a_.id).name,
+      [(k.id, k.for_whom) for k in held])
+ws.player.quests = [q for q in ws.player.quests if q["id"] != mq["id"]]
+ws.player.character.key_items = [k for k in ws.player.character.key_items if k.name != "a sealed letter"]
+
+# ---- (the third review) two loads of one name: the one handed over is the one that counts
+from core.models import KeyItem
+qa = Q._quest("deliver", "F", "Deliver a load of salt to A", ws.minutes, item="a load of salt", to_name=store.load_npc(a_.id).name, to_role="",
+              to_id=a_.id, item_description="salt", guild=False, issuer=b_.id, issuer_name="B")
+qb = Q._quest("deliver", "F", "Deliver a load of salt to C", ws.minutes, item="a load of salt", to_name=store.load_npc(c_.id).name, to_role="",
+              to_id=c_.id, item_description="salt", guild=False, issuer=b_.id, issuer_name="B")
+ws.player.quests += [qa, qb]
+ka = KeyItem(id=f"quest_{qa['id']}", name="a load of salt", description="salt", kind="quest", source="B", day=1, for_whom=qa["to_name"])
+ws.record_delivery(ka, store.load_npc(c_.id))
+check("(the third review) A's load handed to C delivers neither: not A's (wrong hands), nor C's (C's own load is still carried)",
+      qa["progress"] == 0 and qb["progress"] == 0, (qa["progress"], qb["progress"]))
+ws.record_delivery(ka, store.load_npc(a_.id))
+check("...and handed to A it is A's", qa["progress"] == 1 and qb["progress"] == 0)
+ws.player.quests = [q for q in ws.player.quests if q not in (qa, qb)]
+
+# ---- the data
+check("the ways' data checks clean", situation_parts.problems() == [], situation_parts.problems())
+keep = copy.deepcopy(situations.S["register"]["ways"])
+situations.S["register"]["ways"]["how"]["given"] = "Bring {name} something."
+situations.S["register"]["ways"]["pay"].pop("rare")
+situations.S["register"]["ways"]["told_skip"] = ["the", False]
+probs = situation_parts.problems()
+situations.S["register"]["ways"] = keep
+check("a given way that names no good, a tier with no price, a filler word YAML read as something else, are refused at startup",
+      any("ways.how.given" in p for p in probs) and any("ways.pay" in p for p in probs) and any("told_skip" in p for p in probs), probs)
+
+shutil.rmtree("saves/ways_545", ignore_errors=True)
+print("\nALL PASS" if not bad else f"\n{len(bad)} FAILED: {bad}")
+sys.exit(1 if bad else 0)

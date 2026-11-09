@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# (f370) A night of runs on a rented Linux box with an NVIDIA card (RunPod, Lambda, any Ubuntu): tools/HOSTED.md has the steps around it.
+# (f370, f529) A night of runs on a rented Linux box with an NVIDIA card (RunPod, Lambda, any Ubuntu): tools/HOSTED.md has the steps around it.
 #
 #     RUNS=5 HOURS=2 PARALLEL=2 bash tools/runpod_night.sh
 #
-# Installs Ollama when the box has none, starts it with room for PARALLEL requests at once, pulls the game's models, installs the game's
-# libraries, plays RUNS runs of HOURS hours (PARALLEL at a time, tools/nightrun.py), and zips every log under out/ to carry home.
-# Everything the night needs is on the box; nothing reaches the machine you started it from but the zip you download.
+# Fetches the game's own model server and model files by their pinned checksums (tools/fetch_runtime.py: the CUDA build of llama.cpp's
+# pinned commit, built from source on Linux, and the GGUF files data/runtime/server.yaml names), installs the game's libraries, plays
+# RUNS runs of HOURS hours (PARALLEL at a time, tools/nightrun.py: each run starts a server of its own, as the game ships), and zips
+# every log under out/ to carry home. Everything the night needs is on the box; nothing reaches the machine you started it from but
+# the zip you download. The nights run on the engine the game ships with and nothing else (GOALS.md, the owner's decision of 5 Nov).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,14 +16,14 @@ HOURS="${HOURS:-2}"
 PARALLEL="${PARALLEL:-1}"
 OUT="${OUT:-logs/nightrun}"
 EXTRA="${EXTRA:-}"                              # anything else for tools/nightrun.py: --starts veteran,legend --personas hunter,talker --level 40
+BUILD="${BUILD:-cuda}"                          # the llama-server build: cuda (built from source here), vulkan or cpu (releases)
 MODEL="$(python3 -c 'import config; print(config.MODEL)')"
-EMBED="$(python3 -c 'import config; print(config.EMBED_MODEL)')"
 mkdir -p logs out
 
 # A path that drops big packets (seen on Runpod: 1,300-byte packets pass, 1,400 do not) stalls every download. MSS_PROXY=1 routes the
-# installs and the pulls through tools/mss_proxy.py, which caps its outbound segments; the game's own calls to Ollama stay local.
+# installs and the fetches through tools/mss_proxy.py, which caps its outbound segments; the game's own calls to its server stay local.
 if [ "${MSS_PROXY:-0}" = "1" ]; then
-    if ! curl -sS -o /dev/null -m 5 -x http://127.0.0.1:3128 https://ollama.com/ 2>/dev/null; then
+    if ! curl -sS -o /dev/null -m 5 -x http://127.0.0.1:3128 https://github.com/ 2>/dev/null; then
         (setsid nohup python3 tools/mss_proxy.py --port 3128 > logs/mss_proxy.log 2>&1 < /dev/null &)
         sleep 1
     fi
@@ -30,58 +32,75 @@ if [ "${MSS_PROXY:-0}" = "1" ]; then
     echo "Downloads go through the segment-capping proxy (MSS_PROXY=1)."
 fi
 
-if ! command -v ollama >/dev/null 2>&1; then
-    echo "Installing Ollama..."
-    if ! command -v zstd >/dev/null 2>&1; then          # (f445) Ollama's installer unpacks with zstd, which some images lack
-        (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd) > /dev/null 2>&1 || true
-    fi
-    curl -fsSL https://ollama.com/install.sh | sh
-fi
-# A container may see every core of the host (nproc 128) while its quota is a dozen; the model runner then spawns a thread per core
-# seen and they fight over the quota, and a 5090 ran at a tenth of its speed. Pinning the server to as many cores as the quota allows
-# (the runner inherits the pinning) gave the card its full speed: 4,700 tokens/s read, 200 written, up from 580 and 25.
+# A container may see every core of the host (nproc 128) while its quota is a dozen; a server then spawns a thread per core seen and
+# they fight over the quota, and a 5090 ran at a tenth of its speed. The quota's cores are split among the runs at once (each run's
+# server gets DND_NUM_THREAD threads, llm/runtime.py chat_argv -t), and the night is pinned to those cores (the servers inherit it).
 PIN=""
-if command -v taskset >/dev/null 2>&1 && [ -r /sys/fs/cgroup/cpu.max ]; then
+CORES="$(nproc)"
+if [ -r /sys/fs/cgroup/cpu.max ]; then
     read -r QUOTA PERIOD < /sys/fs/cgroup/cpu.max
     if [ "$QUOTA" != "max" ] && [ "$QUOTA" -gt 0 ] 2>/dev/null; then
         CORES=$(( (QUOTA + PERIOD - 1) / PERIOD ))
-        if [ "$CORES" -lt "$(nproc)" ]; then
+        if [ "$CORES" -lt "$(nproc)" ] && command -v taskset >/dev/null 2>&1; then
             PIN="taskset -c 0-$((CORES - 1))"
-            echo "Pinning Ollama to $CORES cores (the container's quota; nproc says $(nproc))."
-            if [ "${DND_NUM_THREAD:-0}" = "0" ]; then
-                export DND_NUM_THREAD=$(( CORES / 2 > 2 ? CORES / 2 : 2 ))   # the runner's threads, else it spawns one per core shown and they fight
-            fi
-            echo "The model runner gets $DND_NUM_THREAD threads (DND_NUM_THREAD)."
+            echo "Pinning the night to $CORES cores (the container's quota; nproc says $(nproc))."
         fi
     fi
 fi
-if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-    echo "Starting Ollama with room for $PARALLEL request(s) at once..."
-    (OLLAMA_NUM_PARALLEL="$PARALLEL" OLLAMA_KEEP_ALIVE=30m setsid nohup $PIN ollama serve > logs/ollama.log 2>&1 < /dev/null &)   # its own session: outlives the shell that started it
-    for _ in $(seq 1 60); do
-        curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break
-        sleep 1
-    done
+[ "$CORES" -gt "$(nproc)" ] && CORES="$(nproc)"
+if [ "${DND_NUM_THREAD:-0}" = "0" ]; then
+    export DND_NUM_THREAD=$(( CORES / PARALLEL > 2 ? CORES / PARALLEL : 2 ))
 fi
-nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true
-# (f387) A pull is tried up to six times, a little longer apart each time: the registry answered one night's first pull with a bare 503,
-# and the script, stopping at the first error, ended the night before it began while the pod went on billing.
-pull() {
-    ollama show "$1" >/dev/null 2>&1 && return 0          # already on the box: no pull, no registry round trip
+echo "Each of the $PARALLEL server(s) at once gets $DND_NUM_THREAD threads (DND_NUM_THREAD) of $CORES cores."
+
+# The CUDA build needs a compiler of 12.8 or newer: an older nvcc leaves the 50-series cards (sm_120) out of the build (tools/fetch_runtime.py
+# cuda_archs), and the pod images carry the driver and the runtime with an older compiler or none. So 12.8's is installed unless it is
+# already here, and the build is pointed at it (PATH and CUDACXX) ahead of whatever the image put first.
+if [ "$BUILD" = "cuda" ]; then
+    if ! /usr/local/cuda-12.8/bin/nvcc --version >/dev/null 2>&1; then
+        echo "Installing the CUDA 12.8 compiler for the server's build (the image's is $(nvcc --version 2>/dev/null | grep -o 'release [0-9.]*' || echo missing))..."
+        (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 cuda-nvrtc-dev-12-8) \
+            > logs/apt.log 2>&1 || { echo "apt failed (logs/apt.log):"; tail -5 logs/apt.log; }
+    fi
+    export PATH=/usr/local/cuda-12.8/bin:$PATH
+    export CUDACXX=/usr/local/cuda-12.8/bin/nvcc
+    echo "CUDA compiler: $(nvcc --version 2>/dev/null | grep -o 'release [0-9.]*' || echo 'none; the build will fail')"
+    command -v cmake >/dev/null 2>&1 || python3 -m pip install -q cmake
+fi
+python3 -m pip install -q -r requirements.txt
+
+# (f387, f529) A fetch is tried up to six times, a little longer apart each time: a registry answered one night's first fetch with a bare
+# 503, and a script stopping at the first error ended the night before it began while the pod went on billing. Every file is checked
+# against its sha256 in data/runtime/server.yaml by the tool itself; one already here with the right checksum is not fetched again.
+fetch() {
     for n in 1 2 3 4 5 6; do
-        ollama pull "$1" && return 0
-        echo "Pulling $1 failed (try $n of 6); trying again in $((n * 20)) s."
+        python3 tools/fetch_runtime.py "$@" && return 0
+        echo "fetch_runtime $* failed (try $n of 6); trying again in $((n * 20)) s."
         sleep $((n * 20))
     done
     return 1
 }
-pull "$MODEL"
-pull "$EMBED"
-python3 -m pip install -q -r requirements.txt
+fetch --models
+if [ "$BUILD" = "cuda" ] && [ "$(python3 -c 'from llm import runtime; print(runtime.platform())')" = "linux" ]; then
+    fetch --build cuda --from-source
+else
+    fetch --build "$BUILD"
+fi
+python3 - <<'EOF'
+import sys
+sys.path.insert(0, ".")
+from llm import runtime
+bad = runtime.runtime_problems(check_files=True)
+if bad:
+    print("The server's files are not in place:\n  - " + "\n  - ".join(bad))
+    sys.exit(1)
+print("The server's files are in place, each at its pinned checksum.")
+EOF
+nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true
 
-echo "A night of $RUNS run(s), $HOURS h each, $PARALLEL at a time: $MODEL"
+echo "A night of $RUNS run(s), $HOURS h each, $PARALLEL at a time: $MODEL on the game's own llama-server ($BUILD)"
 # shellcheck disable=SC2086
-python3 tools/nightrun.py --runs "$RUNS" --hours "$HOURS" --parallel "$PARALLEL" --out "$OUT" $EXTRA || true
+$PIN python3 tools/nightrun.py --runs "$RUNS" --hours "$HOURS" --parallel "$PARALLEL" --out "$OUT" --record $EXTRA || true
 
 STAMP="$(date +%Y%m%d_%H%M)"
 python3 - "$OUT" "out/night_$STAMP.zip" <<'EOF'

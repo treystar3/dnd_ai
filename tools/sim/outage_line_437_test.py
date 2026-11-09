@@ -2,7 +2,7 @@
 produce a usable answer. Nothing has changed; try again." 4 to 8 times a run on the f425 night: machinery, and always the same words.
 Now it is a line in the narrator's own voice (data/rules/failures.yaml), never the same twice running; the game is as it was; and the
 turn's row in the turn log says the model failed, while nothing is counted as a refusal of what the player typed."""
-import json, random, re, shutil, sys, types
+import json, random, re, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 37))
@@ -13,7 +13,6 @@ for fn in ("narrate", "say", "ledger"):
     setattr(uc, fn, lambda *a, **k: None)
 uc.panel = lambda name, data: False
 from engine import data_check, failures, refusals, turnlog
-from llm import gateway
 from llm.gateway import LLMError
 
 bad = []
@@ -24,12 +23,12 @@ def check(n, ok, x=""):
 game = simlib.campaign("outage_line_437_test", seed=37, location="trading_square")     # (f450) the suite's one way to open a campaign
 store, ws = game.store, game.scene
 
-real = gateway._client
+real = simlib.below()                     # (f518) the stub answering now, taken before the failing planner goes in over it
 def chat(**k):
     if k["format"].get("title") == "ActionPlan":
         raise ConnectionError("the model server cannot be reached")
     return real.chat(**k)
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)
 real_command = ws.command
 def command(text):
     if text == "#fail":
@@ -45,7 +44,7 @@ where, clock, coins = ws.player.location, store.meta.minutes, ws.player.characte
 script = ["I look around the square", "I look around the square", "#fail", "quit"]
 uc.ask = lambda *a, **k: script.pop(0) if script else "quit"
 ws.run()
-gateway._client, turnlog._write = real, real_write
+held(); turnlog._write = real_write
 
 LINES = set(failures.lines())
 shown = [n for n in NOTES if n in LINES]

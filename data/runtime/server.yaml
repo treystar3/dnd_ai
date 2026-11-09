@@ -1,0 +1,111 @@
+# (f522) How the game runs its model server: which llama-server builds and model files it uses (each pinned by its sha256 and size),
+# and the server's settings. Read by llm/runtime.py and checked at startup by its runtime_problems(). Outside the data hash
+# (storage/statehash.py), as data/measured is: it says how this machine runs the model, not what the game is, so a recording replays
+# across a change here (the answers are served); night comparisons read each run's run.json for what it ran on.
+#
+# The builds are llama.cpp's own releases of the commit the pod measured (b11963, 39febd2), hashed whole on 2026-11-06. Linux has no
+# CUDA release: tools/fetch_runtime.py builds it from that commit on a pod.
+# The model files are the ones every night ran on, served by their sha256 from a public, content-addressed registry (the digest in the
+# URL is the file's own checksum, checked again after the fetch). tools/fetch_runtime.py fetches and checks them; runtime/ and models/
+# are never in git. (f531) On Steam the model files are a depot of their own; the testers' installer fetches these same URLs.
+
+llama_cpp:
+  tag: b11963
+  commit: 39febd2adb947b70da35e95f9351b3bf58ad170a
+  release: https://github.com/ggml-org/llama.cpp/releases/download/b11963/
+
+# In the order a machine tries them (f526's ladder): the CUDA build when an NVIDIA card shows, then Vulkan, then the processor.
+builds:
+  - id: cuda
+    platform: windows
+    files:
+      - {name: llama-b11963-bin-win-cuda-12.4-x64.zip, sha256: 70ba73e7554acd3319c74bb8f7d2cf01c8524cc4849b4e069b0a1e0426d9b2e4, size: 279763930}
+      - {name: cudart-llama-bin-win-cuda-12.4-x64.zip, sha256: 8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6, size: 391443627}
+  - id: vulkan
+    platform: windows
+    files:
+      - {name: llama-b11963-bin-win-vulkan-x64.zip, sha256: 7e0c3934878aba0a2e48a1f631d37ef08721e638504d06a8cb1b7bb547e6e715, size: 37346495}
+  - id: cpu
+    platform: windows
+    files:
+      - {name: llama-b11963-bin-win-cpu-x64.zip, sha256: de99853c24276a77377aa23fa9b387cde7e723ec5af841b4ebc957b9e1914ee1, size: 24407990}
+  - id: cuda
+    platform: linux
+    from_source: true           # no release; tools/fetch_runtime.py --build cuda builds the commit above (CUDA arch 86 and up)
+    files: []
+  - id: vulkan
+    platform: linux
+    files:
+      - {name: llama-b11963-bin-ubuntu-vulkan-x64.tar.gz, sha256: 1905cf16e22fbb6a70d56f01ee2405e7e61af77a032a3951bef38169ebb46696, size: 35471500}
+  - id: cpu
+    platform: linux
+    files:
+      - {name: llama-b11963-bin-ubuntu-x64.tar.gz, sha256: c117406e0eaaaeca0ac4a081b1e94152754fa79bcfc7f8af7016aace40defadf, size: 22691329}
+
+models:
+  chat:
+    role: chat
+    file: gemma4-12b-bb722270.gguf
+    sha256: bb722270d54346adc198f213851dbe0207e87c3ecf2a0aff4d92262726215391
+    size: 7381383680
+    source: https://registry.ollama.ai/v2/library/gemma4/blobs/sha256:bb722270d54346adc198f213851dbe0207e87c3ecf2a0aff4d92262726215391
+  draft:
+    role: draft
+    file: gemma4-12b-draft-7008a656.gguf
+    sha256: 7008a656050bed18f6741406a631e83fa75ee1a02308f2e4f40d978cfbb3ce4b
+    size: 465109152
+    source: https://registry.ollama.ai/v2/library/gemma4/blobs/sha256:7008a656050bed18f6741406a631e83fa75ee1a02308f2e4f40d978cfbb3ce4b
+  embed:
+    role: embed
+    file: nomic-embed-text-970aa74c.gguf
+    sha256: 970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6
+    size: 274290656
+    source: https://registry.ollama.ai/v2/library/nomic-embed-text/blobs/sha256:970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6
+
+embed:                      # (f524) the embedder's own server
+  ctx: 2048                 # its context, batch and micro-batch: a text longer than the batch is refused, never cut quietly
+  batch: 2048
+  ubatch: 2048
+  max_chars: 5000           # so every text is cut to this before it is sent (above the 601 characters a kept recording embeds)
+  device: auto              # card, processor, or auto: on the card unless the chat model would not otherwise sit wholly on it
+
+machine:                    # (f526) the minimum card (GOALS.md, the owner's decision of 5 Nov): the whole model on the card, and an
+  minimum_cuda_mib: 12000   # NVIDIA card of 12 GB through CUDA (a 12 GB card lists about 12,287 MiB) or any card of 16 GB through
+  minimum_vulkan_mib: 16000 # Vulkan; below it the game plays slowly but whole (llm/launch.py classify)
+  integrated:               # (f526's review) cards built into the processor, or software ones: never chosen, never at the minimum
+    ['\bUHD\b', '\bIris\b', '\bHD Graphics\b', 'Radeon\(TM\) Graphics', '\bRadeon Graphics\b', '\bVega \d+ Graphics\b', '\b\d{3}M\b',
+     'llvmpipe', 'lavapipe', 'SwiftShader', 'Microsoft Basic']
+
+server:
+  slots: 2                  # two slots (owner's decision, 2026-11-05); f536: the understanding's and every other call's, below
+  slot_of:                  # (f536) the slot a task's calls take, by the gateway's task name. The understanding alone on slot 0: the server
+    interpret_action: 0     # keeps a checkpoint at the end of its system message (the start of the user message), reusable only while no
+  other_slot: 1             # other prompt takes the slot; every other call, the background's included, on slot 1 (its checkpoints the RAM cache's)
+  slot_ctx: 16384           # each slot's context; the server is started with twice it, and --fit may not shrink it
+  batch: 1024
+  ubatch: 1024
+  threads: 0                # 0: the server's own choice (DND_NUM_THREAD, config.NUM_THREAD, sets it for a night)
+  cache_ram_mib: 0          # the prompt cache in RAM (llama-server's default is 8 GiB; 0 turns it off). (f537) Off, the owner's choice of
+                            # 7 Nov ("let's keep it off for now"), after the pod measured five shapes: with the understanding on its own
+                            # slot (f536) a 2 GiB cache reused no more than none (37% of prompt tokens against 39%) and spent 74 s of 40
+                            # turns copying slot states to RAM; 6 GiB added about ten points for 6 GiB of the player's memory. One entry
+                            # is a slot's whole state with its checkpoints, about 0.8 GiB.
+  ctx_checkpoints: 32       # (f537) context checkpoints a slot keeps (the server's default); each is the sliding-window state at the
+                            # start of a user message or near a prompt's end, up to 320 MiB (half of them that, a quarter under 150 MiB),
+                            # and the RAM cache saves them with the slot
+  kv_type: f16              # (f537) the KV cache's type for K and V: f16 (the server's default), bf16, q8_0 (half the memory and half the
+                            # copying, quality near f16), q4_0, q4_1, q5_0, q5_1, iq4_nl, f32. A quantized type turns flash attention on;
+                            # the Vulkan night is measured with it. Measured on the pod before any change
+  cache_idle_slots: true    # (f537) whether an idle slot's state is also saved to the RAM cache when a new task starts (the server's
+                            # default); off, only the slot a new prompt displaces is saved. On the 6 Nov night 91 idle saves copied state
+                            # (115 found it already cached), 380 ms each, 35 s in all, for 5 reuses. With the RAM cache off it does
+                            # nothing (the server says so once at the start and saves no slot); kept as the 7 Nov arm ran it
+  draft_n_max: 3            # the draft model guesses this many tokens ahead (the pod: 75% accepted, writing 1.55 times as fast)
+  start_seconds: 300        # the longest a load may take before it is 'failed' (the pod: 7.9 s cold on its own disk)
+  hang_seconds: 1800        # the hang guard for one call on a machine below the minimum card (f526)
+  restarts: 1
+  log_kib: 4096             # (f522) each server log file's cap (logs/llama-server.log, llama-embed.log); the one before is kept as .1               # a server that dies is started again this many times in a session; the next death is 'failed'
+  max_cancels: 3            # (f523) a background call gives the card back to the turn this many times, then runs beside it
+  resume_idle_seconds: 2    # (f523) a background call starts once no turn's call has run for this long (the player reading)
+  max_wait_seconds: 120     # (f523's review) ...or once it has waited this long, beside the turn: the owner's "after it has been put off
+                            # twice", two turns of the 60-second budget (turns less than resume_idle apart leave no reading time)

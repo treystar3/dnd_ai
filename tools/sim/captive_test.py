@@ -1,18 +1,17 @@
 """(f392) A captive has a lifecycle: taken only from someone who lived and yielded, escorted at the player's side, and then handed over,
 released, put to death, or slipped away - never bound forever. Two nights showed a berserker walked bound for a thousand turns, an outlaw
 narrated among the dead and then throwing down his weapon, and the game offering to butcher bandits for hide and meat."""
-import random, re, shutil, sys, types
+import random, re, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
-import llm.gateway as gw
 SENT = []
-_chat = gw._client.chat
+_chat = simlib.below().chat     # (f518) the stub answering now, taken before the spy goes in over it
 def chat(*a, **k):
     SENT.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 import ui.console as uc
 NOTES = []
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger"):
@@ -61,6 +60,8 @@ PR.clear(); PR.update(saved)
 after = [m for t, m in SENT if t == "Narration"]
 told = after[-1][-1]["content"] if after else ""
 fallen_line = re.search(r"THE FALLEN: (.*)", told).group(1) if "THE FALLEN" in told else ""
+check("the after-fight passage was asked of the spy answering now (f518)", spy.live() and spy.src.calls["Narration"] >= 1 and after,
+      dict(spy.src.calls))
 check("a fight won against outlaws can leave one who lives and yields: the strongest of them", foes[1].alive and foes[1].surrendered and not foes[0].alive)
 check("...and the after-fight passage is told he yielded, not that he fell",
       "THOSE WHO YIELDED" in fallen_line and foes[1].name not in fallen_line.split("THOSE WHO YIELDED")[0], fallen_line[:300])

@@ -431,11 +431,13 @@ class ArcActions:
                 n += 1
         return n
 
-    def escorted(self) -> set[str]:
-        """(f392) The captives walking bound at the player's side: wherever the player is, they are."""
+    def escorted(self) -> list[str]:
+        """(f392) The captives walking bound at the player's side: wherever the player is, they are. (f493) In the order they were taken
+        (the registry's), never a set's: walked to the next place in the hash seed's order, they reached its residents in an order a
+        replay of the night could not repeat."""
         from engine import entities
-        return {e.links.get("npc", "") for e in self.store.find_entities(kind="captive", state=tuple(entities.L["captive"]["present_with_player"]),
-                                                                          owner="player")}
+        return list(dict.fromkeys(e.links.get("npc", "") for e in self.store.find_entities(
+            kind="captive", state=tuple(entities.L["captive"]["present_with_player"]), owner="player")))
 
     def prisoner_here(self, intent=None) -> NPC | None:
         mine = [n for n in self.present if n.id in self.player.prisoners]
@@ -497,9 +499,8 @@ class ArcActions:
         elif degree == "partial":
             lines.append(f"[THE GAME HAS DECIDED: you are shaken. You almost say too much - let slip that you DO know {what}, "
                          "and nothing more. Do not say it.]")
-        else:
-            lines.append(f"[YOU KNOW {what}. You will not tell the stranger unless they persuade you, frighten you, or win your "
-                         "trust. You may stall, bargain, bluff about small things, or refuse. Do not reveal or hint at what it is.]")
+        # (f486, the owner's decision: someone may hold a secret without knowing it until its gate opens) while it is shut, nothing of
+        # it reaches their brief: a line telling them to keep it was a line telling them there was something to keep
         return lines, {"open": bool(open_), "pressed": pressed, "secret": secret}
 
     def secret_text(self, secret: dict) -> str:

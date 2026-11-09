@@ -1,6 +1,7 @@
 """(f361) A night run's logs become training data: calls regrouped from their rows, accepted answers kept (minus the habits the game only
 nudges), rejected drafts paired with the answers that replaced them, the newest run held out; the trainer's dry run checks the files
-and writes the Modelfile; the evaluator scores logged and model answers the way the game judges them, through the gateway's client."""
+and names the next step; the evaluator scores the logged answers and the base model's the way the game judges them, through the game's
+own interface (the stand-in here; (f529) a voice's adapter on the game's own server in use)."""
 import json, shutil, sys
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -80,22 +81,24 @@ check("with full prompts asked, a log that shortened them yields nothing, and sa
       and not (base / "full" / "train").exists(), dict(full["train"]["narrate"]))
 
 # ---- the trainer's dry run
-code = lora_train.main(["--task", "narrate", "--data", str(out / "train"), "--out", str(base / "adapter"), "--dry-run"])
-mf = (base / "adapter" / "Modelfile").read_text(encoding="utf-8") if (base / "adapter" / "Modelfile").exists() else ""
-import config
-check("the dry run checks the data and writes Ollama's Modelfile on the game's own model tag", code == 0 and f"FROM {config.MODEL}" in mf and "ADAPTER ./adapter" in mf, mf)
+import io, contextlib
+said = io.StringIO()
+with contextlib.redirect_stdout(said):
+    code = lora_train.main(["--task", "narrate", "--data", str(out / "train"), "--out", str(base / "adapter"), "--dry-run"])
+check("the dry run checks the data and names the next step: the adapter converted to a GGUF and scored as a voice (f529), no Modelfile",
+      code == 0 and not (base / "adapter" / "Modelfile").exists() and "convert_lora_to_gguf" in said.getvalue() and "--adapter" in said.getvalue(), said.getvalue()[-400:])
 check("a file of the wrong shape is refused", lora_train.check_shape([{"messages": [{"role": "user", "content": "x"}]}], "sft")
       and lora_train.check_shape([{"prompt": [], "chosen": [{"content": "a"}], "rejected": [{"content": "a"}]}], "dpo"))
 check("...and a pairs file of the right shape is not", lora_train.check_shape([pair], "dpo") == [])
 
-# ---- the evaluator, through the gateway's client (the stub here)
-rows, secs = lora_eval.evaluate(out / "eval" / "narrate.sft.jsonl", ["stub-model"])
-check("the logged answers and each model's are scored the way the game judges them", set(rows) == {"logged", "stub-model"} and rows["logged"][0]["fits"] == 1
+# ---- the evaluator, asking through the game's own interface (f529: the stand-in installed above answers the base model's row)
+rows, secs = lora_eval.evaluate(out / "eval" / "narrate.sft.jsonl", [])
+check("the logged answers and the base model's are scored the way the game judges them", set(rows) == {"logged", "base"} and rows["logged"][0]["fits"] == 1
       and rows["logged"][0]["tails"] == 0 and stub.calls.get("Narration", 0) >= 1, (rows, dict(stub.calls)))
 sc = lora_eval.score("npc_conversation", U_TALK + "\nnever asks the stranger anything back", long.replace("miss it.", "miss it, do you see?"), contracts.NPCReply)
 check("the measurable parts of a kit are checked: a sentence past twenty words and a question from one who never asks", sc["kit"] == 2, sc)
 tbl = lora_eval.table(rows, secs)
-check("the table reads", tbl.startswith("| Model |") and "| logged |" in tbl and "| stub-model |" in tbl, tbl)
+check("the table reads", tbl.startswith("| Voice |") and "| logged |" in tbl and "| base |" in tbl, tbl)
 
 shutil.rmtree(base, ignore_errors=True)
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

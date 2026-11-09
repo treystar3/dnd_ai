@@ -33,10 +33,10 @@ check("a first-letter capital leaves the rest as written", names.cap_first("albe
 f = combat.Fighter.model_construct(name="bandit captain (bounty)", side="enemy", boss=False)
 check("a tag such as '(bounty)' is not said as part of a foe", combat.who(f) == "the bandit captain", combat.who(f))
 PAT = re.compile(r"(?:label\(\)|\.name|\['name'\]|\[\"name\"\]|display_name\([^)]*\))\.capitalize\(\)")
-hits = [f"{p}:{i + 1}" for p in list(pathlib.Path("scenes").glob("*.py")) + list(pathlib.Path("engine").glob("*.py"))
-        for i, l in enumerate(p.read_text(encoding="utf-8").split("\n")) if PAT.search(l)]
+hits = [f"{p}:{i + 1}" for p in list(pathlib.Path("scenes").glob("*.py")) + list(pathlib.Path("engine").glob("*.py")) + list(pathlib.Path("services").glob("*.py"))
+        for i, l in enumerate(p.read_text(encoding="utf-8").split("\n")) if PAT.search(l)]           # (f503) services too
 check("no name or label goes through str.capitalize()", not hits, hits)
-src = pathlib.Path("scenes/combat_scene.py").read_text(encoding="utf-8")
+src = pathlib.Path("services/fight.py").read_text(encoding="utf-8")                                 # (f503) the captives are the service's
 check("a captive's name is drawn apart from every name already in the save", "store.npc_names()" in src and "taken.add(" in src)
 
 # ---- the scene

@@ -18,7 +18,7 @@ def mv(channel=False, **k):
     d = dict(id="m", name="Bolt", effect="damage", tier="moderate", reach="ranged", resource="mana", attribute="intelligence", channel=channel)
     d.update(k); return C.Move(**d)
 def trace(move, **kw):
-    p = F("p", "player", **kw); e = F("e", "enemy", band="engaged"); p.moves = [move]
+    p = F("p", "player", **kw); e = F("e", "enemy"); p.moves = [move]
     cmb = C.Combat(fighters=[p, e]); cmb.record = True
     for i in range(40):
         C.act_ability(cmb, p, move, e, random.Random(i))
@@ -47,7 +47,7 @@ check("flat gear damage stays out of a plain spell", td["flat"] == 0, td)
 
 def ch(**kw):
     p = F("p", "player", reach="melee", damage_type="physical", weapon_attrs=["strength"], weapon_damage=40, **kw)
-    e = F("e", "enemy", band="engaged"); m = mv(True, reach="melee"); p.moves = [m]
+    e = F("e", "enemy"); m = mv(True, reach="melee"); p.moves = [m]
     cmb = C.Combat(fighters=[p, e], record=True)
     for i in range(40): C.act_ability(cmb, p, m, e, random.Random(i))
     return next(h["base"] for h in cmb.hits if h.get("base"))

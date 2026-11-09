@@ -4,6 +4,7 @@ the server's cached-prompt count when it gives one, outside the request's hash; 
 characters and first-try acceptance); card_profile --expected prices answers at their expected sizes; the training data keeps one prompt
 version per task; the server report warns of a model off the card; and the baseline's task names are checked at startup."""
 import gzip
+import types
 import json
 import shutil
 import sys
@@ -13,11 +14,10 @@ sys.path.insert(0, "tools")
 import simlib
 simlib.install(simlib.Stub("warrior", 2))
 import config
-import ollama
 from pydantic import BaseModel
 from engine.prompt import Prompt
 from engine import data_check, recording
-from llm import gateway, setup_check
+from llm import backend, gateway
 import latency
 import card_profile
 import lora_dataset
@@ -50,36 +50,36 @@ class Read(BaseModel):
     x: str
 
 
-def answer(**k):
-    return ollama.ChatResponse(model="m", done=True, done_reason="stop", message={"role": "assistant", "content": '{"x": "fine"}'},
-                               prompt_eval_count=400, eval_count=5, prompt_eval_duration=10**8, eval_duration=10**7,
-                               prompt_eval_cached_count=300)
+def answer(**k):                     # (f532) a stand-in's counts, in the interface's form: the cached prompt tokens among them
+    return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content='{"x": "fine"}'),
+                                 usage={"prompt": 400, "out": 5, "read_ms": 100, "write_ms": 10, "cached": 300})
 
 
 log = Path("saves/measure_first_475_calls.jsonl")
 log.unlink(missing_ok=True)
 config.LOG_PATH = str(log)
 game = simlib.campaign("measure_first_475")
-real_chat = gateway._client.chat
-gateway._client.chat = answer
+held = simlib.stand_in(chat=answer)     # (f518) the answer with the cached count, as a stand-in source over the stub (embed kept)
 folder = Path("saves/measure_first_475_rec")
 shutil.rmtree(folder, ignore_errors=True)
 rec = recording.Recorder(game.store, folder=folder).install()
 got = gateway.generate("work_offer_read", "Read the offer.", p, Read)
 rec.close()
-gateway._client.chat = real_chat
+answered = dict(held.src.calls)
+held()
 rows = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines()]
 row = rows[-1] if rows else {}
+check("the call was answered by the stand-in, and it was taken away after", answered == {"Read": 1} and not held.live(), answered)
 check("the call log's row carries the shape and the server's cached count", got.x == "fine" and row.get("chars") == len("Read the offer.") + len(p.render())
       and row.get("prompt_version") and row.get("tail_chars") == len("Morning.") and (row.get("tokens") or {}).get("cached") == 300, row)
 with gzip.open(folder / "calls.jsonl.gz", "rt", encoding="utf-8") as f:
     crow = [json.loads(l) for l in f][-1]
 check("...and so does the recording's", (crow.get("shape") or {}).get("prompt_version") == row.get("prompt_version")
-      and (crow.get("tokens") or {}).get("cached") == 300, crow)
+      and (crow.get("usage") or {}).get("cached") == 300, crow)      # (f527) the row's counts are the interface's usage
 check("...beside the request, never in what its hash is made of", "shape" not in (crow.get("request") or {}) and "chars" not in (crow.get("request") or {})
       and [m["role"] for m in crow["request"]["messages"]] == ["system", "user"], sorted(crow.get("request") or {}))
-check("a reply with no cached count says nothing of one",
-      gateway.cached_count(ollama.ChatResponse(model="m", done=True, message={"role": "assistant", "content": ""})) is None)
+check("a reply with no counts says nothing of one",
+      backend.reply_of(types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=""))).usage is None)
 
 # ---- the speech tasks, measured from a night's call log
 night = [{"task": "npc_conversation", "attempt": 0, "chars": 20000, "error": None, "tail_chars": 900},
@@ -117,13 +117,7 @@ nc = counts["train"]["npc_conversation"]
 check("the training data keeps one prompt version per task, the newest", nc.get("calls") == 1 and nc.get("dropped: an older prompt version") == 1, dict(nc))
 shutil.rmtree(runs, ignore_errors=True)
 
-# ---- the server, and the baseline's task names
-rep = setup_check.server_report(ps={"models": [{"name": "gemma4:12b", "size": 10_000_000_000, "size_vram": 7_000_000_000, "context_length": 4096}]},
-                                version={"version": "0.12.0"})
-check("the server report warns of a model not wholly on the card, and of another context", rep["version"] == "0.12.0" and len(rep["warnings"]) == 2
-      and rep["loaded"][0]["vram_gb"] == 7.0, rep)
-ok = setup_check.server_report(ps={"models": [{"name": "gemma4:12b", "size": 10, "size_vram": 10, "context_length": config.NUM_CTX}]}, version={})
-check("...and of nothing when it is all there", not ok["warnings"], ok)
+# ---- the baseline's task names ((f532) what the server ran on is tools/runtime_cli.py's report, tested in nights_529)
 check("the baseline file passes the startup check", data_check.baseline_problems() == [], data_check.baseline_problems())
 check("...and an unknown task in it is refused", any("made_up" in b for b in data_check.baseline_problems({"speech_tasks": ["npc_conversation", "made_up"]})))
 

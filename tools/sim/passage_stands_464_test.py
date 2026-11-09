@@ -2,12 +2,12 @@
 record and shows a plain line of what stood, filled from the row's facts, never machinery, with no story written for the line; the
 passage runs after the action's commit, and a line of several actions is told before the world's pulse; a fight won whose telling and
 aftermath fail stays won, with the Victory line and the stand-ins in their place and the fight closed; a death whose goddess line fails is
-still a death, told by her own silence; the operations of the line are recorded as what they were."""
+still a death, told by her own silence; the operations of the line are recorded as what they were. (f498) A fight whose opening fails
+is begun all the same, fight_begun in the opening's place."""
 import json
 import pathlib
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -15,7 +15,6 @@ simlib.install(stub)
 import config
 import ui.console as uc
 from engine import combat, failures, ledger
-from llm import gateway
 from scenes import combat_scene as cs
 bad = []
 
@@ -30,7 +29,7 @@ g = simlib.campaign("passage_464", cls="warrior", seed=3, location="parth")
 ws, store = g.scene, g.store
 config.TURN_LOG_PATH = "saves/passage_464/turns.jsonl"
 SHOWN = simlib.quiet_console()
-real = gateway._client
+real = simlib.below()                           # (f518) the stub answering now, which the spy calls through to
 LOG = []                                        # the order of things: ("call", title), ("commit", kind), ("pulse",)
 FAIL = {"titles": set()}
 
@@ -43,7 +42,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)     # (f518) the spy as the model's source, over the stub
 real_commit = store.commit_operation
 store.commit_operation = lambda op, *a, **k: (LOG.append(("commit", op.kind)), real_commit(op, *a, **k))[1]
 real_pulse = ws.run_pulse
@@ -125,6 +124,31 @@ check("...and the stand-ins are the fight's, in the narrator's words", any(t in 
       and any("experience" in t or t in failures.F["victory_stood"] for t in lines) and not any(failures.MACHINERY.search(t) for t in lines), lines)
 FAIL["titles"] = set()
 
+# ---- (f498) a fight whose opening fails is still begun: the attack stands, the fight is on, fight_begun in the opening's place
+shrub = ws.world.bestiary["awakened_shrub"]                        # fearless (families.yaml plant): it never yields, so the fight ends when it falls
+foe = combat.fighter_from_creature(shrub, 1, "normal", "e1", name="awakened shrub")
+foe.hp = foe.max_hp = 1
+ws.wildlife = (shrub, [foe])
+stub.plan = [{"kind": "attack", "target": "awakened shrub"}]
+FAIL["titles"] = {"Narration"}
+SHOWN.clear(); LOG.clear()
+stood = ws.turn("I attack the shrub")
+FAIL["titles"] = set()
+stub.plan = None
+lines = narrated()
+fills = {l.format_map({"foe": "awakened shrub", "count": failures.count_phrase(1)}) for l in failures.F["fight_begun"]}
+check("a fight whose opening could not be written is begun all the same: the attack stood, the fight is on, its opening untold",
+      stood is True and ws.combat is not None and store.load_combat() is not None and "action:attack" in ops_of_input()
+      and [o.kind for o in ws.line_untold] == ["opening"], (stood, ws.combat is not None, ops_of_input(), [o.kind for o in ws.line_untold]))
+check("...and the player reads that it is on, in the narrator's words, never machinery", any(t in fills for t in lines)
+      and not any(failures.MACHINERY.search(t) for t in lines), lines)
+stub.a_CombatIntent = lambda u, k: {"kind": "attack", "target": "e1"}
+for _ in range(4):                                                   # a blow may miss: a few rounds at most
+    stood = ws.turn("I attack the shrub")
+    if ws.combat is None or stood is not True:
+        break
+check("...and it is fought to its end", stood is True and ws.combat is None, (stood, ws.combat))
+
 # ---- a death whose goddess line fails is still a death, told by her silence
 c = ws.player.character
 c.health = 1
@@ -148,7 +172,9 @@ check("...her words could not be written: her own silence in their place, and th
       and any(t in failures.F["goddess_silent"] for t in lines) and any(t.startswith("Lost:") for k, t in SHOWN), ([o.kind for o in ws.line_untold], lines[:3]))
 FAIL["titles"] = set()
 
-gateway._client = real
+check("the spy answered the model's calls while it was in", held.live() and held.src.calls["Narration"] > 0, dict(held.src.calls))
+held()
+check("...and taken away, the stub answers again", not held.live() and simlib.below().chat == stub.chat)
 g.close()
 shutil.rmtree("saves/passage_464", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

@@ -43,12 +43,14 @@ kinds:
     memory: {victim: {importance: 3}}
   bribe:
     memory: {victim: {importance: 3}}
+    ledger: true                          # (f545) coin that bought a favour meets a "paid" condition (situation_parts)
     standing: {kind: bribe_guard, only: worked_on_guard}      # only a guard bought off is a tale about the watch
     hire: bribe
   tithe:
     standing: {kind: tithe, weight: event}
   gift:
     memory: {victim: {importance: 2, trust: 2}}
+    ledger: true                          # (f545) a good or coin handed over meets a "given" or "paid" condition (situation_parts)
     hire: charity
   prayed:                               # (f332) the priest remembers a stranger at their altar; the companions see a stop at a shrine
     memory: {victim: {importance: 1, trust: 1}}

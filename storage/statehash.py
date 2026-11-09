@@ -109,15 +109,15 @@ def _first(x, y, path: str = "") -> str:
 
 def data_hash(root: Path = ROOT) -> str:
     """The game a recording was made on: every file under data/ (but data/replay, the recordings and cases kept to test against, which
-    are not the game, and (f459) data/measured, the card's measured speeds, which describe a machine and not the game), the model, the
-    version, and the save schema."""
+    are not the game, (f459) data/measured, the card's measured speeds, and (f522) data/runtime, how this machine runs the model
+    server: both describe a machine and not the game), the model, the version, and the save schema."""
     import config
     from core.version import VERSION
     from storage import migrations
     h = hashlib.sha256()
     for f in sorted((root / "data").rglob("*")):
         rel = f.relative_to(root)
-        if f.is_file() and "__pycache__" not in f.parts and rel.parts[:2] not in (("data", "replay"), ("data", "measured")):
+        if f.is_file() and "__pycache__" not in f.parts and rel.parts[:2] not in (("data", "replay"), ("data", "measured"), ("data", "runtime")):
             h.update(rel.as_posix().encode("utf-8") + b"\0")
             h.update(f.read_bytes())
     h.update(f"\0{config.MODEL}\0{VERSION}\0{migrations.CURRENT}".encode("utf-8"))

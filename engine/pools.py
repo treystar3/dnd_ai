@@ -120,10 +120,12 @@ def maximum(c: Character, pool: str) -> int:
         others = max(at(a) for a in MENTAL if a != cast)
         raw += m["cast_weight"] * at(cast) + m["other_weight"] * others
     pct, flat = _bonus_parts(c, rule.modifier, {Trigger.ALWAYS.value})
-    total = raw * (1 + pct) + flat
+    penalty = 0.0
     if pool in ("health", "stamina") and (getattr(c, "hunger", 0) or getattr(c, "fatigue", 0)):
         from engine import needs
-        total *= 1 + needs.penalties(c)[pool] / 100
+        penalty = needs.penalties(c)[pool]
+    from engine import stacking
+    total, _ = stacking.combine("pools", {"raw": raw, "percent": pct, "flat": flat, "needs": penalty})   # (f506) the recipe: percent, flat, needs
     return max(1, round(total))
 
 

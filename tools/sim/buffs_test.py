@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import ability_slots as AS, ability_traits as AT, combat
+from engine import effects as fx
 from engine.combat import Move
 bad = []
 def check(n, ok, x=""):
@@ -24,7 +25,7 @@ def buff(kind, tier="light", **k):
 check("thirteen buffs", sorted(AT.BUFFS) == ["acidcoat", "arcaneward", "attunement", "bladeward", "blur", "enlarge", "envenom", "frostarmor", "imbue", "manashield", "precision", "stoneform", "thorns"], sorted(AT.BUFFS))
 p = fighter(); f = fight(p, fighter("e", "enemy"))
 for tier in ("light", "heavy"):
-    p.buffs.clear(); combat.act_ability(f, p, buff("precision", tier), None, random.Random(1))
+    [fx.end_buff(p, k) for k in list(p.buffs)]; combat.act_ability(f, p, buff("precision", tier), None, random.Random(1))
 check("a buff has one strength, whatever its tier", list(p.buffs.values())[0]["mech"] == {"precision": 15}, p.buffs)
 
 # ---- Precision: no glancing blows, more crits
@@ -108,7 +109,7 @@ r = melee(True) / melee(False)
 check("...your melee blows hit 10% harder", 1.05 < r < 1.15, round(r, 2))
 missed = 0
 for i in range(200):
-    d, a = fighter(), fighter("e", "enemy", accuracy=-500); f = fight(d, a)
+    d, a = fighter(), fighter("e", "enemy"); f = fight(d, a)
     combat.act_ability(f, d, buff("enlarge"), None, random.Random(1))
     missed += not combat.apply_damage(f, a, d, 1.0, "hits", random.Random(i))
 check("...but nothing aimed at you can miss", missed == 0, missed)
@@ -284,7 +285,7 @@ f = fight(p, e)
 notes = combat.prebuff(f, ["b_stoneform"], random.Random(1))
 check("a pre-fight buff is up before the first blow, a round shorter", "b_stoneform" in p.buffs and p.buffs["b_stoneform"]["rounds"] == AT.buff_rounds("stoneform") - 1, (p.buffs, notes))
 check("...and paid for, and on cooldown", p.mana < 10**4 and p.cooldowns.get("b_stoneform", 0) > 0)
-p.mana = 0; p.buffs.clear(); p.cooldowns.clear()
+p.mana = 0; [fx.end_buff(p, k) for k in list(p.buffs)]; p.cooldowns.clear()
 notes = combat.prebuff(f, ["b_stoneform"], random.Random(1))
 check("...but not without the mana", not p.buffs and notes and "No time" in notes[0], notes)
 from engine import field

@@ -7,18 +7,17 @@
   childhood detail out of nowhere. A name near enough is that name; one line said again by the next is sent back; the frame stays on the
   people; a thing of their own comes up most when something here touches it; the job they are on is something to talk about.
 - Maren leaves Parth once the lesson is over: an older save that has her waiting at the hall is moved on."""
-import random, shutil, sys, types
+import random, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 CALLS = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                  # (f518) the stub's own answer, taken before the spy goes in over it
 def chat(*a, **k):
     CALLS.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None)
 import ui.console as uc
 for f in ("narrate", "note", "say", "npc_says", "dialogue", "ledger"):
     setattr(uc, f, lambda *a, **k: None)
@@ -54,13 +53,13 @@ def asked_npc():
 CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "Any work going?"}]
 ws.turn("Any work going?")
-check("a first meeting is no return", "THEY ARE BACK" not in asked_npc(), asked_npc()[-400:])
+check("a first meeting is no return", asked_npc() and "THEY ARE BACK" not in asked_npc(), asked_npc()[-400:] or "no NPCReply asked")
 check("...and when they last spoke is kept, to the minute", simlib.view(store.load_npc(clerk.id)).last_talk_at >= 120, simlib.view(store.load_npc(clerk.id)).last_talk_at)
 ws.end_conversation()
 CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "One more thing."}]
 ws.turn("One more thing.")
-check("talking again within the hour is no return", "THEY ARE BACK" not in asked_npc())
+check("talking again within the hour is no return", asked_npc() and "THEY ARE BACK" not in asked_npc(), asked_npc()[-400:] or "no NPCReply asked")
 
 # ---- two days later
 ws.end_conversation()
@@ -82,7 +81,7 @@ check("...the frame shows them knowing who it is", REASONS and any("know the pla
 CALLS.clear()
 stub.plan = [{"kind": "talk", "target": clerk.id, "speech": "And the board?"}]
 ws.turn("And the board?")
-check("...once, at the start of the talk", "THEY ARE BACK" not in asked_npc())
+check("...once, at the start of the talk", asked_npc() and "THEY ARE BACK" not in asked_npc(), asked_npc()[-400:] or "no NPCReply asked")
 # (f477) the words are the one converter's (data/rules/time_words.yaml): by calendar day, and past a month by the season it was then
 check("the way it is put", recognition.ago(1440 * 10 + 60, 1440 * 9) == "yesterday" and recognition.ago(1440 * 20, 1440 * 10) == "about a week ago"
       and recognition.ago(1440 * 90, 0) == "last spring", recognition.ago(1440 * 90, 0))

@@ -8,8 +8,6 @@ import re
 import types
 from pathlib import Path
 
-import llm.gateway as gw
-
 # ------------------------------------------------------------------ the stand-in model
 
 NAME_COUNTER = [0]
@@ -178,6 +176,12 @@ class Stub:
                 out["offers_quest"] = {"kind": "hunt", "what": self.rng.choice(["wolves", "boars", "goblins", "bandits"]), "count": 3}
         return out
 
+    def a_NPCReplyMany(self, u, k):
+        """(f487) One block per character the format names, or what a test planted (many_extra: a list of blocks, as given)."""
+        ids = (((k["format"].get("$defs") or {}).get("NPCAnswer") or {}).get("properties") or {}).get("to", {}).get("enum") or []
+        blocks = getattr(self, "many_extra", None) or [{"to": t} for t in ids]
+        return {"speech": "It is as it is.", "intent": "small_talk", "answers": blocks}
+
     def a_DialogueFrame(self, u, k):
         return {"before": "", "after": ""}
 
@@ -274,6 +278,53 @@ class Stub:
             out["contract"] = {"kind": "hunt", "what": r.choice(["wolves", "boars", "goblins", "giant spiders", "bandits"]), "count": 3}
         return out
 
+    def a_SituationParts(self, u, k):
+        """(f543) A situation's parts from the prompt's own lists (engine/situations.py prompt), the same for the same prompt: the first
+        two people of the town, one at odds with the other; someone of a trade from outside (or of the town's own) who could put it
+        right; a good stranded with the one harmed; danger on the town's first road; a rumour that points at the one who gains; all
+        within AT MOST. With self.parts_bad, an answer past every cap that names the player, nobody, and the game's ids."""
+        one = lambda key: (re.search(rf"^{re.escape(key)}: (.*)$", u, re.M).group(1) if re.search(rf"^{re.escape(key)}: ", u, re.M) else "")
+        ids = lambda key: [x.split(":")[0].strip() for x in one(key).split("; ") if ":" in x]
+        people, places, roads, goods = ids("PEOPLE (id: name, trade)"), ids("PLACES (id: name)"), ids("ROADS (id: name, from - to)"), ids("GOODS (id: name)")
+        trades = [x.strip() for x in one("OTHER TRADES").split(",") if x.strip()] or \
+                 [x.strip() for x in one("TRADES OF THE TOWN").split(",") if x.strip() and " " not in x.strip()]
+        m = re.search(r"AT MOST: (\d+) parts", u)
+        most = int(m.group(1)) if m else 99                                        # (f550) no total cap: every part of the plan
+        if getattr(self, "parts_bad", False):
+            first = people[0] if people else "nobody_at_all"
+            return {"people": [{"who": "player", "stake": "knows", "want": "believed"}, {"who": "dragon_king", "stake": "blocks", "want": "coin"},
+                               {"who": first, "stake": "gains", "want": "coin", "label": f"sells at {places[0] if places else 'x_y'}"}]
+                              + [{"who": w, "stake": "harmed", "want": "safety"} for w in (people[1:] + trades)[:5]],
+                    "resources": [{"good": "dragon_gold", "state": "scarce"}, {"good": goods[0], "state": "wanted", "holder": "nobody_here"}],
+                    "ties": [{"a": first, "b": first, "tie": "kin"}],
+                    "conditions": [{"on": "nowhere_keep", "kind": "closed"}] + [{"on": r, "kind": "prices"} for r in roads[:2]],
+                    "evidence": [{"label": "the_cut_rope", "holder": first, "points_to": "dragon_king", "certainty": "sure"},
+                                 {"label": "a torn sack", "holder": places[0] if places else "x", "points_to": first, "certainty": "hearsay"}]}
+        out = {"people": [], "resources": [], "ties": [], "conditions": [], "evidence": []}
+        a = people[0] if people else (trades[0] if trades else "")
+        b = people[1] if len(people) > 1 else ""
+        c = trades[0] if trades and trades[0] not in (a, b) else (people[2] if len(people) > 2 else "")
+        plan = []
+        if a:
+            plan.append(("people", {"who": a, "stake": "gains", "want": "coin", "holds": goods[0] if goods else "",
+                                    "label": "sells dear"}))
+        if b:
+            plan.append(("people", {"who": b, "stake": "harmed", "want": "goods_moved", "condition": "trusted",
+                                    "label": "cannot get a load out"}))
+        if c:
+            plan.append(("people", {"who": c, "stake": "can_fix", "want": "safety", "condition": "protected", "label": "could mend it"}))
+        if b and len(goods) > 1:
+            plan.append(("resources", {"good": goods[1], "state": "stranded", "holder": b, "label": "a load stuck"}))
+        if a and b:
+            plan.append(("ties", {"a": a, "b": b, "tie": "rival"}))
+        if a and (c or b):
+            plan.append(("evidence", {"label": "talk of a cut rope", "holder": c or b, "points_to": a, "certainty": "hearsay"}))
+        if roads:
+            plan.append(("conditions", {"on": roads[0], "kind": "danger", "label": "unsafe now"}))
+        for kind, part in plan[:most]:
+            out[kind].append(part)
+        return out
+
     def a_ThreadTelling(self, u, k):
         stages = re.findall(r"^STAGE \d+: (.*)$", u, re.M)
         clues = re.findall(r"^CLUE \d+ \(.*?\): (.*)$", u, re.M)
@@ -296,7 +347,10 @@ class Stub:
                                 "captain_intro": "For the banner! Cut them down!"}] * 2}
 
     def a_JudgeVerdict(self, u, k):
-        return {"verdict": getattr(self, "verdict", "no"), "reason": "the ledger shows it", "ending": "victory"}
+        """(f547) With self.changes (a list, or a function of the request), the changes a ruling proposes for a situation's parts."""
+        ch = getattr(self, "changes", None)
+        ch = ch(u) if callable(ch) else (ch or [])
+        return {"verdict": getattr(self, "verdict", "no"), "reason": "the ledger shows it", "ending": "victory", "changes": ch}
 
     def a_MotiveStep(self, u, k):
         pid = re.search(r"PERSON: (\S+) -", u).group(1)
@@ -445,8 +499,68 @@ class Stub:
                               "tier": "light"} for i, (m_, t_) in enumerate(out)]}
 
 
-def install(stub: Stub):
-    gw._client = types.SimpleNamespace(chat=stub.chat)
+class Held:
+    """(f518) A stand-in put in as the model's source (llm/backend.py use): call it (or undo(), or leave its with-block) to take exactly
+    it away again; live() says whether it is the one answering now. .src is the StandIn, .src.calls what it answered."""
+
+    def __init__(self, src):
+        from llm import backend
+        self.src = src
+        self._undo = backend.use(src)
+
+    def __call__(self) -> None:
+        self._undo()
+
+    undo = __call__
+
+    def live(self) -> bool:
+        from llm import backend
+        return backend.source() is self.src
+
+    def __enter__(self) -> "Held":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._undo()
+
+
+KEEP = object()
+
+
+def _top_stand_in():
+    from llm import backend
+    src = backend.source()
+    return src if isinstance(src, backend.StandIn) else None
+
+
+def below():
+    """(f518) The stand-in answering now, in the old client's shape (.chat(**k), .embed(**k)): what a test's wrapper calls through to,
+    where it read the old client before. Raises when no stand-in is installed (a wrapper over nothing would reach no model at all)."""
+    top = _top_stand_in()
+    if top is None:
+        raise RuntimeError("no stand-in is installed: simlib.install(stub) first (simlib.below)")
+    return types.SimpleNamespace(chat=top.chat_fn, embed=top.embed_fn)
+
+
+def stand_in(chat=KEEP, embed=KEEP, facts: dict | None = None, name: str = "stand-in", below=None) -> Held:
+    """(f518) Put in a stand-in source answering with these functions (the old client's shape), where a test assigned the old client's
+    before. KEEP (the default) takes the function of the stand-in answering now (its embedder survives a new chat, and a missing one
+    stays missing); None drops it; facts are added to its own. Returns the Held: call it to take it away again."""
+    from llm import backend
+    top = _top_stand_in()
+    if chat is KEEP:
+        chat = top.chat_fn if top is not None else None
+    if embed is KEEP:
+        embed = top.embed_fn if top is not None else None
+    return Held(backend.StandIn(chat=chat, embed=embed, facts={**(top._facts if top is not None else {}), **(facts or {})}, name=name,
+                                below=below))
+
+
+def install(stub: Stub) -> Held:
+    """The stub as the model's source (f518: a StandIn through llm/backend.py, no longer a patch on the client), with the suite's
+    settings. Returns the Held: call it to take the stub away again."""
+    from llm import backend
+    held = Held(backend.StandIn(chat=stub.chat, name="stub"))
     import config
     config.AUDIT_LOG = False         # a stubbed run is not a session anyone audits; keep logs/audit/ for real play
     config.REFUSALS_LOG = False
@@ -454,6 +568,7 @@ def install(stub: Stub):
     _c.ledger = lambda m: _c.note(m)     # (f325) under the stub, a ledger line is a note: the tests that watch notes see it
     from npc import life
     life.FIRST_BATCH = None          # tests see a place's whole population at once unless they turn the split on
+    return held
 
 
 # ------------------------------------------------------------------ the four characters
@@ -791,7 +906,7 @@ class FakeEmbedder:
                 v[int(hashlib.md5(w.encode()).hexdigest(), 16) % 64] += 1
         return v
 
-    def embed(self, model=None, input=None, keep_alive=None, **k):
+    def embed(self, model=None, input=None, **k):
         texts = list(input or [])
         self.calls.append(len(texts))
         return {"embeddings": [self.vec(t) for t in texts]}

@@ -1,0 +1,27 @@
+{"i": 1, "main": true, "text": "I search the fields for the bandits.", "turn": 1, "steps": 0}
+{"i": 2, "main": true, "text": "I search the fields for the bandits.", "turn": 2, "steps": 1}
+{"i": 3, "main": true, "text": "I creep up on Marrow Hask and strike.", "turn": 3, "steps": 2}
+{"i": 4, "main": true, "text": "Dade, are you hurt?", "turn": 4, "steps": 3}
+{"i": 5, "main": true, "text": "I strike at Marrow Hask.", "turn": 5, "steps": 4}
+{"i": 6, "main": true, "text": "I strike at Marrow Hask.", "turn": 6, "steps": 5}
+{"i": 7, "main": true, "text": "I strike at Marrow Hask.", "turn": 6, "steps": 5}
+{"i": 8, "main": true, "text": "I strike at Marrow Hask.", "turn": 7, "steps": 6}
+{"i": 9, "main": true, "text": "#useitem healing draught", "turn": 8, "steps": 7}
+{"i": 10, "main": true, "text": "I strike at Marrow Hask.", "turn": 8, "steps": 8}
+{"i": 11, "main": true, "text": "I strike at Marrow Hask.", "turn": 9, "steps": 9}
+{"i": 12, "main": true, "text": "I strike at Marrow Hask.", "turn": 10, "steps": 10}
+{"i": 13, "main": true, "text": "I strike at Marrow Hask.", "turn": 11, "steps": 11}
+{"i": 14, "main": true, "text": "I strike at Marrow Hask.", "turn": 12, "steps": 12}
+{"i": 15, "main": true, "text": "I strike at Marrow Hask.", "turn": 13, "steps": 13}
+{"i": 16, "main": true, "text": "I strike at Marrow Hask.", "turn": 14, "steps": 14}
+{"i": 17, "main": true, "text": "I strike at Marrow Hask.", "turn": 15, "steps": 15}
+{"i": 18, "main": true, "text": "I strike at Marrow Hask.", "turn": 16, "steps": 16}
+{"i": 19, "main": true, "text": "I strike at Marrow Hask.", "turn": 17, "steps": 17}
+{"i": 20, "main": true, "text": "I strike at Marrow Hask.", "turn": 18, "steps": 18}
+{"i": 21, "main": true, "text": "I beat through the grass for game.", "turn": 19, "steps": 19}
+{"i": 22, "main": true, "text": "I beat through the grass for game.", "turn": 20, "steps": 20}
+{"i": 23, "main": true, "text": "I attack the mule.", "turn": 21, "steps": 21}
+{"i": 24, "main": true, "text": "I run for it.", "turn": 22, "steps": 22}
+{"i": 25, "main": true, "text": "I run for it.", "turn": 23, "steps": 23}
+{"i": 26, "main": true, "text": "I beat through the grass for game.", "turn": 24, "steps": 24}
+{"i": 27, "main": true, "text": "quit", "turn": 25, "steps": 25}

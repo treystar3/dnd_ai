@@ -7,9 +7,10 @@ validation context passed to llm.gateway.generate.
 """
 
 import re
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import ConfigDict, BaseModel, Field, ValidationInfo, model_validator, PrivateAttr
+from pydantic.json_schema import SkipJsonSchema
 
 from core.models import (
     COMPANION_TARGETS,
@@ -399,19 +400,37 @@ class GoddessLine(BaseModel):
 
 
 PLACEHOLDERS = {"", "none", "null", "n/a", "na", "nil", "nothing", "unknown", "undefined", "-", "--", "no one", "nobody"}
+PART_PLACEHOLDERS = PLACEHOLDERS | {"empty", "blank"}   # (f545) a situation part's field the prompt says to "leave blank" is sometimes
+                                                        # answered with the word; elsewhere "Empty." and "Blank." are things said
 
 
-def blank_placeholders(*fields: str):
+def blank_placeholders(*fields: str, words: set = PLACEHOLDERS):
     """A before-validator: a model that fills an optional text field with 'none', 'n/a' or 'null' means it left it empty."""
     def clean(cls, data):
         if isinstance(data, dict):
             data = dict(data)
             for f in fields:
                 v = data.get(f)
-                if isinstance(v, str) and v.strip().strip(".\"'").lower() in PLACEHOLDERS:
+                if isinstance(v, str) and v.strip().strip(".\"'").lower() in words:
                     data[f] = ""
         return data
     return model_validator(mode="before")(classmethod(clean))
+
+
+def promise_field():
+    """(f493) A before-validator for they_promised: a contract that does not ask for it keeps none (the field is out of its schema, so
+    only a stub or a hand-made answer can carry one); one that asks keeps what came back only as a promise in a few words
+    (engine/brief.py promise_kept), never the model's note to itself."""
+    def clean(cls, data):
+        if isinstance(data, dict) and "they_promised" in data:
+            data = dict(data)
+            asked = getattr(cls, "ASKS_PROMISE", False)
+            data["they_promised"] = __import__("engine.brief", fromlist=["promise_kept"]).promise_kept(data["they_promised"]) if asked else ""
+        return data
+    return model_validator(mode="before")(classmethod(clean))
+
+
+_PROMISE_CHARS = int(((__import__("engine.brief", fromlist=["rules"]).rules().get("promise") or {}).get("max_chars")) or 120)   # (f493) brief.yaml
 
 
 def as_lists(*fields: str):
@@ -796,8 +815,9 @@ class CompanionReply(BaseModel):
     gesture: str = ""
     remember: str = ""
     impression: str = ""
+    they_promised: str = ""             # (f488, G4) a promise the one who hired them made in this exchange, in a few words; else empty
 
-    _blank = blank_placeholders("speech", "gesture", "remember", "impression")
+    _blank = blank_placeholders("speech", "gesture", "remember", "impression", "they_promised")
 
     def spoken(self):
         return [("", self.speech)] if self.speech else []
@@ -1013,6 +1033,30 @@ def _no_tics(speech: str, last: str = "") -> None:
 NO_WORDS = re.compile(r"\W*(?:none|n/?a|nothing|silence|no reply|no answer|\.\.\.)?\W*", re.I)      # (f422) speech that says nothing
 
 
+class NPCAnswer(BaseModel):
+    """(f487) What one reply means for one of the characters spoken to: their own trust, the name they gave, what to remember of them,
+    what they promised, the note, the work or the request or the thing offered to them."""
+    to: str = ""
+    trust_change: int = 0
+    learned_name: str = ""
+    remember: str = ""
+    they_promised: SkipJsonSchema[str] = ""        # (f493) asked for only in NPCAnswerPromised: here no field the server lets the model fill
+    journal_note: str = ""
+    offers_work: WorkOffer | None = None
+    offers_quest: QuestOffer | None = None
+    gives: GiftProposal | None = None
+
+    _blank = blank_placeholders("learned_name", "remember", "they_promised", "journal_note")
+    _promise = promise_field()
+
+
+class NPCAnswerPromised(NPCAnswer):
+    """(f493) A block that may say what was promised: asked for only when what was said may promise something (engine/brief.py promised)."""
+    model_config = ConfigDict(title="NPCAnswer")
+    ASKS_PROMISE: ClassVar[bool] = True
+    they_promised: str = Field("", json_schema_extra={"maxLength": _PROMISE_CHARS})
+
+
 class NPCReply(BaseModel):
     speech: str
     gesture: str = ""
@@ -1026,11 +1070,20 @@ class NPCReply(BaseModel):
     offers_work: WorkOffer | None = None
     offers_quest: QuestOffer | None = None
     journal_note: str = ""
+    they_promised: SkipJsonSchema[str] = ""     # (f486, G4) a promise the one in front of you made you; (f493) asked for only in NPCReplyPromised
 
-    _blank = blank_placeholders("gesture", "remember", "learned_player_name", "journal_note")
+    _blank = blank_placeholders("gesture", "remember", "learned_player_name", "journal_note", "they_promised")
+    _promise = promise_field()
 
     def spoken(self):
         return [("", self.speech)]
+
+    def answers(self, to: str = "") -> list[NPCAnswer]:
+        """(f487) The one block of a reply to one character, for the one commit path (npc/life.py apply_answer)."""
+        made = NPCAnswerPromised if getattr(self, "ASKS_PROMISE", False) else NPCAnswer        # (f493) a promise asked for is carried
+        return [made(to=to, trust_change=self.trust_change, learned_name=self.learned_player_name, remember=self.remember,
+                          they_promised=self.they_promised, journal_note=self.journal_note, offers_work=self.offers_work,
+                          offers_quest=self.offers_quest, gives=self.gives)]
 
     @model_validator(mode="after")
     def clean_note(self):
@@ -1365,6 +1418,80 @@ class WorldEffect(BaseModel):
     boss: bool = False     # spawn: one dangerous named creature (true) or a few ordinary ones (false)
 
 
+# ---------- (f542) the parts of a situation: typed, proposed by the model, checked part by part by the engine (engine/situations.py) ----------
+# The closed lists are data/rules/situations.yaml's, held equal to these Literals both ways at startup (engine/data_check.py), so the
+# grammar refuses any word outside them. No part is prose a player reads: a label is a few words for the engine's own record.
+
+class PartPerson(BaseModel):
+    """Someone with a part in the situation: an existing person by their id from PEOPLE, or a role from ROLES for one the engine will
+    find in the town or make and name. Never the player."""
+    who: str
+    stake: Literal["gains", "harmed", "can_fix", "blocks", "knows"]
+    want: Literal["coin", "road_open", "goods_moved", "safety", "believed", "left_alone", "rid_of_rival"]
+    condition: Literal["", "paid", "protected", "given", "trusted", "told"] = ""   # what they need before helping; "" helps freely
+    holds: str = ""        # a good's id from GOODS they hold, if any
+    label: str = ""        # a few words on their part
+    _blank = blank_placeholders("condition", "holds", "label", words=PART_PLACEHOLDERS)
+
+
+class PartResource(BaseModel):
+    """A good the trouble turns on: its id from GOODS, who holds it (a person's `who` from the parts, or none) and how it stands; (f545)
+    for a wanted good, who wants it."""
+    good: str
+    state: Literal["scarce", "stranded", "wanted"]
+    holder: str = ""
+    wanted_by: str = ""
+    label: str = ""
+    _blank = blank_placeholders("holder", "wanted_by", "label", words=PART_PLACEHOLDERS)
+
+
+class PartTie(BaseModel):
+    """How two people of the parts stand to each other, each by their `who`."""
+    a: str
+    b: str
+    tie: Literal["rival", "owes", "kin", "employs", "fears"]
+
+
+class PartCondition(BaseModel):
+    """What the situation lays on a place (an id from PLACES) or a road (an id from ROADS); (f546) and who or what imposes it and could
+    lift it: one of the people's `who` (by_kind person), or a few plain words for a group of people, a creature, a mechanism or nature."""
+    on: str
+    kind: Literal["closed", "danger", "prices", "mark"]
+    label: str = ""
+    by: str = ""
+    by_kind: Literal["", "person", "group", "creature", "mechanism", "nature"] = ""
+    _blank = blank_placeholders("label", "by", words=PART_PLACEHOLDERS)
+
+
+class PartEvidence(BaseModel):
+    """A piece of evidence: a few words of what it is, who holds it (a person's `who`, or the id of the place where it lies), what it
+    points to (a person's `who`, or a place or road id) and how sure its holder is. Whether it is true is the engine's to decide."""
+    label: str
+    holder: str
+    points_to: str
+    certainty: Literal["sure", "they say", "hearsay"]
+    _blank = blank_placeholders("label", "holder", "points_to", words=PART_PLACEHOLDERS)   # (f545's review) "empty" is no evidence
+
+
+class SituationParts(BaseModel):
+    """(f542) The cast and the angles around a situation's engine-set core: who is in it and how, the goods it turns on, how its people
+    stand to each other, what it lays on places and roads, and the evidence of what is behind it. The engine checks each part and drops
+    what fails, one part at a time."""
+    people: list[PartPerson] = []
+    resources: list[PartResource] = []
+    ties: list[PartTie] = []
+    conditions: list[PartCondition] = []
+    evidence: list[PartEvidence] = []
+
+    @model_validator(mode="after")
+    def some(self):
+        for f in ("people", "resources", "ties", "conditions", "evidence"):
+            setattr(self, f, getattr(self, f)[:8])            # shape only: the caps by tier are the engine's (data/rules/situations.yaml)
+        if not (self.people or self.resources or self.ties or self.conditions or self.evidence):
+            raise ValueError("propose at least one part: a person, a good, a tie, a place's condition or a piece of evidence")
+        return self
+
+
 class StageProposal(BaseModel):
     description: str       # what is happening now, as it would be seen and heard
     effects: list[WorldEffect] = []
@@ -1537,11 +1664,35 @@ class CataclysmProposal(BaseModel):
         return self
 
 
+class RulingChange(BaseModel):
+    """(f547) One change an act made in a situation: to the part numbered `part` in PARTS, done by `who` (0: the act itself; else the
+    number of a person in PARTS, by their own doing), resting on `because` (what was said, coin handed over, goods given, force, a
+    found piece of evidence shown, or an earlier change) and on the earlier changes numbered in `needs`. `about`: for believes or
+    doubts, the piece of evidence it is about (0: what the act claimed); for warns, the person warned. The engine checks each against
+    the world and drops one that does not hold, with every change that needs it (data/rules/situations.yaml rulings)."""
+    n: int
+    part: int
+    who: int = 0
+    becomes: Literal["believes", "doubts", "warmer", "colder", "afraid", "angry", "grateful", "open", "wary", "hostile", "refusing",
+                     "terrified", "committed", "flees", "surrenders", "joins", "warns", "safe", "lifted", "moved", "given_up", "lost",
+                     "broken", "mended", "tested", "found", "destroyed"]
+    because: Literal["words", "coin", "goods", "force", "evidence", "earlier"] = "words"
+    about: int = 0
+    needs: list[int] = []
+
+
 class JudgeVerdict(BaseModel):
-    """Did the player's deeds end an event? Decided from the ledger of deeds only."""
+    """Did the player's deeds end an event? Decided from the ledger of deeds only. (f547) For a situation with parts, the changes the
+    act made, part by part; whether the situation is over is never the model's to say there (f549 reads it from the world)."""
     verdict: Literal["resolved", "partial", "no"]
     reason: str            # one sentence naming which deeds did it (or why not)
     ending: Literal["victory", "truce", "sealed", "evacuated", "other"] = "other"
+    changes: list[RulingChange] = []
+
+    @model_validator(mode="after")
+    def capped(self):
+        self.changes = self.changes[:12]                     # shape only: the data's rulings.most is the engine's
+        return self
 
 
 class MotiveStep(BaseModel):
@@ -1818,8 +1969,9 @@ class Extracted(BaseModel):
 
 class CanonCheck(BaseModel):
     """A new statement against what is already true of a person: the same fact again, a contradiction, or something new; which listed fact
-    (1-based) it repeats or contradicts, 0 if none."""
-    verdict: Literal["same", "contradicts", "new"] = "new"
+    (1-based) it repeats or contradicts, 0 if none. (f519) The verdict has no default: an empty answer is no verdict, so it is refused
+    and the check, failing every try, reads the claim as unverified (engine/canon.py judge), never as new: f435's canon fails closed."""
+    verdict: Literal["same", "contradicts", "new"]
     which: int = 0
 
 
@@ -1892,3 +2044,65 @@ class PersonaDetails(BaseModel):
             if caps:
                 raise ValueError(f"no names of people in a secret ('{caps[0]}')")
         return self
+
+
+
+class NPCReplyPromised(NPCReply):
+    """(f493) A townsperson's reply that may say what was promised them, asked for only when what was said may promise something
+    (engine/brief.py promised). The field is held to brief.yaml promise.max_chars by the server's grammar, and what comes back is kept
+    only as a promise in a few words (promise_field). The same title as NPCReply: the same contract to the stub and the recordings."""
+    model_config = ConfigDict(title="NPCReply")
+    ASKS_PROMISE: ClassVar[bool] = True
+    they_promised: str = Field("", json_schema_extra={"maxLength": _PROMISE_CHARS})
+
+
+class NPCReplyManyBase(BaseModel):
+    """(f487) A townsperson answering two or more characters at once: what is said aloud comes once (the speech, the gesture, the intent,
+    the facts it carries, whether it gives their name); then one block for each character spoken to, each with what it means for them.
+    Made per call by many_reply(ids): the server's grammar holds the number of blocks and the ids they may carry; this checks that each
+    character has exactly one block and that a name is learned only from that character's own words."""
+    speech: str
+    gesture: str = ""
+    intent: Literal["small_talk", "share", "withhold", "lie", "bargain", "help", "refuse", "threaten", "leave"]
+    reveals: list[str] = []
+    told_own_name: bool = False
+    answers: list[NPCAnswer]
+
+    _blank = blank_placeholders("gesture")
+
+    def spoken(self):
+        return [("", self.speech)]
+
+    @model_validator(mode="after")
+    def one_each(self, info: ValidationInfo):
+        ctx = info.context or {}
+        want = list(ctx.get("to") or [])
+        if not want:
+            return self
+        got = [a.to for a in self.answers]
+        stray = [t for t in got if t not in want]
+        if stray:
+            raise ValueError(f"a block for {stray[0]}, who did not speak to you: one block for each of {', '.join(want)}, and no other")
+        doubled = sorted({t for t in got if got.count(t) > 1})
+        if doubled:
+            raise ValueError(f"two blocks for {doubled[0]}: one block for each of them")
+        missing = [t for t in want if t not in got]
+        if missing:
+            raise ValueError(f"no block for {missing[0]}: one block for each of {', '.join(want)}")
+        words = ctx.get("words") or {}
+        for a in self.answers:
+            n = (a.learned_name or "").strip()
+            if n and n.lower() not in str(words.get(a.to, "")).lower():
+                raise ValueError(f"the name '{n}' is not in what {a.to} said: a name is learned only from the one who gave it")
+        return self
+
+
+def many_reply(ids: list[str], promised: bool = False):
+    """(f487) The contract for one reply to these characters: as many blocks as there are of them, each `to` one of their ids. (f493)
+    Each block may say what was promised only when what was said may promise something."""
+    from typing import Literal as _L
+    from pydantic import Field, create_model
+    To = _L[tuple(ids)]
+    Answer = create_model("NPCAnswer", __base__=NPCAnswerPromised if promised else NPCAnswer, to=(To, ...))
+    return create_model("NPCReplyMany", __base__=NPCReplyManyBase,
+                        answers=(list[Answer], Field(min_length=len(ids), max_length=len(ids))))

@@ -2,7 +2,8 @@
 clock; under a slow profile an optional frame that does not fit is dropped with its fallback standing and no refusal filed, a required
 passage over the remainder is told by a stand-in with the outcome standing, and a line whose understanding cannot be afforded is not
 taken; a rejected draft is charged twice; the deadline rides on the client's own timeout for the call and is put back, and another
-thread's call in that window is neither charged nor refused; a recorded timeout replays as the same failure; a session recorded under a
+thread's call in that window is neither charged nor refused; (f518) a stand-in source whose chat names a deadline is handed it on the
+turn's thread only, one taking **k never; a recorded timeout replays as the same failure; a session recorded under a
 slow profile replays in a child process with the stand-in chosen at the same call; the turn log's row carries the budget's measures; and
 the stub's prompts estimate far under the owner's minute on the measured card."""
 import ast
@@ -19,10 +20,10 @@ import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
-import httpx
 import ui.console as uc
 from engine import budget, failures, refusals, turnlog
-from llm import gateway
+from llm import backend, gateway
+from llm.errors import Failure
 from npc.models import NPC
 from pydantic import BaseModel
 bad = []
@@ -84,7 +85,8 @@ stood = ws.turn('I say to Tam, "Good day to you."')
 check("an optional frame that does not fit after the reserve is dropped: not called, the reply made and standing plain, the talk stood",
       stood is True and stub.calls.get("DialogueFrame", 0) == frames0 and stub.calls.get("BoardStakes", 0) == stakes0 and stub.calls.get("NPCReply", 0) >= 1
       and ws.last_budget.get("calls") == 3 and not ws.last_budget.get("refused"), (stood, stub.calls.get("DialogueFrame", 0), frames0, ws.last_budget))
-check("...the budget names what it dropped; no refusal is filed and no fallback counted", "dialogue_frame" in ws.last_budget.get("dropped", []) and "board_stakes" in ws.last_budget.get("dropped", [])
+check("...the budget names what it dropped; no refusal is filed and no fallback counted", "dialogue_frame" in ws.last_budget.get("dropped", [])
+      and ("board_stakes" in ws.last_budget.get("dropped", []) or stub.calls.get("BoardStakes", 0) == stakes0)    # (f486) a farmer's good day reads no board
       and len(refusals.SESSION) == n_ref and len(gateway.FALLBACKS) == n_fall and ws.last_budget["estimated"] > 0, (ws.last_budget, refusals.SESSION[n_ref:]))
 
 B.update(limit_seconds=2.5, margin_seconds=0, floor_seconds=1, reserve_seconds=0.2)      # the understanding fits (two seconds), the passage does not
@@ -113,20 +115,19 @@ check("with less than the floor left before the understanding, the line is not t
       (stood, ws.last_failure, stub.calls.get("ActionPlan", 0), plans0))
 restore()
 
-# ---- a rejected first draft charges twice; the deadline rides on the client's timeout; another thread's call is neither charged nor refused
+# ---- a rejected first draft charges twice; another thread's call is neither charged nor refused
 class Tiny(BaseModel):
     ok: bool
 
 
 class Fake:
     def __init__(self):
-        self._client = types.SimpleNamespace(timeout=httpx.Timeout(120.0))
         self.answers = []
         self.seen = []
         self.other = None
 
     def chat(self, **k):
-        self.seen.append(self._client.timeout)
+        self.seen.append(k["options"].get("temperature"))
         if self.other is None and threading.current_thread() is threading.main_thread():
             self.other = {}
             t = threading.Thread(target=lambda: self.other.update(got=gateway.generate("interpret_action", "s", "u", Tiny), charges=len(budget.CURRENT.charges)))
@@ -135,25 +136,59 @@ class Fake:
         return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=text))
 
 
-real = gateway._client
 fake = Fake()
-gateway._client = fake
+undo_fake = backend.use(backend.StandIn(chat=fake.chat))       # (f532) a stand-in source: the old client and its shared timeout are gone
 b = budget.open()
 fake.answers = ["not json at all", '{"ok": true}']
 fake.other = {}                                                   # no thread for this one
 got = gateway.generate("interpret_action", "system words", "user words", Tiny)
 check("a rejected first draft charges twice: both attempts on the budget", isinstance(got, Tiny) and [t for t, _ in b.charges] == ["interpret_action", "interpret_action"]
       and b.spent > 0 and abs(b.required_seconds - b.spent) < 1e-9, b.charges)
-dl = b.deadline()
 fake.other = None
 got = gateway.generate("interpret_action", "system words", "user words", Tiny)
-check("the deadline rides on the client's own timeout during the call, and is put back after", fake.seen[-2:] and fake.seen[-2] == httpx.Timeout(float(dl))
-      and fake._client.timeout == httpx.Timeout(120.0), (fake.seen[-2:], dl, fake._client.timeout))
-check("...and a call from another thread in that window is neither charged nor refused", isinstance(fake.other.get("got"), Tiny) and fake.other.get("charges") == 2
-      and fake.seen[-1] == httpx.Timeout(float(dl)), fake.other)
+check("a call from another thread while the turn's call runs is neither charged nor refused", isinstance(fake.other.get("got"), Tiny) and fake.other.get("charges") == 2
+      and len(fake.seen) == 4, fake.other)
 summary = budget.close()
 check("the budget closes with its summary, and open again starts from nothing", summary["calls"] == 3 and budget.CURRENT is None and budget.LAST["calls"] == 3, summary)
-gateway._client = real
+undo_fake()
+
+
+# ---- (f518) the interface's own contract: a stand-in whose chat names a `deadline` parameter is handed the turn's deadline on the turn's
+#      thread and none on another; one taking only **k is never handed it (it sends exactly the old client's arguments)
+class Named:
+    def __init__(self):
+        self.seen, self.other = [], None
+
+    def chat(self, deadline=None, **k):
+        self.seen.append(deadline)
+        if self.other is None and threading.current_thread() is threading.main_thread():
+            self.other = {}
+            t = threading.Thread(target=lambda: self.other.update(got=gateway.generate("interpret_action", "s", "u", Tiny),
+                                                                  charges=len(budget.CURRENT.charges)))
+            t.start(); t.join()
+        return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content='{"ok": true}'))
+
+
+named = Named()
+held = simlib.stand_in(chat=named.chat)
+b2 = budget.open()
+dl2 = b2.deadline()
+got = gateway.generate("interpret_action", "system words", "user words", Tiny)
+check("a stand-in whose chat names `deadline` is handed the turn's deadline on the turn's thread, and none on another",
+      isinstance(got, Tiny) and len(named.seen) == 2 and isinstance(named.seen[0], float) and named.seen[0] == float(dl2) and named.seen[1] is None,
+      (named.seen, dl2))
+check("...and the other thread's call is neither charged nor refused", isinstance((named.other or {}).get("got"), Tiny)
+      and named.other.get("charges") == 0, named.other)
+held()
+keys = []
+held = simlib.stand_in(chat=lambda **k: (keys.append(sorted(k)), types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content='{"ok": true}')))[1])
+got = gateway.generate("interpret_action", "system words", "user words", Tiny)
+check("...while one taking only **k is not handed it: exactly the old client's arguments", isinstance(got, Tiny)
+      and keys == [["format", "messages", "model", "options", "think"]], keys)
+held()
+budget.close()
+check("...and both stand-ins are gone, the stub answering again", isinstance(backend.source(), backend.StandIn) and backend.source().name == "stub"
+      and not held.live(), backend.source())
 
 # ---- a recorded timeout replays as the same failure; a session recorded under a slow profile replays in a child process
 g.close()
@@ -166,15 +201,16 @@ sr.save_npc(herb2)
 wr.player.character.coins = 100000
 sr.save_player(wr.player)
 CUT = {"on": False}
+real = simlib.below()                     # (f518) the stub answering now, taken before the cutting stand-in goes in over it
 
 
 def cutting_chat(**k):
     if CUT["on"] and k["format"].get("title") == "ActionPlan":
-        raise httpx.ReadTimeout("the deadline cut it")
+        raise Failure("deadline", "the deadline cut it")          # (f532) a source's own deadline
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=cutting_chat)
+cut_held = simlib.stand_in(chat=cutting_chat, embed=None)
 SCRIPT = ["I look around.", "I look around.", "quit"]
 uc.ask = lambda *a, **k: SCRIPT.pop(0) if SCRIPT else "quit"
 budget.PROFILE.update(read_tps=1e9, write_tps=0.15)              # nearly seven seconds a token: the understanding leaves less than the floor
@@ -202,10 +238,10 @@ import gzip
 calls = [json.loads(l) for l in gzip.open(OUT / "calls.jsonl.gz", "rt", encoding="utf-8") if l.strip()]
 turns = [json.loads(l) for l in (OUT / "turns.jsonl").read_text(encoding="utf-8").splitlines()]
 meta = json.loads((OUT / "meta.json").read_text(encoding="utf-8"))
-check("the recording's meta carries the speeds the budget priced its calls at, and each call its task", meta.get("profile") == {"read_tps": 1e9, "write_tps": 0.15}
+check("the recording's meta carries the speeds the budget priced its calls at, and each call its task", meta.get("profile") == {"read_tps": 1e9, "write_tps": 0.15, "embed_seconds_per_text": 0.15}
       and meta.get("limit_seconds") == B["limit_seconds"] and all(c.get("task") for c in calls if c["kind"] == "chat"), (meta.get("profile"), [c.get("task") for c in calls][:6]))
 cut = [c for c in calls if c.get("error")]
-check("the deadline's cut is recorded as that error, with its task", cut and cut[-1]["error"][0] == "ReadTimeout" and cut[-1]["task"] == "interpret_action", [c.get("error") for c in cut])
+check("the deadline's cut is recorded as that error, with its task", cut and cut[-1]["error"]["kind"] == "deadline" and cut[-1]["task"] == "interpret_action", [c.get("error") for c in cut])
 check("...the first line's passage was refused under the slow profile and stood in for; the cut line was not taken", "stand_in" in [p["how"] for p in turns[0].get("presented", [])]
       and not any(c.get("task") == "narrate" for c in calls if c.get("input")) and len(turns) >= 2 and not turns[1].get("presented"),   # input 0 is the open's own passage
       ([[p["how"] for p in t.get("presented", [])] for t in turns], [(c.get("input"), c.get("task")) for c in calls]))
@@ -220,7 +256,9 @@ check("the turn log's rows carry the budget's measures: the estimate, the requir
       [{k: r_.get(k) for k in ("budget_seconds", "required_seconds", "stand_ins", "dropped", "rolled_back", "model_failed")} for r_ in rows])
 shutil.rmtree(OUT, ignore_errors=True)
 shutil.rmtree("saves/budget_468_rec", ignore_errors=True)
-gateway._client = real
+check("the recorded session ran on the cutting stand-in, which is then taken away", cut_held.live() and cut_held.src.calls.get("ActionPlan", 0) >= 2,
+      dict(cut_held.src.calls))
+cut_held()
 
 # ---- the stub's prompts estimate far under the minute on the measured card
 check("the stub's own prompts (the understanding, a reply, a passage) estimate far under the owner's minute on the measured card",

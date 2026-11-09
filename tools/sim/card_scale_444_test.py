@@ -1,6 +1,7 @@
 """(f444) A measure scaled to the card the game is built for, when that card cannot be rented: Runpod has no RTX 3060, so a night is
 recorded on the nearest card and every call's reading and writing time is scaled by the two cards' compute and memory bandwidth
-(data/rules/cards.yaml), an estimate kept as one. And a night of several runs keeps a recording of each."""
+(data/rules/cards.yaml), an estimate kept as one. And a night of several runs with --record keeps a recording of its first run
+alone: the measuring runs play unrecorded, as the game ships (f529, the owner's decision of 5 Nov)."""
 import gzip, json, os, shutil, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, ".")
@@ -41,13 +42,15 @@ shutil.rmtree(REC, ignore_errors=True)
 from engine import data_check
 check("the startup check passes the cards as they are", not [p for p in data_check.check() if "cards.yaml" in p])
 
-# ---- a night of several runs keeps a recording of each
+# ---- a night of several runs with --record keeps a recording of its first run alone (f529)
 OUT = Path("saves/card_scale_444_night")
 shutil.rmtree(OUT, ignore_errors=True)
 night = subprocess.run([sys.executable, "tools/nightrun.py", "--stub", "--runs", "2", "--turns", "3", "--record", "--out", str(OUT),
                         "--save", "card_scale_444"], capture_output=True, text=True, timeout=900)
 kept = sorted(p.parent.parent.name for p in OUT.glob("*/recording/meta.json"))
-check("a night of two runs keeps a recording of each", night.returncode == 0 and len(kept) == 2, (kept, (night.stdout + night.stderr)[-500:]))
+runs = sorted((p.name for p in OUT.iterdir() if p.is_dir()), key=lambda n: int(n.rsplit("_", 1)[1]))     # by seed: the first run first
+check("a night of two runs with --record keeps a recording of the first run alone; the second plays unrecorded, as the game ships",
+      night.returncode == 0 and len(runs) == 2 and kept == runs[:1], (kept, runs, (night.stdout + night.stderr)[-500:]))
 shutil.rmtree(OUT, ignore_errors=True)
 for p in Path("saves").glob("card_scale_444*"):
     shutil.rmtree(p, ignore_errors=True)

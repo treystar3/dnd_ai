@@ -138,7 +138,8 @@ def past_situation(store, world, state: dict, player, town: str, p: dict, now: i
     state.setdefault("threads", []).append(th)
     line = (f"{th['title']} - ended; {who} settled it." if settled
             else f"{th['title']} - left alone, so the fallout landed: {proposal.fallout.description[:120]}")
-    state.setdefault("history", []).append({"minute": t1, "text": line, "place": town})
+    from engine import pulse
+    pulse.add_history(state, line, town, t1)                         # (f484) the one writer, capped
     pulse.add_news(state, line, town, t1, th["groups"], thread=th["id"])
     if pressure:
         state.setdefault("cooldowns", {})[pressure.id] = t1

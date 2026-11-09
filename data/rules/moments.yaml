@@ -22,6 +22,10 @@ cooldown_hours: 36
 town_gap_hours: 12
 remember: 40                 # how many past moments the model is shown (all of them count for the repeat check)
 memory_days: 3               # how long the town's people bring a moment up afterwards (a matter's memory keeps its own term, doors.yaml)
+memory:                      # (f484) a moment's row in the town's memory (engine/town_memory.py), and what the people there keep of it
+  cap: 12                    #   the most moments a town keeps at once, apart from what it settled
+  present: "I was there for {memory}."     # each person there when it began keeps this, their own, at importance 1 (owner question 7)
+seen_keep: 200               # (f484) the most moments this playthrough's record keeps (the repeat check reads them all)
 
 shapes:
   - id: performer

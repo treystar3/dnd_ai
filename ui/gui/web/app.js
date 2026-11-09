@@ -705,7 +705,7 @@ function renderJournal(d) {
 const RARE = { uncommon: "r-uncommon", rare: "r-rare", epic: "r-epic", legendary: "leg" };
 const rarityOf = (x) => (x && (RARE[x.rarity] || (x.legendary ? "leg" : ""))) || "";
 const named = (x, text) => el("span", rarityOf(x), (rarityOf(x) === "leg" && !/^★/.test(text) ? "★ " : "") + text);
-const tidy = (t) => (t || "").replace(/^(consumable|food|herb|material|gear|key) - /, "").replace(/^lv (\d+) (?=\S)/, "lv $1 · ");
+const tidy = (t) => (t || "").replace(/^(consumable|food|herb|material|gear|key|trade good) - /, "").replace(/^lv (\d+) (?=\S)/, "lv $1 · ");
 const cap1 = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 function itemRow(x, withUse) {
   const row = el("div", "row2"), info = el("div", "info"), nm = el("div", "nm");
@@ -1329,25 +1329,17 @@ function paintSide() {
   applyShopState(); renderButtons();
 }
 
-// ---------- start-up screen: install Ollama, download the model (its buttons answer the question the game is asking) ----------
-function showSetup(d) {
-  $("setup").hidden = false;
-  $("setuptitle").textContent = d.title;
-  const lines = $("setuplines"); lines.textContent = "";
-  for (const t of d.lines) lines.appendChild(el("p", "", t));
-  const btns = $("setupbtns"); btns.textContent = "";
-  for (const [label, key] of d.buttons) {
-    const b = el("button", key === "quit" ? "" : "primary", label);
-    b.onclick = () => { btns.querySelectorAll("button").forEach((x) => (x.disabled = true)); api("/input", { text: key }); };
-    btns.appendChild(b);
-  }
-  $("setupbar").hidden = !d.progress; $("setuptext").textContent = "";
-  if (d.progress) setupProgress(d.progress.frac, d.progress.text);
-}
+// ---------- (f526, f539) the model's load, while Continue waits on it (main.py setup_progress, llm/launch.py Screen): a card over the
+// window with the loading line and a bar that only rises. It goes at ready, or as soon as the game next speaks, asks or opens a page
+// (ENDS_LOAD in handle below), such as the could-not-wake page, which is told in the story (main.py takes the home page away before
+// Continue waits, and the Screen takes creation's page away before it tells it). ----------
+const ENDS_LOAD = new Set(["text", "prompt", "home", "creation", "fatal", "ended"]);
 function setupProgress(frac, text) {
+  if (frac >= 1) { $("setup").hidden = true; return; }
+  $("setup").hidden = false;
   $("setupbar").hidden = false;
-  $("setupfill").style.width = Math.round(frac * 100) + "%";
-  $("setuptext").textContent = text;
+  $("setupfill").style.width = Math.round(Math.max(0, frac) * 100) + "%";
+  $("setuptext").textContent = text || "";
 }
 
 // ---------- (f345) the home page: Continue, New game, every saved game with Load and Delete, Quit ----------
@@ -1503,6 +1495,7 @@ function updateProgress(ev) {
 
 // ---------- events ----------
 function handle(ev) {
+  if (ENDS_LOAD.has(ev.k)) $("setup").hidden = true;     // (f539) the game speaks, asks or opens a page: the load's card is done
   switch (ev.k) {
     case "text":
       if (ev.pane === "side") sideRaw += ev.text;
@@ -1521,9 +1514,7 @@ function handle(ev) {
     case "fatal": addBlock("sys", ev.text); if (!$("homepage").hidden) homeFatal(ev.text); break;
     case "update": showUpdateButton(ev.data); break;
     case "update_progress": updateProgress(ev); break;
-    case "setup": showSetup(ev.data); break;
     case "setup_progress": setupProgress(ev.frac, ev.text); break;
-    case "setup_end": $("setup").hidden = true; break;
     case "home": showHome(ev.data); break;
     case "home_end": hideHome(); break;
     case "creation": showCreation(ev.data); break;          // (f388) a step of character creation, as a page

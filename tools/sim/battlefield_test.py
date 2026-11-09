@@ -8,6 +8,7 @@ sys.path.insert(0, ".")
 sys.argv = ["x", "warrior", "2", "1", "1", "1"]
 import simbot
 from engine import battlefield as bf, battlefield_builder as bb, combat
+from engine import effects as fx
 from ui import console as _c
 _c.note = lambda t, *a, **k: None
 bad = []
@@ -84,13 +85,13 @@ check("the uncontained wolf spends its action slipping past the line - the blow 
 held = next(w for w in (w2, w3, w4) if bf.containment(F, F.battlefield.start, True)[w.id] is not None and not w.engaged_with)
 check("a held wolf pressing for the back is stopped at the line, by name",
       "holds the line" in bf.approach(F, held, heal), bf.approach(F, held, heal))
-tank.statuses["stunned"] = 1
+fx.put_status(tank, "stunned", 1)
 check("stun the holder and the line breaks: their holds mean nothing",
       sum(1 for v in bf.containment(F, F.battlefield.start, True).values() if v is None) >= 2
       and not bf.protected(F, heal) or True)
 check("...and the healer is no longer protected by them alone",
       bf.protected(F, heal) is (bf.can_hold(pl) and pl.row == "front"))
-tank.statuses.pop("stunned")
+fx.end_status(tank, "stunned")
 side = next(z for z in F.battlefield.zones if z != F.battlefield.start)
 bf.enter_zone(F, w4, side)
 check("crossing zones ends engagements and lands loose", w4.zone_id == side and w4.row == "loose" and not w4.engaged_with)
@@ -111,7 +112,7 @@ check("saved and resumed, the ground and everyone's place on it survive",
 old = json.loads(raw)
 old["fight"].pop("battlefield")
 for x in old["fight"]["fighters"]:
-    x.pop("zone_id"), x.pop("row"), x.pop("position_tags")
+    x["position"].pop("zone_id"), x["position"].pop("row"), x["position"].pop("position_tags")   # (f508) the row nests by part
 legacy = CombatScene.resume(ws, json.dumps(old))
 check("an old save without a battlefield still loads, with nothing to check", legacy.fight.battlefield is None
       and bf.validate(legacy.fight) == [])
@@ -124,21 +125,14 @@ check("a fighter joining mid-fight lands in a real zone", late.zone_id == f.batt
 # ---- a duel is bare ground
 check("a duel is one bare zone", len(bb.duel_ground().zones) == 1 and bb.duel_ground().zones["z1"].tags == ["open"])
 
-# ---- nothing outside the law writes spatial state (the write-path rule, enforced by reading the source)
-import pathlib, re
-allowed = {"engine/battlefield.py"}
-offenders = []
-for py in list(pathlib.Path("engine").glob("*.py")) + list(pathlib.Path("scenes").glob("*.py")) + list(pathlib.Path("npc").glob("*.py")):
-    rel = str(py).replace("\\", "/")
-    if rel in allowed:
-        continue
-    text = py.read_text(encoding="utf-8")
-    for m in re.finditer(r"\.(zone_id|row|engaged_with|position_tags|band|elevated)\s*=(?!=)", text):
-        line = text[:m.start()].count("\n") + 1
-        if rel == "engine/combat.py" and "def enters" in text[max(0, m.start() - 800):m.start()] and m.group(1) in ("zone_id", "row", "engaged_with"):
-            continue                                     # enters() places a mid-fight joiner; the one sanctioned writer outside the law
-        offenders.append(f"{rel}:{line} writes .{m.group(1)}")
+# ---- nothing outside the law writes spatial state (the write-path rule, enforced by reading the source; (f503) tools/purity.py
+# spatial_writes, over engine/, scenes/, npc/ and services/)
+import sys as _sys
+_sys.path.insert(0, "tools")
+import purity
+offenders = purity.spatial_writes()
 check("only the battlefield law (and enters) writes spatial state; band and elevated are gone", offenders == [], offenders)
+check("...the scan reads the services too", "services" in purity.WRITE_SCAN_DIRS, purity.WRITE_SCAN_DIRS)
 
 # ---- the checker catches every broken shape
 f.get("e1").zone_id = "nowhere"

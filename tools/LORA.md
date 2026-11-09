@@ -13,6 +13,13 @@ folder. A two-hour run holds about 570 townsfolk replies, 700 narrations and 1,2
 twenty thousand examples a first adapter wants. Freeze the prompts of the tasks you mean to train while collecting: an adapter learns the
 prompts it was trained against.
 
+(f490) A prompt is named by its version: since f475 every logged call carries `prompt_version`, a hash of its system text and then of its
+layout, and `tools/lora_dataset.py` keeps, per task, only the rows of that task's newest system text. A night logged under an older prompt
+adds nothing to that task once a newer night is in the folder (summary.md counts them as "dropped: an older prompt version"), and a night
+from before f475 has no version and is dropped the same way. Bundle D (f476 to f490) rewrote what every speaker is given, so the nights
+before it are written off for the speech tasks: train npc_conversation, npc_parting, dialogue_frame, hire_chat, exchange and mentor_chat
+only from nights at or after f490, and never from a folder holding only older nights, where the newest of the old prompts would be kept.
+
 ## 2. Build the data
 
     python tools/lora_dataset.py --runs-dir logs/nightrun --out lora/data
@@ -37,24 +44,28 @@ learns to behave as if the rules were there; at play time the rule prompt is the
 Needs a GPU and `pip install torch transformers peft trl datasets accelerate bitsandbytes`; `--load-4bit` fits a 12B base on a 24 GB
 card. On one rented 80 GB card a pass over twenty thousand examples is a few hours. Mix in a general chat set with `--mix` (about 15%,
 `lora.yaml train.general_mix`) so the model keeps reading ordinary English, which the interpreter depends on. The dry run checks the
-files and writes the Modelfile without importing torch.
+files and names the next step without importing torch.
 
 ## 4. Measure before trusting it
 
-    python tools/lora_eval.py lora/data/eval/npc_conversation.sft.jsonl --model gemma4:12b --model meravia-npc_conversation --limit 80
+    python tools/lora_eval.py lora/data/eval/npc_conversation.sft.jsonl --adapter lora/adapters/npc_conversation.gguf --limit 80
 
-Every held-out prompt goes to each model; the answers are scored the way the game judges them, without a model: fits the contract,
+(f529) The game's own server is started with the adapter loaded as a voice (llm/runtime.py chat_argv --lora). Every held-out prompt goes
+to the base model and to each adapter; the answers are scored the way the game judges them, without a model: fits the contract,
 trailing participles per sentence, stock openers, trailing off, stale phrases, the measurable parts of the kit broken, length, seconds.
 The logged answers score as the row `logged`. The interpreter has its own evaluator, `tools/interp_eval.py --live`. An adapter is better
 only if these move and the stub suite (`tools/run_suite.py`) still passes, since that checks the engine around the model.
 
 ## 5. Ship it
 
-    ollama create meravia-npc_conversation -f lora/adapters/npc_conversation/Modelfile
+    python <llama.cpp>/convert_lora_to_gguf.py lora/adapters/npc_conversation/adapter --base <the base model's HF folder> \
+        --outfile lora/adapters/npc_conversation.gguf
 
-The adapter is a file of tens of megabytes that Ollama loads over the base model. Point the task at the new tag (`config.MODEL`, or a
-per-task model once the gateway has one) and, if the adapter was trained on short prompts, drop the matching rules from that task's
-prompt builder: that is the moment the turn gets faster. A night run with the new tag is the last test.
+(f529) The adapter is a GGUF of tens of megabytes that the game's own llama-server loads beside the base model (`--lora`, llm/runtime.py)
+and applies to the requests that name its voice (llm/llama.py llama_body `lora`); a request naming no voice is answered by the base
+model. Wiring a task to a voice (its adapter in data/runtime/server.yaml, shipped and pinned by its sha like the model files) is a
+feature of its own, after the voice has measured better. If the adapter was trained on short prompts, drop the matching rules from
+that task's prompt builder at the same time: that is the moment the turn gets faster. A night run with the voice is the last test.
 
 ## Order of attack
 

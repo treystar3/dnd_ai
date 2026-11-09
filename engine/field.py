@@ -26,6 +26,23 @@ def cooldown_minutes(ability) -> int:
     return max(base, F.get("min_cooldown", {}).get(getattr(ability, "field_use", ""), 0))
 
 
+def ready_in(fld: dict, ability, minutes: int) -> int:
+    """(f503) The minutes before this field ability can be used again, 0 when it can."""
+    return max(0, fld.get("cd", {}).get(ability.id, 0) - minutes)
+
+
+def start_cooldown(fld: dict, ability, minutes: int) -> None:
+    fld.setdefault("cd", {})[ability.id] = minutes + cooldown_minutes(ability)
+
+
+def keep_bodies(bodies: list[dict], minutes: int) -> list[dict]:
+    """The fallen a place still remembers: recent ones, the newest few (speak_corpse.keep_days, max_bodies)."""
+    S = F["speak_corpse"]
+    limit = S["keep_days"] * 1440
+    live = [b for b in bodies if minutes - b["minute"] < limit]
+    return live[-S["max_bodies"]:]
+
+
 def label(fn: str) -> str:
     return F["functions"][fn]["label"] if fn in F["functions"] else ""
 

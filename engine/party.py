@@ -10,6 +10,7 @@ from pathlib import Path
 import yaml
 
 from engine import combat
+from engine import streams
 
 ROOT = Path(__file__).resolve().parent.parent
 P = yaml.safe_load((ROOT / "data" / "rules" / "party.yaml").read_text(encoding="utf-8"))
@@ -39,7 +40,7 @@ class Shape:
 def roster(seed, hall: str, day: int, player_level: int, rank_coins: int, used: list[str]) -> list[dict]:
     """The adventurers free at a hall this week. Same list for the same week; hired ones drop off it."""
     week = day // P["roster_days"]
-    rng = random.Random(f"{seed}:party:{hall}:{week}")
+    rng = streams.fixed(seed, "party", hall, week)      # (f501) a fixed die, today's seed string exactly: no roster moves
     out = []
     roles = list(P["roles"])
     for i in range(P["roster_size"]):
@@ -95,6 +96,19 @@ def level_cap(rank: str) -> int | None:
     if letters.index(rank) == len(letters) - 1:
         return None
     return quests.G["ranks"][rank]["levels"][1] - 1
+
+
+def mourn(members: list[dict], dead: dict, minute: int, place: str, how: str) -> None:
+    """(f412) A companion has died: everyone who travelled with them keeps who it was, where, and by whose hand ('mourns', the last
+    six), so they can speak of them days later. (f503) The rule, used by the fight service and the after-fight pass alike."""
+    for m in members:
+        if m is dead or not m.get("permanent") or m.get("story") or m.get("id") == dead.get("id"):
+            continue
+        kept = m.setdefault("mourns", [])
+        if any(x.get("id") == dead.get("id") for x in kept):
+            continue
+        kept.append({"id": dead.get("id"), "name": dead.get("name", ""), "minute": minute, "place": place, "how": how})
+        del kept[:-6]
 
 
 def sync_levels(party: list[dict], player_level: int) -> list[str]:
@@ -206,7 +220,7 @@ def pronoun_of(member: dict, seed=None, used=()) -> str:
     if p in ("she", "he", "they"):
         return p
     p = "she" if member.get("sheet") == "maren" else (_drawn_with(member, seed, used)
-                                                       or random.Random(f"{member.get('id')}:{member.get('name')}").choice(["she", "he"]))
+                                                       or streams.fixed(member.get('id'), member.get('name')).choice(["she", "he"]))   # (f501) today's seed exactly
     member["pronoun"] = p
     return p
 
@@ -234,7 +248,7 @@ def companion_pronoun(comp) -> str:
     if comp.pronoun:
         return comp.pronoun
     comp.pronoun = ("it" if (comp.kind or "beast") in ("spirit", "elemental", "construct", "undead")
-                    else random.Random(f"{comp.id}:{comp.name}").choice(["she", "he"]))
+                    else streams.fixed(comp.id, comp.name).choice(["she", "he"]))     # (f501) today's seed exactly
     return comp.pronoun
 
 
@@ -398,7 +412,10 @@ def pick_memories(member: dict, text: str = "", n: int = 3, day: int | None = No
     if not picks and day is not None and mem[-1].get("day") == day:
         picks = [mem[-1]]
     picks.sort(key=lambda x: x["day"])
-    return [f"day {x['day']}: {x['text']}" + (" (more than once)" if x.get("count", 1) > 1 and x.get("kind", "event") == "event" else "") for x in picks]
+    from engine import clock                                 # (f488, G1) told from now in words, never a day number
+    now = int(day if day is not None else max(x["day"] for x in mem)) * clock.MINUTES_PER_DAY
+    return [f"{clock.ago_day(x['day'], now, str(member.get('id', '')))}: {x['text']}"
+            + (" (more than once)" if x.get("count", 1) > 1 and x.get("kind", "event") == "event" else "") for x in picks]
 
 
 def set_mood(member: dict, text: str, minutes: int, lasts: int | None = None) -> None:

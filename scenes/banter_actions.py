@@ -43,12 +43,11 @@ class BanterActions:
         self._last_claims = []
         system = ("You write short dialogue between people in a fantasy world.\nRULES:\n" + "\n".join(f"- {r}" for r in BN["rules"] + BN["banter"]["rules"]) +
                   "\n- " + " ".join(quirks.Q["answer_first"].split()) +
-                  (f"\n- {extra_rules}" if extra_rules else "") +
                   "\n\n" + quirks.style_block() +
                   "\n- Each line may carry a gesture, the body language of the speaker as they say it. " + quirks.GESTURE_RULE +
-                  ("\n- Whatever specific thing someone says about themselves becomes true of them for good; never contradict anything "
-                   "given as true of them." if members else "") +
                   '\n\nRespond only with JSON matching the schema: {"lines": [{"speaker": "name", "text": "what they say", "gesture": ""}]}.')
+        # (f489) the system is the same for every exchange; what this one adds (its own rule, the rule that what they said of themselves
+        # stands) comes at the end of the request, before the count of lines
         from engine.prompt import Prompt
         c = self.player.character
         P_ = Prompt()
@@ -56,7 +55,9 @@ class BanterActions:
         hows = {n: d[0] for n, d in people.items() if isinstance(d, tuple) and d[0]}
         if hows:
             P_.instruction("\n".join(f"  {n}: {h}" for n, h in hows.items()), "HOW EACH SPEAKS")
-        P_.fact(f"{c.name}, level {c.level}", "THE PLAYER'S CHARACTER, WHO IS PRESENT")
+        from engine import brief as _brief                    # (f489) the characters here, each with their pronoun, by id
+        P_.fact("\n".join(f"  {ch.name}, level {ch.level} ({_brief.pronoun(self, ch.id)})" for ch in self.characters()),
+                "THE CHARACTERS HERE (the players' own, present)")
         view = self.exchange_view(people)
         P_.fact(view.text())                                  # (f315) WHERE, WHO IS HERE, the town, what is happening: the truth layer's, like every speaker's
         P_.fact(situation, "WHAT IS HAPPENING")
@@ -96,6 +97,10 @@ class BanterActions:
         quiet = [n for n in people if n in silent_ok]
         if quiet:
             P_.instruction(f"{' and '.join(quiet)} may answer with no words: a line with empty text and only a gesture, or no line at all.", "WHO MAY SAY NOTHING")
+        for_this = [x for x in (extra_rules, "Whatever specific thing someone says about themselves becomes true of them for good; never "
+                                             "contradict anything given as true of them." if members else "") if x]
+        if for_this:
+            P_.instruction("\n".join(f"- {x}" for x in for_this), "FOR THIS EXCHANGE")
         P_.instruction(f"WRITE {lines[0]} TO {lines[1]} LINES, speakers from: {', '.join(people)}.")
         ctx = {"speakers": list(people), "lines": lines, "all_speak": all_speak, "silent_ok": tuple(silent_ok), "first_speaker": first_speaker, "material": material + [hook or ""], "recent": recent or {},
                "members": members or {}, "player": self.player.character.name, "known": view.scene.known_words(), "must_name": must_name,
@@ -334,7 +339,7 @@ class BanterActions:
                              BN["banter"]["remembered"]["by_days"][min(len(BN["banter"]["remembered"]["by_days"]) - 1, days // 7)])
                         if kind == "rest":
                             w *= BN["banter"]["remembered"]["at_rest"]
-                        when = "earlier today" if days < 1 else "yesterday" if days < 2 else f"{days} days ago"
+                        when = clock.ago(d.get("minute", now), now, m.get("id", ""))     # (f489) from now, in words
                         options.append((w, "remembered",                # not held to the heavy-topic table: grief is not a confidence
                                         H["remembered"].format(name=m["name"], dead=d["name"], when=when, how=d.get("how", "")), m, "heavy",
                                         d["name"]))
@@ -464,7 +469,15 @@ class BanterActions:
         """Who they are, for one scene (engine/context.py), split by type (engine/prompt.py): (how they speak - instruction; who they are and
         what is on their mind - fact). With no query, everything. With a query, a small core plus only the records this scene carries: what
         bears on the moment, now and then one thing on their mind, and their background concerns only when the engine says they are due."""
-        from engine import context, quirks
+        how, core, recalled, _open = self.companion_brief(m, query, scene, emotion, relation, toward, hit, in_fight, without, apart=False)
+        return how, core + (" " + recalled if recalled else "")
+
+    def companion_brief(self, m: dict, query: str | None = None, scene: str = "talk", emotion: str = "", relation: str = "",
+                        toward: str = "", hit: str = "", in_fight: bool = False, without: tuple = (), apart: bool = True) -> tuple[str, str, str, list[str]]:
+        """(f488) companion_parts in its parts, for the hire's brief: (how they speak, who they are, what this moment brings to mind of
+        them, what is open). With `apart`, the promises and debts they still hold are what is open, always given and never also among what
+        is brought to mind; without it they are records like any other."""
+        from engine import brief, canon, context, quirks
         self.quirked(m)
         from engine import voice_profile, severity
         rng_v = random.Random(f"{self.store.meta.seed}:{self.minutes}:{m['id']}:voice:{len(m.get('said', []))}")
@@ -478,20 +491,21 @@ class BanterActions:
         kit = [f"{k[0].upper()}{k[1:]}." for k in voices.lines(voices.kit_of(m))]            # (f350) their kit: always, it is the voice
         kit += [voice_profile.accent(m)] if voice_profile.accent(m) else []              # (f410) and their accent: always, the same
         mine = kit + ([f"In speech, {v}."] if v else []) + ([entities.gendered(f"With the player, they have changed: {g}; let it show, never say it.", own)] if g else [])
-        room = self.HOW_BUDGET - len(speak) - len(mine) + len(kit)   # at most HOW_BUDGET lines on how they speak besides the kit, in any one reply
+        room = int(brief.rules("hire").get("voice_habits", 6)) - len(speak) - len(mine) + len(kit)   # (f488) at most voice_habits lines on how they speak besides the kit, in any one reply
         profile = voice_profile.compile(m, rng_v, emotion, relation, toward, budget=room, feature=self.culture_now(m)) if query is not None else []
         how = entities.gendered(" ".join(([struck] if struck else []) + speak + mine + profile), own)    # (f392) all of it about them, in their pronoun
         me = entities.identity(self, f"hire:{m['id']}")                         # (f392) who they are: their own pronoun and people, never guessed
         facts = entities.gendered(f"A hired {m['role']} ({me.tag() if me else own}), {m.get('blurb', '')}."
                                   + (" " + voice_profile.who(m) if voice_profile.who(m) else ""), own)
         records = [r for r in self.companion_records(m) if r.get("kind") not in without]
+        owed = canon.BUCKETS["commitment"]["label"] + ": "
+        held = [r["text"][len(owed):] for r in records if apart and str(r.get("text", "")).startswith(owed)]
+        records = [r for r in records if not (apart and str(r.get("text", "")).startswith(owed))]
         rng = random.Random(f"{self.store.meta.seed}:{self.minutes}:{m['id']}")
         chosen, notes = context.select(m, records, "full" if query is None else scene, query, self.minutes, rng)
-        facts += (" " + entities.gendered(" ".join(chosen), own) if chosen else "")          # (f422) what is chosen about them, in their pronoun too
+        recalled = entities.gendered(" ".join(chosen), own) if chosen else ""          # (f422) what is chosen about them, in their pronoun too
         note = context.raised_note(notes)
-        return how + (" " + note if note else ""), facts
-
-    HOW_BUDGET = 6
+        return how + (" " + note if note else ""), facts, recalled, [entities.gendered(h, own) for h in held]
 
     def hit_level(self, m: dict, beat, present: list[dict] | None = None) -> str:
         """How hard this moment hits them (engine/severity.py): from how grave it is and how close they are to whom it concerns."""

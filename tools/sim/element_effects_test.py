@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, ".")
 import simlib; simlib.install(simlib.Stub("warrior", 1))
 from engine import afflictions, battlefield as bf, combat, combat_perks, spellcraft as SC
+from engine import effects as fx
 from engine.battlefield import Battlefield, BattleZone, BattleEdge
 from engine.combat import Move
 bad = []
@@ -15,7 +16,7 @@ def check(n, ok, x=""):
 def player(hp=10**5, **kw):
     attrs = {a: 10 for a in combat.ATTRIBUTES}; attrs["intelligence"] = 16
     d = dict(id="player", name="you", side="player", level=5, attrs=attrs, hp=hp, max_hp=hp, stamina=10**4, max_stamina=10**4,
-             mana=10**5, max_mana=10**5, weapon_damage=12, hold=3, accuracy=200)
+             mana=10**5, max_mana=10**5, weapon_damage=12, hold=3)
     d.update(kw); return combat.Fighter(**d)
 
 def foe(i=1, hp=10**6, zone="a", side="enemy", **kw):
@@ -53,7 +54,7 @@ def land(eid, element, *foes_, taken=100, crit=False, p=None, tier="moderate", f
     p.hit_element, p.element = element, element
     p.counters["last_outcome"] = "crit" if crit else "hit"
     p.counters["last_hit"] = taken
-    SC._CAST[id(p)] = {"exprs": [eid], "tier": tier, "name": eid, "once": set()}
+    p.casting = {"exprs": [eid], "tier": tier, "name": eid, "once": []}
     try:
         SC.on_hit(f, p, foes_[0], taken, rng)
     finally:
@@ -61,14 +62,14 @@ def land(eid, element, *foes_, taken=100, crit=False, p=None, tier="moderate", f
     return f, p
 
 def mult_for(eid, p, e, f, tier="moderate"):
-    SC._CAST[id(p)] = {"exprs": [eid], "tier": tier, "name": eid, "once": set()}
+    p.casting = {"exprs": [eid], "tier": tier, "name": eid, "once": []}
     try:
         return SC.hit_mult(f, p, e, 1.0, {"steps": []})
     finally:
         SC.end(p)
 
 # =============================================================== fire
-e = foe(); e.statuses["burning"] = 2; e.ignite = 50
+e = foe(); fx.put_status(e, "burning", 2); fx.set_strength(e, "burning", 50)
 f, p = land("flashfire", "fire", e)
 check("flashfire: the burn goes off at once and ends", "burning" not in e.statuses and e.hp == e.max_hp - 100, (e.statuses, e.max_hp - e.hp))
 
@@ -99,10 +100,10 @@ combat.apply_damage(f, p, e, 1.0, "hits", random.Random(1))
 p.counters["stoke"] = 3; p.always_miss = True; combat.apply_damage(f, p, e, 1.0, "hits", random.Random(1)); p.always_miss = False
 check("...and a miss resets it", "stoke" not in p.counters, p.counters.get("stoke"))
 
-b = foe(); b.statuses["burning"] = 2; c = foe(2); f = fight(player(), b, c)
+b = foe(); fx.put_status(b, "burning", 2); c = foe(2); f = fight(player(), b, c)
 check("fan the flames: more against a burning target", mult_for("fan_the_flames", f.player, b, f) == 1.3 and mult_for("fan_the_flames", f.player, c, f) == 1.0)
 
-e = foe(); e.statuses["burning"] = 1; e.ignite = 10; land("last_ember", "fire", e)
+e = foe(); fx.put_status(e, "burning", 1); fx.set_strength(e, "burning", 10); land("last_ember", "fire", e)
 check("last ember: the burn lasts a round longer", e.statuses["burning"] == 2)
 
 e = foe(hp=10); p = player(); f = fight(p, e); e.hp = 0
@@ -112,7 +113,7 @@ check("phoenix spark: a kill makes the next fire ability free", p.counters.get("
 combat.act_ability(f, p, fire, foe(2), random.Random(1))
 check("...and it is spent on the cast", not p.counters.get("free_fire") and combat.cost_of(p, fire, f) > 0)
 
-e = foe(); e.statuses["burning"] = 2; e.ignite = 5; e.position_tags = ["concealed"]
+e = foe(); fx.put_status(e, "burning", 2); fx.set_strength(e, "burning", 5); e.position_tags = ["concealed"]
 land("afterglow", "fire", e)
 check("afterglow: a burning target cannot hide", "illuminated" in e.statuses and "concealed" not in e.position_tags)
 
@@ -129,10 +130,10 @@ land("brittle", "cold", e, p=p, f=f)
 t = {}; combat.roll_attack(p, e, f, random.Random(1), trace=t); plain = {}; combat.roll_attack(p, foe(2), f, random.Random(1), trace=plain)
 check("brittle: crits twice as likely", "brittle" in e.statuses and abs(t["crit"] - 2 * plain["crit"]) < 0.01, (t["crit"], plain["crit"]))
 
-e = foe(); e.statuses["slowed"] = 3; f, p = land("frostbite", "cold", e, taken=100)
+e = foe(); fx.put_status(e, "slowed", 3); f, p = land("frostbite", "cold", e, taken=100)
 h = e.hp; combat.start_turn(e, f)
 check("frostbite: 10% of the hit again each turn while slowed", h - e.hp == 10, h - e.hp)
-e.statuses.pop("slowed"); h = e.hp; combat.start_turn(e, f)
+fx.end_status(e, "slowed"); h = e.hp; combat.start_turn(e, f)
 check("...and stops once the slow is gone", h == e.hp and "frostbite" not in e.counters)
 
 e = foe(); p = player(); f = fight(p, e); land("frostweld", "cold", e, p=p, f=f)
@@ -143,7 +144,7 @@ check("...or step away from melee", combat_perks.held_fast(f, e))
 e = foe(zone="b"); p = player(); f = fight(p, e); land("avalanche", "cold", e, p=p, f=f)
 check("avalanche: driven into the next area over", e.zone_id == "c", e.zone_id)
 
-e = foe(); e.statuses["slowed"] = 2; land("hypothermia", "cold", e)
+e = foe(); fx.put_status(e, "slowed", 2); land("hypothermia", "cold", e)
 check("hypothermia: a slowed target stays slowed a round longer", e.statuses["slowed"] == 3)
 
 e1, e2 = foe(1), foe(2); f, p = land("superconductor", "cold", e1, e2)
@@ -198,7 +199,7 @@ check("ball lightning: next round, it bursts on whoever starts their turn there"
 # =============================================================== poison
 e = foe(); land("virulent", "poison", e)
 check("virulent: two stacks at once", len(e.poison) == 2)
-e = foe(); e.statuses["poisoned"] = 3; e.poison = [1]; land("festering", "poison", e)
+e = foe(); fx.put_status(e, "poisoned", 3); fx.set_strength(e, "poisoned", [1]); land("festering", "poison", e)
 check("festering: the poison lasts 2 rounds longer", e.statuses["poisoned"] == 5)
 e = foe(); land("nerve_toxin", "poison", e)
 check("nerve toxin: shaky aim", "shaky" in e.statuses and combat.status_mod(e, "accuracy") == -20)
@@ -211,13 +212,13 @@ e = foe(); f, p = land("wasting", "poison", e, p=player(weapon_damage=1000)); co
 w = foe(2); fw = fight(player(weapon_damage=1000), w); combat.add_status(fw, w, "poisoned", 3, fw.player)
 h1, h2 = e.hp, w.hp; combat.start_turn(e, f); combat.start_turn(w, fw)
 check("wasting: poison hurts half again as much", abs((h1 - e.hp) / max(1, h2 - w.hp) - 1.5) < 0.1, (h1 - e.hp, h2 - w.hp))
-e = foe(); e.poison = [1, 1, 1]; e.statuses["poisoned"] = 3; f = fight(player(), e)
+e = foe(); fx.set_strength(e, "poisoned", [1, 1, 1]); fx.put_status(e, "poisoned", 3); f = fight(player(), e)
 check("lethal dose: more against a well-poisoned target", mult_for("lethal_dose", f.player, e, f) == 1.4 and mult_for("lethal_dose", f.player, foe(2), f) == 1.0)
 e = foe(); f, p = land("persistent_toxin", "poison", e)
 check("persistent toxin: the stack is set aside as one that will not fade", len(e.poison_fixed) == 1 and not e.poison)
-e.statuses["poisoned"] = 1; combat.start_turn(e, f)
+fx.put_status(e, "poisoned", 1); combat.start_turn(e, f)
 check("...and the poison never wears off", "poisoned" in e.statuses and e.poison_fixed, e.statuses)
-e = foe(); e.statuses["bleeding"] = 3; e.bleed = 20; land("anticoagulant", "poison", e)
+e = foe(); fx.put_status(e, "bleeding", 3); fx.set_strength(e, "bleeding", 20); land("anticoagulant", "poison", e)
 check("anticoagulant: the wound doubles", e.bleed == 40)
 u = foe(category="undead"); f, p = land("refined_venom", "poison", u, p=player(weapon_damage=1000))
 plain = foe(2, category="undead"); fp = fight(player(weapon_damage=1000), plain); combat.add_status(fp, plain, "poisoned", 3, fp.player)
@@ -225,7 +226,7 @@ check("refined venom: the undead's resistance to poison does not count", afflict
 
 # =============================================================== acid
 p = player(); e = foe(ward=30); f = fight(p, e)
-SC._CAST[id(p)] = {"exprs": ["etch"], "tier": "moderate", "name": "Etch", "once": set()}
+p.casting = {"exprs": ["etch"], "tier": "moderate", "name": "Etch", "once": []}
 etched, _ = combat.mitigate(e, 100, "magical", 5, f, p); SC.end(p)
 plain, _ = combat.mitigate(e, 100, "magical", 5, f, p)
 check("etch: half the ward eaten through", etched > plain, (etched, plain))
@@ -233,17 +234,17 @@ e = foe(); f, p = land("lingering_acid", "acid", e, taken=100)
 h = e.hp; combat.start_turn(e, f); combat.start_turn(e, f)
 check("lingering acid: 30% more over two turns", h - e.hp == 30 and not e.curses, (h - e.hp, e.curses))
 p = player(); e = foe(); e.shield = 500; f = fight(p, e)
-SC._CAST[id(p)] = {"exprs": ["seep"], "tier": "moderate", "name": "Seep", "once": set()}
+p.casting = {"exprs": ["seep"], "tier": "moderate", "name": "Seep", "once": []}
 dealt = combat.take_damage(f, e, 100, p, rng, "magical"); SC.end(p)
 check("seep: under the barrier to the health", dealt == 100 and e.shield == 500 and e.hp == e.max_hp - 100)
 e = foe(); land("strip", "acid", e)
 check("strip: exposed", e.statuses.get("exposed") == 2)
 p = player(); e = foe(); e.defending = 50; f = fight(p, e)
-SC._CAST[id(p)] = {"exprs": ["burn_through"], "tier": "moderate", "name": "Burn Through", "once": set()}
+p.casting = {"exprs": ["burn_through"], "tier": "moderate", "name": "Burn Through", "once": []}
 through, _ = combat.mitigate(e, 100, "magical", 5, f, p); SC.end(p)
 guarded, _ = combat.mitigate(e, 100, "magical", 5, f, p)
 check("burn through: a defending target still takes full damage", abs(through - 2 * guarded) < 0.5, (through, guarded))
-p = player(); p.statuses["grappled"] = 2; e = foe(); f = fight(p, e); land("corrode_the_hold", "acid", e, p=p, f=f)
+p = player(); fx.put_status(p, "grappled", 2); e = foe(); f = fight(p, e); land("corrode_the_hold", "acid", e, p=p, f=f)
 check("corrode the hold: you break free", "grappled" not in p.statuses)
 e = foe(); p = player(); f = fight(p, e); land("caustic_drip", "acid", e, p=p, f=f, taken=100)
 h = e.hp; combat.apply_damage(f, e, p, 1.0, "hits", random.Random(1))
@@ -266,7 +267,7 @@ land("soul_leech", "necrotic", e, p=p, f=f, taken=100)
 check("soul leech: the summon heals for 30%", pet.hp == 130, pet.hp)
 p = player(hp=1000); p.hp = 500; e = foe(hp=10); f = fight(p, e); e.hp = 0; land("death_feeds", "necrotic", e, p=p, f=f)
 check("death feeds: a kill heals you 15%", p.hp == 650, p.hp)
-e = foe(); e.buffs = {"b": {"rounds": 1, "mech": {}, "name": "Ward", "kind": "arcaneward"}, "c": {"rounds": 3, "mech": {}, "name": "Haste", "kind": "x"}}
+e = foe(); [fx.put_buff(e, k, v) for k, v in ({"b": {"rounds": 1, "mech": {}, "name": "Ward", "kind": "arcaneward"}, "c": {"rounds": 3, "mech": {}, "name": "Haste", "kind": "x"}}).items()]
 land("entropy", "necrotic", e)
 check("entropy: every buff loses a round, and the last one goes", "b" not in e.buffs and e.buffs["c"]["rounds"] == 2)
 p = player(hp=1000); e = foe(); f = fight(p, e)
@@ -288,9 +289,9 @@ combat.restore(f, e, 100)
 check("life theft: its next healing comes to you", e.hp == 500 and p.hp == 600, (e.hp, p.hp))
 
 # =============================================================== radiant
-e = foe(); e.buffs = {"b": {"rounds": 3, "mech": {}, "name": "Ward", "kind": "arcaneward"}}; land("purge", "radiant", e)
+e = foe(); [fx.put_buff(e, k, v) for k, v in ({"b": {"rounds": 3, "mech": {}, "name": "Ward", "kind": "arcaneward"}}).items()]; land("purge", "radiant", e)
 check("purge: a buff stripped", not e.buffs)
-p = player(); p.statuses["slowed"] = 2; e = foe(); f = fight(p, e); land("cleanse", "radiant", e, p=p, f=f)
+p = player(); fx.put_status(p, "slowed", 2); e = foe(); f = fight(p, e); land("cleanse", "radiant", e, p=p, f=f)
 check("cleanse: an affliction lifted from you", "slowed" not in p.statuses)
 p = player(); a = ally(1, hp=1000); e = foe(); f = fight(p, a, e); land("shield_of_faith", "radiant", e, p=p, f=f, taken=100)
 check("shield of faith: allies in your area gain a barrier", a.shield == 10, a.shield)
@@ -307,7 +308,7 @@ finally:
     combat.roll_attack = _roll
 check("guiding light: an ally's next hit cannot miss", landed and "guided" not in e.counters)
 e = foe(zone="b"); f, p = land("daybreak", "radiant", e)
-f.zone_effects["b"] = {"smoke": {"until": 9}, "overgrowth": {"until": 9}}
+fx.put_ground(f, "b", "smoke", {"until": 9}); fx.put_ground(f, "b", "overgrowth", {"until": 9})
 land("daybreak", "radiant", e, p=p, f=f)
 check("daybreak: smoke and undergrowth cleared", not f.zone_effects.get("b"))
 p = player(); a = ally(1); e = foe(); f = fight(p, a, e); land("rallying_light", "radiant", e, p=p, f=f, crit=True)
@@ -318,7 +319,7 @@ check("humbled: no critical hits", t["crit"] == 0)
 u = foe(category="undead"); p = player(); f = fight(p, u); land("sunfire", "radiant", u, p=p, f=f)
 plain = foe(2); fp = fight(player(), plain); fp.player.counters["last_hit"] = 100; combat.add_status(fp, plain, "burning", 2, fp.player)
 check("sunfire: holy fire burns the undead half again as hot, and cannot be cleansed", abs(u.ignite / plain.ignite - 1.5) < 0.01 and u.counters.get("holy_burn"))
-u.statuses["slowed"] = 1
+fx.put_status(u, "slowed", 1)
 land("cleanse", "radiant", foe(3), p=u, f=f)
 check("...cleanse lifts something else instead", "burning" in u.statuses and "slowed" not in u.statuses)
 
@@ -329,7 +330,7 @@ p = player(); a = ally(1, hp=1000); a.hp = 500; e = foe(); f = fight(p, a, e); l
 check("lifebloom: allies in your area heal 15%", a.hp == 515, a.hp)
 e = foe(); land("quake_strike", "nature", e); big = foe(2, size="Gargantuan"); land("quake_strike", "nature", big)
 check("quake strike: knocked down, unless far bigger", "prone" in e.statuses and "prone" not in big.statuses)
-e = foe(); e.statuses["prone"] = 1; f = fight(player(), e)
+e = foe(); fx.put_status(e, "prone", 1); f = fight(player(), e)
 check("crushing roots: more against the held or downed", mult_for("crushing_roots", f.player, e, f) == 1.5)
 e = foe(); f, p = land("seedburst", "nature", e, taken=100)
 combat.start_turn(e, f); h = e.hp; f.round += 2; combat.start_turn(e, f)

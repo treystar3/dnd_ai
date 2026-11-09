@@ -23,7 +23,8 @@ from ui import console
 
 R = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "reactions.yaml").read_text(encoding="utf-8"))
 KINDS: dict[str, dict] = {k: (v or {}) for k, v in R["kinds"].items()}
-AFTER_DEED = ("kill", "persuade", "deliver", "quest_done", "dungeon_cleared", "found", "defend")     # the ledger kinds that can end an event
+AFTER_DEED = ("kill", "persuade", "deliver", "quest_done", "dungeon_cleared", "found", "defend",   # the ledger kinds that can end an event
+              "gift", "bribe")                                     # (f545) a condition of help met by a gift or a bribe
 
 def register(ws) -> None:
     """Subscribe the world's reactions, bound to this scene, on its session's bus (f454: engine/session.py; a closed campaign's reactions
@@ -78,7 +79,9 @@ class Reactions:
         if ent is None or entities.final(ent):
             return
         ent.data.update(how=e.text(), place=self.ws.player.location, place_name=self.ws.place.name if self.ws.place else "",
-                        note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player")
+                        note=f"a hired {ent.data.get('role', 'companion')} who fell travelling with the player",
+                        knew=sorted(str(m["id"]) for m in self.ws.player.party if m.get("id") and str(m["id"]) != str(e.member_id)
+                                    and not m.get("story")))   # (f488, S4) who travelled with them: only they grieve them
         entities.move(self.ws.store, ent, "dead", e.minute or self.ws.minutes, e.text())
         self._let_go(e.member_id, "hire_died")
 
@@ -126,6 +129,7 @@ class Reactions:
             return
         from engine import deeds, events
         row = dict(row)
+        row.setdefault("by", getattr(self.ws, "acting", "") or "")   # (f547's fourth review) whose deed it was, for a party
         deed = deeds.log(self.ws.store, row.pop("kind"), e.minute, e.place or self.ws.player.location, **row)
         if deed["kind"] in AFTER_DEED:
             events.after_deed(self.ws, deed)              # legacy (f466): the judge's model call (engine/events.py judge) runs inside the action's

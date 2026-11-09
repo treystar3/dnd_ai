@@ -1,9 +1,12 @@
-"""Live check against the real model (Ollama must be running with the game's model). Not part of the suite: it needs the model.
+"""Live check against the real model (the game's own server, started as the game starts it, tools/runtime_cli.py; --attach uses the open
+game's). Not part of the suite: it needs the model.
 
   python tools/live_check.py                    every scenario, independent runs (default --runs 3)
   python tools/live_check.py --runs 5
   python tools/live_check.py --mode continuity  the same questions asked again and again in one sitting: does she remember being asked?
   python tools/live_check.py --mode both
+  python tools/live_check.py --mode addressees  (f487) two characters to one townsperson: one NPCReplyMany call each time, first-try
+                                                acceptance counted beside a single NPCReply's; the number f490 sets many_addressees from
   python tools/live_check.py --vary             run 1 is the usual Bram and Isel; every later run gives them a different personality
                                                 (temperaments, motive, habit, flaw, details), the same ones every time you use --vary
 
@@ -14,7 +17,7 @@ Writes saves/live_check_report.md: every exchange as said, whether it came from 
 model call's time, flags from a model judge (claims about the place nobody gave, archetype tics, objective-pushing, voices broken), and notes on
 the same thing said across independent runs.
 Nothing in a real save is touched."""
-import argparse, collections, random, re, shutil, sys, time
+import argparse, collections, os, random, re, shutil, sys, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,45 +26,104 @@ sys.path.insert(0, str(ROOT))
 import config
 import llm.gateway as gw
 import ui.console as uc
+from llm import backend
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--runs", type=int, default=3)
-ap.add_argument("--mode", choices=["independent", "continuity", "both"], default="independent")
-ap.add_argument("--model", default="", help="run the game's characters on this model instead of config.MODEL (config.py is not changed)")
+ap.add_argument("--mode", choices=["independent", "continuity", "both", "addressees"], default="independent")
 ap.add_argument("--report", default="live_check_report.md", help="the report's file name, in saves/")
 ap.add_argument("--vary", action="store_true", help="a different personality pair for each run after the first (repeatable)")
-ap.add_argument("--judge-model", default="", help="judge with this model instead of the game's (keeps the judge the same while comparing game models)")
+ap.add_argument("--judge-url", default="", help="(f529) judge on a second llama-server started by hand at this loopback URL (another model, so "
+                                                "the judge stays the same while the game's model changes); default: the game's own server judges")
+ap.add_argument("--judge-key", default="", help="the second server's API key, if it has one")
+from tools import runtime_cli
+runtime_cli.add_args(ap)
 args = ap.parse_args()
-if args.model:
-    config.MODEL = args.model
+if os.environ.get("MERAVIA_NO_SERVER"):
+    sys.exit("MERAVIA_NO_SERVER is set: this process has no model server, and the live check needs one.")
+SERVER = runtime_cli.load(args)                       # (f529) first, before any mode asks the model: the game's own server, as the game starts it (or the open game's, --attach)
+JUDGE = None
+if args.judge_url:
+    from llm import llama
+    JUDGE = llama.LlamaServer(llama.Server(llama._port_of(args.judge_url, "--judge-url"), args.judge_key))
+    JUDGE.load()                                      # waits for it to be ready; only the loopback address, as every server the game speaks to
+
+
+def addressees(runs: int) -> None:
+    """(f487) Two characters speak to one townsperson, `runs` times, and one character alone as many times: how often the model's first
+    answer is taken, for each contract. Written to saves/<report>."""
+    from engine.session import CampaignSession
+    from npc import life
+    from npc.traits import load_traits
+    from storage.campaign import PlayerState
+    sys.path.insert(0, str(ROOT))
+    import simlib
+    name = "live_check_addressees"
+    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+    session = CampaignSession.open(name)
+    store, world = session.store, session.world
+    char, _ = simlib.make_character("warrior", random.Random(1))
+    store.save_player(PlayerState(character=char, location="guild_house"))
+    ws = session.scene(load_traits(), store.load_player())
+    ws.enter("guild_house")
+    npc = sorted(ws.present, key=lambda n: n.id)[0]
+    tries = {"NPCReplyMany": [], "NPCReply": []}
+
+    def counting(op, req, call):            # (f518) a layer around every call (llm/backend.py wrap): each try counted by its schema's title
+        if op == "chat":
+            tries.setdefault(backend.title(req), []).append(time.time())
+        return call(req)
+    unwrap = backend.wrap(counting)
+    first = {"NPCReplyMany": 0, "NPCReply": 0}
+    for i in range(runs):
+        for title, speakers in (("NPCReplyMany", [("player", "the stranger", "Good day. Is there work going?"),
+                                                  ("second", "the stranger's friend", "And where might we sleep tonight?")]),
+                                ("NPCReply", [("player", "the stranger", "Good day. Is there work going?")])):
+            n0 = len(tries[title])
+            try:
+                life.converse_many(npc, store, world, ws.catalog, [], speakers)
+                first[title] += len(tries[title]) - n0 == 1
+            except Exception as e:
+                print(f"{title} run {i + 1}: failed: {e}")
+    unwrap()
+    lines = [f"# Addressees ({config.MODEL})", "", f"runs: {runs}"] + [f"- {t}: first try taken {first[t]}/{runs}" for t in first]
+    (ROOT / "saves" / args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+    session.close()
+    shutil.rmtree(ROOT / "saves" / name, ignore_errors=True)
+
+
+if args.mode == "addressees":
+    addressees(args.runs)
+    SERVER.close()
+    sys.exit(0)
 
 SAID, CALLS, REFUSED = [], [], []
 uc.say = lambda t, s="": SAID.append((s or "", t))
 uc.narrate = lambda t: SAID.append(("(narration)", t))
 uc.note = lambda m, *a, **k: SAID.append(("(game)", str(m)))          # what the game tells the player, shown so a scene with no talk is still readable
 
-real_chat = gw._client.chat
-def timed_chat(**k):
-    msgs = k.get("messages", [])
+def timed(op, req, call):
+    """(f518) A layer around every model call (llm/backend.py wrap), where it patched the client before: a refused draft sent back is kept,
+    and each try is timed by its schema's title, failed or not. A failure is re-raised as it is, for the gateway to read."""
+    if op != "chat":
+        return call(req)
+    msgs = req.messages or []
     if len(msgs) > 2 and "rejected" in msgs[-1].get("content", ""):
         why = msgs[-1]["content"].split("\n")[0][:200]
         raw = " ".join(str(msgs[-2].get("content", "")).split())[:400] if msgs[-2].get("role") == "assistant" else ""
         REFUSED.append(why + (f"\n    - the refused answer: {raw}" if raw else ""))
+    title = backend.title(req) or "?"
     t0 = time.time()
     try:
-        r = real_chat(**k)
-        CALLS.append((k.get("format", {}).get("title", "?"), time.time() - t0, True))
+        r = call(req)
+        CALLS.append((title, time.time() - t0, True))
         return r
     except Exception:
-        CALLS.append((k.get("format", {}).get("title", "?"), time.time() - t0, False))
+        CALLS.append((title, time.time() - t0, False))
         raise
-gw._client.chat = timed_chat
 
-try:
-    if hasattr(gw._client, "list"):
-        gw._client.list()
-except Exception as e:
-    sys.exit(f"Cannot reach Ollama ({e}). Start it, make sure the game's model '{config.MODEL}' is pulled, and run this again.")
+
 
 import simlib
 from engine import banter, mentor, quirks
@@ -77,10 +139,10 @@ shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)
 session = CampaignSession.open(NAME)                 # (f457) the campaign's session, as main.py opens it
 store = session.store
 store.meta.seed = 11; store.meta.turn = 1; store.meta.minutes = 1800; store.save_meta()
-_real_client = gw._client                          # the test character is built the same way every time, without the model under test
-simlib.install(simlib.Stub("warrior", 3))
+unstub = simlib.install(simlib.Stub("warrior", 3))     # the test character is built the same way every time, without the model under test
 ch, _ = simlib.make_character("warrior", random.Random(2))
-gw._client = _real_client
+unstub()                                              # (f518) the stub taken away again: everything after this is the real model's
+untime = backend.wrap(timed)                          # (f518) timed from here on, so the stub's calls while the character was made are not
 store.save_player(PlayerState(character=ch, location="parth"))
 w = session.scene(load_traits(), store.load_player())
 config.TURN_LOG_PATH = str(ROOT / "saves" / NAME / "turns.jsonl")
@@ -134,25 +196,17 @@ def judge(title: str, lines: list[tuple[str, str]], voices: dict[str, str], selv
             if selves and any(selves.values()) else "") +
            "\nLINES:\n" + "\n".join(f"  {who}: {' '.join(t.split())}" for who, t in lines))
     try:
-        game_model = config.MODEL
-        if args.judge_model:
-            config.MODEL = args.judge_model
+        undo = backend.use(JUDGE) if JUDGE is not None else None     # (f529) the judge's own server, when one is named; else the game's
         try:
             return generate("live_judge", JUDGE_SYSTEM, req, Judgement, temperature=0.1, max_tokens=160, retries=1)
         finally:
-            config.MODEL = game_model
+            if undo is not None:
+                undo()
     except LLMError:
         return None
 
 
 from llm import embed as _embed
-from llm import setup_check as _sc
-if getattr(config, "EMBED_ENABLED", True) and hasattr(gw._client, "embed") and not _sc.model_present(config.EMBED_MODEL):
-    print(f"Fetching the helper model {config.EMBED_MODEL} (about 270 MB) first...")
-    try:
-        _sc.pull_model(lambda f, t: None, name=config.EMBED_MODEL)
-    except Exception as e:
-        print(f"  could not fetch it ({e}); the word checks will be used")
 out = ["# Live check against the real model", f"Helper model for meaning ({config.EMBED_MODEL}): {'in use' if _embed.available() else 'NOT available - the word checks were used'}", f"Model: {config.MODEL}  ·  runs per scenario: {args.runs}  ·  mode: {args.mode}" + ("  ·  personalities vary by run" if args.vary else ""), ""]
 flags = []
 notes = []
@@ -666,5 +720,9 @@ except OSError:
 print(f"Done in {_fmt(time.time() - PROG['t0'])}. {len(set(flags))} flag(s). Report: {path}")
 for f in sorted(set(flags)):
     print("  -", f)
+untime()                                              # (f518) the timing layer away again
 session.close()
+SERVER.close()                                        # (f529) this tool's own server (never the game's, under --attach)
+if JUDGE is not None:
+    JUDGE.close()
 shutil.rmtree(ROOT / "saves" / NAME, ignore_errors=True)

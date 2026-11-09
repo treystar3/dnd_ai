@@ -252,6 +252,15 @@ def _v14_knows(store) -> None:
                               (nid, clock.day(t), str(c.get("text", "")), about, t, "told:player" if c.get("found") else "held"))
 
 
+def _v15_effect_rows(store) -> None:
+    """(f507) A fight's statuses, buffs, curses and ground effects became rows of the fight's own record (engine/effects.py), and a
+    fight row of another shape is refused rather than read in part. A fight saved mid-round under the old shape is let go of, as v3
+    did, and a notice left that the next load tells once (failures.yaml fight_let_go): the fight is lost, never the game."""
+    if store.load_combat() is not None:
+        store.save_combat(None)
+        store.leave_notice("fight_let_go")
+
+
 MIGRATIONS: list[tuple[int, str, callable]] = [
     (1, "one SQLite file per campaign, with an index over people", _v1_initial),
     (2, "memories as rows (npc_memory) with a window on the record; the event journal", _v2_memory_rows),
@@ -267,6 +276,7 @@ MIGRATIONS: list[tuple[int, str, callable]] = [
     (12, "a person's view of the player kept as their view of one character, by id", _v12_regard),                          # (f480)
     (13, "work offered and requests made kept as offers that end for a reason", _v13_offers),                               # (f481)
     (14, "what a person knows of a matter kept as their own, past the matter's end", _v14_knows),                          # (f483)
+    (15, "a fight's statuses, buffs, curses and ground as rows of its record; a fight saved under the old shape is let go", _v15_effect_rows),   # (f507)
 ]
 
 CURRENT = MIGRATIONS[-1][0]

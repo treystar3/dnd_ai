@@ -4,6 +4,7 @@ Everything the model proposes is checked here before it touches saved state.
 """
 
 import random
+from collections import Counter
 import re
 import config
 
@@ -29,7 +30,26 @@ def _unique_id(store: CampaignStore, name: str) -> str:
     return candidate
 
 
+def _wares(store, world, npc) -> list:
+    """(f545) What they sell: what they hold of a good first, sold until it is gone, then their trade's own list
+    (engine/situation_parts.py wares)."""
+    from engine import situation_parts
+    return situation_parts.wares(store, world, npc)
+
+
 FIRST_BATCH = 4          # how many residents the blocking call on arrival creates; the rest are made while the player reads
+
+
+def _wanted(store: CampaignStore, world: World, place_id: str, state) -> dict:
+    """How many of each trade the place is to have: as written, with those the world has added (arrivals, camps, refugees:
+    extra_roles), a post a disaster emptied left empty for a while."""
+    wanted = dict(world.places[place_id].residents)
+    for role, n in state.extra_roles.items():
+        wanted[role] = wanted.get(role, 0) + n
+    from engine import events
+    for role in events.vacant_roles(store, place_id, store.meta.minutes):
+        wanted.pop(role, None)          # a post emptied by a disaster stays empty for a while before someone takes it up
+    return wanted
 
 
 def _plan(store: CampaignStore, world: World, place_id: str):
@@ -37,16 +57,10 @@ def _plan(store: CampaignStore, world: World, place_id: str):
     state = store.load_place(place_id)
     existing = [store.load_npc(i) for i in state.residents]
     existing = [n for n in existing if not n.gone]
-    place = world.places[place_id]
     have = {}
     for n in existing:
         have[n.role] = have.get(n.role, 0) + 1
-    wanted = dict(place.residents)
-    for role, n in state.extra_roles.items():
-        wanted[role] = wanted.get(role, 0) + n
-    from engine import events
-    for role in events.vacant_roles(store, place_id, store.meta.minutes):
-        wanted.pop(role, None)          # a post emptied by a disaster stays empty for a while before someone takes it up
+    wanted = _wanted(store, world, place_id, state)
     missing = {role: count - have.get(role, 0) for role, count in wanted.items() if count > have.get(role, 0)}
     peoples = world.peoples_at(place_id)
     rng = random.Random(f"{store.meta.seed}:place:{place_id}:{len(existing)}")
@@ -118,10 +132,17 @@ def _apply(store: CampaignStore, world: World, catalog: TraitCatalog | None, pla
     existing = [n for n in (store.load_npc(i) for i in state.residents) if not n.gone]
     npcs = []
     taken = {n.activity for n in existing}
+    wanted = _wanted(store, world, place_id, state)                  # (f545's review) as _plan counted it, extra_roles and all
+    have = Counter(n.role for n in existing)
     for r in sorted(result.residents, key=lambda r: r.slot):
         role, _, people, name, gender = slots[r.slot - 1]
+        anchor_of = _ANCHOR_SLOTS.get((place_id, name), "")
+        if have[role] >= int(wanted.get(role, 0)) or anchor_of and any(n.anchor == anchor_of for n in existing):
+            _ANCHOR_SLOTS.pop((place_id, name), None)      # (f545's review) filled meanwhile (a situation made them): never two
+            continue
         if name in store.npc_names():
             continue
+        have[role] += 1
         npc = NPC(
             id=_unique_id(store, name), name=name, gender=gender, people=people, role=role,
             location=place_id, epithet=r.epithet.strip(), description=r.description.strip(),
@@ -309,6 +330,41 @@ def _offered(store, npc, who: str) -> dict | None:
     return offer_open(store, npc, who)
 
 
+def _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun, promised=False):
+    """(f487) A townsperson's request for one reply, whichever contract it goes under: the lore for the line, how they talk, what they
+    sell, the request itself; promised (f493): what was said may promise them something, so the reply asks what. Returns (prompt,
+    facts, recent)."""
+    from engine import banter, matters, voice_profile
+    from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
+    every = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
+    from engine import brief                                # (f486) the lore that bears on this line, every clue held, and the rest named
+    facts, index = brief.lore(every, player_text, [w for _, w in convo])
+    extra = list(extra) + ([index] if index else [])
+    _, people_known = social_circle(npc, store, world)
+    here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
+    rng = rng or streams.get("scene")
+    from engine import voices
+    ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
+    voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng, char_id=who)
+    recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
+    prompt = prompts.conversation_prompt(
+            npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
+            [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
+            clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
+            wares if wares is not None else
+            [f"{w.name}: {money.words(w.price)}" for w in _wares(store, world, npc)]
+            + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
+               f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
+            + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
+               if world.roles[npc.role].commissions else []),
+            extra, land.land_lines(world, npc.location) if brief.asked("land", player_text, npc.role) else [], truth_text=truth_text,   # (f486) when asked
+            stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
+            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
+            work=_offered(store, npc, who), pronoun=pronoun, promised=promised,
+        )
+    return prompt, facts, recent
+
+
 def converse(
     npc: NPC,
     store: CampaignStore,
@@ -326,41 +382,25 @@ def converse(
     wares: list[str] | None = None,
     *,
     who: str,
+    pronoun: str = "",
+    given_also: list[str] = (),
 ) -> tuple[NPCReply, list[str]]:
     """One conversation turn. Returns the reply and the ids of facts the player learned. truth_text is this person's view of the moment
     from the truth layer (engine/truth.py, f313): who is here, what the town has, the board, happenings, news; known is the words of the
     names the scene allows (f315) - the gateway sends back a reply that names anyone or anywhere else. stance (f347) is how they are for
     this conversation (scenes/world.py rolls it when the talk begins); rng draws this reply's lines on how they talk. wares (f418): what they
     sell at what the game will charge (scenes/inventory_actions.py wares_said); without it, the list's own prices."""
-    from engine import banter, matters, voice_profile
-    from engine import circumstance                         # (f483) by the circles they were raised among and the place they live now
-    facts = world.facts_known_by(circumstance.groups(world, npc)) + matters.clue_facts(store, world, npc)      # (f317) what they know of the town's matters
-    _, people_known = social_circle(npc, store, world)
-    here_with = []                                          # (f313) who is here comes with the truth text, as this person knows them
-    rng = rng or streams.get("scene")
+    from engine import brief
+    promised = brief.promised(player_text)                  # (f493) the promise field only when the line may make one
+    prompt, facts, recent = _request(npc, store, world, catalog, convo, player_text, extra, truth_text, stance, rng, worn, wares, who, pronoun,
+                                     promised)
     from engine import voices
-    ensure_speech(npc, store, world)                                                                      # (f347, f350) where they were raised, how they talk
-    voice_fact, voice_lines, material = voice_profile.resident_lines(npc, rng, char_id=who)
-    recent = [s for h, s in zip(npc.heard[-6:], npc.said[-6:]) if not banter.asked_again(player_text, [h])]   # the same question may get much the same answer
+    from llm.contracts import NPCReplyPromised
     reply = generate(
-        "npc_conversation", prompts.CONVERSATION_SYSTEM,
-        prompts.conversation_prompt(
-            npc, world.places[npc.location], catalog.describe(npc.traits), facts, convo, player_text,
-            [world.places[p].name for p in world.neighbors(npc.location)], here_with, people_known,
-            clock.now_line(store.meta.minutes, weather.describe(store.meta.seed, store.meta.minutes)[1].lower()),   # (f477) no day number
-            wares if wares is not None else
-            [f"{w.name}: {money.words(w.price)}" for w in world.roles[npc.role].sells]
-            + [f"{i['name']} ({i['rarity']} work, level {i['item_level']}): "
-               f"{money.words(items.price(Item.model_validate(i)))}" for i in npc.stock]
-            + ([f"commissions: you make {', '.join(world.roles[npc.role].commissions)} gear to order"]
-               if world.roles[npc.role].commissions else []),
-            extra, land.land_lines(world, npc.location), truth_text=truth_text,
-            stance=stance, voice_fact=voice_fact, voice_lines=voice_lines, material=material,
-            unsaid=banter.unsaid_rule(list(npc.said), player_text), worn=list(worn), now=store.meta.minutes, who=who,
-            work=_offered(store, npc, who),
-        ),
-        NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
+        "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt,
+        NPCReplyPromised if promised else NPCReply, temperature=0.8, max_tokens=config.PROSE_MAX_TOKENS,
         validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "",      # (f349) last: no opener twice running
+                            "given_also": list(given_also),        # (f486) the town's list, for the checks, given or not
                             "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn)},      # (f350) their kit; how everyone here talks; the worn words
         relaxed_context={"known": known},                   # the fallback ladder: once more without the repeat guard before giving up
     )
@@ -382,18 +422,34 @@ def converse(
     if dropped:
         console.debug(f"ignored reveals {npc.name} does not know: {dropped}")
 
+    step, seen = apply_answer(npc, store, reply.answers(who)[0], who, player_text, reply.intent, reply.told_own_name, reply.speech)
+    store.save_npc(npc)
+
+    console.debug(
+        f"{npc.name}: intent={reply.intent} trust {seen.trust} ({step:+d}) reveals={revealed} "
+        f"remember={reply.remember!r}"
+    )
+    return reply, revealed
+
+
+def apply_answer(npc: NPC, store: CampaignStore, ans, who: str, words: str, intent: str, told_own_name: bool, speech: str):
+    """(f487) What one reply means for one character `who`, the one commit path of NPCReply (its one block) and NPCReplyMany (a block
+    each): their trust, their meeting, the name they gave in their own words, when they last spoke, the names the speech mentioned to
+    them, what they promised, what to remember of them. Returns (the trust step, their view)."""
+    import types as _types
     from engine import regard, trust as _trust
-    step = _trust.after_talk(npc, reply, clock.day(store.meta.minutes), who, store.meta.minutes)   # (f362) the engine moves trust from what happened
+    step = _trust.after_talk(npc, _types.SimpleNamespace(intent=intent, trust_change=ans.trust_change), clock.day(store.meta.minutes), who,
+                             store.meta.minutes)                                      # (f362) the engine moves trust from what happened
     seen = regard.of(npc, who)                                # (f480) this character's view: trust, name, the meeting, the hour
     if step:
         from engine import canon
         canon.journal("trust", who, npc.id, f"{npc.name}'s trust moved {step:+d} to {seen.trust}", step=step, trust=seen.trust)
 
     seen = regard.meet(npc, who, store.meta.minutes)
-    if reply.told_own_name:
+    if told_own_name:
         seen.name_known = True
-    claimed = reply.learned_player_name.strip()
-    if claimed and claimed.lower() in player_text.lower():
+    claimed = (ans.learned_name or "").strip()
+    if claimed and claimed.lower() in (words or "").lower():
         seen.knows_as, seen.knows_as_source = claimed, "self"
         from engine import memory                            # (f482) what they were told, by whom: a claim, never a fact
         memory.keep(npc, f"{{them}} told me their name is {claimed}.", day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told",
@@ -402,18 +458,62 @@ def converse(
         console.debug(f"ignored name '{claimed}': the player never said it")
 
     seen.last_talk_at = store.meta.minutes                   # (f382) when they last spoke: the next talk, long after, is a return
-    for name in note_mentions(npc, reply.speech, store, who):
+    for name in note_mentions(npc, speech, store, who):
         console.debug(f"{npc.name} named {name}: noted as heard of")
-    if reply.remember.strip():                              # (f482) what this talk gave them to keep: what they were told, by whom
+    if (ans.they_promised or "").strip():                   # (f486, G4) a promise made to them in words: theirs to remember, a claim
         from engine import memory
-        memory.keep(npc, reply.remember.strip(), day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told", subject=who,
+        memory.keep(npc, f"{{them}} promised me: {ans.they_promised.strip()}", day=clock.day(store.meta.minutes), turn=store.meta.turn,
+                    kind="promise_heard", subject=who, source=who, minute=store.meta.minutes, importance=2)
+    if (ans.remember or "").strip():                        # (f482) what this talk gave them to keep: what they were told, by whom
+        from engine import memory
+        memory.keep(npc, ans.remember.strip(), day=clock.day(store.meta.minutes), turn=store.meta.turn, kind="told", subject=who,
                     source=who, minute=store.meta.minutes)
-    store.save_npc(npc)
+    return step, seen
 
-    console.debug(
-        f"{npc.name}: intent={reply.intent} trust {seen.trust} ({step:+d}) reveals={revealed} "
-        f"remember={reply.remember!r}"
+
+def converse_many(npc: NPC, store: CampaignStore, world: World, catalog: TraitCatalog, convo: list[tuple[str, str]], speakers: list,
+                  extra: list[str] = (), truth_text: str = "", known=frozenset(), stance: str = "", rng: random.Random | None = None,
+                  worn: list[str] = (), house=(), wares: list[str] | None = None, pronouns: dict | None = None, given_also: list[str] = ()):
+    """(f487) Two or more characters to one townsperson in one line: `speakers` is [(character id, how they are known, their words)].
+    What is said aloud comes once; each character has a block of what it means for them (NPCReplyMany), committed through the one path
+    (apply_answer) against each one's own view. One speaker is converse() as ever. With brief.yaml many_addressees: flat_each, one
+    NPCReply per speaker in order instead (the named fallback, chosen from the night's measure). Returns (reply, revealed) for one call,
+    or a list of them for flat_each."""
+    from engine import brief, regard
+    if len(speakers) < 2:
+        cid, _label, words = speakers[0]
+        return converse(npc, store, world, catalog, convo, words, extra, truth_text, known, stance, rng, worn, house, wares, who=cid,
+                        pronoun=(pronouns or {}).get(cid, ""), given_also=given_also)
+    if brief.rules().get("many_addressees", "one_call") == "flat_each":
+        return [converse(npc, store, world, catalog, convo, words, extra, truth_text, known, stance, rng, worn, house, wares, who=cid,
+                         pronoun=(pronouns or {}).get(cid, ""), given_also=given_also) for cid, _label, words in speakers]
+    ids = [cid for cid, _, _ in speakers]
+    words = {cid: w for cid, _, w in speakers}
+    said = " ".join(f'{label} ({cid}): "{w}"' for cid, label, w in speakers)
+    block = ("THE ONES YOU ARE TALKING WITH (give each one block in answers, by their id): "
+             + "; ".join(f"{cid}: {label}, {prompts.trust_words(regard.of(npc, cid).trust)}"
+                         + (f", speak of them as {(pronouns or {}).get(cid)}" if (pronouns or {}).get(cid) else "") for cid, label, _ in speakers))
+    promised = brief.promised(*words.values())               # (f493) the blocks' promise field only when a line may make one
+    prompt, facts, recent = _request(npc, store, world, catalog, convo, said, list(extra) + [block], truth_text, stance, rng, worn, wares,
+                                     ids[0], (pronouns or {}).get(ids[0], ""), promised)
+    from engine import voices
+    from llm import contracts
+    reply = generate(
+        "npc_conversation", prompts.CONVERSATION_SYSTEM, prompt, contracts.many_reply(ids, promised), temperature=0.8,
+        max_tokens=config.PROSE_MAX_TOKENS,
+        validation_context={"known": known, "recent": recent, "last": npc.said[-1] if npc.said else "", "given_also": list(given_also),
+                            "kit": voices.kit_of(npc.speech), "house": set(house), "worn": list(worn), "to": ids, "words": words},
+        relaxed_context={"known": known, "to": ids, "words": words},
     )
+    from engine import partings
+    partings.remember(npc, said, reply.speech)
+    import re as _re
+    by_id, spoken = {f.id: f for f in facts}, set(_re.findall(r"[a-z]{5,}", reply.speech.lower()))
+    revealed = [r for r in reply.reveals if r in by_id and len(set(_re.findall(r"[a-z]{5,}", by_id[r].text.lower())) & spoken)
+                >= min(3, max(1, len(set(_re.findall(r"[a-z]{5,}", by_id[r].text.lower()))) // 4))]     # carried by the speech, as converse asks
+    for ans in sorted(reply.answers, key=lambda a: ids.index(a.to)):     # in the order they spoke
+        apply_answer(npc, store, ans, ans.to, words[ans.to], reply.intent, reply.told_own_name, reply.speech)
+    store.save_npc(npc)
     return reply, revealed
 
 

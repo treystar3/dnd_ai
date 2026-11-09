@@ -63,8 +63,9 @@ SENT = []
 def chat(**k):
     SENT.append(k["messages"])
     return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers)))
-gw._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)         # (f518) scripted answers from a stand-in, taken away after each call
 got = gw.generate("narrate", "You narrate.", "The square in the rain.", Narration)
+held()
 check("a passage with a template's placeholder is sent back and written again", got.text == "Rain turns the square to slick patches of mud." and len(SENT) == 2, got.text)
 check("...told why, the word named", "braces" in SENT[1][-1]["content"] and "{road}" in SENT[1][-1]["content"], SENT[1][-1]["content"])
 
@@ -79,8 +80,9 @@ check("a spaced hyphen and a double hyphen are dashes; a hyphenated word is not"
 check("a dash opening a line is dropped, the line capitalised", hygiene.undash("He waits.\n\u2014 and then the door opens.") == "He waits.\nAnd then the door opens.")
 check("a range is 'to'", hygiene.undash("It is 3\u20135 miles north.") == "It is 3 to 5 miles north.")
 answers = iter(['{"text": "The gate creaks \u2014 then holds."}'])
-gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
+held = simlib.stand_in(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))), embed=None)
 got = gw.generate("narrate", "You narrate.", "The gate.", Narration)
+held()
 check("a narrator's answer reaches the game without its dashes", got.text == "The gate creaks, then holds.", got.text)
 # (f403) speakers too: a townsperson's, a hire's, Maren's
 reply = NPCReply.model_construct(speech="He's just near enough to see from where we are standing\u2014he does his trade-work by the river market.",
@@ -111,16 +113,18 @@ check("line breaks of the model's own inside a paragraph are joined; a blank lin
       hygiene.unwrap(wrapped) == "Before you can arrive at the crates of herbs, a figure steps across your trajectory. She is broad across the "
       "shoulders, her frame encased in plate.\n\nThe greatsword on her back stays still.", hygiene.unwrap(wrapped))
 answers = iter(['{"text": "' + wrapped.replace("\n", "\\n") + '"}'])
-gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
+held = simlib.stand_in(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))), embed=None)
 got = gw.generate("narrate", "You narrate.", "The square.", Narration)
+held()
 check("...on every answer from the model", got.text.count("\n") == 2 and "herbs, a figure" in got.text, got.text)
 check("a stray escape that came out as a control character is found, so the passage is written again",
       hygiene.problem("narrate", Narration(text="Her back remains still\x08ut her posture blocks the stall."))[0] == "broken")
 check("...and one that slips through never shows as a box: the letter it ate is put back",
       hygiene.clean("remains still\x08ut her posture") == "remains still but her posture", repr(hygiene.clean("remains still\x08ut her posture")))
 answers = iter(['{"text": "She stays still\\but her posture blocks the way."}', '{"text": "She stays still, but her posture blocks the way."}'])
-gw._client = types.SimpleNamespace(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))))
+held = simlib.stand_in(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers))), embed=None)
 got = gw.generate("narrate", "You narrate.", "The square.", Narration)
+held()
 check("...and the second, whole, is the one used", got.text == "She stays still, but her posture blocks the way.", got.text)
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

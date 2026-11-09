@@ -18,13 +18,13 @@ def _pct(x: float) -> str:
 
 def sheet(f: combat.Fighter) -> dict:
     """{"name", "title", "sections": [{"title", "rows": [[label, value, note]]}]} for one fighter."""
+    from engine import stacking
     always = {"always"}
-    d, m = RULES["damage"], RULES["mitigation"]
+    d = RULES["damage"]
     attr = f.best_attr(f.weapon_attrs)
-    flat = combat.flat_bonus(f, "damage", always)
-    pct = combat.bonus(f, "damage", always)
-    base = f.weapon_damage + attr * d["attribute_bonus"] + flat
-    avg = base * (1 + pct / 100)
+    parts = combat.damage_parts(f, 1.0, always)                 # (f506) the fight's own parts and recipe: the sheet equals the fight
+    flat, pct = parts["flat"], parts["percent"]
+    avg, _ = stacking.combine("base_damage", parts)
     var = d["variance"]
     foe = combat.Fighter(id="equal", name="an equal foe", side="enemy", level=f.level, attrs={a: attr for a in combat.ATTRIBUTES}, hp=1, max_hp=1)
     chance, steps = combat.hit_parts(f, foe, combat.Combat(fighters=[f, foe]))
@@ -33,7 +33,7 @@ def sheet(f: combat.Fighter) -> dict:
     growth = combat.growth(f.level)
 
     def cut(protection: float) -> float:
-        return min(m["cap"], 100 * protection / max(0.01, protection + m["armor_k"] * growth))
+        return combat.armour_cut(protection, f.level)         # (f506) the fight's own line
 
     weapon_note = max(f.weapon_attrs, key=lambda a: f.attrs.get(a, 10)).capitalize() if f.weapon_attrs else "Strength"
     offense = [

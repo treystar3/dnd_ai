@@ -42,9 +42,18 @@ road:
 # A second door opens when the first was not answered: after this many days unanswered, a word door becomes a scene, a scene a board posting.
 reopen_after_days: 3
 
-# What the town keeps when a matter ends (engine/truth.py gives it to every speaker there under WHAT THIS TOWN HAS).
+# What the town keeps when a matter ends (engine/truth.py gives it to every speaker there under WHAT THIS TOWN HAS). (f484) One writer,
+# engine/town_memory.py: a row's words carry no date (the minute does, told from now); each kind keeps its own term and cap, so thirty
+# moments never push out what was settled; a settled matter leaves a lasting mark when its month is over (marks_cap: the most kept).
 memory:
   keep_days: 30
-  settled:  "{title}: settled by {name} ({when})"
-  ignored:  "{title}: {name} was asked, and let it be ({when})"
+  settled:  "{title}: settled by {name}"
+  ignored:  "{title}: {name} was asked, and let it be"
+  mark:     "{title}, settled by {name}"
+  kinds:
+    settled: {days: 30, cap: 12}        # a matter the player settled; then its mark
+    ignored: {days: 30, cap: 6}         # one the player was asked about, and let be
+    note:    {days: 30, cap: 12}        # what the town's own people settled, or what befell it
+    job:     {days: 30, cap: 12}        # a job done here (its result is already a mark at its spot, engine/stakes.py)
+  marks_cap: 12
   reputation: {normal: 3, uncommon: 4, rare: 6, campaign: 12, cataclysm: 12}

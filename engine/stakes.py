@@ -179,10 +179,9 @@ def done(ws, q: dict) -> None:
         ps = ws.store.load_place(spot)
         ps.marks = (ps.marks + [f"{q['result']} (since {name} {q['title'].lower()})"])[-12:]
         ws.store.save_place(ps)
-        if town in ws.world.places and not ws.world.places[town].danger:
-            tp = ws.store.load_place(town)
-            tp.memory = (tp.memory + [{"text": f"{q['title']}, for {q.get('issuer_name', 'the guild')}: done by {name}; {q['result']}", "minute": ws.minutes}])[-12:]
-            ws.store.save_place(tp)
+        from engine import town_memory                                    # (f484) the one writer
+        town_memory.file(ws.store, ws.world, town, "job", f"{q['title']}, for {q.get('issuer_name', 'the guild')}: done by {name}; {q['result']}",
+                         ws.minutes, subjects=[f"quest:{q['id']}"])
         state = ws.store.load_world_state()
         if state:
             pulse.add_news(state, f"{q['result'][0].upper() + q['result'][1:]} - {name}'s doing, they say.", town, ws.minutes, ["everyone"], certainty="they say")

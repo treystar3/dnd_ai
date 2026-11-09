@@ -8,11 +8,17 @@ logs/
 recordings/
 *.log
 
+# --- (f522) The model server's builds, the model files and the game's run files: fetched or written, never kept ---
+/runtime/
+/models/
+/run/
+
 # --- Build output: build_exe.bat and build_installer.bat recreate these ---
 build/
 dist/
 *.spec
 installer/Output/
+installer/models.iss   # (f531) written by build_installer.bat from data/runtime/server.yaml
 
 # --- Local Python environments and caches (play.bat makes .venv on first run) ---
 .venv/

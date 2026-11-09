@@ -7,6 +7,8 @@ combat.start_turn through tick().
 import random
 
 from engine import combat as C
+from engine import afflictions
+from engine import effects as E
 
 
 def _foes(combat, target):
@@ -33,18 +35,18 @@ def use(combat, att, move, target, rng: random.Random) -> str | None:
     elif kind == "mend":
         amount = round(att.max_hp * P["pct"] / 100)
         C.restore(combat, att, amount)
-        att.statuses.pop("bleeding", None)
+        afflictions.bind(combat, att)                     # (f507) the wound closes as any wound does: its size and the Crippling Wounds limp go with it
         C.tell(combat, f"wounds close on their own and the bleeding stops (+{amount} health)")
     elif kind == "barrier":
         att.shield += att.max_hp * P["pct"] / 100
         C.tell(combat, f"a barrier closes around {C.who(att)}")
     elif kind == "buff":
-        att.buffs[move.id] = {"rounds": P["rounds"], "mech": dict(P["mech"]), "drain": P.get("drain", 0),
-                              "collapse": P.get("collapse", ""), "name": name}
+        E.put_buff(att, move.id, {"rounds": P["rounds"], "mech": dict(P["mech"]), "drain": P.get("drain", 0),
+                                  "collapse": P.get("collapse", ""), "name": name})
         C.tell(combat, f"{C.who(att)} {C.vb(att, 'are', 'is')} changed for {P['rounds']} rounds: {r['text']}")
     elif kind == "mark":
         if t:
-            t.statuses["hexed"] = 99
+            C.add_status(combat, t, "hexed", 99, att)       # (f507) through the stages
             if C.add_status(combat, t, "bleeding", P["rounds"]):
                 C.tell(combat, f"{C.who(t)} is cut open and cursed, marked for ruin")
             else:
@@ -96,7 +98,7 @@ def tick(combat, f) -> None:
             C.tell(combat, f"{b['name']} takes its price from {C.who(f)}")
         b["rounds"] -= 1
         if b["rounds"] <= 0:
-            f.buffs.pop(bid)
+            E.end_buff(f, bid)
             end = b.get("collapse")
             C.tell(combat, f"{b['name']} fades from {C.who(f)}")
             if end == "weary":

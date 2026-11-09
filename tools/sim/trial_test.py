@@ -5,6 +5,7 @@ sys.argv = ["x", "warrior", "2", "1", "1", "1"]
 _out = sys.stdout
 import simbot
 from engine import combat, inventory, quests
+from engine import effects as fx
 from ui import console
 from scenes.combat_scene import CombatScene
 bad = []
@@ -78,7 +79,7 @@ w2.enter("guild_house")
 w2.handle("I'd like to take the trial")
 f2 = w2.combat.fight
 e2 = f2.enemies()[0]
-f2.player.statuses["poisoned"] = 5          # (f234) an open wound no longer ticks; poison does
+fx.put_status(f2.player, "poisoned", 5)          # (f234) an open wound no longer ticks; poison does
 f2.player.hp = 2
 for _ in range(3):
     combat.start_turn(f2.player, f2)

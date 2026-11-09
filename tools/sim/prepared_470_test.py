@@ -5,14 +5,12 @@ count. The ratchet: every model task still called inside an operation's transact
 families move out (the telling operations, whose one call is the operation, are not counted)."""
 import shutil
 import sys
-import types
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
 simlib.install(stub)
 import config
 from engine import combat, operation, refusals
-from llm import gateway
 from npc.models import NPC
 from scenes import combat_scene as cs
 from storage import statehash
@@ -28,14 +26,13 @@ def check(n, ok, x=""):
 # The residue: tasks still asked for inside an operation's transaction after this feature. It may only shrink (a family moved out drops
 # its tasks here); a task appearing that is not listed fails the suite. The understanding's tasks (interpret_action, audit_meaning,
 # audit_compare, clarify) are gone from it with this feature.
-RECORDED = frozenset({
-    "npc_conversation", "npc_profile", "dialogue_frame", "work_offer_read", "canon_check", "canon_extract",      # converse and its frame
-    "hire_chat", "exchange", "overheard", "pair_dynamic", "persona_details", "mentor_chat", "mentor_speech", "mentor_voice",   # the party, Maren
+RECORDED = frozenset({                                                  # (f485) the talk's five are asked outside (engine/asked.py); (f488) the
+                                                                        # hires' and Maren's four; (f489) the party's own six: fifteen in all
     "road_event", "discovery", "ruling", "plausible_object", "classify_field", "camp_intent", "party_intent", "stranger_read",
-    "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "event_judge", "moment", "npc_parting",
-    "arc_story", "loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank", "generate_lessons", "lesson_want",
-    "combat_interpret", "narrate", "combat_narrate", "combat_aftermath", "goddess_line",
-})
+    "pulse_thread", "pulse_motive", "pulse_cataclysm", "thread_telling", "board_stakes", "event_judge", "moment",
+    "arc_story", "generate_lessons", "lesson_want",                     # (f502) the five naming tasks asked outside
+    "narrate",                                                          # (f497) combat_interpret asked outside; (f498) the three tellings and the
+})                                                                      # opening (combat_opening) asked outside; narrate stays for its inline uses
 UNDERSTANDING = {"interpret_action", "audit_meaning", "audit_compare", "clarify"}
 
 NAME = "prepared_470"
@@ -44,7 +41,7 @@ ws, store = g.scene, g.store
 config.TURN_LOG_PATH = f"saves/{NAME}/turns.jsonl"
 config.CRASH_LOG_PATH = f"saves/{NAME}/crash.log"
 SHOWN = simlib.quiet_console()
-real = gateway._client
+real = simlib.below()                   # (f518) the stub answering now, which the spy calls through to
 FAIL = {"titles": set()}
 LOG = []
 
@@ -57,7 +54,7 @@ def chat(**k):
     return real.chat(**k)
 
 
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)       # (f518) the spy as the model's source, over the stub
 clerk = NPC(id="clerk470", name="Odo Marr", people="human", role="guild_clerk", location="guild_house", traits=[], trust=50)
 herb = NPC(id="herb470", name="Tam Reed", people="human", role="herbalist", location="guild_house", traits=[], trust=50)
 store.save_npc(clerk); store.save_npc(herb)
@@ -124,7 +121,10 @@ ws.turn("I look around.")
 creature = ws.world.bestiary["wolf"]
 foe = combat.fighter_from_creature(creature, 1, "normal", "e1", name="wolf 1")
 foe.hp = foe.max_hp = 1
-ws.combat = cs.CombatScene.begin(ws, creature, [foe], "It is on you:")
+ws.wildlife = (creature, [foe])                                      # (f498) the fight begun through a line, so its opening is inside an operation
+stub.plan = [{"kind": "attack", "target": "wolf"}]
+ws.turn("I attack the wolf")
+stub.plan = None
 stub.a_CombatIntent = lambda u, k: {"kind": "attack", "target": "e1"}
 ws.turn("I attack the wolf")
 legacy = set(operation.LEGACY)
@@ -132,9 +132,12 @@ print("legacy tasks this session:", sorted(legacy))
 check("no task of the understanding is asked for inside an operation any more", not (legacy & UNDERSTANDING), sorted(legacy & UNDERSTANDING))
 check("the ratchet: every task still asked for inside an operation is named in RECORDED (a family moved out may only shrink it)", legacy <= RECORDED, sorted(legacy - RECORDED))
 check("...and the ratchet counts calls inside operations only: the telling operations are their one call and are left out",
-      all(c[2] not in ("passage", "round", "aftermath", "goddess") or c[1] in ("Narration", "GoddessLine") for c in LOG), [c for c in LOG if c[2] in ("passage", "round")][:4])
+      all(c[2] not in ("passage", "round", "aftermath", "goddess", "opening") or c[1] in ("Narration", "GoddessLine") for c in LOG), [c for c in LOG if c[2] in ("passage", "round")][:4])
 
-gateway._client = real
+check("the spy was the model's source throughout, and every call it saw it answered", held.live() and LOG and sum(held.src.calls.values()) >= len(LOG),
+      (held.live(), dict(held.src.calls), len(LOG)))
+held()
+check("...and taken away, the stub answers again", not held.live() and simlib.below().chat == stub.chat)
 g.close()
 check("nothing of it stays in the process", simlib.residue() == {}, simlib.residue())
 shutil.rmtree(f"saves/{NAME}", ignore_errors=True)

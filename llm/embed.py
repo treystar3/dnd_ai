@@ -1,8 +1,13 @@
-"""How alike two lines are in meaning, from a small embedding model run by Ollama (config.EMBED_MODEL). Used where the game would otherwise
-guess with word lists: has this person said this already, is the player asking the same thing again, which subject is a question about.
+"""How alike two lines are in meaning, from a small embedding model (config.EMBED_MODEL) on the game's own server (f524: the embedder's
+own llama-server, decided at the load). Used where the game would otherwise guess with word lists: has this person said this already,
+is the player asking the same thing again, which subject is a question about.
 
-The model is pulled in the background the first time the game runs without it. Until it is there, or if it fails, available() is False and
-every caller uses its simple fallback, so play never waits on it."""
+When there is no embedder this session, or it fails, available() is False and every caller uses its simple fallback, so play never
+waits on it.
+
+(f518) Whether there is an embedder is the source's to say (llm/backend.py facts, R4): a stand-in has one when it was given an embed
+function, a replay when its recording had one, the runtime when its embedder loaded; a source that does not say has none. Nothing
+outside llm/ writes the state below: reset() puts it back."""
 from __future__ import annotations
 
 import math
@@ -13,82 +18,38 @@ from collections import OrderedDict
 import config
 
 _cache: OrderedDict = OrderedDict()
-_state = {"ok": None, "pulling": False, "failed": False}
+_state = {"failed": False}
 _lock = threading.Lock()
 CACHE_SIZE = 2000
 
 
-def _client():
-    from llm import gateway
-    return gateway._client
-
-
 def available() -> bool:
-    """Is the embedding model here and answering? Checked once, then remembered; a failure turns it off for the session."""
+    """Is the embedding model here and answering? The source says (f518); a failure turns it off for the session."""
     if not getattr(config, "EMBED_ENABLED", True) or _state["failed"]:
         return False
-    from engine import streams
-    if streams.STRICT and "fixed" in _state:
-        return _state["fixed"]                           # (f439) a session that must replay exactly: decided once, never mid-session
-    if _state["ok"] is None:
-        c = _client()
-        if not hasattr(c, "embed"):
-            _state["ok"] = False
-            return False
-        try:
-            from llm import setup_check
-            _state["ok"] = setup_check.model_present(config.EMBED_MODEL)
-        except Exception:
-            _state["ok"] = False
-    if streams.STRICT:
-        _state["fixed"] = bool(_state["ok"])
-    return bool(_state["ok"])
+    return bool(_facts().get("embedder", False))
 
 
-def pull_in_background() -> None:
-    """If the model is missing, fetch it quietly; the game carries on with its simple checks until it arrives."""
-    if not getattr(config, "EMBED_ENABLED", True) or _state["pulling"]:
-        return
+def _facts() -> dict:
+    """The source's facts. (f524) A runtime still deciding whether it has an embedder refuses them: here that is "not yet", never a
+    failure of the embedder's, so nothing is turned off for it."""
+    from llm import backend
+    from llm.errors import NotFinal
     try:
-        from llm import setup_check
-        if setup_check.model_present(config.EMBED_MODEL):
-            _state["ok"] = True
-            return
-    except Exception:
-        return
-    _state["pulling"] = True
-
-    def run():
-        try:
-            from llm import setup_check
-            setup_check.pull_model(lambda frac, text: None, name=config.EMBED_MODEL)
-            _state["ok"] = None                       # check again next time it is asked for
-        except Exception:
-            _state["ok"] = False
-        finally:
-            _state["pulling"] = False
-    threading.Thread(target=run, daemon=True).start()
+        return backend.facts()
+    except NotFinal:                                    # (f524's review) only the refusal, never another RuntimeError
+        return {}
 
 
-def warm(session=None):
-    """(f469) One small embed on a daemon thread, so the embedder's first load is paid at the home page and not inside the first turn's
-    checks; the session owns the thread when there is one (engine/session.py own: a close waits for it). Nothing when the model is not
-    there or embedding is off. Returns the thread, or None."""
-    if not available():
-        return None
+def reset() -> None:
+    """(f518) The embedder's state as a fresh process has it: not failed (the session's vectors are left alone). A test or a replay
+    starts from here instead of writing the state."""
+    _state["failed"] = False
 
-    def run():
-        try:
-            from llm.gateway import threads
-            _client().embed(model=config.EMBED_MODEL, input=["clustering: ready"], keep_alive=config.KEEP_ALIVE,
-                            **({"options": threads()} if threads() else {}))
-        except Exception:
-            pass
-    t = threading.Thread(target=run, daemon=True, name="embed-warmup")
-    t.start()
-    if session is not None:
-        session.own(t)
-    return t
+
+def failed() -> bool:
+    """(f518) Did a call fail this session, turning embeddings off?"""
+    return bool(_state["failed"])
 
 
 def vectors(texts: list[str]) -> list[list[float]] | None:
@@ -96,13 +57,25 @@ def vectors(texts: list[str]) -> list[list[float]] | None:
     if not available():
         return None
     texts = [" ".join(str(t).split()) for t in texts]
+    who = _facts().get("embed_model")
+    if who is not None:
+        if _state.get("model", who) != who:             # (f524) another embedder: its vectors are not these
+            with _lock:
+                _cache.clear()
+        _state["model"] = who
     want = [t for t in dict.fromkeys(texts) if t not in _cache]
     if want:
+        from core.interrupts import Interrupt
+        from llm.errors import Failure
         try:
-            from llm.gateway import threads
-            r = _client().embed(model=config.EMBED_MODEL, input=["clustering: " + t for t in want], keep_alive=config.KEEP_ALIVE,
-                                **({"options": threads()} if threads() else {}))
-            got = r["embeddings"] if isinstance(r, dict) else r.embeddings
+            from llm import backend
+            got = backend.embed(["clustering: " + t for t in want]).vectors      # (f515) the game's own interface; today's request
+        except Interrupt:
+            raise                                     # (f516) cancelled, or stopped on purpose: no failure of the embedder's
+        except Failure as f:
+            if f.kind != "too_big":
+                _state["failed"] = True               # (f516) a request too big is this call's own fallback; the embedder stays on
+            return None
         except Exception:
             _state["failed"] = True
             return None

@@ -171,7 +171,7 @@ def main() -> None:
     n = sub.add_parser("night"); n.add_argument("--runs", type=int, default=6); n.add_argument("--hours", type=float, default=2)
     n.add_argument("--parallel", type=int, default=3); n.add_argument("--extra", default="")
     n.add_argument("--mss-proxy", action="store_true", help="route the pod's downloads through tools/mss_proxy.py (a path that drops big packets)")
-    n.add_argument("--num-thread", type=int, default=0, help="CPU threads for the model runner (0: half the container's CPU quota when pinned, else Ollama's default)")
+    n.add_argument("--num-thread", type=int, default=0, help="(f529) CPU threads for each run's model server (0: the container's CPU quota split among the runs at once)")
     n.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                    help="(f387) a setting for the game, e.g. --env DND_TEMP_ADD=0.15 --env DND_REPEAT_ADD=0.1 (config.py reads DND_ settings)")
     t = sub.add_parser("tail"); t.add_argument("--lines", type=int, default=40); t.add_argument("--file", default="/workspace/night.log")
@@ -199,7 +199,7 @@ def main() -> None:
         print(pod.read(args.file, args.lines))
     elif args.cmd == "status":
         print(pod.sh("nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu --format=csv,noheader; "
-                     "(ollama ps 2>/dev/null || echo 'ollama: not running'); "
+                     "(pgrep -a 'llama-serve[r]' | cut -c1-140 | grep . || echo 'llama-server: none running'); "
                      "ls /workspace/dnd_ai/logs/nightrun 2>/dev/null; ls /workspace/dnd_ai/out 2>/dev/null; "
                      "tail -3 /workspace/night.log 2>/dev/null"), end="")
 

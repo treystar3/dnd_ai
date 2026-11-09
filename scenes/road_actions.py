@@ -8,6 +8,7 @@ there until they pick it up, a hazard waits for how they mean to get past it, an
 import re
 
 from engine import checks, clock, encounters, inventory as inv, loot, money, pools, pulse, roads, weather
+from engine import effects
 from engine.road_prompts import SYSTEM, user
 from engine.roads import R
 from llm.contracts import ActionIntent, RoadEvent
@@ -52,9 +53,12 @@ class RoadActions:
 
     # ---------- walking ----------
 
-    def run_journey(self, route: list[str], walk: int, text: str, events: int = 0) -> None:
+    def run_journey(self, route: list[str], walk: int, text: str, events: int = 0, barrier: tuple | None = None) -> None:
+        """`barrier` (f541): (stretch index, road id, why) of a road a situation has shut, met on this walk for the first time: the walk
+        goes as far as the barrier and stops there, and nothing on the road happens on the shut stretch itself."""
         stretches = roads.edges(self.world, route, walk)
-        legs = roads.plan_legs(walk)
+        upto = self.barrier_minutes(stretches, barrier) if barrier else walk
+        legs = roads.plan_legs(upto)
         quiet = getattr(self, "journey_event_factor", 1.0)        # Swift Step thins out the troubles on this trip
         self.journey_event_factor = 1.0
         log = list((self.player.road or {}).get("log", []))
@@ -66,6 +70,8 @@ class RoadActions:
                 continue
             i, frac = roads.position(stretches, done)
             a, b, m = stretches[i]
+            if barrier and i >= barrier[0]:
+                continue                                          # (f541) the shut stretch is the barrier's
             if m < R["min_edge_minutes"] or self.rng.random() >= R["chance_per_leg"] * quiet:
                 continue
             outcome = self.road_event(route, a, b, m, frac, text, log, walked=done)
@@ -73,7 +79,135 @@ class RoadActions:
                 events += 1
             if outcome in ("stopped", "fight"):
                 return
+        if barrier:
+            self.meet_barrier(route, stretches, barrier, text, log, upto)
+            return
         self.finish_journey(route, walk, text, log)
+
+    # ---------- (f541) a road a situation has shut, met at the barrier (the owner, 2026-11-07) ----------
+
+    def here_stop(self) -> dict | None:
+        """The stop on the road the player stands at, or None."""
+        road = self.player.road
+        return road if road and self.player.location == road.get("id") else None
+
+    def shut_roads(self) -> dict[str, str]:
+        """The named roads shut to the player now, by id, with why (a closure the player made themselves is theirs to undo)."""
+        state = self.store.load_world_state() or {}
+        out = {}
+        for e in state.get("effects", []):
+            if e["kind"] == "closed" and e["until"] > self.minutes and e["place"] in self.world.roads and e.get("cause") != "improvised":
+                out.setdefault(e["place"], e.get("text") or "")
+        return out
+
+    def near_end(self, stop: dict) -> str:
+        """(f541's review) The end of a shut road on the player's side of its barrier, for a stop they stand at on it ('' off one)."""
+        if stop.get("barrier"):
+            return stop.get("behind") or ""
+        key = next((k for k in self.shut_roads() if roads.on_road(self.world, stop["id"], k)), "")
+        if not key:
+            return ""
+        far = roads.far_side(self.world, stop["id"], key, R["barrier"]["at"], stop.get("from", ""))
+        return next((e for e in self.world.places[stop["id"]].connects if e != far), "")
+
+    def shut_stretch(self, x: str, y: str, shut: dict[str, str]) -> str:
+        """The road a stretch from x to y runs on, when it is shut to the player now; '' when open. The barrier is one fixed point on
+        the road (roads.far_side): from a stop on the road, the end on the player's side of it is open and the end across it is not,
+        whatever made the stop (the barrier itself, a happening on the walk back, a fight)."""
+        key = roads.way_key(self.world, x, y)
+        if key not in shut:
+            return ""
+        stop = self.here_stop()
+        if stop and x == stop["id"]:
+            if stop.get("barrier") == key:
+                return "" if y == stop.get("behind") else key
+            if roads.on_road(self.world, x, key):
+                return key if y == roads.far_side(self.world, x, key, R["barrier"]["at"], stop.get("from", "")) else ""
+        return key
+
+    def shut_on(self, route: list[str]) -> tuple[int, str, str] | None:
+        """The first stretch of a route over a road shut to the player: (its index, the road's id, why), or None."""
+        shut = self.shut_roads()
+        if not shut:
+            return None
+        for i, (x, y) in enumerate(zip(route, route[1:])):
+            key = self.shut_stretch(x, y, shut)
+            if key:
+                return i, key, shut[key]
+        return None
+
+    def route_round(self, start: str, dest: str) -> tuple[list[str], int] | None:
+        """The quickest walk from start to dest that sets foot on no road shut to the player now, or None when there is none."""
+        import heapq
+        shut = self.shut_roads()
+        best, came, queue = {start: 0}, {start: None}, [(0, start)]
+        while queue:
+            cost, here = heapq.heappop(queue)
+            if here == dest:
+                route = []
+                while here is not None:
+                    route.append(here)
+                    here = came[here]
+                return route[::-1], cost
+            if cost > best[here]:
+                continue
+            for nxt in self.world.neighbors(here):
+                if self.shut_stretch(here, nxt, shut):
+                    continue
+                c = cost + self.world.travel_minutes(here, nxt)
+                if c < best.get(nxt, float("inf")):
+                    best[nxt], came[nxt] = c, here
+                    heapq.heappush(queue, (c, nxt))
+        return None
+
+    def barrier_minutes(self, stretches: list[tuple[str, str, int]], barrier: tuple) -> int:
+        """How long the walk to the barrier takes: the stretches before the shut one, and the part of it walked before the barrier."""
+        i, key = barrier[0], barrier[1]
+        a, b, m = stretches[i]
+        return max(1, sum(m_ for _, _, m_ in stretches[:i]) + max(1, round(roads.barrier_frac(self.world, a, b, key, R["barrier"]["at"]) * m)))
+
+    def met_closure(self, key: str) -> bool:
+        """Has the acting character met this closure at its barrier (so their walks go round it, or are refused before setting out)?"""
+        state = self.store.load_world_state() or {}
+        return any(e["kind"] == "closed" and e["place"] == key and e["until"] > self.minutes and self.acting in (e.get("met_by") or [])
+                   for e in state.get("effects", []))
+
+    def meet_closure(self, key: str) -> None:
+        state = self.store.load_world_state() or {}
+        for e in state.get("effects", []):
+            if e["kind"] == "closed" and e["place"] == key and e["until"] > self.minutes and self.acting not in (e.get("met_by") or []):
+                e["met_by"] = list(e.get("met_by") or []) + [self.acting]
+        self.store.save_world_state(state)
+
+    def meet_barrier(self, route: list[str], stretches: list, barrier: tuple, text: str, log: list[str], walked: int) -> None:
+        """The walk comes to where a situation has shut the road: a stop on the road at the barrier, told; the way back open, the way
+        on shut until the situation lifts it (no pushing through, as a hazard may be got past), the long way round named when there is
+        one."""
+        i, key, why = barrier
+        a, b, m = stretches[i]
+        r = self.world.roads[key]
+        B = R["barrier"]
+        name = r.name[:1].upper() + r.name[1:]
+        stop = roads.make_stop(self.world, a, b, roads.barrier_frac(self.world, a, b, key, B["at"]), m, why, "", f"{name} shut", why)
+        ends = list(stop["place"]["connects"])
+        stop.update(log=log[-6:], text=text, resume="", bound=route[-1], kind="barrier", tier="normal", barrier=key, behind=ends[0])
+        if (self.player.road or {}).get("id") not in stop["place"]["connects"]:
+            self.leave_road(stop["id"])                     # the stop they set out from is tidied away, as a road event's is
+        self.player.road = stop
+        self.ensure_road_place()
+        self.enter(stop["id"])
+        self.meet_closure(key)
+        back, onward = self.world.places[ends[0]].name, self.world.places[ends[-1]].name
+        happened = (f" On the way (the player has read this already: do not tell it again): {' '.join(log[-4:])}") if log else ""
+        self.narrate(f"After {clock.describe_duration(walked)} on foot, the player comes to where {r.name} is shut: {why.rstrip('.')}."
+                     f"{happened} Tell the road, then what bars the way, as it is seen. The way on cannot be passed here while it is "
+                     "shut. The scene ends before the player does anything: whether to turn back or go round is theirs.", text)
+        around = self.route_round(stop["id"], route[-1])
+        dest = self.world.places[route[-1]].name
+        rnd = B["round"].format(dest=dest, time=clock.walk_words(around[1])) if around else B["none"].format(dest=dest)
+        console.note(B["meet"].format(onward=onward, back=back, round=rnd))
+        self.show_exits()
+        self.store.save_player(self.player)
 
     def finish_journey(self, route: list[str], walk: int, text: str, log: list[str]) -> None:
         dest = route[-1]
@@ -82,8 +216,10 @@ class RoadActions:
         passing = f" They pass through {', '.join(via)} on the way." if via else ""
         named = [r for r in (self.world.road_between(a, b) for a, b in zip(route, route[1:])) if r]
         if named:
+            state = self.store.load_world_state() or {}
+            marks = [f"On {r.name}: {'; '.join(pulse.road_marks(state, r.id)[-2:])}." for r in named[:2] if pulse.road_marks(state, r.id)]
             passing = f" They travel by {', then '.join(r.name for r in named)}: " + \
-                " ".join(r.description for r in named[:2]) + (passing or "")
+                " ".join(r.description for r in named[:2]) + (" " + " ".join(marks) if marks else "") + (passing or "")   # (f540)
         happened = (f" On the way (the player has read this already, back where it happened on the road: do not tell it again or put it "
                     f"here): {' '.join(log[-4:])}") if log else ""      # (f406) a dropped ledger on the road was told again, lying at the hollow
         if walk < 45 and self.quiet_return(log, text):                     # (f349) back somewhere seen, nothing new: a line, and no narrator;
@@ -140,10 +276,11 @@ class RoadActions:
 
     def journey_facts(self, route, a, b, walked: int) -> str:
         """(f408) Where the player set out from, where they are bound, the road they are on and how long they have walked."""
-        r = self.world.road_between(a, b)
+        r = self.world.road_between(a, b) or self.world.roads.get(roads.way_key(self.world, a, b))   # (f540's review) from a stop too
         way = r.name if r else f"the way toward {self.world.places[b].name}"
+        marks = pulse.road_marks(self.store.load_world_state() or {}, r.id) if r else []      # (f540) what the road carries now
         return (f"set out from {self.world.places[route[0]].name}, bound for {self.world.places[route[-1]].name}; now on {way}, "
-                f"{clock.describe_duration(max(5, walked))} into the walk")
+                f"{clock.describe_duration(max(5, walked))} into the walk" + (f"; on this road: {'; '.join(marks[-3:])}" if marks else ""))
 
     def journey_line(self, route, a, b, walked: int) -> str:
         """(f408) The walk before a happening, when the model gave none: where from, where to, by what road, how long."""
@@ -253,7 +390,7 @@ class RoadActions:
                 self.wildlife = None
                 if self.owns("scout_ahead"):
                     for e in enemies:
-                        e.statuses["unaware"] = 1         # Scout Ahead: you saw them first, and they have not seen you
+                        effects.put_status(e, "unaware", 1)     # Scout Ahead: you saw them first, and they have not seen you (raw, on purpose)
                 from scenes.combat_scene import CombatScene
                 self.combat = CombatScene.begin(self, creature, enemies, f"On the road,")
                 if self.owns("scout_ahead") and self.combat is not None:

@@ -188,6 +188,17 @@ shown_later:
   - "Something settled before you went away, unspoken then. Here it is."
   - "A moment from before, kept for your return."
   - "This was so when you left, and was never told. It is told now."
+# (f507) A fight saved mid-round that this game could not take up again (a row of an older shape, or one that could not be read): the
+# fight is let go of, never the game, and the player is told so once at the next load, in the narrator's voice. (f512) The owner's own
+# six lines, 2026-11-04; (f513) the words that named a kind of place (a road, grass, a deserted spot) or had the player walk off made
+# neutral at the owner's word, since the line is shown wherever the save left the player: a cave, a street, a hall, a field.
+fight_let_go:
+  - "The fight is over. What became of your enemies, you cannot say. For now, the way is clear."
+  - "You return to find the fighting done. Of those you fought here, there is no sign."
+  - "Your foes have gone. You linger a moment, listening, but hear nothing of them."
+  - "No clash of steel greets your return. Whatever happened here after you left, it is finished."
+  - "The fight ended in your absence. Whether your enemies fled or met some other fate, you do not know."
+  - "All is quiet where you fought. You look once more around you, then put it behind you."
 # A fight round whose telling could not be written: the numbers carry the blows.
 round_stood:
   - "The round is fought and done. The blows went untold, but every one of them landed where the numbers say."
@@ -212,3 +223,69 @@ goddess_silent:
   - "I reached for words and found only cold. Never mind them. You are not finished yet."
   - "Little one... I lose things, down here. The thing I would have said is one of them. The breath I give you is not."
   - "Not the words I wanted. They slipped. Take the warmth instead, and go."
+# (f498) A fight begun whose opening could not be written: the fight is on, told plainly, with who came ({foe}) and how many ({count}).
+fight_begun:
+  - "A fight is on: {foe}, {count}. The ground and the light will have to wait; the blows will not."
+  - "It comes to blows before there is time to say how. {foe}, {count}, closing fast."
+  - "No telling how it opened, only that it has: {foe}, {count}, and the first moves already made."
+  - "The quiet breaks. {foe}, {count}, and the fight is joined where you stand."
+  - "What began it is lost in the rush of it: {foe}, {count}, and your weapon already in hand."
+  - "They are on you: {foe}, {count}. Whatever was said is said; now it is steel."
+
+# (f525, engine/failures.py; the lines read and approved by the owner on 6 Nov, f527) Creation and the opening go on through an outage.
+# creation_fail: the goddess's own words when a creation call failed (the player's line not read, the concept not read, the gifts or the
+# traits not shaped); nothing is lost and the step is asked again. One list per kind, three lines at least, never the one shown last.
+creation_fail:
+  interpret:
+    - "Her gaze drifts, as if your words reached her from very far away. Say it to her once more."
+    - "The dark between you swallows what you said. She tilts her head and waits for you to say it again."
+    - "She leans closer, listening, but the words have slipped away from her. Tell her again."
+  concept:
+    - "She reaches for the shape of who you were and finds only mist. Nothing is lost. Tell her again who you wish to become."
+    - "The picture of you blurs in her hands before she can hold it. Describe it to her once more."
+    - "She closes her eyes, searching, and opens them with a gentle apology. Tell her again what you would become."
+  gifts:
+    - "The threads slip through her fingers before they can take a shape. Nothing is lost. Say yes again and she will try once more."
+    - "Your gifts will not settle in her hands just yet. Say yes again, and she will gather them anew."
+    - "Something in the weave unravels. She smiles, patient. Say yes once more."
+  traits:
+    - "What is innate in you will not show itself yet. Choose your three techniques again, and she will look once more."
+    - "She searches you for what you were born with and finds it hidden. Choose your three again."
+    - "The deeper threads stay tangled. Nothing is lost. Choose your three techniques once more."
+# creation_stand_in: what she says for the step she is on when her own words could not be written; the page moves on (a refused pick
+# still shows the "That can't be done: ..." note with its reason). One list per step.
+creation_stand_in:
+  name:
+    - "She waits, and the silence asks your name."
+    - "Her eyes rest on you, waiting to learn what you are called."
+    - "She tilts her head. What is your name, child?"
+  concept:
+    - "She waits to hear who you wish to become."
+    - "Her hands open in the dark, ready for the shape of your life."
+    - "Tell her who you would be. She is listening."
+  confirm_class:
+    - "She shows you what she sees in you, and waits to know if she has seen truly."
+    - "Is this you? Her look asks it plainly."
+    - "She holds the picture of you out to you, waiting for your word."
+  actives:
+    - "Before you lie the gifts already in you. She waits for you to choose three."
+    - "Choose three, her gaze says, and carry them back with you."
+    - "She nods toward what you might carry. Three of them are yours to take."
+  passives:
+    - "Now what you were born with. She waits for you to choose three."
+    - "Three more, she seems to say. The ones that are simply you."
+    - "She waits while you choose the three that were always in you."
+  stats:
+    - "She waits for you to shape your body and mind."
+    - "Your strength, your wits, your spirit: she leaves the shaping to you."
+    - "Make yourself as you would be, her silence says."
+  confirm_stats:
+    - "She looks at what you have made of yourself. Is this how you would be?"
+    - "This is the shape you chose. She waits for your word."
+    - "She waits to know if you are content to be made so."
+# opening_untold: the narrator's plain line when the game's opening passage (the first waking, or where a loaded game left off) could
+# not be written; the game reaches its first line all the same.
+opening_untold:
+  - "You draw a breath, and the world settles around you."
+  - "The ground is solid beneath you, and the day goes on."
+  - "You take in your surroundings, and the world takes you in."

@@ -92,3 +92,17 @@ chain:                               # a posting that turns out to have more beh
   days: 7
 issuer_thanks_trust: 5               # what the issuer thinks of the player once the job is done
 done_danger: {value: -15, days: 5}   # a hunt or bounty done makes its place safer for a while
+
+# (f545's review) Other words a trade is called by, for who a carried thing is meant for (engine/quests.py names_person): "the
+# blacksmith" is the smith, "the captain" the watch captain. A trade's own name and its plural need no entry.
+recipient_words:
+  smith: [blacksmith]
+  watch_captain: [captain]
+  guard: [guardsman, guardswoman, watchman]
+  fisher: [fisherman, fisherwoman]
+  priest: [priestess]
+  noble: [nobleman, noblewoman]
+# (f545's review) Words said before a name that are no part of it ("Captain Garrick", "old Marta", "Mother Ysolde"): left out when
+# finding the one name a delivery's words give.
+recipient_titles: [captain, lady, lord, mother, father, old, young, sister, brother, master, mistress, sir, dame, goodwife, goodman,
+                   aunt, uncle, elder, granny, gran]

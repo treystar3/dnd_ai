@@ -91,9 +91,9 @@ class PassivesInBackground:
     """Passives only need the NAMES of the fifteen actives, so they are written while the player reads and picks abilities.
     result() waits for them (with a short note if they are not ready) and tries once more, blocking, if the background attempt failed."""
 
-    def __init__(self, interp: ClassInterpretation, actives: list[Ability]):
+    def __init__(self, interp: ClassInterpretation, actives: list[Ability], session_key: str | None = None):
         import threading
-        self.interp, self.actives = interp, actives
+        self.interp, self.actives, self.session_key = interp, actives, session_key
         self.value: list[Passive] | None = None
         self.error: Exception | None = None
         self.done = threading.Event()
@@ -101,8 +101,10 @@ class PassivesInBackground:
         self.thread.start()
 
     def _run(self) -> None:
+        from llm import backend
         try:
-            self.value = generate_passives(self.interp, self.actives)
+            with backend.lane("background", session=self.session_key):     # (f523) written in the player's reading time
+                self.value = generate_passives(self.interp, self.actives)
         except Exception as e:                     # reported by result(), which retries
             self.error = e
         finally:
@@ -113,7 +115,10 @@ class PassivesInBackground:
         return self.done.is_set()
 
     def result(self) -> list[Passive]:
-        self.done.wait()
+        from llm import backend
+        if not self.done.is_set():
+            backend.promote(self.thread)               # (f523) the player is waiting on it now: it keeps the card and starts at once
+            backend.waiting(self.done.wait)            # (f523's review) through the layers: the busy light shows while the player waits
         if self.value is not None:
             return self.value
         return generate_passives(self.interp, self.actives)

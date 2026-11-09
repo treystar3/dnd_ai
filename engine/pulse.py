@@ -18,7 +18,7 @@ from pathlib import Path
 
 import yaml
 
-from engine import clock, events, pulselog
+from engine import clock, events, pulselog, roads
 from engine import pulse_prompts as pp
 from llm.contracts import MotiveStep, ThreadProposal
 from llm.gateway import LLMError, generate
@@ -37,14 +37,28 @@ def empty_state(now: int) -> dict:
 
 # ---------- reading the world's state ----------
 
-def active_effects(state: dict, now: int, kind: str, place: str) -> list[dict]:
-    return [e for e in state.get("effects", []) if e["kind"] == kind and e["place"] == place and e["until"] > now]
+def active_effects(state: dict, now: int, kind: str, place: str, good: str = "") -> list[dict]:
+    """The effects of this kind live at this place. (f545) A price rise on one good (its `good`) counts only when that good is asked
+    about: a scarce salt is no dearer bread."""
+    return [e for e in state.get("effects", []) if e["kind"] == kind and e["place"] == place and e["until"] > now
+            and (not e.get("good") or e["good"] == good)]
 
 
 def known(world, place_id) -> bool:
     """A real place of the world - not a stop on the road, which exists only while the player stands on it."""
     p = world.places.get(place_id or "")
     return bool(p) and p.type != "road"
+
+
+def shut_roads(state: dict, world, t: int) -> set[str]:
+    """(f540's review) The named roads a closure holds shut now (a closure the player made themselves aside)."""
+    return {e["place"] for e in state.get("effects", []) if e["kind"] == "closed" and e["until"] > t and e["place"] in world.roads
+            and e.get("cause") != "improvised"}
+
+
+def road_marks(state: dict, road_id: str) -> list[str]:
+    """(f540) The lasting marks a road carries (a cart in the ditch, a new cut), the newest last."""
+    return list((state.get("road_marks") or {}).get(road_id or "", []))
 
 
 def home_town(world, place_id: str) -> str:
@@ -65,10 +79,11 @@ def town_of(world, place_id: str) -> str:
     return p.id if p else place_id
 
 
-def price_factor(store, world, place_id: str, now: int) -> float:
+def price_factor(store, world, place_id: str, now: int, good: str = "") -> float:
+    """How dear the town's market is now; (f545) for `good`, with what is laid on that good alone."""
     town = town_of(world, place_id)
     state = store.load_world_state()
-    return 1 + sum(e["value"] for e in active_effects(state, now, "prices", town)) / 100
+    return 1 + sum(e["value"] for e in active_effects(state, now, "prices", town, good)) / 100
 
 
 def danger_factor(store, place_id: str, now: int) -> float:
@@ -118,10 +133,29 @@ def happenings_at(store, world, place_id: str, now: int) -> list[str]:
             sign = threads.signs_for(t, (now - since) // 1440)                                # (f356) on its second day and after, a sign in turn
             if sign:
                 out.append(sign)
+    told = set()
     for e in state.get("effects", []):
         if e["kind"] == "closed" and e["place"] == place_id and e["until"] > now:
             out.append(f"The player has barred the way here themselves, and can unbar it: {e['text']}" if e.get("cause") == "improvised"
                        else f"The way is closed: {e['text']}")                                # (f386) theirs, said as theirs
+        elif e["kind"] == "closed" and e["until"] > now and e["place"] in world.roads and e["place"] not in told:
+            r = world.roads[e["place"]]                                                       # (f540) a road shut, told at both its ends,
+            ends = [x for x in (r.from_, r.to) if x in world.places]                         # so the town says what travel will meet
+            if any(town_of(world, x) == town for x in ends):
+                told.add(e["place"])
+                far = next((x for x in ends if town_of(world, x) != town), "")
+                out.append(f"The road{' to ' + world.places[far].name if far else ''} ({r.name}) is closed: {e['text']}")
+    p = world.places.get(place_id)
+    if p is not None and p.type == "road" and not p.parent and len(p.connects or {}) == 2:     # (f541) a stop on a shut road: the barrier
+        r = world.road_between(*list(p.connects))
+        hit = next((e for e in state.get("effects", []) if r is not None and e["kind"] == "closed" and e["place"] == r.id
+                    and e["until"] > now and e.get("cause") != "improvised"), None)
+        if hit is not None and r.id not in told:
+            far = roads.far_side(world, place_id, r.id, roads.R["barrier"]["at"])                # (f541's review) here, or further on
+            total = sum(p.connects.values()) or 1
+            mark = abs(p.connects[r.from_] - roads.R["barrier"]["at"] * total) <= max(1, 0.02 * total)
+            out.append(f"The road ({r.name}) is shut here: {hit['text']}" if mark else
+                       f"The road ({r.name}) is shut further on, toward {world.places[far].name}: {hit['text']}")
     return out
 
 
@@ -277,6 +311,12 @@ def catch_up(store, world, catalog, now: int) -> dict:
     return deltas
 
 
+def add_history(state: dict, text: str, place: str, t: int) -> None:
+    """(f484) One line of the world's history: the one writer, the record held to its cap (pulse.yaml history_keep) at every append."""
+    state.setdefault("history", []).append({"minute": int(t), "text": text, "place": place})
+    del state["history"][:-int(P.get("history_keep", 200))]
+
+
 FINISHED_KEPT = 30
 LAST = {"made_by": "", "attempted": ""}   # who made the situation start_thread started last: 'engine' or 'model' (read by catch_up for the budget);
                                           # (f466) and who was asked to, whatever came of it: a model call made counts against the cap
@@ -397,7 +437,8 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     row = pulselog.note("thread", thread_row_text(tier, bool(info), proposal.title, world.places[proposal.place].name, days, rule["stages"]),
                         tier=tier, place=proposal.place, town=town_of(world, proposal.place), made_by=thread["made_by"], here=here,
                         reach=any(x["id"] == thread_id for x in within_reach(store, world, state, t)))
-    apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row)
+    apply_effects(store, world, catalog, state, proposal.stages[0].effects, tier, t, thread["title"], thread_id=thread_id, row=row,
+                  ways=True)                                         # (f540) its paths are built below: unshut_without_way decides then
     from engine import matters                                      # (f317) the door the player meets it through, and what it carries
     reputation = store.load_player().reputation.get(town_of(world, proposal.place), 0) if store.player_exists() else 0
     matters.attach(store, world, state, thread, proposal, reputation, rng, t, door=door)
@@ -408,8 +449,13 @@ def start_thread(store, world, catalog, state, t, rng, tier: str | None = None, 
     thread["paths"] = events.build_paths(store, world, state, proposal.paths, thread, posted and not thread["hidden"])
     if big and not thread["paths"]:                                  # a big event the model left with no checkable way to end it gets one
         events.ensure_a_way(store, world, state, thread, t, rng)
+    unshut_without_way(world, state, thread, t, row)                 # (f540's review) the only road shut only with a way through
     if big:
         thread["scope_places"] = sorted({e.place for st in proposal.stages for e in st.effects if e.place in world.places})
+    from engine import situations as _situations
+    if tier in ((_situations.S.get("births") or {}).get("tiers") or ()):
+        thread["parts_due"] = 0                                      # (f546) its parts asked for after the input's tail, in an operation
+                                                                     # of their own (engine/situation_parts.py birth)
     console.debug(f"pulse: [{tier}] {proposal.title} at {proposal.place}")
     return True
 
@@ -528,6 +574,12 @@ def tick_threads(store, world, catalog, state, t, rng) -> bool:
             elif th["tier"] in events.BIG:
                 events.sync_paths(state, th)
             changed = True
+        if th["status"] == "active":                              # (f540's review) a road it shuts stays shut its whole span, put off or not
+            for e in state.get("effects", []):
+                if e.get("thread") == th["id"] and (e["kind"] == "closed" and e["place"] in world.roads or e.get("part")) \
+                        and not e.get("lifted") and t < e["until"] < th["times"][-1] + 1440:   # (f545) and what its parts lay, the
+                                                                                            # same, but never a part done (lifted)
+                    e["until"] = int(th["times"][-1]) + 1440
         if th["status"] == "active" and t >= th["times"][-1]:
             if rng.random() < P["tiers"][th["tier"]]["resolved_by_others"]:
                 who = resolver(store, world, th, rng, t)
@@ -608,12 +660,14 @@ def end_thread(store, state, th, status: str, line: str, t: int) -> None:
             if circumstance.release_concern(n, th["id"], "settled" if status == "resolved" else "let_go", t,
                                             line=f"{th['title']} is over, and off my mind." if status == "resolved" else f"{th['title']} came to its end."):
                 store.save_npc(n)
+    if th.get("parts"):                                      # (f545) and the worries and moods its parts gave its people
+        from engine import situation_parts
+        situation_parts.release(store, th, status, t, state)
     th["status"] = status
     th["ended_at"] = t
     if state.get("campaign") == th["id"]:
         state["campaign"] = ""
-    state["history"].append({"minute": t, "text": line, "place": th["place"]})
-    state["history"] = state["history"][-200:]
+    add_history(state, line, th["place"], t)
     done = sorted([x for x in state.get("threads", []) if x["status"] != "active"], key=lambda x: x.get("ended_at", x.get("made", 0)))
     if len(done) > FINISHED_KEPT:                     # the finished records kept are the ones that ended last - never the one ending now,
         drop = {x["id"] for x in done[:-FINISHED_KEPT]}   # which used to be first out when it was the oldest made (a cataclysm, every time)
@@ -684,7 +738,7 @@ def move_motive(store, world, catalog, state, t, rng) -> bool:
     store.save_npc(npc)
     if step.gossip.strip():
         add_news(state, step.gossip.strip(), npc.location, t, [world.locals_group(npc.location) or "everyone"], certainty="they say")
-    state["history"].append({"minute": t, "text": f"{npc.name}: {step.happened}", "place": npc.location})
+    add_history(state, f"{npc.name}: {step.happened}", npc.location, t)
     console.debug(f"pulse: {npc.name} - {step.happened} [{step.status}]")
     return True
 
@@ -700,7 +754,9 @@ def relations_text(store, npc) -> str:
 # ---------- effects ----------
 
 def apply_effects(store, world, catalog, state, effects, tier: str, t: int, cause: str, raw: bool = False,
-                  thread_id: str = "", row: dict | None = None) -> None:
+                  thread_id: str = "", row: dict | None = None, ways: bool | None = None) -> None:
+    """`ways` (f540): whether the situation offers a way through it, for a closure of the only road between two places; None reads the
+    thread's own paths (a situation's first stage is applied before its paths are built, so start_thread says from its proposal)."""
     for e in effects:
         e = e if raw else e.model_dump()
         result = "applied"
@@ -708,7 +764,7 @@ def apply_effects(store, world, catalog, state, effects, tier: str, t: int, caus
             if e["kind"] in ("spawn", "camp", "seal"):
                 events.apply_big(store, world, catalog, state, e, tier, t, cause, thread_id)
             else:
-                result = apply_one(store, world, catalog, state, e, tier, t, cause, thread_id) or "applied"
+                result = apply_one(store, world, catalog, state, e, tier, t, cause, thread_id, ways=ways) or "applied"
         except Exception as err:  # an effect the world can't honor is simply dropped
             console.debug(f"pulse: dropped effect {e.get('kind')} ({err})")
             result = f"dropped: {err}"
@@ -719,9 +775,40 @@ def apply_effects(store, world, catalog, state, effects, tier: str, t: int, caus
                 pass
 
 
-def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str, thread_id: str = "") -> str:
+def thread_of(state: dict, thread_id: str) -> dict | None:
+    return next((x for x in state.get("threads", []) if x.get("id") == thread_id), None) if thread_id else None
+
+
+def ways_through(state: dict, thread_id: str, ways: bool | None = None) -> bool:
+    """(f540) Whether a situation offers the player a way through it (a path not yet taken): as said when known, else its own paths.
+    (f540's review) A situation that is over offers none: what its fallout lays is not a matter anyone can still settle."""
+    th = thread_of(state, thread_id)
+    if th is not None and th.get("status") != "active":
+        return False
+    if ways is not None:
+        return ways
+    return th is not None and any(not p.get("done") for p in th.get("paths") or [])
+
+
+def unshut_without_way(world, state: dict, thread: dict, t: int, row: dict | None = None) -> None:
+    """(f540's review) A situation's first stage is applied before its paths are built, as if it offered a way through; once they are
+    built, a situation left with none lifts its closures of a road that is the only way between its ends."""
+    if any(not p.get("done") for p in thread.get("paths") or []):
+        return
+    for e in state.get("effects", []):
+        if (e.get("thread") == thread["id"] and e["kind"] == "closed" and e["until"] > t and e["place"] in world.roads
+                and not roads.way_round(world, e["place"], shut_roads(state, world, t))):
+            e["until"] = t
+            if row is not None:
+                pulselog.effect(row, f"closed at {world.roads[e['place']].name}", "lifted: the only way between its ends, and the situation "
+                                "offers no way through it")
+
+
+def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: str, thread_id: str = "", ways: bool | None = None) -> str:
     """Apply one effect. Returns what happened, in words, for the debug log. A lasting effect (prices, danger, closed) is recorded with
-    the thread that made it (f331), so ending the thread lifts exactly its own."""
+    the thread that made it (f331), so ending the thread lifts exactly its own. (f540) A named road may be closed or marked as a place
+    may: a situation's closure lasts the situation (lift() ends it with the thread, max_days the safety), never a clock of its own; and
+    the only way between a road's two ends is closed only when the situation offers a way through it."""
     kind, lim = e["kind"], P["effects"]
     days = max(1, min(lim["max_days"], e.get("days") or 3))
     npc = store.load_npc(e["npc"]) if e.get("npc") and store.npc_exists(e["npc"]) else None
@@ -762,14 +849,26 @@ def apply_one(store, world, catalog, state, e: dict, tier: str, t: int, cause: s
         lo, hi = lim[kind]["min"], lim[kind]["max"]
         place = town_of(world, e["place"]) if kind == "prices" else e["place"]
         state["effects"].append({"kind": kind, "place": place, "value": max(lo, min(hi, e["value"])),
-                                 "until": t + days * 1440, "cause": cause, "thread": thread_id})
+                                 "until": t + days * 1440, "cause": cause, "thread": thread_id,
+                                 **({"good": e["good"]} if kind == "prices" and e.get("good") else {})})     # (f545) one good's price
     elif kind == "closed" and known(world, e.get("place")):
         state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": t + days * 1440,
                                  "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
+    elif kind == "closed" and e.get("place") in world.roads:
+        if not ways_through(state, thread_id, ways) and not roads.way_round(world, e["place"], shut_roads(state, world, t)):
+            return "skipped: the only way between its ends, and the situation offers no way through it"
+        th = thread_of(state, thread_id)
+        until = (max(t + lim["max_days"] * 1440, int((th.get("times") or [t])[-1]) + 1440)      # the situation's whole span (renewed in
+                 if th is not None and th.get("status") == "active" else t + days * 1440)      # tick_threads if it is put off); a fallout's
+        state["effects"].append({"kind": "closed", "place": e["place"], "value": 0, "until": until,
+                                 "text": e.get("text") or cause, "cause": cause, "thread": thread_id})
     elif kind == "mark" and known(world, e.get("place")) and e.get("text"):
         ps = store.load_place(e["place"])
-        ps.marks = (ps.marks + [e["text"]])[-12:]
+        ps.marks = (ps.marks + [e["text"]])[-lim["marks_keep"]:]
         store.save_place(ps)
+    elif kind == "mark" and e.get("place") in world.roads and e.get("text"):
+        marks = state.setdefault("road_marks", {})
+        marks[e["place"]] = (marks.get(e["place"], []) + [e["text"]])[-lim["marks_keep"]:]
     elif kind == "loot" and known(world, e.get("place")):
         from engine import inventory, loot
         place = world.places[e["place"]]
@@ -811,7 +910,7 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     'got away' read as a death. `mourned` False: the town does not grieve them whatever became of them (an outlaw held captive). Left
     None (a model's own words for it), the words are read for a death as before."""
     npc.gone = how
-    from engine import obligations                         # (f481) what they offered ends with them, for that reason
+    from engine import obligations, quests                 # (f481) what they offered ends with them, for that reason
     for e in obligations.open_ones(store, holder=npc.id):
         fam = e.data.get("family")
         obligations.close(store, e, "withdrawn" if fam == "work" else "released", "gone" if fam != "contract" else "issuer_gone", t, npc=npc)
@@ -825,7 +924,9 @@ def remove_npc(store, world, npc, how: str, t: int, dead: bool | None = None, mo
     player = store.load_player()
     c = player.character
     for q in list(player.quests):
-        if q.get("issuer") == npc.id or (q.get("kind") == "deliver" and q.get("to_name") and q["to_name"] in npc.name):
+        if q.get("issuer") == npc.id or (q.get("kind") == "deliver" and ((q.get("to_id") == npc.id) if q.get("to_id")
+                                                                       else quests.names_fully(npc, q.get("to_name") or ""))):   # by
+                # who they are, or their whole name: never a job for someone who shares a name with them (f545's review)
             player.quests.remove(q)
             obligations.close(store, obligations.find(store, str(q["id"])), "released", "issuer_gone", t)   # (f481)
             c.key_items = [k for k in c.key_items if k.id != f"quest_{q['id']}"]
@@ -913,7 +1014,8 @@ def context_for_place(store, world, catalog, state, place, t, big: bool = False)
     cond = towns.condition(store, world, place.id, t)                      # (f323) the state the town is in, what is settled, what the stranger did
     if cond.name != "calm":
         town_lines.append(f"THE TOWN IS {cond.name.upper()} ({cond.why}): what you write must fit that.")
-    settled = matters.town_memory(store, world, place.id, t)
+    from engine import town_memory
+    settled = matters.town_memory(store, world, place.id, t, only=town_memory.SETTLEMENTS)    # (f484) settlements, never a moment
     if settled:
         town_lines.append("SETTLED LATELY (it stays settled; do not start the same trouble again): " + "; ".join(settled))
     region = world.places[town].region if town in world.places else place.region

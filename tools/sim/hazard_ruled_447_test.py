@@ -38,12 +38,12 @@ game = simlib.campaign("hazard_ruled_447_test", seed=47, location="parth")      
 store, ws = game.store, game.scene
 hz = {"tier": "normal", "what": "A fissure has opened across the road.", "behind": "parth"}
 asked = []
-real = gateway._client
+real = simlib.below()                     # (f518) the stub answering now, taken before the spy goes in over it
 def chat(**k):
     if k["format"].get("title") == "Ruling":
         asked.append(k["messages"][-1]["content"])
     return real.chat(**k)
-gateway._client = types.SimpleNamespace(chat=chat)
+held = simlib.stand_in(chat=chat, embed=None)
 stub.ruling = {"sense": "cost", "why": "", "stakes": {"check": "dexterity", "hard": "hard"}}
 SHOWN.clear()
 ws.get_past(dict(hz), "I keep going")
@@ -56,10 +56,10 @@ check("a ruling that there is no pushing through sends them the long way round",
       and any("no pushing straight through" in t for _, t in SHOWN), SHOWN)
 n = len(asked); SHOWN.clear(); m0 = ws.minutes
 ws.get_past(dict(hz), "we go around it by the long way")
-check("going around asks for no ruling, and costs time", len(asked) == n and ws.minutes > m0, SHOWN)
+check("going around asks for no ruling, and costs time", len(asked) == n and held.live() and ws.minutes > m0, SHOWN)
 store.close()
 shutil.rmtree("saves/hazard_ruled_447_test", ignore_errors=True)
-gateway._client = real
+held()
 
 # ---- a line written in single quotes is quoted
 note = "On the page a hand has scrawled: 'I saw it, a light that didn't move, and I'm done walking those paths.' The wind turns it."
@@ -85,7 +85,7 @@ tries = {"n": 0}
 def answer(**k):
     tries["n"] += 1
     return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=json.dumps({"text": f"draft {tries['n']}"})))
-gateway._client = types.SimpleNamespace(chat=answer)
+held = simlib.stand_in(chat=answer, embed=None)
 def attempts(schema):
     tries["n"] = 0
     try:
@@ -95,7 +95,7 @@ def attempts(schema):
     return tries["n"]
 check("told the same thing twice and answered the same way, it stops: no third try", attempts(Always) == 2, tries)
 check("...while a draft that changes, and is told something new, gets its tries", attempts(Changing) == 3, tries)
-gateway._client = real
+held()
 
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

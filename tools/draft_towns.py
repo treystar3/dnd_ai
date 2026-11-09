@@ -11,7 +11,7 @@ is good. Nothing here is final until you have read it.
     python tools/draft_towns.py --town kelpmoor  one town (--overwrite to replace a profile that exists)
     python tools/draft_towns.py --dry           show the drafts without writing them
 
-Needs the model (Ollama) running, like the game."""
+Starts the game's own model server as the game does (tools/runtime_cli.py; --attach uses the open game's)."""
 from __future__ import annotations
 
 import argparse
@@ -262,7 +262,10 @@ def main(argv=None) -> int:
     ap.add_argument("--town", help="one town's id")
     ap.add_argument("--overwrite", action="store_true", help="replace a profile that already exists")
     ap.add_argument("--dry", action="store_true", help="show the drafts, write nothing")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     args = ap.parse_args(argv)
+    server = runtime_cli.load(args)                  # (f529) the game's own server, as the game starts it
     world = load_world()
     truth = yaml.safe_load((ROOT / "data" / "rules" / "truth.yaml").read_text(encoding="utf-8"))
     pulse = yaml.safe_load((ROOT / "data" / "rules" / "pulse.yaml").read_text(encoding="utf-8"))
@@ -304,6 +307,7 @@ def main(argv=None) -> int:
         done += 1
         print(f"  wrote {path.relative_to(ROOT)}: {len(data['landmarks'])} landmarks, {len(data['anchors'])} anchors, "
               f"{len(data['trouble'])} troubles, {len(data['festivals'])} festivals")
+    server.close()
     print(f"\n{done} profile(s) written. Read them before you play: they are drafts.")
     return 0
 

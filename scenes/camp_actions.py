@@ -10,6 +10,7 @@ import random
 import re
 
 from engine import arcs, checks, clock, combat, leveling
+from engine import effects
 from engine import party as party_rules
 from engine.arcs import A
 from llm.contracts import CampIntent
@@ -141,9 +142,9 @@ class CampActions:
         reserves = guards[A["camp_waves"]["first"]:]
         if surprise == "all":
             for f in first:
-                f.statuses["unaware"] = 1
+                effects.put_status(f, "unaware", 1)        # raw, on purpose: nothing a sleeper wears turns surprise aside
         if surprise in ("all", "leader"):
-            leader.statuses["unaware"] = 1
+            effects.put_status(leader, "unaware", 1)
         return [leader] + first, reserves
 
     def camp_roll(self, check: str, extra: list, label: str) -> str:
@@ -387,8 +388,8 @@ class CampActions:
         near, later = CombatScene.allies(self, hold=self.player.party_mode == "hold")
         fighters = [combat.fighter_from_character(c)] + near
         cmb = combat.Combat(fighters=fighters + [e.model_copy(deep=True) for e in enemies], place=self.place.name,
-                            conditions=sorted(self.conditions()))
-        cmb.reserves = [r.model_copy(deep=True) for r in reserves]
+                            conditions=sorted(self.conditions()))               # (f500) record False and no serial: an estimate's fight
+        cmb.reserves = [r.model_copy(deep=True) for r in reserves]               # draws nothing from the ids stream
         cmb.ally_reserves, cmb.ally_arrive = later, party_rules.P["hold_arrival_round"]
         cmb.reinforce_every, cmb.reinforce_count = A["camp_waves"]["every"], A["camp_waves"]["count"]
         return cmb

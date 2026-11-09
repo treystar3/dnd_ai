@@ -3,18 +3,17 @@
 invent a place the caves already hold, and nothing found. A spot inside where the player is (named by the place's own description or the
 passage they just read) is a short walk; fresh signs can be followed, and following them hunts that creature with better odds. And
 "search for silverleaf" was a hunt for tracks: looking for a plant is foraging for it."""
-import random, re, shutil, sys, types
+import random, re, shutil, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 CALLS = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                 # (f518) the stub answering now, taken before the spy goes in over it
 def chat(*a, **k):
     CALLS.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None, name="within_place_spy")
 import ui.console as uc
 for f in ("narrate", "note", "say", "npc_says", "dialogue", "ledger"):
     setattr(uc, f, lambda *a, **k: None)
@@ -62,7 +61,8 @@ before = ws.minutes
 stub.plan = [{"kind": "move", "destination": "dry chamber's threshold"}]
 ws.turn("go to the dry chamber's threshold")
 check("going where the signs led follows them: a hunt for that creature, not a search for somewhere new",
-      TRIED and TRIED[-1][1] == quarry.name and not any(t == "DiscoveryProposal" for t, _ in CALLS), (TRIED, [t for t, _ in CALLS]))
+      TRIED and TRIED[-1][1] == quarry.name and SPY.live() and any(t == "Narration" for t, _ in CALLS)       # (f518) the spy saw the turn's calls
+      and not any(t == "DiscoveryProposal" for t, _ in CALLS), (TRIED, [t for t, _ in CALLS]))
 check("...with better odds than the search that found them", TRIED and first_chance is not None and TRIED[-1][0] > first_chance, (first_chance, TRIED))
 check("...and it takes a search's time, not an expedition's", ws.minutes - before < 60, ws.minutes - before)
 CALLS.clear(); TRIED.clear()

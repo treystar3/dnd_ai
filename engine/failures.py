@@ -16,7 +16,7 @@ import yaml
 from engine import streams
 
 F = yaml.safe_load((Path(__file__).resolve().parent.parent / "data" / "rules" / "failures.yaml").read_text(encoding="utf-8"))
-MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|ollama|crash|failed|failure)\b", re.I)
+MACHINERY = re.compile(r"\b(model|llm|json|error|errors|answer|server|crash|failed|failure|llama|gpu|vulkan|cuda|slot)\b", re.I)
 _last: dict[str, str] = {}
 
 
@@ -50,9 +50,11 @@ def lines() -> list[str]:
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 DASH = re.compile(r"\u2014|\u2013|--| - ")
 FACTS = {"what": "a bundle of herbs", "who": "the smith", "amount": "12 copper", "done": "the herbs bought", "xp": "40", "coins": "9 copper",
-         "fallen": "the wolf", "found": "a worn knife"}                 # sample facts the startup check fills every template with
+         "fallen": "the wolf", "found": "a worn knife", "foe": "wolf", "count": "two of them"}   # sample facts the startup check fills every template with
 STAND_INS = {"stood_any": set(), "part_stood": {"done"}, "shown_later": set(), "round_stood": set(),
-             "victory_stood": {"xp", "coins", "fallen", "found"}, "goddess_silent": set()}      # the placeholders each list may use
+             "victory_stood": {"xp", "coins", "fallen", "found"}, "goddess_silent": set(),
+             "fight_begun": {"foe", "count"}, "fight_let_go": set()}     # the placeholders each list may use; (f498) a fight's opening untold;
+#                                                                           (f507) a saved fight this game could not take up again
 STOOD_PLACEHOLDERS = {"what", "who", "amount"}
 
 
@@ -98,6 +100,11 @@ def shown_later(rng: random.Random | None = None) -> str:
     return _fill("shown_later", F["shown_later"], {}, rng)
 
 
+def fight_let_go(rng: random.Random | None = None) -> str:
+    """(f507) A fight saved mid-round that could not be taken up again (an older shape, an unreadable row): let go, told once at load."""
+    return _fill("fight_let_go", F["fight_let_go"], {}, rng)
+
+
 def round_stood(rng: random.Random | None = None) -> str:
     """A fight round whose telling could not be written: the numbers carry the blows."""
     return _fill("round_stood", F["round_stood"], {}, rng)
@@ -111,6 +118,58 @@ def victory_stood(facts: dict | None = None, rng: random.Random | None = None) -
 def goddess_silent(rng: random.Random | None = None) -> str:
     """The goddess at a death whose words could not be written: her own lines, in her voice."""
     return _fill("goddess_silent", F["goddess_silent"], {}, rng)
+
+
+# ---- (f525) creation and the opening go on through an outage. Each list is read with an empty default: until the owner has read its
+# lines (f527 adds them to failures.yaml) behaviour is today's, so a creation call failing still shows today's line, and a goddess
+# line or the opening narration failing still ends the game.
+
+CREATION_FAILS = ("interpret", "concept", "gifts", "traits")      # the four places creation tells the player a call failed
+CREATION_STEPS = ("name", "concept", "confirm_class", "actives", "passives", "stats", "confirm_stats")   # the steps she speaks on (the
+# farewell is the fixed send-off, data/send_off.json, never a written line)
+
+
+def creation_line(kind: str, rng: random.Random | None = None) -> str | None:
+    """(f525) The goddess's own words when a creation call failed (the player's line not read, the concept not read, the gifts or the
+    traits not shaped): nothing is lost, the step is asked again. None until the owner's lines are in, so today's line stands."""
+    got = (F.get("creation_fail") or {}).get(kind) or []
+    return _pick_from(f"creation_fail.{kind}", got, rng) if got else None
+
+
+def creation_stand_in(step: str, rng: random.Random | None = None) -> str | None:
+    """(f525) What the goddess says for the step she is on when her own words could not be written; the page moves on. None until the
+    owner's lines are in."""
+    got = (F.get("creation_stand_in") or {}).get(step) or []
+    return _pick_from(f"creation_stand_in.{step}", got, rng) if got else None
+
+
+def opening_untold(rng: random.Random | None = None) -> str | None:
+    """(f525) The narrator's plain line when the game's opening passage (the first waking, or where a loaded game left off) could not be
+    written: the game reaches its first line all the same. None until the owner's lines are in."""
+    got = F.get("opening_untold") or []
+    return _pick_from("opening_untold", got, rng) if got else None
+
+
+def _pick_from(key: str, lines_: list, rng: random.Random | None) -> str:
+    pick = [l for l in lines_ if l != _last.get(key)] or lines_
+    line = (rng or streams.get("scene")).choice(pick)
+    _last[key] = line
+    return line
+
+
+COUNT_WORDS = ("one alone", "two of them", "three of them", "four of them", "five of them", "six of them", "seven of them", "eight of them",
+               "nine of them", "ten of them")
+
+
+def count_phrase(n: int) -> str:
+    """(f498) How many came: 'one alone', 'two of them', ... '14 of them'."""
+    return COUNT_WORDS[n - 1] if 1 <= n <= len(COUNT_WORDS) else f"{n} of them"
+
+
+def fight_begun(facts: dict | None = None, rng: random.Random | None = None) -> str:
+    """(f498) A fight begun whose opening could not be written: the fight is on (its row saved, its pane shown) and the player is told so
+    in the narrator's words, with who came ({foe}) and how many ({count}); the round's telling then carries the blows."""
+    return _fill("fight_begun", F["fight_begun"], facts or {}, rng)
 
 
 def problems(data: dict | None = None) -> list[str]:
@@ -149,6 +208,19 @@ def problems(data: dict | None = None) -> list[str]:
         look(key, d.get(key) if isinstance(d, dict) else None, least, None)
     for key, allowed in STAND_INS.items():
         look(key, d.get(key) if isinstance(d, dict) else None, 6, allowed)
+    for key in ("creation_fail", "creation_stand_in"):                 # (f525) empty until the owner reads them; checked once they are in
+        got = d.get(key) if isinstance(d, dict) else None
+        names = CREATION_FAILS if key == "creation_fail" else CREATION_STEPS
+        if got is not None and not isinstance(got, dict):
+            bad.append(f"failures.yaml {key}: one list per {'kind' if key == 'creation_fail' else 'step'}")
+            continue
+        for name, lines_ in (got or {}).items():
+            if name not in names:
+                bad.append(f"failures.yaml {key}.{name}: no such {'kind' if key == 'creation_fail' else 'step'} (one of {', '.join(names)})")
+            elif lines_:
+                look(f"{key}.{name}", lines_, 3, set())
+    if isinstance(d, dict) and d.get("opening_untold"):
+        look("opening_untold", d.get("opening_untold"), 3, set())
     stood = d.get("stood") if isinstance(d, dict) else None
     if not isinstance(stood, dict):
         bad.append("failures.yaml stood: needs one list per kind of ledger row")

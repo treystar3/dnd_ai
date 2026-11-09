@@ -13,13 +13,15 @@ about (--persona; a night rotates through them), a level band it keeps to on roa
 from what the game just said, so a conversation's second line answers the first. The real model reads them. summary.md ends with
 the measures of how player-like the run was: distinct lines, lines picking up the passage before, contracts finished, situations
 followed and ended by the player, deaths above the band. The run keeps
-every log in full under logs/nightrun/<when>/: every model call with Ollama's own counts (tokens read and written, the time each
+every log in full under logs/nightrun/<when>/: every model call with the server's own counts (tokens read and written, the time each
 took, model loads), every turn with its wall time, the time to its first word, the calls and retries it took, and a transcript.
 At the end tools/latency.py writes summary.md there; it can be run again on the folder at any time.
 
 The character starts past Maren's tutorial (--level 13, in a save of its own that the home page never lists), so the run is
 ordinary play: towns, roads, talk, fights; --level 1 plays the tutorial too, though the bot does not know her script and may wander. --stub plays with the stand-in model instead (the test suite uses it) and measures
-nothing real. Ollama must be running with the game's model downloaded; the run stops on its own if the model stops answering.
+nothing real. (f529) A run starts the game's own model server as the game does (tools/runtime_cli.py: runtime/ and models/, fetched
+by tools/fetch_runtime.py) and stops it at its end, so what it measures is what a player gets; --attach uses the open game's server
+instead. Runs at once (--parallel) are as many servers, one a process. The run stops on its own if the server fails twice.
 """
 from __future__ import annotations
 
@@ -53,18 +55,21 @@ def die(message: str) -> None:
     sys.exit(1)
 
 
-def wait_for_server(seconds: int = 600, every: int = 10, up=None, sleep=time.sleep) -> bool:
-    """(f370) Ollama restarting (a reinstall, a pinning, a crash) is minutes of nothing answering, not a reason to end a night: wait for
-    it, up to `seconds`, and say whether it came back. `up` and `sleep` are for the test."""
-    from llm import setup_check
-    up = up or setup_check.server_up
+def server_back(seconds: int = 600, every: int = 5, state=None, sleep=time.sleep) -> bool:
+    """(f529) The game's own server restarts itself once when it dies (llm/runtime.py _died); a run that met the death waits for it to be
+    ready again, up to `seconds`, and says whether it is. A server that has failed for good is not waited for. `state` and `sleep` are
+    for the test."""
+    from llm import backend
+    state = state or backend.state
     waited = 0
-    while not up():
-        if waited >= seconds:
+    while True:
+        now = state()
+        if now == "ready":
+            return True
+        if now == "failed" or waited >= seconds:
             return False
         sleep(every)
         waited += every
-    return True
 
 
 class Run:
@@ -128,36 +133,35 @@ class Run:
         self.transcript.write(f"_{text.strip()}_\n\n")
 
     # ---- the model client: every call counted against the turn it served
-    def install_client(self) -> None:
-        from llm import gateway as gw
-        client = gw._client
-        real_chat, real_embed = client.chat, getattr(client, "embed", None)
+    def install_client(self):
+        """(f517) The night's counter, a layer of the model interface (llm/backend.py, rank COUNTER, inside the recorder as when both
+        patched the client): every chat and embed the game makes, counted against the turn it served. `main` is still the main thread,
+        where the harness plays the game (R2): the people written behind the scenes run on their own threads. The model's warm-up at
+        the home page is not the game's and is not counted. Returns the handle that takes it off."""
+        from llm import backend
         main = threading.main_thread()
 
-        def chat(**k):
+        def layer(op, request, call):
+            if op not in ("chat", "embed"):
+                return call(request)
             t0 = time.perf_counter()
             ok = True
             try:
-                return real_chat(**k)
+                return call(request)
             except Exception:
                 ok = False
                 raise
             finally:
-                msgs = k.get("messages") or []
-                self.calls.append({"kind": "chat", "schema": (k.get("format") or {}).get("title", "?"), "seconds": time.perf_counter() - t0,
-                                   "retry": len(msgs) > 2, "ok": ok, "main": threading.current_thread() is main})
+                if op == "chat":
+                    self.calls.append({"kind": "chat", "schema": request.schema.model_json_schema().get("title", "?"),
+                                       "seconds": time.perf_counter() - t0, "retry": len(request.messages or []) > 2, "ok": ok,
+                                       "main": threading.current_thread() is main})
+                else:
+                    self.calls.append({"kind": "embed", "schema": "", "seconds": time.perf_counter() - t0, "retry": False, "ok": True,
+                                       "main": threading.current_thread() is main, "texts": len(request or [])})
 
-        def embed(**k):
-            t0 = time.perf_counter()
-            try:
-                return real_embed(**k)
-            finally:
-                self.calls.append({"kind": "embed", "schema": "", "seconds": time.perf_counter() - t0, "retry": False, "ok": True,
-                                   "main": threading.current_thread() is main, "texts": len(k.get("input") or [])})
-
-        client.chat = chat
-        if real_embed is not None:
-            client.embed = embed
+        self.unwrap = backend.wrap(layer, rank=backend.COUNTER)
+        return self.unwrap
 
     # ---- the prompt: the bot answers; the harness times the turn around it
     def ask(self, main: bool = False, menu: bool = False) -> str:
@@ -200,6 +204,7 @@ class Run:
                    outcomes=[{k: (str(v)[:160] if isinstance(v, str) else v) for k, v in o.items()} for o in self.last_outcomes()])
         from engine import budget as _budget                                               # (f468) the budget's own measures, apart from hesitations
         row.update(budget_seconds=int(_budget.LAST.get("estimated") or 0), required_seconds=_budget.LAST.get("required") or 0,
+                   budget_cached=bool(_budget.CACHED),                     # (f538) priced without the prompt the server reused
                    deferred=list(_budget.LAST.get("deferred") or []), dropped=list(_budget.LAST.get("dropped") or []),
                    stand_ins=list(_budget.LAST.get("stand_ins") or []),
                    recovered=int(getattr(getattr(self.bot, "ws", None), "recovered_at_load", 0) or 0) if row["n"] == 1 else 0)   # (f471)
@@ -285,7 +290,8 @@ class Run:
                         deeds.append({"kind": r.get("kind", ""), "minute": r.get("minute"), "place": (r.get("data") or {}).get("place", ""),
                                       "target": r.get("target", ""), "witnesses": list(w)[:12], "text": str(r.get("text", ""))[:120]})
             self._deed_seq = max([r["seq"] for r in rows], default=last or 0)
-            return {"partner": getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
+            open_talk = ws.store.load_talk() or {}                                       # (f485) the open conversation, as the save keeps it
+            return {"partner": open_talk.get("speaker", "") or getattr(getattr(ws, "partner", None), "id", "") or "", "talk": talk, "owed": owed, "closed": closed,
                     "commitments": sum(1 for m in p.party for c in (m.get("commitments") or []) if c.get("state", "active") == "active"),   # (f481) held
                     "deeds": deeds}
         except Exception as e:
@@ -307,13 +313,9 @@ class Run:
                 return f"12 turns failed in a row ({self.crash_streak} of them the game's own fault, crash.log)"
             return "the model stopped answering (12 turns failed in a row)"
         if self.live and self.hesitations >= 3:
-            from llm import setup_check
-            if not setup_check.server_up():
-                print("Ollama is not answering: waiting for it to come back (up to ten minutes)...", flush=True)
-                if wait_for_server():
-                    self.hesitations = 0
-                else:
-                    return "Ollama stopped answering"
+            from llm import backend
+            if backend.state() == "failed":                                   # (f529) the game's own server died twice (llm/runtime.py)
+                return "the model server failed"
         return ""
 
     def finish(self, extra: dict) -> None:
@@ -449,7 +451,8 @@ def batch(args) -> None:
         save = f"{args.save or 'nightrun_' + stamp}_{cls}_{seed}"
         cmd = [sys.executable, str(Path(__file__).resolve()), "--hours", str(args.hours), "--turns", str(args.turns), "--class", cls, "--level", str(args.level),
                "--seed", str(seed), "--party", str(args.party), "--out", str(out), "--save", save, "--start", start, "--persona", persona] \
-            + (["--stub"] if args.stub else []) + (["--record"] if args.record else [])     # (f444) each run keeps its recording
+            + (["--stub"] if args.stub else []) + (["--record"] if args.record and i == 1 else [])    # (f529) one run a night is recorded, the
+        cmd += ["--attach"] if getattr(args, "attach", False) else []                               # measuring runs play unrecorded (owner, 5 Nov)
         cmd += ["--no-continuity"] if args.no_continuity else []                                  # (f473)
         print(f"\n=== run {i} of {args.runs}: {cls}, seed {seed}, starting as {start}, playing as {persona} -> {out}", flush=True)
         return subprocess.Popen(cmd), {"cls": cls, "seed": seed, "start": start, "persona": persona, "out": out, "started": time.time()}
@@ -504,6 +507,24 @@ def batch(args) -> None:
     print(f"Logs: {base.resolve()}  (every folder above is a run; tools/lora_dataset.py --runs-dir {base} reads them all)")
 
 
+def made_through_outage(make, rng, tries: int = 3, wait=None, stub: bool = False):
+    """(f525, f525's review) The night's character, through an outage while it is made: each try starts the seed's stream where the first
+    did, so a night with an outage makes the same character as one without, and the stream goes on from the same place; the waiting is
+    said before it begins."""
+    start = rng.getstate()
+    for attempt in range(tries):
+        rng.setstate(start)
+        try:
+            return make(rng)
+        except Exception as e:
+            from llm.gateway import LLMError
+            if stub or not isinstance(e, (LLMError, ConnectionError)) or attempt == tries - 1:
+                raise
+            print(f"The character could not be made ({type(e).__name__}): waiting for the server and trying again.", flush=True)
+            if not (wait or server_back)():
+                raise
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Play a campaign with the real model for hours and log what every turn cost.")
     ap.add_argument("--hours", type=float, default=6.0, help="stop after this many hours (default 6)")
@@ -526,8 +547,10 @@ def main() -> None:
     ap.add_argument("--no-continuity", action="store_true", help="(f473) leave out the bot's continuity steps (promises, a lie set straight, "
                     "people gone back to, offers taken, contracts given up, issuers visited), which a night plays by default")
     ap.add_argument("--personas", default="", help="with --runs: the personas to rotate through, comma-separated (default: all, in order)")
-    ap.add_argument("--parallel", type=int, default=1, help="(f370) with --runs: play this many runs at once, for a card with the memory for them (the Ollama server "
-                                                             "must allow it: OLLAMA_NUM_PARALLEL, see tools/HOSTED.md)")
+    ap.add_argument("--parallel", type=int, default=1, help="(f370) with --runs: play this many runs at once, for a card with the memory for them ((f529) each "
+                                                             "run starts a model server of its own, as the game ships: tools/HOSTED.md)")
+    import runtime_cli
+    runtime_cli.add_args(ap)                                                                    # (f529) --attach: the open game's server
     args = ap.parse_args()
     if args.runs > 1:
         batch(args)
@@ -552,19 +575,13 @@ def main() -> None:
     if args.cls not in simlib.CLASSES:
         die(f"--class must be one of: {', '.join(simlib.CLASSES)}")
     stub = None
+    server = None
     if args.stub:
         stub = simlib.Stub(args.cls, args.seed)
         simlib.install(stub)
     else:
-        from llm import setup_check
-        if not setup_check.server_up() and not wait_for_server():
-            die("Ollama is not running. Start the Ollama app, wait a few seconds, and run this again.")
-        if not setup_check.model_present():
-            die(f"The model {config.MODEL} is not downloaded: run  ollama pull {config.MODEL}  first.")
-        from llm import embed
-        embed.pull_in_background()
-        from llm.gateway import warm
-        warm()
+        import runtime_cli                                                   # (f529) the game's own server, started as the game starts it
+        server = runtime_cli.load(args, out=out, say=lambda m: print(m, flush=True))
 
     from engine import data_check, leveling
     problems = data_check.check()
@@ -589,7 +606,7 @@ def main() -> None:
     if persona not in PERSONAS:
         die(f"--persona must be one of: {', '.join(PERSONAS)}")
     level = int(point.get("level") or args.level)                       # (f367) the starting point's level, else --level
-    char, spec = simlib.make_character(args.cls, rng, perks=True)
+    char, spec = made_through_outage(lambda r: simlib.make_character(args.cls, r, perks=True), rng, stub=args.stub)
     from engine import look                                             # (f388) a look of its own, seeded, as a player chooses one first
     seen = look.surprise(random.Random(f"{args.seed}:{args.cls}:look"))
     char.pronoun, char.people, char.look, char.look_text = seen["pronoun"], seen["people"], {k: seen[k] for k in ("look", "flags", "extra")}, look.describe(seen)
@@ -616,7 +633,7 @@ def main() -> None:
         stub.bot = bot
     run.install_console()
     run.install_client()
-    if args.record:                                                  # (f442) after the run's own hooks, so they are recorded as installed
+    if args.record:                                                  # (f442) after the run's own setup; (f517) the layers nest by rank, the recorder outermost
         store.save_player(ws.player)                                 # what the run set up in memory (the party, Maren left out) opens the recording
         session.record(apart=True, folder=Path(out) / "recording")   # the bot's reads never change the save; closed first when the session closes
     print(f"Night run: {char.name}, {spec['name']}, level {char.level}, seed {args.seed}, playing as {persona}, starting as {args.start} ({point.get('text', '')}; "
@@ -633,18 +650,6 @@ def main() -> None:
                 run.reason = "stopped by hand"
                 break
             except Exception as e:
-                if not args.stub and isinstance(e, ConnectionError):          # (f370) the server is away, not the game broken: wait for it
-                    print("Ollama cannot be reached: waiting for it to come back (up to ten minutes)...", flush=True)
-                    if wait_for_server():
-                        if run.current is not None:
-                            run.current["error"] = f"{type(e).__name__}: {str(e)[:200]}"
-                            run.close_turn()
-                        ws.combat = None
-                        try:
-                            ws.reload_after_rollback()
-                        except Exception:
-                            pass
-                        continue
                 restarts += 1
                 run.errors.write(f"--- turn {len(run.rows) + 1}: {type(e).__name__}: {e}\n{traceback.format_exc()}\n")
                 run.errors.flush()
@@ -668,23 +673,24 @@ def main() -> None:
         session.close()                                                  # (f457) the recording's last row, the background work, the save
         turnlog.write_session_stats()
         texts = [r.get("text", "") for r in run.rows]
-        server = {}
-        if not args.stub:
+        about = {}
+        if server is not None:
             try:
-                from llm import setup_check
-                server = setup_check.server_report()                     # (f475) the server's version, the model on the card, its context
+                about = server.report()                                  # (f529) the build, the device, the class, the model's sha, its warnings
             except Exception as e:
-                server = {"error": str(e)[:120]}
+                about = {"error": str(e)[:120]}
+        from llm import sampling as _sampling
         run.finish({"character": char.name, "class": spec["name"], "level": ws.player.character.level, "deaths": ws.player.character.deaths, "seed": args.seed, "party": party,
                     "start": args.start, "start_days": began["days"], "past": began["situations"], "met_at_start": began["met"],
                     "persona": persona, "bot": bot.report(), "distinct": round(len(set(texts)) / len(texts), 3) if texts else 0,      # (f368)
                     "ended_by_player": ended_by_player(Path(config.PULSE_LOG_PATH)),
                     "save": save, "restarts": restarts, "stub": args.stub, "model": config.MODEL,
-                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD},          # (f387) which voice this night tried
-                    "server": server})
-        if not args.stub:
-            from llm.gateway import unload
-            unload()
+                    "sampling": {"temp_add": config.TEMP_ADD, "repeat_add": config.REPEAT_ADD,          # (f387) which voice this night tried
+                                 "think_tasks": sorted(getattr(config, "THINK_TASKS", ())), "think_room": getattr(config, "THINK_ROOM", None),   # (f533)
+                                 "base": dict(_sampling.BASE), "table": {k: dict(v) for k, v in (getattr(config, "SAMPLING", {}) or {}).items()}},
+                    "server": about})                                    # (f529) the table resolved under every request, as data has it
+        if server is not None:
+            server.close()                                               # (f529) this run's own server, never a sibling's
     import latency
     summary = latency.summarise(out)
     try:

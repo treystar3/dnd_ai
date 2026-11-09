@@ -39,6 +39,14 @@ captive:
 # (f481, GOALS.md S2: nothing ends by age) What is offered between a person and a character, and what is owed. An offer waits for a yes
 # and ends when it is taken, said no to (released) or withdrawn; an obligation stands until it is kept (fulfilled), broken or let go
 # (released). Every end has its reason, from data/rules/obligations.yaml; none is a clock.
+# (f545) What a person of a situation really holds of a good (engine/situation_parts.py): sold or handed over one at a time until it
+# is gone, lost to a thief, or let go when the situation ends (a load moved on, a store used up) - never a clock.
+stock:
+  states: [held, sold_out, lost, released]
+  start: held
+  final: [sold_out, lost, released]
+  moves: {held: [sold_out, lost, released]}
+
 offer:
   states: [offered, taken, released, withdrawn]
   start: offered

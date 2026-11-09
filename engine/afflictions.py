@@ -10,6 +10,7 @@ the bleeder is healed. Bleeding is about the size of the cut, paid out by every 
 from __future__ import annotations
 
 from engine import combat as C
+from engine import effects as E
 
 
 def offensive_power(f, spell_attr: str = "") -> float:
@@ -33,8 +34,6 @@ def apply(combat, f, status: str, rounds: int, source) -> int:
     from engine import combat_perks
     if status == "burning":
         I = C.RULES["ignite"]
-        if "burning" not in f.statuses:
-            f.ignite = 0
         hit = source.counters.get("last_hit", 0) if source is not None else 0
         if hit and source is not None and (source.hit_element or source.element) == "fire":
             hit /= max(0.01, C.element_factor(f, "fire"))   # a fire hit was already resisted; the burn is resisted once, as it ticks
@@ -47,31 +46,27 @@ def apply(combat, f, status: str, rounds: int, source) -> int:
             e = _ss.EXPR["stoke"]
             per *= min(float(e.get("cap", 2.0)), 1 + e.get("pct", 25) / 100 * source.counters["stoke"])   # Stoke (f268)
         if source is not None and combat_perks.has(source, "firebrand", combat) and f.ignite:
-            f.ignite += per                                  # Firebrand: your fires feed the burn instead of replacing it
+            E.set_strength(f, "burning", f.ignite + per)     # Firebrand: your fires feed the burn instead of replacing it
             C.tell(combat, f"the fire on {C.who(f)} feeds on itself {combat_perks.tag(source, 'firebrand')}")
             return int(I["rounds"])
         if per >= f.ignite:
-            f.ignite = per                                   # the strongest ignite burns; a weaker one changes nothing
+            E.set_strength(f, "burning", per)                # the strongest ignite burns; a weaker one changes nothing
             return int(I["rounds"])
         return f.statuses.get("burning", int(I["rounds"]))
     if status == "bleeding":
         B = C.RULES["bleed"]
-        if "bleeding" not in f.statuses:
-            f.bleed = 0
         hit = source.counters.get("last_hit", 0) if source is not None else 0
         hit = hit or offensive_power(source)
         size = hit * B["share"] if hit else f.max_hp * C.RULES["statuses"]["bleeding"]["damage_percent"] / 100
         if size > f.bleed:
-            f.bleed = size                                   # one wound: the bigger cut replaces the smaller, and starts again
+            E.set_strength(f, "bleeding", size)              # one wound: the bigger cut replaces the smaller, and starts again
             return int(B["rounds"])
         return f.statuses.get("bleeding", int(B["rounds"]))  # a smaller cut changes nothing
     if status == "poisoned":
         P = C.RULES["poison"]
-        if "poisoned" not in f.statuses:
-            f.poison = []
         power = offensive_power(source)
         stack = power * P["share"] if power else f.max_hp * C.RULES["statuses"]["poisoned"]["damage_percent"] / 100
-        f.poison = list(f.poison) + [stack] * (2 if C.attuned(source, "poison") else 1)   # an archon of poison doubles each dose
+        E.set_strength(f, "poisoned", list(f.poison) + [stack] * (2 if C.attuned(source, "poison") else 1))   # an archon of poison doubles each dose
         return int(P["rounds"])                              # a new stack refreshes them all
     return rounds
 
@@ -96,15 +91,9 @@ def tick(f, dot: str) -> int:
 
 
 def ended(f, status: str) -> None:
-    if status == "burning":
-        f.ignite = 0
-    elif status == "poisoned":
-        f.poison = []
-        f.poison_fixed = []
-    elif status == "bleeding":
-        f.bleed = 0
-        if f.counters.pop("crippled", 0):
-            f.statuses.pop("slowed", None)                   # Crippling Wounds (f312): the wound closed, and the limp goes with it
+    """What goes with a status that has ended (its strength went with its row, f507): a closed wound takes the Crippling Wounds limp."""
+    if status == "bleeding" and f.counters.pop("crippled", 0):
+        E.end_status(f, "slowed")                            # Crippling Wounds (f312): the wound closed, and the limp goes with it
 
 
 def bloodless(f) -> bool:
@@ -116,23 +105,16 @@ def tear(combat, f, deep: float = 1.0, by: str = "") -> int:
     shields. Returns what it took."""
     if "bleeding" not in f.statuses or not f.alive:
         return 0
-    from engine import combat_perks
+    from engine import combat_perks, damage
     amount = combat_perks.dot_damage(f, "bleeding", tick(f, "bleeding")) * deep
-    floor = 1 if ((combat.mentor and f.side == "player") or combat.duel) else 0
-    before = f.hp
-    f.hp = max(floor, f.hp - amount)
-    lost = round(before - f.hp)
-    if lost:
-        combat.log.append(f"{f.name}'s wound tears: {lost}")
-        C.tell(combat, f"the blow tears {C.whose(f)} wound open again - {lost} more blood lost" + (f" {by}" if by else ""))
-    return lost
+    return damage.resolve("tear", combat, f, amount, None, None, deep=deep, by=by)   # (f505) the torn wound's path: the floor, the health
 
 
 def bind(combat, f, how: str = "") -> bool:
     """The wound is closed: healed, cleansed or bandaged."""
     if "bleeding" not in f.statuses:
         return False
-    f.statuses.pop("bleeding", None)
+    E.end_status(f, "bleeding")
     ended(f, "bleeding")
     if how:
         C.tell(combat, f"{C.who(f)} {how}, and the bleeding stops")

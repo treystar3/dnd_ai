@@ -12,6 +12,7 @@ new_id(stream="ops")), so drawing them moves no other die. CURRENT is the operat
 (engine/session.py), as it owns the ledger's rows."""
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -37,6 +38,7 @@ class Operation:
     held: list = field(default_factory=list, repr=False)   # (f463) the story calls held back (name, args, kwargs), released at commit; not kept
     failure: str = ""               # (f466) why it did not stand, for the turn log: the model's failure, or the game's own fault
     crashed: bool = False           # (f466) ...and which of the two
+    thread: int | None = field(default=None, repr=False, compare=False)   # (f520) the thread that opened it, which it belongs to
     void: bool = False              # (f470) nothing took the line inside it: ended without a record, nothing written, nothing shown
 
     def record(self) -> dict:
@@ -50,6 +52,8 @@ class Operation:
         import json
         out = []
         for name, a, k in self.held:
+            if name in ("combat_state", "combat_panel"):           # (f497) the fight's pane: load re-shows it from the row (scenes/world.py enter)
+                continue
             if name == "marker":
                 out.append(["marker", [], {}])
             elif name == "legendary_reveal":
@@ -67,14 +71,15 @@ PRESENTED_KEEP = 400              # writes it per input and clears it (engine/re
 
 LEGACY: list[str] = []            # (f470) the tasks the model was asked for while an operation held the save's transaction open: the
                                   # residue prepare-then-commit moves out family by family; the test's ratchet (prepared_470_test RECORDED) only shrinks
-TELLING = {"passage", "round", "aftermath", "goddess"}   # (f470) operations that are the call itself (the telling): not counted
+TELLING = {"passage", "round", "aftermath", "goddess", "opening"}   # (f470) operations that are the call itself (the telling): not counted; (f498) the fight's opening
 
 
 def note_legacy(task: str) -> None:
     """(f470) A model call made while an operation is open: the save waits on the model inside a transaction (the survey's smell; the
     plan's prepare-then-commit reads committed state before the call and commits after it). The telling operations are their one call
-    and are not counted. What is left is named, once each, for the ratchet."""
-    op = CURRENT
+    and are not counted. What is left is named, once each, for the ratchet. (f520) Only a call on the operation's own thread: the people
+    written behind the scenes at the same moment wait on no transaction of the turn's."""
+    op = current()
     if op is not None and op.kind not in TELLING and task not in LEGACY:
         LEGACY.append(task)
 
@@ -93,11 +98,18 @@ def begin(kind: str, steps: int, index: int, revision_seen: int, text: str = "",
     if CURRENT is not None:
         raise RuntimeError(f"an operation is already open: {CURRENT.kind} {CURRENT.id}")
     CURRENT = Operation(op_id or streams.new_id(ID_DIGITS, stream="ops"), kind, steps, index, revision_seen, text)
+    CURRENT.thread = threading.get_ident()          # (f520) the thread that opened it, the one it belongs to
     return CURRENT
 
 
 def current() -> Operation | None:
-    return CURRENT
+    """The operation open now, on this thread. (f520) It belongs to the thread that opened it (the turn's): a call made on another
+    thread at the same moment (the people written behind the scenes) is no part of it, so it is not filed under it (the recorder's and the
+    audit's op, the ledger's stamp) nor counted as waiting inside its transaction (note_legacy)."""
+    op = CURRENT
+    if op is not None and getattr(op, "thread", None) not in (None, threading.get_ident()):
+        return None
+    return op
 
 
 def end(state: str) -> Operation | None:

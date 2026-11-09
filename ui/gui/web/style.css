@@ -238,13 +238,9 @@ button.locked:disabled { opacity: .25; }
 #setup { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #setup[hidden] { display: none; }
 #setup .card { max-width: 560px; width: 100%; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; }
-#setup h2 { margin: 0 0 12px; color: var(--accent); }
-#setup p { margin: 0 0 10px; line-height: 1.45; }
 #setupbar { height: 14px; background: var(--line); border-radius: 7px; overflow: hidden; margin: 16px 0 6px; }
 #setupfill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 #setuptext { color: var(--dim); font-size: 13px; min-height: 18px; }
-#setupbtns { display: flex; gap: 10px; margin-top: 16px; }
-#setupbtns button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
 
 #updatebtn { position: fixed; top: 49px; right: 16px; z-index: 40; padding: 1px 10px; font-size: 12px; background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
 #updatebtn[hidden] { display: none; }

@@ -103,8 +103,9 @@ def people(store, world, state: dict, t: int, rng: random.Random) -> str:
     R, M, V = D.get("relations", {}), D.get("moods", {}), D.get("motives", {})
     settle, per_day = R.get("settle_after_days", 7) * 1440, R.get("per_day", 1.0)
     eased = faded = moved = ended = 0
+    from engine import situation_parts
     for npc in store.load_npcs(chunk):
-        changed = False
+        changed = situation_parts.sweep(state, npc, t)              # (f545) what an ended situation gave them, if a copy brought it back
         for oid, r in list(npc.relations.items()):
             since = r.get("since", 0)
             if per_day <= 0 or t - since < settle:
@@ -209,7 +210,8 @@ def situations(store, world, state: dict, t: int) -> str:
             row["value"] += dp
         dd = round(D.get("danger", {}).get(kind, 0) * scale)
         if dd:
-            wilds = [pid for pid in towns.town_places(world, town) if world.places[pid].danger] or ([th["place"]] if known_danger(world, th["place"]) else [])
+            wilds = [pid for pid in sorted(towns.town_places(world, town)) if world.places[pid].danger] or ([th["place"]] if known_danger(world, th["place"]) else [])
+            # (f493) sorted: town_places is a set, and its order was the hash seed's in the world state's effects
             for pid in wilds:
                 row = lean.setdefault(("danger", pid), {"kind": "danger", "place": pid, "value": 0, "until": until, "cause": "drift", "thread": th["id"]})
                 row["value"] += dd

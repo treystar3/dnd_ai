@@ -1,6 +1,6 @@
 """Maren's words come from the model inside limits: every figure, command and quoted phrase survives, nothing new is added, fixed rules are
 said exactly as written, and a bad or failed answer means the written line is said instead. Also the model warm-up."""
-import sys, random, shutil, time
+import sys, random, shutil
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 3)
@@ -19,7 +19,6 @@ from scenes.world import WorldScene
 from storage.campaign import CampaignStore, PlayerState
 from npc.traits import load_traits
 from world.loader import load_world
-import llm.gateway as gw
 bad = []
 def check(n, ok, x=""):
     print(("ok   " if ok else "FAIL ") + n, "" if ok else x)
@@ -144,36 +143,7 @@ w.mentor_say(mentor.Fixed(["Rank F may hold 2 contracts."]), "Take your time ove
 check("fixed rules are never rewritten", "Rank F may hold 2 contracts." in SAID[-1][1].split("\n"))
 config.FREE_MENTOR = False
 
-# warm-up: the model is loaded in the background, same context size, and every call asks to keep it loaded
-seen = []
-real_chat = gw._client.chat
-gw._client.chat = lambda **k: (seen.append(k), real_chat(**k))[1]
-gw.warm()
-t0 = time.time()
-while not seen and time.time() - t0 < 3:
-    time.sleep(0.02)
-check("the warm-up asks for a tiny reply with the game's context size", seen and seen[0]["options"]["num_predict"] <= 8 and seen[0]["options"]["num_ctx"] == config.NUM_CTX, seen[:1])
-check("...and keeps the model loaded", seen and seen[0]["keep_alive"] == config.KEEP_ALIVE)
-seen.clear()
-w.mentor_say(W, beat="test")
-check("every real call keeps the model loaded too", seen and all(k["keep_alive"] == config.KEEP_ALIVE for k in seen), seen[:1])
-gw._client.chat = lambda **k: (_ for _ in ()).throw(ConnectionError("no ollama"))
-gw.warm(); time.sleep(0.1)
-check("a missing Ollama does not break the warm-up", True)
-
-# closing the game unloads the model
-seen2 = []
-real2 = gw._client.chat
-gw._client.chat = lambda **k: (seen2.append(k), None)[1]
-gw.unload()
-check("closing the game asks Ollama to unload the model", seen2 and seen2[0]["keep_alive"] == 0 and seen2[0]["messages"] == [], seen2)
-config.UNLOAD_ON_EXIT = False
-seen2.clear(); gw.unload()
-check("...unless switched off", not seen2)
-config.UNLOAD_ON_EXIT = True
-gw._client.chat = lambda **k: (_ for _ in ()).throw(ConnectionError("no ollama"))
-gw.unload()
-check("a missing Ollama does not break closing", True)
-gw._client.chat = real2
+# (f532) the warm-up and the unload went with the old client: the game's own server loads once, behind the home page (f526), and
+# stops with the game (llm/runtime.py); nothing here warms or unloads anything.
 
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")

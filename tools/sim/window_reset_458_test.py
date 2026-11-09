@@ -29,10 +29,11 @@ tmp = tempfile.mkdtemp(); os.chdir(tmp)
 from ui import console
 from ui.gui.bridge import Bridge
 from ui.gui import server
-from llm import gateway
+import simlib, types
 
 b = Bridge()
-gateway._client.chat = lambda *a, **k: "answer"
+quiet = simlib.stand_in(chat=lambda **k: types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="answer")),
+                        embed=None, name="window_reset")         # (f518) a stand-in source: nothing here can reach a real model
 b.install()
 srv = server.make_server(b); server.serve(srv)
 
@@ -109,6 +110,8 @@ else:
           and st.get("journalOpen") == 0, st)
     check("...the typed lines, and the creation page's remembered start", st.get("history") == 0 and st.get("hpos") == 0 and st.get("who") is None, st)
 
+check("...and the scripted game behind the page asked the model nothing", quiet.live() and not quiet.src.calls, dict(quiet.src.calls))
+quiet()
 srv.shutdown()
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)
 sys.exit(1 if bad else 0)

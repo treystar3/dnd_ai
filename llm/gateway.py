@@ -1,4 +1,4 @@
-"""The only place the game talks to Ollama.
+"""The one way the game asks the model (through llm/backend.py, whatever source answers there).
 
 Every call is schema-constrained, validated, retried on failure, and logged.
 On a failed validation the model is shown its answer and the reason it was
@@ -14,78 +14,74 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypeVar
 
-import httpx
-import ollama
 from pydantic import BaseModel, ValidationError
 
 import config
 
 from core.interrupts import Interrupt   # (f449) an exception raised on purpose (a replay parted) is never a failed try
+from llm.errors import Cancelled, Failure, LLMError   # (f514) the classes live where importing them starts nothing; LLMError stays here
 
-_client = ollama.Client(timeout=config.REQUEST_TIMEOUT)
-try:                                   # (f475) keep what the server reports beyond the client's own fields (a cached-prompt count)
-    ollama.ChatResponse.model_config["extra"] = "allow"
-    ollama.ChatResponse.model_rebuild(force=True)
-except Exception:
-    pass
-_writes = 0
+
+_writes = 0                                     # rows written to the call log this session (trim_log counts them)
 SYSTEM_PREVIEW = 300
-RETRY_TEMPERATURE_STEP = 0.15
+from llm.sampling import RETRY_TEMPERATURE_STEP, shifted   # (f515) one sampling, worked out in llm/sampling.py; these names stay here
 
 T = TypeVar("T", bound=BaseModel)
 
 
-class LLMError(Exception):
-    pass
+# (f516) What a failed try of each kind does: whether it ends the tries, whether the turn's budget is charged for it. A deadline ends the
+# tries (a second request to a stalled server only queues behind the first); the server's failure is one failed try, charged, and the
+# next goes; a server that cannot be reached, or a model still loading, ends the tries and costs nothing (f522 restarts the child); a
+# request refused before it was read (too big for the context, or one the server calls invalid) ends the tries, costs nothing, and is
+# filed apart from an outage (refusals: request_refused). Anything else the call raises is "the call failed", one failed try, charged,
+# as before (f449). A cancel never gets here: it is an Interrupt (llm/backend.py _cancelled).
+ENDS = frozenset({"deadline", "unreachable", "loading", "too_big", "invalid"})
+FREE = frozenset({"unreachable", "loading", "too_big", "invalid"})
+REFUSED = frozenset({"too_big", "invalid"})
 
 
-def warm() -> None:
-    """Load the model now, on a background thread, so the first real call (the character's name, the first scene) does not pay for the load.
-    Same context size as every other call, or Ollama would load it twice. Quiet if Ollama is not there; the real call reports that."""
-    def run():
-        try:
-            _client.chat(model=config.MODEL, think=config.THINK, messages=[{"role": "user", "content": "Reply with one word: ready."}],
-                         options={"num_ctx": config.NUM_CTX, "num_predict": 4, **threads()}, keep_alive=config.KEEP_ALIVE)
-        except Exception:
-            pass
-    threading.Thread(target=run, daemon=True, name="model-warmup").start()
-
-
-def unload() -> None:
-    """Tell Ollama to drop the model from memory now (the game is closing). Quiet if Ollama is not there."""
-    if not getattr(config, "UNLOAD_ON_EXIT", True):
-        return
-    try:
-        _client.chat(model=config.MODEL, messages=[], keep_alive=0)
-    except Exception:
-        pass
+def failed_try(e: BaseException, limit) -> tuple[str, str]:
+    """(f516) A failed try's kind ('' for anything that is no Failure) and the words the logs give it. A Failure read from a plain error
+    (llm/backend.py failure_of: a ConnectionError raised on purpose) is worded from that error, as it always was."""
+    from llm import backend
+    f = backend.failure_of(e)
+    if f is None:
+        return "", f"the call failed: {type(e).__name__}: {str(e)[:200]}"
+    kind, kind_name = f.kind, (f.legacy or ("", ""))[0]
+    text = (f.legacy or ("", f.detail))[1]
+    if kind == "cancelled":
+        return kind, f.detail or "cancelled"
+    if kind == "deadline":                          # (f518, f532) worded from the turn's limit when the try had one: a source keeps the
+        on_limit = limit is not None and not f.legacy    # limit itself; a replayed pair of the old client's is worded as the client's own
+        return kind, timeout_words(limit, on_client=on_limit)
+    if kind == "server":
+        return kind, f"the model server failed: {text[:200] or kind_name or 'no reason given'}"
+    if kind in ("unreachable", "loading"):
+        return kind, f"the model server {'could not be reached' if kind == 'unreachable' else 'was still loading the model'}" \
+                     + (f": {f.detail[:200]}" if f.detail else "")
+    if kind in REFUSED:
+        return kind, ("the request was refused before it was read: "
+                      + ("too big for the model's context" if kind == "too_big" else "the server called it invalid")
+                      + (f" ({f.detail[:200]})" if f.detail else ""))
+    return kind, f"the call failed: {kind}: {f.detail[:200]}"
 
 
 FALLBACKS: list[str] = []          # every task that gave up and left its caller to written lines, in order (the live check reads this)
 OUTCOMES: list[tuple[str, bool, int]] = []      # (task, succeeded, attempts used), the most recent few hundred, for anyone measuring
 TALLY: dict[str, dict[str, int]] = {}           # task -> {calls, failed, attempts} for the whole session (engine/turnlog.py writes it out)
 _TASK = threading.local()                       # (f468) the task the calling thread is making a call for (the recorder files it with the call)
-_DEADLINE_LOCK = threading.Lock()               # (f468) around the client's timeout being set and put back
 
 
-@contextlib.contextmanager
-def _deadline(seconds):
-    """(f468) The budget's deadline on the client's own timeout for one call (engine/budget.py deadline: what is left of the turn's
-    minute, never under the floor), put back after. Only when the client has an inner httpx client with a timeout (the real
-    ollama.Client; nothing under the suite's stub or the replayer). The lock is around the setting and the putting back, not the call:
-    another thread's call in that window reads the shorter timeout and may fail a try early (the plan's accepted risk)."""
-    inner = getattr(_client, "_client", None)
-    if seconds is None or inner is None or not hasattr(inner, "timeout"):
-        yield
-        return
-    with _DEADLINE_LOCK:
-        before = inner.timeout
-        inner.timeout = httpx.Timeout(float(seconds))
-    try:
-        yield
-    finally:
-        with _DEADLINE_LOCK:
-            inner.timeout = before
+def timeout_words(limit, on_client: bool = False) -> str:
+    """(f493) A timed-out try, by the limit it had: the turn's time left when the budget's limit cut it (the source keeps the limit,
+    llm/llama.py Server.request), else the source's own (config.REQUEST_TIMEOUT, or a slow machine's hang guard). The post-D night
+    logged 'timed out after 120s' for tries cut at the budget's deadline some 44 seconds in."""
+    if limit is not None and on_client:
+        return f"timed out after {round(float(limit))}s (what was left of the turn's time)"
+    from engine import budget
+    if budget.SLOW:                                     # (f526) a slow machine's call is cut only at the hang guard
+        return "timed out at the slow machine's hang guard"
+    return f"timed out after {config.REQUEST_TIMEOUT}s"
 
 
 def _chars(system: str, user) -> int:
@@ -109,15 +105,6 @@ def shape(system: str, typed, user_text) -> dict:
             "tail_chars": tail, "prompt_version": version}
 
 
-def cached_count(response) -> int | None:
-    """(f475) The prompt tokens the server read from its cache, when it says (a field the client does not name); None when it does not."""
-    extra = getattr(response, "model_extra", None) or {}
-    for k, v in sorted(extra.items()):
-        if "cache" in k and isinstance(v, int) and not isinstance(v, bool):
-            return v
-    return None
-
-
 def _tally(task: str, ok: bool, attempts: int) -> None:
     OUTCOMES.append((task, ok, attempts))
     del OUTCOMES[:-500]
@@ -125,25 +112,6 @@ def _tally(task: str, ok: bool, attempts: int) -> None:
     t["calls"] += 1
     t["failed"] += not ok
     t["attempts"] += attempts
-
-
-def threads() -> dict:
-    """(f370) The runner's CPU threads, when config.NUM_THREAD sets them; nothing otherwise, so Ollama keeps its own default."""
-    n = int(getattr(config, "NUM_THREAD", 0) or 0)
-    return {"num_thread": n} if n > 0 else {}
-
-
-def shifted(task: str, base: float, top: float, tuned: dict) -> tuple[float, float, dict]:
-    """(f387) config.TEMP_ADD and REPEAT_ADD applied: warm calls warmer (their retry ceiling with them), set penalties firmer. The cold
-    calls and the night bot's own lines are untouched."""
-    add, rep = float(getattr(config, "TEMP_ADD", 0) or 0), float(getattr(config, "REPEAT_ADD", 0) or 0)
-    if task in getattr(config, "BOT_TASKS", ()):
-        return base, top, tuned
-    if add and base >= getattr(config, "WARM_FROM", 0.5):
-        base, top = min(1.5, base + add), min(1.5, top + add)
-    if rep and "repeat_penalty" in tuned:
-        tuned = dict(tuned, repeat_penalty=round(tuned["repeat_penalty"] + rep, 3))
-    return base, top, tuned
 
 
 def generate(
@@ -163,15 +131,27 @@ def generate(
     (the repetition guard off, say) before giving up: the fallback ladder every speaker shares.
     (f468) The turn's budget is asked first (engine/budget.py allow): a call it does not allow raises its own error, a kind of LLMError
     so the site's fallback stands, that is no failure of the model's (no fallback counted, no refusal filed, no tally)."""
-    from engine import budget, operation
+    from engine import asked, budget, operation
+    if asked.wanted(task):                          # (f485) an operation needs it: asked outside its transaction, and the operation run again
+        from engine.prompt import Prompt
+        k = asked.key(task, system, user.render() if isinstance(user, Prompt) else str(user), getattr(schema, "__name__", ""))
+        return asked.call(task, k, lambda: generate(task, system, user, schema, temperature, retries, validation_context, max_tokens,
+                                                    relaxed_context, _quiet))
     budget.allow(task, _chars(system, user))
     operation.note_legacy(task)                     # (f470) made inside an operation's transaction: the ratchet's residue
+    from llm import backend
     try:
-        return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
+        with backend.task(task):                    # (f536) the source may place the call by its task (the understanding's own slot)
+            return _generate(task, system, user, schema, temperature, retries, validation_context, max_tokens)
     except LLMError as e:
-        if relaxed_context is not None:
-            try:
-                return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
+        again = (getattr(e, "failure", "") in ("unreachable", "loading", "thought_out") or getattr(e, "transport", False)
+                 or (getattr(e, "failure", "") in REFUSED and getattr(e, "whole", True)))
+        if relaxed_context is not None and not again:   # (f516) nothing there to read it, or the request as first made refused before it
+            try:                                        # was read (too big, invalid), is refused again; a retry refused for the draft it
+                                                        # carried is not, so the request as first made goes once more; (f527) nor after a
+                                                        # transport failure on any try (the server, a timeout): looser checks mend no outage
+                with backend.task(task):
+                    return _generate(task, system, user, schema, temperature, 1, relaxed_context, max_tokens)
             except LLMError:
                 pass
         if not _quiet:
@@ -179,7 +159,9 @@ def generate(
             del FALLBACKS[:-200]
             try:
                 from engine import refusals
-                if getattr(e, "transport", True):               # (f449) two different troubles, two kinds: the owner's log filed a refused line as an outage
+                if getattr(e, "failure", "") in REFUSED:          # (f516) the request itself, not the model or the server
+                    refusals.note("request_refused", task, "the request was refused before it was read; a written fallback was used")
+                elif getattr(e, "transport", True):               # (f449) two different troubles, two kinds: the owner's log filed a refused line as an outage
                     refusals.note("model_down", task, "the model server failed or timed out; a written fallback was used")
                 else:
                     refusals.note("bad_answer", task, "every answer was refused; a written fallback was used")
@@ -199,57 +181,72 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     last_error: Exception | None = None
     _TASK.shape = form = shape(system, typed, messages[1]["content"])      # (f475) logged with every attempt; the recorder keeps it too
 
-    tuned = dict(getattr(config, "SAMPLING", {}).get(task, {}))
-    base = tuned.pop("temperature", temperature)
-    top = min(1.2, base + 0.1) if task in getattr(config, "SAMPLING", {}) else 1.2      # a retry warms a tuned task only a little
-    base, top, tuned = shifted(task, base, top, tuned)
+    from llm import backend, sampling
+    plan = sampling.resolve(task, temperature)                  # (f515) the task's sampling, its ceiling and its shifts, once
     said = []                                   # (f447) the complaints so far: the same one twice running ends the tries
     transport = False                           # (f449) whether the call itself failed (a timeout, the server), as against every answer refused
+    failure = ""                                # (f516) the last try's failure kind, '' when it was answered (and the answer refused)
     from engine import budget
     _TASK.name = task
     for attempt in range(retries + 1):
         start = time.perf_counter()
         chars = sum(len(str(m.get("content") or "")) for m in messages)           # (f468) what this attempt reads: a retry reads the draft too
-        try:
-            with _deadline(budget.deadline()):                                    # (f468) what is left of the turn's minute, on the client
-                response = _client.chat(
-                    model=config.MODEL,
-                    think=config.THINK,
-                    messages=messages,
-                    format=schema.model_json_schema(),
-                    options={"temperature": min(top, base + RETRY_TEMPERATURE_STEP * attempt),
-                             "num_ctx": config.NUM_CTX, "num_predict": max_tokens, **threads(), **tuned},
-                    keep_alive=config.KEEP_ALIVE,
-                )
+        limit = budget.deadline()                                               # (f493) the limit this try had, for its message
+        try:                                                                      # (f515) through the game's own interface; until f528
+            reply = backend.chat(messages, schema, plan.at(attempt), max_tokens, deadline=limit)   # its source sends today's request
         except Interrupt:
-            raise                                                   # (f449) stopped on purpose (a replay parted): never a failed try
+            raise                                                   # (f449) stopped on purpose (a replay parted), (f516) or cancelled: never a failed try
         except Exception as e:
-            # A timeout, a dropped connection, a server error (Ollama answers 500 when the model hits its own repeat limit) or a server
-            # that cannot be reached at all (the client raises Python's own ConnectionError while Ollama restarts) is one failed attempt,
+            # A timeout, a dropped connection, a server error (a 500 when the model hits its own repeat limit) or a server that
+            # cannot be reached at all (llama-server restarting, llm/runtime.py) is one failed attempt,
             # not the end of the game: the next try goes out warmer, and the turn rolls back if every try fails (f370). (f449) So is
             # anything else the call raises: on the owner's night of 2026-11-01 the third try failed in a way the list here did not name,
             # and the error climbed out of the turn and ended the game. And one timeout ends the tries: a second request to a stalled
             # server only queues behind the first (two tries cost four minutes of waiting), so the turn rolls back at the first.
-            budget.charge(task, chars)                              # (f468) a try that failed cost what it would have written
-            last_error = e
-            transport = True
-            timed_out = isinstance(e, httpx.TimeoutException)
-            what = (f"timed out after {config.REQUEST_TIMEOUT}s" if timed_out
-                    else f"the model server failed: {str(e)[:200] or type(e).__name__}"
-                    if isinstance(e, (httpx.HTTPError, ollama.ResponseError, ConnectionError))
-                    else f"the call failed: {type(e).__name__}: {str(e)[:200]}")
+            # (f516) Each on its kind (ENDS, FREE above); the old client's errors read exactly as they did.
+            failure, what = failed_try(e, limit)
+            if failure == "cancelled":
+                raise Cancelled(what) from e
+            if failure not in FREE:
+                budget.charge(task, chars)                          # (f468) a try that failed cost what it would have written
+            last_error = e.__cause__ if isinstance(e, Failure) and e.legacy and e.__cause__ is not None else e   # the client's own error kept
+            transport = transport or failure not in REFUSED
             _log(task, attempt, time.perf_counter() - start, messages, "", what, shape=form)
             audit.record(task, attempt, time.perf_counter() - start, messages, "", what, typed, config.MODEL)
             _debug(f"{task} (attempt {attempt + 1}): {what}")
-            if timed_out:
+            if failure in ENDS:
                 break
             continue
-        raw = (response.message.content or "").replace("\ufffd", "-")      # a broken character from the model becomes a dash
+        failure = ""
+        raw = (reply.text or "").replace("\ufffd", "-")                    # a broken character from the model becomes a dash
         elapsed = time.perf_counter() - start
-        usage = _usage(response)
-        budget.charge(task, chars, len(raw))                        # (f468) every attempt is charged, a rejected draft too (decision 9)
+        usage = reply.usage
+        thinking = bool(getattr(plan.at(attempt), "think", None))  # (f533) a task chosen to think (config.THINK_TASKS)
+        written = len(raw)
+        if thinking and (usage or {}).get("out"):                   # (f533) its thinking is written too: priced from the tokens the server
+            written = max(written, int(usage["out"] * float(budget.B.get("chars_per_token") or 4)))   # counted (a replay has them recorded)
+        budget.charge(task, chars, written, budget.cached_share(usage))   # (f468) every attempt is charged, a rejected draft too (decision 9);
+                                                                    # (f538) the prompt the server reused from its cache is not
 
-        if response.done_reason == "length":
+        if reply.finish == "length" and (usage or {}).get("full"):
+            # (f516) a full slot (the request and its answer filled the context, f521): the request was too big, not the answer long. No
+            # cut-off retry is sent, and nobody is told they went round in circles. The try is charged above: it ran.
+            failure = "too_big"
+            last_error = Failure("too_big", "the request and its answer filled the model's context")
+            what = "the request was too big: it and its answer filled the model's context"
+            _log(task, attempt, elapsed, messages, raw[:2000], what, usage, shape=form)
+            audit.record(task, attempt, elapsed, messages, raw, what, typed, config.MODEL)
+            break
+        if reply.finish == "length" and thinking and not raw.strip():
+            # (f533) the thinking used all the room before the answer began. Telling it to shorten its fields would not reach the
+            # thinking, and the next try would think as long again: the tries end here, with the reason named.
+            failure = "thought_out"                                     # read by generate(): no relaxed retry, which would think as long
+            last_error = LLMError("the thinking used all the room before the answer began")
+            what = "the thinking used all its room before the answer began"
+            _log(task, attempt, elapsed, messages, "", what, usage, shape=form)
+            audit.record(task, attempt, elapsed, messages, "", what, typed, config.MODEL)
+            break
+        if reply.finish == "length":
             last_error = LLMError("cut off at the length limit")
             reason = cut_off_reason(task, schema, max_tokens)
             _log(task, attempt, elapsed, messages, raw[:2000], reason, usage, shape=form)
@@ -265,7 +262,7 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
             reason = ""
             if hasattr(result, "spoken"):
                 from engine import truth
-                given = system + "\n" + messages[1]["content"]
+                given = system + "\n" + messages[1]["content"] + "".join("\n" + str(x) for x in (validation_context or {}).get("given_also", ()))   # (f486)
                 known = (validation_context or {}).get("known", ())
                 for who, text in result.spoken():
                     lifted = copied(text, system, typed) if typed is not None else ""
@@ -328,6 +325,8 @@ def _generate(task, system, user, schema, temperature, retries, validation_conte
     _tally(task, False, attempt + 1)
     err = LLMError(f"{task}: no valid response after {attempt + 1} attempts")
     err.transport = transport                   # (f449) read by generate(): a server down is not the same refusal as every answer refused
+    err.failure = failure                       # (f516) ...and a request refused before it was read is neither
+    err.whole = len(messages) == 2              # (f516) whether that last try was the request as first made, or a retry carrying its draft
     raise err from last_error
 
 
@@ -393,21 +392,6 @@ def cut_off_reason(task: str, schema, max_tokens: int) -> str:
     if max_tokens >= config.PROSE_MAX_TOKENS or task in hygiene.NARRATOR or hasattr(schema, "spoken"):
         return "the answer ran on until it was cut off, which means it went round in circles. Say what the moment holds once, then stop."
     return "the answer was cut off before the JSON was finished. Keep every field short."
-
-
-def _usage(response) -> dict | None:
-    """Ollama's own counts for one answer: tokens read and written, and the milliseconds each took (plus a model load, if one happened).
-    None under a stand-in model, which reports none."""
-    count = getattr(response, "prompt_eval_count", None)
-    if count is None:
-        return None
-    ms = lambda name: round((getattr(response, name, 0) or 0) / 1e6)
-    out = {"prompt": count, "out": getattr(response, "eval_count", 0) or 0, "read_ms": ms("prompt_eval_duration"),
-           "write_ms": ms("eval_duration"), "load_ms": ms("load_duration"), "total_ms": ms("total_duration")}
-    cached = cached_count(response)
-    if cached is not None:
-        out["cached"] = cached                          # (f475) of the prompt's tokens, how many the server had cached
-    return out
 
 
 _tag = threading.local()

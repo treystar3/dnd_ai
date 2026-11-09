@@ -38,7 +38,8 @@ def _load(rel: str):
     return yaml.load((ROOT / rel).read_text(encoding="utf-8"), Loader=_Strict)
 
 
-GAME_DIRS = ("engine", "scenes", "npc", "llm", "character")      # (f459) where the game asks the model; tools/*.py asks for its own ends
+GAME_DIRS = ("engine", "scenes", "npc", "llm", "character", "services")      # (f459) where the game asks the model; tools/*.py asks for its
+#                                                                                  own ends. (f503) services/ too: a service asks nothing
 
 
 def task_literals(dirs: tuple = GAME_DIRS, tools: bool = True) -> dict[str, list[str]]:
@@ -73,11 +74,13 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
     bad: list[str] = []
     B = _load("data/rules/budget.yaml") if B is None else B
     found = task_literals() if found is None else found
+    from engine import asked as _asked                                 # (f485) what is asked outside an operation is a task the code asks for
+    bad += _asked.problems(set(found))
 
     def need(ok, msg):
         if not ok:
             bad.append(msg)
-    for k in ("limit_seconds", "margin_seconds", "floor_seconds", "reserve_seconds", "chars_per_token", "embed_seconds_per_text"):
+    for k in ("limit_seconds", "margin_seconds", "floor_seconds", "reserve_seconds", "chars_per_token"):   # (f527) the embed price is the card's, measured
         need(isinstance(B.get(k), (int, float)) and not isinstance(B.get(k), bool) and B[k] > 0, f"budget.yaml {k}: needs a number above 0")
     if all(isinstance(B.get(k), (int, float)) for k in ("limit_seconds", "margin_seconds", "floor_seconds")):
         need(B["floor_seconds"] + B["margin_seconds"] < B["limit_seconds"], "budget.yaml: the floor and the margin must leave room under the limit")
@@ -105,6 +108,7 @@ def budget_problems(B: dict | None = None, found: dict | None = None) -> list[st
         "lora.yaml prose_tasks and speech_tasks": set((_load("data/rules/lora.yaml").get("prose_tasks") or []) + (_load("data/rules/lora.yaml").get("speech_tasks") or [])),
         "hygiene.yaml narrator_tasks": set(_load("data/rules/hygiene.yaml").get("narrator_tasks") or []),
         "config.SAMPLING": set(getattr(config, "SAMPLING", {})),
+        "DND_THINK_TASKS (config.THINK_TASKS)": set(getattr(config, "THINK_TASKS", ())),     # (f533) a misspelt name would think nowhere
     }
     for where, names in lists.items():
         stray = sorted(names - set(T))
@@ -125,6 +129,10 @@ def baseline_problems(base: dict | None = None) -> list[str]:
         base = _load("data/measured/bundle_d_baseline.yaml") or {}
     bad: list[str] = []
     known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    priced = base.get("priced_at")                                      # (f527) the speeds the gate prices at, whatever the card profile says now
+    if not isinstance(priced, dict) or any(not isinstance(priced.get(k), (int, float)) or isinstance(priced.get(k), bool) or priced[k] <= 0
+                                             for k in ("read_tps", "write_tps", "embed_seconds_per_text")):
+        bad.append("bundle_d_baseline.yaml priced_at: needs read_tps, write_tps and embed_seconds_per_text above 0")
     listed = list(base.get("speech_tasks") or [])
     if not listed:
         bad.append("bundle_d_baseline.yaml speech_tasks: needs the tasks it measures")
@@ -139,6 +147,144 @@ def baseline_problems(base: dict | None = None) -> list[str]:
             v = (m or {}).get(k)
             if v is not None and (not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0):
                 bad.append(f"bundle_d_baseline.yaml tasks.{task}.{k}: needs a number, not {v!r}")
+    return bad
+
+
+def fights_problems(data: dict | None = None) -> list[str]:
+    """(f510) data/measured/bundle_e_fights.yaml, when it is there: its fight tasks and every task its rows count are tasks budget.yaml
+    knows, its goldens are kept recordings, its numbers are numbers (an estimate, operations, re-runs, simulations never below zero)."""
+    path = ROOT / "data" / "measured" / "bundle_e_fights.yaml"
+    if data is None:
+        if not path.exists():
+            return []
+        data = _load("data/measured/bundle_e_fights.yaml") or {}
+    bad: list[str] = []
+    known = set((_load("data/rules/budget.yaml").get("tasks") or {}))
+    tasks = list(data.get("fight_tasks") or [])
+    if not tasks:
+        bad.append("bundle_e_fights.yaml fight_tasks: needs the tasks it measures")
+    for t in sorted(set(tasks) - known):
+        bad.append(f"bundle_e_fights.yaml fight_tasks: budget.yaml does not know {t}")
+    limit = data.get("limit_seconds")
+    if not isinstance(limit, (int, float)) or isinstance(limit, bool) or limit <= 0:
+        bad.append(f"bundle_e_fights.yaml limit_seconds: needs a number above zero, not {limit!r}")
+    replay = ROOT / "data" / "replay"                                # (f531) the kept recordings are a source tree's: a built game
+    for name, rows in (data.get("goldens") or {}).items():          # ships without data/replay, and is not told they are missing
+        if replay.exists() and not (replay / "sessions" / str(name) / "calls.jsonl.gz").exists():
+            bad.append(f"bundle_e_fights.yaml goldens.{name}: no such recording is kept")
+        for i, row in (rows or {}).items():
+            for k in ("estimate", "operations", "reruns", "simulations"):
+                v = (row or {}).get(k)
+                if not isinstance(v, (int, float)) or isinstance(v, bool) or v < 0:
+                    bad.append(f"bundle_e_fights.yaml goldens.{name}.{i}.{k}: needs a number, not {v!r}")
+            for t in sorted(set((row or {}).get("calls") or {}) - set(tasks)):
+                bad.append(f"bundle_e_fights.yaml goldens.{name}.{i}: counts a call of '{t}', not one of its fight tasks")
+    return bad
+
+
+def model_problems(cfg=None, server: dict | None = None) -> list[str]:
+    """(f527) config.MODEL and EMBED_MODEL are GGUF ids, each a file's stem in data/runtime/server.yaml (name and sha prefix): the id in
+    the data hash names exactly the file the server is started on."""
+    import config as _config
+    cfg = cfg or _config
+    server = _load("data/runtime/server.yaml") if server is None else server
+    bad: list[str] = []
+    models = (server or {}).get("models") or {}
+    for role, ident in (("chat", getattr(cfg, "MODEL", "")), ("embed", getattr(cfg, "EMBED_MODEL", ""))):
+        m = next((v for v in models.values() if (v or {}).get("role") == role), None)
+        if m is None:
+            bad.append(f"server.yaml models: no file with the role {role}")
+            continue
+        stem = str(m.get("file", "")).rsplit(".", 1)[0]
+        prefix = str(ident).rsplit("-", 1)[-1]
+        if ident != stem:
+            bad.append(f"config.{'MODEL' if role == 'chat' else 'EMBED_MODEL'} is {ident!r}, not the {role} file's id {stem!r} (server.yaml)")
+        elif not str(m.get("sha256", "")).startswith(prefix):
+            bad.append(f"config.{'MODEL' if role == 'chat' else 'EMBED_MODEL'} {ident!r}: its sha prefix is not the {role} file's sha256")
+    return bad
+
+
+def sampling_problems(S: dict | None = None) -> list[str]:
+    """(f527) data/rules/sampling.yaml: a base table, a task table and a retry step above 0 (the keys and ranges are llm/llama.py
+    sampler_problems', the task names budget_problems')."""
+    S = _load("data/rules/sampling.yaml") if S is None else S
+    bad: list[str] = []
+    if not isinstance(S.get("base"), dict) or not S["base"]:
+        bad.append("sampling.yaml base: needs the table laid under every task's own values")
+    if not isinstance(S.get("tasks"), dict):
+        bad.append("sampling.yaml tasks: needs a table of tasks")
+    step = S.get("retry_temperature_step")
+    if isinstance(step, bool) or not isinstance(step, (int, float)) or not 0 < step <= 1:
+        bad.append("sampling.yaml retry_temperature_step: needs a number above 0 and at most 1")
+    return bad
+
+
+def cards_problems(C: dict | None = None) -> list[str]:
+    """(f527) data/rules/cards.yaml: the minimum cards named for each backend are cards the file knows, and every device pattern is a
+    regular expression for a known card."""
+    import re as _re
+    C = _load("data/rules/cards.yaml") if C is None else C
+    bad: list[str] = []
+    cards = set((C or {}).get("cards") or {})
+    minimum = (C or {}).get("minimum") or {}
+    if not isinstance(minimum, dict) or not {"cuda", "vulkan"} <= set(minimum):
+        bad.append("cards.yaml minimum: needs the minimum card for cuda and for vulkan")
+    for backend, card in (minimum.items() if isinstance(minimum, dict) else []):
+        if card not in cards:
+            bad.append(f"cards.yaml minimum.{backend}: '{card}' is not in cards")
+    for card, pat in ((C or {}).get("patterns") or {}).items():
+        if card not in cards:
+            bad.append(f"cards.yaml patterns: '{card}' is not in cards")
+        try:
+            _re.compile(str(pat))
+        except _re.error as e:
+            bad.append(f"cards.yaml patterns.{card}: not a regular expression ({e})")
+    return bad
+
+
+def grammar_problems() -> list[str]:
+    """(f527) Every contract's schema converts to the grammar llama-server is sent (llm/gbnf.py), the many-reply ones built at run time
+    included: a schema outside the converter's subset (a string pattern, say) is named here, before a call could be refused for it."""
+    from llm import contracts, gbnf
+    from pydantic import BaseModel
+    bad: list[str] = []
+    classes = [o for o in vars(contracts).values() if isinstance(o, type) and issubclass(o, BaseModel) and o is not BaseModel
+               and o.__module__ == contracts.__name__]
+    items = [(c.__name__, c) for c in classes] + [("NPCReplyMany(2)", contracts.many_reply(["a", "b"])),
+                                                  ("NPCReplyMany(3, promised)", contracts.many_reply(["a", "b", "c"], promised=True))]
+    for name, cls in items:
+        try:
+            gbnf.grammar(cls.model_json_schema())
+        except gbnf.SchemaError as e:
+            bad.append(f"contracts.{name}: its schema has no grammar ({str(e)[:160]})")
+    return bad
+
+
+def ceilings_problems(ceil: dict | None = None) -> list[str]:
+    """(f490) data/measured/prompt_ceilings.yaml, when it is there: every speech task the baseline names has a ceiling, each a whole number
+    of characters, none for a task the baseline does not name; the closing's marks name speech tasks and are numbers."""
+    if ceil is None:
+        if not (ROOT / "data" / "measured" / "prompt_ceilings.yaml").exists():
+            return []
+        ceil = _load("data/measured/prompt_ceilings.yaml") or {}
+    bad: list[str] = []
+    listed = set((_load("data/measured/bundle_d_baseline.yaml") or {}).get("speech_tasks") or [])
+    tops = ceil.get("ceilings") or {}
+    for task in sorted(listed - set(tops)):
+        bad.append(f"prompt_ceilings.yaml ceilings: no ceiling for the speech task {task}")
+    for task, v in tops.items():
+        if task not in listed:
+            bad.append(f"prompt_ceilings.yaml ceilings.{task}: not a speech task the baseline names")
+        n = (v or {}).get("chars") if isinstance(v, dict) else None
+        if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+            bad.append(f"prompt_ceilings.yaml ceilings.{task}.chars: a whole number of characters above zero")
+    marks = ceil.get("closing") or {}
+    for task in sorted(set(marks.get("first_try_tasks") or []) - listed):
+        bad.append(f"prompt_ceilings.yaml closing.first_try_tasks: {task} is not a speech task the baseline names")
+    for k in ("first_try_points", "many_points", "npc_conversation_p95"):
+        v = marks.get(k)
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+            bad.append(f"prompt_ceilings.yaml closing.{k}: a whole number")
     return bad
 
 
@@ -342,6 +488,9 @@ def check() -> list[str]:
     _kinds = {getattr(c_, "kind", None) for c_ in _de.Deed.__subclasses__()} | {c_.__dataclass_fields__["kind"].default for c_ in _de.Deed.__subclasses__() if "kind" in c_.__dataclass_fields__}
     _law = _load("data/rules/law.yaml")
     _pulse_rules = _load("data/rules/pulse.yaml")
+    _mk = (_pulse_rules.get("effects") or {}).get("marks_keep")
+    need(isinstance(_mk, int) and not isinstance(_mk, bool) and _mk > 0,
+         f"pulse.yaml effects.marks_keep: the most marks a place or a road keeps must be a whole number above 0 (it is {_mk!r})")   # (f540)
     for p_ in _rx.problems({k for k in _kinds if isinstance(k, str)}, set(Q.get("deeds") or {}), set(_load("data/rules/standing.yaml").get("deeds") or {}),
                            {k for k in (_pulse_rules.get("reputation") or {}) if k != "trust_per_point"}, set((_law.get("heat") or {}).get("gain") or {}),
                            set(_law.get("offenses") or {})):
@@ -355,18 +504,57 @@ def check() -> list[str]:
         need(False, p_)
     PT_ = _load("data/rules/pastimes.yaml")
     _roles = {r_["id"] for r_ in _load("data/world/roles.yaml")}
+    _goods_ids = {g_["id"] for g_ in _load("data/world/goods.yaml")}                         # (f545) a ware names a real good or material
+    from engine import items as _items
+    _mats = set(_items.MATERIALS)
+    for r_ in _load("data/world/roles.yaml"):
+        for w_ in r_.get("sells") or []:
+            if w_.get("kind") == "item":
+                need(w_.get("item") in _goods_ids, f"roles.yaml {r_['id']} sells '{w_.get('id')}': item '{w_.get('item')}' is not a good")
+            elif w_.get("kind") == "material":
+                need(w_.get("item") in _mats, f"roles.yaml {r_['id']} sells '{w_.get('id')}': item '{w_.get('item')}' is not a material")
     from engine import clock as _clock, doings as _doings, moments as _moments                 # (f348) doings by role and period; moments by place and period
     _types = {p_.get("type", "") for p_ in _load("data/world/places.yaml")}
     bad += _doings.problems(_roles, set(_clock.PERIOD_NAMES), _types | {"road", "dungeon", "home"})    # (f449) `at`: the kinds of place, the made ones too
     bad += _moments.problems(_roles, _types, set(_clock.PERIOD_NAMES))
+    from engine import town_memory as _tm                                                       # (f484) every kind with a term and a cap
+    bad += _tm.problems()
+    from engine import brief as _brief                                                          # (f486) the brief's numbers and words
+    bad += _brief.problems()
     from engine import voices as _voices                                                      # (f350) voice kits: behaviour, never sound
     bad += _voices.problems()
+    from engine import situations as _sit                                                    # (f542) a situation's parts: lists, caps, phrases
+    bad += _sit.problems()
+    from engine import situation_parts as _sp                                               # (f545) how the parts are written in
+    bad += _sp.problems()
+    for r_ in _sit.S.get("never_roles") or ():
+        need(r_ in _roles, f"situations.yaml never_roles: '{r_}' is not a role")
+    for r_ in _load("data/rules/threads.yaml").get("never_roles") or ():                   # (f542's review) one list of trades never cast
+        need(r_ in set(_sit.S.get("never_roles") or ()), f"situations.yaml never_roles: lacks '{r_}', which the engine's own situations never cast")
     RD_ = _load("data/rules/road.yaml")                                                       # (f427) what stops the walk, and who is there
     for k_ in RD_.get("stops", []):
         need(k_ in RD_.get("kinds", {}), f"road.yaml stops: '{k_}' is not a kind of happening (kinds)")
     need("sight" not in RD_.get("stops", []), "road.yaml stops: a passing sight never stops the walk (the owner, review Q2)")
     for k_, r_ in (RD_.get("stop_roles") or {}).items():
         need(r_ in _roles, f"road.yaml stop_roles.{k_}: '{r_}' is not a role")
+    import string as _string                                                                  # (f541) the barrier's lines and where it lies
+    _bar = RD_.get("barrier") or {}
+    _at = _bar.get("at")
+    need(isinstance(_at, (int, float)) and not isinstance(_at, bool) and 0 < _at < 1, f"road.yaml barrier.at: a share of the road between 0 and 1 ({_at!r})")
+    _ar = _bar.get("ask_ratio")
+    need(isinstance(_ar, (int, float)) and not isinstance(_ar, bool) and _ar >= 1, f"road.yaml barrier.ask_ratio: a ratio of 1 or more ({_ar!r})")
+    for k_, allowed_ in {"meet": {"onward", "back", "round"}, "round": {"dest", "time"}, "none": {"dest"}, "around": {"road", "why"},
+                         "refused": {"road", "why", "dest"}, "wayfinder": {"road", "why"}, "ask": {"road", "why", "dest", "time"}}.items():
+        line_ = _bar.get(k_)
+        if not isinstance(line_, str) or not line_.strip():
+            need(False, f"road.yaml barrier.{k_}: a line is needed")
+            continue
+        try:
+            got_ = {f_ for _, f_, _, _ in _string.Formatter().parse(line_) if f_}
+        except ValueError as e_:
+            need(False, f"road.yaml barrier.{k_}: {e_}")
+            continue
+        need(got_ <= allowed_, f"road.yaml barrier.{k_}: {sorted(got_ - allowed_)} are not among {sorted(allowed_)}")
     for path_ in (("hazard", "around_words"), ("aid", "help_words")):
         try:
             re.compile(RD_[path_[0]][path_[1]])
@@ -537,11 +725,13 @@ def check() -> list[str]:
         cards_known = set(((_load("data/rules/cards.yaml") or {}).get("cards") or {}))
         need(P_.get("card") in cards_known, f"card_profile.yaml: card '{P_.get('card')}' is not in cards.yaml")
         need(not P_.get("scaled_from") or P_["scaled_from"] in cards_known, f"card_profile.yaml: scaled_from '{P_.get('scaled_from')}' is not in cards.yaml")
-        for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "median_turn_seconds", "longest_turn_seconds"):
-            need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")
+        for k in ("prompt_tokens_per_second", "answer_tokens_per_second", "embed_seconds_per_text", "median_turn_seconds", "longest_turn_seconds"):
+            need(isinstance(P_.get(k), (int, float)) and P_[k] > 0, f"card_profile.yaml {k}: needs a number above 0")   # (f527) the embed price among them
+    bad += cards_problems()                                              # (f527) the minimum cards and the device patterns
 
     # ---- (f475) Bundle D's baseline (data/measured, outside the hash): every task it measures is one the budget knows
     bad += baseline_problems()
+    bad += ceilings_problems()                                      # (f490)
 
     # ---- (f478) how much of each kind of memory a person keeps
     from engine import memory as _memory
@@ -575,7 +765,322 @@ def check() -> list[str]:
     for k in ("cap", "again_per_keep"):
         need(isinstance(U.get(k), int) and not isinstance(U.get(k), bool) and U.get(k) > 0,
              f"truth.yaml canon.unsettled.{k}: needs a whole number above 0")
+
+    # ---- (f499) what a fight keeps of itself between rounds: the cap on its rows
+    ek = _load("data/rules/combat.yaml").get("effects_keep")
+    need(isinstance(ek, int) and not isinstance(ek, bool) and ek > 0, "combat.yaml effects_keep: needs a whole number above 0")
+    bad += tables_problems()                                           # (f504) the fight's tables, both ways
+    bad += trigger_problems()                                          # (f507) the triggers held to the code that evaluates them
+    bad += allowlist_problems()                                        # (f509) every table the fight reads, held to the code, both ways
+    bad += fights_problems()                                           # (f510) the fight measures' shape
+    from llm import llama as _llama
+    bad += sampling_problems()                                         # (f527) data/rules/sampling.yaml's shape
+    bad += _llama.sampler_problems()                                   # (f521) every sampler key one llama-server reads, in its range
+    bad += model_problems()                                            # (f527) the model ids name the server's files
+    bad += grammar_problems()                                          # (f527) every contract has its grammar
+    from llm import runtime as _runtime
+    bad += _runtime.runtime_problems()                                 # (f522) the server's settings hold what the game sends
+    from llm import launch as _launch
+    bad += _launch.problems()                                          # (f526) the load screen's lines, once the owner's are in
     return bad
+
+
+def tables_problems(AE: dict | None = None, ST: dict | None = None, CB: dict | None = None) -> list[str]:
+    """(f504) The fight's tables held to the code both ways: every kind in active_effects.yaml has a family, an expiry and a stacking rule
+    the table itself lists, a status kind's deltas name a combat.yaml statuses row and every statuses row has a kind; every stage a
+    damage path in stages.yaml names has a function in engine/damage.py and every function there is named by a path; the hit steps are
+    a list of names; (f507) every status eligibility stage named has a function in engine/effects.py and every function there is
+    named; every stacking recipe has a function in engine/stacking.py and every function a recipe, with parts the recipe knows. Data
+    cannot promise what code cannot run."""
+    from engine import damage, stacking
+    AE = _load("data/rules/active_effects.yaml") if AE is None else AE
+    ST = _load("data/rules/stages.yaml") if ST is None else ST
+    CB = _load("data/rules/combat.yaml") if CB is None else CB
+    out: list[str] = []
+
+    def need(ok, msg):
+        if not ok:
+            out.append(msg)
+
+    fam, exp, stk = list(AE.get("families") or []), list(AE.get("expiry") or []), list(AE.get("stacking") or [])
+    need(len(fam) == 6, f"active_effects.yaml families: six families, not {len(fam)}")
+    statuses = CB.get("statuses") or {}
+    kinds = AE.get("kinds") or {}
+    status_kinds = set()
+    for k, spec in kinds.items():
+        spec = spec or {}
+        need(spec.get("family") in fam, f"active_effects.yaml kinds.{k}: family '{spec.get('family')}' is not one of {', '.join(fam)}")
+        need(spec.get("expiry") in exp, f"active_effects.yaml kinds.{k}: expiry '{spec.get('expiry')}' is not one of {', '.join(exp)}")
+        need(spec.get("stacking") in stk, f"active_effects.yaml kinds.{k}: stacking '{spec.get('stacking')}' is not one of {', '.join(stk)}")
+        need(set(spec) <= {"family", "expiry", "stacking", "deltas"}, f"active_effects.yaml kinds.{k}: unknown keys {sorted(set(spec) - {'family', 'expiry', 'stacking', 'deltas'})}")
+        deltas = spec.get("deltas")
+        if deltas:
+            need(deltas == f"statuses.{k}" and k in statuses, f"active_effects.yaml kinds.{k}: deltas '{deltas}' is not a combat.yaml statuses row of that name")
+            status_kinds.add(k)
+        elif spec.get("family") == "status":
+            need(False, f"active_effects.yaml kinds.{k}: a status kind needs its deltas row in combat.yaml statuses")
+    for st in statuses:
+        need(st in kinds and (kinds[st] or {}).get("family") == "status", f"combat.yaml statuses.{st}: no status kind of that name in active_effects.yaml")
+    paths = ST.get("damage") or {}
+    declared = set()
+    for path, ids in paths.items():
+        need(isinstance(ids, list) and ids and all(isinstance(i, str) for i in ids), f"stages.yaml damage.{path}: a list of stage names")
+        for i in (ids or []):
+            need(i in damage.STAGES, f"stages.yaml damage.{path}: '{i}' is no stage engine/damage.py can run")
+            declared.add(i)
+    for i in damage.STAGES:
+        need(i in declared, f"stages.yaml damage: engine/damage.py has a stage '{i}' that no path names")
+    for key in ("hit_steps", "status_eligibility"):
+        v = ST.get(key)
+        need(isinstance(v, list) and v and all(isinstance(i, str) and i for i in v), f"stages.yaml {key}: a list of names")
+    from engine import effects
+    for i in (ST.get("status_eligibility") or []):                        # (f507) each stage named has a function, each function is named
+        need(i in effects.STAGES, f"stages.yaml status_eligibility: '{i}' is no stage engine/effects.py can run")
+    for i in effects.STAGES:
+        need(i in (ST.get("status_eligibility") or []), f"stages.yaml status_eligibility: engine/effects.py has a stage '{i}' the table does not name")
+    recipes = ST.get("stacking") or {}
+    for r, parts in recipes.items():
+        need(r in stacking.RECIPES, f"stages.yaml stacking.{r}: no recipe of that name in engine/stacking.py")
+        if r in stacking.RECIPES:
+            need(isinstance(parts, list) and parts and all(p in stacking.PARTS[r] for p in parts), f"stages.yaml stacking.{r}: parts {parts} are not the recipe's {list(stacking.PARTS[r])}")
+    for r in stacking.RECIPES:
+        need(r in recipes, f"stages.yaml stacking: engine/stacking.py has a recipe '{r}' the table does not name")
+    return out
+
+
+def evaluated_triggers() -> set[str]:
+    """(f507) Every trigger id the code can make true, read from the code: the string literals of engine/combat.py active_triggers,
+    scenes/world.py conditions and scenes/check_actions.py check_triggers, the creature-category triggers (engine/combat.py
+    CATEGORY_TRIGGERS), and in_<biome> for every biome the world data names (conditions builds it from the place's biome)."""
+    import ast
+    found: set[str] = set()
+    for rel, fn in (("engine/combat.py", "active_triggers"), ("scenes/world.py", "conditions"), ("scenes/check_actions.py", "check_triggers")):
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == fn:
+                found |= {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    from engine import combat
+    found |= set(combat.CATEGORY_TRIGGERS.values())
+    biomes: set[str] = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "biome" and isinstance(v, str):
+                    biomes.add(v)
+                if k == "biomes" and isinstance(v, list):
+                    biomes.update(b for b in v if isinstance(b, str))
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    for f in sorted((ROOT / "data" / "world").rglob("*.yaml")):
+        walk(_load(str(f.relative_to(ROOT))))
+    found |= {f"in_{b}" for b in biomes}
+    return found
+
+
+def trigger_problems(T: list | None = None) -> list[str]:
+    """(f507) triggers.yaml held to the code both ways: a trigger no code evaluates must say dormant: true (creation, gear and lessons
+    never offer it; an old character's passive still loads), and one the code evaluates must not."""
+    T = _load("data/rules/triggers.yaml") if T is None else T
+    live = evaluated_triggers()
+    out = []
+    for t in T or []:
+        tid, dormant = (t or {}).get("id"), bool((t or {}).get("dormant"))
+        if tid in live and dormant:
+            out.append(f"triggers.yaml {tid}: says dormant, but the code evaluates it")
+        if tid not in live and not dormant:
+            out.append(f"triggers.yaml {tid}: no code evaluates it; mark it dormant: true, or evaluate it")
+    return out
+
+
+# ---------- (f509) the allow-lists: every table the fight reads, held to the code that runs it, both ways ----------
+
+def _literals(paths) -> set[str]:
+    """Every string constant in these modules' syntax trees."""
+    import ast
+    out: set[str] = set()
+    for rel in paths:
+        for n in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                out.add(n.value)
+    return out
+
+
+def _compared(rel: str, names: tuple[str, ...]) -> set[str]:
+    """Every string a module compares one of these names against (`kind == "smite"`, `eid in ("a", "b")`): what its dispatch handles."""
+    import ast
+    out: set[str] = set()
+    for c in ast.walk(ast.parse((ROOT / rel).read_text(encoding="utf-8"))):
+        if isinstance(c, ast.Compare) and isinstance(c.left, ast.Name) and c.left.id in names:
+            for comp in c.comparators:
+                if isinstance(comp, ast.Constant) and isinstance(comp.value, str):
+                    out.add(comp.value)
+                elif isinstance(comp, (ast.Tuple, ast.List, ast.Set)):
+                    out |= {x.value for x in comp.elts if isinstance(x, ast.Constant) and isinstance(x.value, str)}
+    return out
+
+
+GAME_CODE = ("engine", "scenes", "services", "npc", "character", "llm")     # (f509) where a row's key or an id may be read by name
+_SCAN: dict = {}
+
+
+def scan_code(precise: bool = False) -> tuple[set[str], set[str]]:
+    """(f509) What the game's code names: (every string it holds, every row key it reads by name: x["key"], x.get("key")), over
+    GAME_CODE. By default read by pattern with the comments stripped (a tenth of a second, for the check at every startup); precise,
+    read from the syntax tree (two seconds, for the suite's test, which holds the two readings to one verdict). Cached: the code does
+    not change while a process runs."""
+    import ast
+    import re
+    if precise in _SCAN:
+        return _SCAN[precise]
+    lits, keys = set(), set()
+    for d in GAME_CODE:
+        for p in sorted((ROOT / d).glob("*.py")):
+            text = p.read_text(encoding="utf-8")
+            if precise:
+                for n in ast.walk(ast.parse(text)):
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                        lits.add(n.value)
+                    elif isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant) and isinstance(n.slice.value, str):
+                        keys.add(n.slice.value)
+                    elif isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "get" and n.args \
+                            and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str):
+                        keys.add(n.args[0].value)
+            else:
+                code = "\n".join(line.split("#")[0] for line in text.split("\n"))
+                lits |= set(re.findall(r'["\']([A-Za-z_][\w ]*)["\']', code))
+                for a, b in re.findall(r'\[["\']([a-z_]+)["\']\]|\.get\(["\']([a-z_]+)["\']', code):
+                    keys.add(a or b)
+    _SCAN[precise] = (lits, keys)
+    return lits, keys
+
+
+def _read_keys(precise: bool = False) -> set[str]:
+    """Every key the game's code reads from a row by name."""
+    return scan_code(precise)[1]
+
+
+def code_named(precise: bool = False) -> set[str]:
+    """Every string the game's code names (what it can run by name)."""
+    return scan_code(precise)[0]
+
+
+def creature_categories() -> set[str]:
+    """Every creature category the engine knows: the keys of combat.yaml creatures.natural_armor (the bestiary's rows are held to them
+    elsewhere in this check)."""
+    from engine import combat
+    return set((combat.RULES.get("creatures") or {}).get("natural_armor") or {})
+
+
+ALLOW_TABLES = ("legendary", "expressions", "relics", "summons", "bosses", "martial", "movement", "healing", "mechanics")
+
+
+def allowlist_problems(tables: dict | None = None, handled: dict | None = None, precise: bool = False) -> list[str]:
+    """(f509) Every table the fight reads, held to the code that runs it, both ways: legendary effects (engine/legendary.py: by name,
+    category or world mechanic, else enabled: false), spellcraft expressions (each named by engine/spellcraft.py or engine/combat.py;
+    each the dispatch compares is in the table), relic powers (the kinds engine/relics.py use dispatches), summon forms (each row's
+    keys ones engine/summons.py reads; the forms the summon family of active_effects.yaml names), boss kits' options (the kinds
+    engine/bosses.py _do runs), martial maneuvers (each row's keys ones engine/martial.py reads, its status a combat.yaml status, each
+    maneuver the code names in the table), movement kinds (engine/movement.py), healing forms (engine/healing.py, mend the plain one),
+    passive mechanics (core/rules.py's engine sets: the refusal that lived at import, and a set entry that is neither a mechanic nor a
+    legendary effect). `tables` and `handled` override a table or the code's side, for the test's planted ids; `precise` reads the
+    code by its syntax tree (scan_code)."""
+    from core import rules
+    from engine import items, legendary, summons, martial, spellcraft, combat as _cb
+    T = tables or {}
+    H = handled or {}
+    out: list[str] = []
+
+    def need(ok, msg):
+        if not ok:
+            out.append(msg)
+    # legendary effects
+    effects = T.get("legendary") or items.LEGENDARY
+    out += legendary.problems(effects, H.get("legendary") or code_named(precise), creature_categories(), set(rules.ENGINE_WORLD_MECHANICS))
+    # spellcraft expressions
+    EXPR = T.get("expressions") or spellcraft.EXPR
+    named = H.get("expressions") or _literals(["engine/spellcraft.py", "engine/combat.py"])
+    compared = H.get("expressions_compared") or _compared("engine/spellcraft.py", ("eid",))
+    for eid in EXPR:
+        need(eid in named or eid in compared, f"spellcraft.yaml expressions.{eid}: nothing in engine/spellcraft.py or engine/combat.py runs it")
+    for eid in sorted(compared):
+        need(eid in EXPR, f"engine/spellcraft.py handles an expression '{eid}' that spellcraft.yaml does not name")
+    # relic powers
+    AC = T.get("relics") or _load("data/rules/accessories.yaml")
+    kinds_used: set[str] = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            if isinstance(o.get("kind"), str) and "text" in o:
+                kinds_used.add(o["kind"])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(AC)
+    relic_kinds = H.get("relics") or _compared("engine/relics.py", ("kind",))
+    for k in sorted(kinds_used):
+        need(k in relic_kinds, f"accessories.yaml: a power of kind '{k}' has no handler in engine/relics.py")
+    for k in sorted(relic_kinds):
+        need(k in kinds_used, f"engine/relics.py handles a power kind '{k}' that no power in accessories.yaml uses")
+    # summon forms
+    forms = T.get("summons") or summons.FORMS
+    form_keys = H.get("summons") or _read_keys(precise)              # read by name anywhere in the game's code
+    AE = _load("data/rules/active_effects.yaml")
+    summon_kinds = {k for k, v in (AE.get("kinds") or {}).items() if (v or {}).get("family") == "summon"}
+    for form, row in forms.items():
+        need(form in summon_kinds, f"summons.yaml forms.{form}: no summon kind of that name in active_effects.yaml")
+        for key in (row or {}):
+            need(key in form_keys, f"summons.yaml forms.{form}: the key '{key}' is one no game code reads")
+    for k in sorted(summon_kinds):
+        need(k in forms, f"active_effects.yaml kinds.{k}: a summon kind with no form in summons.yaml")
+    # boss options
+    BS = T.get("bosses") or _load("data/rules/bosses.yaml")
+    boss_kinds = H.get("bosses") or _compared("engine/bosses.py", ("kind",))
+    used = set()
+    for kit, spec in (BS.get("kits") or {}).items():
+        for opt in [spec.get("signature")] + list(spec.get("legendary") or []):
+            if opt:
+                used.add(opt.get("kind"))
+                need(opt.get("kind") in boss_kinds, f"bosses.yaml kits.{kit}: an option of kind '{opt.get('kind')}' has no handler in engine/bosses.py _do")
+    for k in sorted(boss_kinds):
+        need(k in used, f"engine/bosses.py _do handles an option kind '{k}' that no kit in bosses.yaml uses")
+    # martial maneuvers
+    MT = T.get("martial") or martial.MANEUVERS
+    man_keys = H.get("martial") or _read_keys(precise)
+    statuses = set((_cb.RULES.get("statuses") or {}))
+    for mid, row in MT.items():
+        for key in (row or {}):
+            need(key in man_keys, f"martial.yaml maneuvers.{mid}: the key '{key}' is one no game code reads")
+        if (row or {}).get("status"):
+            need(row["status"] in statuses, f"martial.yaml maneuvers.{mid}: status '{row['status']}' is no combat.yaml status")
+    for m in sorted(H.get("martial_named") or _compared("engine/martial.py", ("maneuver", "mid", "man"))):
+        need(m in MT, f"engine/martial.py names a maneuver '{m}' that martial.yaml does not have")
+    # movement kinds
+    MV = T.get("movement") or _load("data/rules/movement.yaml")
+    move_kinds = H.get("movement") or _compared("engine/movement.py", ("kind",))
+    for k in (MV.get("kinds") or {}):
+        need(k in move_kinds, f"movement.yaml kinds.{k}: no handler in engine/movement.py")
+    for k in sorted(move_kinds):
+        need(k in (MV.get("kinds") or {}), f"engine/movement.py handles a movement kind '{k}' that movement.yaml does not name")
+    # healing forms
+    HL = T.get("healing") or _load("data/rules/healing.yaml")
+    heal_forms = H.get("healing") or (_compared("engine/healing.py", ("form",)) | {"mend"})     # mend is the plain form, the else arm
+    for f in (HL.get("forms") or {}):
+        need(f in heal_forms, f"healing.yaml forms.{f}: no handler in engine/healing.py")
+    for f in sorted(heal_forms):
+        need(f in (HL.get("forms") or {}), f"engine/healing.py handles a healing form '{f}' that healing.yaml does not name")
+    # passive mechanics (the refusal that lived at core/rules.py import)
+    PM = T.get("mechanics") or rules.MECHANICS
+    combat_set, world_set = H.get("mechanics_combat") or rules.ENGINE_COMBAT_MECHANICS, H.get("mechanics_world") or rules.ENGINE_WORLD_MECHANICS
+    for m in PM.values():
+        need(m.id in (combat_set if m.kind == "combat" else world_set), f"passive_mechanics.yaml {m.id}: the engine doesn't know how to run it")
+    for mid in sorted((combat_set | world_set) - set(PM) - set(items.LEGENDARY)):
+        need(False, f"core/rules.py names a mechanic '{mid}' that is neither a passive mechanic nor a legendary effect")
+    return out
 
 
 def assert_ok() -> None:

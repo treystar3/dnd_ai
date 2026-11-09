@@ -1,0 +1,360 @@
+# (f542) SITUATION PARTS - what a situation's people, goods, ties, places and evidence may be (Stage 4; the owner's decisions of
+# 2026-11-07, GOALS.md). The model proposes parts in these words only: llm/contracts.py SituationParts holds the same lists as
+# Literals, so the grammar refuses anything else, and engine/data_check.py holds the two equal both ways. The engine checks each part on
+# its own (engine/situations.py check: a part that fails is dropped with its reason, the rest stand) and later registers what passed
+# through the game's own writers. Nothing here is a clock: no part times out.
+
+lists:
+  stakes: [gains, harmed, can_fix, blocks, knows]            # what a person has in the trouble
+  wants: [coin, road_open, goods_moved, safety, believed, left_alone, rid_of_rival]
+  conditions: [paid, protected, given, trusted, told]       # what a person needs before helping (none: helps freely)
+  ties: [rival, owes, kin, employs, fears]                  # how two people of the situation stand to each other
+  resource_states: [scarce, stranded, wanted]
+  place_kinds: [closed, danger, prices, mark]               # what the situation lays on a place or a road (the pulse's own effects)
+  certainties: [sure, they say, hearsay]                    # how sure the holder of a piece of evidence is (memory.yaml's words)
+  controllers: [person, group, creature, mechanism, nature] # (f546) who or what imposes a condition and could lift it (the owner,
+                                                            # 2026-11-08: a person, a faction, a mechanism or an environmental condition)
+
+# (f545) Stances the check refuses, and conditions it lifts: a person who blocks an end to the trouble does not want the road open or
+# the goods moved ([stake, want]); a person who wants coin needs no condition of pay ([want, condition]: the condition is lifted, the
+# person kept). A condition the situation offers no way to meet is lifted too (told with no evidence another holds or that lies at a
+# place; given with no good that person wants within the player's reach: held by someone else of the situation, sold by a trade of the
+# town, or given by the land about it), so the person helps freely rather than standing as a locked door.
+stances:
+  refused: [[blocks, road_open], [blocks, goods_moved]]
+  lifted: [[coin, paid]]
+
+# (f545) The goods a situation may turn on, in the order its prompt lists them: the trade goods first (what a town makes, eats, burns and
+# builds with), then the herbs and meat the land gives and the one remedy a town would send for. Never the player's kit: no tome, codex,
+# tonic, torch or ration (f544: those read as cargo absurdly, and three of them were most of what the model named). The startup check
+# refuses a book or a codex here, a good the world lacks and one listed twice; the rest of the kit is kept out by this list alone.
+goods: [salt, grain, flour, cloth, sawn_planks, dried_fish, wine, lamp_oil, rope, candles, silverleaf, moonpetal, yarrow, wild_garlic,
+        venison, boar_meat, healing_draught]
+
+# Trades a situation never casts: the protected and the kept, and the guild's and the crown's own offices.
+never_roles: [prisoner, guild_clerk, guild_master, guild_instructor, guild_contractor, quartermaster, land_agent, relic_dealer, monarch,
+              chamberlain, royal_guard]
+# (f545's review) Words that make a label machinery, written with underscores or not (engine/situations.py plain): never read as words.
+machinery_words: [npc, npcs, id, ids, todo, tbd, "null", none, placeholder, label, slot, var, tmp, undefined]
+# (f545's reviews) Words that say a person is no longer of a trade (or never was): a label with one of them names no living trade
+# (engine/situations.py trade_of: "the late miller", "a former guard", "a fake priest", "a miller, now dead", "the smith (retired)").
+# not_of_trade_head counts only in the label's head ("not a real merchant", never "a miller who would not sell").
+not_of_trade: [late, former, dead, deceased, fake, "false", sham, ex, retired, imposter, impostor, dismissed, slain, murdered]
+not_of_trade_head: ["not", would]
+
+# At most, per situation. null: no cap. (f550, the owner, 7 Nov: rare and campaign situations keep every part the model proposes, no
+# total and no cap by kind, after f544 showed the caps cut the ties, places and evidence first. f556, the owner, 8 Nov: "no caps for
+# anything but new people", common and uncommon situations as well.) New people stay capped by tier: none for the common tiers, 2 for
+# rare and campaign ones (and new_per_town_day a day in one town). Parts past a cap are dropped in the order they were proposed.
+caps:
+  parts: {normal: null, uncommon: null, rare: null, campaign: null}
+  people: null
+  each_other: null
+  new_people: {normal: 0, uncommon: 0, rare: 2, campaign: 2}
+
+# (f557, the owner, 8 Nov: "lets not have it be a percentage roll to be a lie but instead some characters have an incentive to lie")
+# A piece of evidence a person holds is false only when they have a reason to deceive: their stake or their want is served by others
+# believing it, or it points at someone they are at odds with. No roll. Evidence lying at a place is never false, nor is a claim that
+# points at its own holder; a person with no reason to deceive tells what they believe, and it is so. The model that proposed it, and
+# the one that rules on it, is never told which claims are lies.
+lies:
+  stakes: [gains, blocks]          # one who does well out of the trouble, or stands in the way of its end
+  wants: [rid_of_rival, left_alone]
+  ties: [rival]                    # a claim against someone the holder is at odds with
+
+# The fixed render (engine/situations.py render): one line per part, from these, with the names, trades and goods of the world and
+# never an id. {name} is a person (a name, or "a bargeman" for one the engine has yet to make), {other} the other end of a tie, {good}
+# a good's name, {place} a place's or a road's name, {holder} who holds a piece of evidence, {label} its few words, {points} what it
+# points to. At least four lines each, so the tellings are not handed the same sentence twice running.
+phrases:
+  stake:
+    gains: ["{name} stands to gain from the trouble", "{name} does well out of how things are", "{name} would lose by the trouble ending",
+            "{name} has money to make from the trouble"]
+    harmed: ["{name} is hurt by it", "{name} is suffering for it", "{name} has lost by it already", "{name} is caught in it"]
+    can_fix: ["{name} could put it right", "{name} has the means to mend it", "{name} knows how it could be ended",
+              "{name} is the one who could set it right"]
+    blocks: ["{name} stands in the way of an end to it", "{name} is keeping it as it is", "{name} would not have it mended",
+             "{name} works against any remedy"]
+    knows: ["{name} knows more of it than is said", "{name} saw how it began", "{name} holds a piece of the truth of it",
+            "{name} could tell what lies behind it"]
+  want:
+    coin: ["and wants paying", "and wants coin above all", "and has a price", "and will not stir without money"]
+    road_open: ["and wants the road open", "and needs the way clear again", "and wants the road travelled again", "and wants the way out open"]
+    goods_moved: ["and wants goods carried", "and needs a load moved", "and wants what is stuck got through", "and needs a cargo shifted"]
+    safety: ["and wants to be safe", "and wants protection", "and wants nothing worse to happen", "and wants the danger kept off"]
+    believed: ["and wants to be believed", "and is not believed", "and wants the word taken seriously", "and wants the story heard"]
+    left_alone: ["and wants to be left alone", "and wants no part in it", "and wants it all to pass by", "and wants no questions"]
+    rid_of_rival: ["and wants a rival brought down", "and wants a rival out of the way", "and wants a rival shamed", "and would see a rival fall"]
+  condition:
+    paid: ["but helps only for pay", "but does nothing without coin", "but must be paid first", "but asks a price for any help"]
+    protected: ["but helps only if kept safe", "but needs a guard before anything", "but will not move unprotected",
+                "but wants someone standing by first"]
+    given: ["but wants something in hand first", "but asks for a thing given before helping", "but wants a gift before a word",
+            "but helps in return for something given"]
+    trusted: ["but helps only someone trusted", "but trusts no stranger yet", "but must be won over first", "but must trust whoever asks"]
+    told: ["but wants to be told the truth first", "but helps once told what is known", "but wants news before helping",
+           "but asks to hear what is known"]
+  holds: ["with a supply of {good} to hand", "keeping a store of {good}", "holding a stock of {good}", "with {good} put by"]
+  tie:
+    rival: ["{name} and {other} are rivals", "{name} and {other} work against each other", "{name} and {other} have long been at odds",
+            "{name} would see {other} lose"]
+    owes: ["{name} owes {other}", "{name} is in debt to {other}", "{name} has a debt to {other}", "{other} holds a debt over {name}"]
+    kin: ["{name} and {other} are kin", "{name} and {other} are family", "{name} and {other} share blood", "{name} is of the family of {other}"]
+    employs: ["{name} employs {other}", "{other} works for {name}", "{name} pays the wage of {other}", "{other} is in the hire of {name}"]
+    fears: ["{name} fears {other}", "{name} is afraid of {other}", "{name} keeps clear of {other}", "{other} frightens {name}"]
+  state:
+    scarce: ["there is a shortage of {good}", "stocks of {good} are running low", "{good} has grown hard to come by",
+             "{good} is dear and hard to find"]
+    stranded: ["a load of {good} is stranded", "a cargo of {good} cannot be moved", "a load of {good} sits waiting, going nowhere",
+               "a cargo of {good} is stuck on the road"]
+    wanted: ["there is a call for {good}", "{good} is needed badly", "{good} is asked for everywhere", "{good} would fetch a good price"]
+  held_by: ["held by {name}", "and {name} has it", "in the keeping of {name}", "with {name}"]
+  wanted_by: ["and {name} wants it", "which {name} is after", "and {name} is looking for it", "and {name} would pay to have it"]
+  kind:
+    closed: ["the way at {place} is shut", "{place} cannot be passed", "nothing gets through at {place}", "{place} is closed to all"]
+    danger: ["{place} has grown dangerous", "{place} is not safe", "there is danger at {place}", "{place} is a risk to anyone passing"]
+    prices: ["prices have risen at {place}", "everything costs more at {place}", "{place} is dear now", "trade at {place} has turned costly"]
+    mark: ["{place} bears the mark of it", "something at {place} shows what happened", "the trouble has left its mark at {place}",
+           "{place} has been changed by it"]
+  certainty:
+    sure: ["{holder} can show it: {label}, and it points to {points}", "{holder} has plain proof: {label}, pointing to {points}",
+           "{holder} holds clear signs of it: {label}, which point to {points}", "{holder} saw it for certain: {label}, and it leads to {points}"]
+    they say: ["{holder} has it from others: {label}, pointing to {points}", "{holder} repeats what is going round: {label}, and it points to {points}",
+               "{holder} was told it: {label}, which would point to {points}", "{holder} passes on what people say: {label}, pointing to {points}"]
+    hearsay: ["{holder} half heard it: {label}, maybe pointing to {points}", "{holder} has a rumour of it: {label}, which may point to {points}",
+              "{holder} picked it up third hand: {label}, perhaps pointing to {points}", "{holder} only guesses it: {label}, maybe leading to {points}"]
+  # evidence lying at a place, not held by anyone: only ever sure (a false piece is a claim, and a claim is a person's)
+  lies: ["{label} lies at {holder}, and it points to {points}", "at {holder} there is {label}, pointing to {points}",
+         "{label} can be found at {holder}, which points to {points}", "{holder} holds the sign of it: {label}, leading to {points}"]
+  # for the tellings only, never for the model that proposed the parts (the owner: it is never told)
+  is_true: ["It is so.", "It is true.", "It holds.", "It is the truth."]
+  is_false: ["It is not so.", "It is false.", "It does not hold.", "It is not the truth."]
+  new_person: "{a} {trade}"                                 # one yet to be met, by trade ({a}: a or an)
+
+# (f543) The proposal (engine/situations.py prompt and propose; asked in play from f547): its warmth, the answer's ceiling, and how
+# many of the town's people and of the things already going on there it is shown.
+proposal: {temperature: 0.8, max_tokens: 1400, people_most: 20, going_most: 6}   # (f545's re-test) the answer's room: with no caps
+                                                     # on the parts, answers run 761 tokens at the median and 881 at p90, and 900 cut some off
+
+# (f543) How the proposal's thinking is measured before the owner decides (tools/situation_ab.py; f544 on the pod): the arms (thinking
+# off; capped per request at a budget of thinking tokens; uncapped within the background slot, data/runtime/server.yaml slot_ctx),
+# and the rule fixed in advance. Thinking goes into the proposal only if readers prefer an arm in prefer_share or more of the reads that are not ties, the
+# preference holding in both slot orders, with no fewer parts accepted per proposal than with thinking off, and its p90 on the minimum
+# card within slot_seconds. data/measured/situation_thinking.yaml, when a run writes it, names only these arms.
+thinking:
+  arms:
+    "off": {think: false}
+    budget_1024: {think: true, budget: 1024}
+    budget_2048: {think: true, budget: 2048}
+    uncapped: {think: true}
+  prefer_share: 0.6
+  slot_seconds: 120
+
+# Why a part was dropped, for the pulse's log and the runner (never shown to a player).
+reasons:
+  not_a_person: "neither a person of the town nor a role the world has"
+  gone: "that person is gone"
+  player: "the player is never a part of a situation"
+  twice: "the same person twice"
+  people_cap: "more people than the situation may hold"
+  new_cap: "more new people than the situation may bring"
+  parts_cap: "more parts than the situation may hold"
+  kind_cap: "more of this kind than the situation may hold"
+  not_a_good: "not a good the world has"
+  no_holder: "its holder is not a person of the situation"
+  no_end: "a tie's other end is not a person of the situation"
+  self_tie: "a tie to oneself"
+  not_a_place: "neither a place nor a road the world has"
+  only_way: "the only way between two places, and the situation offers no way through it"
+  points_nowhere: "it points to no person, place or road of the situation"
+  raw_id: "its words name the game's machinery"
+  claim_at_place: "evidence lying at a place is only ever sure: a doubtful piece is a claim, and a claim is someone's"
+  contrary: "a stance at odds with itself: one who blocks an end to it does not want it ended"
+  no_wanter: "a wanted good with no one of the situation who wants it"
+  new_today: "the town has had as many new people from situations as it takes in a day"
+  unmade: "a part that rests on someone who could not be made"
+  no_carrier: "a stranded load with nobody of the town to carry it to: a price rise and a worry, no request"
+  contradicts: "it contradicts what the situation has already established"
+  no_part: "it names no part of the situation that change can be made to"
+  not_actor: "whoever it says did it could not: not a living person of the situation, or not the one it must be"
+  not_heard: "the person was not there to hear it or see it done"
+  words_only: "words alone change what people believe, feel and will do, never the world itself"
+  failed_act: "an act that failed brings no gain"
+  unpaid: "no coin was handed over, or less than was asked"
+  no_goods: "nothing was given"
+  no_evidence: "no piece of evidence has been found to show"
+  no_authority: "whoever it says did it has no say over that"
+  no_means: "whoever it says did it does not hold that"
+  unwilling: "they stand against the one who acted, and would not do it"
+  still_committed: "only evidence shown to them, or force, moves one who is committed"
+  still_refusing: "nothing has changed that would move one who refuses"
+  rests_on: "it rests on a change that was not kept"
+  not_there: "the one who acted was not where it is"
+  already: "it is already so"
+  too_many: "more changes than one ruling may carry"
+
+# (f545 part 3) How the checked parts are written into the world (engine/situation_parts.py register), through the game's own
+# writers, and what the situation's end takes back (pulse.end_thread): each person's worry (released, settled or let go) and the mood
+# it gave them; what the player took on and what people learned stay. Nothing here is a clock: the worry lasts the situation.
+register:
+  new_per_town_day: 2           # (the owner) people situations make new in one town in a day; rulings keep their own count
+  danger: 25                    # percent more encounters at a place or on a road the situation makes dangerous (pulse.yaml effects.danger)
+  prices: 20                    # percent dearer a town's market, for a prices condition (pulse.yaml effects.prices)
+  mark_most: 60                 # the longest label a mark keeps as its own words; longer, or not plain, the mark is told with a phrase
+  stock: [2, 4]                 # how much a person holds of a good they hold, or have to hand of a scarce one: theirs to sell, until gone
+                                # (a stranded load is no stock: the owner, a price rise, the holder's worry and a request, no new store)
+  wanted: [2, 4]                # how much of a wanted good is asked for
+  scarce: 30                    # percent dearer a scarce good in the town (that good alone)
+  stranded: 20                  # percent dearer a stranded good in the town, while the load cannot be moved
+  marks: ["{place} bears the mark of it", "{place} shows what happened", "{place} has not been the same since",
+          "{place} carries the sign of it"]
+  worries:                      # what is on a person's mind, by what they want; {title} is the situation's title
+    coin: ["{title}: what there is to be made of it, or lost", "{title}, and the money in it", "{title}: whether it will pay",
+           "{title}, and what it costs them"]
+    road_open: ["{title}: getting the road open again", "{title}, and the road shut", "{title}: when the way will be clear",
+                "{title}, and the way cut"]
+    goods_moved: ["{title}: getting the goods moved", "{title}, and the load that cannot go on", "{title}: how to shift what is stuck",
+                  "{title}, and the goods going nowhere"]
+    safety: ["{title}: keeping safe through it", "{title}, and who will be hurt next", "{title}: whether their people are safe",
+             "{title}, and the danger of it"]
+    believed: ["{title}: being believed about it", "{title}, and nobody listening", "{title}: making the truth of it heard",
+               "{title}, and what they know of it"]
+    left_alone: ["{title}: being left out of it", "{title}, and being dragged into it", "{title}: keeping their head down",
+                 "{title}, and everyone asking"]
+    rid_of_rival: ["{title}: seeing their rival come off worst", "{title}, and the one who stands against them",
+                   "{title}: getting the better of a rival", "{title}, and an old score"]
+  moods:                        # how they have been lately, by their stake (it fades on its own, and with the situation)
+    gains: ["quietly pleased with how things are going", "busy and doing well", "pleased with themselves, and hiding it",
+            "brisk and cheerful, against the mood of the town"]
+    harmed: ["worn down and anxious", "short-tempered with worry", "low, and not sleeping well", "tight-lipped and tired"]
+    can_fix: ["torn about what to do", "restless, as if they ought to be doing something", "thoughtful and preoccupied",
+              "weighing something up"]
+    blocks: ["stubborn and guarded", "on edge, and quick to take offence", "wary of questions", "set in their ways and defensive"]
+    knows: ["uneasy, holding something back", "watchful and quiet", "troubled by something they have not said",
+            "careful about what they say"]
+  ties:                         # what each end of a tie comes to feel for the other: [change, the feeling]; [0, ""] is nothing
+    rival: {a: [-15, "a rival in the trouble"], b: [-15, "a rival in the trouble"]}
+    owes: {a: [5, "owes them, and knows it"], b: [-5, "is owed by them"]}
+    kin: {a: [15, "kin, and stands by them"], b: [15, "kin, and stands by them"]}
+    employs: {a: [5, "employs them"], b: [5, "works for them"]}
+    fears: {a: [-20, "is afraid of them"], b: [0, ""]}
+  evidence:                     # what the holder of a piece of evidence knows, in their own words, by how sure they are
+    sure: ["I saw {label} myself, and it points to {points}.", "I have seen {label} with my own eyes: it points to {points}.",
+           "I know {label} for a fact, and it leads to {points}.", "I found {label}; it points to {points}."]
+    they say: ["They say there is {label}, and that it points to {points}.", "I was told of {label}, pointing to {points}.",
+               "Word is there is {label}, and it leads to {points}.", "I had it from others: {label}, pointing to {points}."]
+    hearsay: ["There is talk of {label}, pointing to {points}, but I only half heard it.",
+              "Someone spoke of {label}, and of {points}; I could not swear to it.",
+              "I overheard something about {label} and {points}.", "Rumour has it there is {label}, and that it points to {points}."]
+    lies: ["{label}, which points to {points}", "{label}: it leads to {points}", "{label}, pointing to {points}",
+           "{label}, and it points to {points}"]
+  # (f545 part 4, recommendation 1) The parts are ways through: one who could set it right does, once their condition is met, and one
+  # who stands in the way stands aside once won over; each is a path of the situation, its end the player's (engine/events.py finish).
+  ways:
+    most: 3                                          # paths a situation's own people open, at most (the can-fix first)
+    pay: {normal: 30, uncommon: 60, rare: 150, campaign: 400, cataclysm: 800}   # copper handed over that meets a "paid" condition,
+                                                     # by tier (and the least that buys one set against the player)
+    trust: 70                                        # a character's trust (regard) that meets "trusted", at the least...
+    trust_gain: 10                                   # ...and this much above where it stood when the situation began, or when they
+                                                     # first met (f545's review: a first meeting can start well above 50)
+    told_words: 3                                    # the most of a found clue's own words (what it is, and what it points to) a line
+                                                     # must carry to have told it
+    told_skip: [the, and, with, from, that, this, some, there, near, which, into, onto, over, under, for, its, their, they, was, are,
+                has, had, where, what, who, his, her, our, your, not, but, all, any, one, out, "off", way,
+                an, of, in, "on", at, by, to, is, it, as, or, up, we, he, me, my, so, do, be, us, if, "no"]   # never a clue's own word
+    told_not_head: [found, seen, hidden, left, lost, taken, broken, burnt, burned, stolen, forced, open, missing, owed, dropped, spilled,
+                    torn, buried, kept, held, written, signed, sealed, marked, used, placed, cut, dug, drawn, worn, fresh, old, new]
+                    # (f545's review) words that say a clue's state, never what it is: "a body found in the well" is a body
+    name:
+      can_fix: "{name}'s help"
+      blocks: "{name} won over"
+    how:
+      "": "Ask {name} to set it right."
+      paid: "Pay {name} what they ask, and they will set it right."
+      given: "Bring {name} the {good} they want, and they will set it right."
+      trusted: "Earn {name}'s trust, and they will set it right."
+      told: "Tell {name} what the evidence shows, and they will set it right."
+      protected: "Keep {name} safe while the trouble lasts, and they will set it right."
+      blocks: "Win {name} over, and they will stand aside."
+
+# (f546) Births and the situation's heart (the owner, 2026-11-08: "Their objectives are derived from their original facts: what
+# threatens the situation, what is at stake, and who or what controls the relevant conditions"). A rare or campaign situation is born
+# with its prose (the world's operation), then given its parts in an operation of their own after the input's tail, asked outside any
+# transaction; a call that fails or finds no room is tried again on a later input, `tries` times in all, and past them the situation
+# takes the parts the engine can build from what it already holds. Those engine parts are also what every rare, campaign or cataclysm
+# situation that has none takes (an old save, a cataclysm): no model call. The heart is written once, when the parts are, and never again.
+births:
+  tiers: [rare, campaign]        # the tiers whose birth asks the model for parts (common and uncommon stay as they are: the owner)
+  tries: 3                       # the inputs a due birth is tried on before the engine's own parts stand
+  adopt_tiers: [rare, campaign, cataclysm]   # the tiers that take the engine's own parts when they have none
+heart:
+  threat_kinds: [closed, danger, prices]     # the conditions that harm (a mark is a sign of what happened, not a harm)
+  stake_states: [scarce, stranded, wanted]   # the goods a situation puts at stake
+
+# (f547) The ruling: what an act the player took changes in a situation, part by part, proposed by the model and checked by the engine
+# as a chain (the owner, 2026-11-08: "The model interprets consequential actions and proposes causally linked changes. The engine
+# validates prerequisites, presence, knowledge, authority, resources, and established world facts before committing them"). Each word
+# is held equal to the contract (llm/contracts.py RulingChange) both ways. layer: belief, feeling or willingness (what a person thinks,
+# feels and will do: "Belief, feeling, willingness, and action remain distinct"), action (what a person does, of their own accord), or
+# world (what changes in the world). kinds: the part kinds it may change. actor: act (only the act itself does it), person (only a
+# person of the situation, by their own doing), self (only the person it is, by their own doing), either. better: whether it is a gain
+# for the one who acted (a failed act may only bring what is not). because: what the change rests on, each checked against the act:
+# words (said), coin (handed over), goods (given), force (done by hand), evidence (a found piece shown), earlier (a change before it).
+rulings:
+  most: 12                         # the changes one ruling may carry
+  max_tokens: 900                  # the ruling's answer room (budget.yaml event_judge answer_tokens is what it is expected to use)
+  window: 40                       # the changes a situation keeps on record, newest last
+  trust: 10                        # how far warmer or colder moves a person's trust in the one who acted
+  changes:
+    believes:   {layer: belief, kinds: [person], actor: act, better: true}
+    doubts:     {layer: belief, kinds: [person], actor: act, better: false}
+    warmer:     {layer: feeling, kinds: [person], actor: act, better: true}
+    colder:     {layer: feeling, kinds: [person], actor: act, better: false}
+    afraid:     {layer: feeling, kinds: [person], actor: act, better: false}
+    angry:      {layer: feeling, kinds: [person], actor: act, better: false}
+    grateful:   {layer: feeling, kinds: [person], actor: act, better: true}
+    open:       {layer: willingness, kinds: [person], actor: act, better: true}
+    wary:       {layer: willingness, kinds: [person], actor: act, better: false}
+    hostile:    {layer: willingness, kinds: [person], actor: act, better: false}
+    refusing:   {layer: willingness, kinds: [person], actor: act, better: false}
+    terrified:  {layer: willingness, kinds: [person], actor: act, better: false}
+    committed:  {layer: willingness, kinds: [person], actor: act, better: false}
+    flees:      {layer: action, kinds: [person], actor: self, better: true}
+    surrenders: {layer: action, kinds: [person], actor: self, better: true}
+    joins:      {layer: action, kinds: [person], actor: self, better: true}
+    warns:      {layer: action, kinds: [person], actor: self, better: false}
+    safe:       {layer: world, kinds: [person], actor: either, better: true}
+    lifted:     {layer: world, kinds: [condition], actor: either, better: true}
+    moved:      {layer: world, kinds: [resource], actor: either, better: true}
+    given_up:   {layer: world, kinds: [resource], actor: person, better: true}
+    lost:       {layer: world, kinds: [resource], actor: either, better: false}
+    broken:     {layer: world, kinds: [tie], actor: either, better: true}
+    mended:     {layer: world, kinds: [tie], actor: either, better: true}
+    tested:     {layer: world, kinds: [evidence], actor: act, better: true}
+    found:      {layer: world, kinds: [evidence], actor: act, better: true}
+    destroyed:  {layer: world, kinds: [evidence], actor: either, better: false}
+  because: [words, coin, goods, force, evidence, earlier]
+  words_only_acts: [persuade, heard, talk, lie, deceived, lie_caught, part_done]   # acts of words alone (never the world itself)
+  goods_acts: [gift, bribe, deliver]       # acts that hand goods over
+  wont: [hostile, refusing, committed]     # a person standing so toward the one who acted takes no cooperative action, until moved
+  force_acts: [kill, dungeon_cleared, defend, assault]   # (f547's second review) violence: it moves one it was done to or who saw
+                                         # it done, as force (assault: the act a beating is, from an offense against a person)
+  hand_lifts:                              # (f547's third review) what the player's own hand, there where it is, lifts a condition
+    person: [force]                        # with, by who holds it: force (rulings.force_acts) or work (any other deed, never words)
+    group: [force]
+    creature: [force]
+    mechanism: [force, work]
+    nature: [work]                         # a flood is not beaten; it is dammed, drained, bridged
+    world: [force, work]                   # one nobody holds (no by_kind)
+  warned_may: [afraid, angry, colder, wary, hostile, refusing, terrified, flees, warns]   # what a warning alone may change in
+                                         # the one warned: their fear and their guard, never the player's words carried to them
+  cooperative: [lifted, given_up, surrenders, joins, safe, moved]
+  # words a person keeps of what they now believe (a told memory: what someone said, never what is), and the moods a ruling gives
+  beliefs:
+    believes: ["{name} has me believing it now", "I believe what {name} told me", "What {name} said holds, I think", "{name} convinced me"]
+    doubts: ["I doubt what I was told, after {name}", "{name} has me doubting it", "After {name}, I am not so sure of it", "{name} made me wonder"]
+  moods:
+    afraid: ["afraid", "frightened", "uneasy and watchful", "shaken"]
+    angry: ["angry", "furious", "bitter", "seething"]
+    grateful: ["grateful", "relieved and thankful", "warm toward a stranger", "glad of the help"]
+  warned: ["{name} warned me about {who}", "I was warned about {who} by {name}", "{name} told me to watch {who}", "{name} says {who} is trouble"]

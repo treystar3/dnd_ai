@@ -29,7 +29,8 @@ schemas:
 # The short system prompt a tuned model is trained against in place of the game's long one (prompts: short in the dataset tool). The
 # training input keeps everything that varies per scene (the user prompt: the person, their kit, the facts, the memories) and drops the
 # constant rules; the target is the answer that satisfied them. A model trained this way behaves as if the rules were there, and at play
-# time they are no longer sent. Everything is JSON because Ollama constrains the shape; the words here only name the job.
+# time they are no longer sent. Everything is JSON because the server holds the answer to the schema's grammar; the words here only
+# name the job.
 short_system:
   default: "You are the voice of Meravia, a text role-playing game: plain, concrete, in the game's own style. Answer in the JSON shape asked."
   interpret_action: "You read the player's typed line into the game's actions, from the catalogues given and nothing else. Answer in the JSON shape asked."
@@ -47,12 +48,13 @@ filters:
   max_tails: 1          # sentences ending on a trailing participle, in one answer (prose tasks)
   max_dots: 1           # trailing-offs ('...') in one answer (speech tasks)
   stock_opener: false   # a reply opening on 'Well,' 'Ah,' and the like is not learned from (speech tasks)
-prose_tasks: [narrate, combat_narrate, combat_aftermath, dialogue_frame, road_event, moment]
+prose_tasks: [narrate, combat_opening, combat_narrate, combat_aftermath, dialogue_frame, road_event, moment]
 speech_tasks: [npc_conversation, hire_chat, mentor_chat, npc_parting, exchange]
 
 # Training defaults (tools/lora_train.py). The base is the instruction-tuned model the game runs; the adapter sits on it.
 train:
-  base: google/gemma-4-12b-it       # the Hugging Face id of the base: the exact model the game's Ollama tag (config.MODEL) is built from; check it there
+  base: google/gemma-4-12b-it       # the Hugging Face id of the base: the weights of the game's GGUF (config.MODEL, pinned by sha in
+                                    # data/runtime/server.yaml); check it there
   rank: 16
   alpha: 32
   dropout: 0.05

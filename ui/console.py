@@ -90,17 +90,6 @@ def panel(name: str, data: dict) -> bool:
     return False
 
 
-def setup(data: dict) -> None:
-    """A start-up screen (install Ollama, download the model). The window draws it as a page with buttons; here it is text."""
-    print("\n" + "═" * 60)
-    print("  " + data["title"])
-    print("═" * 60)
-    for line in data["lines"]:
-        print(textwrap.fill(line, 70, initial_indent="  ", subsequent_indent="  "))
-    if data["buttons"]:
-        print("\n  Type one of: " + ", ".join(key for _, key in data["buttons"]))
-
-
 def home(data: dict) -> bool:
     """(f345) The home page: True when something drew it (the window); the terminal returns False and scenes/home.py prints a menu."""
     return False
@@ -121,13 +110,11 @@ def creation_done() -> None:
 
 
 def setup_progress(frac: float, text: str) -> None:
+    """(f526, f532) The model load's progress while Continue waits on it (main.py; llm/launch.py Screen calls it only while the wait is on
+    screen). The installer's start-up screen that once shared this place is gone with it (f532)."""
     print(f"\r  {text}  {int(frac * 100):>3}%   ", end="", flush=True)
     if frac >= 1:
         print()
-
-
-def setup_done() -> None:
-    """The start-up screen is finished."""
 
 
 @contextlib.contextmanager
@@ -472,7 +459,8 @@ def show_player_block(character, location_name: str, time_label: str, vitals: li
     print("═" * min(WIDTH, 92))
 
 
-PACK_GROUPS = (("Gear", ("weapon", "armor", "jewelry")), ("Consumables", ("consumable",)), ("Food & herbs", ("food", "herb")))
+PACK_GROUPS = (("Gear", ("weapon", "armor", "jewelry")), ("Consumables", ("consumable",)), ("Food & herbs", ("food", "herb")),
+               ("Trade goods", ("trade",)))                                   # (f545's review) salt and cloth are no materials
 
 
 def item_rows(bag: list, usable: bool = False) -> list[dict]:
@@ -486,7 +474,7 @@ def item_rows(bag: list, usable: bool = False) -> list[dict]:
         rows.append({"n": n, "uid": item.uid, "name": items.display_name(item), "qty": item.quantity, "detail": items.summary(item),
                      "value": money.short(inv.unit_value(item)), "rarity": item.rarity, "legendary": item.rarity == "legendary", "group": group,
                      "flavour": item.description if item.rarity == "legendary" and item.description else "",
-                     "use": good.name if usable and good and good.kind != "herb" else ""})
+                     "use": good.name if usable and good and good.kind not in ("herb", "trade") else ""})   # (f545's review) carried, never used
     return rows
 
 

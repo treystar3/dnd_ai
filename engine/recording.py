@@ -10,8 +10,15 @@ compared input by input:
   recordings/<name>/calls.jsonl.gz every call to the model, in order: the request in full, the answer or the failure, its time
   recordings/<name>/turns.jsonl    after each input: the state's fingerprint, what the turn recorded, and what the player was shown
 
-It wraps the model client and the console in place, the way the night runs do (tools/nightrun.py install_client), so whatever is
-installed (the terminal, the window, a test, a night run) is recorded as it is. (f442) What the player's own side asks of the model
+(f517) It is a layer of the game's own interface to the model (llm/backend.py wrap, rank RECORDER, outermost) and wraps the console in
+place, so whatever is installed beneath it (the real client, the window, a test's stand-in, a night run) is recorded as it is. (f527)
+Each row is the request in the interface's own, neutral form (backend.neutral_request: the messages, the schema's title and
+fingerprint, every sampler, the answer's ceiling, whether it thinks, the voice, the model id; an embed's model and texts) and its
+fingerprint `req` (request_hash: the whole of that, nothing of the machine, never the deadline), with the reply's `answer`, `finish`
+(stop, length or cancelled) and `usage` (the source's counts: prompt, out, read_ms, write_ms, cached, ...), or an `error` {kind, detail}
+on the interface's kinds (llm/errors.py). A cancelled call writes no row: it is no answer and no failure, and its number is skipped. (R5) A recorded call that starts while another recorded call is still on its way is an overlap:
+its row is marked, meta.json counts them (overlapped, written at close), and tools/rerun.py refuses such a recording, since a replay
+serves the calls one after another. (f442) What the player's own side asks of the model
 while it decides its line (the night bot writing its words) is the input, not the game: it is left out, since a replay feeds the line
 itself; a call from another thread in that time (the background residents) is the game's and is kept. A recording session is strict (engine/streams.py
 STRICT): the background people and the embedding model's arrival are fixed at an input's edge, so the session can replay exactly.
@@ -30,12 +37,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+from llm.errors import Failure                  # (f527) the interface's own failure kinds, no model client
 
 ROOT = Path(__file__).resolve().parent.parent
 FOLDER = ROOT / "recordings"
 STORY = ("narrate", "say", "npc_says", "dialogue", "note", "wait", "ledger")   # what the player reads (engine/turnlog.py), and the engine's facts
 ORPHANS: set = set()     # (f453) threads a closed session left running (a creation call, people being written): the Thread objects, never
-                         # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_call)
+                         # their idents, which the OS hands out again; their calls pass through the recorder unrecorded (_layer)
 
 
 def orphan(threads) -> None:
@@ -45,14 +53,10 @@ def orphan(threads) -> None:
 
 
 def request_hash(k: dict) -> str:
-    """What a call asked for, as one fingerprint: the conversation, the answer's shape and the sampling. The threads setting is the
-    machine's, not the game's, and is left out."""
-    opts = {o: v for o, v in (k.get("options") or {}).items() if o != "num_thread"}
-    fmt = k.get("format") or {}
-    body = {"model": k.get("model"), "messages": k.get("messages"), "format": fmt.get("title", "") if isinstance(fmt, dict) else str(fmt),
-            "schema": hashlib.sha256(json.dumps(fmt, sort_keys=True, default=str).encode()).hexdigest()[:16], "options": opts,
-            "input": k.get("input")}
-    return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+    """(f527) What a call asked for, as one fingerprint: the neutral request whole (backend.neutral_request or embed_request), which holds
+    nothing of the machine (threads, slots, context) and never the deadline."""
+    from llm import backend
+    return backend.request_hash(k)
 
 
 def commit() -> str:
@@ -60,6 +64,33 @@ def commit() -> str:
         return subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5).stdout.strip()
     except Exception:
         return ""
+
+
+def _operation_id() -> str:
+    """(f471) The operation a call is made inside, if any: the one place it is read. (f520) The calling thread's own (operation.current):
+    a call made on another thread while the turn's operation is open is filed under none."""
+    from engine import operation
+    op = operation.current()
+    return op.id if op is not None else ""
+
+
+def _error(e: BaseException) -> dict:
+    """(f527) A failed call's error as the row holds it: the interface's own kind and the detail (llm/errors.py); anything that is no
+    Failure of the interface's is the server's, one failed try, with its type and text as the detail."""
+    from llm import backend
+    f = e if isinstance(e, Failure) else backend.failure_of(e)
+    if f is not None:
+        return {"kind": f.kind, "detail": str(f.detail or (f.legacy[1] if f.legacy else ""))[:500]}
+    return {"kind": "server", "detail": f"{type(e).__name__}: {str(e)[:480]}"}
+
+
+def _cancelled(e: BaseException | None = None, out=None) -> bool:
+    """(f517) A call stopped on purpose, in any of the interface's three shapes: Cancelled, a Failure of kind cancelled, a reply whose
+    finish is 'cancelled'."""
+    from llm.errors import Cancelled, Failure
+    if e is not None:
+        return isinstance(e, Cancelled) or (isinstance(e, Failure) and e.kind == "cancelled")
+    return getattr(out, "finish", None) == "cancelled"
 
 
 class Recorder:
@@ -83,45 +114,41 @@ class Recorder:
         from engine import budget
         from llm import embed
         from npc import life
-        (self.dir / "meta.json").write_text(json.dumps({
+        self.meta = {
             "made": datetime.now(timezone.utc).isoformat(timespec="seconds"), "seed": store.meta.seed, "steps": store.meta.steps,
             "turn": store.meta.turn, "data": statehash.data_hash(), "model": config.MODEL, "version": VERSION,
             "commit": commit(), "start": statehash.digest(store), "embed": embed.available(), "backfill": life.FIRST_BATCH,
             "save": store.meta.name,
-            "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds")},     # (f468) the speeds the budget priced calls at
-            indent=1), encoding="utf-8")
+            "profile": dict(budget.PROFILE), "limit_seconds": budget.B.get("limit_seconds"),     # (f468) the speeds the budget priced calls at
+            "budget_cached": bool(budget.CACHED)}                  # (f538) and whether a reused prompt was charged as reused
+        if budget.SLOW:                                     # (f526) made below the minimum card: a replay lifts the same time limits
+            self.meta["slow"] = True
+        if getattr(config, "THINK_TASKS", None):            # (f533) the tasks that thought, and their room: a replay asks as they did
+            self.meta.update(think_tasks=sorted(config.THINK_TASKS), think_room=config.THINK_ROOM)
+        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8")
         self.inputs = (self.dir / "inputs.jsonl").open("w", encoding="utf-8")
         self.calls = gzip.open(self.dir / "calls.jsonl.gz", "wt", encoding="utf-8")
         self.turns = (self.dir / "turns.jsonl").open("w", encoding="utf-8")
         self.n_input, self.n_call, self.shown, self.open_input, self.inside = 0, 0, [], False, False
         self.asking = None
-        self.undo = []
+        self.undo = []                       # the console's bindings this recorder replaced, put back at close
+        self.unwrap = None                   # (f517) the handle that takes the recorder's layer off the model interface
+        self._lock = threading.Lock()        # (f517) the call's number, the calls on their way and each row written, together; never
+        self.in_flight, self.overlapped, self.closed = 0, 0, False   # held across a call (a call may wait on another thread's)
         self.rows = rows                     # (f476) each input's turn row names the rows and keys it changed (a kept recording's re-bless)
         self.last_dump = statehash.dump(store) if rows else None
         prune()
 
     # ---- what the session depended on from outside the save
     def install(self, apart: bool = False) -> "Recorder":
-        """Wrap the model client and the console. apart (f442): the player's side is a program that reads the world through the scene
+        """Layer the model interface and wrap the console. apart (f442): the player's side is a program that reads the world through the scene
         while it decides its line (the night bot), and a read can write (the board refreshed when looked at): whatever it writes then is
         taken back, so the game alone changes the save, the same in the recording and in its replay. A person at the keyboard writes
         nothing while typing, so main.py leaves it off; holding the save closed while someone types would only stall the window."""
-        from llm import gateway
+        from llm import backend
         from ui import console
-        client = gateway._client
-        real_chat, real_embed = client.chat, getattr(client, "embed", None)
-
-        def chat(**k):
-            return self._call("chat", real_chat, k)
-
-        def embed(**k):
-            return self._call("embed", real_embed, k)
-
-        self.undo.append((client, "chat", real_chat))
-        client.chat = chat
-        if real_embed is not None:
-            self.undo.append((client, "embed", real_embed))
-            client.embed = embed
+        if self.unwrap is None:
+            self.unwrap = backend.wrap(self._layer, rank=backend.RECORDER)       # (f517) a layer, no longer a patch on the client
         real_ask = console.ask
 
         def ask(*a, **k):
@@ -175,47 +202,63 @@ class Recorder:
             pass
         return got["text"]
 
-    def _call(self, kind: str, real, k: dict):
+    def _layer(self, op: str, request, call):
+        """(f517) The recorder's layer: one row per chat or embed this session makes, in the form it has always had (module docstring)."""
+        if op not in ("chat", "embed") or self.closed:
+            return call(request)                         # the model's warm-up is no call of the session's; a closed recorder records nothing
         if self.asking is not None and threading.get_ident() == self.asking:
-            return real(**k)                             # (f442) the player's side deciding its line: the input, not the game
+            return call(request)                         # (f442) the player's side deciding its line: the input, not the game
         if threading.current_thread() in ORPHANS:
-            return real(**k)                             # (f453) a closed session's thread, still running: not this session's call
+            return call(request)                         # (f453) a closed session's thread, still running: not this session's call
         t0 = time.perf_counter()
-        from llm import gateway
-        row = {"i": self.n_call, "input": self.n_input, "kind": kind, "title": ((k.get("format") or {}).get("title", "")
-               if isinstance(k.get("format"), dict) else ""), "req": request_hash(k),
-               "task": getattr(gateway._TASK, "name", "") if kind == "chat" else "",            # (f468) the task, for the budget's estimate (outside the hash)
-               "request": {key: v for key, v in k.items() if key != "format"}}
-        from engine import budget, operation
-        op = operation.current()
-        row["op"] = op.id if op is not None else ""                                             # (f471) the operation it was made inside, if any
-        row["need"] = budget.need(row["task"]) if kind == "chat" and row["task"] else ("embed" if kind == "embed" else "")   # ...and whether the line needed it
-        if kind == "chat" and getattr(gateway._TASK, "shape", None):
-            row["shape"] = dict(gateway._TASK.shape)                                             # (f475) the prompt's shape, outside the hash
-        self.n_call += 1
+        from llm import backend, gateway
+        with self._lock:
+            i = self.n_call
+            self.n_call += 1
+            overlap = self.in_flight > 0                 # (R5) another recorded call is still on its way
+            self.in_flight += 1
+            self.overlapped += overlap
         try:
-            out = real(**k)
-        except Exception as e:
-            row.update(error=[type(e).__name__, str(e)[:500]], seconds=round(time.perf_counter() - t0, 3))
+            k = backend.neutral_request(request) if op == "chat" else backend.embed_request(request)     # (f527) the neutral form
+            row = {"i": i, "input": self.n_input, "kind": op, "title": k.get("schema", "") if op == "chat" else "",
+                   "req": request_hash(k),
+                   "task": getattr(gateway._TASK, "name", "") if op == "chat" else "",          # (f468) the task, for the budget's estimate (outside the hash)
+                   "request": k}
+            from engine import budget
+            row["op"] = _operation_id()                                                         # (f471) the operation it was made inside, if any
+            row["need"] = budget.need(row["task"]) if op == "chat" and row["task"] else ("embed" if op == "embed" else "")   # ...and whether the line needed it
+            if op == "chat" and getattr(gateway._TASK, "shape", None):
+                row["shape"] = dict(gateway._TASK.shape)                                         # (f475) the prompt's shape, outside the hash
+            if overlap:
+                row["overlap"] = True
+            try:
+                out = call(request)
+            except Exception as e:
+                if not _cancelled(e):                    # a cancel is no failure: no row
+                    row.update(error=_error(e), seconds=round(time.perf_counter() - t0, 3))
+                    self._write_call(row)
+                raise
+            if _cancelled(out=out):
+                return out
+            row["seconds"] = round(time.perf_counter() - t0, 3)
+            if op == "embed":
+                row["answer"] = {"embeddings": getattr(out, "vectors", None)}
+            else:
+                row["answer"] = (out.text or "")
+                row["finish"] = out.finish if out.finish is not None else "stop"
+                row["usage"] = dict(out.usage) if isinstance(out.usage, dict) else {}     # (f475, f527) the source's counts, the cached prompt tokens among them
             self._write_call(row)
-            raise
-        row["seconds"] = round(time.perf_counter() - t0, 3)
-        if kind == "embed":
-            row["answer"] = {"embeddings": getattr(out, "embeddings", None) or (out.get("embeddings") if isinstance(out, dict) else None)}
-        else:
-            row["answer"] = (out.message.content or "")
-            row["done"] = getattr(out, "done_reason", "stop")
-            row["tokens"] = {t: getattr(out, t, None) for t in ("prompt_eval_count", "eval_count", "prompt_eval_duration", "eval_duration",
-                                                                 "load_duration", "total_duration") if getattr(out, t, None) is not None}
-            cached = gateway.cached_count(out)
-            if cached is not None:
-                row["tokens"]["cached"] = cached                                                 # (f475) prompt tokens the server had cached
-        self._write_call(row)
-        return out
+            return out
+        finally:
+            with self._lock:
+                self.in_flight -= 1
 
     def _write_call(self, row: dict) -> None:
-        self.calls.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
-        self.calls.flush()
+        with self._lock:                                 # (f517) two calls finishing together never tear a line
+            if self.closed:
+                return                                   # a call still on its way when the session closed: its row goes nowhere
+            self.calls.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+            self.calls.flush()
 
     def _end_input(self) -> None:
         """After an input: the state, what the turn recorded, and what was shown."""
@@ -240,11 +283,18 @@ class Recorder:
 
     def close(self) -> Path:
         self._end_input()
+        if self.unwrap is not None:
+            self.unwrap()                                # (f517) this recorder's layer, and only it, off the interface
+            self.unwrap = None
         for obj, name, fn in reversed(self.undo):
             setattr(obj, name, fn)
         self.undo = []
-        for f in (self.inputs, self.calls, self.turns):
-            f.close()
+        with self._lock:
+            self.closed = True
+            for f in (self.inputs, self.calls, self.turns):
+                f.close()
+        self.meta["overlapped"] = self.overlapped        # (R5) written at close, 0 when no recorded call overlapped another
+        (self.dir / "meta.json").write_text(json.dumps(self.meta, indent=1), encoding="utf-8")
         from engine import streams
         streams.STRICT = False
         return self.dir

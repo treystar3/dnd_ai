@@ -40,7 +40,7 @@ ws.enter("tilted_plough")
 
 # ---- a town with prices up a third: the quote, the list, what the keeper says and the charge are one figure
 real_factor = pulse.price_factor
-pulse.price_factor = lambda store, world, place, now: 1.32
+pulse.price_factor = lambda store, world, place, now, good="": 1.32      # (f545) a good may be named
 keeper = next(n for n in ws.present if n.role == "innkeeper")
 meal = next(w for w in world.roles["innkeeper"].sells if w.kind == "meal")
 quoted = ws.quote_ware(keeper, meal).price

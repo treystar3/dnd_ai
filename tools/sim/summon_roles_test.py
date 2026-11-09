@@ -5,6 +5,7 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 3))
 from engine import combat as C, summons, battlefield as bf, battlefield_builder as bb
+from engine import effects as fx
 bad = []
 def check(n, ok, x=""):
     print(("PASS " if ok else "FAIL ") + n + (f"  {x}" if x else ""))
@@ -34,14 +35,14 @@ s = summons.made(cmb)[0]
 mv = buff(); one = C.cost_of(p, mv, cmb)
 m0 = p.mana
 check("a blessing falls on the caster by default", C.act_ability(cmb, p, mv, foe, random.Random(1)) is None and "b" in p.buffs and "b" not in s.buffs)
-p.buffs.clear(); m0 = p.mana
+[fx.end_buff(p, k) for k in list(p.buffs)]; m0 = p.mana
 C.act_ability(cmb, p, mv, foe, random.Random(1), give=[s])
 check("a blessing can fall on a summon, at the normal price", "b" in s.buffs and "b" not in p.buffs and m0 - p.mana == one, (m0 - p.mana, one))
 check("...and works on it", C.mechanics(s, cmb).get("precision", 0) > 0)
 C.act_ability(cmb, p, buff("manashield"), foe, random.Random(1), give=[s])
 check("a mana shield stays on the caster", "b" in p.buffs and not [k for k, v in s.buffs.items() if v.get("kind") == "manashield"])
 elem = buff("imbue", element="fire")
-s.buffs.clear(); C.act_ability(cmb, p, elem, foe, random.Random(1), give=[s])
+[fx.end_buff(s, k) for k in list(s.buffs)]; C.act_ability(cmb, p, elem, foe, random.Random(1), give=[s])
 for i in range(20):
     if C.apply_damage(cmb, s, foe, 1.0, "attacks", random.Random(i)):
         break

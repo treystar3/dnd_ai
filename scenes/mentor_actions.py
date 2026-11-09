@@ -568,14 +568,8 @@ class MentorActions:
         if _re.search(r"\b(head|go|walk|step|let'?s go|lets go|get going|i'?m ready|lead the way|take me)\b", low) and \
                 _re.search(r"\b(inside|in|hall|guild|clerk|register|sign|on|go)\b", low):
             return True
-        if not getattr(config, "VOICED_MENTOR", True) or len(low.split()) < 3:
-            return False
-        try:
-            r = generate("mentor_chat", mentor.chat_system(), mentor.chat_prompt(self.player, self.place.name, text), MentorReply,
-                         temperature=0.2, max_tokens=120, retries=0)
-            return bool(r.moves_on)
-        except LLMError:
-            return False
+        return False                                          # (f488) no second whole call to read it: plain going words settle it, and
+                                                              # anything else she answers (mentor_lecture_chunk), as one call does
 
     def mentor_escort(self) -> None:
         """She walks them to the guild hall herself, sees them signed into the register, and shows them the board there."""
@@ -784,10 +778,6 @@ class MentorActions:
         elif "steady" not in f.mentor_beats and "first_blood" in f.mentor_beats and f.round >= 3 and len(f.enemies()) >= 2:
             f.mentor_beats.append("steady")
             self.mentor_say(mentor.line(self.player, "steady", seed), beat="the fight is going on; you steady them")
-
-    def mentor_run_fails(self) -> str:
-        """What happens when the player tries to run from the troll: the attempt is made, and it fails."""
-        return mentor.line_from(self.player, M["troll_combat"]["run_fail"])
 
     def mentor_refuse(self, kind: str) -> None:
         """Running and taming are not on offer in the first hunt, and neither is talking to the wolves."""

@@ -1,0 +1,34 @@
+task: situation_parts
+cases: 30
+seed: 543
+measured: '2026-11-07'
+arms:
+  'off':
+    accepted_per_proposal: 6.067
+    finished_share: 1.0
+    p50_card_seconds: 22.0
+    p90_card_seconds: 22.48
+    preferred_share: null
+    passes: true
+  budget_1024:
+    accepted_per_proposal: 4.4
+    finished_share: 1.0
+    p50_card_seconds: 54.27
+    p90_card_seconds: 55.06
+    preferred_share: 0.293
+    passes: false
+  budget_2048:
+    accepted_per_proposal: 3.767
+    finished_share: 1.0
+    p50_card_seconds: 85.98
+    p90_card_seconds: 87.17
+    preferred_share: 0.356
+    passes: false
+  uncapped:
+    accepted_per_proposal: 4.867
+    finished_share: 1.0
+    p50_card_seconds: 184.55
+    p90_card_seconds: 243.3
+    preferred_share: 0.4
+    passes: false
+verdict: 'off'

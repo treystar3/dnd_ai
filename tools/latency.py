@@ -3,8 +3,14 @@
     python tools/latency.py RUN_DIR                    a night run's folder (tools/nightrun.py): calls and turns, written to RUN_DIR/summary.md
     python tools/latency.py --calls logs/llm_calls.jsonl   any call log on its own (a real session's, for instance)
     python tools/latency.py --baseline RUN_DIR...          (f475) a night's speech-task sizes, first tries and continuity counts, as YAML
+    python tools/latency.py --against RUN_DIR...           (f490) a night's speech tasks beside Bundle D's baseline and their ceilings
+    python tools/latency.py --gate                         (f490) the goldens priced at expected answers against their pre-D prices;
+                                                           (f510) fight inputs too, and every input under budget.yaml limit_seconds
+    python tools/latency.py --fights                       (f510) the goldens' fight measures, to data/measured/bundle_e_fights.yaml
+    python tools/latency.py --ceilings [RUN_DIR...]        (f490) each speech task's ceiling, from the night's p95 and the goldens
+    python tools/latency.py --estimates RECORDING          (f490) a recording's inputs priced at expected answers, as the baseline keeps them
 
-The call log carries one row per attempt: its task, its wall seconds and, since the gateway began keeping them, Ollama's own
+The call log carries one row per attempt: its task, its wall seconds and, since the gateway began keeping them, the server's own
 counts (`tokens`: prompt and written tokens, the milliseconds each took, a model load). A night run adds turns.jsonl, one row per
 typed line with its wall time, the time to its first word, and the calls it took.
 """
@@ -72,7 +78,7 @@ def calls_table(rows: list[dict]) -> list[str]:
     total = sum(float(r.get("seconds") or 0) for r in rows)
     lines.append(f"\n{len(rows)} attempts for {sum(1 for r in rows if r.get('attempt', 0) == 0)} calls, {fmt(total / 60, 1)} minutes in the model in all.")
     if not any(isinstance(r.get("tokens"), dict) for r in rows):
-        lines.append("No token counts in this log: it was written before the gateway kept Ollama's counts, or by a stand-in model.")
+        lines.append("No token counts in this log: it was written before the gateway kept the server's counts, or by a stand-in model.")
     return lines
 
 
@@ -135,6 +141,364 @@ def speech_table(calls: list[dict]) -> list[str]:
     return lines
 
 
+# (f490) Bundle D's closing: the night's speech tasks beside the baseline's, each task's prompt ceiling (data/measured/prompt_ceilings.yaml,
+# reported and never enforced: GOALS.md S7), and the goldens priced with every answer at its expected size against their pre-D prices.
+CEILINGS = Path(__file__).resolve().parent.parent / "data" / "measured" / "prompt_ceilings.yaml"
+GOLDENS = Path(__file__).resolve().parent.parent / "data" / "replay" / "sessions"
+
+
+def _yaml(path: Path) -> dict:
+    try:
+        import yaml
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def ceilings() -> dict:
+    """(f490) Per speech task, its prompt ceiling in characters, and the closing's marks."""
+    return _yaml(CEILINGS)
+
+
+def against(calls: list[dict], base: dict | None = None, ceil: dict | None = None) -> list[str]:
+    """(f490) The speech tasks on this night beside the baseline's: calls, first-try acceptance and its move in points, the prompt's p95
+    beside the baseline's and the task's ceiling, the most, and the share of prompt tokens the server had cached. Then the closing's
+    size and acceptance marks, each said as held or not (the bundle's other marks are read from the page and the blind reading)."""
+    base = _yaml(BASELINE) if base is None else base
+    ceil = ceilings() if ceil is None else ceil
+    marks = ceil.get("closing") or {}
+    was = base.get("tasks") or {}
+    tops = {t: (v or {}).get("chars") for t, v in (ceil.get("ceilings") or {}).items()}
+    m = speech_measures(calls)
+    if not m:
+        return ["No speech calls on this night."]
+    cell = lambda v: "-" if v is None else str(v)
+    lines = ["| Speech task | Calls | First try | Before | Points | Prompt p95 | Before | Ceiling | Most | Cached |",
+             "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+    dearer, over, fell = [], [], []
+    for task, r in m.items():
+        b = was.get(task) or {}
+        moved = None if b.get("first_try") is None else round(100 * (r["first_try"] - b["first_try"]))
+        if r["p95"] is not None and b.get("p95") is not None and r["p95"] > b["p95"]:
+            dearer.append(task)
+        if r["p95"] is not None and tops.get(task) and r["p95"] > tops[task]:
+            over.append(task)
+        if task in (marks.get("first_try_tasks") or []) and moved is not None and moved < -int(marks.get("first_try_points", 5)):
+            fell.append(f"{task} {moved:+d}")
+        lines.append(f"| {task} | {r['calls']} | {round(100 * r['first_try'])}% | {'-' if b.get('first_try') is None else str(round(100 * b['first_try'])) + '%'} | "
+                     f"{'-' if moved is None else f'{moved:+d}'} | {cell(r['p95'])} | {cell(b.get('p95'))} | {cell(tops.get(task))} | {cell(r['max'])} | "
+                     f"{'-' if r['cached'] is None else str(round(100 * r['cached'])) + '%'} |")
+    conv = (m.get("npc_conversation") or {}).get("p95")
+    mark = marks.get("npc_conversation_p95")
+    lines.append("")
+    lines.append(f"Size: {len(m) - len(dearer)} of {len(m)} tasks at or below the baseline's p95" + (f" (dearer: {', '.join(dearer)})" if dearer else "")
+                 + (f"; npc_conversation's p95 {conv} against the mark of {mark}, " + ("held" if conv <= mark else "not held") if conv is not None and mark else "")
+                 + f"; over their ceiling: {', '.join(over) if over else 'none'}.")
+    lines.append(f"Acceptance: first tries within {marks.get('first_try_points', 5)} points of the baseline for "
+                 f"{', '.join(marks.get('first_try_tasks') or []) or 'no task named'}: " + (f"not held ({'; '.join(fell)})" if fell else "held") + ".")
+    return lines
+
+
+# ---- (f535) the prompt cache: what the server read and what it reused, task by task, and what its own log says of the cache
+
+def system_share(row: dict) -> float | None:
+    """(f535) The constant system message's share of one attempt's prompt, by characters (the gateway's shape since f475: sizes[0] is
+    the system, chars the whole). None when the row does not carry the shape."""
+    sizes, chars = row.get("sizes"), row.get("chars")
+    if not isinstance(sizes, list) or not sizes or not isinstance(chars, int) or chars <= 0:
+        return None
+    first = sizes[0]
+    if not (isinstance(first, list) and len(first) == 3 and first[0] == "system" and isinstance(first[2], int)):
+        return None
+    return min(1.0, first[2] / chars)
+
+
+def cache_measures(calls: list[dict]) -> dict:
+    """(f535) Per task, over every attempt: the tokens the prompts held (the server's prompt count: what it read and what it reused
+    together), the constant system message's share of them (estimated from the shape's characters, a proxy for tokens: the reading a kept
+    cache would spare, since a task's system message is the same from one call to the next) and the tokens the server said it reused
+    (the cached count in the interface's usage: what a cache did spare). The shape is logged once per call and repeated on its retries,
+    whose messages also carry the draft and the correction, so a retry's system share is a little overstated (under a point over a
+    night). known_prompt is the tokens of the attempts that carry a shape; the share is taken over those alone."""
+    out: dict[str, dict] = {}
+    for r in calls:
+        t = r.get("tokens")
+        if not isinstance(t, dict) or not isinstance(t.get("prompt"), int):
+            continue
+        m = out.setdefault(r.get("task") or "?", {"attempts": 0, "prompt": 0, "known_prompt": 0, "system": 0.0, "cached": 0, "unknown": 0})
+        m["attempts"] += 1
+        m["prompt"] += t["prompt"]
+        share = system_share(r)
+        if share is None:
+            m["unknown"] += 1
+        else:
+            m["known_prompt"] += t["prompt"]
+            m["system"] += t["prompt"] * share
+        m["cached"] += int(t.get("cached") or 0)
+    return out
+
+
+def _system_estimate(m: dict) -> tuple[int, float] | None:
+    """The constant system messages' estimated tokens over every attempt, and their share: the share of the attempts with a shape,
+    applied to all. None when no attempt carried one."""
+    if not m["known_prompt"]:
+        return None
+    share = m["system"] / m["known_prompt"]
+    return round(share * m["prompt"]), share
+
+
+_LOG_MARKS = {"prompts": "new prompt, n_ctx_slot", "whole": "forcing full prompt re-processing", "restored": "restored context checkpoint",
+              "checkpoints": "created context checkpoint", "evicted": "removing oldest entry"}
+
+
+def server_log_measures(path: Path) -> dict:
+    """(f535) What llama-server's own log says of its prompt cache: prompts begun, prompts the server was forced to process whole for
+    want of cache data (a sliding-window model's cache is reusable only back to a checkpoint, and this build keeps them at the start of a
+    user message and near a prompt's end), checkpoints made and restored, prompt-cache updates (one slot's state copied out to RAM and a
+    better match copied in; their count and seconds) and entries evicted from that cache. The game caps the log (server.log_kib) and keeps
+    the file before as <name>.1: both are read, the older first. {} when there is no log."""
+    path = Path(path)
+    older = path.with_name(path.name + ".1")
+    files = [p for p in (older, path) if p.exists()]
+    if not files:
+        return {}
+    out = {k: 0 for k in _LOG_MARKS}
+    out.update({"updates": 0, "update_ms": 0.0, "update_ms_max": 0.0})
+    for line in (l for p in files for l in p.read_text(encoding="utf-8", errors="replace").splitlines()):
+        for key, mark in _LOG_MARKS.items():
+            if mark in line:
+                out[key] += 1
+        m = re.search(r"prompt cache update took ([0-9.]+) ms", line)
+        if m:
+            ms = float(m.group(1))
+            out["updates"] += 1
+            out["update_ms"] += ms
+            out["update_ms_max"] = max(out["update_ms_max"], ms)
+    return out
+
+
+def cache_table(calls: list[dict], log: dict | None = None) -> list[str]:
+    """(f535) The prompt cache's section of the night: per task, the reading the constant system message is (what a kept cache spares)
+    and the reading the server reused; then the server log's own account."""
+    m = cache_measures(calls)
+    if not m:
+        return ["No calls with the server's counts."]
+    lines = ["| Task | Attempts | Prompt tokens | System message | Reused |", "| --- | ---: | ---: | ---: | ---: |"]
+    for task, v in sorted(m.items(), key=lambda kv: -kv[1]["prompt"]):
+        est = _system_estimate(v)
+        sys_cell = f"{est[0]} ({round(100 * est[1])}%)" if est else "-"
+        lines.append(f"| {task} | {v['attempts']} | {v['prompt']} | {sys_cell} | {v['cached']} ({round(100 * v['cached'] / max(1, v['prompt']))}%) |")
+    attempts = sum(v["attempts"] for v in m.values())
+    prompt = sum(v["prompt"] for v in m.values())
+    system = sum(e[0] for e in (_system_estimate(v) for v in m.values()) if e)
+    cached = sum(v["cached"] for v in m.values())
+    lines += ["", f"The prompts held {prompt} tokens; the constant system messages were about {system} of them ({round(100 * system / max(1, prompt))}%, estimated "
+                  f"from their share of the prompts' characters), the reading a kept cache spares; the server reused {cached} ({round(100 * cached / max(1, prompt))}%) "
+                  f"and read the rest."]
+    if log:
+        capped = f" (the log holds the night's last {log['prompts']} prompts of {attempts}: it is capped)" if log["prompts"] < attempts else ""
+        lines.append(f"The server's log: {log['prompts']} prompts{capped}; {log['whole']} forced to re-process the whole prompt for want of cache data (a "
+                     f"sliding-window model reuses its cache only back to a checkpoint); {log['checkpoints']} checkpoints made, {log['restored']} restored; "
+                     f"{log['updates']} prompt-cache updates taking {log['update_ms'] / 1000:.1f} s in all (mean {log['update_ms'] / max(1, log['updates']):.0f} ms, "
+                     f"the longest {log['update_ms_max']:.0f} ms); {log['evicted']} entries evicted from the RAM cache.")
+    return lines
+
+
+def speech_inputs(folder: Path) -> set[int]:
+    """(f490) The inputs of a recording that made a speech call."""
+    import card_profile
+    tasks = set(speech_tasks())
+    return {int(c.get("input", 0)) for c in card_profile.calls_of(Path(folder)) if c.get("kind") != "embed"
+            and (c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) in tasks}
+
+
+FIGHT_TASKS = ("combat_interpret", "combat_opening", "combat_narrate", "combat_aftermath", "goddess_line",      # (f510) the fight's own calls:
+               "loot_name", "legendary_name", "accessory_name", "named_spell", "spell_rank")                    # its reading, its tellings, its naming
+FIGHTS = Path(__file__).resolve().parent.parent / "data" / "measured" / "bundle_e_fights.yaml"
+
+
+def fight_inputs(folder: Path) -> set[int]:
+    """(f510) The inputs of a recording that made a fight call (FIGHT_TASKS)."""
+    import card_profile
+    return {int(c.get("input", 0)) for c in card_profile.calls_of(Path(folder)) if c.get("kind") != "embed"
+            and (c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) in FIGHT_TASKS}
+
+
+def over_limit(root: Path = GOLDENS, limit: float | None = None, base: dict | None = None) -> dict[str, list[tuple[int, float]]]:
+    """(f510) Per golden, the inputs whose required path, priced at expected answers on the card's profile, runs over budget.yaml
+    limit_seconds. With `base` (the pre-D baseline's estimates), an input the baseline already priced over the limit is Bundle D's own
+    debt and is left out, unless it is a fight input: those are Bundle E's, and every one must fit. Empty lists everywhere: the limit
+    holds."""
+    import card_profile
+    from engine import budget
+    if limit is None:
+        limit = card_profile.budget_limit()
+    out = {}
+    with budget.priced(**((base or {}).get("priced_at") or {})):        # (f527) at the baseline's prices, whatever the card profile says now
+        for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+            before = {int(k): float(v) for k, v in ((base or {}).get("estimates") or {}).get(folder.name, {}).items()} if base else {}
+            fights = fight_inputs(folder) if base else set()
+            out[folder.name] = [(i, round(s, 1)) for i, s in card_profile.estimate_inputs(folder, expected=True)
+                                if s > limit and not (before.get(i, 0.0) > limit and i not in fights)]
+    return out
+
+
+def fights_report(root: Path = GOLDENS) -> dict:
+    """(f510) Per golden, per fight input: the required path's estimate at expected answers, the fight calls by task, the operations
+    the input ran and how many of them were run again (an operation id seen at an earlier input: a restart after a rollback), and the
+    odds' simulations (engine/combat.py danger runs eighty fights once per fight begun: an input with a combat_opening call)."""
+    import card_profile
+    from engine import combat as _combat
+    import inspect
+    runs = inspect.signature(_combat.danger).parameters["runs"].default
+    out = {}
+    for folder in sorted(p for p in Path(root).iterdir() if p.is_dir() and (p / "calls.jsonl.gz").exists()):
+        calls = card_profile.calls_of(folder)
+        est = dict(card_profile.estimate_inputs(folder, expected=True))
+        turns = load(folder / "turns.jsonl")
+        seen: set[str] = set()
+        rows = {}
+        for i in sorted(fight_inputs(folder)):
+            mine = [c for c in calls if int(c.get("input", 0)) == i and c.get("kind") != "embed"]
+            by_task = collections.Counter(t for t in ((c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")) for c in mine)
+                                          if t in FIGHT_TASKS)                             # the fight's own calls; the line's others are not its
+            ops = next((t.get("operations") or [] for t in turns if int(t.get("i", -1)) == i), [])
+            ids = [o.get("id") for o in ops if o.get("id")]
+            rows[i] = {"estimate": round(est.get(i, 0.0), 1), "calls": {k: v for k, v in sorted(by_task.items()) if k},
+                       "operations": len(ids), "reruns": sum(1 for x in ids if x in seen),
+                       "simulations": runs * by_task.get("combat_opening", 0)}
+            seen |= set(ids)
+        out[folder.name] = rows
+    return out
+
+
+def write_fights(root: Path = GOLDENS, note: str = "") -> str:
+    """(f510) tools/latency.py --fights: the fight measures of the goldens, written to data/measured/bundle_e_fights.yaml (outside the
+    data hash, engine/data_check.py fights_problems checks its shape). Returns the text written."""
+    import yaml
+    import card_profile
+    body = {"note": note or "(f510, tools/latency.py --fights) Bundle E's fight measures on the goldens: per fight input of each recording, "
+                           "the required path's seconds at expected answers on the card's profile, the fight calls by task, the operations "
+                           "it ran and the re-runs among them, and the odds' simulations. A measurement, outside the data hash. "
+                           "Do not hand-edit.",
+            "limit_seconds": card_profile.budget_limit(), "fight_tasks": list(FIGHT_TASKS), "goldens": fights_report(root)}
+    text = yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=140)
+    FIGHTS.write_text(text, encoding="utf-8")
+    return text
+
+
+def fight_table(calls: list[dict], turns: list[dict], crashes: list[dict] = ()) -> list[str]:
+    """(f510) The night's fights: calls per round (a round is a turn with a fight call), p95 seconds per fight task, fights let go at a
+    load (crash.log rows written where the fight row is read), re-runs per round (a round's operations rolled back)."""
+    fight_calls = [c for c in calls if c.get("task") in FIGHT_TASKS]
+    if not fight_calls:
+        return ["No fight calls."]
+    rounds = collections.defaultdict(list)
+    for c in fight_calls:
+        rounds[c.get("turn")].append(c)
+    by_turn = {r.get("turn"): r for r in turns}
+    rolled = [sum(1 for o in (by_turn.get(t) or {}).get("ops") or [] if o.get("state") == "rolled_back") for t in rounds]
+    lines = [f"{len(rounds)} rounds with a fight call; {fmt(len(fight_calls) / len(rounds), 1)} fight calls a round; "
+             f"{fmt(sum(rolled) / len(rounds), 2)} operations rolled back a round; "
+             f"{sum(1 for c in crashes if c.get('where') == 'fight row')} fights let go at a load.", "",
+             "| Fight task | Calls | Seconds p50 | p95 | Failed |", "| --- | ---: | ---: | ---: | ---: |"]
+    by_task = collections.defaultdict(list)
+    for c in fight_calls:
+        by_task[c["task"]].append(c)
+    for task in FIGHT_TASKS:
+        rs = by_task.get(task)
+        if not rs:
+            continue
+        secs = [float(r.get("seconds") or 0) for r in rs]
+        lines.append(f"| {task} | {len(rs)} | {fmt(pct(secs, .5))} | {fmt(pct(secs, .95))} | {sum(1 for r in rs if r.get('error'))} |")
+    return lines
+
+
+def dearer(now: dict, before: dict, inputs: set[int] | None = None) -> list[tuple[int, float | None, float]]:
+    """(f490) The inputs priced above their pre-D price (to the tenth of a second the baseline keeps), of those with a speech call when
+    they are named; an input the baseline never priced counts as dearer."""
+    out = []
+    for i, s in sorted(now.items()):
+        if inputs is not None and i not in inputs:
+            continue
+        b = before.get(i)
+        if b is None or round(s, 1) > float(b):
+            out.append((i, b, round(s, 1)))
+    return out
+
+
+def gate(base: dict | None = None, root: Path = GOLDENS) -> dict[str, list[tuple[int, float | None, float]]]:
+    """(f490) The goldens against their pre-D prices (the baseline's estimates), every answer at its expected size: per golden, the inputs
+    with a speech call, (f510) or a fight call, priced dearer than before. Empty lists everywhere: the gate holds."""
+    import card_profile
+    from engine import budget
+    base = _yaml(BASELINE) if base is None else base
+    out = {}
+    with budget.priced(**(base.get("priced_at") or {})):                # (f527) priced as the baseline was, whatever the card profile says now
+        for name, before in (base.get("estimates") or {}).items():
+            folder = Path(root) / name
+            now = dict(card_profile.estimate_inputs(folder, expected=True))
+            out[name] = dearer(now, {int(k): v for k, v in (before or {}).items()}, speech_inputs(folder) | fight_inputs(folder))
+    return out
+
+
+def golden_sizes(root: Path = GOLDENS) -> dict[str, tuple[int, str]]:
+    """(f490) Per speech task, the largest prompt any golden recording sends, and the golden it is in."""
+    import card_profile
+    tasks = set(speech_tasks())
+    out: dict[str, tuple[int, str]] = {}
+    for folder in sorted(Path(root).iterdir()) if Path(root).exists() else []:
+        if not (folder / "calls.jsonl.gz").exists():
+            continue
+        for c in card_profile.calls_of(folder):
+            task = c.get("task") or card_profile.REQUIRED_TITLES.get(c.get("title", ""), "")
+            if c.get("kind") == "embed" or task not in tasks:
+                continue
+            n = sum(len(str(m.get("content") or "")) for m in (c.get("request") or {}).get("messages") or [])
+            if n > out.get(task, (0, ""))[0]:
+                out[task] = (n, folder.name)
+    return out
+
+
+def ceilings_from(run_dirs: list[Path] = (), base: dict | None = None, root: Path = GOLDENS, kept: dict | None = None) -> dict:
+    """(f490) Each speech task's ceiling: the night's p95 (the runs given; with none, the baseline night's), never under the largest
+    prompt a golden sends, rounded up to `round_to`. A task measured by neither keeps the ceiling it had."""
+    kept = ceilings() if kept is None else kept
+    step = int(kept.get("round_to") or 500)
+    night = speech_measures([r for d in run_dirs for r in load(Path(d) / "llm_calls.jsonl")]) if run_dirs else \
+        ((_yaml(BASELINE) if base is None else base).get("tasks") or {})
+    gold = golden_sizes(root)
+    out = {}
+    for task in speech_tasks():
+        p95 = (night.get(task) or {}).get("p95")
+        g, where = gold.get(task, (None, ""))
+        if p95 is None and g is None:
+            if (kept.get("ceilings") or {}).get(task):
+                out[task] = dict(kept["ceilings"][task])
+            continue
+        chars = -(-max(x for x in (p95, g) if x is not None) // step) * step
+        src = [f"{'the night' if run_dirs else 'the baseline night'}'s p95 {p95}" if p95 is not None else "",
+               f"{where}'s largest {g}" if g is not None else ""]
+        out[task] = {"chars": chars, "from": "; ".join(s for s in src if s)}
+    return out
+
+
+def write_ceilings(run_dirs: list[Path] = (), note: str = "") -> str:
+    """(f490) data/measured/prompt_ceilings.yaml written from ceilings_from(), its closing marks kept as they were."""
+    import yaml
+    kept = ceilings()
+    rows = ceilings_from(run_dirs, kept=kept)
+    old = CEILINGS.read_text(encoding="utf-8") if CEILINGS.exists() else "# (f490) prompt ceilings\n"
+    head = old.split("\nsource:")[0]
+    marks = ("closing:" + old.split("\nclosing:", 1)[1]) if "\nclosing:" in old else ""      # the marks as written, comments and all
+    body = {"source": note or (", ".join(Path(d).name for d in run_dirs) if run_dirs else "the baseline night and the goldens: the post-D night pending"),
+            "round_to": int(kept.get("round_to") or 500),
+            "ceilings": {t: {"chars": v["chars"], "from": v.get("from", "")} for t, v in rows.items()}}
+    text = head.rstrip("\n") + "\n" + yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=140, default_flow_style=None) + marks
+    CEILINGS.write_text(text, encoding="utf-8")
+    return text
+
+
 def baseline(run_dirs: list[Path], note: str = "") -> dict:
     """(f475) A night's measures as Bundle D's baseline (data/measured/bundle_d_baseline.yaml): the speech tasks over every run, and each
     run's continuity counts (tools/page_measures.py). The blind reading's memory-and-time counts are added by hand once it is read."""
@@ -153,6 +517,11 @@ def baseline(run_dirs: list[Path], note: str = "") -> dict:
                         "C7": [[n, t, a, b] for n, t, a, b in m["c7_left_named"]], "C8": [len(m["c8_unseen_spoken_of"]), m["c8_witnesses_spoke"]]}
     return {"night": note or ", ".join(Path(d).name for d in run_dirs), "speech_tasks": list(speech_tasks()), "tasks": speech_measures(calls),
             "continuity": cont}
+
+
+def _priced_by_reuse(rows: list[dict]) -> bool:
+    """(f538) Whether the night's turns were priced without the prompt the server reused: the turn rows say so from f538 on."""
+    return any(r.get("budget_cached") for r in rows)
 
 
 def turns_table(rows: list[dict]) -> list[str]:
@@ -189,7 +558,8 @@ def turns_table(rows: list[dict]) -> list[str]:
                      f"{sum(1 for r in rows if 'passage' in (r.get('stand_ins') or []))} of them stood without a passage; "
                      f"{sum(int(r.get('recovered') or 0) for r in rows)} outcomes told at a load; "                                 # (f471)
                      f"the required path estimated at p50 {fmt(pct(req, .5))} s and p90 {fmt(pct(req, .9))} s, over {limit:g} s in "
-                     f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above).")
+                     f"{sum(1 for s in req if s > limit)} turns (apart from the failed turns above)"
+                     + ("; the prompt the server reused not priced (f538), so not comparable with a night before it" if _priced_by_reuse(rows) else "") + ".")
     slow = sorted(rows, key=lambda r: -float(r.get("seconds") or 0))[:5]
     if slow:
         lines.append("\nSlowest turns:")
@@ -367,7 +737,9 @@ def summarise(run_dir: Path) -> str:
                      + (f"starting as {info['start']}, playing as {info.get('persona', '?')}; " if info.get("start") else "") +
                      f"model {info.get('model', '?')}" + (" (stand-in)" if info.get("stub") else "")
                      + (f", warm calls {(info.get('sampling') or {}).get('temp_add', 0):+g} temperature and {(info.get('sampling') or {}).get('repeat_add', 0):+g} repeat penalty"
-                        if any((info.get("sampling") or {}).values()) else "") + ".")
+                        if (info.get("sampling") or {}).get("temp_add") or (info.get("sampling") or {}).get("repeat_add") else "")
+                     + (f", thinking on for {', '.join((info.get('sampling') or {})['think_tasks'])} (+{(info.get('sampling') or {}).get('think_room')} tokens)"
+                        if (info.get("sampling") or {}).get("think_tasks") else "") + ".")      # (f533)
         lines.append("")
     lines += ["## Turns", ""]
     lines += turns_table(turns) if turns else ["No turns recorded."]
@@ -384,8 +756,13 @@ def summarise(run_dir: Path) -> str:
         lines += ["", "## Continuity (from the page)", ""] + page_measures.continuity_table(game_turns, turns, info)    # (f474)
     lines += ["", "## Calls by task", ""]
     lines += calls_table(calls) if calls else ["No calls recorded."]
+    if any(c.get("task") in FIGHT_TASKS for c in calls):             # (f510) the fights: calls a round, p95 a task, fights let go, re-runs
+        lines += ["", "## Fights", ""] + fight_table(calls, turns, load(run_dir / "crash.log"))
     if calls:                                                       # (f475) the speech tasks Bundle D changes, measured first
         lines += ["", "## Speech tasks (prompt size and first try)", ""] + speech_table(calls)
+        if BASELINE.exists():                                       # (f490) beside the baseline's, with each task's ceiling
+            lines += ["", "## Speech tasks against Bundle D's baseline", ""] + against(calls)
+        lines += ["", "## Prompt cache", ""] + cache_table(calls, server_log_measures(run_dir / "llama-server.log"))   # (f535)
     text = "\n".join(lines) + "\n"
     (run_dir / "summary.md").write_text(text, encoding="utf-8")
     return text
@@ -399,6 +776,30 @@ def main() -> None:
     if args[0] == "--baseline":                                     # (f475) --baseline RUN_DIR... : the night's measures, as YAML
         import yaml
         print(yaml.safe_dump(baseline([Path(a) for a in args[1:]]), sort_keys=False, allow_unicode=True, width=140))
+        return
+    if args[0] == "--against":                                      # (f490) --against RUN_DIR... : the speech tasks beside the baseline's
+        print("\n".join(against([r for a in args[1:] for r in load(Path(a) / "llm_calls.jsonl")])))
+        return
+    if args[0] == "--gate":                                         # (f490) the goldens against their pre-D prices; exit 1 when dearer
+        got = gate()                                                # (f510) speech and fight calls alike, and every input under the limit
+        for name, rows in got.items():
+            print(f"{name}: " + ("every input with a speech or a fight call at or below its pre-D price" if not rows else
+                                 "dearer than before: " + ", ".join(f"input {i} ({b} s before, {s} s now)" for i, b, s in rows)))
+        over = over_limit(base=_yaml(BASELINE))                     # Bundle D's own over-limit inputs stand; a fight input never may
+        for name, rows in over.items():
+            print(f"{name}: " + ("every input under the limit, apart from those the baseline priced over it" if not rows else
+                                 "over the limit: " + ", ".join(f"input {i} ({s} s)" for i, s in rows)))
+        sys.exit(1 if any(got.values()) or any(over.values()) else 0)
+    if args[0] == "--fights":                                       # (f510) the goldens' fight measures, written to data/measured/bundle_e_fights.yaml
+        print(write_fights())
+        return
+    if args[0] == "--ceilings":                                     # (f490) --ceilings [RUN_DIR...] : write data/measured/prompt_ceilings.yaml
+        print(write_ceilings([Path(a) for a in args[1:]]))
+        return
+    if args[0] == "--estimates":                                    # (f490) --estimates RECORDING : its inputs priced at expected answers
+        import card_profile
+        for i, s in card_profile.estimate_inputs(Path(args[1]), expected=True):
+            print(f"    {i}: {round(s, 1)}")
         return
     if args[0] == "--calls":
         rows = load(Path(args[1] if len(args) > 1 else "logs/llm_calls.jsonl"))

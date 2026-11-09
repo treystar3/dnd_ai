@@ -4,6 +4,7 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("warrior", 1))
 from engine import items, loot, combat, party, crafting
+from engine import effects as fx
 from world.loader import load_world
 
 fails = []
@@ -76,7 +77,7 @@ def avg(cmb, a, d, n=80):
         d.hp = d.max_hp; b = d.hp
         combat.apply_damage(cmb, a, d, 1.0, "hits", random.Random(i)); tot += b - d.hp
     return tot
-cmb, a, d = pair(opportunist=100); plain = avg(cmb, a, d); d.statuses["slowed"] = 9; hurt = avg(cmb, a, d)
+cmb, a, d = pair(opportunist=100); plain = avg(cmb, a, d); fx.put_status(d, "slowed", 9); hurt = avg(cmb, a, d)
 check("Hamstringer hits the hobbled harder", hurt > plain * 1.5)
 cmb, a, d = pair(soul_harvest=50); a.max_mana = 100; a.mana = 0; d.hp = 1
 landed(a, d, cmb); check("Soul Reaper returns mana on a kill", a.mana >= 40)

@@ -1,0 +1,30 @@
+{
+ "made": "2026-11-08T20:13:29+00:00",
+ "seed": 18,
+ "steps": 0,
+ "turn": 1,
+ "data": "1b5d103a82d3a766c92b268fea9e4b0f01d9731760072267e1d0b88b2eedf059",
+ "model": "gemma4-12b-bb722270",
+ "version": "0.0.4.1",
+ "commit": "2f928af3ddc85cad18fa7a48feda6bbec41a673a",
+ "start": {
+  "kv": "ab3bc9e2576b1ccbfef82db8564c6947461f5c65ea006af9c1f8dfc73b7a1353",
+  "places": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "npcs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "npc_memory": "308df46ed705af3bea5b3c869e8a934525d91d393a77302f501dd6cfc45e4602",
+  "event_log": "a05207534ba3fbb60f574fa52be25dd5d3005ae4a0fd2afa21bdd826fc061e67",
+  "entities": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "all": "77ddbf38ee27f0d34000413bfc6a3ab49809c20880c72293f6bdcf17071d8922"
+ },
+ "embed": false,
+ "backfill": null,
+ "save": "rerun_make_stub_fight",
+ "profile": {
+  "read_tps": 756.8,
+  "write_tps": 31.7,
+  "embed_seconds_per_text": 0.15
+ },
+ "limit_seconds": 60,
+ "budget_cached": true,
+ "overlapped": 0
+}

@@ -31,10 +31,11 @@ class Fake:
     def embed(self, model, input, keep_alive=None):
         calls.append(len(input))
         return {"embeddings": [vec(t) for t in input]}
-import llm.gateway as gw
-real = gw._client
-gw._client = Fake()
-embed._state.update(ok=True, failed=False)
+from llm import backend
+check("(f518) the stub's source has no embedder, so none is asked for", backend.facts()["embedder"] is False and not embed.failed())
+embed.reset()
+h = simlib.stand_in(embed=Fake().embed, name="fake embedder")      # (f518) an embedder on the source is what turns embeddings on
+check("(f518) a source with an embedder makes the helper available", embed.available() and h.live())
 config.SIM_REPEAT, config.SIM_ASKED, config.SIM_GESTURE, config.SIM_TOPIC = 0.9, 0.7, 0.85, 0.3
 
 check("a sentence meaning the same as one said lately is a repeat", banter.repeats("That wolf bit deep into my arm.", ["Well. That wolf bit deep into my arm."]) != "")
@@ -45,16 +46,18 @@ check("the same gesture in other words is refused", quirks.gesture_ok("He leans 
 check("a new gesture is fine", quirks.gesture_ok("wipes his blade on his sleeve", ["Bram leans against the stone wall"]) == "")
 n0 = sum(calls)
 banter.repeats("That wolf bit deep into my arm.", ["Well. That wolf bit deep into my arm."])
-check("lines already seen are not sent again", sum(calls) == n0)
+check("lines already seen are not sent again", n0 > 0 and h.src.calls[""] > 0 and sum(calls) == n0, (n0, h.src.calls))
 
 class Broken:
     def embed(self, **k):
         raise ConnectionError("gone")
-gw._client = Broken()
+h2 = simlib.stand_in(embed=Broken().embed, name="broken embedder")
 embed._cache.clear()
-check("a failing helper falls back to the word checks for the session, without an error", banter.repeats("Keep your hand on your hilt now.", ["Something else."]) == "" and not embed.available())
-gw._client = real
-embed._state.update(ok=None, failed=False)
+check("a failing helper falls back to the word checks for the session, without an error", banter.repeats("Keep your hand on your hilt now.", ["Something else."]) == "" and not embed.available() and embed.failed() and h2.src.calls[""] == 1, h2.src.calls)
+h2()
+h()
+embed.reset()
+check("(f518) the stand-ins are taken away: the stub answers again, with no embedder", not h.live() and not h2.live() and backend.source().name == "stub" and not embed.available() and not embed.failed())
 
 print("\nFAILED: " + ", ".join(bad) if bad else "\nALL PASS")
 

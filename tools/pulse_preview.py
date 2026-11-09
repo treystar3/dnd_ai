@@ -1,6 +1,7 @@
 """Preview the world pulse without playing: force an event of any tier at any place and fast-forward it to the end.
 
-Uses the real model (Ollama) unless --stub is given. Writes a readable report to saves/pulse_preview/.
+Uses the game's own model server (started as the game starts it, tools/runtime_cli.py; --attach the open game's) unless --stub is given.
+Writes a readable report to saves/pulse_preview/.
 
   python tools/pulse_preview.py                          one campaign-tier event, wherever a random scenario puts it
   python tools/pulse_preview.py --tier rare --n 3        three rare events in a row (they see each other in "already going on")
@@ -46,6 +47,8 @@ def main() -> None:
     ap.add_argument("--template", action="store_true", help="the engine builds the situation itself (data/rules/threads.yaml), whatever the tier")
     ap.add_argument("--fresh", action="store_true", help="start the scratch world over")
     ap.add_argument("--list", action="store_true")
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
 
     world = authored()
@@ -53,10 +56,13 @@ def main() -> None:
         for p in world.pressures.values():
             print(f"{p.id:26} {p.place:20} {p.kind:9} sev {p.severity[0]}-{p.severity[1]}  {p.description}")
         return
+    server = None
     if a.stub:
         sys.path.insert(0, str(ROOT))
         import simlib
         simlib.install(simlib.Stub("warrior", a.seed or 1))
+    else:
+        server = runtime_cli.load(a)                 # (f529) the game's own server, as the game starts it
     scratch = SAVES_DIR / "pulse_preview"
     if a.fresh and scratch.exists():
         shutil.rmtree(scratch)
@@ -129,6 +135,8 @@ def main() -> None:
     dest.write_text(text, encoding="utf-8")
     print(text)
     print(f"\n(saved to {dest})")
+    if server is not None:
+        server.close()
 
 
 if __name__ == "__main__":

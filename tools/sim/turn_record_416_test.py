@@ -143,7 +143,7 @@ W.converse = real_converse
 
 # ---- no refusal goes unrecorded: a note and a halt are one call now
 pairs = []
-for p in pathlib.Path("scenes").glob("*.py"):
+for p in list(pathlib.Path("scenes").glob("*.py")) + list(pathlib.Path("services").glob("*.py")):     # (f503) services too
     src = p.read_text()
     lines = src.split("\n")
     for node in ast.walk(ast.parse(src)):

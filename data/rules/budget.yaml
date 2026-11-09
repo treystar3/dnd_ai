@@ -1,8 +1,10 @@
 # (f459) The turn budget's tunables and the one table of the model's tasks (engine/budget.py reads them from f468; engine/data_check.py
-# checks them at startup from here on). The owner's decision: the longest turn finishes within 60 seconds of model time on the RTX 3060
-# 12 GB, counting the typed line's required calls (understanding, the outcome, its passage, the embed calls those need), not one-time
-# loads, background work or the window's pane re-runs. The card's speeds are a measurement, kept apart in data/measured/card_profile.yaml
-# (outside the data hash, so a re-timing never re-blesses a recording); these are hand-kept numbers, in the hash.
+# checks them at startup from here on). The owner's decision: the longest turn finishes within 60 seconds of model time on the minimum
+# cards, the RTX 3060 12 GB through CUDA and (f527, the owner's decision of 5 Nov) the Radeon RX 7600 XT 16 GB through Vulkan,
+# counting the typed line's required calls (understanding, the outcome, its passage, the embed calls those need), not one-time
+# loads, background work or the window's pane re-runs. The card's speeds, the embedder's seconds a text among them (f527), are a
+# measurement, kept apart in data/measured/card_profile.yaml (outside the data hash, so a re-timing never re-blesses a recording);
+# these are hand-kept numbers, in the hash.
 #
 # The sizes below are first estimates from the call sites' ceilings and the f443 night's shape; tools/card_profile.py --estimate (f471)
 # reads a night recording's answer sizes per task and prints what to put here. Tune them from a recording, never by feel.
@@ -11,7 +13,6 @@ margin_seconds: 5             # kept back from the limit, for the engine's own t
 floor_seconds: 8              # the least a required call is still given before a stand-in takes its place
 reserve_seconds: 20           # what an optional call must leave for the required calls still ahead of it (the passage, mostly)
 chars_per_token: 4.0          # prompt characters per token, the estimate's one calibration (English prose on this model)
-embed_seconds_per_text: 0.15  # one text through the embedding model, on the card
 retention:
   operations: 200             # operations kept in a save's record (about a hundred typed lines)
   deferred_turns: 3           # how many turns a deferred optional call waits before it is dropped
@@ -20,6 +21,17 @@ retention:
 #   need:          required (the typed line cannot stand without it) | optional (the line stands without it) | tool (a tool's call, outside play)
 #   later:         for an optional task past the budget: deferred (queued to the next turn's edge) | dropped (the site's fallback stands now)
 #   answer_tokens: the answer's expected size, for the estimate before the call is made
+# (f485, Bundle D R1: read, ask, commit) The tasks an operation needs that are asked outside its transaction (engine/asked.py): the
+# operation stands down when it reaches one, the call is made with no transaction open, and the operation runs again from its start,
+# given the answer (or the failure) at the same point. A family moves out of the transactions by being named here.
+asked_outside: [npc_conversation, npc_profile, work_offer_read, dialogue_frame, npc_parting,        # (f485) the townsfolk's talk
+                hire_chat, mentor_chat, mentor_speech, mentor_voice, canon_extract, canon_check,            # (f488) the hires' and Maren's
+                exchange, overheard, pair_dynamic, persona_details,                                          # (f489) the party among themselves
+                combat_interpret,                                                                            # (f497) the fight's reading of the line
+                combat_opening, combat_narrate, combat_aftermath, goddess_line,                              # (f498) the fight's tellings
+                loot_name, legendary_name, accessory_name, named_spell, spell_rank,                           # (f502) the naming of finds and spells
+                situation_parts, situation_agree]                                                            # (f546) a situation's parts, at its birth
+asked_max: 48                 # (f489) the most calls one operation may ask outside it (each one runs the operation again from its start)
 tasks:
   # ---- understanding the line
   interpret_action:         {need: required, answer_tokens: 120}
@@ -51,6 +63,7 @@ tasks:
   goddess_line:             {need: required, answer_tokens: 150}
   # ---- the passage
   narrate:                  {need: required, answer_tokens: 260}
+  combat_opening:           {need: required, answer_tokens: 260}     # (f498) the fight's opening, a telling of its own (narrate's size)
   combat_narrate:           {need: required, answer_tokens: 220}
   combat_aftermath:         {need: required, answer_tokens: 260}
   # ---- optional: the line stands without them
@@ -62,11 +75,14 @@ tasks:
   moment:                   {need: optional, later: dropped, answer_tokens: 200}
   npc_parting:              {need: optional, later: dropped, answer_tokens: 120}
   arc_story:                {need: optional, later: deferred, answer_tokens: 1200}
-  event_judge:              {need: optional, later: dropped, answer_tokens: 120}
+  event_judge:              {need: optional, later: dropped, answer_tokens: 350}     # (f547) with a situation's changes, part by part
   pulse_thread:             {need: optional, later: dropped, answer_tokens: 1200}
   pulse_motive:             {need: optional, later: dropped, answer_tokens: 500}
   pulse_cataclysm:          {need: optional, later: dropped, answer_tokens: 1500}
   thread_telling:           {need: optional, later: dropped, answer_tokens: 500}
+  situation_parts:          {need: optional, later: dropped, answer_tokens: 800}     # (f543) a situation's typed parts, asked (f546) after the tail;
+                                                                                       # (f545's re-test) measured: 761 at the median
+  situation_agree:          {need: optional, later: dropped, answer_tokens: 20}      # (f546's review) a part's words against its telling
   board_stakes:             {need: optional, later: dropped, answer_tokens: 900}
   loot_name:                {need: optional, later: dropped, answer_tokens: 60}
   legendary_name:           {need: optional, later: dropped, answer_tokens: 80}

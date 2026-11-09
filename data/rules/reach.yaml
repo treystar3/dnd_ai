@@ -60,6 +60,8 @@ tools:
   server:           [a tray, a jug, a cloth]
   shepherd:         [a crook, a sheepdog at their feet, a lamb]
   smith:            [the hammer, a pair of tongs, a bar of iron in the coals, the anvil]
+  ferryman:         [the ferry pole, a coil of rope, a purse for fares]          # (f545)
+  carpenter:        [a plane, a saw, a bundle of planks]                         # (f545)
   stonemason:       [a chisel, a mallet, a block of dressed stone]
   tinker:           [a kettle, a tray of small tools, a coil of wire]
   traveling_player: [a lute, a cap for coins, a pack]

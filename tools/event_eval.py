@@ -10,7 +10,7 @@ carries an event to its end. With --live the real model writes them while everyt
 whether what the model writes can be played to its end: the paths it names, the creatures it picks, the telling the engine checks.
 
   python tools/event_eval.py                     every case, offline
-  python tools/event_eval.py --live              the model writes the events (needs Ollama)
+  python tools/event_eval.py --live              the model writes the events (the game's own server, tools/runtime_cli.py; --attach the open game's)
   python tools/event_eval.py --only war,plague   cases whose names contain either
   python tools/event_eval.py --quiet             the summary only
 
@@ -38,21 +38,38 @@ def load_cases(path=CASES) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or []
 
 
-def route_live() -> None:
-    """The stand-in answers everything but the event's own calls, which reach the real model (as tools/interp_eval.py does for the interpreter)."""
-    import types
+def model_calls(outcomes) -> dict:
+    """(f519) The model's calls, per task, from the gateway's OUTCOMES ((task, succeeded, attempts) per call): {task: {calls, failed,
+    attempts}}. Before f519 the summary called dict() over those 3-tuples, which raised, and the error was swallowed."""
+    out: dict[str, dict[str, int]] = {}
+    for task, ok, attempts in outcomes:
+        row = out.setdefault(task, {"calls": 0, "failed": 0, "attempts": 0})
+        row["calls"] += 1
+        row["failed"] += not ok
+        row["attempts"] += int(attempts)
+    return dict(sorted(out.items()))
+
+
+def route_live(source=None):
+    """The stand-in answers everything but the event's own calls, which reach the real model (as tools/interp_eval.py does for the interpreter).
+    (f518) The event's titles are passed on (backend.PASS: the stand-in sends them to `source`, (f529) the server main loaded); returns what
+    takes both stand-ins away."""
     import simlib
-    from llm import gateway as gw
-    real = gw._client
+    from llm import backend
     stub = simlib.Stub("warrior", 3)
-    simlib.install(stub)
+    unstub = simlib.install(stub)
     stub_chat = stub.chat
 
     def chat(**k):
         if (k.get("format") or {}).get("title") in LIVE_TITLES:
-            return real.chat(**k)
+            return backend.PASS
         return stub_chat(**k)
-    gw._client = types.SimpleNamespace(chat=chat)
+    unroute = simlib.stand_in(chat=chat, name="event_eval live", below=source)
+
+    def undo() -> None:
+        unroute()
+        unstub()
+    return undo
 
 
 def judge(got: dict, expect: dict) -> list[str]:
@@ -92,27 +109,30 @@ def group_of(case: dict) -> str:
     return case.get("tier", "campaign") + (f":{case['kind']}" if case.get("kind") else "")
 
 
-def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict:
+def evaluate(cases: list[dict], live: bool = False, quiet: bool = False, source=None) -> dict:
     from tools import event_trial as et
-    if live:
-        route_live()
+    unroute = route_live(source) if live else None
     results, wrong = [], []
     start = time.time()
-    for case in cases:
-        out = et.run(case.get("tier", "campaign"), case.get("kind", ""), int(case.get("level", 60)), case.get("cls", "warrior"), int(case.get("seed", 5)),
-                     case.get("pressure", ""), int(case.get("days", 150)), bool(case.get("ignore")), case.get("path", ""), live,
-                     save="event_eval", quiet=True, act_from_stage=int(case.get("from_stage", 2)))
-        bad = judge(out, case.get("expect") or {})
-        results.append((case["name"], out, bad))
-        if bad:
-            wrong.append(case["name"])
-        if not quiet:
-            print(("ok   " if not bad else "FAIL ") + f"{case['name']:<34} " + et.verdict(out) + ("" if not bad else "\n     <- " + "; ".join(bad)))
-            if live:
-                print(f"     model wrote: {out['title']!r}; paths {[p for p, _ in out['paths']]}")
-            if not out["started"]:
-                for l in out["lines"][-3:]:
-                    print(f"     {l[:200]}")
+    try:
+        for case in cases:
+            out = et.run(case.get("tier", "campaign"), case.get("kind", ""), int(case.get("level", 60)), case.get("cls", "warrior"), int(case.get("seed", 5)),
+                         case.get("pressure", ""), int(case.get("days", 150)), bool(case.get("ignore")), case.get("path", ""), live,
+                         save="event_eval", quiet=True, act_from_stage=int(case.get("from_stage", 2)))
+            bad = judge(out, case.get("expect") or {})
+            results.append((case["name"], out, bad))
+            if bad:
+                wrong.append(case["name"])
+            if not quiet:
+                print(("ok   " if not bad else "FAIL ") + f"{case['name']:<34} " + et.verdict(out) + ("" if not bad else "\n     <- " + "; ".join(bad)))
+                if live:
+                    print(f"     model wrote: {out['title']!r}; paths {[p for p, _ in out['paths']]}")
+                if not out["started"]:
+                    for l in out["lines"][-3:]:
+                        print(f"     {l[:200]}")
+    finally:
+        if unroute is not None:
+            unroute()               # (f518) the live route's stand-ins away again
     n = len(cases)
     by: dict[str, list[int]] = {}
     for case, (_, _, bad) in zip(cases, results):
@@ -124,7 +144,7 @@ def evaluate(cases: list[dict], live: bool = False, quiet: bool = False) -> dict
     if live:
         try:
             from llm import gateway
-            summary["model_calls"] = dict(getattr(gateway, "OUTCOMES", {}) or {})
+            summary["model_calls"] = model_calls(getattr(gateway, "OUTCOMES", []) or [])
         except Exception:
             pass
     if not quiet:
@@ -143,12 +163,19 @@ def main() -> int:
     ap.add_argument("--only", default="", help="comma-separated words; a case runs when its name contains one")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--cases", default=str(CASES))
+    from tools import runtime_cli
+    runtime_cli.add_args(ap)
     a = ap.parse_args()
     cases = load_cases(a.cases)
     if a.only:
         keys = [k.strip() for k in a.only.split(",") if k.strip()]
         cases = [c for c in cases if any(k in c["name"] for k in keys)]
-    out = evaluate(cases, live=a.live, quiet=a.quiet)
+    server = runtime_cli.load(a) if a.live else None            # (f529) the game's own server, as the game starts it
+    try:
+        out = evaluate(cases, live=a.live, quiet=a.quiet, source=server.source if server is not None else None)
+    finally:
+        if server is not None:
+            server.close()
     return 1 if out["wrong"] else 0
 
 

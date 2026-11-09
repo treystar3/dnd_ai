@@ -1,12 +1,12 @@
 {
- "made": "2026-11-03T20:40:02+00:00",
+ "made": "2026-11-08T20:13:09+00:00",
  "seed": 39,
  "steps": 0,
  "turn": 1,
- "data": "7b61f87b7c9f8d4c18b84869e859f67fb569c7043c0baaa2c3753777d69e7197",
- "model": "gemma4:12b",
+ "data": "1b5d103a82d3a766c92b268fea9e4b0f01d9731760072267e1d0b88b2eedf059",
+ "model": "gemma4-12b-bb722270",
  "version": "0.0.4.1",
- "commit": "bd1eff180bc0d39a28f9ab5a627fa938f334da2b",
+ "commit": "2f928af3ddc85cad18fa7a48feda6bbec41a673a",
  "start": {
   "kv": "3a38ca88a136f33d80f6624f58350482f386c8c47e37ceae2a5edd78e2739b85",
   "places": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -21,7 +21,10 @@
  "save": "rerun_make_stub_short_new",
  "profile": {
   "read_tps": 756.8,
-  "write_tps": 31.7
+  "write_tps": 31.7,
+  "embed_seconds_per_text": 0.15
  },
- "limit_seconds": 60
+ "limit_seconds": 60,
+ "budget_cached": true,
+ "overlapped": 0
 }

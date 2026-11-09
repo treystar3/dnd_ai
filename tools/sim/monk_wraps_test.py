@@ -4,6 +4,7 @@ sys.path.insert(0, ".")
 import simlib
 simlib.install(simlib.Stub("monk", 1))
 from engine import combat, items, loot
+from engine import effects as fx
 from tools.tune_classes import build
 from world.loader import load_world
 fails = []
@@ -40,7 +41,7 @@ check("Ki Strike refills stamina on hits", p.stamina > 0.06 * p.max_stamina)
 
 p, e, c, r = duel("open_palm"); knocked = 0
 for _ in range(60):
-    e.statuses.pop("prone", None); e.hp = e.max_hp
+    fx.end_status(e, "prone"); e.hp = e.max_hp
     combat.apply_damage(c, p, e, 1.0, "attacks (hand wraps)", r)
     knocked += "prone" in e.statuses
 check(f"Open Palm sweeps enemies off their feet ({knocked}/60)", knocked >= 5)

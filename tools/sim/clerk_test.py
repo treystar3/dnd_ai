@@ -7,13 +7,12 @@ sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw, types
 CALLS = []
-_chat = gw._client.chat
+_chat = simlib.below().chat     # (f518) the stub answering now, taken before the spy goes in over it
 def chat(*a, **k):
     CALLS.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+spy = simlib.stand_in(chat=chat)
 import ui.console as uc
 LEDGER = []
 for f in ("narrate", "note", "say", "npc_says", "dialogue"):
@@ -73,6 +72,7 @@ ws.turn("I hand in my contract to the clerk")
 check("speaking to the clerk hands it in and pays", not ws.player.quests and ws.player.character.coins > coins
       and any("Completed: [F] Hunt 3 wolves" in l for l in LEDGER), (LEDGER, ws.player.quests))
 said = next((m for t, m in CALLS if t == "NPCReply"), [])
+check("...the clerk's reply was asked of the spy answering now (f518)", spy.live() and spy.src.calls["NPCReply"] >= 1, dict(spy.src.calls))
 check("...and the clerk's reply is told it happened", said and "handed in the finished contract 'Hunt 3 wolves in the Greywood'" in said[-1]["content"],
       said[-1]["content"][-500:] if said else CALLS)
 

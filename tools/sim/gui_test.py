@@ -14,14 +14,19 @@ def check(n, ok, x=""):
 from ui import console
 from ui.gui.bridge import Bridge, is_view
 from ui.gui import server
-from llm import gateway
+from llm import backend, gateway
+from llm.sampling import Sampling
 
 # ---- view table matches the real # commands ----
 check("views", is_view("#character") and is_view("#Inventory") and is_view("#journal") and not is_view("#equip sword")
       and not is_view("#allocate str 1") and not is_view("hello") and not is_view("#numbers"))
 
-b = Bridge(); orig_chat = gateway._client.chat
-gateway._client.chat = lambda *a, **k: "answer"
+class Answer:                                    # (f517) the model, as the interface's source: the busy light is a layer above it
+    name = "answer"
+    def chat(self, req, deadline=None):
+        return backend.Reply(text="answer")
+undo_source = backend.use(Answer())
+b = Bridge()
 b.install(); b.pinned = "#character"
 srv = server.make_server(b); server.serve(srv)
 base = srv.url.split("/?")[0]; tok = srv.token
@@ -31,7 +36,7 @@ def game():
     console.note("hello world")
     console.status_block("Day 1 8:00", "☀ clear", "Parth", "a quiet lane", {"health": (80.4, 100), "mana": (5, 10), "stamina": (7, 7)}, 3, 2, 125, (10, 100))
     print("a plain print")
-    gateway._client.chat()                       # the busy hook
+    backend.chat([], dict, Sampling(0.5), 10)    # the busy hook: a call through the interface lights it
     for _ in range(10):
         t = console.ask(main=True)
         seen.setdefault("lines", []).append(t)
@@ -208,9 +213,14 @@ res = []
 tt = threading.Thread(target=lambda: res.append(b3.ask(main=True)), daemon=True); tt.start(); time.sleep(0.15); b3.close(); tt.join(2)
 check("window closing unblocks a waiting game", res == ["quit"], res)
 
-srv.shutdown(); b.uninstall()
+srv.shutdown()
+other = lambda op, r, call: call(r)                 # another layer on the interface while the window closes
+undo_other = backend.wrap(other)
+b.uninstall()
 check("uninstall restores", sys.stdout is sys.__stdout__ or True)
-check("chat restored", gateway._client.chat == orig_chat or True)
+check("...and takes the busy light's layer, and only it, off the model interface", backend.layers() == [other], backend.layers())
+undo_other()
+undo_source()
 
 # ---- nothing in the game may print or read the terminal by itself, or the GUI would miss it ----
 ALLOWED = {"ui/console.py", "ui/gui/__init__.py"}      # the GUI launcher writes only to stderr, before any window exists

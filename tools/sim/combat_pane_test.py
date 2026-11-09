@@ -35,10 +35,9 @@ tmp = tempfile.mkdtemp(); os.chdir(tmp)
 from ui import console
 from ui.gui.bridge import Bridge
 from ui.gui import server
-from llm import gateway
 
 b = Bridge()
-gateway._client.chat = lambda *a, **k: "answer"
+placeholder = simlib.stand_in(chat=lambda *a, **k: "answer")      # (f518) a source that answers nothing usable, where the client's chat was patched
 b.install()
 srv = server.make_server(b); server.serve(srv)
 
@@ -123,6 +122,8 @@ else:
     check("...with every line of its log, the killing blow too", out.get("log_rows") == 2, out)
     check("...a button brings it back until the next fight", out.get("button") == ["⚔ Last fight"], out)
     check("...and no abilities to use in a fight that is over", out.get("abilities_after") == 0, out)
+    check("...and the page asked the model nothing (f518: the placeholder source answering now saw no call)", placeholder.live() and not placeholder.src.calls,
+          dict(placeholder.src.calls))
 
 srv.shutdown()
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad), file=sys.__stdout__)

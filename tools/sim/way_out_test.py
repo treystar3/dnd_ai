@@ -94,10 +94,11 @@ SENT = []
 def chat(**k):
     SENT.append(k["messages"])
     return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content=next(answers)))
-gw._client = types.SimpleNamespace(chat=chat)
-got = gw.generate("narrate", "You narrate.", "The prisoners walk at your side.", Narration)
+with simlib.stand_in(chat=chat, embed=None, name="way_out_writer") as writer:     # (f518) the canned narrator, as a source
+    got = gw.generate("narrate", "You narrate.", "The prisoners walk at your side.", Narration)
 check("the gateway sends such a passage back, and the player reads the one written again", got.text == "One keeps his head down, his gaze fixed on the ground.", got.text)
-check("...told to write in English, the word named", len(SENT) == 2 and "English" in SENT[1][-1]["content"] and "그의" in SENT[1][-1]["content"], SENT[-1][-1:])
+check("...told to write in English, the word named", len(SENT) == 2 and "English" in SENT[1][-1]["content"] and "그의" in SENT[1][-1]["content"]
+      and writer.src.calls["Narration"] == 2, SENT[-1][-1:])
 
 shutil.rmtree("saves/way_out_test", ignore_errors=True)
 print("\nALL PASS" if not bad else "\nFAILED: " + ", ".join(bad))

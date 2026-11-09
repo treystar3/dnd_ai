@@ -111,14 +111,14 @@ class InventoryActions:
         return False
 
     NOT_STORY = ("stew", "soup", "bread", "meal", "food", "ale", "beer", "wine", "drink", "meat", "potion", "draught",
-                 "tonic", "bandage", "coin", "gold", "silver", "copper", "money", "sword", "axe", "spear", "bow",
+                 "tonic", "bandage", "salve", "coin", "gold", "silver", "copper", "money", "sword", "axe", "spear", "bow",
                  "dagger", "armor", "armour", "shield", "helm", "hammer", "mace", "staff")
 
     def story_object(self, name: str) -> bool:
-        """Key items are tokens, documents and keys - never food, drink, gear, remedies or money."""
+        """Key items are tokens, documents and keys - never food, drink, gear, remedies or money. (f545) Nor a good of the world by name
+        ("a jar of wine" is wine), though a thing may mention one ("a rope ladder", "a sealed letter"): no item is minted to ask."""
         words = name.lower()
-        return not any(re.search(rf"\b{w}", words) for w in self.NOT_STORY) and not inv.find(
-            [inv.make_good(g) for g in inv.GOODS], name)
+        return not any(re.search(rf"\b{w}", words) for w in self.NOT_STORY) and not inv.is_good(name)
 
     def receive_key_item(self, gift, npc) -> None:
         c = self.player.character
@@ -134,13 +134,52 @@ class InventoryActions:
         meant = f" (meant for {key.for_whom})" if key.for_whom else ""
         console.note(f"{'Quest' if key.kind == 'quest' else 'Key'} item received: {key.name}{meant} - {key.description}")
 
+    @staticmethod
+    def how_many(intent) -> int:
+        """(f545's review) How many of a thing the player asks to hand over: the understanding's own count when it gives one, else a figure
+        in the item's own words ("3 candles", "three candles"); 1 otherwise - never a figure the line says of something else ("the 2nd
+        guard", "I paid twenty copper", "at ten bells")."""
+        from engine import mentor
+        n = int(getattr(intent, "count", 1) or 1)
+        if n > 1:
+            return min(99, n)
+        for w in re.findall(r"\d+|[a-z]+", re.sub(r"\s+x\d+\s*$", "", (intent.item or "").lower())):   # "draught x3" is what is carried
+            k = int(w) if w.isdigit() else mentor.WORD_NUM.get(w)
+            if k:
+                return max(1, min(99, k))
+        return 1
+
+    @staticmethod
+    def counted(item, n: int) -> str:
+        """A thing handed over, as a person would say it: "a candle"'s name alone for one, "three candles" for more."""
+        from engine import items as _items, mentor
+        from engine import quests
+        name = _items.display_name(item)
+        if n <= 1:
+            return name
+        good = inv.GOODS.get(item.good or "")
+        if (good is not None and good.mass) or item.base == "raw_material":
+            return f"some {name}"                                       # (f545's review) "some salt", "some raw iron"
+        word = next((w for w, k in mentor.WORD_NUM.items() if k == n), str(n))
+        head, of, rest = name.partition(" of ")                         # "three tomes of the second circle"
+        return f"{word} {head if head.endswith('s') else quests.plural(head)}{of}{rest}"
+
+    def delivery_for(self, key):
+        """(f545's review) The delivery a key item is carried for, when it is one of the player's jobs."""
+        return next((q for q in self.player.quests if q.get("kind") == "deliver" and key.id == f"quest_{q['id']}"), None)
+
+    def meant_for(self, npc, key) -> bool:
+        """Is this the one a carried item is meant for: by who they are when the job names one person (to_id), else as is_recipient
+        reads its words. (f545's review) The giving and the job's progress decide it alike."""
+        q = self.delivery_for(key)
+        if q is not None and q.get("to_id"):
+            return npc.id == q["to_id"]
+        return key.kind == "quest" and self.is_recipient(npc, key.for_whom)
+
     def is_recipient(self, npc, for_whom: str) -> bool:
         """Does this person match who a quest item was meant for - by name, first name or role?"""
-        want = for_whom.lower().replace("the ", "").strip()
-        if not want:
-            return False
-        names = {npc.name.lower(), npc.name.split()[0].lower(), npc.role.replace("_", " ").lower()}
-        return any(n and (n in want or want in n) for n in names)
+        from engine import quests
+        return quests.names_person(npc, for_whom)                        # (f545's reviews) whole names and trades, one reading
 
     def on_discard(self, intent, text: str) -> None:
         key = self.find_key(intent.item or text)
@@ -201,7 +240,7 @@ class InventoryActions:
         if item is not None and item.good and inv.GOODS[item.good].kind == "codex":
             self.read_codex(item, text)                            # (f397) a codex teaches its named spell
             return
-        if not item or not item.good or inv.GOODS[item.good].kind == "herb":
+        if not item or not item.good or inv.GOODS[item.good].kind in ("herb", "trade"):        # (f545) a trade good is carried, never used
             self.refuse("You have nothing like that you can use." if not item else f"{items.display_name(item)} can't be used like that.")
             return
         used = inv.take(self.pack, inv.GOODS[item.good].name, 1)
@@ -271,10 +310,9 @@ class InventoryActions:
         """Handing over money: pays for what's being discussed, or is a gift of that amount."""
         c = self.player.character
         amount = self.coin_amount(intent.item or "") or self.coin_amount(text)
-        wares = self.world.roles[npc.role].sells
+        wares = self.wares_of(npc)                            # (f545) their trade's and what they hold
         recent = " ".join(line for _, line in self.convo[-4:]).lower()
-        ware = next((w for w in wares if amount and w.price == amount), None) or \
-            next((w for w in wares if w.id in recent or w.name.lower().split()[-1] in recent), None)
+        ware = self.ware_paid_for(npc, wares, amount, f"{intent.item or ''} {text}".lower(), recent, intent)
         if ware:
             intent.target, intent.ware = npc.id, ware.id
             self.on_buy(intent, text)
@@ -300,6 +338,30 @@ class InventoryActions:
 
     BRIBE_WORDS = ("bribe", "look the other way", "blind eye", "let me through", "let me pass", "let me in", "keep quiet", "say nothing",
                    "forget", "overlook", "in exchange", "for your silence", "slip ", "grease", "so that you", "if you will", "to let")
+
+    GIFT_WORDS = ("keep it", "keep the change", "for your trouble", "for her trouble", "for his trouble", "for their trouble", "a gift",
+                  "as a gift", "a tip", "for luck", "for the children", "for nothing", "no need to")
+
+    def ware_paid_for(self, npc, wares, amount: int, said: str, recent: str, intent):
+        """(f545's review) The ware coin handed over pays for, or None (then it is a bribe or a gift). A ware named in the words that
+        come with the coin, or in the talk just before, whose price the coin meets; else the one ware at exactly that price, unless the
+        words say it is a bribe or a gift. A ware is named by its own words, whole ("fish" is not "fishing", "oil" not "soil")."""
+        def named(w, text: str) -> bool:
+            return bool(inv.ware_words(w) & set(inv._plain_words(text)))
+        priced = lambda w: bool(amount) and amount in (w.price, self.quote_ware(npc, w).price)
+        now = [w for w in wares if named(w, said)]
+        if now:
+            return next((w for w in now if priced(w)), now[0])
+        if self.is_bribe(intent, said) or any(g in said for g in self.GIFT_WORDS):
+            return None
+        before = [w for w in wares if named(w, recent)]
+        at_price = [w for w in wares if priced(w)]
+        both = [w for w in at_price if w in before]
+        if both:
+            return both[0]
+        if len(at_price) == 1:
+            return at_price[0]
+        return before[0] if len(before) == 1 and not amount else None
 
     def is_bribe(self, intent, text: str) -> bool:
         low = f"{text} {intent.summary}".lower()
@@ -433,7 +495,7 @@ class InventoryActions:
         if not npc:
             key = self.find_key(intent.item or text)
             if key and key.for_whom:
-                npc = next((n for n in self.present if self.is_recipient(n, key.for_whom)), None)
+                npc = next((n for n in self.present if self.meant_for(n, key)), None)
         if not npc or npc not in self.present:
             self.refuse("There's no one here to give that to.")
             return
@@ -446,7 +508,7 @@ class InventoryActions:
             c = self.player.character
             c.key_items.remove(key)
             day = clock.day(self.minutes)
-            delivered = key.kind == "quest" and self.is_recipient(npc, key.for_whom)
+            delivered = self.meant_for(npc, key)
             if delivered:
                 regard.step(npc, self.acting, R["gift_trust"] + 1, cause="a gift", minute=self.minutes)   # (f480)
                 c.item_history.append(f"Delivered {key.name} to {npc.name}, as {key.source} asked (day {day}).")
@@ -465,16 +527,19 @@ class InventoryActions:
                 f"[They hand you {key.name} ({key.description}).]"
             self.on_talk(intent, text)
             return
-        item = inv.take(self.pack, intent.item or text, 1)
+        item = inv.take(self.pack, intent.item or text, self.how_many(intent))   # (f545's review) as many as said, never a figure
+                                                                                  # said of something else
         if not item:
             self.refuse("You aren't carrying that.")
             return
         from engine.domain_events import Gift                 # a thing given for nothing: taken, remembered, and the companions have a view
-        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting), item=inv.label(item)), npc)
+        n = max(1, int(item.quantity or 1))
+        self.notice(Gift(minute=self.minutes, place=self.player.location, witnesses=(npc.id,), npc=npc.id, name=npc.label(self.acting),
+                         item=self.counted(item, n), count=n), npc)                    # (f545's review) "three candles", never "candles x3"
         self.store.save_player(self.player)
         console.ledger(f"Gave {inv.label(item)} to {npc.label(self.acting)}.")
         intent.target = npc.id
-        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They hand you {inv.label(item)}, asking nothing for it.]"
+        intent.speech = (intent.speech.strip() + " " if intent.speech.strip() else "") + f"[They hand you {self.counted(item, n)}, asking nothing for it.]"
         self.on_talk(intent, text)
 
     def on_store(self, intent, text: str) -> None:
@@ -756,7 +821,7 @@ class InventoryActions:
         """(f418) What a seller says they sell, at the prices the game will charge (price_of), for their own words: they quoted the list's
         base price and the player was charged the town's."""
         role = self.world.roles[npc.role]
-        return ([f"{w.name}: {money.words(self.quote_ware(npc, w).price)}" for w in role.sells]
+        return ([f"{w.name}: {money.words(self.quote_ware(npc, w).price)}" for w in self.wares_of(npc)]
                 + [f"{i.name} ({i.rarity} work, level {i.item_level}): {money.words(p)}" for n, i, p in self.stock_here() if n.id == npc.id]
                 + ([f"commissions: you make {', '.join(role.commissions)} gear to order"] if role.commissions else []))
 
@@ -818,7 +883,7 @@ class InventoryActions:
         buyer = next((n for n in buyers if n.id == intent.target), None) or \
             (sorted(buyers, key=lambda n: -(self.world.roles[n.role].buy_rate or R["sell_rate"]))[0] if buyers else None)
         if not buyer:
-            self.refuse(f"No one here buys {cat}.")
+            self.refuse(f"No one here buys {inv.category_word(cat)}.")      # (f545's review) "trade goods", never "trade"
             return
         sold = inv.take(self.pack, intent.item or text, max(1, intent.count))
         self.finish_sale(sold, buyer, text)

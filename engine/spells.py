@@ -353,6 +353,14 @@ def contract_codex(letter: str, level: int, rng: random.Random):
     return make_codex(level, rng)
 
 
+def plain_codex(item) -> None:
+    """(f502) The engine's own name for the spell a codex holds, until the naming operation after the win gives it the model's."""
+    sp = item.spell
+    sp["name"] = f"The {sp['element'].capitalize()} {FORMS[sp['form']]['label']}"
+    sp["description"] = ""
+    item.name = codex_name(item)
+
+
 def codex_name(item) -> str:
     sp = getattr(item, "spell", None) or {}
     return f"codex of {sp['name']}" if sp.get("name") else "sealed codex"

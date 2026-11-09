@@ -85,8 +85,9 @@ class LawActions:
             npc, item, price = best
             return {"mode": "stock", "npc": npc, "item": item, "value": items.price(item), "label": item.name, "story": False}
         for n in ([owner] if owner else []) + [n for n in self.present if not owner or n.id != owner.id]:
-            for w in self.world.roles[n.role].sells:
-                if w.kind in ("item", "material") and w.item and w_words & (_words(w.name) | _words(w.id)):
+            for w in self.wares_of(n):                                 # (f545) a held stock can be stolen from, as a ware can
+                if w.kind in ("item", "material") and w.item and set(inv._plain_words(name)) & inv.ware_words(w):   # (f545's review)
+                                                                                  # by the ware's own words, never the sack it is sold in
                     return {"mode": "ware", "npc": n, "ware": w, "value": w.price, "label": w.name, "story": False}
         records, save = self.holder_record(owner)
         searched = [(records, save)] + ([self.holder_record(None)] if owner else [])
@@ -168,6 +169,9 @@ class LawActions:
             self.to_pack(item)
         elif mode == "ware":
             w = loot["ware"]
+            if w.id.startswith("stock:"):                             # (f545) taken from what they hold: one fewer, and lost to them
+                from engine import situation_parts
+                situation_parts.take_stock(self.store, loot["npc"].id, w.item, 1, self.minutes, "lost")
             self.to_pack(items.make_raw(w.item) if w.kind == "material" else inv.make_good(w.item, 1))
         else:
             rec = loot["record"]

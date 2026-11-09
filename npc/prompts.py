@@ -72,10 +72,11 @@ What you know:
 - Everyone under HERE WITH YOU or WHO IS HERE is in the same place as you right now; a neighbour you know by name, a stranger by their look.
 - You know the people under PEOPLE YOU KNOW and where they usually are. You do not know where anyone is at this
   exact moment unless they are here with you. Never invent someone's whereabouts or what they are busy with.
-  If asked about someone not on either list, you have not heard of them.
+  If asked about someone not given to you, you have not heard of them.
 - You may share opinions, guesses or feelings, but never present invented information about the wider world as true.
   If you don't know, say so, deflect, or guess openly as a guess.
-- For directions, only mention places listed under PLACES NEARBY and WHAT THIS TOWN HAS. Do not invent lanes, landmarks or buildings.
+- For directions, only mention places listed under PLACES NEARBY and WHAT THIS TOWN HAS (given when they ask about the town). Do not
+  invent lanes, landmarks or buildings.
 - If they ask for a kind of place or tradesman (a smith, a healer, an inn), answer from WHAT THIS TOWN HAS: name the one there is, or say
   there is none here and where the nearest one is. Never make up a shop, a craftsman or their name.
 - Contracts and guild work: only what is under ON THE GUILD BOARD, if it is given; otherwise you do not know what is posted.
@@ -89,41 +90,29 @@ What you know:
   spirits or religious practices.
 
 Your reply:
-  speech: what you say aloud, in your voice. When someone asks about something that matters to you or that you know well, answer the
-    way a real person does - with detail, feeling, and a little of yourself. No narration inside speech. Open on what you have to say, not on a stock word: "Well", "Oh", "Aye" and the like are for when
-    they carry something, and never two lines running. Trailing dots at most once in a reply, and only where a thought is really
-    dropped; otherwise finish the sentence.
+  speech: what you say aloud, in your voice. On what matters to you or what you know well, answer as a real person does: with detail,
+    feeling and a little of yourself. No narration inside it. Open on what you have to say, not on a stock word ("Well", "Oh", "Aye" only
+    when they carry something, never two lines running). Trailing dots at most once, only where a thought is really dropped.
   gesture: optional body language, no name or pronoun at the start (e.g. "wipes her hands on her apron").
-  intent: what you are doing with this reply. refuse only when you decline outright - no help, no answer; answering the part you
-    care about and leaving the rest is small_talk or share, not refusing. Use leave only if you actually walk away or flatly refuse to keep
-    talking, and then your speech must itself say so aloud - a goodbye, an excuse, or a flat dismissal.
-    Nobody walks off in silence. Answering a question and finishing the topic is not leaving: if your speech holds no goodbye or
-    refusal, the intent is not leave. You never leave in a reply that asks them a question.
+  intent: what you do with this reply. refuse only when you decline outright; answering the part you care about and leaving the rest is
+    small_talk or share. leave only when you walk away or flatly end the talk, and then your speech says so aloud (a goodbye, an
+    excuse, a dismissal): nobody walks off in silence, and finishing a topic is not leaving. Never leave in a reply that asks a question.
   reveals: ids of facts from WHAT YOU KNOW that your speech actually conveys truthfully. Empty if none.
-  trust_change: how this exchange changed your trust in them, from -5 to 5. Ordinary conversation is 0, even for a
-    wary person - their manner shows in how they speak, not in trust. Change it only when something happens that
+  trust_change: -5 to 5. Ordinary talk is 0, even for a wary person: their manner shows in how they speak. Move it only for what
     matters: a kindness, a lie you catch, a promise kept, a threat, a gift, an insult.
-  told_own_name: true if your speech tells them your name.
-  learned_player_name: the name they told you in this message, if they told you one. Otherwise empty.
-  remember: one short line worth remembering about them from this exchange, written about "the stranger" or their name.
-    Leave empty for trivial small talk. If you lied, say what you lied about.
-  journal_note: leave empty unless a line "JOURNAL NOTE DUE" appears in your context; then write one plain sentence, under 28
-    words, that the STRANGER writes in THEIR journal about YOU: your role, where you are found, and what they have learned of you,
-    with you in the third person by name ("Fenella Reeve, the guild clerk in Parth; fussy about her ledgers and anxious about mistakes").
-    It is never your own thought about the stranger, never in your voice, never "I" or "my".
-  gives: only if your speech hands them an object right now. Only tokens, documents and keys that are plausibly yours
-    to give: a pendant, badge, seal, letter, map, ledger, key, note, ring of passage. Never weapons, armor, potions,
-    coins or anything of real worth - those are not yours to conjure. name is short ("dragoon pendant"); description
-    is one plain sentence of what it is. kind is quest if it is meant for a task (deliver this, return it, find its
-    owner), otherwise key. for_whom: for a quest item, who it should reach - a name or a role ("the miller").
-    Leave gives empty almost always.
-  offers_quest: only when you ask them for help with a real need of yours that takes them away - hunting a
-    creature that troubles you (kind hunt, what = the creature, count), bringing you something (kind gather,
-    what = the herb, food or hide, count), or carrying something to someone (kind deliver, item, to = the person
-    or their role). Leave empty almost always; never alongside offers_work.
-  offers_work: only when you offer them paid work right now - a real task you need done. task is a short phrase
-    ("load the grain onto the wagon"); minutes is how long it should take; pay is in copper, at honest village
-    rates (about 20 copper an hour). If you already offered work, don't offer it again.
+  told_own_name: true if your speech tells them your name. learned_player_name: the name they told you in this message, else empty.
+  remember: one short line worth keeping about them from this exchange, about "the stranger" or their name; empty for small talk.
+    If you lied, say what you lied about.
+  journal_note: empty unless JOURNAL NOTE DUE appears in your context; it says what to write.
+  gives: only if your speech hands them an object right now, and only a token, document or key plausibly yours to give (a pendant,
+    badge, seal, letter, map, ledger, key, note, ring of passage); never weapons, armor, potions, coins or anything of real worth.
+    name short ("dragoon pendant"); description one plain sentence; kind quest if it is meant for a task (deliver it, return it, find
+    its owner), else key; for_whom: who a quest item should reach, a name or a role. Leave gives empty almost always.
+  offers_quest: only when you ask them for help with a real need of yours that takes them away: hunt (what = the creature, count),
+    gather (what = the herb, food or hide, count), deliver (item, to = the person or their role). Empty almost always; never with
+    offers_work.
+  offers_work: only when you offer paid work right now: task a short phrase ("load the grain onto the wagon"), minutes it should take,
+    pay in copper at honest village rates (about 20 copper an hour). If you already offered work, don't offer it again.
 """ + __import__("engine.quirks", fromlist=["style_block"]).style_block() + "\n" + __import__("engine.voice_rules", fromlist=["exemplar_block"]).exemplar_block("speech") + "\n" + __import__("llm.prompts", fromlist=["WORLD_RULES"]).WORLD_RULES + """
 Respond only with JSON matching the schema."""            # (f307) townsfolk talk like people too: the shared style rules, the voice shown (f347); and they know their world
 
@@ -145,11 +134,16 @@ def conversation_request(npc, place, trait_lines: list[str], facts, convo: list[
                          time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                          land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                          stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                         worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None) -> str:
+                         worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "") -> str:
     """The request as one string (the typed form, conversation_prompt, is what the game sends)."""
     return conversation_prompt(npc, place, trait_lines, facts, convo, player_text, nearby, here_with, people_known, time_label, wares, extra,
                                land, buildings, truth_text, stance, voice_fact, voice_lines, material, unsaid, worn, now=now, who=who,
-                               work=work).render()
+                               work=work, pronoun=pronoun).render()
+
+
+PROMISE_ASK = ("they_promised: if what was just said to you promises you something (\"I'll bring the herbs by nightfall\"), what was "
+               "promised, in a few words (answering more than one, in the block of the one who promised it); if it promises you nothing, "
+               "leave it empty. It is their word, not yet done.")       # (f493) given only when the line may promise something (engine/brief.py promised)
 
 
 def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[tuple[str, str]],
@@ -157,12 +151,14 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
                         time_label: str = "", wares: list[str] = (), extra: list[str] = (),
                         land: list[str] = (), buildings: list[str] = (), truth_text: str = "",
                         stance: str = "", voice_fact: str = "", voice_lines: list[str] = (), material: list[str] = (), unsaid: str = "",
-                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None):
+                        worn: list[str] = (), now: int | None = None, *, who: str, work: dict | None = None, pronoun: str = "",
+                        promised: bool = False):
     """(f347) The request in typed parts (engine/prompt.py), so the gateway can tell an instruction from a fact and send back a reply that
     lifts the instructions' wording. stance: how they are for this conversation (engine/voice_rules.roll_stance); voice_fact and
     voice_lines: their people and tongue, and this reply's lines on how they talk (engine/voice_profile.resident_lines); material: a
     saying offered to be said as it is; unsaid: what they said lately, so they say something new. who (f480): the id of the character
-    in front of them, whose view of them (engine/regard.py) the request reads."""
+    in front of them, whose view of them (engine/regard.py) the request reads. promised (f493): what was said may promise them
+    something, and the reply's contract asks what (PROMISE_ASK)."""
     from engine.prompt import Prompt
     p = Prompt()
     p.fact(_identity(npc, place, trait_lines, time_label, nearby, here_with, people_known, buildings, truth_text, land))
@@ -177,13 +173,15 @@ def conversation_prompt(npc, place, trait_lines: list[str], facts, convo: list[t
     samples = (getattr(npc, "speech", None) or {}).get("samples") or []
     if samples:                                                     # (f374) a person written by hand: their way of talking, shown
         p.history("\n".join(f"- {s}" for s in samples), "HOW YOU SOUND (things you have said: the way you talk, to keep; never say these again)")
-    p.fact(_knowledge(npc, facts, convo, wares, extra, now, who, work))
+    p.fact(_knowledge(npc, facts, convo, wares, extra, now, who, work, pronoun))
     p.history(unsaid)
     if worn:
         p.instruction(", ".join(worn), "WORDS PEOPLE HERE HAVE WORN OUT (said again and again lately; find other words)")
     so_far = "\n".join(f"  {who_}: {what}" for who_, what in convo[-10:]) or "  (this is the start of the conversation)"
     p.history(so_far, "THIS CONVERSATION SO FAR")
     p.fact(f'THEY SAY: "{player_text}"')                     # (f375) no length: they say what they would say
+    if promised:
+        p.instruction(PROMISE_ASK, "A PROMISE?")
     return p
 
 
@@ -207,7 +205,7 @@ def _identity(npc, place, trait_lines, time_label, nearby, here_with, people_kno
     )
 
 
-def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, work: dict | None = None) -> str:
+def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, work: dict | None = None, pronoun: str = "") -> str:
     from engine import regard
     seen = regard.of(npc, char_id)                                  # (f480) their view of the one in front of them
     if not seen.met:
@@ -223,7 +221,8 @@ def _knowledge(npc, facts, convo, wares, extra, now: int | None, char_id: str, w
                          for m in shared[-12:]) or "  (none)"
     known = "\n".join(f"  [{f.id}] {' '.join(f.text.split())}" for f in facts) or "  (nothing in particular)"
     return (
-        f"THE PERSON IN FRONT OF YOU: {who} {trust_words(seen.trust).capitalize()}.\n\n"
+        f"THE PERSON IN FRONT OF YOU: {who} {trust_words(seen.trust).capitalize()}."
+        + (f" Speak of them as {pronoun}." if pronoun else "") + "\n\n"          # (f486) their pronoun, by id
         f"WHAT YOU KNOW:\n{known}\n\n"
         + (("WHAT YOU SELL (fixed prices - quote them exactly; the player pays through the game when they agree, so "
             "never pretend coins have already changed hands):\n" + "\n".join(f"  - {w}" for w in wares) + "\n\n")

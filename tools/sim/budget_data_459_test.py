@@ -95,34 +95,33 @@ check("the golden was made on this data: its hash is the tree's", golden["data"]
 
 # ---- GOALS.md carries the owner's definition and the Bundle C decisions
 goals = pathlib.Path("GOALS.md").read_text(encoding="utf-8")
-check("GOALS.md carries the 60 s definition and the Bundle C decisions as the owner's", "within 60 seconds of model time on the RTX 3060" in goals
+check("GOALS.md carries the 60 s definition and the Bundle C decisions as the owner's", "within 60 seconds of model time on the minimum cards, the RTX 3060" in goals   # (f527) both cards
       and "each action of a typed line is its own operation" in goals and goals.index("within 60 seconds of model time") < goals.index("A turn the game cannot take leaves nothing behind"))
 
 # ---- a replay's parting passes through work_offer_read
 from core.interrupts import Interrupt
 from scenes import work_actions
-from llm import gateway
 g = simlib.campaign("budget_data_459", seed=59, location="trading_square")
 ws = g.scene
-real = gateway._client
 class Parted(Interrupt):
     pass
 def chat(**k):
     raise Parted("the replay parted here")
-gateway._client = type("C", (), {"chat": staticmethod(chat)})()
+parting = simlib.stand_in(chat=chat)       # (f518) the source that parts on every call, where the client was swapped before
 npc = (ws.residents or [None])[0] or next(iter(ws.store.npc_rows(gone=False)), None)
 try:
     try:
         ws.inferred_offer(npc, "There is work for you here, and pay.") if npc is not None else None
         passed = npc is None
     except Parted:
-        passed = True
+        passed = parting.live() and sum(parting.src.calls.values()) >= 1     # the parting came from the call that reached it
     except Exception as e:
         passed = False
         why = repr(e)
 finally:
-    gateway._client = real
+    parting()
 check("a replay's parting raised inside work_offer_read reaches the caller", passed, locals().get("why", ""))
+check("...and the parting source is taken away again (f518)", not parting.live())
 g.close()
 shutil.rmtree("saves/budget_data_459", ignore_errors=True)
 

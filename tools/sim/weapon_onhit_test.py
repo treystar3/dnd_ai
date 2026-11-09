@@ -41,7 +41,7 @@ def fight(stat, mag, n=300):
     out = collections.Counter(); heal = mana = stam = 0
     for i in range(n):
         p = F("p", "player", bonuses=[Bonus(modifies=stat, trigger="always", magnitude=mag)]); p.hp = 50000
-        e = F("e", "enemy", band="engaged")
+        e = F("e", "enemy")
         cmb = C.Combat(fighters=[p, e]); h = e.hp
         C.apply_damage(cmb, p, e, 1.0, "hits", random.Random(i))
         if e.hp < h:

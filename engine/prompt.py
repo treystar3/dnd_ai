@@ -47,9 +47,9 @@ class Prompt:
     def render(self) -> str:
         return "\n\n".join(_one(label, text) for _, label, text in self.parts)
 
-    # ---- (f475) the prompt's shape, measured: where its length goes, its layout without its words, and the part that changes. Ollama
-    # reuses a cached prefix only close to a prompt's end (the Bundle D gap search), so what follows the stable part is what a call pays
-    # to read afresh; the gateway logs all three beside every call, outside the request's hash.
+    # ---- (f475) the prompt's shape, measured: where its length goes, its layout without its words, and the part that changes. The
+    # server reuses a cached prefix only up to where a prompt first differs (the Bundle D gap search), so what follows the stable part is
+    # what a call pays to read afresh; the gateway logs all three beside every call, outside the request's hash.
     def sizes(self) -> list[tuple[str, str, int]]:
         """Each part's kind, label and rendered characters, in order (the parts and the blank lines between them make render())."""
         return [(kind, label, len(_one(label, text))) for kind, label, text in self.parts]

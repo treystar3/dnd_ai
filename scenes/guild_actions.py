@@ -443,6 +443,9 @@ class GuildActions:
         self.player.quests.remove(q)
         from engine import obligations                                      # (f481) broken, with how
         obligations.close(self.store, obligations.find(self.store, str(q["id"])), "broken", "abandoned", self.minutes)
+        if q.get("part"):                                                   # (f545's review) a situation's job given up: free for
+            from engine import situation_parts                             # another, never asked of this one again
+            situation_parts.decline(self.store, q["part"], self.acting)
         self.player.character.key_items = [k for k in self.player.character.key_items if k.id != f"quest_{q['id']}"]
         self.store.save_player(self.player)
         console.ledger(f"Abandoned: {q['title']}.")
@@ -488,13 +491,11 @@ class GuildActions:
 
     def record_delivery(self, key, npc) -> None:
         """A key item handed over counts for a delivery contract. (The deed itself is published by the giving, scenes/inventory_actions.py.)"""
-        for q in self.player.quests:
-            if q["kind"] == "deliver" and q.get("item") == key.name:
-                to = (q.get("to_role") or "").replace("_", " ")
-                if npc.role.replace("_", " ") == to or (q.get("to_name") and q["to_name"] in npc.name):
-                    q["progress"] = 1
-                    console.note(f"{q['title']}: delivered" + (" - collect your pay from the guild clerk." if q["guild"] else "."))
-                    self.store.save_player(self.player)
+        q = self.delivery_for(key)                                       # (f545's review) the job this very item is carried for, and
+        if q is not None and self.meant_for(npc, key):                   # the one it is meant for read as the giving reads it
+            q["progress"] = 1
+            console.note(f"{q['title']}: delivered" + (" - collect your pay from the guild clerk." if q["guild"] else "."))
+            self.store.save_player(self.player)
 
     def bounty_encounter(self) -> bool:
         """While searching where a bounty's target lives, the target may come to you."""
@@ -547,6 +548,9 @@ class GuildActions:
             self.notice(ContractDone(minute=self.minutes, place=q.get("place") if q.get("thread") and q.get("place") else self.player.location,
                                      witnesses=(payer.id,), npc=payer.id, name=payer.label(self.acting), quest=str(q["id"]), title=q["title"],
                                      thread=q.get("thread") or "", guild=bool(q["guild"]), coins=coins, letter=q["letter"]), payer)
+            if q.get("part"):                                              # (f545) a situation's request done: that part of it is done
+                from engine import situation_parts
+                situation_parts.part_done(self, q)
             console.ledger(f"Completed: [{q['letter']}] {q['title']}. {cap_first(payer.label(self.acting))} pays "
                          f"{money.fmt(coins)} - +{xp} XP.")
             if q["guild"]:
@@ -601,12 +605,27 @@ class GuildActions:
         e = obligations.current(self.store, "request", npc.id, self.acting)
         q = dict(e.data["terms"])
         obligations.close(self.store, e, "taken", "agreed", self.minutes, npc=npc)
-        obligations.open_(self.store, "contract", npc.id, self.acting, q["title"], self.minutes, terms={"quest": q["id"]}, key=str(q["id"]))
+        obligations.open_(self.store, "contract", npc.id, self.acting, q["title"], self.minutes,
+                          terms={"quest": q["id"], **({"part": q["part"]} if q.get("part") else {})}, key=str(q["id"]))
+        if q.get("part"):                                                   # (f545's review) one load, one carrier
+            from engine import situation_parts
+            situation_parts.taken(self.store, q["part"], self.acting, self.minutes)
         self.store.save_npc(npc)
         if q["kind"] == "deliver":
-            self.player.character.key_items.append(KeyItem(
-                id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
-                source=npc.name, day=clock.day(self.minutes), for_whom=q.get("to_role", "")))
+            for_whom = q.get("to_role") or q.get("to_name", "")
+            bare = lambda t: re.sub(r"^(?:a|an|the) ", "", str(t or "").lower().strip())
+            to_npc = self.store.load_npc(q["to_id"]) if q.get("to_id") and self.store.npc_exists(q["to_id"]) else None
+            mine = lambda k: not k.for_whom or (quests.names_person(to_npc, k.for_whom) if to_npc is not None
+                                               else bare(k.for_whom) in (bare(q.get("to_name")), bare(q.get("to_role"))))
+            held = next((k for k in self.player.character.key_items if k.kind == "quest" and k.source == npc.name
+                         and bare(k.name) == bare(q["item"]) and not k.id.startswith("quest_") and mine(k)), None)   # (f545's
+                                                                                         # review) never a letter meant for another
+            if held is not None:                                            # (f545's review) the very thing they already handed over
+                held.id, held.description, held.for_whom = f"quest_{q['id']}", q["item_description"], for_whom   # is the one carried
+            else:
+                self.player.character.key_items.append(KeyItem(
+                    id=f"quest_{q['id']}", name=q["item"], description=q["item_description"], kind="quest",
+                    source=npc.name, day=clock.day(self.minutes), for_whom=for_whom))
         self.player.quests.append(q)
         self.store.save_player(self.player)
         from engine import ledger

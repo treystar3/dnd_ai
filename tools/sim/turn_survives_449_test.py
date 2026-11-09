@@ -11,7 +11,6 @@ is not in view goes looking for it instead of "There's nothing here to fight".""
 import json, random, re, shutil, sys, types
 from pathlib import Path
 sys.path.insert(0, ".")
-import httpx
 import simlib
 stub = simlib.Stub("warrior", 9)
 simlib.install(stub)
@@ -24,6 +23,7 @@ console.panel = lambda *a, **k: False
 from core.interrupts import Interrupt
 from llm import gateway
 from llm.contracts import ActionIntent, ActionPlan
+from llm.errors import Failure
 from llm.gateway import LLMError, generate
 from engine import crashlog, data_check, doings, encounters, failures, hygiene, refusals, turnlog
 from storage import statehash
@@ -47,38 +47,39 @@ config.TURN_LOG = True
 check("the data (failure lines, doings' places, hygiene's reasons) checks clean", data_check.check() == [], data_check.check()[:3])
 
 # ---- the gateway: anything the call raises is a failed try; one timeout ends the tries; an Interrupt passes through
-real = gateway._client
 calls = []
 def client(fn):
-    gateway._client = types.SimpleNamespace(chat=fn, embed=getattr(real, "embed", None))
+    return simlib.stand_in(chat=fn)          # (f518) a source answering with fn, the stub's embedder kept; each swap taken away by its own Held
 
 def boom(**k):
     calls.append("boom"); raise RuntimeError("the client fell over")
-client(boom); calls.clear(); n0 = len(refusals.SESSION)
+held = client(boom); calls.clear(); n0 = len(refusals.SESSION)
 try:
     generate("interpret_action", "s", "u", ActionPlan, max_tokens=50)
     got = None
 except LLMError as e:
     got = e
+held()
 check("an error the gateway did not list is a failed try, not the end of the game: three tries, then the turn's own failure",
       isinstance(got, LLMError) and len(calls) == 3 and getattr(got, "transport", None) is True, (type(got).__name__, len(calls)))
 check("...and the refusal filed is the server's failure", refusals.SESSION[n0:] and refusals.SESSION[-1]["kind"] == "model_down", refusals.SESSION[n0:])
 
 def slow(**k):
-    calls.append("slow"); raise httpx.ReadTimeout("stalled")
-client(slow); calls.clear()
+    calls.append("slow"); raise Failure("deadline", "stalled")         # (f532) a source's own deadline
+held = client(slow); calls.clear()
 try:
     generate("interpret_action", "s", "u", ActionPlan, max_tokens=50)
     got = None
 except LLMError as e:
     got = e
+held()
 check("one timeout ends the tries: a second request would only queue behind the stalled one", isinstance(got, LLMError) and len(calls) == 1, len(calls))
 
 class Stop(Interrupt):
     pass
 def stop(**k):
     calls.append("stop"); raise Stop("the replay parted")
-client(stop); calls.clear()
+held = client(stop); calls.clear()
 try:
     generate("interpret_action", "s", "u", ActionPlan, max_tokens=50)
     got = None
@@ -86,18 +87,20 @@ except Stop as e:
     got = e
 except LLMError as e:
     got = e
+held()
 check("an exception raised on purpose passes through untouched, on the first try", isinstance(got, Stop) and len(calls) == 1, (type(got).__name__, len(calls)))
 
 def refused(**k):
     calls.append("refused"); return types.SimpleNamespace(done_reason="stop", message=types.SimpleNamespace(content="not json at all"))
-client(refused); calls.clear(); n0 = len(refusals.SESSION)
+held = client(refused); calls.clear(); n0 = len(refusals.SESSION)
 try:
     generate("interpret_action", "s", "u", ActionPlan, max_tokens=50)
 except LLMError as e:
     got = e
+held()
 check("every answer refused is the other kind of trouble: the refusal filed says bad_answer, not an outage",
       getattr(got, "transport", None) is False and refusals.SESSION[n0:] and refusals.SESSION[-1]["kind"] == "bad_answer", refusals.SESSION[n0:])
-gateway._client = real
+check("(f518) with the last swap taken away the stub answers again", not held.live() and simlib.below().chat == stub.chat, simlib.below())
 
 # ---- the turn: a fault inside it rolls the turn back, is told in the narrator's words, and is written down
 store = CampaignStore.open_or_create(SAVE)
@@ -217,7 +220,7 @@ check("...and a creature nothing here knows of still gets the plain answer", any
 # ---- the shape of the catches, in the source
 world_src = Path("scenes/world.py").read_text(encoding="utf-8")
 check("the turn's catch lets an Interrupt through before it catches everything else",
-      world_src.index("except Interrupt:\n            raise") < world_src.index("except Exception as e:\n            # (f449)"))
+      world_src.index("except Interrupt:\n            raise") < world_src.index("except (Exception, _asked.Drift) as e:\n            # (f449)"))
 gw = Path("llm/gateway.py").read_text(encoding="utf-8")
 check("...and so does the gateway's", gw.index("except Interrupt:\n            raise") < gw.index("except Exception as e:\n            # A timeout"))
 sys.path.insert(0, "tools")

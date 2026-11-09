@@ -117,7 +117,8 @@ class ThresholdScene:
                 turn = self.interpret(text)
             except LLMError as e:
                 console.debug(str(e))
-                self.tell("The model couldn't make sense of that. Try saying it another way.")
+                from engine import failures
+                self.tell(failures.creation_line("interpret") or "The model couldn't make sense of that. Try saying it another way.")
                 continue
             if turn.kind == "question":
                 self.answer_question(turn.question or text)
@@ -368,15 +369,26 @@ class ThresholdScene:
             else:
                 console.narrate(text)
 
-    def speak(self, event: str) -> None:
-        line = generate(
-            "goddess_line", self.system,
-            gp.narration_request(EXPECTS.get(self.step, "farewell"), event, self.transcript),
-            GoddessLine, temperature=0.9,
-        )
-        console.say(line.speech, SPEAKER)
-        self.transcript.append(("Goddess", line.speech))
-        self.last_line = line.speech
+    def speak(self, event: str, note: str | None = None) -> None:
+        """Her words for this step. (f525) When they cannot be written she says a line of her own for the step she is on and the page
+        moves on (the game no longer ends on it), once the owner's lines are in; until then the failure goes on up as before."""
+        try:
+            speech = generate(
+                "goddess_line", self.system,
+                gp.narration_request(EXPECTS.get(self.step, "farewell"), event, self.transcript),
+                GoddessLine, temperature=0.9,
+            ).speech
+        except LLMError as e:
+            from engine import failures
+            speech = failures.creation_stand_in(self.step.value)
+            if speech is None:
+                raise
+            console.debug(str(e))
+            if note:
+                self.tell(note)                          # (f525's review) the engine's reason, which her own words would have carried
+        console.say(speech, SPEAKER)
+        self.transcript.append(("Goddess", speech))
+        self.last_line = speech
         if self.step != Step.DONE:
             self.show()                                     # (f388) the page follows her: the step she has moved to, her words over it
 
@@ -440,7 +452,8 @@ class ThresholdScene:
             self.interp = creation.interpret_concept(self.concept, self.seen())
         except LLMError as e:
             console.debug(str(e))
-            self.tell("The model couldn't read that concept this time. Nothing is lost - describe it again.")
+            from engine import failures
+            self.tell(failures.creation_line("concept") or "The model couldn't read that concept this time. Nothing is lost - describe it again.")
             self.step = Step.CONCEPT
             return
         console.show_class(self.interp)
@@ -463,7 +476,8 @@ class ThresholdScene:
             except LLMError as e:
                 console.debug(str(e))
                 console.wait("The threads slip through her fingers and scatter.")
-                self.tell("The model couldn't shape your gifts this time. Nothing is lost - say yes again to retry.")
+                from engine import failures
+                self.tell(failures.creation_line("gifts") or "The model couldn't shape your gifts this time. Nothing is lost - say yes again to retry.")
                 return
             self.step = Step.ACTIVES
             console.show_actives(self.active_options)
@@ -471,7 +485,8 @@ class ThresholdScene:
                 "The player accepted your reading. The game now shows them fifteen techniques "
                 "they might carry back: what is already in them, drawn out. Invite them, quickly, to choose three."
             )
-            self.passives_job = creation.PassivesInBackground(self.interp, self.active_options)   # written while they read
+            key = str(getattr(getattr(self.session, "store", None), "root", "") or "") or None
+            self.passives_job = creation.PassivesInBackground(self.interp, self.active_options, session_key=key)   # written while they read
             if self.session is not None:
                 self.session.own(self.passives_job.thread)                                     # (f453) closed with the save
         elif turn.kind in ("decline", "answer") and turn.text.strip():
@@ -484,7 +499,8 @@ class ThresholdScene:
         error = creation.check_active_picks(self.active_options, turn.picks,
                                             keeps_companions=bool(getattr(self.interp, "uses_companions", False)))
         if error:
-            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.")
+            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.",
+                       note=f"That can't be done: {error}")
             return
         job = getattr(self, "passives_job", None)
         if job is not None and not job.ready:
@@ -493,7 +509,9 @@ class ThresholdScene:
             self.passive_options = job.result() if job is not None else creation.generate_passives(self.interp, self.active_options)
         except LLMError as e:
             console.debug(str(e))
-            self.tell("The model couldn't shape your innate traits this time. Nothing is lost - choose your three techniques again to retry.")
+            from engine import failures
+            self.tell(failures.creation_line("traits")
+                      or "The model couldn't shape your innate traits this time. Nothing is lost - choose your three techniques again to retry.")
             self.passives_job = None
             return
         self.passives_job = None
@@ -508,7 +526,8 @@ class ThresholdScene:
     def on_passives(self, turn: PlayerTurn) -> None:
         error = creation.check_passive_picks(self.passive_options, turn.picks)
         if error:
-            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.")
+            self.speak(f"The player's choice cannot be accepted: {error} Explain gently and ask them to choose again.",
+                       note=f"That can't be done: {error}")
             return
         self.passives = [self.passive_options[n - 1] for n in turn.picks]
         self.step = Step.STATS

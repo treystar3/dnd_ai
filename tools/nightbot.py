@@ -1196,6 +1196,7 @@ class Bot:
     def model_line(self, text: str, intent: dict, kind: str, passage: str) -> str:
         from engine.prompt import Prompt
         from llm.contracts import PlayerLine
+        from llm.errors import Cancelled
         from llm.gateway import generate
         c = self.c
         goal, must = self.goal_sentence(text, intent, kind)
@@ -1214,14 +1215,19 @@ class Bot:
             p.history("\n".join(self.recent), "LINES YOU TYPED LATELY (say it differently)")
         p.instruction(f"What you mean to do now: {goal}." + (f" Your line must name {', '.join(must)}." if must else ""), "NOW")
         t0 = time.perf_counter()
+        cancelled = False
         try:
-            out = generate("player_line", system, p, PlayerLine, temperature=0.9, retries=1, validation_context={"must_name": must},
-                           max_tokens=90, _quiet=True)
+            from llm import backend
+            with backend.lane("input"):            # (f529) the player's line: never takes the card from the game's background work (f523)
+                out = generate("player_line", system, p, PlayerLine, temperature=0.9, retries=1, validation_context={"must_name": must},
+                               max_tokens=90, _quiet=True)
             line = out.line.strip()
+        except Cancelled:
+            line, cancelled = "", True                 # (f516) the night closing took the call back: no failure of the model's
         except Exception:
             line = ""
         self.stats["model_seconds"] += time.perf_counter() - t0
-        if not line:
+        if not line and not cancelled:
             self.stats["model_failed"] += 1
         return line
 

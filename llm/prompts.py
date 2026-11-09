@@ -136,7 +136,7 @@ def slots_user(interp: ClassInterpretation, slot_text: str) -> str:
 
 
 _STAT_LINES = "\n".join(f"  {s.id}: {s.covers}" for s in STATS.values())
-_TRIGGER_LINES = "\n".join(f"  {t.id}: {t.condition}" for t in TRIGGERS.values())
+_TRIGGER_LINES = "\n".join(f"  {t.id}: {t.condition}" for t in TRIGGERS.values() if not t.dormant)   # (f507) a dormant one is never offered
 
 PASSIVES_SYSTEM = f"""You design level 1 PASSIVE traits for a custom RPG class.
 A passive is NOT an action. It is a quality, instinct, or piece of training that changes how the character performs.

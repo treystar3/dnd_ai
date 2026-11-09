@@ -1,5 +1,5 @@
 """A full boss fight through the real combat scene, with every prompt the narrator would receive written to a transcript.
-The model is the scripted stand-in (no Ollama here), so the narration lines are the events as sent; what this proves is what the real
+The model is the scripted stand-in (no model server here), so the narration lines are the events as sent; what this proves is what the real
 model would be GIVEN, and that every set-piece beat reaches it.  Usage: python3 tools/sim/boss_transcript.py [seed] [out.md]"""
 import sys, random, shutil, json, re, types
 sys.path.insert(0, ".")

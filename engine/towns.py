@@ -46,7 +46,8 @@ def festival_today(world, place_id: str, now: int) -> str:
 
 
 def _effect_total(state: dict, kind: str, places: set[str], now: int) -> int:
-    return sum(e["value"] for e in state.get("effects", []) if e["kind"] == kind and e["place"] in places and e["until"] > now)
+    return sum(e["value"] for e in state.get("effects", []) if e["kind"] == kind and e["place"] in places and e["until"] > now
+               and not e.get("good"))                               # (f545) one good's price rise is not the town's market
 
 
 def _threads_at(world, state: dict, places: set[str]) -> list[tuple[dict, str]]:
@@ -80,7 +81,8 @@ def _lost_lately(store, world, places: set[str], now: int, days: int) -> str:
 
 def town_places(world, town: str) -> set[str]:
     """The places whose state is the town's: its own, and the wild places on its doorstep (connected within nearby_minutes, not towns
-    themselves) - wolves in the wood beside it are the town's trouble too."""
+    themselves) - wolves in the wood beside it are the town's trouble too. A set, for asking whether a place is the town's: (f493) sort
+    it before walking it, or what is written follows the hash seed."""
     from engine import pulse
     places = {pid for pid in world.places if pulse.town_of(world, pid) == town}
     near = R.get("nearby_minutes", 60)

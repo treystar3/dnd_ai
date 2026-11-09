@@ -53,7 +53,9 @@ def affected(tests: list[Path], files: list[Path]) -> list[Path]:
 
 
 def run_one(test: Path, outdir: Path, timeout: int) -> tuple[str, int, float]:
-    env = dict(os.environ, PYTHONPATH=str(ROOT))
+    env = dict(os.environ, PYTHONPATH=str(ROOT), MERAVIA_NO_SERVER="1")   # (f514) no test reaches a real model by accident
+    for k in [k for k in env if k.startswith("DND_")]:                    # (f533) nor plays with the settings of the shell that ran it
+        env.pop(k)                                                         # (a night's DND_THINK_TASKS, its threads, its voice)
     start = time.time()
     with open(outdir / f"{test.name}.out", "w", encoding="utf-8") as fh:
         try:

@@ -94,19 +94,27 @@ ok = pulse.start_thread(store, world, ws.catalog, state, now, random.Random(4), 
 check("a rare situation is still the model's", ok and stub.calls.get("ThreadProposal", 0) == before + 1 and state["threads"][-1]["made_by"] == "model")
 
 # the model fails a rare one: the engine builds it; a campaign is not built by the engine
-import httpx
+from llm.errors import Failure
 class Broken:                                            # the gateway turns a timed-out call into an LLMError after its retries
+    def __init__(self):
+        self.tried = []
+
     def chat(self, **kw):
-        raise httpx.TimeoutException("no model")
-_client = gateway._client
-gateway._client = Broken()
+        self.tried.append(kw["format"].get("title", ""))
+        raise Failure("deadline", "no model")                # (f532) a source's own deadline, one failed try
+broken = Broken()
+_h = simlib.stand_in(chat=broken.chat, embed=None, name="timed-out model")    # (f518) a source of its own, where the client was swapped
 state["cooldowns"] = {}
 ok = pulse.start_thread(store, world, ws.catalog, state, now, random.Random(5), tier="rare", place_id="parth")
 check("when the model fails a rare situation, the engine builds it", ok and state["threads"][-1]["made_by"] == "engine" and len(state["threads"][-1]["stages"]) == 3, (ok, state["threads"][-1].get("made_by")))
+check("(f518) ...the model was asked, and its timeout ended the tries at one", broken.tried == ["ThreadProposal"] and gateway.OUTCOMES[-1][1:] == (False, 1),
+      (broken.tried, gateway.OUTCOMES[-1:]))
 state["campaign"] = ""
 ok = pulse.start_thread(store, world, ws.catalog, state, now, random.Random(6), tier="campaign", pressure_id="caravan_trouble")
-check("...but a campaign waits for the model", not ok)
-gateway._client = _client
+check("...but a campaign waits for the model", not ok and broken.tried == ["ThreadProposal", "ThreadProposal"] and gateway.OUTCOMES[-1][1:] == (False, 1),
+      (ok, broken.tried, gateway.OUTCOMES[-1:]))
+_h()
+check("(f518) the timed-out model is taken away again, the stub answering", not _h.live() and simlib.below().chat == stub.chat)
 store.save_world_state(state)
 
 # ---- 5. a stage copied into the news keeps the id; ending a thread lifts only its own effects
@@ -162,10 +170,12 @@ check("...the title is never re-told", th["title"] == prop.title)
 check("...and a told thread is not told again", not threads.tell(store, world, state, th, now + 99999))
 
 th2 = dict(th, id="t2", told=False, told_at=-10**9, stages=[{"description": first_stage, "effects": []}, {"description": second_stage, "effects": []}])
-gateway._client = Broken()
+broken = Broken()
+_h = simlib.stand_in(chat=broken.chat, embed=None, name="timed-out model")
 told = threads.tell(store, world, state, th2, now)
-check("when the model fails, the engine's own lines stand and the thread is not marked told", not told and not th2["told"] and th2["stages"][0]["description"] == first_stage)
-gateway._client = _client
+check("when the model fails, the engine's own lines stand and the thread is not marked told", not told and not th2["told"] and th2["stages"][0]["description"] == first_stage
+      and broken.tried == ["ThreadTelling"] and gateway.OUTCOMES[-1][1:] == (False, 1), (broken.tried, gateway.OUTCOMES[-1:]))
+_h()
 check("...and it is not tried again at once", not threads.tell(store, world, state, th2, now + 60) and not th2["told"])
 check("...but is, later", threads.tell(store, world, state, th2, now + threads.T["telling"]["retry_hours"] * 60 + 1) and th2["told"])
 

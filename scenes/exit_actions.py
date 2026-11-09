@@ -108,6 +108,8 @@ class ExitActions:
                 continue
             if self.rng.random() >= R["chance_per_leg"] * quiet:
                 continue
+            if self.shut_on(route[:2]) and self.has("wayfinder") is None:
+                continue                                    # (f541's review) nothing happens on a shut road: its barrier is met in travel_route
             a, b = route[0], route[1]
             m = max(1, self.world.travel_minutes(a, b))
             outcome = self.road_event(route, a, b, m, min(0.95, done / m), text, log, resume="",

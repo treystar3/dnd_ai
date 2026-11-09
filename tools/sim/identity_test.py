@@ -2,18 +2,17 @@
 Two nights found a companion "she" in her fights and "he" in the frames around her words (Deth: 77 frames), an elf turned "the dwarf
 with the ginger beard", and growth lines written "turns their back on the player" shown as they were. Four places kept gender and the
 narrator was given none of them."""
-import random, shutil, sqlite3, sys, types
+import random, shutil, sqlite3, sys
 sys.path.insert(0, ".")
 import simlib
 stub = simlib.Stub("warrior", 2)
 simlib.install(stub)
-import llm.gateway as gw
 SENT = []
-_chat = gw._client.chat
+_chat = simlib.below().chat                  # (f518) the stub's own answer, taken before the spy goes in over it
 def chat(*a, **k):
     SENT.append((k.get("format", {}).get("title", "?"), k.get("messages") or []))
     return _chat(*a, **k)
-gw._client = types.SimpleNamespace(chat=chat)
+SPY = simlib.stand_in(chat=chat, embed=None)
 import ui.console as uc
 for f in ("narrate", "say", "npc_says", "dialogue", "ledger", "note"):
     setattr(uc, f, lambda *a, **k: None)

@@ -21,7 +21,7 @@ def mv(channel, **k):
 def avg(p_kw, move, e_kw, n=300):
     out = []
     for i in range(n):
-        p = F("p", "player", **p_kw); e = F("e", "enemy", band="engaged", **e_kw)
+        p = F("p", "player", **p_kw); e = F("e", "enemy", **e_kw)
         p.moves = [move]
         cmb = C.Combat(fighters=[p, e]); h = e.hp
         C.act_ability(cmb, p, move, e, random.Random(i))
@@ -39,7 +39,7 @@ check("...plus a technique's full stamina", C.stamina_part(pp, chan) == C.cost_o
 tired = F("p", "player"); tired.stamina = 0
 check("with no stamina it cannot be used", "stamina" in (C.can_use(tired, chan) or ""), C.can_use(tired, chan))
 fresh = F("p", "player"); s0, m0 = fresh.stamina, fresh.mana
-foe = F("e", "enemy", band="engaged"); C.act_ability(C.Combat(fighters=[fresh, foe]), fresh, chan, foe, random.Random(1))
+foe = F("e", "enemy"); C.act_ability(C.Combat(fighters=[fresh, foe]), fresh, chan, foe, random.Random(1))
 check("using it spends both", fresh.stamina < s0 and fresh.mana < m0, (s0, fresh.stamina, m0, fresh.mana))
 check("with a ranged weapon it cannot be used at all (f250)", C.can_use(F("p", "player", reach="ranged"), chan) and avg({"reach": "ranged"}, chan, {}) == 0)
 check("nor with a magical focus (f250)", C.can_use(F("p", "player", damage_type="magical", weapon_damage=40), chan) and avg({"damage_type": "magical", "weapon_damage": 40}, chan, {}) == 0)
@@ -51,11 +51,11 @@ open_ = avg({}, chan, {})
 check("it gets through the weaker of armor or ward", armored > both * 1.5 and warded > both * 1.5 and armored > open_ * 0.3, (round(armored), round(warded), round(both)))
 cost_pl = avg({}, plain, {"armor": 200, "ward": 0})
 check("a plain spell is stopped by ward only (armor does nothing to it)", abs(cost_pl - a_plain) < a_plain * 0.2, (round(cost_pl), round(a_plain)))
-p = F("p", "player"); e = F("e", "enemy", band="engaged"); p.moves = [chan]
+p = F("p", "player"); e = F("e", "enemy"); p.moves = [chan]
 C.act_ability(C.Combat(fighters=[p, e]), p, chan, e, random.Random(1))
 check("the weapon's damage and flags are put back after the strike", p.weapon_damage == 40 and p.damage_type == "physical" and not p.adaptive, (p.weapon_damage, p.damage_type, p.adaptive))
 def trace(move, **kw):
-    p = F("p", "player", **kw); e = F("e", "enemy", band="engaged"); p.moves = [move]
+    p = F("p", "player", **kw); e = F("e", "enemy"); p.moves = [move]
     cmb = C.Combat(fighters=[p, e]); cmb.record = True
     for i in range(40):
         C.act_ability(cmb, p, move, e, random.Random(i))
@@ -65,14 +65,14 @@ check("a spell's breakdown names the spell base and the focus", t_spell.get("kin
 check("a plain spell with no focus lists only its base", [n for n, v in trace(plain, weapon_damage=0, damage_type="magical")["parts"]] == ["spell base"])
 t_chan = trace(chan)
 check("a channeled strike names the weapon and the spell part", t_chan.get("kind") == "channel" and [n for n, v in t_chan["parts"]] == ["weapon", "spell"], t_chan)
-check("an ordinary weapon blow has no spell parts", "kind" not in (lambda p, e: (C.act_attack(C.Combat(fighters=[p, e], record=True), p, e, random.Random(1)), {})[1])(F("p", "player"), F("e", "enemy", band="engaged")))
+check("an ordinary weapon blow has no spell parts", "kind" not in (lambda p, e: (C.act_attack(C.Combat(fighters=[p, e], record=True), p, e, random.Random(1)), {})[1])(F("p", "player"), F("e", "enemy")))
 for lv in (1, 10, 20):
     g = C.growth(lv)
     print(f"   level {lv}: sword 40 -> plain spell base {6 * g:.1f}, channeled {40 + 3 * g:.1f}")
 def outcomes(att_kw, dfn_kw, n=4000):
     cnt = {"miss": 0, "graze": 0, "hit": 0, "crit": 0}; lows = []; hi = []
     for i in range(n):
-        p = F("p", "player", **att_kw); e = F("e", "enemy", band="engaged", **dfn_kw)
+        p = F("p", "player", **att_kw); e = F("e", "enemy", **dfn_kw)
         info = {}
         out, chance = C.roll_attack(p, e, C.Combat(fighters=[p, e]), random.Random(i), trace=info)
         cnt[out] += 1

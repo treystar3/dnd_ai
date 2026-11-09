@@ -31,10 +31,10 @@ class FieldActionsBase:
             self.store.save_player(self.player)
 
     def field_ready_in(self, ability) -> int:
-        return max(0, self.fld.get("cd", {}).get(ability.id, 0) - self.minutes)
+        return field.ready_in(self.fld, ability, self.minutes)             # (f503) the rule in engine/field.py, the fight service's too
 
     def field_cooldown_start(self, ability) -> None:
-        self.fld.setdefault("cd", {})[ability.id] = self.minutes + field.cooldown_minutes(ability)
+        field.start_cooldown(self.fld, ability, self.minutes)
 
     # ---------- dispatch ----------
 
@@ -481,11 +481,8 @@ class FieldFunctions:
     # ---------- speak with a corpse ----------
 
     def keep_bodies(self, bodies: list[dict]) -> list[dict]:
-        """The fallen a place still remembers: recent ones, the newest few."""
-        S = F["speak_corpse"]
-        limit = S["keep_days"] * 1440
-        live = [b for b in bodies if self.minutes - b["minute"] < limit]
-        return live[-S["max_bodies"]:]
+        """The fallen a place still remembers: recent ones, the newest few (engine/field.py keep_bodies, the fight service's too)."""
+        return field.keep_bodies(bodies, self.minutes)
 
     def bodies_here(self) -> list[dict]:
         state = self.store.load_place(self.player.location)

@@ -479,6 +479,19 @@ class CampaignStore:
     # ---- (f460) the question the world is waiting on, if any: a kv row that is there only while one stands (engine/questions.py). In
     # the save rather than on the scene, so a rolled-back turn takes its question back with it and a save closed on a question asks it
     # again when it opens; a row rather than a field of the player, so a save with no question standing dumps as it did.
+    # ---- (f485) the conversation under way (scenes/world.py talk_record): a kv row there only while one is, written with the operation
+    # that moved it, so it rolls back with that operation and is there again when the save is opened.
+    def load_talk(self) -> dict | None:
+        return self._kv("talk")
+
+    def save_talk(self, rec: dict) -> None:
+        with self.transaction():
+            self._put("talk", json.dumps(rec, ensure_ascii=False))
+
+    def clear_talk(self) -> None:
+        with self.transaction():
+            self._drop("talk")
+
     def load_question(self) -> dict | None:
         return self._kv("question")
 
@@ -607,6 +620,11 @@ class CampaignStore:
     def add_legendary_name(self, name: str) -> None:
         self._put("legendaries", json.dumps(self.legendary_names() + [name]))
 
+    def drop_legendary_name(self, name: str) -> None:
+        """(f502) The engine's own name for a find, let go once the naming operation gave it the model's: the taken list holds the name
+        the item bears, and that alone."""
+        self._put("legendaries", json.dumps([n for n in self.legendary_names() if n != name]))
+
     def save_combat(self, combat_json: str | None) -> None:
         if combat_json is None:
             self._drop("combat")
@@ -615,6 +633,17 @@ class CampaignStore:
 
     def load_combat(self) -> str | None:
         return self._kv_text("combat")
+
+    def leave_notice(self, key: str) -> None:
+        """(f507) Something the next load tells the player once (a migration let a saved fight go): a row until it is taken."""
+        self._put(f"notice:{key}", "1")
+
+    def take_notice(self, key: str) -> bool:
+        """(f507) Whether a notice of this kind was left; taking it drops it, so it is told once."""
+        if self._kv_text(f"notice:{key}") is None:
+            return False
+        self._drop(f"notice:{key}")
+        return True
 
     def save_story(self, recent: list[str], shown: dict) -> None:
         self._put("story", json.dumps({"recent": recent, "shown": shown}))
