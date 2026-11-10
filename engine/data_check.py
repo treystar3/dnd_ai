@@ -800,6 +800,11 @@ def improv_problems(I: dict | None = None) -> list[str]:
     ones the resolver handles."""
     I = (_load("data/rules/combat.yaml").get("improv") or {}) if I is None else I
     out = []
+    for k in ("base_odds", "min", "max", "damage_mult"):                  # (f568) the shared formula's base and bounds, in a fight
+        if not isinstance(I.get(k), (int, float)) or isinstance(I.get(k), bool):
+            out.append(f"combat.yaml improv.{k}: needs a number")
+    if not out and not 0 <= I["min"] < I["max"] <= 100:
+        out.append("combat.yaml improv: min and max need 0 <= min < max <= 100")
     E = I.get("effects")
     if not isinstance(E, dict) or not E:
         return ["combat.yaml improv.effects: needs a table of effects"]

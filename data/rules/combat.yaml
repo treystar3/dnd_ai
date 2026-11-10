@@ -78,8 +78,12 @@ control:
 # effects (f567): what an improvisation can be FOR. about is matched by meaning (the scene's read_effect); words name it when that
 # reading is not to hand, the first effect whose word is in the line winning, in this order; odds shift the chance. Every effect here
 # is one the resolver handles, and every one it handles is here (engine/data_check.py improv_problems).
+# The odds (f568) are checks.yaml's shared formula: base_odds + (attribute - 15) * 1.5 + the effect's odds, in [min, max], on the
+# better of dexterity and intelligence. base_odds 60 is provisional for the balance pass: it keeps an attribute of 15 at its old 60%.
 improv:
-  base_odds: 55
+  base_odds: 60
+  min: 10
+  max: 90
   damage_mult: 0.8
   effects:
     read_opening:     {about: "watching it, studying how it moves, waiting for an opening, reading its guard, biding your time", odds: 10,

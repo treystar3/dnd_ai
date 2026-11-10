@@ -87,6 +87,11 @@ def chance(c: Character, check: str, active_triggers: set[str], npc=None,
     return max(RULES["min"], min(RULES["max"], value)), why
 
 
+def improv_odds(attr: float, odds: float, base: float, lo: float, hi: float) -> float:
+    """(f568) An improvisation's chance, in a fight or out of one: base + (attr - center) * weight + the effect's odds, in [lo, hi]."""
+    return max(lo, min(hi, base + (attr - RULES["attribute_center"]) * RULES["attribute_weight"] + odds))
+
+
 def roll(odds: float, rng: random.Random | None = None, c: Character | None = None) -> tuple[str, int]:
     """The die. With the character given, the perks that change what a roll means act here (All or Nothing: no partials)."""
     r = (rng or streams.get("checks")).randint(1, 100)

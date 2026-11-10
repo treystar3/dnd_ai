@@ -51,9 +51,7 @@ def odds_for(c, effect: str) -> float:
     from engine import checks
     e = W["effects"][effect]
     attr = max(getattr(c.attributes, a) for a in e["attr"])
-    R = checks.RULES
-    raw = W["base_odds"] + (attr - R["attribute_center"]) * R["attribute_weight"] + e["odds"]
-    return max(W["min"], min(W["max"], raw))
+    return checks.improv_odds(attr, e["odds"], W["base_odds"], W["min"], W["max"])
 
 
 CHANGE_KINDS = ("closed", "danger", "news")

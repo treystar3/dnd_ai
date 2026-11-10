@@ -32,9 +32,11 @@ def effect_by_words(words: str) -> str:
 
 
 def odds_for(p, effect: str) -> float:
-    base = RULES.get("improv", {}).get("base_odds", 55)
+    """(f568) The shared formula (engine/checks.py improv_odds) on the better of dexterity and intelligence."""
+    from engine import checks
+    I = RULES["improv"]
     edge = max(p.attrs.get("dexterity", 10), p.attrs.get("intelligence", 10))
-    return max(10, min(90, base + EFFECTS[effect]["odds"] + 2 * (edge - 10) / 2))
+    return checks.improv_odds(edge, EFFECTS[effect]["odds"], I["base_odds"], I["min"], I["max"])
 
 
 def resolve(fight, p, target, words: str, rng: random.Random, effect: str = "") -> None:
