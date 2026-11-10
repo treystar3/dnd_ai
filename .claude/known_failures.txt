@@ -2,9 +2,6 @@
 # 2026-11-09, Python 3.14, PYTHONUTF8=1, run_suite -j 4: 342/354). The stop hook and the push marker ignore these; remove a line
 # when its test is fixed. The fix for all of them is its own feature (next session).
 
-# Windows file locking (a save's campaign.db still open when the test deletes it)
-storage_test.py
-
 # source scans compare backslash paths against allowlists written with "/"
 circumstances_483_test.py
 composed_508_test.py
