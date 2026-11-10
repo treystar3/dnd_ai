@@ -110,9 +110,9 @@ def _first(x, y, path: str = "") -> str:
 def data_hash(root: Path = ROOT) -> str:
     """The game a recording was made on: every file under data/ (but data/replay, the recordings and cases kept to test against, which
     are not the game, (f459) data/measured, the card's measured speeds, and (f522) data/runtime, how this machine runs the model
-    server: both describe a machine and not the game), the model, the version, and the save schema."""
+    server: both describe a machine and not the game), the model, and the save schema. (f572) Not the version: a release that changes
+    no content is the same game; the recording's meta keeps the version, and the replay itself catches a change in the code."""
     import config
-    from core.version import VERSION
     from storage import migrations
     h = hashlib.sha256()
     for f in sorted((root / "data").rglob("*")):
@@ -121,7 +121,7 @@ def data_hash(root: Path = ROOT) -> str:
             h.update(rel.as_posix().encode("utf-8") + b"\0")
             b = f.read_bytes()
             h.update(b if b"\0" in b[:8000] else b.replace(b"\r\n", b"\n"))   # (f560) the game, not the checkout's line endings
-    h.update(f"\0{config.MODEL}\0{VERSION}\0{migrations.CURRENT}".encode("utf-8"))
+    h.update(f"\0{config.MODEL}\0{migrations.CURRENT}".encode("utf-8"))
     return h.hexdigest()
 
 
