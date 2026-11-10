@@ -44,5 +44,6 @@ desktop.ini
 .vscode/
 .idea/
 
-# --- Claude Code: the full-suite pass marker for this machine (.claude/hooks/known.py --mark) ---
-.claude/.suite_passed
+# --- Claude Code: the full-suite pass marker for this machine (.claude/hooks/known.py --mark), and each person's own settings ---
+/.claude/.suite_passed
+/.claude/settings.local.json
