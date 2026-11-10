@@ -10,12 +10,12 @@ from pathlib import Path
 import os
 OUT = Path(os.environ.get("SIM_OUT", "sim_out"))
 CLASSES = [c for c in ("warrior", "mage", "summoner", "priest", "ranger", "bard", "smith", "paladin", "monk", "warlock") if (OUT / f"{c}_summary.json").exists()]
-S = {c: json.loads((OUT / f"{c}_summary.json").read_text()) for c in CLASSES}
+S = {c: json.loads((OUT / f"{c}_summary.json").read_text(encoding="utf-8")) for c in CLASSES}
 BANDS = [(1, 10), (10, 20), (20, 35), (35, 50), (50, 65), (65, 80), (80, 100), (100, 125), (125, 151)]
 
 
 def events(c):
-    return [json.loads(l) for l in open(OUT / f"{c}.jsonl")]
+    return [json.loads(l) for l in open(OUT / f"{c}.jsonl", encoding="utf-8")]
 
 
 def _milestones(c):

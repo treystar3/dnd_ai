@@ -33,6 +33,16 @@ from llm.errors import Cancelled, LLMError                     # (f514) from the
 from world.loader import WorldError, authored
 
 
+def utf8_streams() -> None:
+    """(f565) Streams that take any glyph: a windowed build's are UTF-8 devnull, a redirected one is made UTF-8."""
+    for name in ("stdout", "stderr"):
+        s = getattr(sys, name)
+        if s is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+        elif hasattr(s, "reconfigure") and (s.encoding or "").lower().replace("-", "") != "utf8":
+            s.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--new", action="store_true", help="start a new game")
@@ -41,9 +51,7 @@ def main():
     parser.add_argument("--terminal", action="store_true", help="play in the terminal (the built app opens a window by default)")
     args = parser.parse_args()
     config.DEBUG = args.debug
-    for name in ("stdout", "stderr"):          # a windowed build has no console: keep stray prints from crashing it
-        if getattr(sys, name) is None:
-            setattr(sys, name, open(os.devnull, "w"))
+    utf8_streams()
     import atexit
     from engine import turnlog
     atexit.register(turnlog.write_session_stats)   # and the session leaves its one line in logs/sessions.jsonl

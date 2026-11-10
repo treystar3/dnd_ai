@@ -82,13 +82,13 @@ check("the profile lives under data/measured and data/rules has none", pathlib.P
 import card_profile
 before = statehash.data_hash()
 prof = pathlib.Path("data/measured/card_profile.yaml")
-kept = prof.read_text(encoding="utf-8")
+kept = prof.read_bytes()                                 # (f565) restored byte for byte, line endings and all
 try:
     card_profile.write({"calls": 1, "turns": 1, "read_tps": 1.0, "write_tps": 1.0, "load_s": 0.0, "median_turn_s": 1.0, "p95_turn_s": 1.0, "longest_turn_s": 1.0, "over": []},
                        "RTX 3060 12GB", "gemma4:12b", "a test")
-    check("rewriting the measurement moves no data hash", statehash.data_hash() == before and prof.read_text(encoding="utf-8") != kept)
+    check("rewriting the measurement moves no data hash", statehash.data_hash() == before and prof.read_bytes() != kept)
 finally:
-    prof.write_text(kept, encoding="utf-8")
+    prof.write_bytes(kept)
 check("card_profile judges 'over budget' against the limit read from budget.yaml", card_profile.BUDGET == 60.0 and card_profile.budget_limit() == B["limit_seconds"])
 golden = json.loads(pathlib.Path("data/replay/sessions/stub_short/meta.json").read_text(encoding="utf-8"))
 check("the golden was made on this data: its hash is the tree's", golden["data"] == statehash.data_hash(), (golden["data"][:12], statehash.data_hash()[:12]))

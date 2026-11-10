@@ -16,8 +16,8 @@ def load(folder):
         sp, ep = Path(folder) / f"{c}_summary.json", Path(folder) / f"{c}.jsonl"
         if not sp.exists():
             continue
-        summ = json.loads(sp.read_text())
-        ev = [json.loads(l) for l in ep.open()] if ep.exists() else []
+        summ = json.loads(sp.read_text(encoding="utf-8"))
+        ev = [json.loads(l) for l in ep.open(encoding="utf-8")] if ep.exists() else []
         out[c] = (summ, ev)
     return out
 
