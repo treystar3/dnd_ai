@@ -9,6 +9,7 @@ party's record after a fight (a hire's wounds and mana, the fallen's fates, the 
 FightService.end alone, the scene telling its notes. The fixture tool times the odds when run by hand. Nothing stays in the process."""
 import inspect
 import json
+import os
 import random
 import shutil
 import sys
@@ -125,7 +126,7 @@ _orig = Character.__setattr__
 def spy(self, name, value):
     if name in ("health", "stamina", "mana", "spell_days", "orenna_breath"):
         fr = inspect.currentframe().f_back
-        WRITES.append((name, fr.f_code.co_name, fr.f_code.co_filename.rsplit("/", 1)[-1]))
+        WRITES.append((name, fr.f_code.co_name, os.path.basename(fr.f_code.co_filename)))
     return _orig(self, name, value)
 game = simlib.campaign(NAME, cls="warrior", seed=3, location="south_fields")
 ws, store = game.scene, game.store

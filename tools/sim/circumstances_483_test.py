@@ -27,7 +27,7 @@ check("a mood is set with its cause and a clock from data", n.mood_source == "th
 loose = []
 for d in ("engine", "scenes", "npc", "services"):
     for p in Path(d).rglob("*.py"):
-        if str(p) == "engine/circumstance.py":
+        if p.as_posix() == "engine/circumstance.py":
             continue
         for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Assign):
@@ -112,7 +112,7 @@ check("...and the record of changes is capped in data", len(r.trait_history) == 
 writes = []
 for d in ("engine", "scenes", "npc", "services"):
     for p in Path(d).rglob("*.py"):
-        if str(p) in ("npc/traits.py", "engine/identity.py"):
+        if p.as_posix() in ("npc/traits.py", "engine/identity.py"):
             continue
         for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "change_trait":
