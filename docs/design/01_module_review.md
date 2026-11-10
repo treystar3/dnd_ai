@@ -34,6 +34,12 @@ pattern. The improvisation design (doc 2) now extends it instead of inventing a 
 riders on abilities, an element wheel, morale and surrender, and a graded control contest with diminishing returns. The 80% of fights
 rated trivial comes from which encounters are picked and the level ceiling. The rules themselves aren't thin.
 
+**The golden recordings failed on their data hash because of VERSION, not line endings.** They were recorded on VERSION 0.0.4.1,
+and the tree had moved to 0.0.5.7. `storage/statehash.data_hash()` hashes the version along with `data/`, so the hash changed even
+though no data file had. With VERSION set back, the tree hashed to the recorded value, under both the old hashing and the
+LF-normalised one. f560 still reads text files as LF, so a Windows checkout hashes the same as a Linux one, but that wasn't why
+these goldens failed (see the f560 commit).
+
 **The narration read-back exists for wild places.** `scenes/part_actions.py adopt_from_passage()` turns parts the narrator names into
 real entities, using a regex and the feature kinds' vocabulary, within a budget. What's missing is coverage: towns and buildings, and
 objects as well as places.
