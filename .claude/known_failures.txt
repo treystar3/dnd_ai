@@ -1,6 +1,3 @@
 # Tests that fail on the owner's Windows machine for reasons outside the code under test (clean run at f559,
 # 2026-11-09, Python 3.14, PYTHONUTF8=1, run_suite -j 4: 342/354). The stop hook and the push marker ignore these; remove a line
 # when its test is fixed. The fix for all of them is its own feature (next session).
-
-# the print/input scan reads .venv, .buildenv, .claude/hooks and docs/tests
-gui_test.py
