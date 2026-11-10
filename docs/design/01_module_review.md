@@ -34,6 +34,11 @@ pattern. The improvisation design (doc 2) now extends it instead of inventing a 
 riders on abilities, an element wheel, morale and surrender, and a graded control contest with diminishing returns. The 80% of fights
 rated trivial comes from which encounters are picked and the level ceiling. The rules themselves aren't thin.
 
+**The golden recordings failed on their data hash because of VERSION, not line endings.** They were recorded on VERSION 0.0.4.1 and
+the tree had moved to 0.0.5.7; the data hash then included the version, so it changed though no data file had. With VERSION set back,
+the tree hashed to the recorded value (see the f560 commit). f560 made the hash read text files as LF, so Windows and Linux checkouts
+agree, and f572 took the version out of the hash, so a release no longer forces a re-bless.
+
 **The narration read-back exists for wild places.** `scenes/part_actions.py adopt_from_passage()` turns parts the narrator names into
 real entities, using a regex and the feature kinds' vocabulary, within a budget. What's missing is coverage: towns and buildings, and
 objects as well as places.

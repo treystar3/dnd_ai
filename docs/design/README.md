@@ -5,6 +5,7 @@ The repo was not modified. Everything was tested in a local clone.
 ## Reviews and designs (put these in docs/design/)
 | File | What it is |
 |---|---|
+| `ROADMAP.md` | The order across these docs, agreed with the owner on 2026-11-10 |
 | `meravia_review.md` | First review (doc 01 corrects parts of it) |
 | `01_module_review.md` | The situation, quest, arc, event and combat modules read properly; corrections; findings |
 | `02_improvisation_design.md` | One improvisation ruling for every context (data, contract, pipeline, migration, tests) |
