@@ -58,7 +58,12 @@ def load(paths: list[str]) -> dict[str, list[str]]:
     """Every accepted passage, by task, in the order written."""
     out: dict[str, list[str]] = defaultdict(list)
     for p in paths:
-        for line in Path(p).read_text(encoding="utf-8", errors="replace").splitlines():
+        if str(p).endswith(".gz"):                               # a kept log, compressed
+            import gzip
+            text = gzip.open(p, "rt", encoding="utf-8", errors="replace").read()
+        else:
+            text = Path(p).read_text(encoding="utf-8", errors="replace")
+        for line in text.splitlines():
             try:
                 r = json.loads(line)
             except ValueError:

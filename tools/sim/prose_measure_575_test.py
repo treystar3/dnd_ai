@@ -41,6 +41,11 @@ check("a rejected answer is not measured", len(by["narrate"]) == 6 and not any("
 check("an exchange's lines and a frame's before and after are its prose", by["exchange"] == ["You came back. I said I would."]
       and by["dialogue_frame"] == ["She looks up from the ledger. She goes back to it."], (by["exchange"], by["dialogue_frame"]))
 
+import gzip
+gz = log.parent / "kept.jsonl.gz"
+gz.write_bytes(gzip.compress(log.read_bytes()))
+check("a kept log compressed with gzip reads the same", pm.load([str(gz)]) == by)
+
 m = pm.measure_all(by)["narrate"]
 check("a sentence said in two passages is a repeated sentence", m["sentences_per_k"] > 0 and "the gate stands open and nobody minds it" in m["top_sentences"], m)
 check("its five-word runs are repeated phrases", "the gate stands open and" in m["top_phrases"], m["top_phrases"])

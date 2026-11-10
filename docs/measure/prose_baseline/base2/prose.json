@@ -1,0 +1,284 @@
+{
+ "logs": [
+  "out/prose/base2/live_check_calls.jsonl",
+  "out/prose/base2/play_hunter/llm_calls.jsonl",
+  "out/prose/base2/play_talker/llm_calls.jsonl"
+ ],
+ "tasks": {
+  "narrate": {
+   "passages": 47,
+   "words": 5192,
+   "phrases_per_k": 1.733,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.128,
+   "worn_count": 10,
+   "worn_per_k": 12.904,
+   "stock_per_k": 0.193,
+   "top_phrases": [
+    "a few paces away the",
+    "along the perimeter of the",
+    "boar hide gloves as you",
+    "desk near the contract board",
+    "inside the air smells of",
+    "overcast sky casts an even",
+    "the center of the path",
+    "the overcast sky casts an"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "the overcast sky",
+    "the birch grove"
+   ],
+   "top_worn": [
+    "heavy",
+    "slight",
+    "steady",
+    "flat",
+    "rhythmic",
+    "sharp",
+    "pale",
+    "small"
+   ]
+  },
+  "combat_opening": {
+   "passages": 12,
+   "words": 1751,
+   "phrases_per_k": 11.422,
+   "sentences_per_k": 0.571,
+   "openings_share": 0.333,
+   "worn_count": 2,
+   "worn_per_k": 5.711,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "through the soles of your",
+    "soles of your iron sabatons",
+    "the soles of your iron",
+    "vibrates through the soles of",
+    "a low hiss cuts through",
+    "a low rumble vibrates through",
+    "dead tree leans at a",
+    "does not charge instead it"
+   ],
+   "top_sentences": [
+    "a low rumble vibrates through the soles of your iron sabatons"
+   ],
+   "top_openings": [
+    "you turn your",
+    "you push deeper"
+   ],
+   "top_worn": [
+    "sharp",
+    "dull"
+   ]
+  },
+  "combat_narrate": {
+   "passages": 24,
+   "words": 3735,
+   "phrases_per_k": 19.813,
+   "sentences_per_k": 0.268,
+   "openings_share": 0.5,
+   "worn_count": 3,
+   "worn_per_k": 3.481,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "alwick thrusts his staff forward",
+    "blade bites deep into the",
+    "bronze longsword in a wide",
+    "the blade bites deep into",
+    "a dull thud that sends",
+    "a lance of pure force",
+    "a surge of heat travels",
+    "and drives both daggers home"
+   ],
+   "top_sentences": [
+    "alwick thrusts his staff forward again"
+   ],
+   "top_openings": [
+    "you move toward",
+    "you swing your",
+    "you pivot your",
+    "you lunge forward",
+    "you swing the"
+   ],
+   "top_worn": [
+    "heavy",
+    "invisible",
+    "simultaneously"
+   ]
+  },
+  "combat_aftermath": {
+   "passages": 17,
+   "words": 2492,
+   "phrases_per_k": 24.077,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.235,
+   "worn_count": 7,
+   "worn_per_k": 16.854,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "a few paces back his",
+    "stands a few paces back",
+    "gran stands a few paces",
+    "few paces back his bow",
+    "as he lowers his staff",
+    "of steam rises from the",
+    "steam rises from the open",
+    "they do not speak the"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "alwick leans his",
+    "the drake lies"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "dull",
+    "pale",
+    "sharp",
+    "faint",
+    "small"
+   ]
+  },
+  "exchange": {
+   "passages": 74,
+   "words": 3243,
+   "phrases_per_k": 8.942,
+   "sentences_per_k": 0.925,
+   "openings_share": 0.338,
+   "worn_count": 4,
+   "worn_per_k": 9.251,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "it is just a scratch",
+    "odo i brought someone along",
+    "afternoon maren hello again odo",
+    "good afternoon maren hello again",
+    "i must see wound now",
+    "afternoon maren afternoon odo i",
+    "afternoon maren i see you",
+    "afternoon odo i brought someone"
+   ],
+   "top_sentences": [
+    "i must see wound now",
+    "i see you have someone with you today"
+   ],
+   "top_openings": [
+    "good afternoon maren",
+    "it is just",
+    "these stone houses",
+    "these houses look",
+    "the cut on"
+   ],
+   "top_worn": [
+    "heavy",
+    "steady",
+    "properly",
+    "regardless"
+   ]
+  },
+  "dialogue_frame": {
+   "passages": 105,
+   "words": 5613,
+   "phrases_per_k": 14.609,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.305,
+   "worn_count": 14,
+   "worn_per_k": 26.367,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "the dust kicked up by",
+    "his head back against the",
+    "adjusts the strap of his",
+    "against the timber frame of",
+    "back against the timber frame",
+    "closes his eyes for a",
+    "dust kicked up by a",
+    "dust kicked up by the"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "bram shifts his",
+    "gorz shifts his",
+    "bram leans back",
+    "you lean your",
+    "bram leans his"
+   ],
+   "top_worn": [
+    "gaze",
+    "slight",
+    "heavy",
+    "steady",
+    "rough",
+    "flat",
+    "slow",
+    "small"
+   ]
+  },
+  "npc_conversation": {
+   "passages": 39,
+   "words": 1321,
+   "phrases_per_k": 0.0,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.128,
+   "worn_count": 1,
+   "worn_per_k": 3.028,
+   "stock_per_k": 0.0,
+   "top_phrases": [],
+   "top_sentences": [],
+   "top_openings": [
+    "you are welcome",
+    "it isn't just"
+   ],
+   "top_worn": [
+    "folk"
+   ]
+  },
+  "hire_chat": {
+   "passages": 80,
+   "words": 1400,
+   "phrases_per_k": 1.429,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.062,
+   "worn_count": 2,
+   "worn_per_k": 9.286,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "for some steady pay that",
+    "looking for some steady pay"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "i am from",
+    "he was just"
+   ],
+   "top_worn": [
+    "steady",
+    "folk"
+   ]
+  },
+  "mentor_chat": {
+   "passages": 15,
+   "words": 515,
+   "phrases_per_k": 3.883,
+   "sentences_per_k": 1.942,
+   "openings_share": 0.467,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "about three quarters of the",
+    "three quarters of the time"
+   ],
+   "top_sentences": [
+    "i'm at rank a"
+   ],
+   "top_openings": [
+    "it's mostly about",
+    "i've seen enough",
+    "i'm at rank"
+   ],
+   "top_worn": []
+  }
+ }
+}

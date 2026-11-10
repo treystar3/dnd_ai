@@ -1,0 +1,271 @@
+{
+ "logs": [
+  "out/prose/base1/live_check_calls.jsonl",
+  "out/prose/base1/play_hunter/llm_calls.jsonl",
+  "out/prose/base1/play_talker/llm_calls.jsonl"
+ ],
+ "tasks": {
+  "narrate": {
+   "passages": 53,
+   "words": 6751,
+   "phrases_per_k": 1.778,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.038,
+   "worn_count": 14,
+   "worn_per_k": 14.961,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "near the center of the",
+    "a few paces away a",
+    "as you stand in the",
+    "at the edge of the",
+    "dust motes dance in the",
+    "interior smells of dry grain",
+    "into the shadows near the",
+    "smells of dry grain and"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "the transition from"
+   ],
+   "top_worn": [
+    "heavy",
+    "sharp",
+    "pale",
+    "small",
+    "slight",
+    "steady",
+    "rhythmic",
+    "slow"
+   ]
+  },
+  "combat_opening": {
+   "passages": 8,
+   "words": 1036,
+   "phrases_per_k": 0.965,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.0,
+   "worn_count": 3,
+   "worn_per_k": 13.514,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "that ripples through the humid"
+   ],
+   "top_sentences": [],
+   "top_openings": [],
+   "top_worn": [
+    "heavy",
+    "sharp",
+    "simply"
+   ]
+  },
+  "combat_narrate": {
+   "passages": 16,
+   "words": 2338,
+   "phrases_per_k": 5.56,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.188,
+   "worn_count": 2,
+   "worn_per_k": 5.133,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "alwick thrusts his staff forward",
+    "a bolt of force strikes",
+    "alwick thrusts his staff again",
+    "collapses face first into the",
+    "every ounce of your momentum",
+    "forward into the beast's reach",
+    "from behind the line gran",
+    "longsword in a wide arc"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "you heave your"
+   ],
+   "top_worn": [
+    "massive",
+    "brief"
+   ]
+  },
+  "combat_aftermath": {
+   "passages": 10,
+   "words": 1471,
+   "phrases_per_k": 15.636,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.0,
+   "worn_count": 4,
+   "worn_per_k": 16.315,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "his chest rising and falling",
+    "chest rising and falling in",
+    "in a loose semi circle",
+    "stand in a loose semi",
+    "a few paces back his",
+    "a loose semi circle around",
+    "alwick lowers his staff the",
+    "away the first lizardfolk lies"
+   ],
+   "top_sentences": [],
+   "top_openings": [],
+   "top_worn": [
+    "heavy",
+    "dull",
+    "steady",
+    "rhythmic"
+   ]
+  },
+  "exchange": {
+   "passages": 68,
+   "words": 2929,
+   "phrases_per_k": 10.584,
+   "sentences_per_k": 3.073,
+   "openings_share": 0.441,
+   "worn_count": 3,
+   "worn_per_k": 6.145,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "it is just a scratch",
+    "brought someone along who wants",
+    "afternoon maren afternoon odo i",
+    "good afternoon maren afternoon odo",
+    "haven't been through here before",
+    "my old workshop back home",
+    "someone along who wants to",
+    "the fee is three silver"
+   ],
+   "top_sentences": [
+    "it is just a scratch",
+    "the fee is three silver",
+    "they haven't been through here before",
+    "good work on that hide",
+    "she is gone now"
+   ],
+   "top_openings": [
+    "good afternoon maren",
+    "it is just",
+    "this place reminds",
+    "these houses resemble",
+    "it just feels"
+   ],
+   "top_worn": [
+    "heavy",
+    "slow",
+    "tired"
+   ]
+  },
+  "dialogue_frame": {
+   "passages": 105,
+   "words": 5234,
+   "phrases_per_k": 16.049,
+   "sentences_per_k": 0.191,
+   "openings_share": 0.219,
+   "worn_count": 12,
+   "worn_per_k": 22.927,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "his arms over his chest",
+    "crossing his arms over his",
+    "the strap of his pack",
+    "adjusts his grip on his",
+    "bram lets out a short",
+    "cart rattles past on the",
+    "dust kicked up by the",
+    "groaning under a load of"
+   ],
+   "top_sentences": [
+    "bram leans back slightly crossing his arms over his chest plate"
+   ],
+   "top_openings": [
+    "you stand near",
+    "bram shifts his",
+    "the wind catches",
+    "the dust kicked",
+    "you stand beside"
+   ],
+   "top_worn": [
+    "heavy",
+    "slight",
+    "gaze",
+    "rough",
+    "small",
+    "steady",
+    "flat",
+    "sharp"
+   ]
+  },
+  "npc_conversation": {
+   "passages": 50,
+   "words": 1662,
+   "phrases_per_k": 0.0,
+   "sentences_per_k": 0.602,
+   "openings_share": 0.08,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.602,
+   "top_phrases": [],
+   "top_sentences": [
+    "that is good news"
+   ],
+   "top_openings": [
+    "that is good",
+    "safe travels on"
+   ],
+   "top_worn": []
+  },
+  "hire_chat": {
+   "passages": 69,
+   "words": 1383,
+   "phrases_per_k": 2.892,
+   "sentences_per_k": 0.0,
+   "openings_share": 0.159,
+   "worn_count": 1,
+   "worn_per_k": 5.785,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "do not know if i",
+    "he is good man for",
+    "i do not know if",
+    "you're about as useful as"
+   ],
+   "top_sentences": [],
+   "top_openings": [
+    "i do not",
+    "you're about as",
+    "it's fine just",
+    "he is good",
+    "she did her"
+   ],
+   "top_worn": [
+    "steady"
+   ]
+  },
+  "mentor_chat": {
+   "passages": 15,
+   "words": 505,
+   "phrases_per_k": 9.901,
+   "sentences_per_k": 1.98,
+   "openings_share": 0.533,
+   "worn_count": 0,
+   "worn_per_k": 0.0,
+   "stock_per_k": 0.0,
+   "top_phrases": [
+    "about three out of four",
+    "because they didn't know which",
+    "in the capital he keeps",
+    "land a blow about three",
+    "you'll land a blow about"
+   ],
+   "top_sentences": [
+    "i'm an a rank"
+   ],
+   "top_openings": [
+    "i'm an a",
+    "worried no i've",
+    "i've got my",
+    "it's mostly down"
+   ],
+   "top_worn": []
+  }
+ }
+}
