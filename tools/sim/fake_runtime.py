@@ -30,6 +30,22 @@ if str(ROOT) not in sys.path:
 THE_3060 = "  CUDA0: NVIDIA GeForce RTX 3060 (12287 MiB, 11200 MiB free)"
 
 
+def bash() -> str:
+    """(f573) A bash to run a shell script with. On Windows, Git's own: the "bash" on PATH may be WSL's launcher (System32), which
+    has no Linux to run on a CI machine."""
+    import shutil
+    if os.name != "nt":
+        return shutil.which("bash") or "bash"
+    git = shutil.which("git")
+    for up in Path(git).resolve().parents[:3] if git else []:        # Git\cmd\git.exe or Git\mingw64\bin\git.exe
+        if (up / "bin" / "bash.exe").exists():
+            return str(up / "bin" / "bash.exe")
+    found = shutil.which("bash")
+    if found and "system32" not in found.lower():
+        return found
+    raise RuntimeError("no Git bash found: install Git for Windows")
+
+
 def write_exe(path: Path | str, script: str) -> Path:
     """(f561) A fake program running `script`: a shebang file on POSIX, pip's script launcher with the script appended on Windows."""
     import io, platform, zipfile

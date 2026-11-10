@@ -3,7 +3,8 @@ import simbot
 from llm.contracts import ActionIntent
 from engine import arcs, quests, clock, checks
 from ui import console as _c
-out=open("/tmp/party.out","w")
+import tempfile
+out=open(os.path.join(tempfile.gettempdir(),"party.out"),"w")   # (f573) /tmp is not a folder on every machine
 def w(*a): out.write(" ".join(str(x) for x in a)+"\n"); out.flush()
 notes=[]; _o=_c.note
 _c.note=lambda t,*a,**k:(notes.append(t),_o(t,*a,**k))[1]

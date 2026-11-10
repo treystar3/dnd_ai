@@ -35,7 +35,7 @@ def check(name, ok, detail=""):
 
 # ---- core.paths in a frozen build
 from core import paths
-scratch = Path(tempfile.mkdtemp(prefix="frozen531_"))
+scratch = Path(tempfile.mkdtemp(prefix="frozen531_")).resolve()     # (f573) the long name: Windows' TEMP may be 8.3 (RUNNER~1)
 bundle, app = scratch / "bundle", scratch / "app"
 (bundle / "data").mkdir(parents=True)
 app.mkdir()
