@@ -35,7 +35,7 @@ import fake_runtime
 from llm import runtime
 exe = tmp / "cuda" / runtime.exe_name()
 exe.parent.mkdir()
-fake_runtime.write_exe(exe, "#!python\nimport os, sys\nprint('fake', os.path.basename(os.path.dirname(os.path.abspath(sys.argv[0]))), sys.argv[1:])\n")
+fake_runtime.write_exe(exe, f"#!{sys.executable}\nimport os, sys\nprint('fake', os.path.basename(os.path.dirname(os.path.abspath(sys.argv[0]))), sys.argv[1:])\n")
 r = subprocess.run([str(exe), "--port", "8"], capture_output=True, text=True, timeout=60)
 check("the fake server starts as a program, sees its arguments and knows its build folder", r.returncode == 0 and "fake cuda ['--port', '8']" in r.stdout,
       (r.returncode, r.stdout, r.stderr[-300:]))

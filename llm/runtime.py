@@ -482,13 +482,23 @@ class GameLock:
             self._fh = None
 
 
+GAME_OPEN_LOOK = (0.05, 0.75)     # (f574) seconds between looks, and how long to look before a held lock is an open game
+
+
 def game_open(run_dir: Path | None = None) -> bool:
-    """Whether a game holds the lock now (another process, or this one)."""
-    lock = GameLock(run_dir)
-    if lock.acquire():
-        lock.release()
-        return False
-    return True
+    """Whether a game holds the lock now (another process, or this one). (f574) Asking takes the lock for a moment, so two tools asking at
+    once can each find it held by the other's question: a held lock is looked at again for a moment, and only one still held then is a
+    game (a game holds it for as long as it runs)."""
+    import time
+    step, patience = GAME_OPEN_LOOK
+    lock, until = GameLock(run_dir), time.monotonic() + patience
+    while True:
+        if lock.acquire():
+            lock.release()
+            return False
+        if time.monotonic() >= until:
+            return True
+        time.sleep(step)
 
 
 def attach(run_dir: Path | None = None) -> llama.LlamaServer:
